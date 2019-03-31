@@ -12,12 +12,4 @@ Window {
         anchors.fill: parent
         observed: "TestComponent.qml"
     }
-
-    MouseArea {
-        anchors.fill: parent
-        onClicked: {
-            console.log("Clicki di click")
-            theLiveLoader.reload()
-        }
-    }
 }
