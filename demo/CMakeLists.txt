@@ -14,11 +14,12 @@ add_executable(${PROJECT_NAME}
 		main.cpp 
 		qmlenginewrapper.cpp
 		qmlenginewrapper.h
-                qmlfileobserver.cpp
-                qmlfileobserver.h
-                qml/main.qml
-                qml/Angle.qml
-                qml/LiveLoader.qml
+		qmlfileobserver.cpp
+		qmlfileobserver.h
+		qml/main.qml
+		qml/Angle.qml
+		qml/CoordCanvas.qml
+		qml/LiveLoader.qml
 		qml/TestComponent.qml
 		qml/EmbeddedComponent.qml
 )

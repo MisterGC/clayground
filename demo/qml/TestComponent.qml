@@ -17,9 +17,8 @@ Timer {
 
 LiveLoader {
     anchors.fill: parent
-    observed: "Angle.qml"
+    observed: "CoordCanvas.qml"
 }
-
 
 Text {
     id: theLabel
