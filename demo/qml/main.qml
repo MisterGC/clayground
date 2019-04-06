@@ -3,9 +3,10 @@ import QtQuick.Window 2.12
 
 Window {
     visible: true
-    width: 640
+    width: 480
     height: 480
     title: qsTr("Hello World")
+    flags: Qt.WindowStaysOnTopHint
 
     LiveLoader {
         id: theLiveLoader

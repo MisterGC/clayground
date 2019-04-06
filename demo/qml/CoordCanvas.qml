@@ -5,53 +5,81 @@ Canvas
     id: theCanvas
     anchors.fill: parent
     property var ctx: getContext("2d")
-    property int pixelPerUnit: 100
+    property int pixelPerUnitX: 100
+    property int pixelPerUnitY: 100
 
-    function board(bw, bh, p)
+    property real xMin: -1.
+    property real xMax: 5.
+    property real yMin: -1.
+    property real yMax: 5.
+
+    function coordinateGrid()
     {
-        for (var x = 0; x <= bw; x += 40) {
-            ctx.moveTo(0.5 + x + p, p);
-            ctx.lineTo(0.5 + x + p, bh + p);
+        ctx.beginPath()
+        var dx = xMax - xMin;
+        var dy = yMax - yMin;
+
+        for (var x = 0; x <= width; x += width/dx) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
         }
 
-        for (x = 0; x <= bh; x += 40) {
-            ctx.moveTo(p, 0.5 + x + p);
-            ctx.lineTo(bw + p, 0.5 + x + p);
+        for (var y = 0; y <=height; y += height/dy){
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
         }
+
         ctx.strokeStyle = Qt.rgba(0,0,0,.2)
+        ctx.stroke();
+
+        ctx.beginPath()
+        ctx.strokeStyle = Qt.rgba(0,0,0,1)
         ctx.stroke();
     }
 
-    function line(x1, y1, x2, y2)
+    function line(x1, y1, x2, y2, withLabel, color)
     {
         ctx.beginPath();
         ctx.lineWidth = 4;
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.strokeStyle = Qt.rgba(.2,1,.4,1)
+        ctx.moveTo(x1 * pixelPerUnitX, y1 * pixelPerUnitY);
+        ctx.lineTo(x2 * pixelPerUnitX, y2 * pixelPerUnitY);
+        ctx.strokeStyle = color;
         ctx.stroke();
-        point(x1, y1, "A")
-        point(x2, y2, "B")
-        ctx.fill();
+
+        if (withLabel) {
+            point(x1, y1, "A")
+            point(x2, y2, "B")
+            ctx.fill();
+        }
     }
 
     function point(x, y, label)
     {
         var oldStyle = ctx.strokeStyle
-        ctx.arc(x, y, 5, 0., 2*Math.PI, true);
+        ctx.arc(x * pixelPerUnitX, y * pixelPerUnitY, 5, 0., 2*Math.PI, true);
         ctx.lineWidth = 1;
         ctx.strokeStyle = Qt.rgba(.2,.2,.2,1)
         ctx.font = "bold 15px sans-serif";
-        var clabel = label + "(" + x/pixelPerUnit + "," + y/pixelPerUnit + ")"
-        ctx.fillText(clabel, x - 20, y + 20)
+        var clabel = label + "(" + x + "," + y + ")"
+        ctx.fillText(clabel, x * pixelPerUnitX - 20, y * pixelPerUnitY + 20)
+    }
+
+    function coordinateAxis()
+    {
+        if (xMin < 0 && xMax > 0)
+            line(Math.abs(xMin), yMin, Math.abs(xMin), yMax, false, Qt.rgba(.2,.2,.2,1))
+
+        if (yMin < 0 && yMax > 0)
+            line(xMin, Math.abs(yMin), xMax, Math.abs(yMin), false, Qt.rgba(.2,.2,.2,1))
     }
 
     onPaint:
     {
         ctx = getContext("2d")
         ctx.reset();
-        board(width, height, 0)
-        line(width/4, height/2, 3*width/4, height/2)
+        coordinateGrid();
+        coordinateAxis();
+        line(1.2, 2.4, 3.6, 2.4, true, Qt.rgba(.2,1,.4,1));
     }
 
 }
