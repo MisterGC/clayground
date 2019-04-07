@@ -8,10 +8,15 @@ Canvas
     property int pixelPerUnitX: 100
     property int pixelPerUnitY: 100
 
-    property real xMin: -1.
+    property real xMin: -.5
     property real xMax: 5.
-    property real yMin: -1.
+    property real yMin: -.5
     property real yMax: 5.
+
+    Component.onCompleted: {
+        pixelPerUnitX = width / (xMax - xMin)
+        pixelPerUnitY = height / (yMax - yMin)
+    }
 
     function coordinateGrid()
     {
