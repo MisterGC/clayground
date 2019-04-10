@@ -10,7 +10,6 @@ void QmlEngineWrapper::clearCache()
     this->trimComponentCache();
     this->clearComponentCache();
     this->trimComponentCache();
-    qDebug() << "Heyhoh it's clear!";
 }
 
 

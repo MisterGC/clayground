@@ -13,15 +13,14 @@ void QmlFileObserver::observeFile(const QString &file)
 {
     const QString path = qmlBaseDir_ + "/" + file;
     QFile f(path);
-    qDebug() << "File to observe: " << path << " exists " << f.exists();
-
     auto ok = fileObserver_.addPath(path);
-    qDebug() << "Observed files: " << fileObserver_.files().join(";") << " ok " << ok;
+    if (!ok) qCritical() << "Unable to observe " << path;
 }
 
 void QmlFileObserver::onFileChanged(const QString &path)
 {
-    qDebug() << "File change!";
+    // INFO Re-add file as otherwise (at least on Linux)
+    // further changes are not recognized
     fileObserver_.removePath(path);
     emit qmlFileChanged(path);
     fileObserver_.addPath(path);
