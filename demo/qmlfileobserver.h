@@ -10,6 +10,7 @@ public:
     QmlFileObserver(const QString& qmlBaseDir, QObject* parent = nullptr);
 
 public slots:
+    QString observedPath() const;
     void observeFile(const QString& file);
 
 private slots:

@@ -18,6 +18,19 @@ Canvas
         pixelPerUnitY = height / (yMax - yMin)
     }
 
+    function xToScreen(xCart) {
+        var xScr = (xCart - xMin) * pixelPerUnitX
+        console.log("Screen X: " + xScr)
+        return xScr;
+    }
+
+    function yToScreen(yCart) {
+        var yScr = (yCart - yMin) * pixelPerUnitY
+        console.log("Screen Y: " + yScr)
+        return yScr;
+    }
+
+
     function coordinateGrid()
     {
         ctx.beginPath()
@@ -46,14 +59,15 @@ Canvas
     {
         ctx.beginPath();
         ctx.lineWidth = 4;
-        ctx.moveTo(x1 * pixelPerUnitX, y1 * pixelPerUnitY);
-        ctx.lineTo(x2 * pixelPerUnitX, y2 * pixelPerUnitY);
+        ctx.moveTo(xToScreen(x1) * pixelPerUnitX, yToScreen(y1) * pixelPerUnitY);
+        ctx.lineTo(xToScreen(x2) * pixelPerUnitX, yToScreen(y2) * pixelPerUnitY);
         ctx.strokeStyle = color;
         ctx.stroke();
 
+        ctx.beginPath();
         if (withLabel) {
-            point(x1, y1, "A")
-            point(x2, y2, "B")
+            point(xToScreen(x1), yToScreen(y1), "A")
+            point(xToScreen(x2), yToScreen(y2), "B")
             ctx.fill();
         }
     }
@@ -78,13 +92,28 @@ Canvas
             line(xMin, Math.abs(yMin), xMax, Math.abs(yMin), false, Qt.rgba(.2,.2,.2,1))
     }
 
+    property real lY: 2.
+    Behavior on lY { NumberAnimation {duration: 500}}
+    Timer {
+        interval: 1000
+        repeat: true
+        running: true
+        onTriggered: {
+            if (lY < 3.)
+                lY = 3.;
+            else
+                lY = 1.;
+        }
+    }
+    onLYChanged: requestPaint()
+
     onPaint:
     {
         ctx = getContext("2d")
         ctx.reset();
         coordinateGrid();
         coordinateAxis();
-        line(1.2, 2.4, 3.6, 2.4, true, Qt.rgba(.2,1,.4,1));
+        line(1.2, 2.4, 3.6, lY, true, Qt.rgba(.2,1,.4,1));
     }
 
 }

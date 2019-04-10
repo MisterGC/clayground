@@ -11,6 +11,6 @@ Window {
     LiveLoader {
         id: theLiveLoader
         anchors.fill: parent
-        observed: "TestComponent.qml"
+        observed: "Sandbox.qml"
     }
 }

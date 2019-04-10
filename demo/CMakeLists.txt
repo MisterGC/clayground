@@ -16,12 +16,10 @@ add_executable(${PROJECT_NAME}
 		qmlenginewrapper.h
 		qmlfileobserver.cpp
 		qmlfileobserver.h
-		qml/main.qml
 		qml/Angle.qml
 		qml/CoordCanvas.qml
-		qml/LiveLoader.qml
-		qml/TestComponent.qml
-		qml/EmbeddedComponent.qml
+		qml/Sandbox.qml
+                qml/qmlres.qrc
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)

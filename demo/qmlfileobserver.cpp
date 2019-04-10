@@ -9,6 +9,11 @@ QmlFileObserver::QmlFileObserver(const QString &qmlBaseDir, QObject *parent)
             this, &QmlFileObserver::onFileChanged);
 }
 
+QString QmlFileObserver::observedPath() const
+{
+   return qmlBaseDir_;
+}
+
 void QmlFileObserver::observeFile(const QString &file)
 {
     const QString path = qmlBaseDir_ + "/" + file;

@@ -2,7 +2,7 @@ import QtQuick 2.12
 
 Loader {
     property string observed: ""
-    source: observed
+    source: "file:" + FileObserver.observedPath() + "/" + observed
 
     Component.onCompleted: {
         FileObserver.observeFile(observed);
