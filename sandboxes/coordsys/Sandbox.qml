@@ -21,15 +21,6 @@ LivLd.LiveLoader {
     observed: "CoordCanvas.qml"
 }
 
-Text {
-    id: theLabel
-    text: "or somewhere else?"
-    font.pixelSize: parent.height / 14
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: 10
-}
-
 MouseArea {
     anchors.fill: parent
     onMouseXChanged: updateAngle()

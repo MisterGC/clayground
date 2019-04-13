@@ -24,41 +24,35 @@ Canvas
     }
 
     function yToScreen(yCart) {
-        var yScr = (yCart - yMin) * pixelPerUnitY
+        var yScr = height - ((yCart - yMin) * pixelPerUnitY)
         return yScr;
     }
 
+    function coordinateAxis()
+    {
+        if (xMin < 0 && xMax > 0)
+            line(0, yMin, 0, yMax, false, Qt.rgba(.2,.2,.2,1))
+
+        if (yMin < 0 && yMax > 0)
+            line(xMin, 0, xMax, 0, false, Qt.rgba(.2,.2,.2,1))
+    }
 
     function coordinateGrid()
     {
-        ctx.beginPath()
-        var dx = xMax - xMin;
-        var dy = yMax - yMin;
+        for (var x=Math.ceil(xMin); x <= Math.floor(xMax); x++)
+            line(x, yMin, x, yMax, false, Qt.rgba(.5, .5, .5, .5), 2)
 
-        for (var x = 0; x <= width; x += width/dx) {
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-        }
-
-        for (var y = 0; y <=height; y += height/dy){
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-        }
-
-        ctx.strokeStyle = Qt.rgba(0,0,0,.2)
-        ctx.stroke();
-
-        ctx.beginPath()
-        ctx.strokeStyle = Qt.rgba(0,0,0,1)
-        ctx.stroke();
+        for (var y=Math.ceil(yMin); y <= Math.floor(yMax); y++)
+            line(xMin, y, xMax, y, false, Qt.rgba(.5, .5, .5, .5), 2)
     }
 
-    function line(x1, y1, x2, y2, withLabel, color)
+    function line(x1, y1, x2, y2, withLabel, color, width)
     {
         ctx.beginPath();
         ctx.lineWidth = 4;
-        ctx.moveTo(xToScreen(x1) * pixelPerUnitX, yToScreen(y1) * pixelPerUnitY);
-        ctx.lineTo(xToScreen(x2) * pixelPerUnitX, yToScreen(y2) * pixelPerUnitY);
+        if (width) ctx.lineWidth = width
+        ctx.moveTo(xToScreen(x1), yToScreen(y1));
+        ctx.lineTo(xToScreen(x2), yToScreen(y2));
         ctx.strokeStyle = color;
         ctx.stroke();
 
@@ -81,15 +75,6 @@ Canvas
         ctx.fillText(clabel, x * pixelPerUnitX - 20, y * pixelPerUnitY + 20)
     }
 
-    function coordinateAxis()
-    {
-        if (xMin < 0 && xMax > 0)
-            line(Math.abs(xMin), yMin, Math.abs(xMin), yMax, false, Qt.rgba(.2,.2,.2,1))
-
-        if (yMin < 0 && yMax > 0)
-            line(xMin, Math.abs(yMin), xMax, Math.abs(yMin), false, Qt.rgba(.2,.2,.2,1))
-    }
-
     property real lY: 2.
     Behavior on lY { NumberAnimation {duration: 500}}
     Timer {
@@ -97,10 +82,8 @@ Canvas
         repeat: true
         running: true
         onTriggered: {
-            if (lY < 3.)
-                lY = 3.;
-            else
-                lY = 1.;
+            if (lY < 3.) lY = 3.;
+            else lY = 1.;
         }
     }
     onLYChanged: requestPaint()
@@ -111,7 +94,9 @@ Canvas
         ctx.reset();
         coordinateGrid();
         coordinateAxis();
-        line(1.2, 2.4, 3.6, lY, true, Qt.rgba(.2,1,.4,1));
+        line(1, 2, 4, lY, true, Qt.rgba(.2,.2,.6,1));
+        line(1, 4, 4, lY, true, Qt.rgba(.2,.2,.6,1));
+        line(1, 2, 1, 4, true, Qt.rgba(.2,.2,.6,1));
     }
 
 }
