@@ -1,12 +1,10 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (sbx_coordsys)
+project (sbx_gui)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
-Angle.qml
-Sandbox.qml
-CoordCanvas.qml)
+Sandbox.qml)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11
