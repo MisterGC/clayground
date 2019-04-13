@@ -1,4 +1,6 @@
 import QtQuick 2.12
+import "qrc:/" as LivLd
+
 Item
 {
     anchors.fill: parent
@@ -7,7 +9,6 @@ Timer {
     interval: 500
     running: true
     repeat: true
-    Component.onCompleted: console.log("hohoh") //theLabel.text = Math.round(theAngle.angle) + "° " + theAngle.classifyAngle(theAngle.angle)
 
     onTriggered: {
         var newAngle = Math.random() * (Math.PI * 2);
@@ -15,13 +16,14 @@ Timer {
     }
 }
 
-LiveLoader {
+LivLd.LiveLoader {
     anchors.fill: parent
     observed: "CoordCanvas.qml"
 }
 
 Text {
     id: theLabel
+    text: "or somewhere else?"
     font.pixelSize: parent.height / 14
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
@@ -35,9 +37,7 @@ MouseArea {
     function updateAngle()
     {
        var vec = Qt.vector2d(mouseX - width/2, mouseY - height/2);
-       console.log("x: " + vec.x + " y: " + vec.y)
        var r = vec.length();
-       console.log("r: " + r)
        var alpha = Math.acos(vec.x/r);
        if (vec.y < 0) {
            if (x < 0)
@@ -46,9 +46,7 @@ MouseArea {
                alpha = (2 * Math.PI) - alpha;
        }
 
-       console.log("angle: " + alpha)
        theAngle.updateAngle(alpha);
-
     }
 
 }

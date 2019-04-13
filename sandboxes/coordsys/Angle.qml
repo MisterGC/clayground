@@ -60,9 +60,7 @@ Canvas
         function updateAngle()
         {
            var vec = Qt.vector2d(mouseX - width/2, mouseY - height/2);
-           console.log("x: " + vec.x + " y: " + vec.y)
            var r = vec.length();
-           console.log("r: " + r)
            var alpha = Math.acos(vec.x/r);
            if (vec.y < 0) {
                if (x < 0)
@@ -71,11 +69,8 @@ Canvas
                    alpha = (2 * Math.PI) - alpha;
            }
 
-           console.log("angle: " + alpha)
            theAngle.updateAngle(alpha);
-
         }
-
     }
     function drawBoard(context, bw, bh, p)
     {

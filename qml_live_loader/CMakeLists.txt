@@ -16,9 +16,6 @@ add_executable(${PROJECT_NAME}
 		qmlenginewrapper.h
 		qmlfileobserver.cpp
 		qmlfileobserver.h
-		qml/Angle.qml
-		qml/CoordCanvas.qml
-		qml/Sandbox.qml
                 qml/qmlres.qrc
 )
 

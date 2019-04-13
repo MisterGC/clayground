@@ -4,7 +4,7 @@ Canvas
 {
     id: theCanvas
     anchors.fill: parent
-    property var ctx: getContext("2d")
+    property var ctx: null
     property int pixelPerUnitX: 100
     property int pixelPerUnitY: 100
 
@@ -20,13 +20,11 @@ Canvas
 
     function xToScreen(xCart) {
         var xScr = (xCart - xMin) * pixelPerUnitX
-        console.log("Screen X: " + xScr)
         return xScr;
     }
 
     function yToScreen(yCart) {
         var yScr = (yCart - yMin) * pixelPerUnitY
-        console.log("Screen Y: " + yScr)
         return yScr;
     }
 
