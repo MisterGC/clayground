@@ -9,10 +9,13 @@ Item {
     //Component.onCompleted: pixelPerUnit = 100
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
-    property real worldXMin: -10
-    property real worldXMax:  10
-    property real worldYMin: -10
-    property real worldYMax: 10
+    readonly property real worldXMin: -10
+    readonly property real worldXMax:  10
+    readonly property real worldYMin: -10
+    readonly property real worldYMax: 10
+
+    property real contentWorldX: screenXToWorld(flckable.contentX)
+    property real contentWorldY: screenYToWorld(flckable.contentY)
 
     function xToScreen(xCart) {
         var xScr = (xCart - worldXMin) * pixelPerUnit;
@@ -127,9 +130,9 @@ Item {
                 Text {  text: "(" + col.xScr + "|" + col.yScr + ") " }
                 Text {   text:
                               "(" +
-                              Math.round(screenXToWorld(col.xScr - flckable.width/2)) +
+                              Math.round(theWorld.contentWorldX) +
                               "|"  +
-                              Math.round(screenYToWorld(col.yScr - flckable.height/2)) +
+                              Math.round(theWorld.contentWorldY) +
                               ") -> " +
                               "(" +
                               Math.round(screenXToWorld(col.xScr + flckable.width/2)) +
