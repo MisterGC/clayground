@@ -7,8 +7,7 @@ Flickable
    contentWidth: theCanvas.width
    contentHeight: theCanvas.height
 
-   property int pixelPerUnitX: 100
-   property int pixelPerUnitY: 100
+   property int pixelPerUnit: 100
 
    Canvas
    {
@@ -22,19 +21,13 @@ Flickable
        property real yMin: -.5
        property real yMax: 5.
 
-       Component.onCompleted: {
-           pixelPerUnitX = width / (xMax - xMin)
-           pixelPerUnitY = height / (yMax - yMin)
-           requestPaint()
-       }
-
        function xToScreen(xCart) {
-           var xScr = (xCart - xMin) * pixelPerUnitX
+           var xScr = (xCart - xMin) * pixelPerUnit
            return xScr;
        }
 
        function yToScreen(yCart) {
-           var yScr = height - ((yCart - yMin) * pixelPerUnitY)
+           var yScr = height - ((yCart - yMin) * pixelPerUnit)
            return yScr;
        }
 
@@ -77,12 +70,12 @@ Flickable
        function point(x, y, label)
        {
            var oldStyle = ctx.strokeStyle
-           ctx.arc(x * pixelPerUnitX, y * pixelPerUnitY, 5, 0., 2*Math.PI, true);
+           ctx.arc(x * pixelPerUnit, y * pixelPerUnit, 5, 0., 2*Math.PI, true);
            ctx.lineWidth = 1;
            ctx.strokeStyle = Qt.rgba(.2,.2,.2,1)
            ctx.font = "bold 15px sans-serif";
            var clabel = label + "(" + x + "," + y + ")"
-           ctx.fillText(clabel, x * pixelPerUnitX - 20, y * pixelPerUnitY + 20)
+           ctx.fillText(clabel, x * pixelPerUnit - 20, y * pixelPerUnit + 20)
        }
 
        property real lY: 2.
@@ -100,7 +93,6 @@ Flickable
 
        onPaint:
        {
-           console.log("About to paint")
            ctx = getContext("2d")
            ctx.reset();
            coordinateGrid();
