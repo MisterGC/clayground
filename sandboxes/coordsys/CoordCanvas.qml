@@ -1,106 +1,140 @@
 import QtQuick 2.0
 
-Flickable
-{
-   id: theFlickable
-   anchors.fill: parent
-   contentWidth: theCanvas.width
-   contentHeight: theCanvas.height
+Item {
+    id: theWorld
+    anchors.fill: parent
 
-   property int pixelPerUnit: 100
+    property int pixelPerUnit: 50
+    Behavior on pixelPerUnit { NumberAnimation {duration: 2000}}
+    //Component.onCompleted: pixelPerUnit = 100
+    onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
-   Canvas
-   {
-       id: theCanvas
-       width: theFlickable.width
-       height: theFlickable.height
-       property var ctx: null
+    property real worldXMin: -50
+    property real worldXMax:  50
+    property real worldYMin: -50
+    property real worldYMax: 50
 
-       property real xMin: -.5
-       property real xMax: 5.
-       property real yMin: -.5
-       property real yMax: 5.
+    function xToScreen(xCart) {
+        var xScr = (xCart - worldXMin) * pixelPerUnit
+        return xScr;
+    }
 
-       function xToScreen(xCart) {
-           var xScr = (xCart - xMin) * pixelPerUnit
-           return xScr;
-       }
+    function screenXToWorld(x) {
+        var xW = (x)
 
-       function yToScreen(yCart) {
-           var yScr = height - ((yCart - yMin) * pixelPerUnit)
-           return yScr;
-       }
+    }
 
-       function coordinateAxis()
-       {
-           if (xMin < 0 && xMax > 0)
-               line(0, yMin, 0, yMax, false, Qt.rgba(.2,.2,.2,1))
+    function yToScreen(yCart) {
+        var yScr = height - ((yCart - worldYMin) * pixelPerUnit)
+        return yScr;
+    }
 
-           if (yMin < 0 && yMax > 0)
-               line(xMin, 0, xMax, 0, false, Qt.rgba(.2,.2,.2,1))
-       }
+    Canvas
+    {
+        id: theCanvas
+        anchors.fill: parent
+        property var ctx: null
 
-       function coordinateGrid()
-       {
-           for (var x=Math.ceil(xMin); x <= Math.floor(xMax); x++)
-               line(x, yMin, x, yMax, false, Qt.rgba(.5, .5, .5, .5), 2)
+        function coordinateAxis()
+        {
+            if (worldXMin < 0 && worldXMax > 0)
+                line(0, worldYMin, 0, worldYMax, false, Qt.rgba(.2,.2,.2,1))
 
-           for (var y=Math.ceil(yMin); y <= Math.floor(yMax); y++)
-               line(xMin, y, xMax, y, false, Qt.rgba(.5, .5, .5, .5), 2)
-       }
+            if (worldYMin < 0 && worldYMax > 0)
+                line(worldXMin, 0, worldXMax, 0, false, Qt.rgba(.2,.2,.2,1))
+        }
 
-       function line(x1, y1, x2, y2, withLabel, color, width)
-       {
-           ctx.beginPath();
-           ctx.lineWidth = 4;
-           if (width) ctx.lineWidth = width
-           ctx.moveTo(xToScreen(x1), yToScreen(y1));
-           ctx.lineTo(xToScreen(x2), yToScreen(y2));
-           ctx.strokeStyle = color;
-           ctx.stroke();
+        function coordinateGrid()
+        {
+            for (var x=Math.ceil(worldXMin); x <= Math.floor(worldXMax); x++)
+                line(x, worldYMin, x, worldYMax, false, Qt.rgba(.5, .5, .5, .5), 2)
 
-           ctx.beginPath();
-           if (withLabel) {
-               point(xToScreen(x1), yToScreen(y1), "A")
-               point(xToScreen(x2), yToScreen(y2), "B")
-               ctx.fill();
-           }
-       }
+            for (var y=Math.ceil(worldYMin); y <= Math.floor(worldYMax); y++)
+                line(worldXMin, y, worldXMax, y, false, Qt.rgba(.5, .5, .5, .5), 2)
+        }
 
-       function point(x, y, label)
-       {
-           var oldStyle = ctx.strokeStyle
-           ctx.arc(x * pixelPerUnit, y * pixelPerUnit, 5, 0., 2*Math.PI, true);
-           ctx.lineWidth = 1;
-           ctx.strokeStyle = Qt.rgba(.2,.2,.2,1)
-           ctx.font = "bold 15px sans-serif";
-           var clabel = label + "(" + x + "," + y + ")"
-           ctx.fillText(clabel, x * pixelPerUnit - 20, y * pixelPerUnit + 20)
-       }
+        function line(x1, y1, x2, y2, withLabel, color, width)
+        {
+            ctx.beginPath();
+            ctx.lineWidth = 4;
+            if (width) ctx.lineWidth = width
+            ctx.moveTo(xToScreen(x1), yToScreen(y1));
+            ctx.lineTo(xToScreen(x2), yToScreen(y2));
+            ctx.strokeStyle = color;
+            ctx.stroke();
 
-       property real lY: 2.
-       Behavior on lY { NumberAnimation {duration: 500}}
-       Timer {
-           interval: 1000
-           //repeat: true
-           //running: true
-           onTriggered: {
-               if (lY < 3.) lY = 3.;
-               else lY = 1.;
-           }
-       }
-       onLYChanged: requestPaint()
+            ctx.beginPath();
+            if (withLabel) {
+                point(xToScreen(x1), yToScreen(y1), "A")
+                point(xToScreen(x2), yToScreen(y2), "B")
+                ctx.fill();
+            }
+        }
 
-       onPaint:
-       {
-           ctx = getContext("2d")
-           ctx.reset();
-           coordinateGrid();
-           coordinateAxis();
-           line(1, 2, 4, lY, true, Qt.rgba(.2,.2,.6,1));
-           line(1, 4, 4, lY, true, Qt.rgba(.2,.2,.6,1));
-           line(1, 2, 1, 4, true, Qt.rgba(.6,.0,.0,1));
-       }
+        function point(x, y, label)
+        {
+            var oldStyle = ctx.strokeStyle
+            ctx.arc(x * pixelPerUnit, y * pixelPerUnit, 5, 0., 2*Math.PI, true);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = Qt.rgba(.2,.2,.2,1)
+            ctx.font = "bold 15px sans-serif";
+            var clabel = label + "(" + x + "," + y + ")"
+            ctx.fillText(clabel, x * pixelPerUnit - 20, y * pixelPerUnit + 20)
+        }
 
-   }
+        property real lY: 2.
+        //       Behavior on lY { NumberAnimation {duration: 500}}
+        //       Timer {
+        //           interval: 1000
+        //           repeat: true
+        //           running: true
+        //           onTriggered: {
+        //               if (theCanvas.lY < 3.) theCanvas.lY = 3.;
+        //               else theCanvas.lY = 1.;
+        //           }
+        //       }
+        //       onLYChanged: requestPaint()
+
+        onPaint:
+        {
+            ctx = getContext("2d")
+            ctx.reset();
+            coordinateGrid();
+            coordinateAxis();
+            //line(1, 2, 4, lY, true, Qt.rgba(.2,.2,.6,1));
+            //line(1, 4, 4, lY, true, Qt.rgba(.2,.2,.6,1));
+            //line(1, 2, 1, 4, true, Qt.rgba(.6,.0,.0,1));
+        }
+
+        Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 10
+            text: Math.floor(theFlickable.contentX) +
+                  "," +
+                  Math.floor(theFlickable.contentY)
+        }
+
+    }
+
+    Flickable
+    {
+
+        id: theFlickable
+        anchors.fill: parent
+
+        contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
+        contentHeight: Math.abs(worldYMax - worldYMin) * pixelPerUnit
+        contentX: Math.abs(worldXMin) * pixelPerUnit - width/2
+        contentY: Math.abs(worldYMax) * pixelPerUnit - height/2
+
+        Item
+        {
+            width: theFlickable.contentWidth
+            height: theFlickable.contentHeight
+
+        }
+
+    }
 }
