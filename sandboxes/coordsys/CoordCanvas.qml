@@ -5,8 +5,7 @@ Item {
     anchors.fill: parent
 
     property int pixelPerUnit: 50
-    Behavior on pixelPerUnit { NumberAnimation {duration: 2000}}
-    //Component.onCompleted: pixelPerUnit = 100
+    Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
     readonly property real worldXMin: -100
@@ -61,12 +60,12 @@ Item {
         function coordinateGrid()
         {
             var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
-            var maxX = Math.floor(minX + theWorld.sWidthInWU)
+            var maxX = minX + theWorld.sWidthInWU
             console.log("maxX: " + maxX + " minX: " + minX)
             for (var x=minX; x <= maxX; x++)
                 line(x, theWorld.worldYMax, x, theWorld.worldYMax - theWorld.sHeightInWU, false, Qt.rgba(.5, .5, .5, .5), 2)
 
-            var maxY = theWorld.worldYMax - (Math.floor(theWorld.yInWU) - theWorld.yInWU)
+            var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
             var minY = maxY - theWorld.sHeightInWU
             console.log("maxY: " + maxY + " minY: " + minY)
             for (var y=minY; y <= maxY; y++)
@@ -123,6 +122,9 @@ Item {
                 property int xScr: flckable.contentX + flckable.width/2
                 property int yScr: flckable.contentY + flckable.height/2
 
+                Text {  text: "(" + col.xScr +
+                              "|" +
+                              col.yScr + ") " }
                 Text {  text: "(" + screenXToWorld(col.xScr).toFixed(2) +
                               "|" +
                               screenYToWorld(col.yScr).toFixed(2) + ") " }
@@ -159,6 +161,34 @@ Item {
         {
             width: flckable.contentWidth
             height: flckable.contentHeight
+        }
+        Component.onCompleted: flckable.forceActiveFocus()
+        Keys.onPressed: {
+            console.log("Pressed: " + event.key)
+            if (event.key === Qt.Key_E) {
+                theWorld.pixelPerUnit += 10
+                event.accepted = true;
+            }
+            if (event.key === Qt.Key_D) {
+                if (theWorld.pixelPerUnit > 20) theWorld.pixelPerUnit -= 10
+                event.accepted = true;
+            }
+            if (event.key === Qt.Key_I) {
+                if (flckable.contentY > 10) flckable.contentY -= 10
+                event.accepted = true;
+            }
+            if (event.key === Qt.Key_K) {
+                if (flckable.contentY < flckable.contentHeight - flckable.height) flckable.contentY += 10
+                event.accepted = true;
+            }
+            if (event.key === Qt.Key_J) {
+                if (flckable.contentX > 10) flckable.contentX -= 10
+                event.accepted = true;
+            }
+            if (event.key === Qt.Key_L) {
+                if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
+                event.accepted = true;
+            }
         }
 
     }
