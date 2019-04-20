@@ -9,24 +9,29 @@ Item {
     //Component.onCompleted: pixelPerUnit = 100
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
-    property real worldXMin: -50
-    property real worldXMax:  50
-    property real worldYMin: -50
-    property real worldYMax: 50
+    property real worldXMin: -10
+    property real worldXMax:  10
+    property real worldYMin: -10
+    property real worldYMax: 10
 
     function xToScreen(xCart) {
-        var xScr = (xCart - worldXMin) * pixelPerUnit
+        var xScr = (xCart - worldXMin) * pixelPerUnit;
         return xScr;
     }
 
-    function screenXToWorld(x) {
-        var xW = (x)
-
+    function screenXToWorld(xScr) {
+        var xW = xScr/pixelPerUnit + worldXMin;
+        return xW;
     }
 
     function yToScreen(yCart) {
-        var yScr = height - ((yCart - worldYMin) * pixelPerUnit)
+        var yScr = flckable.contentHeight - ((yCart - worldYMin) * pixelPerUnit);
         return yScr;
+    }
+
+    function screenYToWorld(yScr) {
+        var yW = ((flckable.contentHeight - yScr) / pixelPerUnit) + worldYMin;
+        return yW;
     }
 
     Canvas
@@ -106,14 +111,34 @@ Item {
             //line(1, 2, 1, 4, true, Qt.rgba(.6,.0,.0,1));
         }
 
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 10
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 10
-            text: Math.floor(theFlickable.contentX) +
-                  "," +
-                  Math.floor(theFlickable.contentY)
+        Rectangle {
+            anchors.centerIn: parent
+            color: "red"
+            width: 10
+            height: 10
+
+            Column {
+                id: col
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.bottom
+                property int xScr: Math.floor(flckable.contentX + flckable.width/2)
+                property int yScr: Math.floor(flckable.contentY + flckable.height/2)
+
+                Text {  text: "(" + col.xScr + "|" + col.yScr + ") " }
+                Text {   text:
+                              "(" +
+                              Math.round(screenXToWorld(col.xScr - flckable.width/2)) +
+                              "|"  +
+                              Math.round(screenYToWorld(col.yScr - flckable.height/2)) +
+                              ") -> " +
+                              "(" +
+                              Math.round(screenXToWorld(col.xScr + flckable.width/2)) +
+                              "|"  +
+                              Math.round(screenYToWorld(col.yScr + flckable.height/2)) +
+                              ")"
+                }
+            }
+
         }
 
     }
@@ -121,7 +146,7 @@ Item {
     Flickable
     {
 
-        id: theFlickable
+        id: flckable
         anchors.fill: parent
 
         contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
@@ -131,9 +156,8 @@ Item {
 
         Item
         {
-            width: theFlickable.contentWidth
-            height: theFlickable.contentHeight
-
+            width: flckable.contentWidth
+            height: flckable.contentHeight
         }
 
     }
