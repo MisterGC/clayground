@@ -9,13 +9,19 @@ Item {
     //Component.onCompleted: pixelPerUnit = 100
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
-    readonly property real worldXMin: -10
-    readonly property real worldXMax:  10
-    readonly property real worldYMin: -10
-    readonly property real worldYMax: 10
+    readonly property real worldXMin: -100
+    readonly property real worldXMax:  100
+    readonly property real worldYMin: -25
+    readonly property real worldYMax: 25
 
-    property real contentWorldX: screenXToWorld(flckable.contentX)
-    property real contentWorldY: screenYToWorld(flckable.contentY)
+    property real xInWU: screenXToWorld(flckable.contentX)
+    property real yInWU: screenYToWorld(flckable.contentY)
+    property real sWidthInWU: width / pixelPerUnit
+    property real sHeightInWU: height/ pixelPerUnit
+
+    onXInWUChanged: theCanvas.requestPaint()
+    onYInWUChanged: theCanvas.requestPaint()
+
 
     function xToScreen(xCart) {
         var xScr = (xCart - worldXMin) * pixelPerUnit;
@@ -54,11 +60,17 @@ Item {
 
         function coordinateGrid()
         {
-            for (var x=Math.ceil(worldXMin); x <= Math.floor(worldXMax); x++)
-                line(x, worldYMin, x, worldYMax, false, Qt.rgba(.5, .5, .5, .5), 2)
+            var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
+            var maxX = Math.floor(minX + theWorld.sWidthInWU)
+            console.log("maxX: " + maxX + " minX: " + minX)
+            for (var x=minX; x <= maxX; x++)
+                line(x, theWorld.worldYMax, x, theWorld.worldYMax - theWorld.sHeightInWU, false, Qt.rgba(.5, .5, .5, .5), 2)
 
-            for (var y=Math.ceil(worldYMin); y <= Math.floor(worldYMax); y++)
-                line(worldXMin, y, worldXMax, y, false, Qt.rgba(.5, .5, .5, .5), 2)
+            var maxY = theWorld.worldYMax - (Math.floor(theWorld.yInWU) - theWorld.yInWU)
+            var minY = maxY - theWorld.sHeightInWU
+            console.log("maxY: " + maxY + " minY: " + minY)
+            for (var y=minY; y <= maxY; y++)
+                line(theWorld.worldXMin, y, theWorld.worldXMin + theWorld.sWidthInWU, y, false, Qt.rgba(.5, .5, .5, .5), 2)
         }
 
         function line(x1, y1, x2, y2, withLabel, color, width)
@@ -90,28 +102,12 @@ Item {
             ctx.fillText(clabel, x * pixelPerUnit - 20, y * pixelPerUnit + 20)
         }
 
-        property real lY: 2.
-        //       Behavior on lY { NumberAnimation {duration: 500}}
-        //       Timer {
-        //           interval: 1000
-        //           repeat: true
-        //           running: true
-        //           onTriggered: {
-        //               if (theCanvas.lY < 3.) theCanvas.lY = 3.;
-        //               else theCanvas.lY = 1.;
-        //           }
-        //       }
-        //       onLYChanged: requestPaint()
-
         onPaint:
         {
             ctx = getContext("2d")
             ctx.reset();
             coordinateGrid();
             coordinateAxis();
-            //line(1, 2, 4, lY, true, Qt.rgba(.2,.2,.6,1));
-            //line(1, 4, 4, lY, true, Qt.rgba(.2,.2,.6,1));
-            //line(1, 2, 1, 4, true, Qt.rgba(.6,.0,.0,1));
         }
 
         Rectangle {
@@ -124,20 +120,22 @@ Item {
                 id: col
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.bottom
-                property int xScr: Math.floor(flckable.contentX + flckable.width/2)
-                property int yScr: Math.floor(flckable.contentY + flckable.height/2)
+                property int xScr: flckable.contentX + flckable.width/2
+                property int yScr: flckable.contentY + flckable.height/2
 
-                Text {  text: "(" + col.xScr + "|" + col.yScr + ") " }
+                Text {  text: "(" + screenXToWorld(col.xScr).toFixed(2) +
+                              "|" +
+                              screenYToWorld(col.yScr).toFixed(2) + ") " }
                 Text {   text:
                               "(" +
-                              Math.round(theWorld.contentWorldX) +
+                              (theWorld.xInWU).toFixed(2) +
                               "|"  +
-                              Math.round(theWorld.contentWorldY) +
+                              (theWorld.yInWU).toFixed(2) +
                               ") -> " +
                               "(" +
-                              Math.round(screenXToWorld(col.xScr + flckable.width/2)) +
+                              (screenXToWorld(col.xScr + flckable.width/2)).toFixed(2) +
                               "|"  +
-                              Math.round(screenYToWorld(col.yScr + flckable.height/2)) +
+                              (screenYToWorld(col.yScr + flckable.height/2)).toFixed(2) +
                               ")"
                 }
             }
