@@ -46,6 +46,9 @@ Item {
     {
         id: theCanvas
         anchors.fill: parent
+        opacity: 1.0
+        Behavior on opacity { NumberAnimation {duration: 250}}
+
         property var ctx: null
         function coordinateGrid()
         {
@@ -164,6 +167,9 @@ Item {
             if (event.key === Qt.Key_L) {
                 if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
                 event.accepted = true;
+            }
+            if (event.key === Qt.Key_Space) {
+                theCanvas.opacity = theCanvas.opacity < .5 ? 1. : 0.;
             }
         }
 
