@@ -50,8 +50,8 @@ Item {
         function coordinateGrid()
         {
             ctx.beginPath();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = Qt.rgba(.3,.3,.3,1.);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = Qt.rgba(.6,.6,.6,1.);
             var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
             var maxX = minX + theWorld.sWidthInWU
             for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
@@ -79,7 +79,8 @@ Item {
 
         Rectangle {
             anchors.centerIn: parent
-            color: "red"
+            border.color: "black"
+            color: Qt.rgba(1., 0, 0, .5)
             width: 10
             height: 10
 
@@ -90,13 +91,21 @@ Item {
                 property int xScr: flckable.contentX + flckable.width/2
                 property int yScr: flckable.contentY + flckable.height/2
 
-                Text {  text: "(" + col.xScr +
+                Text {
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "(" + col.xScr +
                               "|" +
-                              col.yScr + ") " }
-                Text {  text: "(" + screenXToWorld(col.xScr).toFixed(2) +
+                              col.yScr + ") / " +
+                 "(" + screenXToWorld(col.xScr).toFixed(2) +
                               "|" +
-                              screenYToWorld(col.yScr).toFixed(2) + ") " }
-                Text {   text:
+                              screenYToWorld(col.yScr).toFixed(2) + ") "
+                }
+                Text {
+                          font.bold: true
+                          color: Qt.rgba(.4, .4, .4, 1)
+                          anchors.horizontalCenter: parent.horizontalCenter
+                          text:
                               "(" +
                               (theWorld.xInWU).toFixed(2) +
                               "|"  +
