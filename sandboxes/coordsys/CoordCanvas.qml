@@ -4,7 +4,8 @@ Item {
     id: theWorld
     anchors.fill: parent
 
-    property int pixelPerUnit: 50
+    property real zoomFactor: 1.0
+    property int pixelPerUnit: 50 * zoomFactor
     Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
@@ -145,11 +146,11 @@ Item {
         Component.onCompleted: flckable.forceActiveFocus()
         Keys.onPressed: {
             if (event.key === Qt.Key_E) {
-                theWorld.pixelPerUnit += 10
+                theWorld.zoomFactor += .1
                 event.accepted = true;
             }
             if (event.key === Qt.Key_D) {
-                if (theWorld.pixelPerUnit > 20) theWorld.pixelPerUnit -= 10
+                if (theWorld.zoomFactor > .2) theWorld.zoomFactor -= .1
                 event.accepted = true;
             }
             if (event.key === Qt.Key_I) {
