@@ -4,8 +4,9 @@ Item {
     id: theWorld
     anchors.fill: parent
 
+    property real deviceScalingFactor: width / 640
     property real zoomFactor: 1.0
-    property int pixelPerUnit: 50 * zoomFactor
+    property int pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
     Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
     onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
