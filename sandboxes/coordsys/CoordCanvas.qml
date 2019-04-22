@@ -47,16 +47,6 @@ Item {
         id: theCanvas
         anchors.fill: parent
         property var ctx: null
-
-        function coordinateAxis()
-        {
-            if (worldXMin < 0 && worldXMax > 0)
-                line(0, worldYMin, 0, worldYMax, false, Qt.rgba(.2,.2,.2,1))
-
-            if (worldYMin < 0 && worldYMax > 0)
-                line(worldXMin, 0, worldXMax, 0, false, Qt.rgba(.2,.2,.2,1))
-        }
-
         function coordinateGrid()
         {
             ctx.beginPath();
@@ -64,58 +54,20 @@ Item {
             ctx.strokeStyle = Qt.rgba(.3,.3,.3,1.);
             var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
             var maxX = minX + theWorld.sWidthInWU
-            console.log("maxX: " + maxX + " minX: " + minX)
             for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
                 var xCanv = theCanvas.mapFromItem(theWorld, x, 0).x;
                 ctx.moveTo(xCanv, 0);
                 ctx.lineTo(xCanv, height);
             }
 
-//                line(x, theWorld.worldYMax, x, theWorld.worldYMax - theWorld.sHeightInWU,
-//                     false, Qt.rgba(.5, .5, .5, .5), 2)
-
             var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
             var minY = maxY - theWorld.sHeightInWU
-            console.log("maxY: " + theWorld.yToScreen(maxY) + " minY: " + theWorld.yToScreen(minY))
             for (var y=theWorld.yToScreen(maxY); y <= theWorld.yToScreen(minY); y+=theWorld.pixelPerUnit) {
                 var yCanv = theCanvas.mapFromItem(theWorld, 0, y).y;
-                console.log("yCanv: " + yCanv)
                 ctx.moveTo(0, yCanv);
                 ctx.lineTo(width, yCanv);
             }
-
             ctx.stroke();
-//                line(theWorld.worldXMin, y, theWorld.worldXMin + theWorld.sWidthInWU,
-//                     y, false, Qt.rgba(.5, .5, .5, .5), 2)
-        }
-
-        function line(x1, y1, x2, y2, withLabel, color, width)
-        {
-            ctx.beginPath();
-            ctx.lineWidth = 4;
-            if (width) ctx.lineWidth = width
-            ctx.moveTo(xToScreen(x1), yToScreen(y1));
-            ctx.lineTo(xToScreen(x2), yToScreen(y2));
-            ctx.strokeStyle = color;
-            ctx.stroke();
-
-            ctx.beginPath();
-            if (withLabel) {
-                point(xToScreen(x1), yToScreen(y1), "A")
-                point(xToScreen(x2), yToScreen(y2), "B")
-                ctx.fill();
-            }
-        }
-
-        function point(x, y, label)
-        {
-            var oldStyle = ctx.strokeStyle
-            ctx.arc(x * pixelPerUnit, y * pixelPerUnit, 5, 0., 2*Math.PI, true);
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = Qt.rgba(.2,.2,.2,1)
-            ctx.font = "bold 15px sans-serif";
-            var clabel = label + "(" + x + "," + y + ")"
-            ctx.fillText(clabel, x * pixelPerUnit - 20, y * pixelPerUnit + 20)
         }
 
         onPaint:
@@ -123,7 +75,6 @@ Item {
             ctx = getContext("2d")
             ctx.reset();
             coordinateGrid();
-            //coordinateAxis();
         }
 
         Rectangle {
@@ -181,7 +132,6 @@ Item {
         }
         Component.onCompleted: flckable.forceActiveFocus()
         Keys.onPressed: {
-            console.log("Pressed: " + event.key)
             if (event.key === Qt.Key_E) {
                 theWorld.pixelPerUnit += 10
                 event.accepted = true;
