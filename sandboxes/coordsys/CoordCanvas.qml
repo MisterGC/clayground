@@ -59,17 +59,34 @@ Item {
 
         function coordinateGrid()
         {
+            ctx.beginPath();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = Qt.rgba(.3,.3,.3,1.);
             var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
             var maxX = minX + theWorld.sWidthInWU
             console.log("maxX: " + maxX + " minX: " + minX)
-            for (var x=minX; x <= maxX; x++)
-                line(x, theWorld.worldYMax, x, theWorld.worldYMax - theWorld.sHeightInWU, false, Qt.rgba(.5, .5, .5, .5), 2)
+            for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
+                var xCanv = theCanvas.mapFromItem(theWorld, x, 0).x;
+                ctx.moveTo(xCanv, 0);
+                ctx.lineTo(xCanv, height);
+            }
+
+//                line(x, theWorld.worldYMax, x, theWorld.worldYMax - theWorld.sHeightInWU,
+//                     false, Qt.rgba(.5, .5, .5, .5), 2)
 
             var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
             var minY = maxY - theWorld.sHeightInWU
-            console.log("maxY: " + maxY + " minY: " + minY)
-            for (var y=minY; y <= maxY; y++)
-                line(theWorld.worldXMin, y, theWorld.worldXMin + theWorld.sWidthInWU, y, false, Qt.rgba(.5, .5, .5, .5), 2)
+            console.log("maxY: " + theWorld.yToScreen(maxY) + " minY: " + theWorld.yToScreen(minY))
+            for (var y=theWorld.yToScreen(maxY); y <= theWorld.yToScreen(minY); y+=theWorld.pixelPerUnit) {
+                var yCanv = theCanvas.mapFromItem(theWorld, 0, y).y;
+                console.log("yCanv: " + yCanv)
+                ctx.moveTo(0, yCanv);
+                ctx.lineTo(width, yCanv);
+            }
+
+            ctx.stroke();
+//                line(theWorld.worldXMin, y, theWorld.worldXMin + theWorld.sWidthInWU,
+//                     y, false, Qt.rgba(.5, .5, .5, .5), 2)
         }
 
         function line(x1, y1, x2, y2, withLabel, color, width)
@@ -106,7 +123,7 @@ Item {
             ctx = getContext("2d")
             ctx.reset();
             coordinateGrid();
-            coordinateAxis();
+            //coordinateAxis();
         }
 
         Rectangle {
