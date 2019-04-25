@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
         dynQmlDir = parser.value("dynqmldir");
 
     QmlEngineWrapper engine;
+    engine.addImportPath("plugins");
     QmlFileObserver watcher(dynQmlDir);
     engine.rootContext()->setContextProperty("FileObserver", &watcher);
     engine.rootContext()->setContextProperty("QmlCache", &engine);
