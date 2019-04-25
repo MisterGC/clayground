@@ -9,9 +9,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="210mm"
-   height="297mm"
-   viewBox="0 0 210 297"
+   width="1920"
+   height="1080"
+   viewBox="0 0 507.99999 285.75001"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
@@ -25,17 +25,18 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="-2770.2958"
-     inkscape:cy="1173.5828"
-     inkscape:document-units="mm"
+     inkscape:zoom="0.70710678"
+     inkscape:cx="923.67133"
+     inkscape:cy="511.04218"
+     inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
      inkscape:window-width="1920"
      inkscape:window-height="1044"
      inkscape:window-x="2560"
      inkscape:window-y="192"
-     inkscape:window-maximized="1" />
+     inkscape:window-maximized="1"
+     units="px" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -51,58 +52,63 @@
   <g
      inkscape:groupmode="layer"
      id="layer2"
-     inkscape:label="Level"
-     style="display:inline">
-    <rect
-       style="display:inline;fill:#c8b7b7;stroke-width:3.30533552"
-       id="Level"
-       width="1920"
-       height="1280"
-       x="-835.95898"
-       y="-35.252422"
-       inkscape:label="#rect3713" />
+     inkscape:label="Map"
+     style="display:inline"
+     transform="translate(0,-11.249974)">
     <rect
        inkscape:label="#rect3716"
        style="display:inline;fill:#502d16;stroke-width:0.26458332"
-       id="Table.qml-7"
+       id="Table-3"
        width="32.505951"
        height="20.788691"
-       x="-821.34222"
-       y="-23.712797">
+       x="1.7075294"
+       y="275.38031">
       <desc
-         id="desc3988-9">Table.qml</desc>
+         id="desc3988-5">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke-width:0.26458332"
+       id="Table-1"
+       width="32.505951"
+       height="20.788691"
+       x="475.79022"
+       y="11.585293">
+      <desc
+         id="desc3988-8">Table.qml</desc>
     </rect>
   </g>
   <g
-     inkscape:label="Pallette"
+     inkscape:label="Legend"
      inkscape:groupmode="layer"
      id="layer1"
-     style="display:inline">
+     style="display:inline"
+     transform="translate(0,-11.249974)">
     <rect
        inkscape:label="#rect3716"
        style="fill:#502d16;stroke-width:0.26458332"
-       id="Chair"
+       id="Table"
        width="32.505951"
        height="20.788691"
-       x="-830.28937"
-       y="-67.380402">
+       x="37.427883"
+       y="-53.535839">
       <desc
          id="desc3988">Table.qml</desc>
     </rect>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:4.43239784px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.11080994"
-       x="-819.91302"
-       y="-42.193546"
+       x="47.05587"
+       y="-27.226454"
        id="text3735"><tspan
          sodipodi:role="line"
          id="tspan3733"
-         x="-819.91302"
-         y="-42.193546"
+         x="47.05587"
+         y="-27.226454"
          style="fill:#241c1c;stroke-width:0.11080994">Table</tspan></text>
     <g
-       id="Chair.qml"
-       transform="translate(-932.90988,-101.49795)"
+       id="Chair"
+       transform="translate(-65.192634,-87.653388)"
        inkscape:label="#g3792">
       <desc
          id="desc4069">Chair</desc>
@@ -115,24 +121,14 @@
     </g>
     <text
        id="text3986"
-       y="-46.351284"
-       x="-787.40704"
+       y="-31.38419"
+       x="81.058563"
        style="font-style:normal;font-weight:normal;font-size:4.43239784px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.11080994"
        xml:space="preserve"><tspan
          style="fill:#241c1c;stroke-width:0.11080994"
-         y="-46.351284"
-         x="-787.40704"
+         y="-31.38419"
+         x="81.058563"
          id="tspan3984"
          sodipodi:role="line">Chair</tspan></text>
-    <rect
-       style="fill:#808080;fill-opacity:1;stroke-width:0.26458332"
-       id="rect4062"
-       width="32.441231"
-       height="9.8160248"
-       x="-756.89728"
-       y="-60.565475">
-      <desc
-         id="desc4067">Wall</desc>
-    </rect>
   </g>
 </svg>
