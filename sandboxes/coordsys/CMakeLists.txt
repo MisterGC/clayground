@@ -6,7 +6,8 @@ add_executable (${PROJECT_NAME}
 main.cpp
 Angle.qml
 Sandbox.qml
-CoordCanvas.qml)
+CoordCanvas.qml
+RectangleBoxBody.qml)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11

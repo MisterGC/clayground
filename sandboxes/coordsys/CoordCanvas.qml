@@ -4,25 +4,21 @@ Item {
     id: theWorld
     anchors.fill: parent
 
-    property real deviceScalingFactor: width / 640
-    property real zoomFactor: 1.0
-    property int pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
-    Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
-    onPixelPerUnitChanged: { theCanvas.requestPaint();}
+    property alias deviceScalingFactor: flckable.deviceScalingFactor
+    property alias zoomFactor: flckable.zoomFactor
+    property alias pixelPerUnit: flckable.pixelPerUnit
 
-    readonly property real worldXMin: -100
-    readonly property real worldXMax:  100
-    readonly property real worldYMin: -25
-    readonly property real worldYMax: 25
+    property alias worldXMin: flckable.worldXMin
+    property alias worldXMax:  flckable.worldXMax
+    property alias worldYMin: flckable.worldYMin
+    property alias worldYMax: flckable.worldYMax
 
-    property real xInWU: screenXToWorld(flckable.contentX)
-    property real yInWU: screenYToWorld(flckable.contentY)
-    property real sWidthInWU: width / pixelPerUnit
-    property real sHeightInWU: height/ pixelPerUnit
+    property alias xInWU: flckable.xInWU
+    property alias yInWU: flckable.yInWU
+    property alias sWidthInWU: flckable.sWidthInWU
+    property alias sHeightInWU: flckable.sHeightInWU
 
-    onXInWUChanged: theCanvas.requestPaint()
-    onYInWUChanged: theCanvas.requestPaint()
-
+    readonly property var coordSys: flckable.contentItem
 
     function xToScreen(xCart) {
         var xScr = (xCart - worldXMin) * pixelPerUnit;
@@ -130,9 +126,27 @@ Item {
 
     Flickable
     {
-
         id: flckable
         anchors.fill: parent
+
+        property real deviceScalingFactor: width / 640
+        property real zoomFactor: 1.0
+        property real pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
+        Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
+        onPixelPerUnitChanged: { theCanvas.requestPaint();}
+
+        readonly property real worldXMin: 0
+        readonly property real worldXMax:  20
+        readonly property real worldYMin: 0
+        readonly property real worldYMax: 25
+
+        property real xInWU: screenXToWorld(flckable.contentX)
+        property real yInWU: screenYToWorld(flckable.contentY)
+        property real sWidthInWU: width / pixelPerUnit
+        property real sHeightInWU: height/ pixelPerUnit
+
+        onXInWUChanged: theCanvas.requestPaint()
+        onYInWUChanged: theCanvas.requestPaint()
 
         contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
         contentHeight: Math.abs(worldYMax - worldYMin) * pixelPerUnit
