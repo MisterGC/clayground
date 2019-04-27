@@ -119,17 +119,13 @@ Item {
             var cx = theWorld.xToScreen(vpX) - width/2;
             if (cx < 0) cx = 0;
             if (cx > (contentWidth - width)) cx = contentWidth - width;
-            console.log("Update X " + cx)
             return cx;
         }
 
         function _updateContentY(vpY, ppu) {
-            console.log("vpY: " + vpY)
             var cy = theWorld.yToScreen(vpY) - height/2;
-            console.log("Update Y(1): " + cy);
             if (cy < 0) cy = 0
             if (cy > (contentHeight - height)) cy = contentHeight - height;
-            console.log("Update Y: " + cy)
             return cy;
         }
 

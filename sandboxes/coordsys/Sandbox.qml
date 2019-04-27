@@ -53,6 +53,11 @@ CoordCanvas
         pixelsPerMeter: pixelPerUnit
     }
 
+//    DebugDraw {
+//        anchors.fill: parent
+//        parent: theCanvas.coordSys
+//    }
+
     property var player: null
     onKeyPressed: {
         if (player) {

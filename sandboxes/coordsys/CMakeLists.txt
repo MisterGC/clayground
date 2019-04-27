@@ -10,6 +10,7 @@ Sandbox.qml
 CoordCanvas.qml
 Minigy.qml
 Player.qml
+PhysicsItem.qml
 Wall.qml
 VisualizedBoxBody.qml)
 
