@@ -4,5 +4,5 @@ import Box2D 2.0
 VisualizedBoxBody
 {
     bodyType: Body.Static
-    color: "brown"
+    color: "#7084aa"
 }

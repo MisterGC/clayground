@@ -4,6 +4,6 @@ import Box2D 2.0
 VisualizedBoxBody
 {
     bodyType: Body.Dynamic
-    color: "red"
+    color: "#dc3f4d"
 }
 

@@ -4,7 +4,7 @@ import Box2D 2.0
 VisualizedBoxBody
 {
     bodyType: Body.Dynamic
-    color: "blue"
+    color: "#3fa4c8"
     bullet: true
     property real maxVelo: 8
 

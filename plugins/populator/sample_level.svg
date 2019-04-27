@@ -37,16 +37,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.22627417"
-     inkscape:cx="1022.3919"
-     inkscape:cy="1079.703"
+     inkscape:zoom="0.64"
+     inkscape:cx="78.033303"
+     inkscape:cy="-152.35993"
      inkscape:document-units="px"
-     inkscape:current-layer="layer2"
-     showgrid="true"
-     inkscape:window-width="1920"
-     inkscape:window-height="1044"
-     inkscape:window-x="1280"
-     inkscape:window-y="0"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1280"
+     inkscape:window-height="652"
+     inkscape:window-x="0"
+     inkscape:window-y="195"
      inkscape:window-maximized="1"
      units="px"
      inkscape:pagecheckerboard="false"
@@ -828,7 +828,7 @@
      style="display:inline">
     <rect
        inkscape:label="#rect3716"
-       style="fill:#502d16;stroke:none;stroke-width:0.00788394"
+       style="fill:#7084aa;stroke:none;stroke-width:0.00788394;stroke-opacity:1;fill-opacity:1"
        id="Wall"
        width="1"
        height="0.60000002"
@@ -886,7 +886,7 @@
          id="tspan7459">(Edit-&gt; XML Editor) otherwise y Coords will be messed up!!</tspan></text>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:0.95;fill:#00ccff;fill-opacity:1;stroke:none;stroke-width:0.00610687;enable-background:new"
+       style="display:inline;opacity:1;fill:#3fa4c8;fill-opacity:1;stroke:none;stroke-width:0.00610687;enable-background:new"
        id="Player"
        width="0.60000002"
        height="0.60000002"
@@ -908,7 +908,7 @@
          style="fill:#241c1c;stroke-width:0.01063325">Player</tspan></text>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:0.95;fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
        id="Absorbicer"
        width="0.83201945"
        height="0.83201945"
@@ -930,7 +930,7 @@
          style="fill:#241c1c;stroke-width:0.01063325">Absorbicer</tspan></text>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:0.95;fill:#00d455;fill-opacity:1;stroke:none;stroke-width:0.00610687;enable-background:new"
+       style="display:inline;opacity:1;fill:#47c666;fill-opacity:1;stroke:none;stroke-width:0.00610687;enable-background:new"
        id="Minigy"
        width="0.60000002"
        height="0.60000002"
@@ -950,5 +950,27 @@
          x="0.56573522"
          y="43.528095"
          style="fill:#241c1c;stroke-width:0.01063325">Minigy</tspan></text>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#969696;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1;enable-background:new"
+       id="Wall-41"
+       width="1"
+       height="0.60000002"
+       x="-4.3125"
+       y="41.168751">
+      <desc
+         id="desc3988-71">Table.qml</desc>
+    </rect>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"
+       x="-4.5836186"
+       y="42.239372"
+       id="text3735-1"><tspan
+         sodipodi:role="line"
+         id="tspan3733-1"
+         x="-4.5836186"
+         y="42.239372"
+         style="fill:#241c1c;stroke-width:0.01063325">Machine</tspan></text>
   </g>
 </svg>
