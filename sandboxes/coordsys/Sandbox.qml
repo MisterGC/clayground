@@ -8,27 +8,6 @@ CoordCanvas
     id: theCanvas
     anchors.fill: parent
 
-    Component {
-        id: rectCreator
-        VisualizedBoxBody {
-            id: theBody
-            parent: coordSys
-            pixelPerUnit: theCanvas.pixelPerUnit
-            xWu: 10; yWu: 10; widthWu: 1; heightWu: 0.6;
-            Component.onCompleted: console.log("x: " + x +
-                                               " y:" + y +
-                                               " width:" + width +
-                                               " height:" + height );
-            MouseArea {
-                anchors.fill: parent
-                onPressed: {
-                    theArea.pressedBody = theBody.body;
-                    mouse.accepted = false;
-                }
-            }
-        }
-    }
-
     Body {
         id: anchor
         world: physicsWorld
@@ -58,12 +37,10 @@ CoordCanvas
         }
 
         onPositionChanged: {
-            console.log("Position changed!")
             mouseJoint.target = Qt.point(mouseX, mouseY);
         }
 
         onReleased: {
-            console.log("Released")
             mouseJoint.bodyB = null;
             pressedBody = null;
         }
@@ -79,8 +56,6 @@ CoordCanvas
     property var player: null
     onKeyPressed: {
         if (player) {
-            // Do key to control mapping
-            console.log("Ready for Action!")
             if (event.key === Qt.Key_Up) player.moveUp();
             if (event.key === Qt.Key_Down) player.moveDown();
             if (event.key === Qt.Key_Left) player.moveLeft();
@@ -117,15 +92,18 @@ CoordCanvas
             console.log("Comp: " + comp)
             var obj = comp.createObject(coordSys, {
                                             "xWu": xWu,
-                                            "yWu": theCanvas.worldYMax - yWu,
+                                            "yWu": yWu,
                                             "widthWu": widthWu,
                                             "heightWu": heightWu
                                             });
             obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
+            console.log("x: " + obj.x + " y: " + obj.y)
+
             objs.push(obj);
             if (componentName === "Player") {
                 player = obj;
-
+                theCanvas.viewPortCenterWuX = Qt.binding(function() {return theCanvas.screenXToWorld(player.x);});
+                theCanvas.viewPortCenterWuY = Qt.binding(function() {return theCanvas.screenYToWorld(player.y);});
             }
         }
     }

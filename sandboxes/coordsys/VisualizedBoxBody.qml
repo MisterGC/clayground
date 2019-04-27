@@ -20,6 +20,7 @@ Image {
 
     Component.onCompleted: {
         console.log("Box-Width: " + width + " Box-Height: " + height)
+        console.log("xu: " + xWu + " yu: " + yWu)
     }
 
     // Placeholder visu properties

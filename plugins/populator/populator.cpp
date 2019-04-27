@@ -27,6 +27,10 @@ void Populator::syncWithSvg()
         QXmlStreamReader xmlReader(&xmlFile);
 
         bool readingMapContent = false;
+
+        // Needed to flip the coordinates as world coord system starts in
+        // lower left corner not upper left (!)
+        auto heightWu = 0.0f;
         while(!xmlReader.atEnd() && !xmlReader.hasError())
         {
             auto token = xmlReader.readNext();
@@ -39,7 +43,7 @@ void Populator::syncWithSvg()
                     auto heightPx = attribs.value("height").toInt();
                     auto viewBox = attribs.value("viewBox").toString().split(" ");
                     auto widthWu = viewBox[2].toFloat();
-                    auto heightWu = viewBox[3].toFloat();
+                    heightWu = viewBox[3].toFloat();
                     emit aboutToPopulate(widthWu, heightWu, widthPx, heightPx);
                 }
                 else if (nam == "g") {
@@ -55,9 +59,10 @@ void Populator::syncWithSvg()
                     auto y = attribs.value("y").toFloat();
                     auto width = attribs.value("width").toFloat();
                     auto height = attribs.value("height").toFloat();
+
                     auto comp = attribs.value("id").toString().split("-").first();
                     qDebug() << "xSvg: " << x << " ySvg: " << y;
-                    emit createItemAt(comp, x, y, width, height);
+                    emit createItemAt(comp, x, heightWu - y, width, height);
                 }
             }
         }

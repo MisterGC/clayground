@@ -17,6 +17,8 @@ Item {
     property alias yInWU: flckable.yInWU
     property alias sWidthInWU: flckable.sWidthInWU
     property alias sHeightInWU: flckable.sHeightInWU
+    property alias viewPortCenterWuX: flckable.viewPortCenterWuX
+    property alias viewPortCenterWuY: flckable.viewPortCenterWuY
 
     signal keyPressed(var event)
     signal keyReleased(var event)
@@ -102,14 +104,34 @@ Item {
         property real yInWU: screenYToWorld(flckable.contentY)
         property real sWidthInWU: width / pixelPerUnit
         property real sHeightInWU: height/ pixelPerUnit
+        property real viewPortCenterWuX: worldXMin
+        property real viewPortCenterWuY: worldYMax
 
         onXInWUChanged: theUnderlay.requestPaint()
         onYInWUChanged: theUnderlay.requestPaint()
 
         contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
         contentHeight: Math.abs(worldYMax - worldYMin) * pixelPerUnit
-        contentX: Math.abs(worldXMin) * pixelPerUnit - width/2
-        contentY: Math.abs(worldYMax) * pixelPerUnit - height/2
+        contentX: _updateContentX(viewPortCenterWuX, pixelPerUnit)
+        contentY: _updateContentY(viewPortCenterWuY, pixelPerUnit)
+
+        function _updateContentX(vpX, ppu) {
+            var cx = theWorld.xToScreen(vpX) - width/2;
+            if (cx < 0) cx = 0;
+            if (cx > (contentWidth - width)) cx = contentWidth - width;
+            console.log("Update X " + cx)
+            return cx;
+        }
+
+        function _updateContentY(vpY, ppu) {
+            console.log("vpY: " + vpY)
+            var cy = theWorld.yToScreen(vpY) - height/2;
+            console.log("Update Y(1): " + cy);
+            if (cy < 0) cy = 0
+            if (cy > (contentHeight - height)) cy = contentHeight - height;
+            console.log("Update Y: " + cy)
+            return cy;
+        }
 
         Item
         {
@@ -126,22 +148,23 @@ Item {
                 if (theWorld.zoomFactor > .2) theWorld.zoomFactor -= .1
                 event.accepted = true;
             }
-            if (event.key === Qt.Key_I) {
-                if (flckable.contentY > 10) flckable.contentY -= 10
-                event.accepted = true;
-            }
-            if (event.key === Qt.Key_K) {
-                if (flckable.contentY < flckable.contentHeight - flckable.height) flckable.contentY += 10
-                event.accepted = true;
-            }
-            if (event.key === Qt.Key_J) {
-                if (flckable.contentX > 10) flckable.contentX -= 10
-                event.accepted = true;
-            }
-            if (event.key === Qt.Key_L) {
-                if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
-                event.accepted = true;
-            }
+            // TODO Reintro Keyboard based navigation
+//            if (event.key === Qt.Key_I) {
+//                if (flckable.contentY > 10) flckable.contentY -= 10
+//                event.accepted = true;
+//            }
+//            if (event.key === Qt.Key_K) {
+//                if (flckable.contentY < flckable.contentHeight - flckable.height) flckable.contentY += 10
+//                event.accepted = true;
+//            }
+//            if (event.key === Qt.Key_J) {
+//                if (flckable.contentX > 10) flckable.contentX -= 10
+//                event.accepted = true;
+//            }
+//            if (event.key === Qt.Key_L) {
+//                if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
+//                event.accepted = true;
+//            }
             if (event.key === Qt.Key_Space) {
                 theUnderlay.opacity = theUnderlay.opacity < .5 ? 1. : 0.;
                 theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
