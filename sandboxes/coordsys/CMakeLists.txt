@@ -7,7 +7,9 @@ main.cpp
 Angle.qml
 Sandbox.qml
 CoordCanvas.qml
-RectangleBoxBody.qml)
+Player.qml
+Wall.qml
+VisualizedBoxBody.qml)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11

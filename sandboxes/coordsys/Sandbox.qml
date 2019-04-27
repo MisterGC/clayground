@@ -8,7 +8,6 @@ CoordCanvas
     id: theCanvas
     anchors.fill: parent
 
-    Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/plugins/populator/sample_level.svg")
     Component {
         id: rectCreator
         VisualizedBoxBody {
@@ -82,6 +81,7 @@ CoordCanvas
         id: thePopulator
         property var objs: []
 
+        Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/plugins/populator/sample_level.svg")
         onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             while(objs.length > 0) {
@@ -94,16 +94,16 @@ CoordCanvas
         }
         onCreateItemAt: {
             console.log("Create item: " + componentName + " x: " + xWu + " y: " + yWu);
-            var bt = componentName == "Table" ? Body.Static : Body.Dynamic;
-            var clr = componentName == "Table" ? "brown" : "red";
-            var obj = rectCreator.createObject(theCanvas.coordSys, {"xWu": xWu,
-                                                                    "yWu": theCanvas.worldYMax - yWu,
-                                                                    "widthWu": widthWu,
-                                                                    "heightWu": heightWu,
-                                                                    "bodyType": bt,
-                                                                    "color": clr});
+            var comp = Qt.createComponent(componentName + ".qml");
+            console.log("Comp: " + comp)
+            var obj = comp.createObject(coordSys, {
+                                            "xWu": xWu,
+                                            "yWu": theCanvas.worldYMax - yWu,
+                                            "widthWu": widthWu,
+                                            "heightWu": heightWu
+                                            });
+            obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
             objs.push(obj);
-            console.log(obj.x + "," + obj.y);
         }
     }
 

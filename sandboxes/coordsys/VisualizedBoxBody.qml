@@ -7,7 +7,7 @@ Image {
     property alias body: boxBody
     property alias fixture: box
 
-    property real pixelPerUnit: parent.pixelPerUnit
+    property real pixelPerUnit: 1
     property real xWu: 0
     property real yWu: 0
     property real widthWu: 1
