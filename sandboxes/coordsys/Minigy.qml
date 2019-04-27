@@ -5,5 +5,7 @@ VisualizedBoxBody
 {
     bodyType: Body.Dynamic
     color: "#47c666"
+    categories: Box.Category2
+    collidesWith: Box.Category1
 }
 

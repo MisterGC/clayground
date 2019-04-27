@@ -7,6 +7,8 @@ VisualizedBoxBody
     color: "#3fa4c8"
     bullet: true
     property real maxVelo: 8
+    categories: Box.Category2
+    collidesWith: Box.Category1
 
     function moveUp() { body.linearVelocity.y = -maxVelo; }
     function moveDown() { body.linearVelocity.y = maxVelo; }
