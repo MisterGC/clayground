@@ -54,7 +54,7 @@ void Populator::syncWithSvg()
                     auto attribs = xmlReader.attributes();
                     auto x = attribs.value("x").toFloat();
                     auto y = attribs.value("y").toFloat();
-                    auto comp = attribs.value("id").toString();
+                    auto comp = attribs.value("id").toString().split("-").first();
                     qDebug() << "xSvg: " << x << " ySvg: " << y;
                     emit createItemAt(comp, x, y);
                 }
