@@ -12,7 +12,6 @@ CoordCanvas
     Component {
         id: rectCreator
         RectangleBoxBody {
-            color: "blue"
             parent: coordSys
             pixelPerUnit: theCanvas.pixelPerUnit
             xWu: 10; yWu: 10; widthWu: 1; heightWu: 0.6;
@@ -50,9 +49,11 @@ CoordCanvas
         onCreateItemAt: {
             console.log("Create item: " + componentName + " x: " + xWu + " y: " + yWu);
             var bt = componentName == "Table" ? Body.Static : Body.Dynamic;
+            var clr = componentName == "Table" ? "brown" : "red";
             var obj = rectCreator.createObject(theCanvas.coordSys, {"xWu": xWu,
                                                                     "yWu": theCanvas.worldYMax - yWu,
-                                                                    "bodyType": bt});
+                                                                    "bodyType": bt,
+                                                                    "color": clr});
             objs.push(obj);
             console.log(obj.x + "," + obj.y);
         }
