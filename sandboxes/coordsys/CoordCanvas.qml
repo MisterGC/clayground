@@ -19,6 +19,7 @@ Item {
     property alias sHeightInWU: flckable.sHeightInWU
 
     signal keyPressed(var event)
+    signal keyReleased(var event)
 
     readonly property var coordSys: flckable.contentItem
 
@@ -146,6 +147,9 @@ Item {
                 theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
             }
             theWorld.keyPressed(event)
+        }
+        Keys.onReleased: {
+            theWorld.keyReleased(event)
         }
 
     }

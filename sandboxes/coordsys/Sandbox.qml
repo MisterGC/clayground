@@ -87,6 +87,12 @@ CoordCanvas
             if (event.key === Qt.Key_Right) player.moveRight();
         }
     }
+    onKeyReleased: {
+            if (event.key === Qt.Key_Up) player.stopUp();
+            if (event.key === Qt.Key_Down) player.stopDown();
+            if (event.key === Qt.Key_Left) player.stopLeft();
+            if (event.key === Qt.Key_Right) player.stopRight();
+    }
 
     Populator
     {
@@ -117,7 +123,10 @@ CoordCanvas
                                             });
             obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
             objs.push(obj);
-            if (componentName === "Player") player = obj;
+            if (componentName === "Player") {
+                player = obj;
+
+            }
         }
     }
 

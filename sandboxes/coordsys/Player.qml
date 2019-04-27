@@ -6,10 +6,15 @@ VisualizedBoxBody
     bodyType: Body.Dynamic
     color: "green"
     bullet: true
+    property real maxVelo: 8
 
-    function moveUp() { body.linearVelocity.y = -10; }
-    function moveDown() { body.linearVelocity.y = 10; }
-    function moveRight() { body.linearVelocity.x = 10; }
-    function moveLeft() { body.linearVelocity.x = -10; }
-    function stop() { body.linearVelocity = {"x":0, "y":0}; }
+    function moveUp() { body.linearVelocity.y = -maxVelo; }
+    function moveDown() { body.linearVelocity.y = maxVelo; }
+    function moveLeft() { body.linearVelocity.x = -maxVelo; }
+    function moveRight() { body.linearVelocity.x = maxVelo; }
+
+    function stopUp() { if (body.linearVelocity.y < 0) body.linearVelocity.y = 0; }
+    function stopDown() { if (body.linearVelocity.y > 0) body.linearVelocity.y = 0; }
+    function stopLeft() { if (body.linearVelocity.x < 0) body.linearVelocity.x = 0; }
+    function stopRight() { if (body.linearVelocity.x > 0) body.linearVelocity.x = 0; }
 }
