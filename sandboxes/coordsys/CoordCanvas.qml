@@ -84,7 +84,7 @@ Item {
         id: flckable
         anchors.fill: parent
 
-        property real deviceScalingFactor: width / 640
+        property real deviceScalingFactor: height / 1080
         property real zoomFactor: 1.0
         property real pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
         Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
