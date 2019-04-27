@@ -11,12 +11,12 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="1920"
    height="1080"
-   viewBox="0 0 1920 1080"
+   viewBox="0 0 38.4 21.6"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
    sodipodi:docname="sample_level.svg"
-   enable-background="new">
+   style="enable-background:new">
   <defs
      id="defs2">
     <filter
@@ -29,16 +29,6 @@
          in2="BackgroundImage"
          id="feBlend1179" />
     </filter>
-    <filter
-       inkscape:collect="always"
-       style="color-interpolation-filters:sRGB"
-       id="filter1177-7">
-      <feBlend
-         inkscape:collect="always"
-         mode="overlay"
-         in2="BackgroundImage"
-         id="feBlend1179-9" />
-    </filter>
   </defs>
   <sodipodi:namedview
      id="base"
@@ -47,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2"
-     inkscape:cx="484.85646"
-     inkscape:cy="562.45412"
+     inkscape:zoom="0.88463518"
+     inkscape:cx="-15.867218"
+     inkscape:cy="-22.372082"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -80,212 +70,102 @@
      style="display:inline;opacity:1;filter:url(#filter1177)">
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
-       id="Table-3"
-       width="35"
-       height="20"
-       x="31.000893"
-       y="1024.6727">
-      <desc
-         id="desc3988-5">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
-       id="Table-6"
-       width="35"
-       height="20"
-       x="214.5"
-       y="10">
-      <desc
-         id="desc3988-2">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
-       id="Table-36"
-       width="35"
-       height="20"
-       x="14.5"
-       y="10">
-      <desc
-         id="desc3988-7">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.00788394;enable-background:new"
        id="Table-5"
-       width="35"
-       height="20"
-       x="64.5"
-       y="10">
+       width="1"
+       height="0.60000002"
+       x="0.027084097"
+       y="20.973894">
       <desc
          id="desc3988-3">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
-       id="Table-56"
-       width="35"
-       height="20"
-       x="164.5"
-       y="10">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="Table-2"
+       width="1"
+       height="0.60000002"
+       x="1.1259313"
+       y="20.980314">
       <desc
-         id="desc3988-29">Table.qml</desc>
+         id="desc3988-7">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.26928768"
-       id="Table-1"
-       width="35"
-       height="20"
-       x="114.5"
-       y="10">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="Table-37"
+       width="1"
+       height="0.60000002"
+       x="2.2234313"
+       y="20.975315">
       <desc
-         id="desc3988-27">Table.qml</desc>
+         id="desc3988-59">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177)"
-       id="Table-6-0"
-       width="35"
-       height="20"
-       x="237"
-       y="75">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="Table-22"
+       width="1"
+       height="0.60000002"
+       x="3.3484316"
+       y="20.980314">
       <desc
-         id="desc3988-2-9">Table.qml</desc>
+         id="desc3988-8">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177)"
-       id="Table-36-3"
-       width="35"
-       height="20"
-       x="20"
-       y="97">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="Table-9"
+       width="1"
+       height="0.60000002"
+       x="4.4272165"
+       y="20.974457">
       <desc
-         id="desc3988-7-6">Table.qml</desc>
+         id="desc3988-73">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177)"
-       id="Table-5-0"
-       width="35"
-       height="20"
-       x="75"
-       y="130">
+       style="display:inline;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="LivingThing-3"
+       width="1"
+       height="0.60000002"
+       x="2.0773339"
+       y="19.649603">
       <desc
-         id="desc3988-3-6">Table.qml</desc>
+         id="desc3988-1-1">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177)"
-       id="Table-56-2"
-       width="35"
-       height="20"
-       x="184"
-       y="97.5">
+       style="display:inline;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="LivingThing-9"
+       width="1"
+       height="0.60000002"
+       x="1.6703862"
+       y="20.327848">
       <desc
-         id="desc3988-29-6">Table.qml</desc>
+         id="desc3988-1-4">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177)"
-       id="Table-1-1"
-       width="35"
-       height="20"
-       x="137.5"
-       y="135.5">
+       style="display:inline;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="LivingThing-4"
+       width="1"
+       height="0.60000002"
+       x="1.738211"
+       y="18.948748">
       <desc
-         id="desc3988-27-8">Table.qml</desc>
+         id="desc3988-1-5">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-6-2"
-       width="35"
-       height="20"
-       x="588.75"
-       y="450.25">
+       style="display:inline;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="LivingThing-0"
+       width="1"
+       height="0.60000002"
+       x="3.3660004"
+       y="17.976595">
       <desc
-         id="desc3988-2-0">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-5-2"
-       width="35"
-       height="20"
-       x="438.75"
-       y="450.25">
-      <desc
-         id="desc3988-3-3">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-56-7"
-       width="35"
-       height="20"
-       x="538.75"
-       y="450.25">
-      <desc
-         id="desc3988-29-5">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-1-9"
-       width="35"
-       height="20"
-       x="488.75"
-       y="450.25">
-      <desc
-         id="desc3988-27-2">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-6-0-2"
-       width="35"
-       height="20"
-       x="611.25"
-       y="515.25">
-      <desc
-         id="desc3988-2-9-8">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-5-0-9"
-       width="35"
-       height="20"
-       x="449.25"
-       y="570.25">
-      <desc
-         id="desc3988-3-6-7">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-56-2-3"
-       width="35"
-       height="20"
-       x="558.25"
-       y="537.75">
-      <desc
-         id="desc3988-29-6-6">Table.qml</desc>
-    </rect>
-    <rect
-       inkscape:label="#rect3716"
-       style="display:inline;opacity:1;fill:#502d16;stroke:none;stroke-width:0.26928768;filter:url(#filter1177-7)"
-       id="Table-1-1-1"
-       width="35"
-       height="20"
-       x="511.75"
-       y="575.75">
-      <desc
-         id="desc3988-27-8-2">Table.qml</desc>
+         id="desc3988-1-3">Table.qml</desc>
     </rect>
   </g>
   <g
@@ -295,49 +175,68 @@
      style="display:inline">
     <rect
        inkscape:label="#rect3716"
-       style="fill:#502d16;stroke:none;stroke-width:0.26928768"
+       style="fill:#502d16;stroke:none;stroke-width:0.00788394"
        id="Table"
-       width="35"
-       height="20"
-       x="34.599457"
-       y="-52.74715">
+       width="1"
+       height="0.60000002"
+       x="-0.0029544933"
+       y="22.316109">
       <desc
          id="desc3988">Table.qml</desc>
     </rect>
     <text
        xml:space="preserve"
-       style="font-style:normal;font-weight:normal;font-size:4.43239784px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.11080994"
-       x="47.05587"
-       y="-27.226454"
+       style="font-style:normal;font-weight:normal;font-size:0.42532995px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325"
+       x="-0.052750122"
+       y="23.387377"
        id="text3735"><tspan
          sodipodi:role="line"
          id="tspan3733"
-         x="47.05587"
-         y="-27.226454"
-         style="fill:#241c1c;stroke-width:0.11080994">Table</tspan></text>
-    <g
-       id="Chair"
-       transform="translate(-65.192634,-87.653388)"
-       inkscape:label="#g3792">
-      <desc
-         id="desc4069">Chair</desc>
-      <circle
-         r="6.614583"
-         cy="43.755951"
-         cx="151.56845"
-         id="path3783"
-         style="fill:#502d16;fill-opacity:1;stroke-width:0.26458332" />
-    </g>
+         x="-0.052750122"
+         y="23.387377"
+         style="fill:#241c1c;stroke-width:0.01063325">Table</tspan></text>
     <text
-       id="text3986"
-       y="-31.38419"
-       x="81.058563"
-       style="font-style:normal;font-weight:normal;font-size:4.43239784px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.11080994"
-       xml:space="preserve"><tspan
-         style="fill:#241c1c;stroke-width:0.11080994"
-         y="-31.38419"
-         x="81.058563"
-         id="tspan3984"
-         sodipodi:role="line">Chair</tspan></text>
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"
+       x="7.93257"
+       y="22.814238"
+       id="text3735-5"><tspan
+         sodipodi:role="line"
+         x="7.93257"
+         y="22.814238"
+         style="fill:#241c1c;stroke-width:0.01063325"
+         id="tspan1057">This maps is saved with coordinates that assume 50 pixelPerWorld Unit</tspan><tspan
+         sodipodi:role="line"
+         x="7.93257"
+         y="23.3459"
+         style="fill:#241c1c;stroke-width:0.01063325"
+         id="tspan1214">meaning that when you put an item at (50|100) here, it will have WorldCoords</tspan><tspan
+         sodipodi:role="line"
+         x="7.93257"
+         y="23.877563"
+         style="fill:#241c1c;stroke-width:0.01063325"
+         id="tspan1216">of (1.0|2.0)</tspan></text>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00788394;enable-background:new"
+       id="LivingThing"
+       width="1"
+       height="0.60000002"
+       x="1.6929944"
+       y="22.317369">
+      <desc
+         id="desc3988-1">Table.qml</desc>
+    </rect>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"
+       x="1.6323894"
+       y="23.408962"
+       id="text3735-2"><tspan
+         sodipodi:role="line"
+         id="tspan3733-9"
+         x="1.6323894"
+         y="23.408962"
+         style="fill:#241c1c;stroke-width:0.01063325">LivingThing</tspan></text>
   </g>
 </svg>
