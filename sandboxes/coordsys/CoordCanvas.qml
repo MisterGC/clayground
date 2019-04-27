@@ -135,10 +135,10 @@ Item {
         Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
         onPixelPerUnitChanged: { theCanvas.requestPaint();}
 
-        readonly property real worldXMin: 0
-        readonly property real worldXMax:  20
-        readonly property real worldYMin: 0
-        readonly property real worldYMax: 25
+        property real worldXMin: 0
+        property real worldXMax:  20
+        property real worldYMin: 0
+        property real worldYMax: 25
 
         property real xInWU: screenXToWorld(flckable.contentX)
         property real yInWU: screenYToWorld(flckable.contentY)
