@@ -71,9 +71,21 @@ CoordCanvas
 
     World {
         id: physicsWorld
-        gravity: Qt.point(0,3*9.81)
+        gravity: Qt.point(0,0)
         timeStep: 1/60.0
         pixelsPerMeter: pixelPerUnit
+    }
+
+    property var player: null
+    onKeyPressed: {
+        if (player) {
+            // Do key to control mapping
+            console.log("Ready for Action!")
+            if (event.key === Qt.Key_Up) player.moveUp();
+            if (event.key === Qt.Key_Down) player.moveDown();
+            if (event.key === Qt.Key_Left) player.moveLeft();
+            if (event.key === Qt.Key_Right) player.moveRight();
+        }
     }
 
     Populator
@@ -84,6 +96,7 @@ CoordCanvas
         Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/plugins/populator/sample_level.svg")
         onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
+            player = null;
             while(objs.length > 0) {
                 var obj = objs.pop();
                 obj.destroy();
@@ -104,6 +117,7 @@ CoordCanvas
                                             });
             obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
             objs.push(obj);
+            if (componentName === "Player") player = obj;
         }
     }
 

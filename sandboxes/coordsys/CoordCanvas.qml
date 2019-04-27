@@ -18,6 +18,8 @@ Item {
     property alias sWidthInWU: flckable.sWidthInWU
     property alias sHeightInWU: flckable.sHeightInWU
 
+    signal keyPressed(var event)
+
     readonly property var coordSys: flckable.contentItem
 
     function xToScreen(xCart) {
@@ -143,6 +145,7 @@ Item {
                 theUnderlay.opacity = theUnderlay.opacity < .5 ? 1. : 0.;
                 theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
             }
+            theWorld.keyPressed(event)
         }
 
     }
