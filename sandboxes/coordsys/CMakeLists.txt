@@ -4,9 +4,11 @@ set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
+Absorbicer.qml
 Angle.qml
 Sandbox.qml
 CoordCanvas.qml
+Minigy.qml
 Player.qml
 Wall.qml
 VisualizedBoxBody.qml)
