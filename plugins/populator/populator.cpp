@@ -50,13 +50,14 @@ void Populator::syncWithSvg()
                 }
                 else if (readingMapContent && nam == "rect")
                 {
-                    // TODO use upper left instead of lower right
                     auto attribs = xmlReader.attributes();
                     auto x = attribs.value("x").toFloat();
                     auto y = attribs.value("y").toFloat();
+                    auto width = attribs.value("width").toFloat();
+                    auto height = attribs.value("height").toFloat();
                     auto comp = attribs.value("id").toString().split("-").first();
                     qDebug() << "xSvg: " << x << " ySvg: " << y;
-                    emit createItemAt(comp, x, y);
+                    emit createItemAt(comp, x, y, width, height);
                 }
             }
         }

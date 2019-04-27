@@ -1,8 +1,8 @@
 import QtQuick 2.0
 import Box2D 2.0
 
-Rectangle {
-    id: rectangle
+Image {
+    id: theImage
 
     property alias body: boxBody
     property alias fixture: box
@@ -17,6 +17,13 @@ Rectangle {
     y: parent.height - yWu * pixelPerUnit
     width: widthWu * pixelPerUnit
     height: heightWu * pixelPerUnit
+
+    Component.onCompleted: {
+        console.log("Box-Width: " + width + " Box-Height: " + height)
+    }
+
+    // Placeholder visu properties
+    property alias color: thePlaceholder.color
 
     // Body properties
     property alias world: boxBody.world
@@ -42,16 +49,22 @@ Rectangle {
     property alias collidesWith: box.collidesWith
     property alias groupIndex: box.groupIndex
 
+    Rectangle {
+        id: thePlaceholder
+        anchors.fill: parent
+        visible: theImage.source == ""
+    }
+
     Body {
         id: boxBody
 
-        target: rectangle
+        target: theImage
 
         Box {
             id: box
 
-            width: rectangle.width
-            height: rectangle.height
+            width: theImage.width
+            height: theImage.height
         }
     }
 }

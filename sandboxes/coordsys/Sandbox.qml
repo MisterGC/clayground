@@ -11,7 +11,8 @@ CoordCanvas
     Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/plugins/populator/sample_level.svg")
     Component {
         id: rectCreator
-        RectangleBoxBody {
+        VisualizedBoxBody {
+            id: theBody
             parent: coordSys
             pixelPerUnit: theCanvas.pixelPerUnit
             xWu: 10; yWu: 10; widthWu: 1; heightWu: 0.6;
@@ -19,17 +20,62 @@ CoordCanvas
                                                " y:" + y +
                                                " width:" + width +
                                                " height:" + height );
+            MouseArea {
+                anchors.fill: parent
+                onPressed: {
+                    theArea.pressedBody = theBody.body;
+                    mouse.accepted = false;
+                }
+            }
+        }
+    }
+
+    Body {
+        id: anchor
+        world: physicsWorld
+    }
+
+    MouseJoint {
+        id: mouseJoint
+        bodyA: anchor
+        dampingRatio: 0.8
+        maxForce: 100
+    }
+
+    MouseArea {
+        id: theArea
+        parent: coordSys
+        property Body pressedBody: null
+        anchors.fill: parent
+        preventStealing: pressedBody !== null
+
+        onPressed: {
+            if (pressedBody != null) {
+                console.log("There is a pressed body!")
+                mouseJoint.maxForce = pressedBody.getMass() * 500;
+                mouseJoint.target = Qt.point(mouseX, mouseY);
+                mouseJoint.bodyB = pressedBody;
+            }
+        }
+
+        onPositionChanged: {
+            console.log("Position changed!")
+            mouseJoint.target = Qt.point(mouseX, mouseY);
+        }
+
+        onReleased: {
+            console.log("Released")
+            mouseJoint.bodyB = null;
+            pressedBody = null;
         }
     }
 
     World {
         id: physicsWorld
-
-        gravity: Qt.point(0,9.81)
-        timeStep: 1/20.0
-        pixelsPerMeter: 32.0
+        gravity: Qt.point(0,3*9.81)
+        timeStep: 1/60.0
+        pixelsPerMeter: pixelPerUnit
     }
-
 
     Populator
     {
@@ -52,6 +98,8 @@ CoordCanvas
             var clr = componentName == "Table" ? "brown" : "red";
             var obj = rectCreator.createObject(theCanvas.coordSys, {"xWu": xWu,
                                                                     "yWu": theCanvas.worldYMax - yWu,
+                                                                    "widthWu": widthWu,
+                                                                    "heightWu": heightWu,
                                                                     "bodyType": bt,
                                                                     "color": clr});
             objs.push(obj);

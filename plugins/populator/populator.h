@@ -12,7 +12,7 @@ public slots:
 
 signals:
     void aboutToPopulate(float widthWu, float heightWu, int widthPx, int heightPx);
-    void createItemAt(const QString& componentName, float xWu, float yWu);
+    void createItemAt(const QString& componentName, float xWu, float yWu, float widthWu, float heightWu);
 
 private slots:
     void onSvgChanged(const QString &path);
