@@ -42,7 +42,7 @@ Item {
 
     Canvas
     {
-        id: theCanvas
+        id: theUnderlay
         anchors.fill: parent
         opacity: 1.0
         Behavior on opacity { NumberAnimation {duration: 250}}
@@ -56,7 +56,7 @@ Item {
             var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
             var maxX = minX + theWorld.sWidthInWU
             for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
-                var xCanv = theCanvas.mapFromItem(theWorld, x, 0).x;
+                var xCanv = theUnderlay.mapFromItem(theWorld, x, 0).x;
                 ctx.moveTo(xCanv, 0);
                 ctx.lineTo(xCanv, height);
             }
@@ -64,7 +64,7 @@ Item {
             var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
             var minY = maxY - theWorld.sHeightInWU
             for (var y=theWorld.yToScreen(maxY); y <= theWorld.yToScreen(minY); y+=theWorld.pixelPerUnit) {
-                var yCanv = theCanvas.mapFromItem(theWorld, 0, y).y;
+                var yCanv = theUnderlay.mapFromItem(theWorld, 0, y).y;
                 ctx.moveTo(0, yCanv);
                 ctx.lineTo(width, yCanv);
             }
@@ -77,51 +77,6 @@ Item {
             ctx.reset();
             coordinateGrid();
         }
-
-        Rectangle {
-            anchors.centerIn: parent
-            border.color: "black"
-            color: Qt.rgba(1., 0, 0, .5)
-            width: 10
-            height: 10
-
-            Column {
-                id: col
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.bottom
-                property int xScr: flckable.contentX + flckable.width/2
-                property int yScr: flckable.contentY + flckable.height/2
-
-                Text {
-                        font.bold: true
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: "(" + col.xScr +
-                              "|" +
-                              col.yScr + ") / " +
-                 "(" + screenXToWorld(col.xScr).toFixed(2) +
-                              "|" +
-                              screenYToWorld(col.yScr).toFixed(2) + ") "
-                }
-                Text {
-                          font.bold: true
-                          color: Qt.rgba(.4, .4, .4, 1)
-                          anchors.horizontalCenter: parent.horizontalCenter
-                          text:
-                              "(" +
-                              (theWorld.xInWU).toFixed(2) +
-                              "|"  +
-                              (theWorld.yInWU).toFixed(2) +
-                              ") -> " +
-                              "(" +
-                              (screenXToWorld(col.xScr + flckable.width/2)).toFixed(2) +
-                              "|"  +
-                              (screenYToWorld(col.yScr + flckable.height/2)).toFixed(2) +
-                              ")"
-                }
-            }
-
-        }
-
     }
 
     Flickable
@@ -133,7 +88,7 @@ Item {
         property real zoomFactor: 1.0
         property real pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
         Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
-        onPixelPerUnitChanged: { theCanvas.requestPaint();}
+        onPixelPerUnitChanged: { theUnderlay.requestPaint();}
 
         property real worldXMin: 0
         property real worldXMax:  20
@@ -145,8 +100,8 @@ Item {
         property real sWidthInWU: width / pixelPerUnit
         property real sHeightInWU: height/ pixelPerUnit
 
-        onXInWUChanged: theCanvas.requestPaint()
-        onYInWUChanged: theCanvas.requestPaint()
+        onXInWUChanged: theUnderlay.requestPaint()
+        onYInWUChanged: theUnderlay.requestPaint()
 
         contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
         contentHeight: Math.abs(worldYMax - worldYMin) * pixelPerUnit
@@ -185,8 +140,96 @@ Item {
                 event.accepted = true;
             }
             if (event.key === Qt.Key_Space) {
-                theCanvas.opacity = theCanvas.opacity < .5 ? 1. : 0.;
+                theUnderlay.opacity = theUnderlay.opacity < .5 ? 1. : 0.;
+                theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
             }
+        }
+
+    }
+
+    Item
+    {
+        id: theOverlay
+        anchors.fill: parent
+        opacity: 1.0
+        Behavior on opacity { NumberAnimation {duration: 250}}
+
+
+        Text {
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: parent.width * 1.02
+                height: parent.height * 1.02
+                color: "white"
+                z: -1
+                opacity: 0.5
+            }
+
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.topMargin: parent.height / 100
+            anchors.leftMargin: anchors.topMargin
+            font.bold: true
+            font.family: "Monospace"
+            color: "#2087c0"
+            text: "D-Scale: " + flckable.deviceScalingFactor.toFixed(2)  + "\n" +
+                  "Zoom:    " + flckable.zoomFactor.toFixed(2)  + "\n" +
+                  "PPU:     " + flckable.pixelPerUnit.toFixed(2)
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            border.color: "black"
+            color: Qt.rgba(1., 0, 0, .5)
+            width: 10
+            height: 10
+
+            Rectangle {
+                opacity: 0.5
+                anchors.centerIn: col
+                width: col.width
+                height: col.height
+            }
+
+            Column {
+                id: col
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.bottom
+                property int xScr: flckable.contentX + flckable.width/2
+                property int yScr: flckable.contentY + flckable.height/2
+
+                Text {
+                    font.family: "Monospace"
+                    color: "#2087c0"
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "(" + col.xScr +
+                          "|" +
+                          col.yScr + ") / " +
+                          "(" + screenXToWorld(col.xScr).toFixed(2) +
+                          "|" +
+                          screenYToWorld(col.yScr).toFixed(2) + ") "
+                }
+                Text {
+                    font.family: "Monospace"
+                    color: "#2087c0"
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text:
+                        "(" +
+                        (theWorld.xInWU).toFixed(2) +
+                        "|"  +
+                        (theWorld.yInWU).toFixed(2) +
+                        ") -> " +
+                        "(" +
+                        (screenXToWorld(col.xScr + flckable.width/2)).toFixed(2) +
+                        "|"  +
+                        (screenYToWorld(col.yScr + flckable.height/2)).toFixed(2) +
+                        ")"
+                }
+            }
+
         }
 
     }
