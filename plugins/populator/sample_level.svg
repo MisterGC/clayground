@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.22627417"
-     inkscape:cx="1329.2367"
-     inkscape:cy="1459.1244"
+     inkscape:zoom="0.32"
+     inkscape:cx="2001.4703"
+     inkscape:cy="1218.459"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="true"
@@ -78,96 +78,425 @@
        id="Player-0"
        width="0.60000002"
        height="0.60000002"
-       x="3.2660716"
-       y="36.614594">
+       x="6.5457993"
+       y="29.677914">
       <desc
          id="desc3988-1-3">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02212031;enable-background:new"
-       id="Wall-2"
-       width="7.8721943"
-       height="0.60000002"
-       x="0.012694489"
-       y="39.378098">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02031608;enable-background:new"
+       id="Wall-9"
+       width="10.450444"
+       height="0.38125002"
+       x="-3.2350705e-08"
+       y="25.351252">
       <desc
-         id="desc3988-15">Table.qml</desc>
+         id="desc3988-10">Table.qml</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02884564;enable-background:new"
-       id="Wall-1"
-       width="0.75"
-       height="10.709375"
-       x="0.015624996"
-       y="28.637501">
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02013091;enable-background:new"
+       id="Wall-7"
+       width="0.53125"
+       height="7.3636384"
+       x="4.4337497"
+       y="25.663752">
+      <desc
+         id="desc3988-5">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01576466;enable-background:new"
+       id="Wall-8"
+       width="5.40625"
+       height="0.44375002"
+       x="2.4649997"
+       y="32.650043">
+      <desc
+         id="desc3988-7">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02052238;enable-background:new"
+       id="Wall-0"
+       width="0.5"
+       height="8.1311045"
+       x="9.9399977"
+       y="25.570148">
+      <desc
+         id="desc3988-48">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01402513;enable-background:new"
+       id="Wall-04"
+       width="0.46417356"
+       height="4.0907125"
+       x="9.9552412"
+       y="35.49276">
+      <desc
+         id="desc3988-2">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01459421;enable-background:new"
+       id="Wall-96"
+       width="0.5"
+       height="4.1120243"
+       x="5.2981234"
+       y="35.484852">
+      <desc
+         id="desc3988-104">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01616104;enable-background:new"
+       id="Wall-5"
+       width="5.4882779"
+       height="0.45937502"
+       x="2.25"
+       y="35.099987">
+      <desc
+         id="desc3988-52">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.04711849;enable-background:new"
+       id="Wall-3"
+       width="35.71875"
+       height="0.60000002"
+       x="-1.1080363e-08"
+       y="39.450001">
+      <desc
+         id="desc3988-8">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.05073133;enable-background:new"
+       id="Wall-19"
+       width="41.40625"
+       height="0.60000002"
+       x="38.625"
+       y="39.418751">
+      <desc
+         id="desc3988-6">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.05901856;enable-background:new"
+       id="Wall-6"
+       width="0.84375"
+       height="39.850002"
+       x="-4.1551367e-08"
+       y="0.04375077">
+      <desc
+         id="desc3988-0">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.08340475;enable-background:new"
+       id="Wall-4"
+       width="79"
+       height="0.85000002"
+       x="0.75"
+       y="0.012499803">
+      <desc
+         id="desc3988-3">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.0640747;enable-background:new"
+       id="Wall-31"
+       width="1"
+       height="39.631252"
+       x="79.03125"
+       y="0.043749791">
       <desc
          id="desc3988-4">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.0280167;enable-background:new"
+       id="Wall-83"
+       width="0.69064081"
+       height="10.971004"
+       x="62.290878"
+       y="0.80912673">
+      <desc
+         id="desc3988-83">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01939245;enable-background:new"
+       id="Wall-33"
+       width="0.69064081"
+       height="5.2562723"
+       x="74.309761"
+       y="5.9251728">
+      <desc
+         id="desc3988-80">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01496598;enable-background:new"
+       id="Wall-47"
+       width="0.73483497"
+       height="2.9422913"
+       x="74.309761"
+       y="0.54396206">
+      <desc
+         id="desc3988-68">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01866463;enable-background:new"
+       id="Wall-90"
+       width="5.6046968"
+       height="0.60000002"
+       x="73.560928"
+       y="11.201824">
+      <desc
+         id="desc3988-687">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01840847;enable-background:new"
+       id="Wall-903"
+       width="0.60225242"
+       height="5.4315143"
+       x="69.812935"
+       y="5.9535794">
+      <desc
+         id="desc3988-33">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02278185;enable-background:new"
+       id="Wall-73"
+       width="8.3500977"
+       height="0.60000002"
+       x="62.732819"
+       y="11.15763">
+      <desc
+         id="desc3988-26">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01424548;enable-background:new"
+       id="Wall-52"
+       width="0.64644659"
+       height="3.0302987"
+       x="69.768738"
+       y="0.72073889">
+      <desc
+         id="desc3988-65">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02409298;enable-background:new"
+       id="Wall-60"
+       width="12.197717"
+       height="0.45937502"
+       x="17.18804"
+       y="17.293753">
+      <desc
+         id="desc3988-41">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01831719;enable-background:new"
+       id="Wall-048"
+       width="0.56786168"
+       height="5.7034845"
+       x="17.159977"
+       y="17.611225">
+      <desc
+         id="desc3988-70">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.0127505;enable-background:new"
+       id="Wall-86"
+       width="2.6155777"
+       height="0.60000002"
+       x="26.796919"
+       y="23.325001">
+      <desc
+         id="desc3988-24">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02153673;enable-background:new"
+       id="Wall-79"
+       width="7.4623108"
+       height="0.60000002"
+       x="17.159977"
+       y="23.262501">
+      <desc
+         id="desc3988-39">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01867631;enable-background:new"
+       id="Wall-28"
+       width="0.5625"
+       height="5.9858351"
+       x="28.849997"
+       y="17.564167">
+      <desc
+         id="desc3988-30">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.04697745;enable-background:new"
+       id="Wall-1"
+       width="25.0625"
+       height="0.85000002"
+       x="54"
+       y="17.762501">
+      <desc
+         id="desc3988-78">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.03234658;enable-background:new"
+       id="Wall-91"
+       width="1"
+       height="10.1"
+       x="53.974945"
+       y="18.512501">
+      <desc
+         id="desc3988-54">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.03038557;enable-background:new"
+       id="Wall-92"
+       width="1"
+       height="8.9125004"
+       x="54.037445"
+       y="30.700001">
+      <desc
+         id="desc3988-57">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01513942;enable-background:new"
+       id="Wall-49"
+       width="3.6875"
+       height="0.60000002"
+       x="41.375"
+       y="24.950001">
+      <desc
+         id="desc3988-9">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01539388;enable-background:new"
+       id="Wall-45"
+       width="3.8125"
+       height="0.60000002"
+       x="36.375"
+       y="25.075001">
+      <desc
+         id="desc3988-93">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01695744;enable-background:new"
+       id="Wall-57"
+       width="0.6875"
+       height="4.0374999"
+       x="44.4375"
+       y="21.200001">
+      <desc
+         id="desc3988-08">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.01734672;enable-background:new"
+       id="Wall-199"
+       width="0.6875"
+       height="4.2249999"
+       x="36.375"
+       y="21.137501">
+      <desc
+         id="desc3988-782">Table.qml</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.02323757;enable-background:new"
+       id="Wall-53"
+       width="8.6875"
+       height="0.60000002"
+       x="36.4375"
+       y="20.762501">
+      <desc
+         id="desc3988-49">Table.qml</desc>
     </rect>
   </g>
   <g
      inkscape:label="Legend"
      inkscape:groupmode="layer"
      id="layer1"
-     style="display:inline"
-     transform="translate(0,18.4)">
+     style="display:inline">
     <rect
        inkscape:label="#rect3716"
        style="fill:#502d16;stroke:none;stroke-width:0.00788394"
        id="Wall"
        width="1"
        height="0.60000002"
-       x="-0.0029544933"
-       y="22.316109">
+       x="0.2157955"
+       y="40.753609">
       <desc
          id="desc3988">Table.qml</desc>
     </rect>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:0.42532995px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325"
-       x="0.037682638"
-       y="23.409985"
+       x="0.25643265"
+       y="41.847485"
        id="text3735"><tspan
          sodipodi:role="line"
          id="tspan3733"
-         x="0.037682638"
-         y="23.409985"
+         x="0.25643265"
+         y="41.847485"
          style="fill:#241c1c;stroke-width:0.01063325">Wall</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"
-       x="7.93257"
-       y="22.814238"
+       x="3.5260968"
+       y="41.221027"
        id="text3735-5"><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="22.814238"
+         x="3.5260968"
+         y="41.221027"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan1057">This maps is saved with coordinates that assume 50 pixelPerWorld Unit</tspan><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="23.3459"
+         x="3.5260968"
+         y="41.752689"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan1214">meaning that when you put an item at (50|100) here, it will have WorldCoords</tspan><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="23.877563"
+         x="3.5260968"
+         y="42.284351"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan1216">of (1.0|2.0)</tspan><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="24.409225"
+         x="3.5260968"
+         y="42.816013"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan7455">WARNING: When you change the size of the level (Document </tspan><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="24.940887"
+         x="3.5260968"
+         y="43.347679"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan7457">Settings) be sure to remove the transform from the XML representation</tspan><tspan
          sodipodi:role="line"
-         x="7.93257"
-         y="25.472549"
+         x="3.5260968"
+         y="43.879341"
          style="fill:#241c1c;stroke-width:0.01063325"
          id="tspan7459">(Edit-&gt; XML Editor) otherwise y Coords will be messed up!!</tspan></text>
     <rect
@@ -176,21 +505,21 @@
        id="Player"
        width="0.60000002"
        height="0.60000002"
-       x="1.6929944"
-       y="22.317369">
+       x="1.9117444"
+       y="40.754871">
       <desc
          id="desc3988-1">Table.qml</desc>
     </rect>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"
-       x="1.3045707"
-       y="23.341137"
+       x="1.5233207"
+       y="41.778637"
        id="text3735-2"><tspan
          sodipodi:role="line"
          id="tspan3733-9"
-         x="1.3045707"
-         y="23.341137"
+         x="1.5233207"
+         y="41.778637"
          style="fill:#241c1c;stroke-width:0.01063325">Player</tspan></text>
   </g>
 </svg>
