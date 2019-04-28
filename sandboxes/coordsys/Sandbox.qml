@@ -74,6 +74,9 @@ CoordCanvas
             if (event.key === Qt.Key_Right) player.stopRight();
     }
 
+    property bool aiRunning: false
+    AiMap { id: aiMap }
+
     Populator
     {
         id: thePopulator
@@ -83,6 +86,7 @@ CoordCanvas
         onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             player = null;
+            aiMap.clear();
             while(objs.length > 0) {
                 var obj = objs.pop();
                 obj.destroy();
@@ -94,7 +98,7 @@ CoordCanvas
         onCreateItemAt: {
             console.log("Create item: " + componentName + " x: " + xWu + " y: " + yWu);
             var comp = Qt.createComponent(componentName + ".qml");
-            console.log("Comp: " + comp)
+            console.log("CustomInfo: " + customInfo)
             var obj = comp.createObject(coordSys, {
                                             "xWu": xWu,
                                             "yWu": yWu,
@@ -110,6 +114,42 @@ CoordCanvas
                 theCanvas.viewPortCenterWuX = Qt.binding(function() {return theCanvas.screenXToWorld(player.x);});
                 theCanvas.viewPortCenterWuY = Qt.binding(function() {return theCanvas.screenYToWorld(player.y);});
             }
+            else if (componentName === "Absorbicer") {
+                let hasCfg = (customInfo.length >= 2);
+                if (hasCfg) {
+                    let cfg = JSON.parse(customInfo)
+                    if (cfg["route"])
+                        obj.route = cfg["route"];
+                }
+                obj.map = aiMap
+                obj.aiRunning = Qt.binding(function() {return theCanvas.aiRunning;});
+            }
+        }
+        onCreatePoIAt: {
+            var comp = Qt.createComponent(componentName + ".qml");
+            var obj = comp.createObject(coordSys, {
+                                            "xWu": xWu,
+                                            "yWu": yWu,
+                                            "widthWu": 2*radiusWu,
+                                            "heightWu": 2*radiusWu
+                                            });
+            obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
+            objs.push(obj);
+            if (componentName == "Waypoint"){
+                let splitInfo = customInfo.split(":");
+                let routeId = splitInfo[0];
+                let wpIdx = splitInfo[1]
+                if (!aiMap.routes[routeId]) {
+                    console.log("Add route " + routeId)
+                    aiMap.routes[routeId] = [];
+                }
+                let route = aiMap.routes[routeId]
+                route[wpIdx] = obj;
+                console.log("Route len: " + route.length)
+            }
+        }
+        onPopulationFinished: {
+            theCanvas.aiRunning = true;
         }
     }
 

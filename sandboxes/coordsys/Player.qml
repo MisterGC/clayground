@@ -23,13 +23,13 @@ VisualizedBoxBody
 
     ScalingText
     {
-        parent: parent.parent
+        parent: thePlayer.parent
         x: thePlayer.x - width/2
         y: thePlayer.y - height * 1.1
         z: 99
         text: "Here I am!"
         color: "#3fa4c8"
         pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 1.0
+        fontSizeWu: 0.5
     }
 }

@@ -5,6 +5,48 @@ PhysicsItem
 {
     id: theAbsorbicer
 
+    property string route: ""
+
+    // Behavior
+    property bool aiRunning: false
+    property AiMap map: null
+    property Waypoint destination: null
+    property int wpIdx: -1
+    property real maxVelo: 8
+    onAiRunningChanged: {
+        if (aiRunning)
+            selectNextWp();
+        else
+            destination = null;
+    }
+
+    function selectNextWp() {
+        console.log("I am thinking...")
+        if (route.length > 0) {
+            console.log("Go on route " + route + " map: " + map)
+            let r = map.routes[route]
+            wpIdx = r[wpIdx + 1] ? wpIdx + 1 : 0;
+            destination = r[wpIdx];
+        }
+    }
+
+    onDestinationChanged: {
+        if (destination) {
+            let v = Qt.vector2d(destination.x - x, destination.y - y);
+            let l = v.length();
+            if (l > 1) {
+                v = v.times(maxVelo/l);
+                linearVelocity.x = v.x
+                linearVelocity.y = v.y
+            }
+        }
+        else {
+            linearVelocity.x = 0;
+            linearVelocity.y = 0;
+        }
+
+    }
+
     bodyType: Body.Dynamic
     Rectangle { color: "#dc3f4d"; opacity: 0.4; radius: theRadius.radius; x: theRadius.x; y: theRadius.y; width: 2*radius; height: 2*radius}
     Rectangle { color: "#dc3f4d"; anchors.fill: parent }
@@ -19,6 +61,11 @@ PhysicsItem
             height: theAbsorbicer.height
             categories: Box.Category3
             collidesWith: Box.Category1
+            onBeginContact: {
+                var entity = getBody().target;
+                console.log("Contact with " + entity);
+                if (entity.route === theAbsorbicer.route) selectNextWp();
+            }
         },
         Circle {
             id: theRadius
@@ -27,7 +74,10 @@ PhysicsItem
             radius: theAbsorbicer.width * 2
             collidesWith: Box.Category2
             sensor: true
-            onBeginContact: { console.log("There you are!") }
+            onBeginContact: {
+                var entity = getBody().target;
+                console.log("Perceived " + entity);
+            }
             onEndContact:   { console.log("Hmm - nobody here...") }
         }
     ]

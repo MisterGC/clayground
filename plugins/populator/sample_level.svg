@@ -37,11 +37,11 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.28"
-     inkscape:cx="2712.6723"
-     inkscape:cy="605.48388"
+     inkscape:zoom="0.64"
+     inkscape:cx="541.22019"
+     inkscape:cy="-307.33576"
      inkscape:document-units="px"
-     inkscape:current-layer="layer2"
+     inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1920"
      inkscape:window-height="1044"
@@ -962,10 +962,7 @@
        width="0.60000002"
        height="0.60000002"
        x="1.0831035"
-       y="41.119476">
-      <desc
-         id="desc3988-1">Table.qml</desc>
-    </rect>
+       y="41.119476" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:0.42532998px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#241c1c;fill-opacity:1;stroke:none;stroke-width:0.01063325;enable-background:new"

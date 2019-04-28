@@ -6,6 +6,7 @@ add_executable (${PROJECT_NAME}
 main.cpp
 Absorbicer.qml
 Angle.qml
+AiMap.qml
 Sandbox.qml
 ScalingText.qml
 CoordCanvas.qml
@@ -13,6 +14,7 @@ Minigy.qml
 Player.qml
 PhysicsItem.qml
 Wall.qml
+Waypoint.qml
 VisualizedBoxBody.qml)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
