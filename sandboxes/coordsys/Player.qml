@@ -3,6 +3,7 @@ import Box2D 2.0
 
 VisualizedBoxBody
 {
+    id: thePlayer
     bodyType: Body.Dynamic
     color: "#3fa4c8"
     bullet: true
@@ -22,9 +23,13 @@ VisualizedBoxBody
 
     ScalingText
     {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.top
+        parent: parent.parent
+        x: thePlayer.x - width/2
+        y: thePlayer.y - height * 1.1
+        z: 99
         text: "Here I am!"
-        pixelPerUnit: 1.0
+        color: "#3fa4c8"
+        pixelPerUnit: thePlayer.pixelPerUnit
+        fontSizeWu: 1.0
     }
 }
