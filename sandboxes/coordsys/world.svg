@@ -10,8 +10,8 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="4000"
-   height="2000"
-   viewBox="0 0 80 40"
+   height="4000"
+   viewBox="0 0 80 80"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.45254834"
-     inkscape:cx="2014.1272"
-     inkscape:cy="1292.3244"
+     inkscape:zoom="0.22627417"
+     inkscape:cx="2684.1759"
+     inkscape:cy="2028.6904"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -63,7 +63,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -73,14 +73,19 @@
      inkscape:label="Map"
      style="display:inline;opacity:1;filter:url(#filter1177)">
     <path
+       style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="m 6.6875,23.875 12.9375,14.5625 27.5625,-2.625 -0.5625,-31.5 -29,1.75 z"
+       id="path3009"
+       inkscape:connector-curvature="0" />
+    <path
        style="opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.56390553, 0.56390553;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 12.506951,35.801554 12.860504,16.17934 30.759146,16.356117 29.919455,35.713166 Z"
+       d="M 12.631951,75.926554 12.985504,56.30434 30.884146,56.481117 30.044455,75.838166 Z"
        id="path1072"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="ccccc" />
     <path
        style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.56390553, 0.56390553;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 52,26.1875 52.03125,17 34.417735,18.201206 34.305299,33.40625 49.719024,33.139531 52,26.25"
+       d="M 52.125,66.3125 52.15625,57.125 34.542735,58.326206 34.430299,73.53125 49.844024,73.264531 52.125,66.375"
        id="path1077"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccccc" />
@@ -90,8 +95,8 @@
        id="Player-0"
        width="0.60000002"
        height="0.60000002"
-       x="11.230382"
-       y="18.85034">
+       x="72.520119"
+       y="7.9310665">
       <desc
          id="desc3988-1-3">{}</desc>
     </rect>
@@ -101,8 +106,8 @@
        id="Wall-9"
        width="10.450444"
        height="0.38125002"
-       x="-3.2350705e-08"
-       y="25.351252">
+       x="0.12499997"
+       y="65.47625">
       <desc
          id="desc3988-10">{}</desc>
     </rect>
@@ -112,8 +117,8 @@
        id="Wall-7"
        width="0.53125"
        height="7.3636384"
-       x="4.4337497"
-       y="25.663752">
+       x="4.5587497"
+       y="65.78875">
       <desc
          id="desc3988-5">{}</desc>
     </rect>
@@ -123,8 +128,8 @@
        id="Wall-8"
        width="5.40625"
        height="0.44375002"
-       x="2.4649997"
-       y="32.650043">
+       x="2.5899997"
+       y="72.77504">
       <desc
          id="desc3988-7">{}</desc>
     </rect>
@@ -134,8 +139,8 @@
        id="Wall-0"
        width="0.5"
        height="8.1311045"
-       x="9.9399977"
-       y="25.570148">
+       x="10.064998"
+       y="65.695145">
       <desc
          id="desc3988-48">{}</desc>
     </rect>
@@ -145,8 +150,8 @@
        id="Wall-04"
        width="0.46417356"
        height="4.0907125"
-       x="9.9552412"
-       y="35.49276">
+       x="10.080241"
+       y="75.61776">
       <desc
          id="desc3988-2">{}</desc>
     </rect>
@@ -156,8 +161,8 @@
        id="Wall-96"
        width="0.5"
        height="4.1120243"
-       x="5.2981234"
-       y="35.484852">
+       x="5.4231234"
+       y="75.609848">
       <desc
          id="desc3988-104">{}</desc>
     </rect>
@@ -167,8 +172,8 @@
        id="Wall-5"
        width="5.4882779"
        height="0.45937502"
-       x="2.25"
-       y="35.099987">
+       x="2.375"
+       y="75.224983">
       <desc
          id="desc3988-52">{}</desc>
     </rect>
@@ -178,8 +183,8 @@
        id="Wall-3"
        width="35.71875"
        height="0.60000002"
-       x="-1.1080363e-08"
-       y="39.450001">
+       x="0.12499999"
+       y="79.574997">
       <desc
          id="desc3988-8">{}</desc>
     </rect>
@@ -189,19 +194,19 @@
        id="Wall-19"
        width="41.40625"
        height="0.60000002"
-       x="38.625"
-       y="39.418751">
+       x="38.75"
+       y="79.543747">
       <desc
          id="desc3988-6">{}</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.05901856;enable-background:new"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.08347794;enable-background:new"
        id="Wall-6"
        width="0.84375"
-       height="39.850002"
-       x="-4.1551367e-08"
-       y="0.04375077">
+       height="79.724998"
+       x="0.12499996"
+       y="0.29375079">
       <desc
          id="desc3988-0">{}</desc>
     </rect>
@@ -211,19 +216,19 @@
        id="Wall-4"
        width="79"
        height="0.85000002"
-       x="0.75"
-       y="0.012499803">
+       x="0.625"
+       y="0.13750081">
       <desc
          id="desc3988-3">{}</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
-       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.0640747;enable-background:new"
+       style="display:inline;fill:#502d16;stroke:none;stroke-width:0.09089711;enable-background:new"
        id="Wall-31"
        width="1"
-       height="39.631252"
-       x="79.03125"
-       y="0.043749791">
+       height="79.756248"
+       x="79.15625"
+       y="0.043750804">
       <desc
          id="desc3988-4">{}</desc>
     </rect>
@@ -233,8 +238,8 @@
        id="Wall-83"
        width="0.69064081"
        height="10.971004"
-       x="62.290878"
-       y="0.80912673">
+       x="62.415878"
+       y="0.93411577">
       <desc
          id="desc3988-83">{}</desc>
     </rect>
@@ -244,8 +249,8 @@
        id="Wall-33"
        width="0.69064081"
        height="5.2562723"
-       x="74.309761"
-       y="5.9251728">
+       x="74.434761"
+       y="6.0501418">
       <desc
          id="desc3988-80">{}</desc>
     </rect>
@@ -255,8 +260,8 @@
        id="Wall-47"
        width="0.73483497"
        height="2.9422913"
-       x="74.309761"
-       y="0.54396206">
+       x="74.434761"
+       y="0.66895103">
       <desc
          id="desc3988-68">{}</desc>
     </rect>
@@ -266,8 +271,8 @@
        id="Wall-90"
        width="5.6046968"
        height="0.60000002"
-       x="73.560928"
-       y="11.201824">
+       x="73.685928"
+       y="11.32677">
       <desc
          id="desc3988-687">{}</desc>
     </rect>
@@ -277,8 +282,8 @@
        id="Wall-903"
        width="0.60225242"
        height="5.4315143"
-       x="69.812935"
-       y="5.9535794">
+       x="69.937935"
+       y="6.078548">
       <desc
          id="desc3988-33">{}</desc>
     </rect>
@@ -288,8 +293,8 @@
        id="Wall-73"
        width="8.3500977"
        height="0.60000002"
-       x="62.732819"
-       y="11.15763">
+       x="62.857819"
+       y="11.282578">
       <desc
          id="desc3988-26">{}</desc>
     </rect>
@@ -299,8 +304,8 @@
        id="Wall-52"
        width="0.64644659"
        height="3.0302987"
-       x="69.768738"
-       y="0.72073889">
+       x="69.893738"
+       y="0.84572446">
       <desc
          id="desc3988-65">{}</desc>
     </rect>
@@ -310,8 +315,8 @@
        id="Wall-60"
        width="12.197717"
        height="0.45937502"
-       x="15.773828"
-       y="19.105715">
+       x="15.898828"
+       y="59.230713">
       <desc
          id="desc3988-41">{}</desc>
     </rect>
@@ -321,8 +326,8 @@
        id="Wall-048"
        width="0.56786168"
        height="5.7034845"
-       x="15.745765"
-       y="19.423187">
+       x="15.870765"
+       y="59.548187">
       <desc
          id="desc3988-70">{}</desc>
     </rect>
@@ -332,8 +337,8 @@
        id="Wall-86"
        width="2.6155777"
        height="0.60000002"
-       x="25.382706"
-       y="25.136963">
+       x="25.507706"
+       y="65.261963">
       <desc
          id="desc3988-24">{}</desc>
     </rect>
@@ -343,8 +348,8 @@
        id="Wall-79"
        width="7.4623108"
        height="0.60000002"
-       x="15.745765"
-       y="25.074463">
+       x="15.870765"
+       y="65.199463">
       <desc
          id="desc3988-39">{}</desc>
     </rect>
@@ -354,8 +359,8 @@
        id="Wall-28"
        width="0.5625"
        height="5.9858351"
-       x="27.435783"
-       y="19.376129">
+       x="27.560783"
+       y="59.501129">
       <desc
          id="desc3988-30">{}</desc>
     </rect>
@@ -365,8 +370,8 @@
        id="Wall-1"
        width="25.0625"
        height="0.85000002"
-       x="54"
-       y="17.762501">
+       x="54.125"
+       y="57.887501">
       <desc
          id="desc3988-78">{}</desc>
     </rect>
@@ -376,8 +381,8 @@
        id="Wall-91"
        width="1"
        height="10.1"
-       x="53.974945"
-       y="18.512501">
+       x="54.099945"
+       y="58.637501">
       <desc
          id="desc3988-54">{}</desc>
     </rect>
@@ -387,8 +392,8 @@
        id="Wall-92"
        width="1"
        height="8.9125004"
-       x="54.037445"
-       y="30.700001">
+       x="54.162445"
+       y="70.824997">
       <desc
          id="desc3988-57">{}</desc>
     </rect>
@@ -398,8 +403,8 @@
        id="Wall-49"
        width="3.6875"
        height="0.60000002"
-       x="42.200069"
-       y="29.482578">
+       x="42.325069"
+       y="69.607574">
       <desc
          id="desc3988-9">{}</desc>
     </rect>
@@ -409,8 +414,8 @@
        id="Wall-45"
        width="3.8125"
        height="0.60000002"
-       x="36.375"
-       y="29.474997">
+       x="36.5"
+       y="69.599998">
       <desc
          id="desc3988-93">{}</desc>
     </rect>
@@ -420,8 +425,8 @@
        id="Wall-57"
        width="0.64330584"
        height="8.2425213"
-       x="45.237503"
-       y="21.262871">
+       x="45.362503"
+       y="61.387871">
       <desc
          id="desc3988-08">{}</desc>
     </rect>
@@ -431,8 +436,8 @@
        id="Wall-199"
        width="0.6875"
        height="8.4750004"
-       x="36.375"
-       y="21.137501">
+       x="36.5"
+       y="61.262501">
       <desc
          id="desc3988-782">{}</desc>
     </rect>
@@ -442,8 +447,8 @@
        id="Wall-53"
        width="9.4934883"
        height="0.60000002"
-       x="36.382812"
-       y="20.762501">
+       x="36.507812"
+       y="60.887501">
       <desc
          id="desc3988-49">{}</desc>
     </rect>
@@ -453,8 +458,8 @@
        id="Wall-02"
        width="2.281631"
        height="0.4011263"
-       x="13.325083"
-       y="3.3497171">
+       x="13.450083"
+       y="43.474716">
       <desc
          id="desc3988-01">{}</desc>
     </rect>
@@ -464,8 +469,8 @@
        id="Wall-962"
        width="1.3093591"
        height="0.51161152"
-       x="11.918564"
-       y="7.2178583">
+       x="12.043564"
+       y="47.342857">
       <desc
          id="desc3988-12">{}</desc>
     </rect>
@@ -475,8 +480,8 @@
        id="Wall-07"
        width="2.767767"
        height="0.46741754"
-       x="5.333632"
-       y="10.333547">
+       x="5.458632"
+       y="50.458546">
       <desc
          id="desc3988-31">{}</desc>
     </rect>
@@ -486,8 +491,8 @@
        id="Wall-190"
        width="0.5138641"
        height="1.9921165"
-       x="13.531651"
-       y="11.173238">
+       x="13.656651"
+       y="51.298237">
       <desc
          id="desc3988-56">{}</desc>
     </rect>
@@ -497,8 +502,8 @@
        id="Wall-77"
        width="2.5026019"
        height="0.40112627"
-       x="11.123068"
-       y="12.631644">
+       x="11.248068"
+       y="52.756645">
       <desc
          id="desc3988-40">{}</desc>
     </rect>
@@ -508,8 +513,8 @@
        id="Wall-64"
        width="0.5138641"
        height="2.9422913"
-       x="7.9852819"
-       y="10.333546">
+       x="8.1102819"
+       y="50.458546">
       <desc
          id="desc3988-74">{}</desc>
     </rect>
@@ -519,8 +524,8 @@
        id="Wall-85"
        width="1"
        height="0.44532043"
-       x="9.5541754"
-       y="6.6433344">
+       x="9.6791754"
+       y="46.768333">
       <desc
          id="desc3988-82">{}</desc>
     </rect>
@@ -530,8 +535,8 @@
        id="Wall-606"
        width="0.55805832"
        height="1.9258252"
-       x="10.482253"
-       y="5.4279938">
+       x="10.607253"
+       y="45.552994">
       <desc
          id="desc3988-64">{}</desc>
     </rect>
@@ -541,8 +546,8 @@
        id="Wall-62"
        width="0.44757271"
        height="4.3344078"
-       x="13.200195"
-       y="5.4279938">
+       x="13.325195"
+       y="45.552994">
       <desc
          id="desc3988-89">{}</desc>
     </rect>
@@ -552,8 +557,8 @@
        id="Wall-607"
        width="0.49176702"
        height="1.4396893"
-       x="11.233554"
-       y="11.217431">
+       x="11.358554"
+       y="51.34243">
       <desc
          id="desc3988-010">{}</desc>
     </rect>
@@ -563,8 +568,8 @@
        id="Wall-13"
        width="1"
        height="0.46741754"
-       x="15.763455"
-       y="8.0575466">
+       x="15.888455"
+       y="48.182545">
       <desc
          id="desc3988-77">{}</desc>
     </rect>
@@ -574,8 +579,8 @@
        id="Absorbicer-9"
        width="0.83201945"
        height="0.83201945"
-       x="34.240242"
-       y="38.396492">
+       x="34.365242"
+       y="78.521492">
       <desc
          id="desc3988-1-6-9">{&quot;route&quot;:&quot;Shop&quot;}</desc>
     </rect>
@@ -585,8 +590,8 @@
        id="Absorbicer-4"
        width="0.83201945"
        height="0.83201945"
-       x="39.021492"
-       y="38.302742">
+       x="39.146492"
+       y="78.427742">
       <desc
          id="desc3988-1-6-5">{}</desc>
     </rect>
@@ -596,8 +601,8 @@
        id="Absorbicer-1"
        width="0.83201945"
        height="0.83201945"
-       x="47.646492"
-       y="35.146492">
+       x="47.771492"
+       y="75.271492">
       <desc
          id="desc3988-1-6-0">{&quot;route&quot;:&quot;PatrolTavern&quot;}</desc>
     </rect>
@@ -607,8 +612,8 @@
        id="Absorbicer-3"
        width="0.83201945"
        height="0.83201945"
-       x="52.562546"
-       y="27.693825">
+       x="52.687546"
+       y="67.818825">
       <desc
          id="desc3988-1-6-7">{&quot;route&quot;:&quot;&quot;}</desc>
     </rect>
@@ -618,8 +623,8 @@
        id="Minigy-8"
        width="0.60000002"
        height="0.60000002"
-       x="26.209042"
-       y="19.999557">
+       x="26.334042"
+       y="60.124557">
       <desc
          id="desc3988-1-2-8">{}</desc>
     </rect>
@@ -629,8 +634,8 @@
        id="Minigy-6"
        width="0.60000002"
        height="0.60000002"
-       x="7.4499998"
-       y="27.231251">
+       x="7.5749998"
+       y="67.356247">
       <desc
          id="desc3988-1-2-0">{}</desc>
     </rect>
@@ -640,8 +645,8 @@
        id="Minigy-4"
        width="0.60000002"
        height="0.60000002"
-       x="2.41875"
-       y="27.168751">
+       x="2.54375"
+       y="67.293747">
       <desc
          id="desc3988-1-2-6">{}</desc>
     </rect>
@@ -651,8 +656,8 @@
        id="Minigy-7"
        width="0.60000002"
        height="0.60000002"
-       x="7.8874998"
-       y="37.825001">
+       x="8.0124998"
+       y="77.949997">
       <desc
          id="desc3988-1-2-60">{}</desc>
     </rect>
@@ -662,8 +667,8 @@
        id="Minigy-9"
        width="0.60000002"
        height="0.60000002"
-       x="13.7"
-       y="7.5124998">
+       x="13.825"
+       y="47.637501">
       <desc
          id="desc3988-1-2-7">{}</desc>
     </rect>
@@ -673,8 +678,8 @@
        id="Minigy-5"
        width="0.60000002"
        height="0.60000002"
-       x="75.668747"
-       y="1.6687498">
+       x="29.301476"
+       y="31.315443">
       <desc
          id="desc3988-1-2-9">{}</desc>
     </rect>
@@ -684,8 +689,8 @@
        id="Minigy-78"
        width="0.60000002"
        height="0.60000002"
-       x="77.418747"
-       y="3.9187498">
+       x="25.836563"
+       y="30.206678">
       <desc
          id="desc3988-1-2-5">{}</desc>
     </rect>
@@ -695,8 +700,8 @@
        id="Minigy-3"
        width="0.60000002"
        height="0.60000002"
-       x="75.699997"
-       y="7.3249998">
+       x="69.063286"
+       y="30.917072">
       <desc
          id="desc3988-1-2-3">{}</desc>
     </rect>
@@ -706,8 +711,8 @@
        id="Minigy-83"
        width="0.60000002"
        height="0.60000002"
-       x="66.356247"
-       y="8.6999998">
+       x="53.222996"
+       y="26.458435">
       <desc
          id="desc3988-1-2-79">{}</desc>
     </rect>
@@ -717,8 +722,8 @@
        id="Minigy-37"
        width="0.60000002"
        height="0.60000002"
-       x="68.293747"
-       y="5.0437498">
+       x="65.369347"
+       y="29.740685">
       <desc
          id="desc3988-1-2-87">{}</desc>
     </rect>
@@ -728,8 +733,8 @@
        id="Minigy-41"
        width="0.60000002"
        height="0.60000002"
-       x="64.762497"
-       y="6.8562498">
+       x="57.330292"
+       y="26.205683">
       <desc
          id="desc3988-1-2-90">{}</desc>
     </rect>
@@ -739,8 +744,8 @@
        id="Minigy-98"
        width="0.60000002"
        height="0.60000002"
-       x="68.481247"
-       y="9.8874998">
+       x="51.856655"
+       y="23.580067">
       <desc
          id="desc3988-1-2-85">{}</desc>
     </rect>
@@ -750,8 +755,8 @@
        id="Minigy-84"
        width="0.60000002"
        height="0.60000002"
-       x="72.637497"
-       y="19.481251">
+       x="72.762497"
+       y="59.606251">
       <desc
          id="desc3988-1-2-37">{}</desc>
     </rect>
@@ -761,8 +766,8 @@
        id="Minigy-1"
        width="0.60000002"
        height="0.60000002"
-       x="75.668747"
-       y="21.856251">
+       x="75.793747"
+       y="61.981251">
       <desc
          id="desc3988-1-2-38">{}</desc>
     </rect>
@@ -772,8 +777,8 @@
        id="Minigy-0"
        width="0.60000002"
        height="0.60000002"
-       x="75.918747"
-       y="25.106251">
+       x="76.043747"
+       y="65.231247">
       <desc
          id="desc3988-1-2-97">{}</desc>
     </rect>
@@ -783,8 +788,8 @@
        id="Minigy-99"
        width="0.60000002"
        height="0.60000002"
-       x="67.887497"
-       y="20.950001">
+       x="68.012497"
+       y="61.075001">
       <desc
          id="desc3988-1-2-32">{}</desc>
     </rect>
@@ -794,8 +799,8 @@
        id="Minigy-43"
        width="0.60000002"
        height="0.60000002"
-       x="68.262497"
-       y="24.731251">
+       x="68.387497"
+       y="64.856247">
       <desc
          id="desc3988-1-2-71">{}</desc>
     </rect>
@@ -805,8 +810,8 @@
        id="Minigy-2"
        width="0.60000002"
        height="0.60000002"
-       x="72.418747"
-       y="27.825001">
+       x="72.543747"
+       y="67.949997">
       <desc
          id="desc3988-1-2-2">{}</desc>
     </rect>
@@ -816,8 +821,8 @@
        id="Minigy-02"
        width="0.60000002"
        height="0.60000002"
-       x="70.356247"
-       y="23.356251">
+       x="70.481247"
+       y="63.481251">
       <desc
          id="desc3988-1-2-1">{}</desc>
     </rect>
@@ -827,16 +832,16 @@
        id="Minigy-75"
        width="0.60000002"
        height="0.60000002"
-       x="72.793747"
-       y="22.543751">
+       x="72.918747"
+       y="62.668751">
       <desc
          id="desc3988-1-2-17">{}</desc>
     </rect>
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-6"
-       cx="51.9375"
-       cy="26.375"
+       cx="52.0625"
+       cy="66.5"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -845,8 +850,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-7"
-       cx="52"
-       cy="17.09375"
+       cx="52.125"
+       cy="57.21875"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -855,8 +860,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-5"
-       cx="34.474873"
-       cy="18.201206"
+       cx="34.599873"
+       cy="58.326206"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -865,18 +870,18 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-3"
-       cx="34.380741"
-       cy="33.387943"
+       cx="34.505741"
+       cy="73.512939"
        r="0.303835"
        inkscape:label="#path989">
       <desc
          id="desc1069">PatrolTavern:3</desc>
     </circle>
     <circle
-       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:0.98823529;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442000000001;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:0.98823529;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-56"
-       cx="49.71875"
-       cy="33.09375"
+       cx="49.84375"
+       cy="73.21875"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -885,24 +890,24 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:0.49177933px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.01229448"
-       x="49.800568"
-       y="25.994308"
+       x="49.925568"
+       y="66.119308"
        id="text1081"><tspan
          sodipodi:role="line"
          id="tspan1079"
-         x="49.800568"
-         y="25.994308"
+         x="49.925568"
+         y="66.119308"
          style="stroke-width:0.01229448">Tavern </tspan><tspan
          sodipodi:role="line"
-         x="49.800568"
-         y="26.609032"
+         x="49.925568"
+         y="66.734032"
          style="stroke-width:0.01229448"
          id="tspan1083">Route</tspan></text>
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-35"
-       cx="12.551147"
-       cy="35.845749"
+       cx="12.676147"
+       cy="75.970749"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -911,8 +916,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-62"
-       cx="29.919455"
-       cy="35.713161"
+       cx="30.044455"
+       cy="75.838158"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -921,8 +926,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-9"
-       cx="12.904699"
-       cy="16.223536"
+       cx="13.029699"
+       cy="56.348534"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -931,8 +936,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-1"
-       cx="30.582369"
-       cy="16.223536"
+       cx="30.707369"
+       cy="56.348534"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -944,7 +949,7 @@
        x="0.072037987"
        y="17.925453"
        id="text1081-7"
-       transform="matrix(0.02,0,0,0.02,29.329519,36.416309)"><tspan
+       transform="matrix(0.02,0,0,0.02,29.454519,76.541309)"><tspan
          sodipodi:role="line"
          x="0.072037987"
          y="17.925453"
@@ -958,8 +963,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-95"
-       cx="18.959299"
-       cy="2.744312"
+       cx="19.084299"
+       cy="42.869312"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -968,8 +973,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-4"
-       cx="25.500038"
-       cy="11.317981"
+       cx="25.625038"
+       cy="51.442982"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -978,8 +983,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-39"
-       cx="34.780815"
-       cy="3.7607775"
+       cx="34.905815"
+       cy="43.885777"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -988,8 +993,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-49"
-       cx="41.719303"
-       cy="12.15767"
+       cx="41.844303"
+       cy="52.282669"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -998,8 +1003,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-55"
-       cx="49.851028"
-       cy="4.0259423"
+       cx="49.976028"
+       cy="44.150944"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -1008,8 +1013,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-73"
-       cx="56.922096"
-       cy="11.9367"
+       cx="57.047096"
+       cy="52.061699"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -1021,8 +1026,8 @@
        id="Absorbicer-90"
        width="0.83201945"
        height="0.83201945"
-       x="60.130009"
-       y="14.967835">
+       x="60.255009"
+       y="55.092834">
       <desc
          id="desc3988-1-6-72">{&quot;route&quot;:&quot;North&quot;}</desc>
     </rect>
@@ -1032,8 +1037,8 @@
        id="Absorbicer-7"
        width="0.83201945"
        height="0.83201945"
-       x="51.600533"
-       y="13.288457">
+       x="51.725533"
+       y="53.413456">
       <desc
          id="desc3988-1-6-2">{&quot;route&quot;:&quot;North&quot;}</desc>
     </rect>
@@ -1043,8 +1048,8 @@
        id="Absorbicer-905"
        width="0.83201945"
        height="0.83201945"
-       x="43.999134"
-       y="8.0735435">
+       x="44.124134"
+       y="48.198544">
       <desc
          id="desc3988-1-6-04">{&quot;route&quot;:&quot;North&quot;}</desc>
     </rect>
@@ -1054,20 +1059,432 @@
        id="Absorbicer-17"
        width="0.83201945"
        height="0.83201945"
-       x="38.077114"
-       y="12.934903">
+       x="38.202114"
+       y="53.059902">
       <desc
          id="desc3988-1-6-93">{&quot;route&quot;:&quot;North&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01965445;stroke-opacity:1;enable-background:new"
+       id="Wall-621"
+       width="6.2149119"
+       height="0.60000002"
+       x="63.669941"
+       y="27.771847">
+      <desc
+         id="desc3988-25">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02099398;stroke-opacity:1;enable-background:new"
+       id="Wall-39"
+       width="0.77902913"
+       height="5.461359"
+       x="59.338909"
+       y="22.645323">
+      <desc
+         id="desc3988-1">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02469637;stroke-opacity:1;enable-background:new"
+       id="Wall-88"
+       width="9.8125"
+       height="0.60000002"
+       x="22.77247"
+       y="32.706966">
+      <desc
+         id="desc3988-705">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01792721;stroke-opacity:1;enable-background:new"
+       id="Wall-2"
+       width="0.59375"
+       height="5.2249999"
+       x="34.501785"
+       y="17.445797">
+      <desc
+         id="desc3988-79">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01777852;stroke-opacity:1;enable-background:new"
+       id="Wall-196"
+       width="0.62434953"
+       height="4.8868346"
+       x="31.938524"
+       y="27.90443">
+      <desc
+         id="desc3988-36">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02215299;stroke-opacity:1;enable-background:new"
+       id="Wall-84"
+       width="0.86741745"
+       height="5.461359"
+       x="50.367493"
+       y="22.512739">
+      <desc
+         id="desc3988-66">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02034126;stroke-opacity:1;enable-background:new"
+       id="Wall-72"
+       width="6.6568542"
+       height="0.60000002"
+       x="50.367493"
+       y="22.380156">
+      <desc
+         id="desc3988-741">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02461816;stroke-opacity:1;enable-background:new"
+       id="Wall-00"
+       width="9.7504463"
+       height="0.60000002"
+       x="50.367493"
+       y="27.860233">
+      <desc
+         id="desc3988-644">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01673046;stroke-opacity:1;enable-background:new"
+       id="Wall-37"
+       width="0.64644665"
+       height="4.179728"
+       x="63.669941"
+       y="28.346371">
+      <desc
+         id="desc3988-34">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02353426;stroke-opacity:1;enable-background:new"
+       id="Wall-721"
+       width="8.9107571"
+       height="0.60000002"
+       x="63.669945"
+       y="32.412235">
+      <desc
+         id="desc3988-795">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01716026;stroke-opacity:1;enable-background:new"
+       id="Wall-68"
+       width="0.59375"
+       height="4.7874999"
+       x="22.767399"
+       y="28.116425">
+      <desc
+         id="desc3988-95">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.02445021;stroke-opacity:1;enable-background:new"
+       id="Wall-521"
+       width="9.6178637"
+       height="0.60000002"
+       x="34.501785"
+       y="22.601128">
+      <desc
+         id="desc3988-59">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1;enable-background:new"
+       id="Wall-916"
+       width="1"
+       height="0.60000002"
+       x="9.3111067"
+       y="15.618448">
+      <desc
+         id="desc3988-21">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1;enable-background:new"
+       id="Wall-05"
+       width="1"
+       height="0.60000002"
+       x="10.813708"
+       y="7.4867201">
+      <desc
+         id="desc3988-32">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01828259;stroke-opacity:1;enable-background:new"
+       id="Wall-197"
+       width="0.625"
+       height="5.1624999"
+       x="43.439285"
+       y="17.70639">
+      <desc
+         id="desc3988-682">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1;enable-background:new"
+       id="Wall-06"
+       width="1"
+       height="0.60000002"
+       x="48.732311"
+       y="6.5144482">
+      <desc
+         id="desc3988-43">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01835722;stroke-opacity:1;enable-background:new"
+       id="Wall-36"
+       width="0.69064081"
+       height="4.7100582"
+       x="71.890053"
+       y="27.81604">
+      <desc
+         id="desc3988-90">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.01878821;stroke-opacity:1;enable-background:new"
+       id="Wall-48"
+       width="6.7308531"
+       height="0.50625002"
+       x="22.760841"
+       y="27.806526">
+      <desc
+         id="desc3988-51">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1;enable-background:new"
+       id="Wall-29"
+       width="1"
+       height="0.60000002"
+       x="11.520815"
+       y="38.157478">
+      <desc
+         id="desc3988-73">{}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-2"
+       width="0.83201945"
+       height="0.83201945"
+       x="21.681078"
+       y="12.7624">
+      <desc
+         id="desc3988-1-6-6">{&quot;route&quot;:&quot;FarNorth&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-48"
+       width="0.83201945"
+       height="0.83201945"
+       x="24.642086"
+       y="18.242477">
+      <desc
+         id="desc3988-1-6-56">{&quot;route&quot;:&quot;FarNorth&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-25"
+       width="0.83201945"
+       height="0.83201945"
+       x="34.18803"
+       y="13.425312">
+      <desc
+         id="desc3988-1-6-26">{&quot;route&quot;:&quot;FarNorth&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-91"
+       width="0.83201945"
+       height="0.83201945"
+       x="40.90554"
+       y="11.303991">
+      <desc
+         id="desc3988-1-6-3">{&quot;route&quot;:&quot;FarNorth&quot;}</desc>
+    </rect>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-31"
+       cx="6.640625"
+       cy="23.890625"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2957">FarNorth:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-52"
+       cx="19.609375"
+       cy="38.484375"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2959">FarNorth:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-69"
+       cx="47.234375"
+       cy="35.796875"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2961">FarNorth:2</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-44"
+       cx="46.671875"
+       cy="4.3906255"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2963">FarNorth:3</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-60"
+       cx="17.703125"
+       cy="6.0781255"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2965">FarNorth:4</desc>
+    </circle>
+    <path
+       style="display:inline;fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;enable-background:new;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="m 54.226251,14.018099 20.815455,0.353553"
+       id="path3126"
+       inkscape:connector-curvature="0" />
+    <path
+       style="display:inline;fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;enable-background:new;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="m 60.634407,20.16109 16.263455,0.839688"
+       id="path3128"
+       inkscape:connector-curvature="0" />
+    <path
+       style="display:inline;fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;enable-background:new;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="m 62.711533,25.68536 14.318911,0.795496"
+       id="path3130"
+       inkscape:connector-curvature="0" />
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-43"
+       cx="54.226254"
+       cy="14.018099"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3114">pendulum1:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-79"
+       cx="75.174286"
+       cy="14.460041"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3116">pendulum1:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-0"
+       cx="60.6786"
+       cy="20.249477"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3118">pendulum2:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-02"
+       cx="76.809471"
+       cy="21.13336"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3120">pendulum2:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-2"
+       cx="62.799923"
+       cy="25.729553"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3122">pendulum3:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-690"
+       cx="77.118828"
+       cy="26.480854"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3124">pendulum3:1</desc>
+    </circle>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-35"
+       width="0.83201945"
+       height="0.83201945"
+       x="62.914238"
+       y="13.690476">
+      <desc
+         id="desc3988-1-6-58">{&quot;route&quot;:&quot;pendulum1&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-71"
+       width="0.83201945"
+       height="0.83201945"
+       x="66.493965"
+       y="20.098633">
+      <desc
+         id="desc3988-1-6-70">{&quot;route&quot;:&quot;pendulum2&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-6"
+       width="0.83201945"
+       height="0.83201945"
+       x="68.836258"
+       y="25.578707">
+      <desc
+         id="desc3988-1-6-041">{&quot;route&quot;:&quot;pendulum3&quot;}</desc>
     </rect>
   </g>
   <g
      inkscape:label="Legend"
      inkscape:groupmode="layer"
      id="layer1"
-     style="display:inline">
+     style="display:inline"
+     transform="translate(0,40)">
     <rect
        inkscape:label="#rect3716"
-       style="fill:#7084aa;stroke:none;stroke-width:0.00788394;stroke-opacity:1;fill-opacity:1"
+       style="fill:#7084aa;fill-opacity:1;stroke:none;stroke-width:0.00788394;stroke-opacity:1"
        id="Wall"
        width="1"
        height="0.60000002"
@@ -1209,7 +1626,7 @@
          y="42.239372"
          style="fill:#241c1c;stroke-width:0.01063325">Machine</tspan></text>
     <circle
-       style="opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883,0.11512442;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1"
        id="Waypoint"
        cx="-2.6609659"
        cy="43.349823"
