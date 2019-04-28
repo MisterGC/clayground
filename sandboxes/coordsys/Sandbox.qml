@@ -86,6 +86,7 @@ CoordCanvas
         onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             player = null;
+            theCanvas.aiRunning = false;
             aiMap.clear();
             while(objs.length > 0) {
                 var obj = objs.pop();

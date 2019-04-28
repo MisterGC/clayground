@@ -63,7 +63,7 @@ PhysicsItem
             collidesWith: Box.Category1
             onBeginContact: {
                 var entity = getBody().target;
-                console.log("Contact with " + entity);
+                console.log("Contact with " + entity + " route: " + entity.route);
                 if (entity.route === theAbsorbicer.route) selectNextWp();
             }
         },

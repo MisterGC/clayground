@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.64"
-     inkscape:cx="1887.3307"
-     inkscape:cy="585.63519"
+     inkscape:zoom="0.45254834"
+     inkscape:cx="2180.8911"
+     inkscape:cy="715.30851"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -73,8 +73,14 @@
      inkscape:label="Map"
      style="display:inline;opacity:1;filter:url(#filter1177)">
     <path
+       style="opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.56390553, 0.56390553;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 12.506951,35.801554 12.860504,16.17934 30.759146,16.356117 29.919455,35.713166 Z"
+       id="path1072"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccccc" />
+    <path
        style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.56390553, 0.56390553;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 52,26.1875 52.03125,17 33.90625,16.875 33.15625,33.40625 49.719024,33.139531 52,26.25"
+       d="M 52,26.1875 52.03125,17 34.417735,18.201206 34.305299,33.40625 49.719024,33.139531 52,26.25"
        id="path1077"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccccc" />
@@ -304,8 +310,8 @@
        id="Wall-60"
        width="12.197717"
        height="0.45937502"
-       x="17.983536"
-       y="19.149908">
+       x="15.773828"
+       y="19.105715">
       <desc
          id="desc3988-41">{}</desc>
     </rect>
@@ -315,8 +321,8 @@
        id="Wall-048"
        width="0.56786168"
        height="5.7034845"
-       x="17.955473"
-       y="19.467381">
+       x="15.745765"
+       y="19.423187">
       <desc
          id="desc3988-70">{}</desc>
     </rect>
@@ -326,8 +332,8 @@
        id="Wall-86"
        width="2.6155777"
        height="0.60000002"
-       x="27.592415"
-       y="25.181156">
+       x="25.382706"
+       y="25.136963">
       <desc
          id="desc3988-24">{}</desc>
     </rect>
@@ -337,8 +343,8 @@
        id="Wall-79"
        width="7.4623108"
        height="0.60000002"
-       x="17.955473"
-       y="25.118656">
+       x="15.745765"
+       y="25.074463">
       <desc
          id="desc3988-39">{}</desc>
     </rect>
@@ -348,8 +354,8 @@
        id="Wall-28"
        width="0.5625"
        height="5.9858351"
-       x="29.645493"
-       y="19.420322">
+       x="27.435783"
+       y="19.376129">
       <desc
          id="desc3988-30">{}</desc>
     </rect>
@@ -571,7 +577,7 @@
        x="34.240242"
        y="38.396492">
       <desc
-         id="desc3988-1-6-9">{}</desc>
+         id="desc3988-1-6-9">{&quot;route&quot;:&quot;Shop&quot;}</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
@@ -590,10 +596,10 @@
        id="Absorbicer-1"
        width="0.83201945"
        height="0.83201945"
-       x="52.458992"
-       y="31.396492">
+       x="47.646492"
+       y="35.146492">
       <desc
-         id="desc3988-1-6-0">{}</desc>
+         id="desc3988-1-6-0">{&quot;route&quot;:&quot;PatrolTavern&quot;}</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
@@ -604,7 +610,7 @@
        x="52.562546"
        y="27.693825">
       <desc
-         id="desc3988-1-6-7">{&quot;route&quot;:&quot;PatrolTavern&quot;}</desc>
+         id="desc3988-1-6-7">{&quot;route&quot;:&quot;&quot;}</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
@@ -612,8 +618,8 @@
        id="Minigy-8"
        width="0.60000002"
        height="0.60000002"
-       x="28.418751"
-       y="20.043751">
+       x="26.209042"
+       y="19.999557">
       <desc
          id="desc3988-1-2-8">{}</desc>
     </rect>
@@ -849,8 +855,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-5"
-       cx="33.96875"
-       cy="16.84375"
+       cx="34.474873"
+       cy="18.201206"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -859,8 +865,8 @@
     <circle
        style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
        id="Waypoint-3"
-       cx="33.1875"
-       cy="33.34375"
+       cx="34.380741"
+       cy="33.387943"
        r="0.303835"
        inkscape:label="#path989">
       <desc
@@ -892,6 +898,46 @@
          y="26.609032"
          style="stroke-width:0.01229448"
          id="tspan1083">Route</tspan></text>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-35"
+       cx="12.551147"
+       cy="35.845749"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1045">Shop:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-62"
+       cx="29.919455"
+       cy="35.713161"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1043">Shop:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-9"
+       cx="12.904699"
+       cy="16.223536"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1068">Shop:2</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-1"
+       cx="30.582369"
+       cy="16.223536"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1070">Shop:3</desc>
+    </circle>
   </g>
   <g
      inkscape:label="Legend"
