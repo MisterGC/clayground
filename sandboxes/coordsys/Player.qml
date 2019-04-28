@@ -19,4 +19,12 @@ VisualizedBoxBody
     function stopDown() { if (body.linearVelocity.y > 0) body.linearVelocity.y = 0; }
     function stopLeft() { if (body.linearVelocity.x < 0) body.linearVelocity.x = 0; }
     function stopRight() { if (body.linearVelocity.x > 0) body.linearVelocity.x = 0; }
+
+    ScalingText
+    {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.top
+        text: "Here I am!"
+        pixelPerUnit: 1.0
+    }
 }

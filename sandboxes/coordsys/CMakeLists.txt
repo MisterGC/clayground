@@ -7,6 +7,7 @@ main.cpp
 Absorbicer.qml
 Angle.qml
 Sandbox.qml
+ScalingText.qml
 CoordCanvas.qml
 Minigy.qml
 Player.qml
