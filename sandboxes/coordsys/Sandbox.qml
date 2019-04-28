@@ -155,4 +155,9 @@ CoordCanvas
         }
     }
 
+    Text {
+        anchors.centerIn: parent
+        text: player !== null ? player.energy : "Player n/a"
+    }
+
 }

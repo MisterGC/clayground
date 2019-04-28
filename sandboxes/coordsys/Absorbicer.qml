@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import Box2D 2.0
+import QtMultimedia 5.12
 
 PhysicsItem
 {
@@ -49,6 +50,28 @@ PhysicsItem
 
     onDestinationChanged: walkToDestination()
 
+    property var capturedPlayer: null
+    property var absorbtionRate: 10
+    Timer {
+        running: capturedPlayer !== null && capturedPlayer.energy > 0
+        interval: 50
+        repeat: true
+        onTriggered: {
+            capturedPlayer.energy -= absorbtionRate;
+        }
+    }
+    onCapturedPlayerChanged: {
+        if (capturedPlayer) absorbtionSound.play()
+        else absorbtionSound.stop()
+    }
+
+    SoundEffect {
+        id: absorbtionSound
+        source: "energy_absorbtion.wav"
+        loops: SoundEffect.Infinite
+    }
+
+
     bodyType: Body.Dynamic
     Rectangle { color: "#dc3f4d"; opacity: 0.4; radius: theRadius.radius; x: theRadius.x; y: theRadius.y; width: 2*radius; height: 2*radius}
     Rectangle { color: "#dc3f4d"; anchors.fill: parent }
@@ -81,6 +104,7 @@ PhysicsItem
                 console.log("Is it the player? " + entity);
                 if (entity.isPlayer) {
                     console.log("Got ya!");
+                    capturedPlayer = entity;
                     theAbsorbicer.linearVelocity.x = 0;
                     theAbsorbicer.linearVelocity.y = 0;
                 }
@@ -90,6 +114,7 @@ PhysicsItem
                 console.log("Is it the player? " + entity);
                 if (entity.isPlayer) {
                     console.log("Where are you?");
+                    capturedPlayer = null;
                     theAbsorbicer.walkToDestination();
                 }
 

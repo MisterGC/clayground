@@ -49,7 +49,7 @@ Item {
     {
         id: theUnderlay
         anchors.fill: parent
-        opacity: 1.0
+        opacity: 0.0
         Behavior on opacity { NumberAnimation {duration: 250}}
 
         property var ctx: null
@@ -177,7 +177,7 @@ Item {
     {
         id: theOverlay
         anchors.fill: parent
-        opacity: 1.0
+        opacity: 0.0
         Behavior on opacity { NumberAnimation {duration: 250}}
 
 
