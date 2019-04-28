@@ -37,16 +37,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.64"
-     inkscape:cx="78.033303"
-     inkscape:cy="-152.35993"
+     inkscape:zoom="1.28"
+     inkscape:cx="2712.6723"
+     inkscape:cy="605.48388"
      inkscape:document-units="px"
-     inkscape:current-layer="layer1"
+     inkscape:current-layer="layer2"
      showgrid="false"
-     inkscape:window-width="1280"
-     inkscape:window-height="652"
-     inkscape:window-x="0"
-     inkscape:window-y="195"
+     inkscape:window-width="1920"
+     inkscape:window-height="1044"
+     inkscape:window-x="1280"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      units="px"
      inkscape:pagecheckerboard="false"
@@ -63,7 +63,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -72,6 +72,11 @@
      id="layer2"
      inkscape:label="Map"
      style="display:inline;opacity:1;filter:url(#filter1177)">
+    <path
+       style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="M 52,26.1875 52.03125,17 l -18.125,-0.125 -0.75,16.53125 16.59375,-0.3125"
+       id="path1077"
+       inkscape:connector-curvature="0" />
     <rect
        inkscape:label="#rect3716"
        style="display:inline;opacity:0.95;fill:#b03030;fill-opacity:1;stroke:none;stroke-width:0.00610687;enable-background:new"
@@ -598,7 +603,7 @@
        x="52.562546"
        y="27.693825">
       <desc
-         id="desc3988-1-6-7">Table.qml</desc>
+         id="desc3988-1-6-7">PatrolTavern</desc>
     </rect>
     <rect
        inkscape:label="#rect3716"
@@ -820,6 +825,72 @@
       <desc
          id="desc3988-1-2-17">Table.qml</desc>
     </rect>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-6"
+       cx="52"
+       cy="26.21875"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1063">PatrolTavern:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-7"
+       cx="52"
+       cy="17.09375"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1065">PatrolTavern:2</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-5"
+       cx="33.96875"
+       cy="16.84375"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1067">PatrolTavern:3</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-3"
+       cx="33.1875"
+       cy="33.34375"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1069">PatrolTavern:4</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-56"
+       cx="49.71875"
+       cy="33.09375"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc1071">PatrolTavern:5</desc>
+    </circle>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:0.49177933px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.01229448"
+       x="49.800568"
+       y="25.994308"
+       id="text1081"><tspan
+         sodipodi:role="line"
+         id="tspan1079"
+         x="49.800568"
+         y="25.994308"
+         style="stroke-width:0.01229448">Tavern </tspan><tspan
+         sodipodi:role="line"
+         x="49.800568"
+         y="26.609032"
+         style="stroke-width:0.01229448"
+         id="tspan1083">Route</tspan></text>
   </g>
   <g
      inkscape:label="Legend"
@@ -972,5 +1043,12 @@
          x="-4.5836186"
          y="42.239372"
          style="fill:#241c1c;stroke-width:0.01063325">Machine</tspan></text>
+    <circle
+       style="opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883,0.11512442;stroke-dashoffset:0;stroke-opacity:1"
+       id="Waypoint"
+       cx="-2.6609659"
+       cy="43.349823"
+       r="0.303835"
+       inkscape:label="#path989" />
   </g>
 </svg>
