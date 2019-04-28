@@ -144,7 +144,8 @@ CoordCanvas
                     console.log("Add route " + routeId)
                     aiMap.routes[routeId] = [];
                 }
-                let route = aiMap.routes[routeId]
+                let route = aiMap.routes[routeId];
+                obj.route = routeId;
                 route[wpIdx] = obj;
                 console.log("Route len: " + route.length)
             }

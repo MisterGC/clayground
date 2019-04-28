@@ -30,7 +30,7 @@ PhysicsItem
         }
     }
 
-    onDestinationChanged: {
+    function walkToDestination() {
         if (destination) {
             let v = Qt.vector2d(destination.x - x, destination.y - y);
             let l = v.length();
@@ -47,6 +47,8 @@ PhysicsItem
 
     }
 
+    onDestinationChanged: walkToDestination()
+
     bodyType: Body.Dynamic
     Rectangle { color: "#dc3f4d"; opacity: 0.4; radius: theRadius.radius; x: theRadius.x; y: theRadius.y; width: 2*radius; height: 2*radius}
     Rectangle { color: "#dc3f4d"; anchors.fill: parent }
@@ -62,7 +64,7 @@ PhysicsItem
             categories: Box.Category3
             collidesWith: Box.Category1
             onBeginContact: {
-                var entity = getBody().target;
+                var entity = other.getBody().target;
                 console.log("Contact with " + entity + " route: " + entity.route);
                 if (entity.route === theAbsorbicer.route) selectNextWp();
             }
@@ -75,10 +77,23 @@ PhysicsItem
             collidesWith: Box.Category2
             sensor: true
             onBeginContact: {
-                var entity = getBody().target;
-                console.log("Perceived " + entity);
+                var entity = other.getBody().target;
+                console.log("Is it the player? " + entity);
+                if (entity.isPlayer) {
+                    console.log("Got ya!");
+                    theAbsorbicer.linearVelocity.x = 0;
+                    theAbsorbicer.linearVelocity.y = 0;
+                }
             }
-            onEndContact:   { console.log("Hmm - nobody here...") }
+            onEndContact:   {
+                var entity = other.getBody().target;
+                console.log("Is it the player? " + entity);
+                if (entity.isPlayer) {
+                    console.log("Where are you?");
+                    theAbsorbicer.walkToDestination();
+                }
+
+            }
         }
     ]
 }

@@ -38,8 +38,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.45254834"
-     inkscape:cx="2180.8911"
-     inkscape:cy="715.30851"
+     inkscape:cx="1239.5552"
+     inkscape:cy="461.19201"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -938,6 +938,23 @@
       <desc
          id="desc1070">Shop:3</desc>
     </circle>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:24.58896637px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;opacity:1;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.61472398;filter:url(#filter1177);enable-background:new"
+       x="0.072037987"
+       y="17.925453"
+       id="text1081-7"
+       transform="matrix(0.02,0,0,0.02,29.329519,36.416309)"><tspan
+         sodipodi:role="line"
+         x="0.072037987"
+         y="17.925453"
+         style="stroke-width:0.61472398"
+         id="tspan1083-9">Shop</tspan><tspan
+         sodipodi:role="line"
+         x="0.072037987"
+         y="48.661659"
+         style="stroke-width:0.61472398"
+         id="tspan1111">Route</tspan></text>
   </g>
   <g
      inkscape:label="Legend"
