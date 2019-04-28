@@ -38,8 +38,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.45254834"
-     inkscape:cx="1239.5552"
-     inkscape:cy="461.19201"
+     inkscape:cx="2014.1272"
+     inkscape:cy="1292.3244"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -955,6 +955,110 @@
          y="48.661659"
          style="stroke-width:0.61472398"
          id="tspan1111">Route</tspan></text>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-95"
+       cx="18.959299"
+       cy="2.744312"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2584">North:5</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-4"
+       cx="25.500038"
+       cy="11.317981"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2582">North:4</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-39"
+       cx="34.780815"
+       cy="3.7607775"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2580">North:3</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-49"
+       cx="41.719303"
+       cy="12.15767"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2578">North:2</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-55"
+       cx="49.851028"
+       cy="4.0259423"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2576">North:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-73"
+       cx="56.922096"
+       cy="11.9367"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc2574">North:0</desc>
+    </circle>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-90"
+       width="0.83201945"
+       height="0.83201945"
+       x="60.130009"
+       y="14.967835">
+      <desc
+         id="desc3988-1-6-72">{&quot;route&quot;:&quot;North&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-7"
+       width="0.83201945"
+       height="0.83201945"
+       x="51.600533"
+       y="13.288457">
+      <desc
+         id="desc3988-1-6-2">{&quot;route&quot;:&quot;North&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-905"
+       width="0.83201945"
+       height="0.83201945"
+       x="43.999134"
+       y="8.0735435">
+      <desc
+         id="desc3988-1-6-04">{&quot;route&quot;:&quot;North&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-17"
+       width="0.83201945"
+       height="0.83201945"
+       x="38.077114"
+       y="12.934903">
+      <desc
+         id="desc3988-1-6-93">{&quot;route&quot;:&quot;North&quot;}</desc>
+    </rect>
   </g>
   <g
      inkscape:label="Legend"

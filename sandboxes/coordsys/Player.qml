@@ -7,11 +7,13 @@ VisualizedBoxBody
     bodyType: Body.Dynamic
     color: "#3fa4c8"
     bullet: true
-    property real maxVelo: 8
+    property real maxVelo: 20 * opacity
     categories: Box.Category2
     collidesWith: Box.Category1
     property bool isPlayer: true
     property int energy: 10000
+    readonly property int maxEnergy: 10000
+    opacity: energy/maxEnergy
 
     function moveUp() { body.linearVelocity.y = -maxVelo; }
     function moveDown() { body.linearVelocity.y = maxVelo; }
@@ -29,7 +31,7 @@ VisualizedBoxBody
         x: thePlayer.x - width/2
         y: thePlayer.y - height * 1.1
         z: 99
-        text: "Here I am!"
+        text: energy
         color: "#3fa4c8"
         pixelPerUnit: thePlayer.pixelPerUnit
         fontSizeWu: 0.5

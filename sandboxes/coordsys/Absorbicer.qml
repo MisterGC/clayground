@@ -14,7 +14,8 @@ PhysicsItem
     property AiMap map: null
     property Waypoint destination: null
     property int wpIdx: -1
-    property real maxVelo: 8
+    property real maxVelo: Math.random() * 8 + 2
+
     onAiRunningChanged: {
         if (aiRunning)
             selectNextWp();
@@ -102,12 +103,8 @@ PhysicsItem
 
 
     bodyType: Body.Dynamic
-    Rectangle { color: "#dc3f4d"; opacity: 0.4; radius: theRadius.radius; x: theRadius.x; y: theRadius.y; width: 2*radius; height: 2*radius}
+    Rectangle { color: "#dc3f4d"; opacity: 0.2; radius: theRadius.radius; anchors.centerIn: parent; width: 2*radius; height: 2*radius}
     Rectangle { color: "#dc3f4d"; anchors.fill: parent }
-
-    Component.onCompleted: {
-        //linearVelocity.y = -5
-    }
 
     fixtures: [
         Box {
@@ -124,7 +121,7 @@ PhysicsItem
             id: theRadius
             x: -radius + theAbsorbicer.width/2
             y: -radius + theAbsorbicer.height/2
-            radius: theAbsorbicer.width * 2
+            radius: theAbsorbicer.width * 3
             collidesWith: Box.Category2
             sensor: true
             onBeginContact: {
