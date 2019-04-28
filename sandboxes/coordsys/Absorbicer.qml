@@ -1,6 +1,7 @@
 import QtQuick 2.12
 import Box2D 2.0
 import QtMultimedia 5.12
+import QtQuick.Particles 2.0
 
 PhysicsItem
 {
@@ -60,11 +61,39 @@ PhysicsItem
             capturedPlayer.energy -= absorbtionRate;
         }
     }
+    Item {
+        id: absorptionEffect
+        width: 2 * theRadius.radius
+        height: width
+        anchors.centerIn: parent
+        z: 99
+        visible: capturedPlayer !== null
+        ParticleSystem { id: particleSystem; running: capturedPlayer !== null; }
+        Emitter {
+            id: emitter
+            anchors.fill: parent
+            system: particleSystem
+            emitRate: 10
+            lifeSpan: 500
+            lifeSpanVariation: 50
+            velocity: TargetDirection {
+                targetX: emitter.width/2;
+                targetY: emitter.height/2;
+                magnitude: emitter.width;}
+        }
+        ItemParticle {
+            system: particleSystem
+            delegate: Rectangle {
+                width: (0.5 + Math.random()) * 0.1 *absorptionEffect.width
+                height: width
+                color: "#3fa4c8"
+            }
+        }
+    }
     onCapturedPlayerChanged: {
         if (capturedPlayer) absorbtionSound.play()
         else absorbtionSound.stop()
     }
-
     SoundEffect {
         id: absorbtionSound
         source: "energy_absorbtion.wav"
@@ -88,7 +117,6 @@ PhysicsItem
             collidesWith: Box.Category1
             onBeginContact: {
                 var entity = other.getBody().target;
-                console.log("Contact with " + entity + " route: " + entity.route);
                 if (entity.route === theAbsorbicer.route) selectNextWp();
             }
         },
