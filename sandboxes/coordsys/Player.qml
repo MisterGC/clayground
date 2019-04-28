@@ -7,7 +7,7 @@ VisualizedBoxBody
     bodyType: Body.Dynamic
     color: "#3fa4c8"
     bullet: true
-    property real maxVelo: 20 * opacity
+    property real maxVelo: 12 * opacity
     categories: Box.Category2
     collidesWith: Box.Category1
     property bool isPlayer: true
@@ -28,7 +28,7 @@ VisualizedBoxBody
     ScalingText
     {
         parent: thePlayer.parent
-        x: thePlayer.x - width/2
+        x: thePlayer.x + player.width/2 - width/2
         y: thePlayer.y - height * 1.1
         z: 99
         text: energy

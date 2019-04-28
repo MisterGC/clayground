@@ -14,7 +14,7 @@ PhysicsItem
     property AiMap map: null
     property Waypoint destination: null
     property int wpIdx: -1
-    property real maxVelo: Math.random() * 8 + 2
+    property real maxVelo: Math.random() * 12 + 2
 
     onAiRunningChanged: {
         if (aiRunning)

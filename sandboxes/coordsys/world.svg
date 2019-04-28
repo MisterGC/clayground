@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.22627417"
-     inkscape:cx="2684.1759"
-     inkscape:cy="2028.6904"
+     inkscape:zoom="0.64"
+     inkscape:cx="3060.6958"
+     inkscape:cy="1910.3108"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -72,6 +72,11 @@
      id="layer2"
      inkscape:label="Map"
      style="display:inline;opacity:1;filter:url(#filter1177)">
+    <path
+       style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
+       d="m 57.098872,52.025088 -7.071068,-7.866562 -8.26431,8.043338 -6.805902,-8.308504 -9.457554,7.601398 -6.319767,-8.617864 v 0 h -0.04419"
+       id="path3258"
+       inkscape:connector-curvature="0" />
     <path
        style="fill:none;stroke:#c0c0c0;stroke-width:0.14097638;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-variant-east_asian:normal;opacity:1;vector-effect:none;fill-opacity:1;stroke-miterlimit:4;stroke-dasharray:0.56390553,0.56390553;stroke-dashoffset:0"
        d="m 6.6875,23.875 12.9375,14.5625 27.5625,-2.625 -0.5625,-31.5 -29,1.75 z"
@@ -1474,6 +1479,117 @@
        y="25.578707">
       <desc
          id="desc3988-1-6-041">{&quot;route&quot;:&quot;pendulum3&quot;}</desc>
+    </rect>
+    <path
+       style="display:inline;opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#c0c0c0;stroke-width:7.04881907;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:28.1952765, 28.1952765;stroke-dashoffset:0;stroke-opacity:1;filter:url(#filter1177);enable-background:new"
+       d="m 329.37392,627.52437 756.24998,40.625"
+       id="path3323"
+       inkscape:connector-curvature="0"
+       transform="matrix(0.02,0,0,0.02,52.759381,37.300584)" />
+    <path
+       style="display:inline;opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#c0c0c0;stroke-width:7.04881907;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:28.1952765, 28.1952765;stroke-dashoffset:0;stroke-opacity:1;filter:url(#filter1177);enable-background:new"
+       d="m 1091.9659,402.44812 -875.00003,-21.875"
+       id="path3321"
+       inkscape:connector-curvature="0"
+       transform="matrix(0.02,0,0,0.02,52.759381,37.300584)" />
+    <path
+       style="display:inline;opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#c0c0c0;stroke-width:7.04881907;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:28.1952765, 28.1952765;stroke-dashoffset:0;stroke-opacity:1;filter:url(#filter1177);enable-background:new"
+       d="m 25.877672,18.403017 1040.625028,65.625"
+       id="path3319"
+       inkscape:connector-curvature="0"
+       transform="matrix(0.02,0,0,0.02,52.759381,37.300584)" />
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-54"
+       cx="53.120777"
+       cy="37.661983"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3452">pendulum4:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-36"
+       cx="73.980431"
+       cy="38.987808"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3454">pendulum4:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-431"
+       cx="57.009865"
+       cy="44.909828"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3456">pendulum5:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-91"
+       cx="74.510757"
+       cy="45.440155"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3458">pendulum5:1</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-09"
+       cx="59.21957"
+       cy="49.947964"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3460">pendulum6:0</desc>
+    </circle>
+    <circle
+       style="display:inline;opacity:1;fill:#c7c4c4;fill-opacity:1;stroke:#777171;stroke-width:0.11512442;stroke-miterlimit:4;stroke-dasharray:0.23024883, 0.11512442;stroke-dashoffset:0;stroke-opacity:1;enable-background:new"
+       id="Waypoint-45"
+       cx="74.422371"
+       cy="50.743458"
+       r="0.303835"
+       inkscape:label="#path989">
+      <desc
+         id="desc3462">pendulum6:1</desc>
+    </circle>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-31"
+       width="0.83201945"
+       height="0.83201945"
+       x="63.521492"
+       y="37.865242">
+      <desc
+         id="desc3988-1-6-38">{&quot;route&quot;:&quot;pendulum4&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-79"
+       width="0.83201945"
+       height="0.83201945"
+       x="64.583992"
+       y="44.677742">
+      <desc
+         id="desc3988-1-6-388">{&quot;route&quot;:&quot;pendulum5&quot;}</desc>
+    </rect>
+    <rect
+       inkscape:label="#rect3716"
+       style="display:inline;opacity:1;fill:#ce393a;fill-opacity:1;stroke:none;stroke-width:0.00846839;enable-background:new"
+       id="Absorbicer-40"
+       width="0.83201945"
+       height="0.83201945"
+       x="65.365242"
+       y="49.771492">
+      <desc
+         id="desc3988-1-6-08">{&quot;route&quot;:&quot;pendulum6&quot;}</desc>
     </rect>
   </g>
   <g
