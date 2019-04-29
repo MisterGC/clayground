@@ -11,3 +11,4 @@ add_subdirectory (plugins)
 
 add_subdirectory (sandboxes/coordsys)
 add_subdirectory (sandboxes/gui)
+add_subdirectory (sandboxes/particle)
