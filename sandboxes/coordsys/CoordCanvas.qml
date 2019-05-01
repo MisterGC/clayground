@@ -20,6 +20,7 @@ Item {
     property alias viewPortCenterWuX: flckable.viewPortCenterWuX
     property alias viewPortCenterWuY: flckable.viewPortCenterWuY
 
+    property bool keyBoardNavigationEnabled: false
     signal keyPressed(var event)
     signal keyReleased(var event)
 
@@ -136,31 +137,32 @@ Item {
         }
         Component.onCompleted: flckable.forceActiveFocus()
         Keys.onPressed: {
-            if (event.key === Qt.Key_E) {
-                theWorld.zoomFactor += .1
-                event.accepted = true;
+            if (theWorld.keyBoardNavigationEnabled) {
+                if (event.key === Qt.Key_I) {
+                    if (flckable.contentY > 10) flckable.contentY -= 10
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_K) {
+                    if (flckable.contentY < flckable.contentHeight - flckable.height) flckable.contentY += 10
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_J) {
+                    if (flckable.contentX > 10) flckable.contentX -= 10
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_L) {
+                    if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_E) {
+                    theWorld.zoomFactor += .1
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_D) {
+                    if (theWorld.zoomFactor > .2) theWorld.zoomFactor -= .1
+                    event.accepted = true;
+                }
             }
-            if (event.key === Qt.Key_D) {
-                if (theWorld.zoomFactor > .2) theWorld.zoomFactor -= .1
-                event.accepted = true;
-            }
-            // TODO Reintro Keyboard based navigation
-//            if (event.key === Qt.Key_I) {
-//                if (flckable.contentY > 10) flckable.contentY -= 10
-//                event.accepted = true;
-//            }
-//            if (event.key === Qt.Key_K) {
-//                if (flckable.contentY < flckable.contentHeight - flckable.height) flckable.contentY += 10
-//                event.accepted = true;
-//            }
-//            if (event.key === Qt.Key_J) {
-//                if (flckable.contentX > 10) flckable.contentX -= 10
-//                event.accepted = true;
-//            }
-//            if (event.key === Qt.Key_L) {
-//                if (flckable.contentX < flckable.contentWidth - flckable.width) flckable.contentX += 10
-//                event.accepted = true;
-//            }
             if (event.key === Qt.Key_Space) {
                 theUnderlay.opacity = theUnderlay.opacity < .5 ? 1. : 0.;
                 theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
