@@ -1,0 +1,3 @@
+module LiveLoading
+plugin LiveLoading
+LiveLoader 1.0 LiveLoader.qml

@@ -6,10 +6,12 @@
 class QmlFileObserver: public QObject
 {
     Q_OBJECT
+
 public:
     QmlFileObserver(const QString& qmlBaseDir, QObject* parent = nullptr);
 
 public slots:
+    void observePath(const QString& qmlBaseDir);
     QString observedPath() const;
     void observeFile(const QString& file);
 

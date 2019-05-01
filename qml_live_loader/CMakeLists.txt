@@ -12,11 +12,8 @@ find_package(Qt5 COMPONENTS Core Quick REQUIRED)
 
 add_executable(${PROJECT_NAME} 
 		main.cpp 
-		qmlenginewrapper.cpp
-		qmlenginewrapper.h
-		qmlfileobserver.cpp
-		qmlfileobserver.h
-                qml/qmlres.qrc
+		qmlres.qrc
+		main.qml
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)

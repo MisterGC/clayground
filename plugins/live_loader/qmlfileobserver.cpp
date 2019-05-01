@@ -9,12 +9,22 @@ QmlFileObserver::QmlFileObserver(const QString &qmlBaseDir, QObject *parent)
             this, &QmlFileObserver::onFileChanged);
 }
 
+void QmlFileObserver::observePath(const QString& qmlBaseDir)
+{
+   if (qmlBaseDir_ != qmlBaseDir)
+   {
+       fileObserver_.removePaths(fileObserver_.files());
+       fileObserver_.removePaths(fileObserver_.directories());
+       qmlBaseDir_ = qmlBaseDir;
+   }
+}
+
 QString QmlFileObserver::observedPath() const
 {
    return qmlBaseDir_;
 }
 
-void QmlFileObserver::observeFile(const QString &file)
+void QmlFileObserver::observeFile(const QString& file)
 {
     const QString path = qmlBaseDir_ + "/" + file;
     QFile f(path);

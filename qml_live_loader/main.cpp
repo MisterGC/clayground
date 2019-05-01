@@ -4,8 +4,10 @@
 #include <QFileSystemWatcher>
 #include <QDir>
 #include <QCommandLineParser>
-#include "qmlenginewrapper.h"
-#include "qmlfileobserver.h"
+#include <QQmlApplicationEngine>
+#include <QVariant>
+#include <QMetaObject>
+#include <QDebug>
 
 int main(int argc, char *argv[])
 {
@@ -13,7 +15,6 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("Qml LiveLoader");
     QCoreApplication::setApplicationVersion("0.1");
-
     QCommandLineParser parser;
     QCommandLineOption opt("dynqmldir",
                            "Sets the directory that contains dynamic qml.",
@@ -24,14 +25,10 @@ int main(int argc, char *argv[])
     auto dynQmlDir = QDir::currentPath();
     if (parser.isSet("dynqmldir"))
         dynQmlDir = parser.value("dynqmldir");
-
-    QmlEngineWrapper engine;
+    QQmlApplicationEngine engine;
     engine.addImportPath("plugins");
-    QmlFileObserver watcher(dynQmlDir);
-    engine.rootContext()->setContextProperty("FileObserver", &watcher);
-    engine.rootContext()->setContextProperty("QmlCache", &engine);
     engine.addImportPath(dynQmlDir);
-
+    engine.rootContext()->setContextProperty("liveLoaderPath", QVariant(dynQmlDir));
     engine.load(QUrl("qrc:/main.qml"));
     if (engine.rootObjects().isEmpty()) return -1;
 

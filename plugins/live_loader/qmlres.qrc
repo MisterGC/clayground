@@ -1,6 +1,5 @@
 <!DOCTYPE RCC><RCC version="1.0">
-<qresource>
-    <file>main.qml</file>
+<qresource prefix="/base">
     <file>LiveLoader.qml</file>
 </qresource>
 </RCC>
