@@ -2,6 +2,7 @@ import QtQuick 2.12
 import "qrc:/" as LivLd
 import Box2D 2.0
 import GcPopulator 1.0
+import ScalingCanvas 1.0
 
 CoordCanvas
 {

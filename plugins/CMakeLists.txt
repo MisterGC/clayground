@@ -1,0 +1,6 @@
+cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
+project (plugins)
+add_subdirectory (box2d)
+add_subdirectory (live_loader)
+add_subdirectory (populator)
+add_subdirectory (scaling_canvas)

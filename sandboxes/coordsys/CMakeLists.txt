@@ -9,7 +9,7 @@ Angle.qml
 AiMap.qml
 Sandbox.qml
 ScalingText.qml
-CoordCanvas.qml
+CoordCanvasDev.qml
 Minigy.qml
 Player.qml
 PhysicsItem.qml
