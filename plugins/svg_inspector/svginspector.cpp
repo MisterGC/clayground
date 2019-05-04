@@ -1,19 +1,19 @@
-#include "populator.h"
+#include "svginspector.h"
 #include <QFile>
 #include <QXmlStreamReader>
 #include <QDebug>
 
-void Populator::onSvgChanged(const QString &path)
+void SvgInspector::onFileChanged(const QString &path)
 {
     // INFO Re-add file as otherwise (at least on Linux)
     // further changes are not recognized
-    svgObserver_.removePath(path);
-    setPopulationModel(path);
-    svgObserver_.addPath(path);
-    syncWithSvg();
+    fileObserver_.removePath(path);
+    setPathToFile(path);
+    fileObserver_.addPath(path);
+    introspect();
 }
 
-void Populator::processEntity(QXmlStreamReader& xmlReader,
+void SvgInspector::processShape(QXmlStreamReader& xmlReader,
                               QXmlStreamReader::TokenType& token,
                               bool& currentTokenProcessed,
                               const float& heightWu)
@@ -37,7 +37,7 @@ void Populator::processEntity(QXmlStreamReader& xmlReader,
             token = xmlReader.tokenType();
             currentTokenProcessed = false;
         }
-        emit createItemAt(comp, x, heightWu - y, width, height,  customInfo);
+        emit rectangle(comp, x, heightWu - y, width, height,  customInfo);
     }
     else if (nam == "circle")
     {
@@ -56,15 +56,15 @@ void Populator::processEntity(QXmlStreamReader& xmlReader,
             token = xmlReader.tokenType();
             currentTokenProcessed = false;
         }
-        emit createPoIAt(comp, x, heightWu - y, radius, customInfo);
+        emit circle(comp, x, heightWu - y, radius, customInfo);
     }
 }
 
-void Populator::syncWithSvg()
+void SvgInspector::introspect()
 {
-    if (!svgObserver_.files().empty())
+    if (!fileObserver_.files().empty())
     {
-        auto pathToSvg = svgObserver_.files().first();
+        auto pathToSvg = fileObserver_.files().first();
 
         QFile xmlFile(pathToSvg);
         if (!xmlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -95,7 +95,7 @@ void Populator::syncWithSvg()
                     auto viewBox = attribs.value("viewBox").toString().split(" ");
                     auto widthWu = viewBox[2].toFloat();
                     heightWu = viewBox[3].toFloat();
-                    emit aboutToPopulate(widthWu, heightWu, widthPx, heightPx);
+                    emit begin(widthWu, heightWu, widthPx, heightPx);
                 }
                 else if (nam == "g") {
                     auto attribs = xmlReader.attributes();
@@ -104,7 +104,7 @@ void Populator::syncWithSvg()
                     else if (lbl == "Legend") readingMapContent = false;
                 }
                 else if (readingMapContent)
-                    processEntity(xmlReader, token, currentTokenProcessed, heightWu);
+                    processShape(xmlReader, token, currentTokenProcessed, heightWu);
             }
         }
 
@@ -115,16 +115,16 @@ void Populator::syncWithSvg()
 
         xmlReader.clear();
         xmlFile.close();
-        emit populationFinished();
+        emit end();
     }
 }
 
-void Populator::setPopulationModel(const QString &pathToSvg)
+void SvgInspector::setPathToFile(const QString &pathToSvg)
 {
-    connect(&svgObserver_, &QFileSystemWatcher::fileChanged,
-            this, &Populator::onSvgChanged,
+    connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
+            this, &SvgInspector::onFileChanged,
             static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::UniqueConnection));
-    svgObserver_.removePaths(svgObserver_.files());
-    svgObserver_.addPath(pathToSvg);
-    syncWithSvg();
+    fileObserver_.removePaths(fileObserver_.files());
+    fileObserver_.addPath(pathToSvg);
+    introspect();
 }

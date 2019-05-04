@@ -4,8 +4,8 @@ import LiveLoading 1.0
 
 Window {
     visible: true
-    width: 1200
-    height: 800
+    width: 400
+    height: 400
     title: qsTr("Live Qml Coding Sandbox")
     flags: Qt.WindowStaysOnTopHint
 

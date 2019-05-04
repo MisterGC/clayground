@@ -2,12 +2,12 @@
 #define populator_plugin_h 
 #include <QQmlExtensionPlugin>
 #include <QQmlEngine>
-#include "populator.h"
+#include "svginspector.h"
 
-class PopulatorPlugin: public QQmlExtensionPlugin 
+class SvgInspectorPlugin: public QQmlExtensionPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "com.storytelling-turtle.PopulatorPlugin")
+    Q_PLUGIN_METADATA(IID "com.storytelling-turtle.SvgTraversalPlugin")
 public:
     void registerTypes(const char* uri) override;
 };
