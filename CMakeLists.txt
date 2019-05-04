@@ -9,6 +9,6 @@ add_subdirectory (qml_live_loader)
 
 add_subdirectory (plugins)
 
-add_subdirectory (sandboxes/coordsys)
+add_subdirectory (sandboxes/ld44_tiny_rebels)
 add_subdirectory (sandboxes/gui)
 add_subdirectory (sandboxes/particle)

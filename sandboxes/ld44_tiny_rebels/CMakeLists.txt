@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (sbx_coordsys)
+project (ld44_tiny_rebels)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}

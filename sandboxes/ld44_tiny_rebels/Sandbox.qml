@@ -83,7 +83,7 @@ CoordCanvas
         id: thePopulator
         property var objs: []
 
-        Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/sandboxes/coordsys/world.svg")
+        Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/sandboxes/ld44_tiny_rebels/world.svg")
         onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             player = null;
