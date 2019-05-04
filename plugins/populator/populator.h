@@ -2,6 +2,7 @@
 #define POPULATOR_H
 #include <QObject>
 #include <QFileSystemWatcher>
+#include <QXmlStreamReader>
 
 class Populator: public QObject
 {
@@ -21,6 +22,10 @@ private slots:
 
 private:
     void syncWithSvg();
+    void processEntity(QXmlStreamReader &reader,
+                       QXmlStreamReader::TokenType &token,
+                       bool &currentTokenProcessed,
+                       const float &heightWu);
 
 private:
     QFileSystemWatcher svgObserver_;

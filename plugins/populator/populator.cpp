@@ -13,6 +13,53 @@ void Populator::onSvgChanged(const QString &path)
     syncWithSvg();
 }
 
+void Populator::processEntity(QXmlStreamReader& xmlReader,
+                              QXmlStreamReader::TokenType& token,
+                              bool& currentTokenProcessed,
+                              const float& heightWu)
+{
+    auto nam = xmlReader.name();
+    if (nam == "rect")
+    {
+        auto attribs = xmlReader.attributes();
+        auto x = attribs.value("x").toFloat();
+        auto y = attribs.value("y").toFloat();
+        auto width = attribs.value("width").toFloat();
+        auto height = attribs.value("height").toFloat();
+        auto comp = attribs.value("id").toString().split("-").first();
+        QString customInfo = "";
+        bool ok = xmlReader.readNextStartElement();
+        if (ok && xmlReader.name() == "desc") {
+            xmlReader.readNext();
+            customInfo = xmlReader.text().toString();
+        }
+        else {
+            token = xmlReader.tokenType();
+            currentTokenProcessed = false;
+        }
+        emit createItemAt(comp, x, heightWu - y, width, height,  customInfo);
+    }
+    else if (nam == "circle")
+    {
+        auto attribs = xmlReader.attributes();
+        auto x = attribs.value("cx").toFloat();
+        auto y = attribs.value("cy").toFloat();
+        auto radius = attribs.value("r").toFloat();
+        auto comp = attribs.value("id").toString().split("-").first();
+        QString customInfo = "";
+        bool ok = xmlReader.readNextStartElement();
+        if (ok && xmlReader.name() == "desc") {
+            xmlReader.readNext();
+            customInfo = xmlReader.text().toString();
+        }
+        else {
+            token = xmlReader.tokenType();
+            currentTokenProcessed = false;
+        }
+        emit createPoIAt(comp, x, heightWu - y, radius, customInfo);
+    }
+}
+
 void Populator::syncWithSvg()
 {
     if (!svgObserver_.files().empty())
@@ -27,15 +74,12 @@ void Populator::syncWithSvg()
         QXmlStreamReader xmlReader(&xmlFile);
 
         bool readingMapContent = false;
-
-        // Needed to flip the coordinates as world coord system starts in
-        // lower left corner not upper left (!)
         auto heightWu = 0.0f;
 
         // Can be used to avoid reading a further element if
         // logic has not used the current one and dispatching should be done
         bool currentTokenProcessed = true;
-        QXmlStreamReader::TokenType token;
+        QXmlStreamReader::TokenType token = QXmlStreamReader::StartElement;
         while(!xmlReader.atEnd() && !xmlReader.hasError())
         {
             if (currentTokenProcessed) token = xmlReader.readNext();
@@ -59,45 +103,8 @@ void Populator::syncWithSvg()
                     if (lbl == "Map") readingMapContent = true;
                     else if (lbl == "Legend") readingMapContent = false;
                 }
-                else if (readingMapContent && nam == "rect")
-                {
-                    auto attribs = xmlReader.attributes();
-                    auto x = attribs.value("x").toFloat();
-                    auto y = attribs.value("y").toFloat();
-                    auto width = attribs.value("width").toFloat();
-                    auto height = attribs.value("height").toFloat();
-                    auto comp = attribs.value("id").toString().split("-").first();
-                    QString customInfo = "";
-                    bool ok = xmlReader.readNextStartElement();
-                    if (ok && xmlReader.name() == "desc") {
-                        xmlReader.readNext();
-                        customInfo = xmlReader.text().toString();
-                    }
-                    else {
-                        token = xmlReader.tokenType();
-                        currentTokenProcessed = false;
-                    }
-                    emit createItemAt(comp, x, heightWu - y, width, height,  customInfo);
-                }
-                else if (readingMapContent && nam == "circle")
-                {
-                    auto attribs = xmlReader.attributes();
-                    auto x = attribs.value("cx").toFloat();
-                    auto y = attribs.value("cy").toFloat();
-                    auto radius = attribs.value("r").toFloat();
-                    auto comp = attribs.value("id").toString().split("-").first();
-                    QString customInfo = "";
-                    bool ok = xmlReader.readNextStartElement();
-                    if (ok && xmlReader.name() == "desc") {
-                        xmlReader.readNext();
-                        customInfo = xmlReader.text().toString();
-                    }
-                    else {
-                        token = xmlReader.tokenType();
-                        currentTokenProcessed = false;
-                    }
-                    emit createPoIAt(comp, x, heightWu - y, radius, customInfo);
-                }
+                else if (readingMapContent)
+                    processEntity(xmlReader, token, currentTokenProcessed, heightWu);
             }
         }
 
