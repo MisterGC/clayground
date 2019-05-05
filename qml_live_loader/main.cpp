@@ -8,6 +8,8 @@
 #include <QVariant>
 #include <QMetaObject>
 #include <QDebug>
+#include "qmlfileobserver.h"
+#include "qmlenginewrapper.h"
 
 int main(int argc, char *argv[])
 {
@@ -28,7 +30,11 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImportPath("plugins");
     engine.addImportPath(dynQmlDir);
-    engine.rootContext()->setContextProperty("liveLoaderPath", QVariant(dynQmlDir));
+    QmlFileObserver watcher(dynQmlDir);
+    QmlEngineWrapper wrapper;
+    wrapper.setEngine(&engine);
+    engine.rootContext()->setContextProperty("FileObserver", &watcher);
+    engine.rootContext()->setContextProperty("QmlCache", &wrapper);
     engine.load(QUrl("qrc:/main.qml"));
     if (engine.rootObjects().isEmpty()) return -1;
 

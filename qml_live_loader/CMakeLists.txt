@@ -13,6 +13,11 @@ find_package(Qt5 COMPONENTS Core Quick REQUIRED)
 add_executable(${PROJECT_NAME} 
 		main.cpp 
 		qmlres.qrc
+		LiveLoader.qml
+		qmlenginewrapper.cpp
+		qmlenginewrapper.h
+		qmlfileobserver.cpp
+		qmlfileobserver.h
 		main.qml
 )
 

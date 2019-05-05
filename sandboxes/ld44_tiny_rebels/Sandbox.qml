@@ -113,6 +113,7 @@ CoordCanvas
             objs.push(obj);
             if (componentName === "Player") {
                 player = obj;
+                player.x = 500
                 theCanvas.viewPortCenterWuX = Qt.binding(function() {return theCanvas.screenXToWorld(player.x);});
                 theCanvas.viewPortCenterWuY = Qt.binding(function() {return theCanvas.screenYToWorld(player.y);});
             }

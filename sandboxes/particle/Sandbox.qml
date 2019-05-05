@@ -16,7 +16,7 @@ Item {
         height: width
         anchors.centerIn: parent
         system: particleSystem
-        emitRate: 30
+        emitRate: 80
         lifeSpan: 500
         lifeSpanVariation: 50
         velocity: TargetDirection { targetX: emitter.width/2; targetY: emitter.height/2; magnitude: 200;}
