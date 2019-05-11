@@ -73,7 +73,6 @@ void SvgInspector::introspect()
         }
         QXmlStreamReader xmlReader(&xmlFile);
 
-        bool readingMapContent = false;
         auto heightWu = 0.0f;
 
         // Can be used to avoid reading a further element if
@@ -85,9 +84,9 @@ void SvgInspector::introspect()
             if (currentTokenProcessed) token = xmlReader.readNext();
             else currentTokenProcessed = true;
 
+            auto nam = xmlReader.name();
             if(token == QXmlStreamReader::StartElement)
             {
-                auto nam = xmlReader.name();
                 if (nam == "svg") {
                     auto attribs = xmlReader.attributes();
                     auto widthPx = attribs.value("width").toInt();
@@ -100,11 +99,13 @@ void SvgInspector::introspect()
                 else if (nam == "g") {
                     auto attribs = xmlReader.attributes();
                     auto lbl = attribs.value("inkscape:label").toString();
-                    if (lbl == "Map") readingMapContent = true;
-                    else if (lbl == "Legend") readingMapContent = false;
+                    emit beginGroup(lbl);
                 }
-                else if (readingMapContent)
-                    processShape(xmlReader, token, currentTokenProcessed, heightWu);
+                else processShape(xmlReader, token, currentTokenProcessed, heightWu);
+            }
+            else if (token == QXmlStreamReader::EndElement &&
+                     nam == "g") {
+                endGroup();
             }
         }
 

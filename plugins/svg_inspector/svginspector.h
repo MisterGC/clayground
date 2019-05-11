@@ -13,8 +13,10 @@ public slots:
 
 signals:
     void begin(float widthWu, float heightWu, int widthPx, int heightPx);
+    void beginGroup(const QString& grpName);
     void rectangle(const QString& componentName, float xWu, float yWu, float widthWu, float heightWu, const QString& description);
     void circle(const QString& componentName, float xWu, float yWu, float radiusWu, const QString& description);
+    void endGroup();
     void end();
 
 private slots:
