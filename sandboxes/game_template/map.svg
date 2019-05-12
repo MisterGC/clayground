@@ -9,9 +9,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="400"
-   height="400"
-   viewBox="0 0 8 8"
+   width="1000"
+   height="1000"
+   viewBox="0 0 20 20"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2"
-     inkscape:cx="278.3329"
-     inkscape:cy="216.28698"
+     inkscape:zoom="1"
+     inkscape:cx="262.06687"
+     inkscape:cy="518.50097"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -63,7 +63,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -73,34 +73,84 @@
      inkscape:label="Map"
      style="display:inline;opacity:1;filter:url(#filter1177)">
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.2129661;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.27849412;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect1489"
-       width="7.921875"
-       height="0.5"
-       x="0.01125"
-       y="7.3175001">
+       width="19.921875"
+       height="0.34"
+       x="0.04125002"
+       y="19.607498">
       <desc
          id="desc1491">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.32995278;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.4468846;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect1511"
-       width="0.66000003"
-       height="5.8400002"
-       x="0.12"
-       y="1.54">
+       width="0.36000001"
+       height="19.639999"
+       x="0.070000008"
+       y="0.029994342">
       <desc
          id="desc1515">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.32995278;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.29565832;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect1513"
-       width="0.60000002"
-       height="5.9200001"
-       x="7.25"
-       y="1.3700001">
+       width="0.46000004"
+       height="6.2000003"
+       x="7.2800002"
+       y="13.499996">
       <desc
          id="desc1517">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:0.32995278;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect830"
+       width="0.31"
+       height="0.31"
+       x="3.2500002"
+       y="16.309996">
+      <desc
+         id="desc1478">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="0.0099943327"
+       x="19.59"
+       height="19.58"
+       width="0.36000001"
+       id="rect1500"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.44620147;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc1498">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="0.047498263"
+       x="0.041249987"
+       height="0.34"
+       width="19.921875"
+       id="rect1504"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.27849412;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc1502">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="13.447485"
+       x="0.04125002"
+       height="0.34"
+       width="5.5818748"
+       id="rect1508"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc1506">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.20084919;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1512"
+       width="10.361875"
+       height="0.34"
+       x="7.3212509"
+       y="13.447485">
+      <desc
+         id="desc1510">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
   </g>
 </svg>

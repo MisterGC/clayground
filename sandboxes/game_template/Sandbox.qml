@@ -32,10 +32,12 @@ CoordCanvas
         }
     }
     onKeyReleased: {
+        if (player) {
             if (event.key === Qt.Key_Up) player.stopUp();
             if (event.key === Qt.Key_Down) player.stopDown();
             if (event.key === Qt.Key_Left) player.stopLeft();
             if (event.key === Qt.Key_Right) player.stopRight();
+        }
     }
 
     Populator
@@ -67,11 +69,11 @@ CoordCanvas
                                             });
             obj.pixelPerUnit = Qt.binding(function() {return gameWorld.pixelPerUnit;});
             objs.push(obj);
-//            if (componentName === "Player") {
-//                player = obj;
-//                gameWorld.viewPortCenterWuX = Qt.binding(function() {return gameWorld.screenXToWorld(player.x);});
-//                gameWorld.viewPortCenterWuY = Qt.binding(function() {return gameWorld.screenYToWorld(player.y);});
-//            }
+            if (cfg["component"] === "Player.qml") {
+                player = obj;
+                gameWorld.viewPortCenterWuX = Qt.binding(function() {return gameWorld.screenXToWorld(player.x);});
+                gameWorld.viewPortCenterWuY = Qt.binding(function() {return gameWorld.screenYToWorld(player.y);});
+            }
         }
         onCircle: {
             console.log("onCircle");

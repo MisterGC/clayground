@@ -14,6 +14,7 @@ VisualizedBoxBody
     property int energy: 10000
     readonly property int maxEnergy: 10000
     opacity: energy/maxEnergy
+    fixedRotation: false
 
     function moveUp() { body.linearVelocity.y = -maxVelo; }
     function moveDown() { body.linearVelocity.y = maxVelo; }
@@ -28,12 +29,12 @@ VisualizedBoxBody
     ScalingText
     {
         parent: thePlayer.parent
-        x: thePlayer.x + player.width/2 - width/2
+        x: thePlayer.x + thePlayer.width/2 - width/2
         y: thePlayer.y - height * 1.1
         z: 99
-        text: energy
+        text: "It's a mee, a pixel!"
         color: "#3fa4c8"
         pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 0.5
+        fontSizeWu: 0.3
     }
 }
