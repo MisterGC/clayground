@@ -38,16 +38,16 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1"
-     inkscape:cx="262.06687"
+     inkscape:cx="501.59658"
      inkscape:cy="518.50097"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
-     inkscape:window-width="2560"
+     inkscape:window-width="1734"
      inkscape:window-height="1304"
-     inkscape:window-x="0"
+     inkscape:window-x="826"
      inkscape:window-y="64"
-     inkscape:window-maximized="1"
+     inkscape:window-maximized="0"
      units="px"
      inkscape:pagecheckerboard="false"
      inkscape:snap-global="false">
@@ -135,10 +135,10 @@
     <rect
        y="13.447485"
        x="0.04125002"
-       height="0.34"
+       height="1.84"
        width="5.5818748"
        id="rect1508"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.34293389;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc1506">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
@@ -151,6 +151,26 @@
        y="13.447485">
       <desc
          id="desc1510">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1524"
+       width="5.5818748"
+       height="0.34"
+       x="0.04125002"
+       y="7.8474889">
+      <desc
+         id="desc1522">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="3.8600001"
+       x="7.3200002"
+       height="6.2000003"
+       width="0.46000004"
+       id="rect1528"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.29565832;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc1526">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
   </g>
 </svg>

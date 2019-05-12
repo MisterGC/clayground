@@ -15,6 +15,7 @@ VisualizedBoxBody
     readonly property int maxEnergy: 10000
     opacity: energy/maxEnergy
     fixedRotation: false
+    property alias text: annotation.text
 
     function moveUp() { body.linearVelocity.y = -maxVelo; }
     function moveDown() { body.linearVelocity.y = maxVelo; }
@@ -28,6 +29,7 @@ VisualizedBoxBody
 
     ScalingText
     {
+        id: annotation
         parent: thePlayer.parent
         x: thePlayer.x + thePlayer.width/2 - width/2
         y: thePlayer.y - height * 1.1
