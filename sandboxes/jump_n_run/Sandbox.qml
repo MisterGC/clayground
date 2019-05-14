@@ -46,7 +46,7 @@ CoordCanvas
         id: thePopulator
         property var objs: []
 
-        Component.onCompleted: thePopulator.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/game_template/map.svg")
+        Component.onCompleted: thePopulator.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/jump_n_run/map.svg")
         onBegin: {
             player = null;
             while(objs.length > 0) {
@@ -74,6 +74,7 @@ CoordCanvas
                 player = obj;
                 gameWorld.viewPortCenterWuX = Qt.binding(function() {return gameWorld.screenXToWorld(player.x);});
                 gameWorld.viewPortCenterWuY = Qt.binding(function() {return gameWorld.screenYToWorld(player.y);});
+                player.maxXVelo = 5;
             }
         }
         onCircle: {

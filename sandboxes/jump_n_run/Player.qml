@@ -6,6 +6,7 @@ VisualizedCircleBody
     id: thePlayer
     bodyType: Body.Dynamic
     color: "#3fa4c8"
+    visible: false
     bullet: true
     property real maxYVelo: 8
     property real maxXVelo: 8
@@ -18,7 +19,7 @@ VisualizedCircleBody
     fixedRotation: Math.abs(linearVelocity.x) < 0.1 || !isOnGround
     property alias text: annotation.text
             density: 300.
-            friction: isOnGround ? 10. : 1
+            friction: isOnGround ? 10. : .01
             restitution: 0.
 
     property bool moveLeft: false
@@ -30,6 +31,9 @@ VisualizedCircleBody
         if (moveLeft) newXVelo = -maxXVelo;
         if (moveRight) newXVelo = maxXVelo;
         linearVelocity.x = newXVelo;
+
+        if (moveLeft) faceRight = false;
+        if (moveRight) faceRight = true;
     }
     Timer {
         interval: 50
@@ -38,6 +42,23 @@ VisualizedCircleBody
         onTriggered: updateVelocity()
     }
 
+    property bool faceRight: false
+    Image {
+        source: "player.png"
+        parent: thePlayer.parent
+        anchors.bottom: thePlayer.bottom
+        anchors.horizontalCenter: thePlayer.horizontalCenter
+        width: thePlayer.width
+        height: thePlayer.height
+        z: 99
+        transform: Rotation {
+            origin.x: width * .5 ;
+            origin.y: height * .5;
+            axis { x: 0; y: 1; z: 0 }
+            angle: thePlayer.faceRight ? 0 : 180
+            //Behavior on angle { NumberAnimation {duration: 100} }
+        }
+    }
 
     property bool isOnGround: !(fallDownTimer.running) && Math.abs(linearVelocity.y) < 0.01
     function jump() { if (isOnGround){ reJumpTimer.restart() } }
