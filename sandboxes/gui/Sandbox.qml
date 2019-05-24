@@ -22,7 +22,7 @@ Rectangle
         }
         CheckBox { checked: true; text: "With Sugar" }
         CheckBox { checked: true; text: "With Milk" }
-        CheckBox { checked: true; text: "With Nuts" }
+        CheckBox { checked: true; text: "With Water" }
     }
 
 }

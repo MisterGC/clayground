@@ -5,7 +5,7 @@ Image {
     id: theImage
 
     property alias body: boxBody
-    property alias fixture: box
+    property alias fixture: circle
 
     property real pixelPerUnit: 1
     property real xWu: 0
@@ -17,11 +17,6 @@ Image {
     y: parent.height - yWu * pixelPerUnit
     width: widthWu * pixelPerUnit
     height: heightWu * pixelPerUnit
-
-    Component.onCompleted: {
-        console.log("Box-Width: " + width + " Box-Height: " + height)
-        console.log("xu: " + xWu + " yu: " + yWu)
-    }
 
     // Placeholder visu properties
     property alias color: thePlaceholder.color
@@ -42,13 +37,13 @@ Image {
     property alias gravityScale: boxBody.gravityScale
 
     // Box properties
-    property alias density: box.density
-    property alias friction: box.friction
-    property alias restitution: box.restitution
-    property alias sensor: box.sensor
-    property alias categories: box.categories
-    property alias collidesWith: box.collidesWith
-    property alias groupIndex: box.groupIndex
+    property alias density: circle.density
+    property alias friction: circle.friction
+    property alias restitution: circle.restitution
+    property alias sensor: circle.sensor
+    property alias categories: circle.categories
+    property alias collidesWith: circle.collidesWith
+    property alias groupIndex: circle.groupIndex
 
     Rectangle {
         id: thePlaceholder
@@ -56,7 +51,7 @@ Image {
         visible: theImage.source == ""
         width: parent.width
         height: parent.height
-        radius: width/2
+        //radius: width/2
     }
 
     Body {
@@ -65,7 +60,7 @@ Image {
         target: theImage
 
         Circle {
-            id: box
+            id: circle
             radius: theImage.width/2
         }
     }

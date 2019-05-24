@@ -18,11 +18,6 @@ Image {
     width: widthWu * pixelPerUnit
     height: heightWu * pixelPerUnit
 
-    Component.onCompleted: {
-        console.log("Box-Width: " + width + " Box-Height: " + height)
-        console.log("xu: " + xWu + " yu: " + yWu)
-    }
-
     // Placeholder visu properties
     property alias color: thePlaceholder.color
 

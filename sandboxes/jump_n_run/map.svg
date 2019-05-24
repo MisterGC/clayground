@@ -37,17 +37,17 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2"
-     inkscape:cx="323.05102"
-     inkscape:cy="290.43799"
+     inkscape:zoom="0.5"
+     inkscape:cx="676.20256"
+     inkscape:cy="218.62988"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1304"
-     inkscape:window-x="0"
-     inkscape:window-y="64"
-     inkscape:window-maximized="1"
+     inkscape:window-width="859"
+     inkscape:window-height="431"
+     inkscape:window-x="2332"
+     inkscape:window-y="261"
+     inkscape:window-maximized="0"
      units="px"
      inkscape:pagecheckerboard="false"
      inkscape:snap-global="false">
@@ -321,6 +321,16 @@
        y="14.727487">
       <desc
          id="desc2463">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="13.287485"
+       x="16.801247"
+       height="0.38"
+       width="1.4718747"
+       id="rect875"
+       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc873">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
   </g>
 </svg>

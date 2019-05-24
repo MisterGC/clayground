@@ -8,7 +8,7 @@ CoordCanvas
 {
     id: gameWorld
     anchors.fill: parent
-    pixelPerUnit: 50
+    pixelPerUnit: width / gameWorld.worldXMax
 
     World {
         id: physicsWorld
@@ -17,10 +17,10 @@ CoordCanvas
         pixelsPerMeter: pixelPerUnit
     }
 
-//    DebugDraw {
-//        anchors.fill: parent
-//        parent: gameWorld.coordSys
-//    }
+    DebugDraw {
+        anchors.fill: parent
+        parent: gameWorld.coordSys
+    }
 
     property var player: null
     property int count: 0
@@ -58,7 +58,6 @@ CoordCanvas
         }
         onBeginGroup: {console.log("beginGroup");}
         onRectangle: {
-            console.log("onRectangle");
             let cfg = JSON.parse(description);
             var comp = Qt.createComponent(cfg["component"]);
             var obj = comp.createObject(coordSys, {

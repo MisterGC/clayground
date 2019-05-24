@@ -4,28 +4,37 @@ import Box2D 2.0
 VisualizedCircleBody
 {
     id: thePlayer
-    bodyType: Body.Dynamic
+
+    // Visual Configuration
+    property bool faceRight: false
+    opacity: .1
+    property alias text: annotation.text
     color: "#3fa4c8"
-    visible: false
-    bullet: true
+    //visible: false
+
+    // Game Mechanics Configuration
+    property bool isPlayer: true
+    property int energy: 10000
+    readonly property int maxEnergy: 10000
+    property bool moveLeft: false
+    property bool moveRight: false
+    onMoveLeftChanged: updateVelocity()
+    onMoveRightChanged: updateVelocity()
+
+
+    // Physics Configuration
     property real maxYVelo: 8
     property real maxXVelo: 8
     categories: Box.Category2
     collidesWith: Box.Category1
-    property bool isPlayer: true
-    property int energy: 10000
-    readonly property int maxEnergy: 10000
-    opacity: energy/maxEnergy
+    bodyType: Body.Dynamic
+    bullet: true
     fixedRotation: Math.abs(linearVelocity.x) < 0.1 || !isOnGround
-    property alias text: annotation.text
-            density: 300.
-            friction: isOnGround ? 10. : .01
-            restitution: 0.
+    density: 300.
+    friction: isOnGround ? 10. : .01
+    restitution: 0.
 
-    property bool moveLeft: false
-    onMoveLeftChanged: updateVelocity()
-    property bool moveRight: false
-    onMoveRightChanged: updateVelocity()
+
     function updateVelocity(){
         let newXVelo = 0;
         if (moveLeft) newXVelo = -maxXVelo;
@@ -42,14 +51,18 @@ VisualizedCircleBody
         onTriggered: updateVelocity()
     }
 
-    property bool faceRight: false
     Image {
         source: "player.png"
         parent: thePlayer.parent
-        anchors.bottom: thePlayer.bottom
-        anchors.horizontalCenter: thePlayer.horizontalCenter
         width: thePlayer.width
         height: thePlayer.height
+        x: thePlayer.fixture.x - width * .5
+        y: thePlayer.fixture.y - height * .5
+        Component.onCompleted:  {
+            console.log("Circle x: " + x + " y:" + y)
+            console.log("Fixture x: " + thePlayer.fixture.x + " y:" + thePlayer.fixture.y)
+        }
+
         z: 99
         transform: Rotation {
             origin.x: width * .5 ;
