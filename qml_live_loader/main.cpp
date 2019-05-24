@@ -17,16 +17,20 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("Qml LiveLoader");
     QCoreApplication::setApplicationVersion("0.1");
+
+    const QString DYN_QML_DIR_OPT = "dynqmldir";
+
     QCommandLineParser parser;
-    QCommandLineOption opt("dynqmldir",
+    QCommandLineOption opt(DYN_QML_DIR_OPT,
                            "Sets the directory that contains dynamic qml.",
                            "directory",
                            "<working directory>");
     parser.addOption(opt);
     parser.process(app);
     auto dynQmlDir = QDir::currentPath();
-    if (parser.isSet("dynqmldir"))
-        dynQmlDir = parser.value("dynqmldir");
+    if (parser.isSet(DYN_QML_DIR_OPT))
+        dynQmlDir = parser.value(DYN_QML_DIR_OPT);
+
     QQmlApplicationEngine engine;
     engine.addImportPath("plugins");
     engine.addImportPath(dynQmlDir);
