@@ -17,10 +17,10 @@ CoordCanvas
         pixelsPerMeter: pixelPerUnit
     }
 
-    DebugDraw {
-        anchors.fill: parent
-        parent: gameWorld.coordSys
-    }
+//    DebugDraw {
+//        anchors.fill: parent
+//        parent: gameWorld.coordSys
+//    }
 
     property var player: null
     property int count: 0
@@ -46,7 +46,7 @@ CoordCanvas
         id: thePopulator
         property var objs: []
 
-        Component.onCompleted: thePopulator.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/jump_n_run/map.svg")
+        Component.onCompleted: thePopulator.setPathToFile("/home/mistergc/dev/clayground/sandboxes/jump_n_run/map.svg")
         onBegin: {
             player = null;
             while(objs.length > 0) {

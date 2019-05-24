@@ -10,7 +10,7 @@ VisualizedCircleBody
     opacity: .1
     property alias text: annotation.text
     color: "#3fa4c8"
-    //visible: false
+    visible: false
 
     // Game Mechanics Configuration
     property bool isPlayer: true
@@ -56,20 +56,13 @@ VisualizedCircleBody
         parent: thePlayer.parent
         width: thePlayer.width
         height: thePlayer.height
-        x: thePlayer.fixture.x - width * .5
-        y: thePlayer.fixture.y - height * .5
-        Component.onCompleted:  {
-            console.log("Circle x: " + x + " y:" + y)
-            console.log("Fixture x: " + thePlayer.fixture.x + " y:" + thePlayer.fixture.y)
-        }
-
+        anchors.centerIn: thePlayer
         z: 99
         transform: Rotation {
             origin.x: width * .5 ;
             origin.y: height * .5;
             axis { x: 0; y: 1; z: 0 }
             angle: thePlayer.faceRight ? 0 : 180
-            //Behavior on angle { NumberAnimation {duration: 100} }
         }
     }
 

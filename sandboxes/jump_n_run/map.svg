@@ -37,17 +37,17 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.5"
-     inkscape:cx="676.20256"
+     inkscape:zoom="2.8284271"
+     inkscape:cx="466.23004"
      inkscape:cy="218.62988"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
-     inkscape:window-width="859"
-     inkscape:window-height="431"
-     inkscape:window-x="2332"
-     inkscape:window-y="261"
-     inkscape:window-maximized="0"
+     inkscape:window-width="2560"
+     inkscape:window-height="1304"
+     inkscape:window-x="0"
+     inkscape:window-y="64"
+     inkscape:window-maximized="1"
      units="px"
      inkscape:pagecheckerboard="false"
      inkscape:snap-global="false">
@@ -93,12 +93,12 @@
          id="desc1515">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:1.17111278;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:1.0643636;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect830"
-       width="0.95798999"
-       height="1.2637361"
+       width="1"
+       height="1"
        x="8.6622543"
-       y="17.904249">
+       y="18.167986">
       <desc
          id="desc1478">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
     </rect>
