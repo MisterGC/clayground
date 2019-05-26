@@ -34,10 +34,10 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImportPath("plugins");
     engine.addImportPath(dynQmlDir);
-    QmlFileObserver watcher(dynQmlDir);
+    QmlReloadTrigger watcher(dynQmlDir);
     QmlEngineWrapper wrapper;
     wrapper.setEngine(&engine);
-    engine.rootContext()->setContextProperty("FileObserver", &watcher);
+    engine.rootContext()->setContextProperty("ReloadTrigger", &watcher);
     engine.rootContext()->setContextProperty("QmlCache", &wrapper);
     engine.load(QUrl("qrc:/main.qml"));
     if (engine.rootObjects().isEmpty()) return -1;
