@@ -38,8 +38,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="2.8284271"
-     inkscape:cx="466.23004"
-     inkscape:cy="218.62988"
+     inkscape:cx="618.96511"
+     inkscape:cy="145.79788"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -247,30 +247,20 @@
        id="rect2437"
        width="1.4718747"
        height="0.38"
-       x="2.0012488"
-       y="8.16749">
+       x="1.9517514"
+       y="7.6866574">
       <desc
          id="desc2435">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
-       y="5.2074904"
-       x="4.4012494"
+       y="5.8368154"
+       x="4.457818"
        height="0.38"
        width="1.4718747"
        id="rect2441"
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc2439">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2445"
-       width="1.4718747"
-       height="0.38"
-       x="5.6012497"
-       y="6.4074907">
-      <desc
-         id="desc2443">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
        y="3.6074901"
@@ -297,14 +287,14 @@
        id="rect2457"
        width="0.56187469"
        height="0.38"
-       x="11.881246"
-       y="17.127483">
+       x="12.321245"
+       y="16.96748">
       <desc
          id="desc2455">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
     </rect>
     <rect
-       y="15.927485"
-       x="13.481244"
+       y="15.647486"
+       x="13.681244"
        height="0.38"
        width="0.56187469"
        id="rect2461"
