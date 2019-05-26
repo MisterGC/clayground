@@ -1,2 +1,2 @@
-module SvgInspector
-plugin SvgInspector
+module SvgUtils
+plugin SvgUtils

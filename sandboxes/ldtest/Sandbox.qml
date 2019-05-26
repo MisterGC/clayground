@@ -1,7 +1,7 @@
 import QtQuick 2.12
 import "qrc:/" as LivLd
 import Box2D 2.0
-import SvgUtils 1.0
+import GcPopulator 1.0
 import ScalingCanvas 1.0
 
 CoordCanvas
@@ -78,13 +78,13 @@ CoordCanvas
     property bool aiRunning: false
     AiMap { id: aiMap }
 
-    SvgInspector
+    Populator
     {
-        id: theSvgInspector
+        id: thePopulator
         property var objs: []
 
-        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/ld44_tiny_rebels/world.svg")
-        onBegin: {
+        Component.onCompleted: thePopulator.setPopulationModel("/home/mistergc/dev/qml_live_loader/sandboxes/coordsys/world.svg")
+        onAboutToPopulate: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             player = null;
             theCanvas.aiRunning = false;
@@ -97,10 +97,10 @@ CoordCanvas
             theCanvas.worldYMax = heightWu;
             console.log("WuWidth: " + widthWu  +" Width: " + theCanvas.coordSys.width)
         }
-        onRectangle: {
+        onCreateItemAt: {
             console.log("Create item: " + componentName + " x: " + xWu + " y: " + yWu);
             var comp = Qt.createComponent(componentName + ".qml");
-            console.log("Description: " + description)
+            console.log("CustomInfo: " + customInfo)
             var obj = comp.createObject(coordSys, {
                                             "xWu": xWu,
                                             "yWu": yWu,
@@ -113,14 +113,13 @@ CoordCanvas
             objs.push(obj);
             if (componentName === "Player") {
                 player = obj;
-                player.x = 500
                 theCanvas.viewPortCenterWuX = Qt.binding(function() {return theCanvas.screenXToWorld(player.x);});
                 theCanvas.viewPortCenterWuY = Qt.binding(function() {return theCanvas.screenYToWorld(player.y);});
             }
             else if (componentName === "Absorbicer") {
-                let hasCfg = (description.length >= 2);
+                let hasCfg = (customInfo.length >= 2);
                 if (hasCfg) {
-                    let cfg = JSON.parse(description)
+                    let cfg = JSON.parse(customInfo)
                     if (cfg["route"])
                         obj.route = cfg["route"];
                 }
@@ -128,7 +127,7 @@ CoordCanvas
                 obj.aiRunning = Qt.binding(function() {return theCanvas.aiRunning;});
             }
         }
-        onCircle: {
+        onCreatePoIAt: {
             var comp = Qt.createComponent(componentName + ".qml");
             var obj = comp.createObject(coordSys, {
                                             "xWu": xWu,
@@ -139,7 +138,7 @@ CoordCanvas
             obj.pixelPerUnit = Qt.binding(function() {return theCanvas.pixelPerUnit;});
             objs.push(obj);
             if (componentName == "Waypoint"){
-                let splitInfo = description.split(":");
+                let splitInfo = customInfo.split(":");
                 let routeId = splitInfo[0];
                 let wpIdx = splitInfo[1]
                 if (!aiMap.routes[routeId]) {
@@ -152,7 +151,7 @@ CoordCanvas
                 console.log("Route len: " + route.length)
             }
         }
-        onEnd: {
+        onPopulationFinished: {
             theCanvas.aiRunning = true;
         }
     }

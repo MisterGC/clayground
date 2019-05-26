@@ -1,13 +1,13 @@
-project (SvgInspector)
+project (SvgUtils)
 set (CMAKE_AUTOMOC on)
 
-set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/SvgInspector)
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/SvgInspector)
+set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/SvgUtils)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/SvgUtils)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
-    svginspectorplugin.cpp
-    svginspectorplugin.h
+    svgutilsplugin.cpp
+    svgutilsplugin.h
     svginspector.cpp
     svginspector.h
     qmldir
