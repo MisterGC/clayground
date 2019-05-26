@@ -7,7 +7,6 @@ VisualizedCircleBody
 
     // Visual Configuration
     property bool faceRight: false
-    opacity: .1
     property alias text: annotation.text
     color: "#3fa4c8"
     visible: false
@@ -55,8 +54,10 @@ VisualizedCircleBody
         source: "player.png"
         parent: thePlayer.parent
         width: thePlayer.width
-        height: thePlayer.height
-        anchors.centerIn: thePlayer
+        height: thePlayer.height * 1.2
+        anchors.horizontalCenter: thePlayer.horizontalCenter
+        anchors.verticalCenter: thePlayer.verticalCenter
+        anchors.verticalCenterOffset: -0.1 * thePlayer.height
         z: 99
         transform: Rotation {
             origin.x: width * .5 ;
