@@ -45,12 +45,12 @@ CoordCanvas
         }
     }
 
-    Populator
+    SvgInspector
     {
-        id: thePopulator
+        id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: thePopulator.setPathToFile("/home/mistergc/dev/clayground/sandboxes/jump_n_run/map.svg")
+        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/clayground/sandboxes/jump_n_run/map.svg")
         onBegin: {
             player = null;
             while(objs.length > 0) {
