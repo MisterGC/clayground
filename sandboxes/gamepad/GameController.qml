@@ -2,6 +2,7 @@ import QtQuick 2.0
 import QtGamepad 1.0
 
 Item {
+    id: theController
     property alias dirControllerUsed: gamepad.buttonR3
     property bool buttonA: false
     property bool buttonB: false
@@ -10,19 +11,20 @@ Item {
     property alias showDebugOverlay: theDebugVisu.visible
     property bool keyboardSelected: false
 
-
-    Connections {
-        target: GamepadManager
-        onGamepadConnected: gamepad.deviceId = deviceId
-    }
-
     /** Selects the specified gamepad as input source */
-    function selectGamepad() {
-        buttonA = Qt.binding(function() {return gamepad.buttonB;});
-        buttonB = Qt.binding(function() {return gamepad.buttonA;});
-        axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
-        axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
-        keyboardSelected = false;
+    function selectGamepad(gamePadIdx) {
+        if (gamePadIdx >= 0 &&
+            gamePadIdx < GamepadManager.connectedGamepads.length)
+        {
+            gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
+            buttonA = Qt.binding(function() {return gamepad.buttonB;});
+            buttonB = Qt.binding(function() {return gamepad.buttonA;});
+            axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
+            axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
+            keyboardSelected = false;
+        }
+        else console.error("Invalid game pad index: " + gamePadIdx +
+                           " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
     }
 
     /** Selects the keyboard as input */
@@ -71,8 +73,7 @@ Item {
 
     Gamepad {
         id: gamepad
-        Component.onCompleted: console.log("Nr of conn gamepads: " + GamepadManager.connectedGamepads.length)
-        deviceId: GamepadManager.connectedGamepads.length > 0 ? GamepadManager.connectedGamepads[0] : -1
+        deviceId: -1
     }
 
     MultiPointTouchArea {
@@ -135,7 +136,7 @@ Item {
         opacity: .75
         color: "grey"
         anchors.centerIn: parent
-        width: parent.width * .3
+        width: parent.width * .5
         height: .5 * width
         border.width: .1 * height
         border.color: "lightgrey"
@@ -148,7 +149,9 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             font.bold: true
             font.pixelSize: parent.height * .09
-            text: "Source: " + (theController.keyboardSelected ? "Keyboard" : "Gamepad")
+            text: "Source: " + (theController.keyboardSelected ?
+                                    "Keyboard" :
+                                    "Gamepad (" + gamepad.deviceId + ")")
         }
 
         Rectangle {
