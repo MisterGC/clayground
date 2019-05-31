@@ -2,7 +2,6 @@ import QtQuick 2.0
 
 Item {
     id: theWorld
-    anchors.fill: parent
 
     property alias deviceScalingFactor: flckable.deviceScalingFactor
     property alias zoomFactor: flckable.zoomFactor
