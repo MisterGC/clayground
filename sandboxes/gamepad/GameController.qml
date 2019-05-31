@@ -7,6 +7,7 @@ Item {
     property bool buttonB: gamepad.buttonA
     property real axisX: gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0 /*theVirtualController.visible ? theVirtualAxis.normX :*/
     property real axisY: gamepad.buttonUp ? -1 : gamepad.buttonDown ? 1 : 0 /*theVirtualController.visible ? theVirtualAxis.normY :*/
+    property alias showDebugOverlay: theDebugVisu.visible
 
     Connections {
         target: GamepadManager
@@ -71,6 +72,87 @@ Item {
                 return vec
             }
         }
+
+    }
+
+    Rectangle {
+        id: theDebugVisu
+        opacity: .75
+        color: "grey"
+        anchors.centerIn: parent
+        width: parent.width * .3
+        height: .5 * width
+        border.width: .1 * height
+        border.color: "lightgrey"
+
+        Rectangle {
+            id: up
+            x: .3 * parent.height
+            y: .6 * parent.height
+            width: .15 * parent.height
+            height: width
+            color: theController.axisY > 0.3 ? "red" : "black"
+        }
+        Rectangle {
+            id: down
+            x: .3 * parent.height
+            y: .3 * parent.height
+            width: .15 * parent.height
+            height: width
+            color: theController.axisY < -0.3 ? "red" : "black"
+        }
+        Rectangle {
+            id: left
+            x: .15 * parent.height
+            y: .45 * parent.height
+            width: .15 * parent.height
+            height: width
+            color: theController.axisX < -0.3 ? "red" : "black"
+        }
+        Rectangle {
+            id: right
+            x: .45 * parent.height
+            y: .45 * parent.height
+            width: .15 * parent.height
+            height: width
+            color: theController.axisX > 0.3 ? "red" : "black"
+        }
+
+        Rectangle {
+            id: btnB
+            x: .65 * parent.width
+            y: .45 * parent.height
+            width: .15 * parent.height
+            height: width
+            radius: width * .5
+            color: theController.buttonB ? "red" : "darkred"
+            Text {
+                font.pixelSize: parent.height * .35
+                anchors.top: parent.bottom
+                anchors.right: parent.right
+                text: "B"
+                font.bold: true
+                color: "darkred"
+            }
+        }
+        Rectangle {
+            id: btnA
+            x: .8 * parent.width
+            y: .45 * parent.height
+            width: .15 * parent.height
+            height: width
+            radius: width * .5
+            color: theController.buttonA ? "red" : "darkred"
+            Text {
+                font.pixelSize: parent.height * .35
+                anchors.top: parent.bottom
+                anchors.right: parent.right
+                text: "A"
+                font.bold: true
+                color: "darkred"
+            }
+        }
+
 
     }
 }
