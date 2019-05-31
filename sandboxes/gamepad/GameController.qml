@@ -16,8 +16,6 @@ Item {
         onGamepadConnected: gamepad.deviceId = deviceId
     }
 
-    Component.onCompleted: selectKeyboard()
-
     /** Selects the specified gamepad as input source */
     function selectGamepad() {
         buttonA = Qt.binding(function() {return gamepad.buttonB;});
@@ -27,20 +25,34 @@ Item {
     }
 
     /** Selects the keyboard as input */
-    function selectKeyboard() {
+    function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
         keyboardSelected = true;
+        _upKey = upKey;
+        _downKey = downKey;
+        _leftKey = leftKey;
+        _rightKey = rightKey;
+        _buttonAKey = buttonAKey;
+        _buttonBKey = buttonBKey;
+        console.log("Keyboard selected!")
     }
+
+    property var _upKey: null
+    property var _downKey: null
+    property var _leftKey: null
+    property var _rightKey: null
+    property var _buttonAKey: null
+    property var _buttonBKey: null
 
     Keys.onPressed: {
         if (!keyboardSelected) return;
         switch (event.key)
         {
-            case Qt.Key_Up: axisY = 1; break;
-            case Qt.Key_Down: axisY = -1; break;
-            case Qt.Key_Left: axisX = -1; break;
-            case Qt.Key_Right: axisX = 1; break;
-            case Qt.Key_A: buttonB = true; break;
-            case Qt.Key_D: buttonA = true; break;
+            case _upKey: axisY = 1; break;
+            case _downKey: axisY = -1; break;
+            case _leftKey: axisX = -1; break;
+            case _rightKey: axisX = 1; break;
+            case _buttonAKey: buttonB = true; break;
+            case _buttonBKey: buttonA = true; break;
         }
     }
 
@@ -48,12 +60,12 @@ Item {
         if (!keyboardSelected) return;
         switch (event.key)
         {
-            case Qt.Key_Up: axisY = 0; break;
-            case Qt.Key_Down: axisY = 0; break;
-            case Qt.Key_Left: axisX = 0; break;
-            case Qt.Key_Right: axisX = 0; break;
-            case Qt.Key_A: buttonB = false; break;
-            case Qt.Key_D: buttonA = false; break;
+            case _upKey: axisY = 0; break;
+            case _downKey: axisY = 0; break;
+            case _leftKey: axisX = 0; break;
+            case _rightKey: axisX = 0; break;
+            case _buttonAKey: buttonB = false; break;
+            case _buttonBKey: buttonA = false; break;
         }
     }
 
