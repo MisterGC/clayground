@@ -22,6 +22,7 @@ Item {
         buttonB = Qt.binding(function() {return gamepad.buttonA;});
         axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
         axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
+        keyboardSelected = false;
     }
 
     /** Selects the keyboard as input */
@@ -33,7 +34,6 @@ Item {
         _rightKey = rightKey;
         _buttonAKey = buttonAKey;
         _buttonBKey = buttonBKey;
-        console.log("Keyboard selected!")
     }
 
     property var _upKey: null
@@ -139,6 +139,17 @@ Item {
         height: .5 * width
         border.width: .1 * height
         border.color: "lightgrey"
+        radius: height * .08
+
+        Text {
+            color: "black"
+            anchors.top: parent.top
+            anchors.topMargin: parent.height * .12
+            anchors.horizontalCenter: parent.horizontalCenter
+            font.bold: true
+            font.pixelSize: parent.height * .09
+            text: "Source: " + (theController.keyboardSelected ? "Keyboard" : "Gamepad")
+        }
 
         Rectangle {
             id: down

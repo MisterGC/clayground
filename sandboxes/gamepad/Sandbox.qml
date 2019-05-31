@@ -14,6 +14,7 @@ Rectangle {
         id: theController
         Component.onCompleted: {
             selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K);
+            //selectGamepad();
             //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_D);
             forceActiveFocus()
         }
