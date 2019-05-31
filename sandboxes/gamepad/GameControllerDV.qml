@@ -22,7 +22,9 @@ Rectangle {
         font.pixelSize: parent.height * .09
         text: "Source: " + (observed.keyboardSelected ?
                                 "Keyboard" :
-                                "Gamepad (" + observed.gamePadId + ")")
+                            observed.gamepadSelected ?
+                                "Gamepad (" + observed.gamepadId + ")" :
+                                "Touchscreen")
     }
 
     Rectangle {

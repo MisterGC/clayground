@@ -8,22 +8,28 @@ Rectangle {
 
     Component.onCompleted: {
         ReloadTrigger.observeFile("GameController.qml");
+        ReloadTrigger.observeFile("KeyboardGamepad.qml");
+        ReloadTrigger.observeFile("TouchscreenGamepad.qml");
+        ReloadTrigger.observeFile("GameControllerDV.qml");
+        forceActiveFocus();
     }
+
+    Keys.forwardTo: [controller1, controller2]
 
     Grid {
         anchors.fill: parent
         columns: 2
     GameController {
+        id: controller1
         width: parent.width * .5
         height: parent.height
         Component.onCompleted: {
             //selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K);
             selectGamepad(0);
-            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_D);
-            forceActiveFocus()
+            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_M, Qt.Key_N);
+            //selectTouchscreenGamepad();
         }
         showDebugOverlay: true
-        Keys.forwardTo: controller2
     }
     GameController {
         id: controller2
@@ -32,7 +38,8 @@ Rectangle {
         Component.onCompleted: {
             //selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K);
             //selectGamepad(1);
-            selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_M, Qt.Key_N);
+            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_M, Qt.Key_N);
+            selectTouchscreenGamepad();
         }
         showDebugOverlay: true
     }

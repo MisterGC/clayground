@@ -16,6 +16,7 @@ Item {
     // Visualizes the state of the GameController
     property alias showDebugOverlay: theDebugVisu.visible
 
+    property int gamepadId: gamepad.deviceId
     readonly property bool gamepadSelected: gamepad.deviceId !== -1
     readonly property bool vGamepadSelected: vgamepad.enabled
     readonly property bool keyboardSelected: keybGamepad.enabled
@@ -25,8 +26,9 @@ Item {
         if (gamePadIdx >= 0 &&
             gamePadIdx < GamepadManager.connectedGamepads.length)
         {
-            keybGamepad.enabled = false;
             gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
+            keybGamepad.enabled = false;
+            vgamepad.enabled = false;
             buttonAPressed = Qt.binding(function() {return gamepad.buttonB;});
             buttonBPressed = Qt.binding(function() {return gamepad.buttonA;});
             axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
@@ -40,17 +42,26 @@ Item {
     function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
         gamepad.deviceId = -1;
         keybGamepad.enabled = true;
+        vgamepad.enabled = false;
         keybGamepad.configure(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey);
     }
 
-    Keys.forwardTo: keybGamepad
-    Gamepad { id: gamepad }
-    KeyboardGamepad { id: keybGamepad; gameController: theController; }
-    TouchscreenGamepad { id: vgamepad }
+    /** Selects the touchscreen gamepad */
+    function selectTouchscreenGamepad()
+    {
+        gamepad.deviceId = -1;
+        keybGamepad.enabled = false;
+        vgamepad.enabled = true;
+        vgamepad.configure();
+    }
 
     GameControllerDV {
         id: theDebugVisu
         observed: theController
     }
 
+    Keys.forwardTo: keybGamepad
+    Gamepad { id: gamepad }
+    KeyboardGamepad { id: keybGamepad; gameController: theController; }
+    TouchscreenGamepad { id: vgamepad; gameController: theController; }
 }
