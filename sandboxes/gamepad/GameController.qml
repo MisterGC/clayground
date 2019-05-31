@@ -3,15 +3,58 @@ import QtGamepad 1.0
 
 Item {
     property alias dirControllerUsed: gamepad.buttonR3
-    property bool buttonA: gamepad.buttonB
-    property bool buttonB: gamepad.buttonA
-    property real axisX: gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0 /*theVirtualController.visible ? theVirtualAxis.normX :*/
-    property real axisY: gamepad.buttonUp ? -1 : gamepad.buttonDown ? 1 : 0 /*theVirtualController.visible ? theVirtualAxis.normY :*/
+    property bool buttonA: false
+    property bool buttonB: false
+    property real axisX: 0
+    property real axisY: 0
     property alias showDebugOverlay: theDebugVisu.visible
+    property bool keyboardSelected: false
+
 
     Connections {
         target: GamepadManager
         onGamepadConnected: gamepad.deviceId = deviceId
+    }
+
+    Component.onCompleted: selectKeyboard()
+
+    /** Selects the specified gamepad as input source */
+    function selectGamepad() {
+        buttonA = Qt.binding(function() {return gamepad.buttonB;});
+        buttonB = Qt.binding(function() {return gamepad.buttonA;});
+        axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
+        axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
+    }
+
+    /** Selects the keyboard as input */
+    function selectKeyboard() {
+        keyboardSelected = true;
+    }
+
+    Keys.onPressed: {
+        if (!keyboardSelected) return;
+        switch (event.key)
+        {
+            case Qt.Key_Up: axisY = 1; break;
+            case Qt.Key_Down: axisY = -1; break;
+            case Qt.Key_Left: axisX = -1; break;
+            case Qt.Key_Right: axisX = 1; break;
+            case Qt.Key_A: buttonB = true; break;
+            case Qt.Key_D: buttonA = true; break;
+        }
+    }
+
+    Keys.onReleased: {
+        if (!keyboardSelected) return;
+        switch (event.key)
+        {
+            case Qt.Key_Up: axisY = 0; break;
+            case Qt.Key_Down: axisY = 0; break;
+            case Qt.Key_Left: axisX = 0; break;
+            case Qt.Key_Right: axisX = 0; break;
+            case Qt.Key_A: buttonB = false; break;
+            case Qt.Key_D: buttonA = false; break;
+        }
     }
 
     Gamepad {
@@ -86,20 +129,20 @@ Item {
         border.color: "lightgrey"
 
         Rectangle {
-            id: up
+            id: down
             x: .3 * parent.height
             y: .6 * parent.height
             width: .15 * parent.height
             height: width
-            color: theController.axisY > 0.3 ? "red" : "black"
+            color: theController.axisY < -0.3 ? "red" : "black"
         }
         Rectangle {
-            id: down
+            id: up
             x: .3 * parent.height
             y: .3 * parent.height
             width: .15 * parent.height
             height: width
-            color: theController.axisY < -0.3 ? "red" : "black"
+            color: theController.axisY > 0.3 ? "red" : "black"
         }
         Rectangle {
             id: left

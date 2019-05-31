@@ -12,10 +12,10 @@ Rectangle {
 
     GameController {
         id: theController
+        //Component.onCompleted: forceActiveFocus();
+        focus: true
         showDebugOverlay: true
         anchors.fill: parent
-        onAxisXChanged: console.log("New X: " + axisX)
-        onAxisYChanged: console.log("New Y: " + axisY)
     }
 
 }
