@@ -3,6 +3,7 @@ import "qrc:/" as LivLd
 import Box2D 2.0
 import SvgUtils 1.0
 import ScalingCanvas 1.0
+import ClayGamecontroller 1.0
 
 CoordCanvas
 {
@@ -27,22 +28,37 @@ CoordCanvas
 //    }
 
     property var player: null
+    GameController {
+        id: gameCtrl
+        showDebugOverlay: false
+        anchors.fill: parent
+        onButtonBPressedChanged: {
+            if (buttonBPressed) player.jump();
+        }
+
+        Component.onCompleted: {
+            selectGamepad(0)
+            player.moveLeft = Qt.binding(function() {return gameCtrl.axisX < -0.2;});
+            player.moveRight = Qt.binding(function() {return gameCtrl.axisX > 0.2;});
+        }
+    }
+
     property int count: 0
     onKeyPressed: {
         console.log("Pressed: " + event.isAutoRepeat  + " " + (count++))
-        if (player) {
-            if (event.key === Qt.Key_Up && !event.isAutoRepeat) player.jump();
-            if (event.key === Qt.Key_A && !event.isAutoRepeat) player.jump();
-            if (event.key === Qt.Key_Left) player.moveLeft = true;
-            if (event.key === Qt.Key_Right) player.moveRight = true;
-        }
+//        if (player) {
+//            if (event.key === Qt.Key_Up && !event.isAutoRepeat) player.jump();
+//            if (event.key === Qt.Key_A && !event.isAutoRepeat) player.jump();
+//            if (event.key === Qt.Key_Left) player.moveLeft = true;
+//            if (event.key === Qt.Key_Right) player.moveRight = true;
+//        }
     }
     onKeyReleased: {
         console.log("Released: " + event.isAutoRepeat)
-        if (player) {
-            if (event.key === Qt.Key_Left) player.moveLeft = false;
-            if (event.key === Qt.Key_Right) player.moveRight = false;
-        }
+//        if (player) {
+//            if (event.key === Qt.Key_Left) player.moveLeft = false;
+//            if (event.key === Qt.Key_Right) player.moveRight = false;
+//        }
     }
 
     SvgInspector
