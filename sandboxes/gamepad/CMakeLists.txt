@@ -5,7 +5,9 @@ set (CMAKE_INCLUDE_CURRENT_DIR on)
 add_executable (${PROJECT_NAME}
 main.cpp
 GameController.qml
+GameControllerDV.qml
 Sandbox.qml
+TouchscreenGamepad.qml
 )
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
