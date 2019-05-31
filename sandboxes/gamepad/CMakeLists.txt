@@ -8,6 +8,7 @@ GameController.qml
 GameControllerDV.qml
 Sandbox.qml
 TouchscreenGamepad.qml
+KeyboardGamepad.qml
 )
 
 set_target_properties (${PROJECT_NAME} PROPERTIES

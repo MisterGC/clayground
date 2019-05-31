@@ -13,24 +13,24 @@ Item {
     property bool buttonAPressed: false
     property bool buttonBPressed: false
 
+    // Visualizes the state of the GameController
     property alias showDebugOverlay: theDebugVisu.visible
 
     readonly property bool gamepadSelected: gamepad.deviceId !== -1
     readonly property bool vGamepadSelected: vgamepad.enabled
-    property bool keyboardSelected: false
-
+    readonly property bool keyboardSelected: keybGamepad.enabled
 
     /** Selects the specified gamepad as input source */
     function selectGamepad(gamePadIdx) {
         if (gamePadIdx >= 0 &&
             gamePadIdx < GamepadManager.connectedGamepads.length)
         {
+            keybGamepad.enabled = false;
             gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
             buttonAPressed = Qt.binding(function() {return gamepad.buttonB;});
             buttonBPressed = Qt.binding(function() {return gamepad.buttonA;});
             axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
             axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
-            keyboardSelected = false;
         }
         else console.error("Invalid game pad index: " + gamePadIdx +
                            " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
@@ -38,49 +38,14 @@ Item {
 
     /** Selects the keyboard as input */
     function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
-        keyboardSelected = true;
-        _upKey = upKey;
-        _downKey = downKey;
-        _leftKey = leftKey;
-        _rightKey = rightKey;
-        _buttonAKey = buttonAKey;
-        _buttonBKey = buttonBKey;
+        gamepad.deviceId = -1;
+        keybGamepad.enabled = true;
+        keybGamepad.configure(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey);
     }
 
-    property var _upKey: null
-    property var _downKey: null
-    property var _leftKey: null
-    property var _rightKey: null
-    property var _buttonAKey: null
-    property var _buttonBKey: null
-
-    Keys.onPressed: {
-        if (!keyboardSelected) return;
-        switch (event.key)
-        {
-            case _upKey: axisY = 1; break;
-            case _downKey: axisY = -1; break;
-            case _leftKey: axisX = -1; break;
-            case _rightKey: axisX = 1; break;
-            case _buttonAKey: buttonBPressed = true; break;
-            case _buttonBKey: buttonAPressed = true; break;
-        }
-    }
-
-    Keys.onReleased: {
-        if (!keyboardSelected) return;
-        switch (event.key)
-        {
-            case _upKey: axisY = 0; break;
-            case _downKey: axisY = 0; break;
-            case _leftKey: axisX = 0; break;
-            case _rightKey: axisX = 0; break;
-            case _buttonAKey: buttonBPressed = false; break;
-            case _buttonBKey: buttonAPressed = false; break;
-        }
-    }
-
+    Keys.forwardTo: keybGamepad
     Gamepad { id: gamepad }
+    KeyboardGamepad { id: keybGamepad; gameController: theController; }
     TouchscreenGamepad { id: vgamepad }
 
     GameControllerDV {

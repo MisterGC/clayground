@@ -65,7 +65,7 @@ Rectangle {
         width: .15 * parent.height
         height: width
         radius: width * .5
-        color: observed.buttonB ? "red" : "darkred"
+        color: observed.buttonBPressed ? "red" : "darkred"
         Text {
             font.pixelSize: parent.height * .35
             anchors.top: parent.bottom
@@ -82,7 +82,7 @@ Rectangle {
         width: .15 * parent.height
         height: width
         radius: width * .5
-        color: observed.buttonA ? "red" : "darkred"
+        color: observed.buttonAPressed ? "red" : "darkred"
         Text {
             font.pixelSize: parent.height * .35
             anchors.top: parent.bottom
