@@ -28,6 +28,7 @@ CoordCanvas
 //    }
 
     property var player: null
+    Keys.forwardTo: gameCtrl
     GameController {
         id: gameCtrl
         showDebugOverlay: false
@@ -38,28 +39,13 @@ CoordCanvas
 
         Component.onCompleted: {
             selectGamepad(0)
+            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
             player.moveLeft = Qt.binding(function() {return gameCtrl.axisX < -0.2;});
             player.moveRight = Qt.binding(function() {return gameCtrl.axisX > 0.2;});
         }
     }
 
     property int count: 0
-    onKeyPressed: {
-        console.log("Pressed: " + event.isAutoRepeat  + " " + (count++))
-//        if (player) {
-//            if (event.key === Qt.Key_Up && !event.isAutoRepeat) player.jump();
-//            if (event.key === Qt.Key_A && !event.isAutoRepeat) player.jump();
-//            if (event.key === Qt.Key_Left) player.moveLeft = true;
-//            if (event.key === Qt.Key_Right) player.moveRight = true;
-//        }
-    }
-    onKeyReleased: {
-        console.log("Released: " + event.isAutoRepeat)
-//        if (player) {
-//            if (event.key === Qt.Key_Left) player.moveLeft = false;
-//            if (event.key === Qt.Key_Right) player.moveRight = false;
-//        }
-    }
 
     SvgInspector
     {

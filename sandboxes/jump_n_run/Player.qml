@@ -17,9 +17,8 @@ VisualizedCircleBody
     readonly property int maxEnergy: 10000
     property bool moveLeft: false
     property bool moveRight: false
-    onMoveLeftChanged: updateVelocity()
-    onMoveRightChanged: updateVelocity()
-
+    onMoveLeftChanged: {updateVelocity(); updateAnimation();}
+    onMoveRightChanged:{updateVelocity(); updateAnimation();}
 
     // Physics Configuration
     property real maxYVelo: 8
@@ -28,11 +27,19 @@ VisualizedCircleBody
     collidesWith: Box.Category1
     bodyType: Body.Dynamic
     bullet: true
-    fixedRotation: Math.abs(linearVelocity.x) < 0.1 || !isOnGround
+    fixedRotation: Math.abs(linearVelocity.x) < 0.3 || !isOnGround
     density: 300.
     friction: isOnGround ? 10. : .01
     restitution: 0.
 
+    function updateAnimation(){
+        if (isOnGround && (moveLeft || moveRight))
+            theSprite.jumpTo("walk");
+        else if (!isOnGround)
+            theSprite.jumpTo("jump");
+        else
+            theSprite.jumpTo("stand");
+    }
 
     function updateVelocity(){
         let newXVelo = 0;
@@ -50,8 +57,8 @@ VisualizedCircleBody
         onTriggered: updateVelocity()
     }
 
-    Image {
-        source: "player.png"
+    SpriteSequence {
+        id: theSprite
         parent: thePlayer.parent
         width: thePlayer.width
         height: thePlayer.height * 1.2
@@ -59,15 +66,47 @@ VisualizedCircleBody
         anchors.verticalCenter: thePlayer.verticalCenter
         anchors.verticalCenterOffset: -0.1 * thePlayer.height
         z: 99
+        interpolate: false
         transform: Rotation {
             origin.x: width * .5 ;
             origin.y: height * .5;
             axis { x: 0; y: 1; z: 0 }
             angle: thePlayer.faceRight ? 0 : 180
         }
+        sprites: [
+            Sprite {
+                name: "walk"
+                frameWidth: 220
+                frameHeight: 230
+                source: "player_animated.png"
+                frameCount: 3
+                frameRate: 7
+            },
+            Sprite {
+                name: "jump"
+                frameX: 220
+                frameY: 230
+                frameWidth: 220
+                frameHeight: 230
+                source: "player_animated.png"
+                frameCount: 1
+                frameRate: 1
+            },
+            Sprite {
+                name: "stand"
+                frameY: 230
+                frameWidth: 220
+                frameHeight: 230
+                source: "player_animated.png"
+                frameCount: 1
+                frameRate: 1
+            }
+        ]
+
     }
 
     property bool isOnGround: !(fallDownTimer.running) && Math.abs(linearVelocity.y) < 0.01
+    onIsOnGroundChanged: updateAnimation();
     function jump() { if (isOnGround){ reJumpTimer.restart() } }
     Timer {
         interval: 10
@@ -81,6 +120,7 @@ VisualizedCircleBody
     ScalingText
     {
         id: annotation
+        visible: false
         parent: thePlayer.parent
         x: thePlayer.x + thePlayer.width/2 - width/2
         y: thePlayer.y - height * 1.1
