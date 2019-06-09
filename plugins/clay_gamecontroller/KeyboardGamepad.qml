@@ -21,7 +21,7 @@ Item
     }
 
     Keys.onPressed: {
-        if (!enabled) return;
+        if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
             case upKey: gameController.axisY = 1; break;
@@ -37,10 +37,10 @@ Item
         if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
-            case upKey: gameController.axisY = 0; break;
-            case downKey: gameController.axisY = 0; break;
-            case leftKey: gameController.axisX = 0; break;
-            case rightKey: gameController.axisX = 0; break;
+            case upKey: if (gameController.axisY > 0) gameController.axisY = 0; break;
+            case downKey: if (gameController.axisY < 0) gameController.axisY = 0; break;
+            case leftKey: if (gameController.axisX < 0) gameController.axisX = 0; break;
+            case rightKey: if (gameController.axisX > 0) gameController.axisX = 0; break;
             case buttonAKey: gameController.buttonBPressed = false; break;
             case buttonBKey: gameController.buttonAPressed = false; break;
         }
