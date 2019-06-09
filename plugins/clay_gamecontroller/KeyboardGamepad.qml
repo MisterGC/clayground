@@ -34,7 +34,7 @@ Item
     }
 
     Keys.onReleased: {
-        if (!enabled) return;
+        if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
             case upKey: gameController.axisY = 0; break;
