@@ -33,8 +33,10 @@ VisualizedCircleBody
     restitution: 0.
 
     function updateAnimation(){
-        if (isOnGround && (moveLeft || moveRight))
-            theSprite.jumpTo("walk");
+        if (isOnGround && (moveLeft || moveRight)) {
+            if (theSprite.currentSprite !== "walk")
+                theSprite.jumpTo("walk");
+        }
         else if (!isOnGround)
             theSprite.jumpTo("jump");
         else
