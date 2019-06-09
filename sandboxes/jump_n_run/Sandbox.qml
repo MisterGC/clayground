@@ -38,10 +38,9 @@ CoordCanvas
         }
 
         Component.onCompleted: {
-            selectGamepad(0)
-            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
-            player.moveLeft = Qt.binding(function() {return gameCtrl.axisX < -0.2;});
-            player.moveRight = Qt.binding(function() {return gameCtrl.axisX > 0.2;});
+            //selectGamepad(0)
+            selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
+            player.desireX = Qt.binding(function() {return gameCtrl.axisX;});
         }
     }
 

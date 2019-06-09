@@ -6,7 +6,7 @@ VisualizedCircleBody
     id: thePlayer
 
     // Visual Configuration
-    property bool faceRight: false
+    property bool faceRight: true
     property alias text: annotation.text
     color: "#3fa4c8"
     visible: false
@@ -15,10 +15,8 @@ VisualizedCircleBody
     property bool isPlayer: true
     property int energy: 10000
     readonly property int maxEnergy: 10000
-    property bool moveLeft: false
-    property bool moveRight: false
-    onMoveLeftChanged: {updateVelocity(); updateAnimation();}
-    onMoveRightChanged:{updateVelocity(); updateAnimation();}
+    property real desireX: 0.0
+    onDesireXChanged: {updateVelocity(); updateAnimation();}
 
     // Physics Configuration
     property real maxYVelo: 8
@@ -33,30 +31,27 @@ VisualizedCircleBody
     restitution: 0.
 
     function updateAnimation(){
-        if (isOnGround && (moveLeft || moveRight)) {
-            if (theSprite.currentSprite !== "walk")
-                theSprite.jumpTo("walk");
-        }
+        let desiredAnim = "stand";
+
+        if (isOnGround && Math.abs(desireX) > 0.)
+            desiredAnim = "walk";
         else if (!isOnGround)
-            theSprite.jumpTo("jump");
-        else
-            theSprite.jumpTo("stand");
+            desiredAnim = "jump";
+
+        if (theSprite.currentSprite !== desiredAnim)
+            theSprite.jumpTo(desiredAnim);
     }
 
     function updateVelocity(){
-        let newXVelo = 0;
-        if (moveLeft) newXVelo = -maxXVelo;
-        if (moveRight) newXVelo = maxXVelo;
-        linearVelocity.x = newXVelo;
-
-        if (moveLeft) faceRight = false;
-        if (moveRight) faceRight = true;
+        linearVelocity.x = desireX * maxXVelo;
+        if (Math.abs(desireX) > .1)
+            faceRight = (desireX > 0)
     }
     Timer {
         interval: 50
         repeat: true
         running: true
-        onTriggered: updateVelocity()
+        onTriggered: { updateVelocity(); updateAnimation(); }
     }
 
     SpriteSequence {
@@ -127,7 +122,7 @@ VisualizedCircleBody
         x: thePlayer.x + thePlayer.width/2 - width/2
         y: thePlayer.y - height * 1.1
         z: 99
-        text: "(" + thePlayer.moveLeft + "," + thePlayer.moveRight + ")"
+        text: "(" + thePlayer.desireX + ")"
         color: "#3fa4c8"
         pixelPerUnit: thePlayer.pixelPerUnit
         fontSizeWu: 0.3
