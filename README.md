@@ -9,6 +9,7 @@ It comes with a set of plugins:
   system tries to hide dealing with pixels as much as possible
 - SVG Inspector: Allows inspection of SVGs including proprietary description field 
   that is provided by Inkscape.
+- GameController: Supports game input using three different sources GamePad, Keyboard and Touch Screen with single component.
 - SVG Builder: available soon 
 
 Happy Coding :)
