@@ -41,8 +41,6 @@ Item {
             objs.push(obj);
             if (cfg["component"] === "Player.qml") {
                 gameWorldP1.player = obj;
-                gameWorldP1.viewPortCenterWuX = Qt.binding(function() {return gameWorldP1.screenXToWorld(player1.x);});
-                gameWorldP1.viewPortCenterWuY = Qt.binding(function() {return gameWorldP1.screenYToWorld(player1.y);});
                 gameWorldP1.player.maxXVelo = 5;
             }
         }
@@ -59,6 +57,12 @@ Item {
             pixelPerUnit: width / gameWorldP1.worldXMax
 
             property var player: null
+            onPlayerChanged: {
+                if (player) {
+                    viewPortCenterWuX = Qt.binding(function() {return screenXToWorld(player.x);});
+                    viewPortCenterWuY = Qt.binding(function() {return screenYToWorld(player.y);});
+                }
+            }
 
             Component.onCompleted: {
                 ReloadTrigger.observeFile("Player.qml");
@@ -98,6 +102,14 @@ Item {
                 }
             }
 
+        }
+
+        CoordCanvas
+        {
+            id: gameWorldP2
+            height: theScreenArea.height
+            width: theScreenArea.width * .5
+            pixelPerUnit: width / gameWorldP2.worldXMax
         }
     }
 }
