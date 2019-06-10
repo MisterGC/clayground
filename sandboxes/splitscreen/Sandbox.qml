@@ -25,26 +25,40 @@ Item {
             }
             gameWorldP1.worldXMax = widthWu;
             gameWorldP1.worldYMax = heightWu;
+            gameWorldP2.worldXMax = widthWu;
+            gameWorldP2.worldYMax = heightWu;
         }
         onBeginGroup: {console.log("beginGroup");}
-        onRectangle: {
-            let cfg = JSON.parse(description);
+
+        function createRectObj(targetWorld, withPhys, xWu, yWu, widthWu, heightWu, cfg) {
             var comp = Qt.createComponent(cfg["component"]);
-            var obj = comp.createObject(gameWorldP1.coordSys, {
+            var obj = comp.createObject(targetWorld.coordSys, {
                                             "xWu": xWu,
                                             "yWu": yWu,
                                             "widthWu": widthWu,
                                             "heightWu": heightWu,
-                                            "color": "black"
+                                            "color": "black",
+                                            "active": withPhys
                                         });
-            obj.pixelPerUnit = Qt.binding(function() {return gameWorldP1.pixelPerUnit;});
+            obj.pixelPerUnit = Qt.binding(function() {return targetWorld.pixelPerUnit;});
             objs.push(obj);
             if (cfg["component"] === "Player.qml") {
-                gameWorldP1.player = obj;
-                gameWorldP1.player.maxXVelo = 5;
+                targetWorld.player = obj;
+                targetWorld.player.maxXVelo = 5;
             }
         }
-        onEnd: { }
+
+        onRectangle: {
+            let cfg = JSON.parse(description);
+            createRectObj(gameWorldP1, true, xWu, yWu, widthWu, heightWu, cfg);
+            createRectObj(gameWorldP2, false, xWu, yWu, widthWu, heightWu, cfg);
+        }
+        onEnd: {
+            gameWorldP2.player.x = Qt.binding(function() {return gameWorldP1.player.x;});
+            gameWorldP2.player.y = Qt.binding(function() {return gameWorldP1.player.y;});
+            gameWorldP2.player.faceRight = Qt.binding(function() {return gameWorldP1.player.faceRight;});
+            gameWorldP1.player.onCurrentSpriteChanged.connect(function() {gameWorldP2.player.sprite.jumpTo(gameWorldP1.player.currentSprite);} );
+        }
     }
 
     Row
@@ -110,6 +124,14 @@ Item {
             height: theScreenArea.height
             width: theScreenArea.width * .5
             pixelPerUnit: width / gameWorldP2.worldXMax
+
+            property var player: null
+            onPlayerChanged: {
+                if (player) {
+                    viewPortCenterWuX = Qt.binding(function() {return screenXToWorld(player.x);});
+                    viewPortCenterWuY = Qt.binding(function() {return screenYToWorld(player.y);});
+                }
+            }
         }
     }
 }

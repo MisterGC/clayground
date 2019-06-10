@@ -10,6 +10,8 @@ VisualizedCircleBody
     property alias text: annotation.text
     color: "#3fa4c8"
     visible: false
+    property alias sprite: theSprite
+    property alias currentSprite: theSprite.currentSprite
 
     // Game Mechanics Configuration
     property bool isPlayer: true
@@ -50,7 +52,7 @@ VisualizedCircleBody
     Timer {
         interval: 50
         repeat: true
-        running: true
+        running: active
         onTriggered: { updateVelocity(); updateAnimation(); }
     }
 
@@ -122,7 +124,7 @@ VisualizedCircleBody
         x: thePlayer.x + thePlayer.width/2 - width/2
         y: thePlayer.y - height * 1.1
         z: 99
-        text: "(" + thePlayer.desireX + ")"
+        text: "(" + thePlayer.x + " , " + thePlayer.y + ")"
         color: "#3fa4c8"
         pixelPerUnit: thePlayer.pixelPerUnit
         fontSizeWu: 0.3

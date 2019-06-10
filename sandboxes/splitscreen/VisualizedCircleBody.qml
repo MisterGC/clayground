@@ -51,18 +51,12 @@ Image {
         visible: theImage.source == ""
         width: parent.width
         height: parent.height
-        //radius: width/2
     }
 
     Body {
         id: boxBody
-
         target: theImage
-
-        Circle {
-            id: circle
-            radius: theImage.width/2
-        }
+        Circle { id: circle; radius: theImage.width/2 }
     }
 }
 
