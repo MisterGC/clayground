@@ -43,22 +43,32 @@ Item {
             obj.pixelPerUnit = Qt.binding(function() {return targetWorld.pixelPerUnit;});
             objs.push(obj);
             if (cfg["component"] === "Player.qml") {
-                targetWorld.player = obj;
-                targetWorld.player.maxXVelo = 5;
+                obj.maxXVelo = 5;
+                if (cfg["controller"] === 1) {
+                    if (!gameWorldP1.player) gameWorldP1.player = obj;
+                }
+                else {
+                    if (!gameWorldP2.player) gameWorldP2.player = obj;
+                }
             }
+            return obj;
         }
 
         onRectangle: {
             let cfg = JSON.parse(description);
-            createRectObj(gameWorldP1, true, xWu, yWu, widthWu, heightWu, cfg);
-            createRectObj(gameWorldP2, false, xWu, yWu, widthWu, heightWu, cfg);
+            let objW1 = createRectObj(gameWorldP1, true, xWu, yWu, widthWu, heightWu, cfg);
+            let objW2 = createRectObj(gameWorldP2, false, xWu, yWu, widthWu, heightWu, cfg);
+            if (objW1.isPlayer) bindPlayer(objW1, objW2);
         }
-        onEnd: {
-            gameWorldP2.player.x = Qt.binding(function() {return gameWorldP1.player.x;});
-            gameWorldP2.player.y = Qt.binding(function() {return gameWorldP1.player.y;});
-            gameWorldP2.player.faceRight = Qt.binding(function() {return gameWorldP1.player.faceRight;});
-            gameWorldP1.player.onCurrentSpriteChanged.connect(function() {gameWorldP2.player.sprite.jumpTo(gameWorldP1.player.currentSprite);} );
+
+        function bindPlayer(playerW1, playerW2) {
+            playerW2.x = Qt.binding(function() {return playerW1.x;});
+            playerW2.y = Qt.binding(function() {return playerW1.y;});
+            playerW2.faceRight = Qt.binding(function() {return playerW1.faceRight;});
+            playerW1.onCurrentSpriteChanged.connect(function() {playerW2.sprite.jumpTo(playerW1.currentSprite);} );
         }
+
+        onEnd: { }
     }
 
     Row
@@ -94,7 +104,7 @@ Item {
             //        parent: gameWorldP1.coordSys
             //    }
 
-            Keys.forwardTo: gameCtrl1
+            Keys.forwardTo: [gameCtrl1, gameCtrl2]
             GameController {
                 id: gameCtrl1
 
@@ -111,7 +121,29 @@ Item {
 
                 onPlayerChanged: {
                     if (player) {
-                        player.desireX = Qt.binding(function() {return gameCtrl1.axisX;});
+                        console.log("Player1 connected: " + player)
+                        player.desireX = Qt.binding(function() {return axisX;});
+                    }
+                }
+            }
+            GameController {
+                id: gameCtrl2
+
+                anchors.fill: parent
+                showDebugOverlay: false
+
+                property var player: gameWorldP2.player
+                onButtonBPressedChanged: if (buttonBPressed) player.jump();
+
+                Component.onCompleted: {
+                    //selectGamepad(0)
+                    selectKeyboard(Qt.Key_I, Qt.Key_K, Qt.Key_J, Qt.Key_L, Qt.Key_F, Qt.Key_G);
+                }
+
+                onPlayerChanged: {
+                    if (player) {
+                        console.log("Player2 connected: " + player)
+                        player.desireX = Qt.binding(function() {return axisX;});
                     }
                 }
             }

@@ -37,9 +37,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.55201035"
+     inkscape:zoom="2.2080414"
      inkscape:cx="498.10943"
-     inkscape:cy="813.43772"
+     inkscape:cy="133.88457"
      inkscape:document-units="px"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -69,7 +69,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -106,7 +106,7 @@
        x="8.6222544"
        y="30.727985">
       <desc
-         id="desc1478">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
+         id="desc1478">{&quot;component&quot;:&quot;Player.qml&quot;, &quot;controller&quot;:1}</desc>
     </rect>
     <rect
        y="0.049994059"
@@ -357,6 +357,16 @@
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc1029">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+    </rect>
+    <rect
+       y="30.718927"
+       x="15.859437"
+       height="1"
+       width="1"
+       id="rect881"
+       style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:1.0643636;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc879">{&quot;component&quot;:&quot;Player.qml&quot;, &quot;controller&quot;:2}</desc>
     </rect>
   </g>
 </svg>
