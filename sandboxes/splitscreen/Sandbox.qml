@@ -50,9 +50,11 @@ Item {
                 obj.maxXVelo = 5;
                 if (cfg["controller"] === 1) {
                     if (!gameWorldP1.observedItem) gameWorldP1.observedItem = obj;
+                    obj.spriteSheet = "player1.png"
                 }
                 else {
                     if (!gameWorldP2.observedItem) gameWorldP2.observedItem = obj;
+                    obj.spriteSheet = "player2.png"
                 }
             }
             return obj;

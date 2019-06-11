@@ -12,6 +12,7 @@ VisualizedCircleBody
     visible: false
     property alias sprite: theSprite
     property alias currentSprite: theSprite.currentSprite
+    property alias spriteSheet: theSprite.spriteSheet
 
     // Game Mechanics Configuration
     property bool isPlayer: true
@@ -66,6 +67,7 @@ VisualizedCircleBody
         anchors.verticalCenterOffset: -0.1 * thePlayer.height
         z: 99
         interpolate: false
+        property string spriteSheet: "player_animated.png"
         transform: Rotation {
             origin.x: width * .5 ;
             origin.y: height * .5;
@@ -77,7 +79,7 @@ VisualizedCircleBody
                 name: "walk"
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: theSprite.spriteSheet
                 frameCount: 3
                 frameRate: 7
             },
@@ -87,7 +89,7 @@ VisualizedCircleBody
                 frameY: 230
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: theSprite.spriteSheet
                 frameCount: 1
                 frameRate: 1
             },
@@ -96,7 +98,7 @@ VisualizedCircleBody
                 frameY: 230
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: theSprite.spriteSheet
                 frameCount: 1
                 frameRate: 1
             }
