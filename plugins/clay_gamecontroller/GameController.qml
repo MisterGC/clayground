@@ -57,6 +57,7 @@ Item {
 
     GameControllerDV {
         id: theDebugVisu
+        visible: false
         observed: theController
     }
 
