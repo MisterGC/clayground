@@ -6,6 +6,7 @@ add_executable (${PROJECT_NAME}
 main.cpp
 PhysicsItem.qml
 Player.qml
+JnRGameController.qml
 Sandbox.qml
 ScalingText.qml
 VisualizedBoxBody.qml

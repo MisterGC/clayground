@@ -32,7 +32,7 @@ Item {
             gameWorldP2.worldXMax = widthWu;
             gameWorldP2.worldYMax = heightWu;
         }
-        onBeginGroup: {console.log("beginGroup");}
+        onBeginGroup: { }
 
         function createRectObj(targetWorld, withPhys, xWu, yWu, widthWu, heightWu, cfg) {
             var comp = Qt.createComponent(cfg["component"]);
@@ -94,23 +94,16 @@ Item {
             }
 
             Keys.forwardTo: [gameCtrl1, gameCtrl2]
-            GameController {
+            JnRGameController {
                 id: gameCtrl1
-                anchors.fill: parent
                 Component.onCompleted: selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
-                property var player: gameWorldP1.observedItem
-                onPlayerChanged: if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
-                onButtonBPressedChanged: if (buttonBPressed) player.jump();
+                player: gameWorldP1.observedItem
             }
 
-            GameController {
+            JnRGameController {
                 id: gameCtrl2
-
-                anchors.fill: parent
                 Component.onCompleted: selectKeyboard(Qt.Key_I, Qt.Key_K, Qt.Key_J, Qt.Key_L, Qt.Key_F, Qt.Key_G);
-                property var player: gameWorldP2.observedItem
-                onPlayerChanged:  if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
-                onButtonBPressedChanged: if (buttonBPressed) player.jump();
+                player: gameWorldP2.observedItem
             }
         }
 
