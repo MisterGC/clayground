@@ -21,8 +21,8 @@ Item {
         property var objs: []
 
         onBegin: {
-            gameWorldP1.player = null;
-            gameWorldP2.player = null;
+            gameWorldP1.observedItem = null;
+            gameWorldP2.observedItem = null;
             while(objs.length > 0) {
                 var obj = objs.pop();
                 obj.destroy();
@@ -49,10 +49,10 @@ Item {
             if (cfg["component"] === "Player.qml") {
                 obj.maxXVelo = 5;
                 if (cfg["controller"] === 1) {
-                    if (!gameWorldP1.player) gameWorldP1.player = obj;
+                    if (!gameWorldP1.observedItem) gameWorldP1.observedItem = obj;
                 }
                 else {
-                    if (!gameWorldP2.player) gameWorldP2.player = obj;
+                    if (!gameWorldP2.observedItem) gameWorldP2.observedItem = obj;
                 }
             }
             return obj;
@@ -86,15 +86,6 @@ Item {
             width: (theScreenArea.width - theDevider.width) * .5
             pixelPerUnit: width * 2 / gameWorldP1.worldXMax
 
-            property var player: null
-            onPlayerChanged: {
-                if (player) {
-                    viewPortCenterWuX = Qt.binding(function() {return screenXToWorld(player.x);});
-                    viewPortCenterWuY = Qt.binding(function() {return screenYToWorld(player.y);});
-                }
-            }
-
-
             World {
                 id: physicsWorld
                 gravity: Qt.point(0,4*9.81)
@@ -105,11 +96,9 @@ Item {
             Keys.forwardTo: [gameCtrl1, gameCtrl2]
             GameController {
                 id: gameCtrl1
-
                 anchors.fill: parent
                 Component.onCompleted: selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
-
-                property var player: gameWorldP1.player
+                property var player: gameWorldP1.observedItem
                 onPlayerChanged: if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
                 onButtonBPressedChanged: if (buttonBPressed) player.jump();
             }
@@ -119,8 +108,7 @@ Item {
 
                 anchors.fill: parent
                 Component.onCompleted: selectKeyboard(Qt.Key_I, Qt.Key_K, Qt.Key_J, Qt.Key_L, Qt.Key_F, Qt.Key_G);
-
-                property var player: gameWorldP2.player
+                property var player: gameWorldP2.observedItem
                 onPlayerChanged:  if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
                 onButtonBPressedChanged: if (buttonBPressed) player.jump();
             }
@@ -139,14 +127,6 @@ Item {
             height: gameWorldP1.height
             width: gameWorldP1.width
             pixelPerUnit: gameWorldP1.pixelPerUnit
-
-            property var player: null
-            onPlayerChanged: {
-                if (player) {
-                    viewPortCenterWuX = Qt.binding(function() {return screenXToWorld(player.x);});
-                    viewPortCenterWuY = Qt.binding(function() {return screenYToWorld(player.y);});
-                }
-            }
         }
     }
 }

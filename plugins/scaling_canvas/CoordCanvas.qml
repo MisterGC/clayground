@@ -45,6 +45,18 @@ Item {
         return yW;
     }
 
+    /** Item that the 'camera' of the canvas follows automatically - set to null to disable. */
+    property var observedItem: null
+    onObservedItemChanged: {
+        if (observedItem) {
+            viewPortCenterWuX = Qt.binding(function() {return screenXToWorld(observedItem.x);});
+            viewPortCenterWuY = Qt.binding(function() {return screenYToWorld(observedItem.y);});
+        }
+        else {
+            viewPortCenterWuX = (worldXMax - worldXMin) * .5;
+            viewPortCenterWuY = (worldYMax - worldYMin) * .5;
+        }
+    }
     Canvas
     {
         id: theUnderlay
