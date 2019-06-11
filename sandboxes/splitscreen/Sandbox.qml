@@ -73,12 +73,14 @@ Item {
 
     Row
     {
+        id: theRow
+
         CoordCanvas
         {
             id: gameWorldP1
             height: theScreenArea.height
-            width: theScreenArea.width * .5
-            pixelPerUnit: width / gameWorldP1.worldXMax
+            width: (theScreenArea.width - theDevider.width) * .5
+            pixelPerUnit: width * 2 / gameWorldP1.worldXMax
 
             property var player: null
             onPlayerChanged: {
@@ -150,12 +152,19 @@ Item {
 
         }
 
+        Rectangle {
+            id: theDevider
+            height: theScreenArea.height
+            width: theScreenArea.width * 0.02
+            color: "darkred"
+        }
+
         CoordCanvas
         {
             id: gameWorldP2
-            height: theScreenArea.height
-            width: theScreenArea.width * .5
-            pixelPerUnit: width / gameWorldP2.worldXMax
+            height: gameWorldP1.height
+            width: gameWorldP1.width
+            pixelPerUnit: gameWorldP1.pixelPerUnit
 
             property var player: null
             onPlayerChanged: {

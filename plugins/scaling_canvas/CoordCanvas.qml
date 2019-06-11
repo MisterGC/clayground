@@ -88,6 +88,7 @@ Item {
     {
         id: flckable
         anchors.fill: parent
+        clip: true
 
         property real deviceScalingFactor: height / 1080
         property real zoomFactor: 1.0
