@@ -8,17 +8,21 @@ import ClayGamecontroller 1.0
 Item {
     id: theScreenArea
     anchors.fill: parent
-    Component.onCompleted: console.log("All: " + width + " , " + height)
+
+    Component.onCompleted: {
+        ReloadTrigger.observeFile("Player.qml");
+    }
 
     SvgInspector
     {
         id: theSvgInspector
-        property var objs: []
-        property var player1: gameWorldP1.player
-
         Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/clayground/sandboxes/splitscreen/map.svg")
+
+        property var objs: []
+
         onBegin: {
             gameWorldP1.player = null;
+            gameWorldP2.player = null;
             while(objs.length > 0) {
                 var obj = objs.pop();
                 obj.destroy();
@@ -90,9 +94,6 @@ Item {
                 }
             }
 
-            Component.onCompleted: {
-                ReloadTrigger.observeFile("Player.qml");
-            }
 
             World {
                 id: physicsWorld
@@ -101,55 +102,28 @@ Item {
                 pixelsPerMeter: gameWorldP1.pixelPerUnit
             }
 
-            //    DebugDraw {
-            //        anchors.fill: parent
-            //        parent: gameWorldP1.coordSys
-            //    }
-
             Keys.forwardTo: [gameCtrl1, gameCtrl2]
             GameController {
                 id: gameCtrl1
 
                 anchors.fill: parent
-                showDebugOverlay: false
+                Component.onCompleted: selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
 
                 property var player: gameWorldP1.player
+                onPlayerChanged: if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
                 onButtonBPressedChanged: if (buttonBPressed) player.jump();
-
-                Component.onCompleted: {
-                    //selectGamepad(0)
-                    selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
-                }
-
-                onPlayerChanged: {
-                    if (player) {
-                        console.log("Player1 connected: " + player)
-                        player.desireX = Qt.binding(function() {return axisX;});
-                    }
-                }
             }
+
             GameController {
                 id: gameCtrl2
 
                 anchors.fill: parent
-                showDebugOverlay: false
+                Component.onCompleted: selectKeyboard(Qt.Key_I, Qt.Key_K, Qt.Key_J, Qt.Key_L, Qt.Key_F, Qt.Key_G);
 
                 property var player: gameWorldP2.player
+                onPlayerChanged:  if (player) { player.desireX = Qt.binding(function() {return axisX;}); }
                 onButtonBPressedChanged: if (buttonBPressed) player.jump();
-
-                Component.onCompleted: {
-                    //selectGamepad(0)
-                    selectKeyboard(Qt.Key_I, Qt.Key_K, Qt.Key_J, Qt.Key_L, Qt.Key_F, Qt.Key_G);
-                }
-
-                onPlayerChanged: {
-                    if (player) {
-                        console.log("Player2 connected: " + player)
-                        player.desireX = Qt.binding(function() {return axisX;});
-                    }
-                }
             }
-
         }
 
         Rectangle {
