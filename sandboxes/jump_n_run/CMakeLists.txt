@@ -9,7 +9,7 @@ Player.qml
 Sandbox.qml
 ScalingText.qml
 VisualizedBoxBody.qml
-VisualizedCircleBody.qml
+JnRPlayer.qml
 Wall.qml
 )
 

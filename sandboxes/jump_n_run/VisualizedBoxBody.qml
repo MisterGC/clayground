@@ -53,7 +53,6 @@ Image {
 
     Body {
         id: boxBody
-
         target: theImage
 
         Box {

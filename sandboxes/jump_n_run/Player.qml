@@ -1,34 +1,21 @@
 import QtQuick 2.12
 import Box2D 2.0
 
-VisualizedCircleBody
+JnRPlayer
 {
     id: thePlayer
 
-    // Visual Configuration
-    property bool faceRight: true
-    property alias text: annotation.text
-    color: "#3fa4c8"
-    visible: false
-
     // Game Mechanics Configuration
-    property bool isPlayer: true
-    property int energy: 10000
-    readonly property int maxEnergy: 10000
-    property real desireX: 0.0
-    onDesireXChanged: {updateVelocity(); updateAnimation();}
+    energy: 10000
 
     // Physics Configuration
-    property real maxYVelo: 8
-    property real maxXVelo: 8
+    maxYVelo: 8
+    maxXVelo: 8
+
     categories: Box.Category2
     collidesWith: Box.Category1
     bodyType: Body.Dynamic
-    bullet: true
-    fixedRotation: Math.abs(linearVelocity.x) < 0.3 || !isOnGround
     density: 300.
-    friction: isOnGround ? 10. : .01
-    restitution: 0.
 
     function updateAnimation(){
         let desiredAnim = "stand";
@@ -40,18 +27,6 @@ VisualizedCircleBody
 
         if (theSprite.currentSprite !== desiredAnim)
             theSprite.jumpTo(desiredAnim);
-    }
-
-    function updateVelocity(){
-        linearVelocity.x = desireX * maxXVelo;
-        if (Math.abs(desireX) > .1)
-            faceRight = (desireX > 0)
-    }
-    Timer {
-        interval: 50
-        repeat: true
-        running: true
-        onTriggered: { updateVelocity(); updateAnimation(); }
     }
 
     SpriteSequence {
@@ -100,31 +75,5 @@ VisualizedCircleBody
             }
         ]
 
-    }
-
-    property bool isOnGround: !(fallDownTimer.running) && Math.abs(linearVelocity.y) < 0.01
-    onIsOnGroundChanged: updateAnimation();
-    function jump() { if (isOnGround){ reJumpTimer.restart() } }
-    Timer {
-        interval: 10
-        running: reJumpTimer.running
-        repeat: true
-        onTriggered: linearVelocity.y = -1 * maxYVelo
-    }
-    Timer { id: reJumpTimer; interval: 300; onTriggered: fallDownTimer.restart() }
-    Timer { id: fallDownTimer; interval: 200; }
-
-    ScalingText
-    {
-        id: annotation
-        visible: false
-        parent: thePlayer.parent
-        x: thePlayer.x + thePlayer.width/2 - width/2
-        y: thePlayer.y - height * 1.1
-        z: 99
-        text: "(" + thePlayer.desireX + ")"
-        color: "#3fa4c8"
-        pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 0.3
     }
 }
