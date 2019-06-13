@@ -3,7 +3,7 @@ import "qrc:/" as LivLd
 import Box2D 2.0
 import SvgUtils 1.0
 import ScalingCanvas 1.0
-import ClayGamecontroller 1.0
+import Clayground.GameController 1.0
 
 CoordCanvas
 {
