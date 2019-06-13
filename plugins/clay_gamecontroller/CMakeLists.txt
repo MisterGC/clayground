@@ -1,5 +1,6 @@
 project (ClayGamecontroller)
 set (CMAKE_AUTOMOC on)
+set (CMAKE_AUTORCC on)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/ClayGamecontroller)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/ClayGamecontroller)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
@@ -8,6 +9,7 @@ add_library(${PROJECT_NAME} SHARED
     claygamectrlplugin.cpp
     claygamectrlplugin.h
     qmldir
+    res.qrc
     GameController.qml
     GameControllerDV.qml
     KeyboardGamepad.qml
@@ -35,25 +37,3 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     ${CMAKE_CURRENT_SOURCE_DIR}/qmldir
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/qmldir
 )
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/GameController.qml
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/GameController.qml
-)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/GameControllerDV.qml
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/GameControllerDV.qml
-)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/KeyboardGamepad.qml
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/KeyboardGamepad.qml
-)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/TouchscreenGamepad.qml
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/TouchscreenGamepad.qml
-)
-

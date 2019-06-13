@@ -1,7 +1,3 @@
 module ClayGamecontroller
 plugin ClayGamecontroller
-GameController 1.0 GameController.qml
-GameControllerDV 1.0 GameControllerDV.qml
-KeyboardGamepad 1.0 KeyboardGamepad.qml
-TouchscreenGamepad 1.0 TouchscreenGamepad.qml
-
+GameController 1.0 qrc:///clayground/GameController.qml
