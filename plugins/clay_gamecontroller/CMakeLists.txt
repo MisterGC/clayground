@@ -8,12 +8,13 @@ find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 add_library(${PROJECT_NAME} SHARED
     claygamectrlplugin.cpp
     claygamectrlplugin.h
-    qmldir
+    qmldir.in
     res.qrc
     GameController.qml
     GameControllerDV.qml
     KeyboardGamepad.qml
     TouchscreenGamepad.qml
+    Sandbox.qml
 )
 
 set_target_properties(
@@ -34,6 +35,6 @@ PRIVATE
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/qmldir
+    ${CMAKE_CURRENT_SOURCE_DIR}/qmldir.in
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/qmldir
 )
