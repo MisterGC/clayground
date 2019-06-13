@@ -1,3 +1,4 @@
-module ClayGamecontroller
+module Clayground.GameController
 plugin ClayGamecontroller
+classname ClayGameCtrlPlugin
 GameController 1.0 qrc:///clayground/GameController.qml
