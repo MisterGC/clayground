@@ -1,0 +1,4 @@
+module Clayground.ScalingCanvas
+plugin ScalingCanvas
+classname ScalingCanvasPlugin
+CoordCanvas 1.0 qrc:///clayground/CoordCanvas.qml

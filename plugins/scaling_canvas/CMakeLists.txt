@@ -1,14 +1,17 @@
 project (ScalingCanvas)
 set (CMAKE_AUTOMOC on)
-set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/ScalingCanvas)
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/ScalingCanvas)
+set (CMAKE_AUTORCC on)
+set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/Clayground/ScalingCanvas)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/Clayground/ScalingCanvas)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     scalingcanvasplugin.cpp
     scalingcanvasplugin.h
-    qmldir
+    qmldir.in
+    res.qrc
     CoordCanvas.qml
+    Sandbox.qml
 )
 
 set_target_properties(
@@ -29,12 +32,6 @@ PRIVATE
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/qmldir
+    ${CMAKE_CURRENT_SOURCE_DIR}/qmldir.in
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/qmldir
-)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/CoordCanvas.qml
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/CoordCanvas.qml
 )

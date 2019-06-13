@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>CoordCanvas.qml</file>
+    </qresource>
+</RCC>
+

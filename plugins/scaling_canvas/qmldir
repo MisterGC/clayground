@@ -1,3 +1,0 @@
-module ScalingCanvas
-plugin ScalingCanvas
-CoordCanvas 1.0 CoordCanvas.qml
