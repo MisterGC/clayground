@@ -1,5 +1,5 @@
 import QtQuick 2.12
-import ClayGamecontroller 1.0
+import Clayground.GameController 1.0
 
 GameController {
     anchors.fill: parent
