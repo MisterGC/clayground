@@ -45,7 +45,7 @@ CoordCanvas
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/game_template/map.svg")
+        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/clayground/sandboxes/game_template/map.svg")
         onBegin: {
             player = null;
             while(objs.length > 0) {

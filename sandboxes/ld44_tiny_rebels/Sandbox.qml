@@ -83,7 +83,7 @@ CoordCanvas
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/qml_live_loader/sandboxes/ld44_tiny_rebels/world.svg")
+        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/clayground/sandboxes/ld44_tiny_rebels/world.svg")
         onBegin: {
             console.log("World: " + widthWu + "x" + heightWu + " Px: " + widthPx + "x" + heightPx)
             player = null;
