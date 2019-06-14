@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
 project (plugins)
-add_subdirectory (box2d)
 add_subdirectory (svg_inspector)
 add_subdirectory (scaling_canvas)
 add_subdirectory (clay_gamecontroller)
