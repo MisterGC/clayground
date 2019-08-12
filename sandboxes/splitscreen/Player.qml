@@ -7,7 +7,6 @@ VisualizedCircleBody
 
     // Visual Configuration
     property bool faceRight: true
-    property alias text: annotation.text
     color: "#3fa4c8"
     visible: false
     property alias sprite: theSprite
@@ -117,18 +116,4 @@ VisualizedCircleBody
     }
     Timer { id: reJumpTimer; interval: 300; onTriggered: fallDownTimer.restart() }
     Timer { id: fallDownTimer; interval: 200; }
-
-    ScalingText
-    {
-        id: annotation
-        visible: false
-        parent: thePlayer.parent
-        x: thePlayer.x + thePlayer.width/2 - width/2
-        y: thePlayer.y - height * 1.1
-        z: 99
-        text: "(" + thePlayer.x + " , " + thePlayer.y + ")"
-        color: "#3fa4c8"
-        pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 0.3
-    }
 }

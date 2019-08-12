@@ -71,7 +71,6 @@ CoordCanvas
             objs.push(obj);
             if (cfg["component"] === "Player.qml") {
                 player = obj;
-                player.text = "Hi you!";
                 gameWorld.viewPortCenterWuX = Qt.binding(function() {return gameWorld.screenXToWorld(player.x);});
                 gameWorld.viewPortCenterWuY = Qt.binding(function() {return gameWorld.screenYToWorld(player.y);});
             }

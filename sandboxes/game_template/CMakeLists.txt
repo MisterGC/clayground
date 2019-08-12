@@ -5,7 +5,6 @@ set (CMAKE_INCLUDE_CURRENT_DIR on)
 add_executable (${PROJECT_NAME}
 main.cpp
 Sandbox.qml
-ScalingText.qml
 Player.qml
 PhysicsItem.qml
 Wall.qml

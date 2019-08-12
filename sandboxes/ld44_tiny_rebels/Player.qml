@@ -24,16 +24,4 @@ VisualizedBoxBody
     function stopDown() { if (body.linearVelocity.y > 0) body.linearVelocity.y = 0; }
     function stopLeft() { if (body.linearVelocity.x < 0) body.linearVelocity.x = 0; }
     function stopRight() { if (body.linearVelocity.x > 0) body.linearVelocity.x = 0; }
-
-    ScalingText
-    {
-        parent: thePlayer.parent
-        x: thePlayer.x + player.width/2 - width/2
-        y: thePlayer.y - height * 1.1
-        z: 99
-        text: energy
-        color: "#3fa4c8"
-        pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 0.5
-    }
 }

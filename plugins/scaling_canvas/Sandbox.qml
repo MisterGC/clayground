@@ -9,6 +9,11 @@ CoordCanvas
     pixelPerUnit: 50
     keyBoardNavigationEnabled: true
 
+    worldXMin: 0
+    worldXMax:  10
+    worldYMin: 0
+    worldYMax: 10
+
     Flickable
     {
         z: -1
@@ -20,6 +25,13 @@ CoordCanvas
 
         onContentXChanged: console.log("New X: " + contentX)
         onContentYChanged: console.log("New Y: " + contentY)
+
+        ScalingText {
+           canvas: theCanvas
+           xWu: 5;  yWu: 5
+           fontSizeWu: 1
+           text: "Example Text"
+        }
 
         Canvas
         {
