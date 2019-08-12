@@ -8,7 +8,6 @@ PhysicsItem.qml
 Player.qml
 JnRGameController.qml
 Sandbox.qml
-ScalingText.qml
 VisualizedBoxBody.qml
 VisualizedCircleBody.qml
 Wall.qml

@@ -12,6 +12,7 @@ add_library(${PROJECT_NAME} SHARED
     res.qrc
     CoordCanvas.qml
     Sandbox.qml
+    ScalingText.qml
 )
 
 set_target_properties(

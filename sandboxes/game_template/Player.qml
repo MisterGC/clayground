@@ -15,7 +15,6 @@ VisualizedBoxBody
     readonly property int maxEnergy: 10000
     opacity: energy/maxEnergy
     fixedRotation: false
-    property alias text: annotation.text
 
     function moveUp() { body.linearVelocity.y = -maxVelo; }
     function moveDown() { body.linearVelocity.y = maxVelo; }
@@ -26,17 +25,4 @@ VisualizedBoxBody
     function stopDown() { if (body.linearVelocity.y > 0) body.linearVelocity.y = 0; }
     function stopLeft() { if (body.linearVelocity.x < 0) body.linearVelocity.x = 0; }
     function stopRight() { if (body.linearVelocity.x > 0) body.linearVelocity.x = 0; }
-
-    ScalingText
-    {
-        id: annotation
-        parent: thePlayer.parent
-        x: thePlayer.x + thePlayer.width/2 - width/2
-        y: thePlayer.y - height * 1.1
-        z: 99
-        text: "It's a mee, a pixel!"
-        color: "#3fa4c8"
-        pixelPerUnit: thePlayer.pixelPerUnit
-        fontSizeWu: 0.3
-    }
 }

@@ -8,7 +8,6 @@ Absorbicer.qml
 Angle.qml
 AiMap.qml
 Sandbox.qml
-ScalingText.qml
 CoordCanvasDev.qml
 Minigy.qml
 Player.qml
