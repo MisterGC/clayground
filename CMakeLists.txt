@@ -11,5 +11,5 @@ add_subdirectory (thirdparty/qml-box2d)
 
 add_subdirectory (sandboxes/gui)
 add_subdirectory (sandboxes/particle)
-add_subdirectory (sandboxes/jump_n_run)
-add_subdirectory (sandboxes/game_template)
+add_subdirectory (sandboxes/platformer)
+add_subdirectory (sandboxes/topdown)

@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     wrapper.setEngine(&engine);
     engine.rootContext()->setContextProperty("ReloadTrigger", &watcher);
     engine.rootContext()->setContextProperty("QmlCache", &wrapper);
-    engine.load(QUrl("qrc:/main.qml"));
+    engine.load(QUrl("qrc:/clayground/main.qml"));
     if (engine.rootObjects().isEmpty()) return -1;
 
     return app.exec();

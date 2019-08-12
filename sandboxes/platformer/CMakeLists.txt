@@ -1,14 +1,17 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (sbx_coordsys)
+project (platformer)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
-Sandbox.qml
-Player.qml
 PhysicsItem.qml
+Player.qml
+JnRPlayer.qml
+Sandbox.qml
+VisualizedBoxBody.qml
+JnRPlayer.qml
 Wall.qml
-VisualizedBoxBody.qml)
+)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11

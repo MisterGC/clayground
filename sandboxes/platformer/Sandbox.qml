@@ -1,5 +1,4 @@
 import QtQuick 2.12
-import "qrc:/" as LivLd
 import Box2D 2.0
 import Clayground.SvgUtils 1.0
 import Clayground.ScalingCanvas 1.0
@@ -52,7 +51,7 @@ CoordCanvas
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: theSvgInspector.setPathToFile("/home/mistergc/dev/clayground/sandboxes/jump_n_run/map.svg")
+        Component.onCompleted: theSvgInspector.setPathToFile(ReloadTrigger.observedPath() + "/map.svg")
         onBegin: {
             player = null;
             while(objs.length > 0) {

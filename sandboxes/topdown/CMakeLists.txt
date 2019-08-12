@@ -1,17 +1,14 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (jump_n_run)
+project (topdown)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
-PhysicsItem.qml
-Player.qml
-JnRPlayer.qml
 Sandbox.qml
-VisualizedBoxBody.qml
-JnRPlayer.qml
+Player.qml
+PhysicsItem.qml
 Wall.qml
-)
+VisualizedBoxBody.qml)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11
