@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (sbx_coordsys)
+project (topdown)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}

@@ -1,5 +1,4 @@
 import QtQuick 2.12
-import "qrc:/" as LivLd
 import Clayground.ScalingCanvas 1.0
 
 CoordCanvas

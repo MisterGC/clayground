@@ -1,15 +1,15 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (splitscreen)
+project (platformer)
 set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
 PhysicsItem.qml
 Player.qml
-JnRGameController.qml
+JnRPlayer.qml
 Sandbox.qml
 VisualizedBoxBody.qml
-VisualizedCircleBody.qml
+JnRPlayer.qml
 Wall.qml
 )
 
