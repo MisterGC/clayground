@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>PhysicsItem.qml</file>
+        <file>VisualizedBoxBody.qml</file>
+    </qresource>
+</RCC>
+
