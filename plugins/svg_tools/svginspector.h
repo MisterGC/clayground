@@ -8,14 +8,19 @@ class SvgInspector: public QObject
 {
     Q_OBJECT
 
+public:
+    SvgInspector();
+
 public slots:
-    void setPathToFile(const QString& pathToSvg);
+    void setSource(const QString& pathToSvg);
+    QString source() const;
 
 signals:
+    void sourceChanged();
     void begin(float widthWu, float heightWu, int widthPx, int heightPx);
     void beginGroup(const QString& grpName);
-    void rectangle(const QString& componentName, float xWu, float yWu, float widthWu, float heightWu, const QString& description);
-    void circle(const QString& componentName, float xWu, float yWu, float radiusWu, const QString& description);
+    void rectangle(const QString& componentName, float x, float y, float width, float height, const QString& description);
+    void circle(const QString& componentName, float x, float y, float radius, const QString& description);
     void endGroup();
     void end();
 
@@ -28,8 +33,10 @@ private:
                        QXmlStreamReader::TokenType &token,
                        bool &currentTokenProcessed,
                        const float &heightWu);
+    void resetFileObservation();
 
 private:
     QFileSystemWatcher fileObserver_;
+    QString source_;
 };
 #endif

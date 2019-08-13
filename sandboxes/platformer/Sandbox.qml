@@ -7,9 +7,9 @@ import Clayground.Physics 1.0
 
 CoordCanvas
 {
-    id: gameWorld
+    id: world
     anchors.fill: parent
-    pixelPerUnit: width / gameWorld.worldXMax
+    pixelPerUnit: width / world.worldXMax
 
     Component.onCompleted: {
         ReloadTrigger.observeFile("JnRPlayer.qml");
@@ -23,68 +23,49 @@ CoordCanvas
         pixelsPerMeter: pixelPerUnit
     }
 
-//    DebugDraw {
-//        anchors.fill: parent
-//        parent: gameWorld.coordSys
-//    }
-
     property var player: null
+
     Keys.forwardTo: gameCtrl
     GameController {
         id: gameCtrl
-        showDebugOverlay: false
         anchors.fill: parent
-        onButtonBPressedChanged: {
-            if (buttonBPressed) player.jump();
-        }
-
+        onButtonBPressedChanged:  if (buttonBPressed) player.jump();
         Component.onCompleted: {
-            //selectGamepad(0)
             selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
             player.desireX = Qt.binding(function() {return gameCtrl.axisX;});
         }
     }
-
-    property int count: 0
 
     SvgInspector
     {
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: theSvgInspector.setPathToFile(ReloadTrigger.observedPath() + "/map.svg")
+        Component.onCompleted:  setSource(ReloadTrigger.observedPath() + "/map.svg");
+
         onBegin: {
+            world.viewPortCenterWuX = 0;
+            world.viewPortCenterWuY = 0;
+            world.worldXMax = widthWu;
+            world.worldYMax = heightWu;
             player = null;
-            while(objs.length > 0) {
-                var obj = objs.pop();
-                obj.destroy();
-            }
-            gameWorld.worldXMax = widthWu;
-            gameWorld.worldYMax = heightWu;
+            for (let obj of objs) obj.destroy();
+            objs = [];
         }
-        onBeginGroup: {console.log("beginGroup");}
+
         onRectangle: {
             let cfg = JSON.parse(description);
-            var comp = Qt.createComponent(cfg["component"]);
-            var obj = comp.createObject(coordSys, {
-                                            "xWu": xWu,
-                                            "yWu": yWu,
-                                            "widthWu": widthWu,
-                                            "heightWu": heightWu,
-                                            "color": "black"
-                                            });
-            obj.pixelPerUnit = Qt.binding(function() {return gameWorld.pixelPerUnit;});
+            let compStr = cfg["component"];
+            let comp = Qt.createComponent(compStr);
+            let obj = comp.createObject(coordSys, {xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
+            obj.pixelPerUnit = Qt.binding( _ => {return world.pixelPerUnit;} );
             objs.push(obj);
-            if (cfg["component"] === "Player.qml") {
+            if (compStr === "Player.qml") {
                 player = obj;
-                gameWorld.viewPortCenterWuX = Qt.binding(function() {return gameWorld.screenXToWorld(player.x);});
-                gameWorld.viewPortCenterWuY = Qt.binding(function() {return gameWorld.screenYToWorld(player.y);});
+                world.viewPortCenterWuX = Qt.binding( _ => {return world.screenXToWorld(player.x);} );
+                world.viewPortCenterWuY = Qt.binding( _ => {return world.screenYToWorld(player.y);} );
                 player.maxXVelo = 5;
             }
         }
-        onCircle: {
-            console.log("onCircle");
-            /* Add logic to process circles */ }
-        onEnd: { }
     }
 }

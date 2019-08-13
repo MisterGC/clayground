@@ -3,13 +3,15 @@
 #include <QXmlStreamReader>
 #include <QDebug>
 
-void SvgInspector::onFileChanged(const QString &path)
+SvgInspector::SvgInspector()
 {
-    // INFO Re-add file as otherwise (at least on Linux)
-    // further changes are not recognized
-    fileObserver_.removePath(path);
-    setPathToFile(path);
-    fileObserver_.addPath(path);
+    connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
+            this, &SvgInspector::onFileChanged,
+            static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::UniqueConnection));
+}
+
+void SvgInspector::onFileChanged(const QString& /*path*/)
+{
     introspect();
 }
 
@@ -60,72 +62,78 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
     }
 }
 
-void SvgInspector::introspect()
+void SvgInspector::resetFileObservation()
 {
-    if (!fileObserver_.files().empty())
-    {
-        auto pathToSvg = fileObserver_.files().first();
-
-        QFile xmlFile(pathToSvg);
-        if (!xmlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qCritical() << "Error unable to open " << pathToSvg;
-            return;
-        }
-        QXmlStreamReader xmlReader(&xmlFile);
-
-        auto heightWu = 0.0f;
-
-        // Can be used to avoid reading a further element if
-        // logic has not used the current one and dispatching should be done
-        bool currentTokenProcessed = true;
-        QXmlStreamReader::TokenType token = QXmlStreamReader::StartElement;
-        while(!xmlReader.atEnd() && !xmlReader.hasError())
-        {
-            if (currentTokenProcessed) token = xmlReader.readNext();
-            else currentTokenProcessed = true;
-
-            auto nam = xmlReader.name();
-            if(token == QXmlStreamReader::StartElement)
-            {
-                if (nam == "svg") {
-                    auto attribs = xmlReader.attributes();
-                    auto widthPx = attribs.value("width").toInt();
-                    auto heightPx = attribs.value("height").toInt();
-                    auto viewBox = attribs.value("viewBox").toString().split(" ");
-                    auto widthWu = viewBox[2].toFloat();
-                    heightWu = viewBox[3].toFloat();
-                    emit begin(widthWu, heightWu, widthPx, heightPx);
-                }
-                else if (nam == "g") {
-                    auto attribs = xmlReader.attributes();
-                    auto lbl = attribs.value("inkscape:label").toString();
-                    emit beginGroup(lbl);
-                }
-                else processShape(xmlReader, token, currentTokenProcessed, heightWu);
-            }
-            else if (token == QXmlStreamReader::EndElement &&
-                     nam == "g") {
-                endGroup();
-            }
-        }
-
-        if(xmlReader.hasError())
-        {
-            qCritical() << "Error while processing XML: " << xmlReader.errorString();
-        }
-
-        xmlReader.clear();
-        xmlFile.close();
-        emit end();
-    }
+    fileObserver_.removePaths(fileObserver_.files());
+    fileObserver_.addPath(source_);
 }
 
-void SvgInspector::setPathToFile(const QString &pathToSvg)
+QString SvgInspector::source() const
 {
-    connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
-            this, &SvgInspector::onFileChanged,
-            static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::UniqueConnection));
-    fileObserver_.removePaths(fileObserver_.files());
-    fileObserver_.addPath(pathToSvg);
+    return source_;
+}
+
+void SvgInspector::introspect()
+{
+    auto pathToSvg = source_;
+
+    QFile xmlFile(pathToSvg);
+    if (!xmlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qCritical() << "Error unable to open " << pathToSvg;
+        return;
+    }
+    QXmlStreamReader xmlReader(&xmlFile);
+
+    auto heightWu = 0.0f;
+
+    // Can be used to avoid reading a further element if
+    // logic has not used the current one and dispatching should be done
+    bool currentTokenProcessed = true;
+    QXmlStreamReader::TokenType token = QXmlStreamReader::StartElement;
+    while(!xmlReader.atEnd() && !xmlReader.hasError())
+    {
+        if (currentTokenProcessed) token = xmlReader.readNext();
+        else currentTokenProcessed = true;
+
+        auto nam = xmlReader.name();
+        if(token == QXmlStreamReader::StartElement)
+        {
+            if (nam == "svg") {
+                auto attribs = xmlReader.attributes();
+                auto widthPx = attribs.value("width").toInt();
+                auto heightPx = attribs.value("height").toInt();
+                auto viewBox = attribs.value("viewBox").toString().split(" ");
+                auto widthWu = viewBox[2].toFloat();
+                heightWu = viewBox[3].toFloat();
+                emit begin(widthWu, heightWu, widthPx, heightPx);
+            }
+            else if (nam == "g") {
+                auto attribs = xmlReader.attributes();
+                auto lbl = attribs.value("inkscape:label").toString();
+                emit beginGroup(lbl);
+            }
+            else processShape(xmlReader, token, currentTokenProcessed, heightWu);
+        }
+        else if (token == QXmlStreamReader::EndElement &&
+                 nam == "g") {
+            endGroup();
+        }
+    }
+
+    if(xmlReader.hasError())
+        qCritical() << "Error while processing XML: " << xmlReader.errorString();
+
+    xmlReader.clear();
+    xmlFile.close();
+    emit end();
+}
+
+void SvgInspector::setSource(const QString &pathToSvg)
+{
+    if (pathToSvg == source_) return;
+
+    source_ = pathToSvg;
+    resetFileObservation();
+    emit sourceChanged();
     introspect();
 }
