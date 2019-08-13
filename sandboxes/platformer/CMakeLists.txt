@@ -4,11 +4,9 @@ set (CMAKE_INCLUDE_CURRENT_DIR on)
 
 add_executable (${PROJECT_NAME}
 main.cpp
-PhysicsItem.qml
 Player.qml
 JnRPlayer.qml
 Sandbox.qml
-VisualizedBoxBody.qml
 JnRPlayer.qml
 Wall.qml
 )

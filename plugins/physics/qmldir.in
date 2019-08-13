@@ -1,0 +1,6 @@
+module Clayground.Physics
+plugin Physics
+classname PhysicsPlugin
+PhysicsItem 1.0 qrc:///clayground/PhysicsItem.qml
+VisualizedBoxBody 1.0 qrc:///clayground/VisualizedBoxBody.qml
+
