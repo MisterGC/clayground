@@ -80,7 +80,7 @@
        x="0.04125002"
        y="19.607498">
       <desc
-         id="desc1491">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1491">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.4468846;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -90,7 +90,7 @@
        x="0.070000008"
        y="0.029994342">
       <desc
-         id="desc1515">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1515">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.29565832;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -100,7 +100,7 @@
        x="7.2800002"
        y="13.499996">
       <desc
-         id="desc1517">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1517">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:0.32995278;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -120,7 +120,7 @@
        id="rect1500"
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.44620147;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1498">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1498">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        y="0.047498263"
@@ -130,7 +130,7 @@
        id="rect1504"
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.27849412;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1502">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1502">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        y="13.447485"
@@ -140,7 +140,7 @@
        id="rect1508"
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.34293389;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1506">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1506">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.20084919;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -150,7 +150,7 @@
        x="7.3212509"
        y="13.447485">
       <desc
-         id="desc1510">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1510">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -160,7 +160,7 @@
        x="0.04125002"
        y="7.8474889">
       <desc
-         id="desc1522">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1522">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
        y="3.8600001"
@@ -170,7 +170,7 @@
        id="rect1528"
        style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.29565832;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1526">{&quot;component&quot;:&quot;VisualizedBoxBody.qml&quot;}</desc>
+         id="desc1526">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
   </g>
 </svg>
