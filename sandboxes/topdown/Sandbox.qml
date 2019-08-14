@@ -2,6 +2,7 @@ import QtQuick 2.12
 import Box2D 2.0
 import Clayground.SvgUtils 1.0
 import Clayground.ScalingCanvas 1.0
+import Clayground.GameController 1.0
 
 CoordCanvas {
     id: gameWorld
@@ -17,27 +18,23 @@ CoordCanvas {
 
     property var player: null
 
-    onKeyPressed:
-    {
-        if (!player) return;
-        switch (event.key)
-        {
-        case Qt.Key_Up: player.moveUp(); break;
-        case Qt.Key_Down: player.moveDown(); break;
-        case Qt.Key_Left: player.moveLeft(); break;
-        case Qt.Key_Right: player.moveRight(); break;
+    Keys.forwardTo: gameCtrl
+    GameController {
+        id: gameCtrl
+        anchors.fill: parent
+        Component.onCompleted: {
+            selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_A, Qt.Key_S);
         }
-    }
 
-    onKeyReleased:
-    {
-        if (!player) return;
-        switch (event.key)
-        {
-        case Qt.Key_Up: player.stopUp(); break;
-        case Qt.Key_Down: player.stopDown(); break;
-        case Qt.Key_Left: player.stopLeft(); break;
-        case Qt.Key_Right: player.stopRight(); break;
+        onAxisXChanged: {
+            if (axisX > 0) player.moveRight();
+            else if (axisX < 0) player.moveLeft();
+            else { player.stopLeft(); player.stopRight();}
+        }
+        onAxisYChanged: {
+            if (axisY > 0) player.moveUp();
+            else if (axisY < 0) player.moveDown();
+            else { player.stopUp(); player.stopDown();}
         }
     }
 
