@@ -9,27 +9,20 @@ QmlReloadTrigger::QmlReloadTrigger(const QString &qmlBaseDir, QObject *parent)
             this, &QmlReloadTrigger::onFileChanged);
 }
 
-void QmlReloadTrigger::observePath(const QString& qmlBaseDir)
-{
-   if (qmlBaseDir_ != qmlBaseDir)
-   {
-       fileObserver_.removePaths(fileObserver_.files());
-       fileObserver_.removePaths(fileObserver_.directories());
-       qmlBaseDir_ = qmlBaseDir;
-   }
-}
-
 QString QmlReloadTrigger::observedPath() const
 {
-   return qmlBaseDir_;
+    return qmlBaseDir_;
 }
 
-void QmlReloadTrigger::observeFile(const QString& file)
+void QmlReloadTrigger::observe(const std::vector<QString> &files)
 {
-    const QString path = qmlBaseDir_ + "/" + file;
-    QFile f(path);
-    auto ok = fileObserver_.addPath(path);
-    if (!ok) qCritical() << "Unable to observe " << path;
+    for (auto& relP: files)
+    {
+        auto path = qmlBaseDir_ + "/" + relP;
+        QFile f(path);
+        auto ok = fileObserver_.addPath(path);
+        if (!ok) qCritical() << "Unable to observe " << path;
+    }
 }
 
 void QmlReloadTrigger::onFileChanged(const QString &path)

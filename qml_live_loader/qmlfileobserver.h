@@ -2,6 +2,7 @@
 #define QML_FILE_OBSERVER_H 
 #include <QObject>
 #include <QFileSystemWatcher>
+#include <vector>
 
 class QmlReloadTrigger: public QObject
 {
@@ -11,9 +12,8 @@ public:
     QmlReloadTrigger(const QString& qmlBaseDir, QObject* parent = nullptr);
 
 public slots:
-    void observePath(const QString& qmlBaseDir);
     QString observedPath() const;
-    void observeFile(const QString& file);
+    void observe(const std::vector<QString>& files);
 
 private slots:
     void onFileChanged(const QString& path);

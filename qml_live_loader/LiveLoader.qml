@@ -5,7 +5,7 @@ Loader {
     source: "file:" + ReloadTrigger.observedPath() + "/" + observed
 
     Component.onCompleted: {
-        ReloadTrigger.observeFile(observed);
+        ReloadTrigger.observe([observed]);
         ReloadTrigger.qmlFileChanged.connect(reload);
     }
 

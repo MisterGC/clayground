@@ -12,8 +12,7 @@ CoordCanvas
     pixelPerUnit: width / world.worldXMax
 
     Component.onCompleted: {
-        ReloadTrigger.observeFile("JnRPlayer.qml");
-        ReloadTrigger.observeFile("Player.qml");
+        ReloadTrigger.observe(["JnRPlayer.qml", "Player.qml"]);
     }
 
     World {

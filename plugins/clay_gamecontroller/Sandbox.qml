@@ -7,10 +7,10 @@ Rectangle {
     color: "black"
 
     Component.onCompleted: {
-        ReloadTrigger.observeFile("GameController.qml");
-        ReloadTrigger.observeFile("KeyboardGamepad.qml");
-        ReloadTrigger.observeFile("TouchscreenGamepad.qml");
-        ReloadTrigger.observeFile("GameControllerDV.qml");
+        ReloadTrigger.observe(["GameController.qml",
+                               "KeyboardGamepad.qml",
+                               "TouchscreenGamepad.qml",
+                               "GameControllerDV.qml"]);
         forceActiveFocus();
     }
 
