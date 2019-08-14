@@ -1,3 +1,5 @@
+![Overview about Clayground](res/clayground_overview.png)
+
 ## Flow, form, create 
 Clayground is a Qt based environment that allows using QML to rapidly
 develop apps in a sandbox environment with live loading. It tries to 
