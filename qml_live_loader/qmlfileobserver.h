@@ -4,12 +4,12 @@
 #include <QFileSystemWatcher>
 #include <vector>
 
-class QmlReloadTrigger: public QObject
+class QmlFileObserver: public QObject
 {
     Q_OBJECT
 
 public:
-    QmlReloadTrigger(const QString& qmlBaseDir, QObject* parent = nullptr);
+    QmlFileObserver(const QString& qmlBaseDir, QObject* parent = nullptr);
 
 public slots:
     QString observedPath() const;

@@ -2,19 +2,19 @@
 #include <QLoggingCategory>
 #include <QFile>
 
-QmlReloadTrigger::QmlReloadTrigger(const QString &qmlBaseDir, QObject *parent)
+QmlFileObserver::QmlFileObserver(const QString &qmlBaseDir, QObject *parent)
     : QObject(parent), qmlBaseDir_(qmlBaseDir)
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
-            this, &QmlReloadTrigger::onFileChanged);
+            this, &QmlFileObserver::onFileChanged);
 }
 
-QString QmlReloadTrigger::observedPath() const
+QString QmlFileObserver::observedPath() const
 {
     return qmlBaseDir_;
 }
 
-void QmlReloadTrigger::observe(const std::vector<QString> &files)
+void QmlFileObserver::observe(const std::vector<QString> &files)
 {
     for (auto& relP: files)
     {
@@ -25,7 +25,7 @@ void QmlReloadTrigger::observe(const std::vector<QString> &files)
     }
 }
 
-void QmlReloadTrigger::onFileChanged(const QString &path)
+void QmlFileObserver::onFileChanged(const QString &path)
 {
     // INFO Re-add file as otherwise (at least on Linux)
     // further changes are not recognized

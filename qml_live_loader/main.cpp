@@ -42,18 +42,15 @@ void fetchCmdLineArgs(const QGuiApplication& app,
         if (!dynQmlDir.exists()) parser.showHelp(1);
     }
 
-    qDebug() << "Eval dyn plugins";
     if (parser.isSet(DYN_PLUGIN))
     {
         for (auto& val: parser.values(DYN_PLUGIN))
         {
             auto dirs = val.split(";");
-            qDebug() << "Paths " << dirs.count();
             if (dirs.count() != 2) parser.showHelp(1);
             auto srcDir = QDir(dirs[0]);
             auto binDir = QDir(dirs[1]);
             auto pluginDir = QDir(dirs[1] + "/" + PLUGINS_SUB_DIR);
-            qDebug() << "src " << srcDir.path() << " bin " << binDir;
             if (! (srcDir.exists() &&
                    binDir.exists() &&
                    pluginDir.exists())) parser.showHelp(1);
@@ -83,7 +80,7 @@ int main(int argc, char *argv[])
         engine.addImportPath(pCfg.second.path() + "/" + PLUGINS_SUB_DIR);
     }
 
-    QmlReloadTrigger watcher(dynQmlDir.path());
+    QmlFileObserver watcher(dynQmlDir.path());
     QmlEngineWrapper wrapper;
     wrapper.setEngine(&engine);
     engine.rootContext()->setContextProperty("ReloadTrigger", &watcher);
