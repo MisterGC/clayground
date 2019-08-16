@@ -1,8 +1,7 @@
 project (ClayGamecontroller)
+
 set (CMAKE_AUTOMOC on)
 set (CMAKE_AUTORCC on)
-set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/Clayground/GameController)
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/plugins/Clayground/GameController)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
@@ -17,12 +16,15 @@ add_library(${PROJECT_NAME} SHARED
     Sandbox.qml
 )
 
+set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/GameController")
 set_target_properties(
 ${PROJECT_NAME}
 PROPERTIES
     CXX_STANDARD 11
     CXX_STANDARD_REQUIRED on
     CXX_EXTENSIONS NO
+    LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
 )
 
 target_link_libraries(
