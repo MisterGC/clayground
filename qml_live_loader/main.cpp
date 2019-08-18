@@ -8,8 +8,7 @@
 #include <QVariant>
 #include <QMetaObject>
 #include <QDebug>
-#include "qmlfileobserver.h"
-#include "qmlenginewrapper.h"
+#include "clayliveloader.h"
 
 using DynPluginsCfg = std::list<std::pair<QDir, QDir>>;
 const QString PLUGINS_SUB_DIR = "bin/plugins";
@@ -80,13 +79,11 @@ int main(int argc, char *argv[])
         engine.addImportPath(pCfg.second.path() + "/" + PLUGINS_SUB_DIR);
     }
 
-    QmlFileObserver watcher(dynQmlDir.path());
-    QmlEngineWrapper wrapper;
-    wrapper.setEngine(&engine);
-    engine.rootContext()->setContextProperty("ReloadTrigger", &watcher);
-    engine.rootContext()->setContextProperty("QmlCache", &wrapper);
+    const auto SBX_FILE = dynQmlDir.path() + "/Sandbox.qml";
+    ClayLiveLoader liveLoader(engine, SBX_FILE);
+    liveLoader.observeQmlDir(dynQmlDir.path());
+    engine.rootContext()->setContextProperty("ClayLiveLoader", &liveLoader);
     engine.load(QUrl("qrc:/clayground/main.qml"));
-    if (engine.rootObjects().isEmpty()) return -1;
 
     return app.exec();
 }

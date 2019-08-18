@@ -43,7 +43,7 @@ CoordCanvas {
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: setSource(ReloadTrigger.observedPath() + "/map.svg")
+        Component.onCompleted: setSource(ClayLiveLoader.sandboxDir + "/map.svg")
 
         onBegin: {
             gameWorld.viewPortCenterWuX = 0;
