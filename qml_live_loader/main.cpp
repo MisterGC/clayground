@@ -1,6 +1,5 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QFileSystemWatcher>
 #include <QDir>
 #include <QCommandLineParser>
@@ -10,52 +9,34 @@
 #include <QDebug>
 #include "clayliveloader.h"
 
-using DynPluginsCfg = std::list<std::pair<QDir, QDir>>;
-const QString PLUGINS_SUB_DIR = "bin/plugins";
-
-void fetchCmdLineArgs(const QGuiApplication& app,
-                      QDir& dynQmlDir,
-                      DynPluginsCfg& dynPlugins)
+void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
     QCommandLineParser parser;
 
-    const QString DYN_QML_DIR_OPT = "dynqmldir";
-    const QString DYN_PLUGIN = "dynplugin";
+    const QString DYN_IMPORT_DIR = "dynimportdir";
 
-    parser.addOption({DYN_QML_DIR_OPT,
-                      "Sets the directory that contains dynamic qml.",
+    parser.addOption({DYN_IMPORT_DIR,
+                      "Adds a directory that contains parts of a QML App that ."
+                      "may change while the app is running. This can be a part "
+                      "with used QML files as well as a dir containing a plugin.",
                       "directory",
                       "<working directory>"});
 
-    parser.addOption({DYN_PLUGIN,
-                      "Provide a pair <plugin-src-dir>;<plugin-cmake-bin-dir>. "
-                      "The cmake-bin-dir has to contain a subdirectory bin/plugins "
-                      "which contains the referenced plugin (in corresponding subdir).",
-                      "directory-pair"});
-
     parser.process(app);
-    if (parser.isSet(DYN_QML_DIR_OPT))
+    if (parser.isSet(DYN_IMPORT_DIR))
     {
-        auto val = parser.value(DYN_QML_DIR_OPT);
-        dynQmlDir.setPath(val);
-        if (!dynQmlDir.exists()) parser.showHelp(1);
-    }
-
-    if (parser.isSet(DYN_PLUGIN))
-    {
-        for (auto& val: parser.values(DYN_PLUGIN))
+        for (auto& val: parser.values(DYN_IMPORT_DIR))
         {
-            auto dirs = val.split(";");
-            if (dirs.count() != 2) parser.showHelp(1);
-            auto srcDir = QDir(dirs[0]);
-            auto binDir = QDir(dirs[1]);
-            auto pluginDir = QDir(dirs[1] + "/" + PLUGINS_SUB_DIR);
-            if (! (srcDir.exists() &&
-                   binDir.exists() &&
-                   pluginDir.exists())) parser.showHelp(1);
-
-            dynPlugins.emplace_back(srcDir, binDir);
+            QDir dir(val);
+            if (!dir.exists()) parser.showHelp(1);
+            qDebug() << "Add import dir." << val;
+            loader.addDynImportDir(val);
         }
+    }
+    else
+    {
+        // TODO Set current working directory
+        // as import dir
     }
 }
 
@@ -66,23 +47,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("Qml LiveLoader");
     QCoreApplication::setApplicationVersion("0.1");
 
-    auto dynQmlDir = QDir::current();
-    DynPluginsCfg pluginsCfg;
-    fetchCmdLineArgs(app, dynQmlDir, pluginsCfg);
-
     QQmlApplicationEngine engine;
     engine.addImportPath("plugins");
-    engine.addImportPath(dynQmlDir.path());
-    for (auto& pCfg: pluginsCfg)
-    {
-        // TODO Add dir to watcher
-        engine.addImportPath(pCfg.second.path() + "/" + PLUGINS_SUB_DIR);
-    }
 
-    const auto SBX_FILE = dynQmlDir.path() + "/Sandbox.qml";
-    ClayLiveLoader liveLoader(engine, SBX_FILE);
-    liveLoader.observeQmlDir(dynQmlDir.path());
-    engine.rootContext()->setContextProperty("ClayLiveLoader", &liveLoader);
+    ClayLiveLoader liveLoader(engine);
+    processCmdLineArgs(app, liveLoader);
     engine.load(QUrl("qrc:/clayground/main.qml"));
 
     return app.exec();

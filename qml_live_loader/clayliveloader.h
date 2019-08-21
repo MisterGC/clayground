@@ -5,39 +5,40 @@
 #include <QFileSystemWatcher>
 #include <vector>
 #include <set>
-#include <map>
 
 class ClayLiveLoader: public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString sandboxFile READ sandboxFile NOTIFY sandboxFileChanged)
-    Q_PROPERTY(QString sandboxDir READ sandboxDir)
+    Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
 
 public:
     explicit ClayLiveLoader(QQmlEngine& engine,
-                            const QString& sandboxFile,
                             QObject *parent = nullptr);
-    void observeQmlDir(const QString& pathToDir);
+
     QString sandboxFile() const;
     QString sandboxDir() const;
-    void setSandboxFile(const QString &sandboxFile);
-    void clearCache();
+    void addDynImportDir(const QString& path);
+    void loadEntryQml();
 
 signals:
     void sandboxFileChanged();
+    void sandboxDirChanged();
 
 private slots:
     void onFileChanged(const QString& path);
 
 private:
+    void setSandboxFile(const QString &path);
     void resyncOnDemand(const QString &path);
-    void doActionsBasedOnType(const QString& path);
+    QString observedDir(const QString &path) const;
+    void clearCache();
 
 private:
     QQmlEngine& engine_;
     QFileSystemWatcher fileObserver_;
     QString sandboxFile_;
-    std::map<QString, std::set<QString>> qmlFilesPerDir_;
+    std::set<QString> dynImportDirs_;
 };
 
 #endif
