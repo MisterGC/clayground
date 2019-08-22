@@ -1,4 +1,4 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QFileSystemWatcher>
 #include <QDir>
@@ -7,6 +7,8 @@
 #include <QVariant>
 #include <QMetaObject>
 #include <QDebug>
+#include <QtQuickWidgets/QQuickWidget>
+#include <QMainWindow>
 #include "clayliveloader.h"
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
@@ -14,7 +16,6 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
     QCommandLineParser parser;
 
     const QString DYN_IMPORT_DIR = "dynimportdir";
-
     parser.addOption({DYN_IMPORT_DIR,
                       "Adds a directory that contains parts of a QML App that ."
                       "may change while the app is running. This can be a part "
@@ -43,16 +44,13 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 int main(int argc, char *argv[])
 {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QGuiApplication app(argc, argv);
-    QCoreApplication::setApplicationName("Qml LiveLoader");
+    QApplication app(argc, argv);
+    QCoreApplication::setApplicationName("ClayLiveLoader");
     QCoreApplication::setApplicationVersion("0.1");
 
-    QQmlApplicationEngine engine;
-    engine.addImportPath("plugins");
-
-    ClayLiveLoader liveLoader(engine);
+    ClayLiveLoader liveLoader;
     processCmdLineArgs(app, liveLoader);
-    engine.load(QUrl("qrc:/clayground/main.qml"));
+    liveLoader.show();
 
     return app.exec();
 }

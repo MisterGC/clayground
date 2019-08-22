@@ -12,5 +12,6 @@ public:
 
 public slots:
     QString sayHello() const;
+    QString sayBye() const;
 };
 #endif

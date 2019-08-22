@@ -1,9 +1,11 @@
 #ifndef QML_ENGINE_WRAPPER_H
 #define QML_ENGINE_WRAPPER_H
-#include <QQmlEngine>
 #include <QObject>
 #include <QFileSystemWatcher>
-#include <vector>
+#include <QQmlEngine>
+#include <QMainWindow>
+#include <memory>
+#include <map>
 #include <set>
 
 class ClayLiveLoader: public QObject
@@ -13,13 +15,12 @@ class ClayLiveLoader: public QObject
     Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
 
 public:
-    explicit ClayLiveLoader(QQmlEngine& engine,
-                            QObject *parent = nullptr);
+    explicit ClayLiveLoader(QObject *parent = nullptr);
 
     QString sandboxFile() const;
     QString sandboxDir() const;
     void addDynImportDir(const QString& path);
-    void loadEntryQml();
+    void show();
 
 signals:
     void sandboxFileChanged();
@@ -33,9 +34,12 @@ private:
     void resyncOnDemand(const QString &path);
     QString observedDir(const QString &path) const;
     void clearCache();
+    bool isQmlPlugin(const QString &path) const;
+    void reset();
 
 private:
-    QQmlEngine& engine_;
+    std::unique_ptr<QQmlEngine> engine_;
+    std::unique_ptr<QMainWindow> window_;
     QFileSystemWatcher fileObserver_;
     QString sandboxFile_;
     std::set<QString> dynImportDirs_;

@@ -5,8 +5,9 @@ import MyPlugin 1.0
 Rectangle
 {
     color: "orange"
-    MyComponent
-    {
-        Component.onCompleted: console.log(sayHello());
+    MyComponent { id: myComp }
+    Text {
+        anchors.centerIn: parent
+        text: myComp.sayHello() + " or " + myComp.sayBye()
     }
 }
