@@ -6,15 +6,8 @@ Rectangle {
     anchors.fill: parent
     color: "black"
 
-    Component.onCompleted: {
-        ReloadTrigger.observe(["GameController.qml",
-                               "KeyboardGamepad.qml",
-                               "TouchscreenGamepad.qml",
-                               "GameControllerDV.qml"]);
-        forceActiveFocus();
-    }
-
     Keys.forwardTo: [controller1, controller2]
+    Component.onCompleted: forceActiveFocus()
 
     Grid {
         anchors.fill: parent

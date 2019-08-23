@@ -1,0 +1,3 @@
+module MyPlugin
+plugin MyPlugin 
+classname MyPlugin

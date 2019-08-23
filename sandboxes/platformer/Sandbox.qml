@@ -11,10 +11,6 @@ CoordCanvas
     anchors.fill: parent
     pixelPerUnit: width / world.worldXMax
 
-    Component.onCompleted: {
-        ReloadTrigger.observe(["JnRPlayer.qml", "Player.qml"]);
-    }
-
     World {
         id: physicsWorld
         gravity: Qt.point(0,4*9.81)
@@ -40,7 +36,7 @@ CoordCanvas
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted:  setSource(ReloadTrigger.observedPath() + "/map.svg");
+        Component.onCompleted: setSource(ClayLiveLoader.sandboxDir + "/map.svg")
 
         onBegin: {
             world.viewPortCenterWuX = 0;

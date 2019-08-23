@@ -7,10 +7,8 @@ Window {
     height: 400
     title: qsTr("Live Qml Coding Sandbox")
     flags: Qt.WindowStaysOnTopHint
-
-    LiveLoader {
-        id: theLiveLoader
+    Loader {
+        source: "file:" + ClayLiveLoader.sandboxFile
         anchors.fill: parent
-        observed: "Sandbox.qml"
     }
 }

@@ -1,6 +1,5 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/clayground">
     <file>main.qml</file>
-    <file>LiveLoader.qml</file>
 </qresource>
 </RCC>
