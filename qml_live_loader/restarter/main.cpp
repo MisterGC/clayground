@@ -11,5 +11,6 @@ int main(int argc, char *argv[])
     ClayRestarter restarter;
     QObject::connect(&restarter, SIGNAL(finished()), &a, SLOT(quit()));
     QTimer::singleShot(0, &restarter, SLOT(run()));
+
     return a.exec();
 }

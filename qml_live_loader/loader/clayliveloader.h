@@ -2,7 +2,7 @@
 #define QML_ENGINE_WRAPPER_H
 #include <QObject>
 #include <QFileSystemWatcher>
-#include <QQmlEngine>
+#include <QQmlApplicationEngine>
 #include <QMainWindow>
 #include <memory>
 #include <map>
@@ -35,11 +35,9 @@ private:
     QString observedDir(const QString &path) const;
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
-    void reset();
 
 private:
-    std::unique_ptr<QQmlEngine> engine_;
-    std::unique_ptr<QMainWindow> window_;
+    QQmlApplicationEngine engine_;
     QFileSystemWatcher fileObserver_;
     QString sandboxFile_;
     std::set<QString> dynImportDirs_;

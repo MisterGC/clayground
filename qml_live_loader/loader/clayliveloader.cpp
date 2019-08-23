@@ -3,22 +3,17 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QQmlContext>
-#include <QQmlEngine>
 #include <QGuiApplication>
 #include <QLibrary>
-#include <QtQuickWidgets/QQuickWidget>
-#include <qqml.h>
 
 ClayLiveLoader::ClayLiveLoader(QObject *parent)
     : QObject(parent),
-      window_(new QMainWindow),
       sandboxFile_("")
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
             this, &ClayLiveLoader::onFileChanged);
-    window_->setGeometry(0,0, 500, 500);
-    window_->setWindowFlags(Qt::WindowStaysOnTopHint);
-    reset();
+    engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
+    engine_.addImportPath("plugins");
 }
 
 bool ClayLiveLoader::isQmlPlugin(const QString& path) const
@@ -32,47 +27,23 @@ void ClayLiveLoader::addDynImportDir(const QString &path)
         auto msg = QString("Dir %1 doesn't exist.").arg(path).toStdString();
         qFatal("%s", msg.c_str());
     }
+
     QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
     if (sbxTest.exists()) {
         if (!sandboxFile_.isEmpty()) qWarning("Sanbox has been set been set before.");
         setSandboxFile(sbxTest.filePath());
     }
 
-    if (!engine_->importPathList().contains(path))
-        engine_->addImportPath(path);
+    if (!engine_.importPathList().contains(path))
+        engine_.addImportPath(path);
 
     dynImportDirs_.insert(path);
     resyncOnDemand(path);
 }
 
-void ClayLiveLoader::reset()
-{
-   auto w = dynamic_cast<QQuickWidget*>(window_->centralWidget());
-   if (w) {
-       qDebug() << "Deleting widget";
-       window_->setCentralWidget(nullptr);
-       delete(w);
-   }
-
-   clearCache();
-   engine_.reset(nullptr);
-   qmlClearTypeRegistrations();
-   engine_.reset(new QQmlEngine);
-   auto& engine = *engine_.get();
-   engine.rootContext()->setContextProperty("ClayLiveLoader", this);
-   engine.addImportPath("plugins");
-   for (auto& p: dynImportDirs_) addDynImportDir(p);
-
-   auto quick = new QQuickWidget(engine_.get(), window_.get());
-   quick->setResizeMode(QQuickWidget::SizeRootObjectToView);
-   window_->setCentralWidget(quick);
-}
-
 void ClayLiveLoader::show()
 {
-    auto w = dynamic_cast<QQuickWidget*>(window_->centralWidget());
-    w->setSource(QUrl("qrc:/clayground/main.qml"));
-    window_->show();
+    engine_.load(QUrl("qrc:/clayground/main.qml"));
 }
 
 void ClayLiveLoader::onFileChanged(const QString &path)
@@ -88,10 +59,9 @@ void ClayLiveLoader::onFileChanged(const QString &path)
 
 void ClayLiveLoader::clearCache()
 {
-    if (!engine_.get()) return;
-    engine_->trimComponentCache();
-    engine_->clearComponentCache();
-    engine_->trimComponentCache();
+    engine_.trimComponentCache();
+    engine_.clearComponentCache();
+    engine_.trimComponentCache();
 }
 
 
@@ -139,7 +109,6 @@ QString ClayLiveLoader::sandboxDir() const
 void ClayLiveLoader::setSandboxFile(const QString& path)
 {
     if (path != sandboxFile_){
-        qDebug() << "SBX: " << path;
         sandboxFile_ = path;
         emit sandboxFileChanged();
         emit sandboxDirChanged();
