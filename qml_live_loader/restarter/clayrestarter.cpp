@@ -20,16 +20,10 @@ void ClayRestarter::run()
                           qUtf8Printable(p.errorString()));
                 break;
             }
-            nrRestarts_++;
-            emit nrRestartsChanged();
+            emit restarted();
             p.waitForFinished(-1);
         }
         emit finished();
     });
     t.detach();
-}
-
-int ClayRestarter::nrRestarts() const
-{
-    return nrRestarts_;
 }

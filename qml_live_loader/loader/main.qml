@@ -11,4 +11,13 @@ Window {
         source: "file:" + ClayLiveLoader.sandboxFile
         anchors.fill: parent
     }
+
+    KeyValueStorage { id: keyvalues; name: "keyvalues" }
+    Connections {
+        target: ClayLiveLoader
+        onRestarted: {
+            let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
+            keyvalues.set("nrRestarts", r);
+        }
+    }
 }

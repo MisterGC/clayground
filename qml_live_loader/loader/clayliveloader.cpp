@@ -14,6 +14,7 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
             this, &ClayLiveLoader::onFileChanged);
     engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
     engine_.addImportPath("plugins");
+    engine_.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 }
 
 bool ClayLiveLoader::isQmlPlugin(const QString& path) const
@@ -55,6 +56,7 @@ void ClayLiveLoader::onFileChanged(const QString &path)
     setSandboxFile("");
     clearCache();
     setSandboxFile(sbxF);
+    emit restarted();
 }
 
 void ClayLiveLoader::clearCache()

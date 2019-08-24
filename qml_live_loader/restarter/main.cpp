@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QDir>
 
 int main(int argc, char *argv[])
 {
@@ -11,6 +12,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion("0.1");
 
     QQmlApplicationEngine engine;
+    engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     ClayRestarter restarter;
     engine.rootContext()->setContextProperty("ClayRestarter", &restarter);

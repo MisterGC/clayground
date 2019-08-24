@@ -25,6 +25,7 @@ public:
 signals:
     void sandboxFileChanged();
     void sandboxDirChanged();
+    void restarted();
 
 private slots:
     void onFileChanged(const QString& path);
