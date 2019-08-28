@@ -7,6 +7,13 @@
 ClayRestarter::ClayRestarter(QObject *parent): QObject(parent)
 {}
 
+ClayRestarter::~ClayRestarter()
+{
+   shallStop_ = true;
+   std::unique_lock<std::mutex> ul(mutex_);
+   restarterStopped_.wait(ul);
+}
+
 void ClayRestarter::run()
 {
     std::thread t([this] {
@@ -21,9 +28,18 @@ void ClayRestarter::run()
                 break;
             }
             emit restarted();
-            p.waitForFinished(-1);
+            bool ps = false;
+            while (!ps) {
+                ps = p.waitForFinished(500);
+                if (shallStop_) {
+                    std::lock_guard<std::mutex> l(mutex_);
+                    p.kill();
+                    p.waitForFinished();
+                    restarterStopped_.notify_one();
+                    return;
+                }
+            }
         }
-        emit finished();
     });
     t.detach();
 }

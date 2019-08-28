@@ -4,10 +4,12 @@ import QtQuick.Window 2.12
 Window {
     id: theWindow
     visible: true
-    width: Screen.desktopAvailableWidth * .2
-    height: width * .33
+    x: Screen.desktopAvailableWidth * .01
+    y: Screen.desktopAvailableHeight * .01
+    width: Screen.desktopAvailableWidth * .32
+    height: Screen.desktopAvailableHeight * .2
     title: qsTr("Clay Dev Session")
-    flags: Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
+    flags: Qt.WindowStaysOnTopHint
     opacity: .95
 
     property int sessionTimMs: 0
