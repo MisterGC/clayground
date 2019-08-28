@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
+import QtQuick.Controls 2.5
 
 Window {
     id: theWindow
@@ -20,10 +21,11 @@ Window {
     Timer {
         running: true
         repeat: true
-        interval: 1000
+        interval: 500
         onTriggered: {
             sessionTimMs += interval
             nrRestarts = keyvalues.get("nrRestarts", 0)
+            lastErrorMsg.text = keyvalues.get("lastErrorMsg", 0)
         }
     }
 
@@ -35,18 +37,36 @@ Window {
         return h + ":" + m + ":" + s;
     }
 
-    Column {
-        anchors.centerIn: parent
+    Row {
+        id: stats
+        anchors.horizontalCenter: parent.horizontalCenter
         Text {
             text: _msToTime(sessionTimMs)
-            font.pixelSize: theWindow.height * .5
+            font.pixelSize: theWindow.height * .25
         }
         Text {
+            anchors.verticalCenter: parent.verticalCenter
             text: "#Restarts: " + nrRestarts
         }
     }
 
-    KeyValueStorage { id: keyvalues; name: "keyvalues" }
+    Rectangle {
+        anchors.top: stats.bottom
+        color: "black"
+        width: parent.width
+        height: parent.height - stats.height
+        ScrollView {
+            anchors.fill: parent
+            TextArea {
+                id: lastErrorMsg
+                enabled: false
+                color: "orange"
+                wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    KeyValueStorage { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayRestarter
         onRestarted: {

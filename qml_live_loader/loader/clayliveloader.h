@@ -4,6 +4,7 @@
 #include <QFileSystemWatcher>
 #include <QQmlApplicationEngine>
 #include <QMainWindow>
+#include <QSqlDatabase>
 #include <memory>
 #include <map>
 #include <set>
@@ -29,6 +30,7 @@ signals:
 
 private slots:
     void onFileChanged(const QString& path);
+    void onEngineWarnings(const QList<QQmlError>& warnings);
 
 private:
     void setSandboxFile(const QString &path);
@@ -36,12 +38,15 @@ private:
     QString observedDir(const QString &path) const;
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
+    void storeValue(const QString& key, const QString& value);
+    void storeErrors(const QString& errors);
 
 private:
     QQmlApplicationEngine engine_;
     QFileSystemWatcher fileObserver_;
     QString sandboxFile_;
     std::set<QString> dynImportDirs_;
+    QSqlDatabase statsDb_;
 };
 
 #endif

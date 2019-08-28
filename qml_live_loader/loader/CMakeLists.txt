@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt5 COMPONENTS Core Quick QuickWidgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Quick QuickWidgets Sql REQUIRED)
 
 add_executable(${PROJECT_NAME} 
 		main.cpp 
@@ -25,5 +25,6 @@ PRIVATE
   Qt5::Core 
   Qt5::Quick
   Qt5::QuickWidgets
+  Qt5::Sql
 )
 
