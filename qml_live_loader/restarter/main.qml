@@ -4,17 +4,17 @@ import QtQuick.Controls 2.5
 
 Window {
     id: theWindow
+
     visible: true
     x: Screen.desktopAvailableWidth * .01
     y: Screen.desktopAvailableHeight * .01
     width: Screen.desktopAvailableWidth * .32
     height: Screen.desktopAvailableHeight * .2
     title: qsTr("Clay Dev Session")
-    flags: Qt.WindowStaysOnTopHint
     opacity: .95
 
-    property int sessionTimMs: 0
     property int nrRestarts: 0
+    property string currError: ""
 
     Component.onCompleted: keyvalues.set("nrRestarts", 0);
 
@@ -23,45 +23,89 @@ Window {
         repeat: true
         interval: 500
         onTriggered: {
-            sessionTimMs += interval
             nrRestarts = keyvalues.get("nrRestarts", 0)
-            lastErrorMsg.text = keyvalues.get("lastErrorMsg", 0)
+            currError = keyvalues.get("lastErrorMsg", 0)
         }
     }
 
-    function _msToTime(ms) {
-        let f = (val) => {return (val < 10) ? "0" + val : val;};
-        let s = f(Math.floor((ms/1000)%60));
-        let m = f(Math.floor((ms/(1000 * 60))%60));
-        let h = f(Math.floor((ms/(1000 * 60 * 60))));
-        return h + ":" + m + ":" + s;
-    }
-
-    Row {
-        id: stats
-        anchors.horizontalCenter: parent.horizontalCenter
-        Text {
-            text: _msToTime(sessionTimMs)
-            font.pixelSize: theWindow.height * .25
-        }
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "#Restarts: " + nrRestarts
-        }
-    }
-
-    Rectangle {
-        anchors.top: stats.bottom
+    Rectangle
+    {
         color: "black"
-        width: parent.width
-        height: parent.height - stats.height
-        ScrollView {
-            anchors.fill: parent
-            TextArea {
-                id: lastErrorMsg
-                enabled: false
-                color: "orange"
-                wrapMode: Text.WordWrap
+        anchors.fill: parent
+
+        // TODO Utilize Layouts instead of manually tweaking sizes and margins
+        Column {
+            spacing: parent.height * 0.04
+            anchors { top: parent.top; topMargin: spacing}
+
+            Row {
+                anchors { left: parent.left; leftMargin: watch.width * .05}
+                spacing: watch.width * .05
+                SciFiWatch {id: watch; width: theWindow.width * .6 }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        id: lbl
+                        text: "#Restarts"
+                        color: watch.secondsColor
+                        font.pixelSize: watch.height * .20
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: nrRestarts
+                        color: lbl.color
+                        font.pixelSize: lbl.font.pixelSize * 1.8
+                    }
+                }
+            }
+
+            Text {
+                id: briefStatus
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: blinkColor
+                horizontalAlignment: Text.AlignHCenter
+                font.family: "Monospace"
+                font.pixelSize: watch.width * 0.06
+                text: errDetected ? "<b>CRITICAL ERROR</b>" : "All Systems up and running"
+
+                property color blinkColor: errDetected ? "#D64545" : watch.secondsColor
+                property bool errDetected: currError !== ""
+
+                SequentialAnimation on color {
+                    running: briefStatus.errDetected
+                    loops: Animation.Infinite
+                    ColorAnimation {
+                        from: briefStatus.blinkColor
+                        to: Qt.darker(briefStatus.blinkColor, 1.4)
+                        duration: 3000
+                    }
+                    ColorAnimation {
+                        from: Qt.darker(briefStatus.blinkColor, 1.4)
+                        to: briefStatus.blinkColor
+                        duration: 2000
+                    }
+                }
+
+            }
+
+            ScrollView {
+                id: errDetails
+
+                visible: briefStatus.errDetected
+                width: theWindow.width
+                height: theWindow.height * .25
+
+                TextArea {
+                    enabled: false
+                    textFormat: TextEdit.RichText
+                    wrapMode: Text.Wrap
+                    horizontalAlignment:Text.AlignHCenter
+                    width: parent.width
+                    color: briefStatus.blinkColor
+                    text: theWindow.currError
+                    font.family: "Monospace"
+                }
             }
         }
     }

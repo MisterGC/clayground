@@ -100,7 +100,7 @@ void ClayLiveLoader::clearCache()
     engine_.trimComponentCache();
     engine_.clearComponentCache();
     engine_.trimComponentCache();
-    storeErrors("No error");
+    storeErrors("");
 }
 
 

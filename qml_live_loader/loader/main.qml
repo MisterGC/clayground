@@ -7,8 +7,7 @@ Window {
     y: Screen.desktopAvailableHeight * .35
     width: Screen.desktopAvailableWidth * .32
     height: width
-    title: qsTr("Live Qml Coding Sandbox")
-    flags: Qt.WindowStaysOnTopHint
+    title: qsTr("Clay Live Loader")
     Loader {
         width: parent.width
         height: width

@@ -15,6 +15,8 @@ add_executable(${PROJECT_NAME}
 clayrestarter.cpp
 clayrestarter.h
 main.cpp
+PixelProgress.qml
+SciFiWatch.qml
 main.qml
 res.qrc
 )
