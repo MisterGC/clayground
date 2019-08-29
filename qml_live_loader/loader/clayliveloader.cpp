@@ -5,20 +5,49 @@
 #include <QQmlContext>
 #include <QGuiApplication>
 #include <QLibrary>
+#include <QSqlDriver>
+#include <QSqlError>
+#include <QSqlQuery>
 
 ClayLiveLoader::ClayLiveLoader(QObject *parent)
     : QObject(parent),
-      sandboxFile_("")
+      sandboxFile_(""),
+      statsDb_(QSqlDatabase::addDatabase("QSQLITE"))
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
             this, &ClayLiveLoader::onFileChanged);
+    connect(&engine_, &QQmlEngine::warnings,
+            this, &ClayLiveLoader::onEngineWarnings);
     engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
     engine_.addImportPath("plugins");
+    engine_.setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    clearCache();
 }
 
 bool ClayLiveLoader::isQmlPlugin(const QString& path) const
 {
     return QLibrary::isLibrary(path);
+}
+
+void ClayLiveLoader::storeValue(const QString &key, const QString &value)
+{
+   if (!statsDb_.isOpen()) {
+       statsDb_.setDatabaseName(engine_.offlineStorageDatabaseFilePath("clayrtdb") + ".sqlite");
+       if (!statsDb_.open()) qFatal("Cannot access offline storage!");
+   }
+
+   QSqlQuery query;
+   query.prepare("INSERT OR REPLACE INTO keyvalue (key, value) VALUES (:k, :v)");
+   query.bindValue(":k", key);
+   query.bindValue(":v", value);
+   if (!query.exec())
+       qCritical("Failed to update value in database: %s",
+                 qUtf8Printable(query.lastError().text()));
+}
+
+void ClayLiveLoader::storeErrors(const QString &errors)
+{
+   storeValue("lastErrorMsg", errors);
 }
 
 void ClayLiveLoader::addDynImportDir(const QString &path)
@@ -55,6 +84,15 @@ void ClayLiveLoader::onFileChanged(const QString &path)
     setSandboxFile("");
     clearCache();
     setSandboxFile(sbxF);
+    emit restarted();
+}
+
+void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
+{
+   QString errors = "";
+   for (auto& w: warnings)
+       errors += (w.toString() + "\n");
+   storeErrors(errors);
 }
 
 void ClayLiveLoader::clearCache()
@@ -62,6 +100,7 @@ void ClayLiveLoader::clearCache()
     engine_.trimComponentCache();
     engine_.clearComponentCache();
     engine_.trimComponentCache();
+    storeErrors("");
 }
 
 

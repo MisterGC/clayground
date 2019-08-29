@@ -1,16 +1,24 @@
 #include "clayrestarter.h"
 #include <QTimer>
-#include <QCoreApplication>
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QDir>
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
-    QCoreApplication::setApplicationName("ClayRestarter");
-    QCoreApplication::setApplicationVersion("0.1");
+    QGuiApplication app(argc, argv);
+    QGuiApplication::setApplicationName("ClayRestarter");
+    QGuiApplication::setApplicationVersion("0.1");
+
+    QQmlApplicationEngine engine;
+    engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     ClayRestarter restarter;
-    QObject::connect(&restarter, SIGNAL(finished()), &a, SLOT(quit()));
+    engine.rootContext()->setContextProperty("ClayRestarter", &restarter);
+    engine.load(QUrl("qrc:/clayground/main.qml"));
+
     QTimer::singleShot(0, &restarter, SLOT(run()));
 
-    return a.exec();
+    return app.exec();
 }
