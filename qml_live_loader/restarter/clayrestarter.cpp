@@ -3,8 +3,11 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <thread>
+#include <iostream>
 
-ClayRestarter::ClayRestarter(QObject *parent): QObject(parent)
+ClayRestarter::ClayRestarter(QObject *parent):
+    QObject(parent),
+    sbx_(nullptr)
 {}
 
 ClayRestarter::~ClayRestarter()
@@ -19,7 +22,9 @@ void ClayRestarter::run()
     std::thread t([this] {
         const auto loaderCmd = QString("%1/clayliveloader").arg(QCoreApplication::applicationDirPath());
         while(true) {
-            QProcess p;
+            sbx_.reset(new QProcess());
+            auto& p = *sbx_.get();
+            connect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOut);
             p.start(loaderCmd, QCoreApplication::arguments());
             if (!p.waitForStarted(5000)) {
                 const auto err = p.errorString().toStdString();
@@ -42,4 +47,17 @@ void ClayRestarter::run()
         }
     });
     t.detach();
+}
+
+void ClayRestarter::onSbxOut()
+{
+  sbx_->setReadChannel(QProcess::StandardError);
+  auto msgs = sbx_->readAllStandardError();
+  if (!msgs.isEmpty()) {
+      auto isErr = (msgs.startsWith("ERROR") ||
+          msgs.startsWith("WARN") ||
+          msgs.startsWith("FATAL"));
+      if (isErr) qWarning("%s", qUtf8Printable(msgs));
+      else std::cout << msgs.toStdString() << std::endl;
+  }
 }
