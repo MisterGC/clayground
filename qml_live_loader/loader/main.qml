@@ -11,7 +11,13 @@ Window {
     Loader {
         width: parent.width
         height: width
-        source: "file:" + ClayLiveLoader.sandboxFile
+        property bool available: ClayLiveLoader.sandboxFile.length >
+                                 ClayLiveLoader.sandboxDir.length
+        source: available ? "file:" + ClayLiveLoader.sandboxFile : ""
+        onSourceChanged: {
+            if (source.length > 0)
+                item.forceActiveFocus();
+        }
     }
 
     KeyValueStorage { id: keyvalues; name: "clayrtdb" }
