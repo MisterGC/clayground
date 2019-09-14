@@ -96,6 +96,9 @@ void ClayLiveLoader::onTimeToRestart()
 void ClayLiveLoader::onFileChanged(const QString &path)
 {
     if (isQmlPlugin(path)) QGuiApplication::quit();
+    // Use timer to trigger restart
+    // so that multiple changes within a (very) short
+    // period of time don't cause multiple restarts
     reload_.start(100);
 }
 
