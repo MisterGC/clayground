@@ -2,6 +2,7 @@
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QDebug>
+#include <QtGlobal>
 
 ClayFileSysObserver::ClayFileSysObserver(QObject *parent) : QObject(parent)
 {
@@ -17,10 +18,10 @@ void ClayFileSysObserver::observeDir(const QString &path)
         auto msg = QString("Dir %1 doesn't exist.").arg(path).toStdString();
         qFatal("%s", msg.c_str());
     }
-    onDirChanged(path);
+    syncWithDir(path, true);
 }
 
-void ClayFileSysObserver::onDirChanged(const QString &path)
+void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
 {
     auto& fo = fileObserver_;
     if (QDir(path).exists())
@@ -31,19 +32,31 @@ void ClayFileSysObserver::onDirChanged(const QString &path)
             it.next();
             auto fp = it.filePath();
             if (allFiles.contains(fp)) continue;
-            fo.addPath(fp);
-            emit fileAdded(fp);
+            if (!fo.addPath(fp))
+                qCritical("Path %s couldn't be added for observation!",
+                          qUtf8Printable(fp));
+            if (!initial) emit fileAdded(fp);
         }
     }
     else
         fo.removePath(path);
 }
 
+void ClayFileSysObserver::onDirChanged(const QString &path)
+{
+    syncWithDir(path);
+}
+
 void ClayFileSysObserver::onFileChanged(const QString &path)
 {
     auto fi = QFileInfo(path);
-    if (fi.exists())
+    if (fi.exists()) {
         emit fileChanged(path);
+
+        // Workaround bug on Linux file observation
+        // otherwise further changes won't retrigger
+        fileObserver_.addPath(path);
+    }
     else {
         fileObserver_.removePath(path);
         emit fileRemoved(path);

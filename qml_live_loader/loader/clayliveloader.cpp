@@ -1,26 +1,36 @@
 #include "clayliveloader.h"
-#include <QDirIterator>
-#include <QFileInfo>
 #include <QDebug>
-#include <QQmlContext>
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QLibrary>
+#include <QQmlContext>
 #include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QThread>
 
 ClayLiveLoader::ClayLiveLoader(QObject *parent)
     : QObject(parent),
       sandboxFile_(""),
-      statsDb_(QSqlDatabase::addDatabase("QSQLITE"))
+      statsDb_(QSqlDatabase::addDatabase("QSQLITE")),
+      reload_(this)
 {
-    connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
-            this, &ClayLiveLoader::onFileChanged);
-    connect(&engine_, &QQmlEngine::warnings,
-            this, &ClayLiveLoader::onEngineWarnings);
+    using Cll = ClayLiveLoader;
+    using Cfo = ClayFileSysObserver;
+
+    connect(&fileObserver_, &Cfo::fileChanged, this, &Cll::onFileChanged);
+    connect(&fileObserver_, &Cfo::fileAdded, this, &Cll::onFileAdded);
+    connect(&fileObserver_, &Cfo::fileRemoved, this, &Cll::onFileRemoved);
+    connect(&engine_, &QQmlEngine::warnings, this, &Cll::onEngineWarnings);
+
     engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
     engine_.addImportPath("plugins");
     engine_.setOfflineStoragePath(QDir::homePath() + "/.clayground");
+
+    reload_.setSingleShot(true);
+    connect(&reload_, &QTimer::timeout, this, &Cll::onTimeToRestart);
+
     clearCache();
 }
 
@@ -66,8 +76,7 @@ void ClayLiveLoader::addDynImportDir(const QString &path)
     if (!engine_.importPathList().contains(path))
         engine_.addImportPath(path);
 
-    dynImportDirs_.insert(path);
-    resyncOnDemand(path);
+    fileObserver_.observeDir(path);
 }
 
 void ClayLiveLoader::show()
@@ -75,16 +84,29 @@ void ClayLiveLoader::show()
     engine_.load(QUrl("qrc:/clayground/main.qml"));
 }
 
-void ClayLiveLoader::onFileChanged(const QString &path)
+void ClayLiveLoader::onTimeToRestart()
 {
-    if (isQmlPlugin(path)) QGuiApplication::quit();
-
-    resyncOnDemand(path);
     const auto sbxF = sandboxFile();
     setSandboxFile("");
     clearCache();
     setSandboxFile(sbxF);
     emit restarted();
+}
+
+void ClayLiveLoader::onFileChanged(const QString &path)
+{
+    if (isQmlPlugin(path)) QGuiApplication::quit();
+    reload_.start(100);
+}
+
+void ClayLiveLoader::onFileAdded(const QString &path)
+{
+    onFileChanged(path);
+}
+
+void ClayLiveLoader::onFileRemoved(const QString &path)
+{
+    onFileChanged(path);
 }
 
 void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
@@ -97,42 +119,12 @@ void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
 
 void ClayLiveLoader::clearCache()
 {
+    engine_.collectGarbage();
     engine_.trimComponentCache();
     engine_.clearComponentCache();
-    engine_.trimComponentCache();
     storeErrors("");
 }
 
-
-QString ClayLiveLoader::observedDir(const QString& path) const
-{
-    for (auto& dir: dynImportDirs_) if (path.startsWith(dir)) return dir;
-    return "";
-}
-
-void ClayLiveLoader::resyncOnDemand(const QString& path)
-{
-    auto& fo = fileObserver_;
-    auto oDir = observedDir(path);
-    if (QDir(path).exists())
-    {
-        for (auto& f: fo.files())
-            if (f.startsWith(oDir)) fo.removePath(f);
-        QDirIterator it(oDir, QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            it.next();
-            auto fp = it.filePath();
-            fo.addPath(fp);
-        }
-    }
-    else if (QFileInfo(path).exists())
-    {
-        // Workaround bug on Linux file observation
-        // otherwise further changes won't retrigger
-        fo.removePath(path);
-        fo.addPath(path);
-    }
-}
 
 QString ClayLiveLoader::sandboxFile() const
 {

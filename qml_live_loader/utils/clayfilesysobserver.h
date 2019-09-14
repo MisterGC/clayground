@@ -23,6 +23,9 @@ private slots:
     void onDirChanged(const QString& path);
 
 private:
+    void syncWithDir(const QString &path, bool initial = false);
+
+private:
     QFileSystemWatcher fileObserver_;
 };
 
