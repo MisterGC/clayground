@@ -64,7 +64,8 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
 
 void SvgInspector::resetFileObservation()
 {
-    fileObserver_.removePaths(fileObserver_.files());
+    if (!fileObserver_.files().isEmpty())
+        fileObserver_.removePaths(fileObserver_.files());
     fileObserver_.addPath(source_);
 }
 
