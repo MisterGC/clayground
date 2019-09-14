@@ -1,14 +1,7 @@
 #include <QApplication>
-#include <QQmlApplicationEngine>
-#include <QFileSystemWatcher>
 #include <QDir>
 #include <QCommandLineParser>
-#include <QQmlApplicationEngine>
-#include <QVariant>
-#include <QMetaObject>
 #include <QDebug>
-#include <QtQuickWidgets/QQuickWidget>
-#include <QMainWindow>
 #include "clayliveloader.h"
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
@@ -68,6 +61,7 @@ void customHandler(QtMsgType type, const QMessageLogContext &context, const QStr
 int main(int argc, char *argv[])
 {
     qInstallMessageHandler(customHandler);
+
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
