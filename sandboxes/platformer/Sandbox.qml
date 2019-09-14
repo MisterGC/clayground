@@ -52,7 +52,7 @@ CoordCanvas
             let cfg = JSON.parse(description);
             let compStr = cfg["component"];
             let comp = Qt.createComponent(compStr);
-            let obj = comp.createObject(coordSys, {xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
+            let obj = comp.createObject(coordSys, {world: physicsWorld, xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
             obj.pixelPerUnit = Qt.binding( _ => {return world.pixelPerUnit;} );
             objs.push(obj);
             if (compStr === "Player.qml") {

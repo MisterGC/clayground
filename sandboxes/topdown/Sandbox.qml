@@ -8,7 +8,6 @@ CoordCanvas {
     id: gameWorld
     anchors.fill: parent
     pixelPerUnit: 50
-
     World {
         id: physicsWorld
         gravity: Qt.point(0,0)
@@ -59,7 +58,7 @@ CoordCanvas {
             let cfg = JSON.parse(description);
             let compStr = cfg["component"];
             let comp = Qt.createComponent(compStr);
-            var obj = comp.createObject(coordSys, {xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
+            var obj = comp.createObject(coordSys, {world: physicsWorld, xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
             obj.pixelPerUnit = Qt.binding(function() {return gameWorld.pixelPerUnit;});
             objs.push(obj);
             if (compStr === "Player.qml") {
