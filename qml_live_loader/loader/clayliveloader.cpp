@@ -14,7 +14,8 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
     : QObject(parent),
       sandboxFile_(""),
       statsDb_(QSqlDatabase::addDatabase("QSQLITE")),
-      reload_(this)
+      reload_(this),
+      altMessage_("N/A")
 {
     using Cll = ClayLiveLoader;
     using Cfo = ClayFileSysObserver;
@@ -58,6 +59,19 @@ void ClayLiveLoader::storeValue(const QString &key, const QString &value)
 void ClayLiveLoader::storeErrors(const QString &errors)
 {
    storeValue("lastErrorMsg", errors);
+}
+
+QString ClayLiveLoader::altMessage() const
+{
+    return altMessage_;
+}
+
+void ClayLiveLoader::setAltMessage(const QString &altMessage)
+{
+    if (altMessage != altMessage_) {
+        altMessage_ = altMessage;
+        emit altMessageChanged();
+    }
 }
 
 void ClayLiveLoader::addDynImportDir(const QString &path)

@@ -11,6 +11,7 @@ class ClayLiveLoader: public QObject
     Q_OBJECT
     Q_PROPERTY(QString sandboxFile READ sandboxFile NOTIFY sandboxFileChanged)
     Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
+    Q_PROPERTY(QString altMessage READ altMessage NOTIFY altMessageChanged)
 
 public:
     explicit ClayLiveLoader(QObject *parent = nullptr);
@@ -19,10 +20,13 @@ public:
     QString sandboxDir() const;
     void addDynImportDir(const QString& path);
     void show();
+    QString altMessage() const;
+    void setAltMessage(const QString &altMessage);
 
 signals:
     void sandboxFileChanged();
     void sandboxDirChanged();
+    void altMessageChanged();
     void restarted();
 
 private slots:
@@ -45,6 +49,7 @@ private:
     QString sandboxFile_;
     QSqlDatabase statsDb_;
     QTimer reload_;
+    QString altMessage_;
 };
 
 #endif

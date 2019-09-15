@@ -8,18 +8,27 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
     QCommandLineParser parser;
 
-    const QString DYN_IMPORT_DIR = "dynimportdir";
-    parser.addOption({DYN_IMPORT_DIR,
+    const QString DYN_IMPORT_DIR_ARG = "dynimportdir";
+    parser.addOption({DYN_IMPORT_DIR_ARG,
                       "Adds a directory that contains parts of a QML App that ."
                       "may change while the app is running. This can be a part "
                       "with used QML files as well as a dir containing a plugin.",
                       "directory",
                       "<working directory>"});
 
+    const QString MESSAGE_ARG = "message";
+    parser.addOption({MESSAGE_ARG,
+                      "When this arg is set, the specified message is shown instead of "
+                      "of loading any Sandbox, all dynamic import directories are ignored in this case too.",
+                      "N/A"});
+
     parser.process(app);
-    if (parser.isSet(DYN_IMPORT_DIR))
-    {
-        for (auto& val: parser.values(DYN_IMPORT_DIR))
+    if (parser.isSet(MESSAGE_ARG)) {
+        auto msg = parser.value(MESSAGE_ARG);
+        loader.setAltMessage(msg);
+    }
+    else if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
+        for (auto& val: parser.values(DYN_IMPORT_DIR_ARG))
         {
             QDir dir(val);
             if (!dir.exists()) parser.showHelp(1);
@@ -28,10 +37,8 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
         }
     }
     else
-    {
-        // TODO Set current working directory
-        // as import dir
-    }
+        qCritical("Neither message mode is activate nor "
+                  "import directory is specified.");
 }
 
 void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
