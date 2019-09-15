@@ -7,6 +7,7 @@
 
 ClayRestarter::ClayRestarter(QObject *parent):
     QObject(parent),
+    shallStop_(false),
     sbx_(nullptr)
 {}
 

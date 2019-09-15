@@ -3,6 +3,7 @@
 #include <QObject>
 #include <condition_variable>
 #include <mutex>
+#include <atomic>
 #include <QProcess>
 #include <memory>
 
@@ -26,7 +27,7 @@ signals:
 private:
     std::mutex mutex_;
     std::condition_variable restarterStopped_;
-    bool shallStop_ = false;
+    std::atomic_bool shallStop_;
     std::unique_ptr<QProcess> sbx_;
 };
 #endif
