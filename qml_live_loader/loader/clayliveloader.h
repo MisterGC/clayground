@@ -19,6 +19,7 @@ public:
     QString sandboxFile() const;
     QString sandboxDir() const;
     void addDynImportDir(const QString& path);
+    void addDynPluginDir(const QString& path);
     void show();
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);

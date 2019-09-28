@@ -93,6 +93,12 @@ void ClayLiveLoader::addDynImportDir(const QString &path)
     fileObserver_.observeDir(path);
 }
 
+void ClayLiveLoader::addDynPluginDir(const QString &path)
+{
+    if (!engine_.importPathList().contains(path))
+        engine_.addImportPath(path);
+}
+
 void ClayLiveLoader::show()
 {
     engine_.load(QUrl("qrc:/clayground/main.qml"));

@@ -23,7 +23,8 @@ res.qrc
 
 target_link_libraries(${PROJECT_NAME}
 PRIVATE 
-  Qt5::Core 
+  clayutilities
+  Qt5::Core
   Qt5::Quick
   Qt5::QuickWidgets
   Threads::Threads

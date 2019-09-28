@@ -1,44 +1,46 @@
+#include "utilityfunctions.h"
+#include "clayliveloader.h"
 #include <QApplication>
 #include <QDir>
 #include <QCommandLineParser>
 #include <QDebug>
-#include "clayliveloader.h"
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
     QCommandLineParser parser;
-
-    const QString DYN_IMPORT_DIR_ARG = "dynimportdir";
-    parser.addOption({DYN_IMPORT_DIR_ARG,
-                      "Adds a directory that contains parts of a QML App that ."
-                      "may change while the app is running. This can be a part "
-                      "with used QML files as well as a dir containing a plugin.",
-                      "directory",
-                      "<working directory>"});
-
-    const QString MESSAGE_ARG = "message";
-    parser.addOption({MESSAGE_ARG,
-                      "When this arg is set, the specified message is shown instead of "
-                      "of loading any Sandbox, all dynamic import directories are ignored in this case too.",
-                      "N/A"});
-
+    addCommonArgs(parser);
     parser.process(app);
-    if (parser.isSet(MESSAGE_ARG)) {
+
+    auto isMessageMode = parser.isSet(MESSAGE_ARG);
+    auto isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
+                     parser.isSet(DYN_PLUGIN_ARG);
+    if (isMessageMode) {
         auto msg = parser.value(MESSAGE_ARG);
         loader.setAltMessage(msg);
     }
-    else if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
-        for (auto& val: parser.values(DYN_IMPORT_DIR_ARG))
-        {
-            QDir dir(val);
-            if (!dir.exists()) parser.showHelp(1);
-            qDebug() << "Add import dir." << val;
-            loader.addDynImportDir(val);
+    else if (isSbxMode)
+    {
+        if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
+            for (auto& val: parser.values(DYN_IMPORT_DIR_ARG))
+            {
+                QDir dir(val);
+                if (!dir.exists()) parser.showHelp(1);
+                loader.addDynImportDir(val);
+            }
+        }
+
+        if (parser.isSet(DYN_PLUGIN_ARG)) {
+            for (auto& val: parser.values(DYN_PLUGIN_ARG))
+            {
+                auto dynPlugDirs = val.split(",");
+                if (dynPlugDirs.length() != 2 || !QDir(dynPlugDirs[1]).exists())
+                    parser.showHelp(1);
+                loader.addDynPluginDir(dynPlugDirs[1]);
+            }
         }
     }
     else
-        qCritical("Neither message mode is activate nor "
-                  "import directory is specified.");
+        parser.showHelp(1);
 }
 
 void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)

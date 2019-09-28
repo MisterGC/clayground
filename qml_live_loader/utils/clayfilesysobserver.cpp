@@ -1,10 +1,13 @@
 #include "clayfilesysobserver.h"
+#include "utilityfunctions.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QDebug>
 #include <QtGlobal>
 
-ClayFileSysObserver::ClayFileSysObserver(QObject *parent) : QObject(parent)
+ClayFileSysObserver::ClayFileSysObserver(QObject *parent) :
+    QObject(parent),
+    logCat_(LIVE_LOADER_CAT)
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
             this, &ClayFileSysObserver::onFileChanged);
@@ -35,6 +38,7 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
             if (!fo.addPath(fp))
                 qCritical("Path %s couldn't be added for observation!",
                           qUtf8Printable(fp));
+            qCDebug(logCat_) << "Observing: " << fp;
             if (!initial) emit fileAdded(fp);
         }
     }

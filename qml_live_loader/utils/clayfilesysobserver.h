@@ -2,6 +2,7 @@
 #define CLAYFILESYSOBSERVER_H
 #include <QObject>
 #include <QFileSystemWatcher>
+#include <QLoggingCategory>
 
 class ClayFileSysObserver: public QObject
 {
@@ -27,6 +28,7 @@ private:
 
 private:
     QFileSystemWatcher fileObserver_;
+    QLoggingCategory logCat_;
 };
 
 #endif
