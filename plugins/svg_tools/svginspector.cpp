@@ -29,8 +29,8 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
         auto comp = attribs.value("id").toString().split("-").first();
-        QString customInfo = "";
-        bool ok = xmlReader.readNextStartElement();
+        auto customInfo = QString("");
+        auto ok = xmlReader.readNextStartElement();
         if (ok && xmlReader.name() == "desc") {
             xmlReader.readNext();
             customInfo = xmlReader.text().toString();
@@ -48,8 +48,8 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
         auto y = attribs.value("cy").toFloat();
         auto radius = attribs.value("r").toFloat();
         auto comp = attribs.value("id").toString().split("-").first();
-        QString customInfo = "";
-        bool ok = xmlReader.readNextStartElement();
+        auto customInfo = QString("");
+        auto ok = xmlReader.readNextStartElement();
         if (ok && xmlReader.name() == "desc") {
             xmlReader.readNext();
             customInfo = xmlReader.text().toString();
@@ -64,7 +64,8 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
 
 void SvgInspector::resetFileObservation()
 {
-    fileObserver_.removePaths(fileObserver_.files());
+    if (!fileObserver_.files().isEmpty())
+        fileObserver_.removePaths(fileObserver_.files());
     fileObserver_.addPath(source_);
 }
 
@@ -88,8 +89,8 @@ void SvgInspector::introspect()
 
     // Can be used to avoid reading a further element if
     // logic has not used the current one and dispatching should be done
-    bool currentTokenProcessed = true;
-    QXmlStreamReader::TokenType token = QXmlStreamReader::StartElement;
+    auto currentTokenProcessed = true;
+    auto token = QXmlStreamReader::StartElement;
     while(!xmlReader.atEnd() && !xmlReader.hasError())
     {
         if (currentTokenProcessed) token = xmlReader.readNext();

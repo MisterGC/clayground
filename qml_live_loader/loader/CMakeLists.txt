@@ -22,6 +22,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONF
 
 target_link_libraries(${PROJECT_NAME} 
 PRIVATE 
+  clayutilities
   Qt5::Core 
   Qt5::Quick
   Qt5::QuickWidgets

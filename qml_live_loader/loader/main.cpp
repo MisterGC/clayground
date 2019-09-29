@@ -1,44 +1,46 @@
+#include "utilityfunctions.h"
+#include "clayliveloader.h"
 #include <QApplication>
-#include <QQmlApplicationEngine>
-#include <QFileSystemWatcher>
 #include <QDir>
 #include <QCommandLineParser>
-#include <QQmlApplicationEngine>
-#include <QVariant>
-#include <QMetaObject>
 #include <QDebug>
-#include <QtQuickWidgets/QQuickWidget>
-#include <QMainWindow>
-#include "clayliveloader.h"
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
     QCommandLineParser parser;
-
-    const QString DYN_IMPORT_DIR = "dynimportdir";
-    parser.addOption({DYN_IMPORT_DIR,
-                      "Adds a directory that contains parts of a QML App that ."
-                      "may change while the app is running. This can be a part "
-                      "with used QML files as well as a dir containing a plugin.",
-                      "directory",
-                      "<working directory>"});
-
+    addCommonArgs(parser);
     parser.process(app);
-    if (parser.isSet(DYN_IMPORT_DIR))
+
+    auto isMessageMode = parser.isSet(MESSAGE_ARG);
+    auto isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
+                     parser.isSet(DYN_PLUGIN_ARG);
+    if (isMessageMode) {
+        auto msg = parser.value(MESSAGE_ARG);
+        loader.setAltMessage(msg);
+    }
+    else if (isSbxMode)
     {
-        for (auto& val: parser.values(DYN_IMPORT_DIR))
-        {
-            QDir dir(val);
-            if (!dir.exists()) parser.showHelp(1);
-            qDebug() << "Add import dir." << val;
-            loader.addDynImportDir(val);
+        if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
+            for (auto& val: parser.values(DYN_IMPORT_DIR_ARG))
+            {
+                QDir dir(val);
+                if (!dir.exists()) parser.showHelp(1);
+                loader.addDynImportDir(val);
+            }
+        }
+
+        if (parser.isSet(DYN_PLUGIN_ARG)) {
+            for (auto& val: parser.values(DYN_PLUGIN_ARG))
+            {
+                auto dynPlugDirs = val.split(",");
+                if (dynPlugDirs.length() != 2 || !QDir(dynPlugDirs[1]).exists())
+                    parser.showHelp(1);
+                loader.addDynPluginDir(dynPlugDirs[1]);
+            }
         }
     }
     else
-    {
-        // TODO Set current working directory
-        // as import dir
-    }
+        parser.showHelp(1);
 }
 
 void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -68,6 +70,7 @@ void customHandler(QtMsgType type, const QMessageLogContext &context, const QStr
 int main(int argc, char *argv[])
 {
     qInstallMessageHandler(customHandler);
+
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
