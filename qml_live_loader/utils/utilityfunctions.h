@@ -3,9 +3,27 @@
 #include <QString>
 #include <QCommandLineParser>
 
-const QString DYN_PLUGIN_ARG = "dynplugin";
-const QString DYN_IMPORT_DIR_ARG = "dynimportdir";
-const QString MESSAGE_ARG = "message";
+// HINT:
+// The following arguments are processed by both the ClayRestarter
+// as well as the ClayLiveLoader - have a look at the description
+// to better understand their purpose.
+
+static constexpr const char* DYN_PLUGIN_ARG = "dynplugin";
+static constexpr const char* DYN_PLUGIN_ARG_DESCR =
+                      "Pair of directories specifying source and bin directory of the plugin."
+                      "Format <src-dir>,<bin-dir>. <bin-dir> needs to be the import directory "
+                      "otherwise the Sandbox won't be able to use the plugin.";
+
+static constexpr const char* DYN_IMPORT_DIR_ARG = "dynimportdir";
+static constexpr const char* DYN_IMPORT_DIR_ARG_DESCR =
+                      "Adds a directory that contains parts of a QML App that ."
+                      "may change while the app is running. This can be a part "
+                      "with used QML files as well as a dir containing a plugin.";
+
+static constexpr const char* MESSAGE_ARG = "message";
+static constexpr const char* MESSAGE_ARG_DESCR =
+                      "When this arg is set, the specified message is shown instead of "
+                      "of loading any Sandbox, all dynamic import directories are ignored in this case too.";
 
 static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 

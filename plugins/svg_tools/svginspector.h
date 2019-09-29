@@ -30,9 +30,9 @@ private slots:
 private:
     void introspect();
     void processShape(QXmlStreamReader &reader,
-                       QXmlStreamReader::TokenType &token,
-                       bool &currentTokenProcessed,
-                       const float &heightWu);
+                      QXmlStreamReader::TokenType &token,
+                      bool &currentTokenProcessed,
+                      const float &heightWu);
     void resetFileObservation();
 
 private:
