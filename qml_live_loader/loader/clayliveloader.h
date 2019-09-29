@@ -1,6 +1,6 @@
 #ifndef QML_ENGINE_WRAPPER_H
 #define QML_ENGINE_WRAPPER_H
-#include "clayfilesysobserver.h"
+#include <clayfilesysobserver.h>
 #include <QObject>
 #include <QQmlApplicationEngine>
 #include <QSqlDatabase>

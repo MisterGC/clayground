@@ -1,16 +1,17 @@
 #ifndef CLAY_RESTARTER_H
 #define CLAY_RESTARTER_H 
-#include "clayfilesysobserver.h"
-#include <QObject>
-#include <condition_variable>
-#include <mutex>
-#include <atomic>
-#include <QProcess>
-#include <QTimer>
-#include <QStringList>
+#include <clayfilesysobserver.h>
+
 #include <QLoggingCategory>
-#include <memory>
+#include <QObject>
+#include <QProcess>
+#include <QStringList>
+#include <QTimer>
+#include <atomic>
+#include <condition_variable>
 #include <map>
+#include <memory>
+#include <mutex>
 
 class ClayRestarter: public QObject 
 {

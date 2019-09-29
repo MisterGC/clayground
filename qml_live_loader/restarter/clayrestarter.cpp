@@ -1,11 +1,12 @@
 #include "clayrestarter.h"
 #include <utilityfunctions.h>
-#include <QProcess>
+
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
-#include <thread>
+#include <QProcess>
 #include <iostream>
+#include <thread>
 
 ClayRestarter::ClayRestarter(QObject *parent):
     QObject(parent),
@@ -68,7 +69,7 @@ void ClayRestarter::run()
                 break;
             }
             emit restarted();
-            bool ps = false;
+            auto ps = false;
             while (!ps) {
                 ps = p.waitForFinished(500);
                 if (shallStop_) {
@@ -121,7 +122,7 @@ void ClayRestarter::onFileSysChange(const QString &path)
        auto b = sourceToBuildDir_[sourceDir];
        if (!buildWaitList_.contains(b)) {
            buildWaitList_.append(b);
-           restart_.start(100);
+           restart_.start(RAPID_CHANGE_CATCHTIME);
        }
        qCDebug(logCat_) << "Source dir changed -> wait for build " << p;
    }
@@ -136,7 +137,7 @@ void ClayRestarter::onFileSysChange(const QString &path)
        if (buildWaitList_.contains(binDir)) {
            qCDebug(logCat_) << "Build dir updated " << p;
            buildWaitList_.removeAll(binDir);
-           if (buildWaitList_.empty()) restart_.start(100);
+           if (buildWaitList_.empty()) restart_.start(RAPID_CHANGE_CATCHTIME);
        }
    }
 }
