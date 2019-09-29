@@ -10,6 +10,12 @@ CoordCanvas
     id: world
     anchors.fill: parent
     pixelPerUnit: width / world.worldXMax
+    
+    property bool standaloneApp: false
+    readonly property string map: (standaloneApp ? ":/" : ClayLiveLoader.sandboxDir)
+                         + "/map.svg"
+    readonly property string resPrefix: world.standaloneApp ? "qrc:/" : ""
+
 
     World {
         id: physicsWorld
@@ -36,7 +42,7 @@ CoordCanvas
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: setSource(ClayLiveLoader.sandboxDir + "/map.svg")
+        Component.onCompleted: setSource(world.map)
 
         onBegin: {
             world.viewPortCenterWuX = 0;
@@ -50,16 +56,15 @@ CoordCanvas
 
         onRectangle: {
             let cfg = JSON.parse(description);
-            let compStr = cfg["component"];
+            let compStr = world.resPrefix + cfg["component"];
             let comp = Qt.createComponent(compStr);
             let obj = comp.createObject(coordSys, {world: physicsWorld, xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
             obj.pixelPerUnit = Qt.binding( _ => {return world.pixelPerUnit;} );
             objs.push(obj);
-            if (compStr === "Player.qml") {
+            if (compStr === (world.resPrefix + "Player.qml")) {
                 player = obj;
-                world.viewPortCenterWuX = Qt.binding( _ => {return world.screenXToWorld(player.x);} );
-                world.viewPortCenterWuY = Qt.binding( _ => {return world.screenYToWorld(player.y);} );
-                player.maxXVelo = 5;
+                world.observedItem = player;
+                player.spriteSource = world.resPrefix + "player_animated.png"
             }
         }
     }

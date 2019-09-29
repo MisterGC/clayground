@@ -5,13 +5,15 @@ JnRPlayer
 {
     id: thePlayer
 
+    // Graphics Configuration
+    property string spriteSource: "" 
+
     // Game Mechanics Configuration
     energy: 10000
 
     // Physics Configuration
     maxYVelo: 8
     maxXVelo: 8
-
     categories: Box.Category2
     collidesWith: Box.Category1
     bodyType: Body.Dynamic
@@ -50,7 +52,7 @@ JnRPlayer
                 name: "walk"
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: thePlayer.spriteSource
                 frameCount: 3
                 frameRate: 7
             },
@@ -60,7 +62,7 @@ JnRPlayer
                 frameY: 230
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: thePlayer.spriteSource
                 frameCount: 1
                 frameRate: 1
             },
@@ -69,7 +71,7 @@ JnRPlayer
                 frameY: 230
                 frameWidth: 220
                 frameHeight: 230
-                source: "player_animated.png"
+                source: thePlayer.spriteSource
                 frameCount: 1
                 frameRate: 1
             }
