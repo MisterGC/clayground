@@ -1,10 +1,17 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
 project (sbx_plugin)
-set (CMAKE_INCLUDE_CURRENT_DIR on)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_AUTORCC ON)
+
+find_package(Qt5 COMPONENTS Core Quick REQUIRED)
 
 add_executable (${PROJECT_NAME}
 main.cpp
-Sandbox.qml)
+main.qml
+Sandbox.qml
+res.qrc
+)
 
 set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11
@@ -12,3 +19,8 @@ set_target_properties (${PROJECT_NAME} PROPERTIES
     CXX_EXTENSIONS NO
     )
 
+target_link_libraries(${PROJECT_NAME}
+PRIVATE
+  Qt5::Core
+  Qt5::Quick
+)

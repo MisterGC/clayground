@@ -22,17 +22,12 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#ifndef CLAY_GAMECONTROLLER
-#define CLAY_GAMECONTROLLER 
-#include <QQmlExtensionPlugin>
+import QtQuick 2.12
+import QtQuick.Window 2.12
 
-class ClayGameCtrlPlugin: public QQmlExtensionPlugin 
-{
-    Q_OBJECT
-    Q_PLUGIN_METADATA(IID "com.storytelling-turtle.ClayGameCtrlPlugin")
-
-public:
-    void registerTypes(const char* uri) override;
-};
-#endif
-
+Window {
+    visible: true
+    visibility: Window.Maximized
+    title: qsTr("Platformer")
+    Sandbox { standaloneApp: true; anchors.fill: parent }
+}
