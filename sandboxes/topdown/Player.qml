@@ -8,7 +8,7 @@ VisualizedBoxBody
     bodyType: Body.Dynamic
     color: "#3fa4c8"
     bullet: true
-    property real maxVelo: 12 * opacity
+    property real maxVelo: 25
     categories: Box.Category2
     collidesWith: Box.Category1
     property bool isPlayer: true

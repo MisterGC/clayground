@@ -12,8 +12,8 @@ JnRPlayer
     energy: 10000
 
     // Physics Configuration
-    maxYVelo: 8
-    maxXVelo: 8
+    maxYVelo: 45
+    maxXVelo: 27
     categories: Box.Category2
     collidesWith: Box.Category1
     bodyType: Body.Dynamic

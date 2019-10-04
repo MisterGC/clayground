@@ -9,27 +9,15 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="1000"
-   height="1000"
-   viewBox="0 0 20 20"
+   width="71.561371mm"
+   height="100.79476mm"
+   viewBox="0 0 71.561371 100.79476"
    version="1.1"
-   id="svg8"
+   id="svg1623"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
-   sodipodi:docname="map.svg"
-   style="enable-background:new">
+   sodipodi:docname="map.svg">
   <defs
-     id="defs2">
-    <filter
-       inkscape:collect="always"
-       style="color-interpolation-filters:sRGB"
-       id="filter1177">
-      <feBlend
-         inkscape:collect="always"
-         mode="overlay"
-         in2="BackgroundImage"
-         id="feBlend1179" />
-    </filter>
-  </defs>
+     id="defs1617" />
   <sodipodi:namedview
      id="base"
      pagecolor="#ffffff"
@@ -37,290 +25,152 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2.8284271"
-     inkscape:cx="431.68382"
-     inkscape:cy="145.79788"
-     inkscape:document-units="px"
-     inkscape:current-layer="layer2"
+     inkscape:zoom="1.4"
+     inkscape:cx="4.3795662"
+     inkscape:cy="211.40402"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1304"
+     inkscape:window-width="1920"
+     inkscape:window-height="1012"
      inkscape:window-x="0"
-     inkscape:window-y="64"
+     inkscape:window-y="32"
      inkscape:window-maximized="1"
-     units="px"
-     inkscape:pagecheckerboard="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
      inkscape:snap-global="false">
     <inkscape:grid
        type="xygrid"
-       id="grid2130" />
+       id="grid6135" />
   </sodipodi:namedview>
   <metadata
-     id="metadata5">
+     id="metadata1620">
     <rdf:RDF>
       <cc:Work
          rdf:about="">
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <g
+     inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer2"
-     inkscape:label="Map"
-     style="display:inline;opacity:1;filter:url(#filter1177)">
+     id="layer1"
+     transform="translate(-0.09449405,0.75595238)">
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.27849412;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect1489"
-       width="19.921875"
-       height="0.34"
-       x="0.04125002"
-       y="19.607498">
+       y="96.342812"
+       x="0.036028408"
+       height="3.7235618"
+       width="71.612946"
+       id="rect2172"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.62179309;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1491">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.4468846;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect1511"
-       width="0.36000001"
-       height="19.639999"
-       x="0.070000008"
-       y="0.029994342">
+       y="88.594543"
+       x="20.18437"
+       height="6.0068798"
+       width="5.7736354"
+       id="rect5922"
+       style="opacity:1;fill:#808080;fill-opacity:1;stroke:none;stroke-width:0.20025375;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1515">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5920">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#35387c;fill-opacity:0.39242847;stroke:none;stroke-width:0.89690322;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect830"
-       width="0.71008623"
-       height="1"
-       x="8.6622543"
-       y="18.167986">
+       y="-0.28403923"
+       x="0.036852401"
+       height="99.660851"
+       width="3.5926869"
+       id="rect2172-5"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.72051454;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1478">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
+         id="desc5900-6">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       y="0.0099943327"
-       x="19.59"
-       height="19.58"
-       width="0.36000001"
-       id="rect1500"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.44620147;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="-0.7473883"
+       x="0.035318799"
+       height="3.6629648"
+       width="70.560165"
+       id="rect2172-2"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.61216283;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1498">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       y="0.047498263"
-       x="0.041249987"
-       height="0.34"
-       width="19.921875"
-       id="rect1504"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.27849412;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="-0.7517609"
+       x="68.019913"
+       height="100.16198"
+       width="3.5926869"
+       id="rect2172-5-1"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.72232378;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1502">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-6-2">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.14741476;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect1524"
-       width="5.5818748"
-       height="0.34"
-       x="8.8412504"
-       y="2.6474876">
+       y="20.287712"
+       x="28.019543"
+       height="3.6679494"
+       width="17.148535"
+       id="rect2172-2-0-2"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.30199239;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc1522">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-6">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2393"
-       width="3.4118748"
-       height="0.38"
-       x="6.0812507"
-       y="15.047483">
+       y="35.844028"
+       x="15.870209"
+       height="3.7283809"
+       width="39.732605"
+       id="rect2172-2-0-7"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.46345168;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc2391">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-1">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       y="17.047482"
-       x="3.28125"
-       height="0.38"
-       width="3.4118748"
-       id="rect2397"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="49.991085"
+       x="43.309647"
+       height="3.813956"
+       width="25.100039"
+       id="rect2172-2-0-72"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.37255964;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc2395">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-7">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       y="13.127484"
-       x="2.80125"
-       height="0.38"
-       width="3.4118748"
-       id="rect2401"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="65.329247"
+       x="2.9882162"
+       height="3.6654484"
+       width="36.935108"
+       id="rect2172-2-0-94"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.44305128;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc2399">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-90">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2405"
-       width="3.4118748"
-       height="0.38"
-       x="7.201251"
-       y="11.127486">
+       y="49.846497"
+       x="3.3965809"
+       height="3.8358622"
+       width="21.038553"
+       id="rect2172-2-0-91"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.34206623;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc2403">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-77">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
     <rect
-       y="9.5274878"
-       x="3.6012502"
-       height="0.38"
-       width="3.4118748"
-       id="rect2409"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="81.820953"
+       x="3.3808258"
+       height="3.7449841"
+       width="52.193932"
+       id="rect2172-2-0-3"
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.53236037;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc2407">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.12184277;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2413"
-       width="3.4118748"
-       height="0.38"
-       x="7.201251"
-       y="7.5274887">
-      <desc
-         id="desc2411">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="9.1274881"
-       x="12.001247"
-       height="0.38"
-       width="1.4718747"
-       id="rect2417"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2415">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2421"
-       width="1.4718747"
-       height="0.38"
-       x="14.001245"
-       y="7.5274897">
-      <desc
-         id="desc2419">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="11.527487"
-       x="13.601245"
-       height="0.38"
-       width="1.4718747"
-       id="rect2425"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2423">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2429"
-       width="1.4718747"
-       height="0.38"
-       x="10.801248"
-       y="13.127485">
-      <desc
-         id="desc2427">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="11.127487"
-       x="1.6012489"
-       height="0.38"
-       width="1.4718747"
-       id="rect2433"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2431">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2437"
-       width="1.4718747"
-       height="0.38"
-       x="1.9517514"
-       y="7.6866574">
-      <desc
-         id="desc2435">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="5.8368154"
-       x="4.457818"
-       height="0.38"
-       width="1.4718747"
-       id="rect2441"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2439">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="3.6074901"
-       x="6.4012499"
-       height="0.38"
-       width="1.4718747"
-       id="rect2449"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2447">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="17.927483"
-       x="10.801248"
-       height="0.38"
-       width="0.56187469"
-       id="rect2453"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.04944507;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2451">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.04944507;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2457"
-       width="0.56187469"
-       height="0.38"
-       x="12.321245"
-       y="16.96748">
-      <desc
-         id="desc2455">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="15.647486"
-       x="13.681244"
-       height="0.38"
-       width="0.56187469"
-       id="rect2461"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.04944507;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc2459">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.04944507;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-       id="rect2465"
-       width="0.56187469"
-       height="0.38"
-       x="15.881242"
-       y="14.727487">
-      <desc
-         id="desc2463">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
-    </rect>
-    <rect
-       y="13.287485"
-       x="16.801247"
-       height="0.38"
-       width="1.4718747"
-       id="rect875"
-       style="opacity:1;fill:#898989;fill-opacity:1;stroke:none;stroke-width:0.08002739;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc873">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
   </g>
 </svg>

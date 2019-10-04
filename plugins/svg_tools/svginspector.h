@@ -17,7 +17,7 @@ public slots:
 
 signals:
     void sourceChanged();
-    void begin(float widthWu, float heightWu, int widthPx, int heightPx);
+    void begin(float widthWu, float heightWu);
     void beginGroup(const QString& grpName);
     void rectangle(const QString& componentName, float x, float y, float width, float height, const QString& description);
     void circle(const QString& componentName, float x, float y, float radius, const QString& description);

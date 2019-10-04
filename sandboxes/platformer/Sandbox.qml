@@ -19,7 +19,7 @@ CoordCanvas
 
     World {
         id: physicsWorld
-        gravity: Qt.point(0,4*9.81)
+        gravity: Qt.point(0,15*9.81)
         timeStep: 1/60.0
         pixelsPerMeter: pixelPerUnit
     }

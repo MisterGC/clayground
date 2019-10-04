@@ -101,12 +101,12 @@ void SvgInspector::introspect()
         {
             if (nam == "svg") {
                 auto attribs = xmlReader.attributes();
-                auto widthPx = attribs.value("width").toInt();
-                auto heightPx = attribs.value("height").toInt();
-                auto viewBox = attribs.value("viewBox").toString().split(" ");
-                auto widthWu = viewBox[2].toFloat();
-                heightWu = viewBox[3].toFloat();
-                emit begin(widthWu, heightWu, widthPx, heightPx);
+                auto wAttr = attribs.value("width");
+                if (!wAttr.endsWith("mm")) qCritical() << "Only mm as unit is supported for SVG Inspection.";
+                auto widthWu = static_cast<int>(wAttr.left(wAttr.length()-2).toFloat());
+                auto hAttr = attribs.value("height");
+                heightWu = static_cast<int>(hAttr.left(hAttr.length()-2).toFloat());
+                emit begin(widthWu, heightWu);
             }
             else if (nam == "g") {
                 auto attribs = xmlReader.attributes();
