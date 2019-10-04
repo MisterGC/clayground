@@ -1,4 +1,4 @@
-![Overview about Clayground](res/clayground_overview.png)
+![Clayground Overview](res/clayground_overview.png)
 
 ## Flow, form, create 
 When participating at [Ludum Dare 44](https://ldjam.com) I started to develop
@@ -11,6 +11,8 @@ and QML to rapidly develop apps in a sandbox environment with live loading.
 It provides tools that try both fascilitating learning and allowing more
 focused and faster development by reducing typical build and restart times
 significantly.
+
+![Platformer Screenshot](res/screenshot_platformer.png)
 
 ### Available Plugins
 Clayground comes with a set of plugins that extend Qt capabilities in order to
