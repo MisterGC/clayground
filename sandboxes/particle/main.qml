@@ -3,6 +3,7 @@ import QtQuick.Window 2.12
 
 Window {
     visibility: Window.Maximized
-    title: qsTr("Gui")
+    visible: true
+    title: qsTr("Particle")
     Sandbox { anchors.fill: parent }
 }

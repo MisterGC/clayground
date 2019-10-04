@@ -4,6 +4,6 @@ import QtQuick.Window 2.12
 Window {
     visible: true
     visibility: Window.Maximized
-    title: qsTr("Gui")
+    title: qsTr("Platformer")
     Sandbox { standaloneApp: true; anchors.fill: parent }
 }
