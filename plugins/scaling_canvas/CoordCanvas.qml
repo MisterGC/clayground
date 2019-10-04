@@ -57,42 +57,57 @@ Item {
             viewPortCenterWuY = (worldYMax - worldYMin) * .5;
         }
     }
-    Canvas
-    {
-        id: theUnderlay
+
+    Loader {
+        id: theUnderlayLoader
+
         anchors.fill: parent
-        opacity: 0.0
-        Behavior on opacity { NumberAnimation {duration: 250}}
+        active: false
+        sourceComponent: active ? theUnderlayComp : null
+        function redrawOnDemand() { if (item) item.requestPaint(); }
+    }
 
-        property var ctx: null
-        function coordinateGrid()
+    Component {
+        id: theUnderlayComp
+
+        Canvas
         {
-            ctx.beginPath();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = Qt.rgba(.6,.6,.6,1.);
-            var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
-            var maxX = minX + theWorld.sWidthInWU
-            for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
-                var xCanv = theUnderlay.mapFromItem(theWorld, x, 0).x;
-                ctx.moveTo(xCanv, 0);
-                ctx.lineTo(xCanv, height);
+            id: theUnderlay
+            anchors.fill: parent
+            opacity: 0.0
+            Behavior on opacity { NumberAnimation {duration: 250}}
+            Component.onCompleted: { opacity = 1.0; }
+
+            property var ctx: null
+            function coordinateGrid()
+            {
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = Qt.rgba(.6,.6,.6,1.);
+                var minX = theWorld.worldXMin + (Math.ceil(theWorld.xInWU) - theWorld.xInWU)
+                var maxX = minX + theWorld.sWidthInWU
+                for (var x= theWorld.xToScreen(minX); x <= theWorld.xToScreen(maxX); x+=theWorld.pixelPerUnit) {
+                    var xCanv = theUnderlay.mapFromItem(theWorld, x, 0).x;
+                    ctx.moveTo(xCanv, 0);
+                    ctx.lineTo(xCanv, height);
+                }
+
+                var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
+                var minY = maxY - theWorld.sHeightInWU
+                for (var y=theWorld.yToScreen(maxY); y <= theWorld.yToScreen(minY); y+=theWorld.pixelPerUnit) {
+                    var yCanv = theUnderlay.mapFromItem(theWorld, 0, y).y;
+                    ctx.moveTo(0, yCanv);
+                    ctx.lineTo(width, yCanv);
+                }
+                ctx.stroke();
             }
 
-            var maxY = theWorld.worldYMax + (Math.floor(theWorld.yInWU) - theWorld.yInWU)
-            var minY = maxY - theWorld.sHeightInWU
-            for (var y=theWorld.yToScreen(maxY); y <= theWorld.yToScreen(minY); y+=theWorld.pixelPerUnit) {
-                var yCanv = theUnderlay.mapFromItem(theWorld, 0, y).y;
-                ctx.moveTo(0, yCanv);
-                ctx.lineTo(width, yCanv);
+            onPaint:
+            {
+                ctx = getContext("2d")
+                ctx.reset();
+                coordinateGrid();
             }
-            ctx.stroke();
-        }
-
-        onPaint:
-        {
-            ctx = getContext("2d")
-            ctx.reset();
-            coordinateGrid();
         }
     }
 
@@ -106,7 +121,7 @@ Item {
         property real zoomFactor: 1.0
         property real pixelPerUnit: 50 * deviceScalingFactor * zoomFactor
         Behavior on pixelPerUnit { NumberAnimation {duration: 200}}
-        onPixelPerUnitChanged: { theUnderlay.requestPaint();}
+        onPixelPerUnitChanged: { theUnderlayLoader.redrawOnDemand();}
 
         property real worldXMin: 0
         property real worldXMax:  20
@@ -120,8 +135,8 @@ Item {
         property real viewPortCenterWuX: worldXMin
         property real viewPortCenterWuY: worldYMax
 
-        onXInWUChanged: theUnderlay.requestPaint()
-        onYInWUChanged: theUnderlay.requestPaint()
+        onXInWUChanged: theUnderlayLoader.redrawOnDemand()
+        onYInWUChanged: theUnderlayLoader.redrawOnDemand()
 
         contentWidth: Math.abs(worldXMax - worldXMin) * pixelPerUnit
         contentHeight: Math.abs(worldYMax - worldYMin) * pixelPerUnit
@@ -176,8 +191,8 @@ Item {
                 }
             }
             if (event.key === Qt.Key_Space) {
-                theUnderlay.opacity = theUnderlay.opacity < .5 ? 1. : 0.;
-                theOverlay.opacity = theOverlay.opacity < .5 ? 1. : 0.;
+                theOverlayLoader.active = !theOverlayLoader.active;
+                theUnderlayLoader.active = !theUnderlayLoader.active;
             }
             theWorld.keyPressed(event)
         }
@@ -187,90 +202,97 @@ Item {
 
     }
 
-    Item
-    {
-        id: theOverlay
-        anchors.fill: parent
-        opacity: 0.0
-        Behavior on opacity { NumberAnimation {duration: 250}}
+    Loader {
+        id: theOverlayLoader
+        active: false
+        sourceComponent: active ? theOverlayComp : null
+    }
 
+    Component {
+        id: theOverlayComp
+        Item {
+            id: theOverlay
+            anchors.fill: parent
+            opacity: 0.0
+            Behavior on opacity { NumberAnimation {duration: 250}}
+            Component.onCompleted: { opacity = 1.0; }
+            Text {
 
-        Text {
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width * 1.02
+                    height: parent.height * 1.02
+                    color: "white"
+                    z: -1
+                    opacity: 0.5
+                }
+
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.topMargin: parent.height / 100
+                anchors.leftMargin: anchors.topMargin
+                font.bold: true
+                font.family: "Monospace"
+                color: "#2087c0"
+                text: "D-Scale: " + flckable.deviceScalingFactor.toFixed(2)  + "\n" +
+                      "Zoom:    " + flckable.zoomFactor.toFixed(2)  + "\n" +
+                      "PPU:     " + flckable.pixelPerUnit.toFixed(2)
+            }
 
             Rectangle {
                 anchors.centerIn: parent
-                width: parent.width * 1.02
-                height: parent.height * 1.02
-                color: "white"
-                z: -1
-                opacity: 0.5
-            }
+                border.color: "black"
+                color: Qt.rgba(1., 0, 0, .5)
+                width: 10
+                height: 10
 
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.topMargin: parent.height / 100
-            anchors.leftMargin: anchors.topMargin
-            font.bold: true
-            font.family: "Monospace"
-            color: "#2087c0"
-            text: "D-Scale: " + flckable.deviceScalingFactor.toFixed(2)  + "\n" +
-                  "Zoom:    " + flckable.zoomFactor.toFixed(2)  + "\n" +
-                  "PPU:     " + flckable.pixelPerUnit.toFixed(2)
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            border.color: "black"
-            color: Qt.rgba(1., 0, 0, .5)
-            width: 10
-            height: 10
-
-            Rectangle {
-                opacity: 0.5
-                anchors.centerIn: col
-                width: col.width
-                height: col.height
-            }
-
-            Column {
-                id: col
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.bottom
-                property int xScr: flckable.contentX + flckable.width/2
-                property int yScr: flckable.contentY + flckable.height/2
-
-                Text {
-                    font.family: "Monospace"
-                    color: "#2087c0"
-                    font.bold: true
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "(" + col.xScr +
-                          "|" +
-                          col.yScr + ") / " +
-                          "(" + screenXToWorld(col.xScr).toFixed(2) +
-                          "|" +
-                          screenYToWorld(col.yScr).toFixed(2) + ") "
+                Rectangle {
+                    opacity: 0.5
+                    anchors.centerIn: col
+                    width: col.width
+                    height: col.height
                 }
-                Text {
-                    font.family: "Monospace"
-                    color: "#2087c0"
-                    font.bold: true
+
+                Column {
+                    id: col
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text:
-                        "(" +
-                        (theWorld.xInWU).toFixed(2) +
-                        "|"  +
-                        (theWorld.yInWU).toFixed(2) +
-                        ") -> " +
-                        "(" +
-                        (screenXToWorld(col.xScr + flckable.width/2)).toFixed(2) +
-                        "|"  +
-                        (screenYToWorld(col.yScr + flckable.height/2)).toFixed(2) +
-                        ")"
+                    anchors.top: parent.bottom
+                    property int xScr: flckable.contentX + flckable.width/2
+                    property int yScr: flckable.contentY + flckable.height/2
+
+                    Text {
+                        font.family: "Monospace"
+                        color: "#2087c0"
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text:  "(" + col.xScr +
+                               "|" +
+                               col.yScr + ") / " +
+                               "(" + screenXToWorld(col.xScr).toFixed(2) +
+                               "|" +
+                               screenYToWorld(col.yScr).toFixed(2) + ") "
+                    }
+                    Text {
+                        font.family: "Monospace"
+                        color: "#2087c0"
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text:
+                            "(" +
+                            (theWorld.xInWU).toFixed(2) +
+                            "|"  +
+                            (theWorld.yInWU).toFixed(2) +
+                            ") -> " +
+                            "(" +
+                            (screenXToWorld(col.xScr + flckable.width/2)).toFixed(2) +
+                            "|"  +
+                            (screenYToWorld(col.yScr + flckable.height/2)).toFixed(2) +
+                            ")"
+                    }
                 }
+
             }
 
         }
-
     }
 }
