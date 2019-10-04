@@ -5,9 +5,17 @@ import Clayground.ScalingCanvas 1.0
 import Clayground.GameController 1.0
 
 CoordCanvas {
-    id: gameWorld
+    id: world
     anchors.fill: parent
-    pixelPerUnit: 50
+    pixelPerUnit: width / world.worldXMax
+    width: worldXMax * pixelPerUnit
+    height: worldYMax * pixelPerUnit
+
+    property bool standaloneApp: false
+    readonly property string map: (standaloneApp ? ":/" : ClayLiveLoader.sandboxDir)
+                         + "/map.svg"
+    readonly property string resPrefix: world.standaloneApp ? "qrc:/" : ""
+
     World {
         id: physicsWorld
         gravity: Qt.point(0,0)
@@ -42,29 +50,33 @@ CoordCanvas {
         id: theSvgInspector
         property var objs: []
 
-        Component.onCompleted: setSource(ClayLiveLoader.sandboxDir + "/map.svg")
+        Component.onCompleted: setSource(world.map)
 
         onBegin: {
-            gameWorld.viewPortCenterWuX = 0;
-            gameWorld.viewPortCenterWuY = 0;
-            gameWorld.worldXMax = widthWu;
-            gameWorld.worldYMax = heightWu;
+            console.log("Blub")
+            world.viewPortCenterWuX = 0;
+            world.viewPortCenterWuY = 0;
+            world.worldXMax = widthWu;
+            world.worldYMax = heightWu;
+            console.log("w: " + widthWu + " h: " + heightWu)
             player = null;
             for (let obj of objs) obj.destroy();
             objs = [];
         }
 
         onRectangle: {
+            console.log("Blub")
             let cfg = JSON.parse(description);
-            let compStr = cfg["component"];
+            let compStr = world.resPrefix + cfg["component"];
             let comp = Qt.createComponent(compStr);
-            var obj = comp.createObject(coordSys, {world: physicsWorld, xWu: x, yWu: y, widthWu: width, heightWu: height, color: "black"});
-            obj.pixelPerUnit = Qt.binding(function() {return gameWorld.pixelPerUnit;});
+            console.log("El " + " x: " + x + " y: " + y + " w: " + width + " h: " + height)
+            let obj = comp.createObject(coordSys, {world: physicsWorld, xWu: x, yWu: y, widthWu: width, heightWu: height, color: "#3e1900"});
+            obj.pixelPerUnit = Qt.binding( _ => {return world.pixelPerUnit;} );
             objs.push(obj);
-            if (compStr === "Player.qml") {
-                gameWorld.player = obj;
-                gameWorld.viewPortCenterWuX = Qt.binding( _ => {return gameWorld.screenXToWorld(gameWorld.player.x);} );
-                gameWorld.viewPortCenterWuY = Qt.binding( _ => {return gameWorld.screenYToWorld(gameWorld.player.y);} );
+            if (compStr === (world.resPrefix + "Player.qml")) {
+                player = obj;
+                player.color = "#d45500";
+                world.observedItem = player;
             }
         }
 

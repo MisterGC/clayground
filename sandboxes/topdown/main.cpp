@@ -1,4 +1,13 @@
-int main(int /*argc*/, char* /*argv*/[]) 
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+
+int main(int argc, char *argv[])
 {
-    return 0;
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QGuiApplication app(argc, argv);
+    QQmlApplicationEngine engine;
+    engine.addImportPath(QCoreApplication::applicationDirPath() + "/plugins");
+    engine.load(QUrl("qrc:/main.qml"));
+    return app.exec();
 }
+
