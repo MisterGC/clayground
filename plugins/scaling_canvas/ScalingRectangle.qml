@@ -22,12 +22,18 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#include "scalingcanvasplugin.h"
-#include <QQmlEngine>
+import QtQuick 2.0
 
-void ScalingCanvasPlugin::registerTypes(const char *uri)
-{
-    qmlRegisterType(QUrl("qrc:/clayground/CoordCanvas.qml"),uri, 1,0,"CoordCanvas");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingRectangle.qml"),uri, 1,0,"ScalingRectangle");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingText.qml"),uri, 1,0,"ScalingText");
+Rectangle {
+    property CoordCanvas canvas: null
+    parent: canvas.coordSys
+    property real xWu: 0
+    property real yWu: 0
+    property real widthWu: 0
+    property real heightWu: 0
+
+    x: canvas.xToScreen(xWu)
+    y: canvas.yToScreen(yWu)
+    width: widthWu * canvas.pixelPerUnit
+    height: heightWu * canvas.pixelPerUnit
 }
