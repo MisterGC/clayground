@@ -23,8 +23,9 @@
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
 #include "claygamectrlplugin.h"
+#include <QQmlEngine>
 
-void ClayGameCtrlPlugin::registerTypes(const char* /*uri*/)
+void ClayGameCtrlPlugin::registerTypes(const char* uri)
 {
-    //TODO Register exposed type
+    qmlRegisterType(QUrl("qrc:/clayground/GameController.qml"),uri, 1,0,"GameController");
 }
