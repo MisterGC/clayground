@@ -23,8 +23,10 @@
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
 #include "physicsplugin.h"
+#include <QQmlEngine>
 
-void PhysicsPlugin::registerTypes(const char* /*uri*/)
+void PhysicsPlugin::registerTypes(const char* uri)
 {
-    //TODO Register exposed type
+    qmlRegisterType(QUrl("qrc:/clayground/PhysicsItem.qml"),uri, 1,0,"PhysicsItem");
+    qmlRegisterType(QUrl("qrc:/clayground/VisualizedBoxBody.qml"),uri, 1,0,"VisualizedBoxBody");
 }

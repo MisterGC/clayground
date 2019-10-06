@@ -23,8 +23,11 @@
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
 #include "scalingcanvasplugin.h"
+#include <QQmlEngine>
 
-void ScalingCanvasPlugin::registerTypes(const char * /*uri*/)
+void ScalingCanvasPlugin::registerTypes(const char *uri)
 {
-    //TODO Register exposed type
+    qmlRegisterType(QUrl("qrc:/clayground/CoordCanvas.qml"),uri, 1,0,"CoordCanvas");
+    qmlRegisterType(QUrl("qrc:/clayground/ScalingRectangle.qml"),uri, 1,0,"ScalingRectangle");
+    qmlRegisterType(QUrl("qrc:/clayground/ScalingText.qml"),uri, 1,0,"ScalingText");
 }

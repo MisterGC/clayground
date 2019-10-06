@@ -22,10 +22,18 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#include "claygamectrlplugin.h"
-#include <QQmlEngine>
+import QtQuick 2.0
 
-void ClayGameCtrlPlugin::registerTypes(const char* uri)
-{
-    qmlRegisterType(QUrl("qrc:/clayground/GameController.qml"),uri, 1,0,"GameController");
+Rectangle {
+    property CoordCanvas canvas: null
+    parent: canvas.coordSys
+    property real xWu: 0
+    property real yWu: 0
+    property real widthWu: 0
+    property real heightWu: 0
+
+    x: canvas.xToScreen(xWu)
+    y: canvas.yToScreen(yWu)
+    width: widthWu * canvas.pixelPerUnit
+    height: heightWu * canvas.pixelPerUnit
 }

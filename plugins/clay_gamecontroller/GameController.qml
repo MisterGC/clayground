@@ -46,7 +46,7 @@ Item {
     readonly property bool keyboardSelected: keybGamepad.enabled
 
     /** Selects the specified gamepad as input source */
-    function selectGamepad(gamePadIdx) {
+    function selectGamepad(gamePadIdx, useAnalogAxis) {
         if (gamePadIdx >= 0 &&
             gamePadIdx < GamepadManager.connectedGamepads.length)
         {
@@ -55,8 +55,14 @@ Item {
             vgamepad.enabled = false;
             buttonAPressed = Qt.binding(function() {return gamepad.buttonB;});
             buttonBPressed = Qt.binding(function() {return gamepad.buttonA;});
-            axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
-            axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
+            if (useAnalogAxis) {
+                axisX = Qt.binding(function() {return Math.abs(gamepad.axisLeftX) > .2 ? gamepad.axisLeftX : 0;});
+                axisY = Qt.binding(function() {return Math.abs(gamepad.axisLeftY) > .2 ? -gamepad.axisLeftY : 0;});
+            }
+            else {
+                axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
+                axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
+            }
         }
         else console.error("Invalid game pad index: " + gamePadIdx +
                            " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
