@@ -1,5 +1,6 @@
 project (SvgUtils)
 set (CMAKE_AUTOMOC on)
+set (CMAKE_AUTORCC on)
 
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
@@ -8,6 +9,9 @@ add_library(${PROJECT_NAME} SHARED
     svgutilsplugin.h
     svginspector.cpp
     svginspector.h
+    svgwriter.cpp
+    svgwriter.h
+    res.qrc
     qmldir
 )
 
