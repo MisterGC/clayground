@@ -22,44 +22,29 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#ifndef CLAY_SVG_WRITER_H
-#define CLAY_SVG_WRITER_H 
-#include <QObject>
-#include <QFile>
+import QtQuick 2.12
+import Clayground.ScalingCanvas 1.0
+import Clayground.SvgUtils 1.0
 
-class SvgWriter: public QObject
+CoordCanvas
 {
-    Q_OBJECT
-    Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
+    id: theCanvas
+    anchors.fill: parent
+    pixelPerUnit: 50
+    keyBoardNavigationEnabled: true
 
-public:
-    SvgWriter();
+    worldXMin: 0
+    worldXMax:  10
+    worldYMin: 0
+    worldYMax: 10
 
-public slots:
-    void begin(float widthWu, float heightWu);
+    SvgWriter {
+        path: ClayLiveLoader.sandboxDir + "/../test.svg"
+        Component.onCompleted: {
+            begin(theCanvas.worldXMax - theCanvas.worldXMin,
+                  theCanvas.worldYMax - theCanvas.worldYMin);
+            end();
+        }
 
-    void rectangle(const QString& description,
-                   float x,
-                   float y,
-                   float width,
-                   float height);
-
-    void circle(const QString& description,
-                float x,
-                float y,
-                float radius);
-
-    void end();
-
-signals:
-    void pathChanged();
-
-private:
-    void setPath(const QString& pathToSvg);
-    QString path() const;
-
-private:
-    QString pathToSvg_;
-    QFile svgFile_;
-};
-#endif
+    }
+}

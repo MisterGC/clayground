@@ -26,7 +26,6 @@
 #define populator_plugin_h 
 #include <QQmlExtensionPlugin>
 #include <QQmlEngine>
-#include "svginspector.h"
 
 class SvgUtilsPlugin: public QQmlExtensionPlugin
 {

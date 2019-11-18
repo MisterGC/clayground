@@ -1,4 +1,5 @@
 project (SvgUtils)
+
 set (CMAKE_AUTOMOC on)
 set (CMAKE_AUTORCC on)
 
@@ -11,6 +12,7 @@ add_library(${PROJECT_NAME} SHARED
     svginspector.h
     svgwriter.cpp
     svgwriter.h
+    Sandbox.qml
     res.qrc
     qmldir
 )

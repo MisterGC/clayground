@@ -23,9 +23,12 @@
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
 #include "svgutilsplugin.h"
+#include "svginspector.h"
+#include "svgwriter.h"
 #include <QDebug>
 
 void SvgUtilsPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType<SvgInspector>(uri, 1, 0, "SvgInspector");
+    qmlRegisterType<SvgWriter>(uri, 1, 0, "SvgWriter");
 }

@@ -25,17 +25,28 @@
 #include "svgwriter.h"
 #include <QFile>
 #include <QTextStream>
+#include <QDebug>
 
 SvgWriter::SvgWriter()
 {}
 
-void SvgWriter::begin(float /*widthWu*/, float /*heightWu*/)
+void SvgWriter::begin(float widthWu, float heightWu)
 {
-    QFile f("qrc://clayground-internal/svgintro.txt");
-    if ( f.open(QIODevice::ReadOnly)) {
-        QTextStream str(&f);
-        auto c = str.readAll();
+    QFile f("://clayground_internal/svgintro.txt");
+    auto ok = f.open(QIODevice::ReadOnly);
+    QTextStream str(&f);
+    auto c = str.readAll()
+            .arg(static_cast<double>(widthWu))
+            .arg(static_cast<double>(heightWu));
+
+    if (svgFile_.open(QIODevice::WriteOnly)) {
+       QTextStream strOut(&svgFile_);
+       strOut << c;
     }
+    else
+        qCritical() << "Cannot open file with path "
+                    << svgFile_.fileName()
+                    << svgFile_.errorString();
 }
 
 void SvgWriter::rectangle(const QString &/*description*/,
@@ -57,9 +68,26 @@ void SvgWriter::circle(const QString &/*description*/,
 
 void SvgWriter::end()
 {
-    QFile f("qrc://clayground-internal/svgoutro.txt");
-    if ( f.open(QIODevice::ReadOnly)) {
-        QTextStream str(&f);
-        auto c = str.readAll();
+    QFile f("://clayground_internal/svgoutro.txt");
+    f.open(QIODevice::ReadOnly);
+    QTextStream str(&f);
+    auto c = str.readAll();
+    QTextStream strOut(&svgFile_);
+    strOut << c;
+    svgFile_.close();
+}
+
+void SvgWriter::setPath(const QString& pathToSvg)
+{
+    if (pathToSvg != pathToSvg_) {
+        pathToSvg_ = pathToSvg;
+        if (svgFile_.isOpen()) svgFile_.close();
+        svgFile_.setFileName(pathToSvg_);
+        emit pathChanged();
     }
+}
+
+QString SvgWriter::path() const
+{
+    return pathToSvg_;
 }
