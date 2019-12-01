@@ -43,6 +43,7 @@ CoordCanvas
         Component.onCompleted: {
             begin(theCanvas.worldXMax - theCanvas.worldXMin,
                   theCanvas.worldYMax - theCanvas.worldYMin);
+            rectangle("test", "{\"component\":\"Test.qml\"}", 5, 5, 2.5, 2.5);
             end();
         }
 

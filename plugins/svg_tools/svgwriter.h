@@ -38,7 +38,7 @@ public:
 public slots:
     void begin(float widthWu, float heightWu);
 
-    void rectangle(const QString& description,
+    void rectangle(const QString &id, const QString& description,
                    float x,
                    float y,
                    float width,

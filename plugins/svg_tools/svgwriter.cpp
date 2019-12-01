@@ -49,13 +49,41 @@ void SvgWriter::begin(float widthWu, float heightWu)
                     << svgFile_.errorString();
 }
 
-void SvgWriter::rectangle(const QString &/*description*/,
-                          float /*x*/,
-                          float /*y*/,
-                          float /*width*/,
-                          float /*height*/)
+void SvgWriter::rectangle(const QString& id,
+                          const QString &description,
+                          float x,
+                          float y,
+                          float width,
+                          float height)
 {
-    // TODO
+    auto rect = QString(R"(
+<rect
+    x="%1"
+    y="%2"
+    width="%3"
+    height="%4"
+    id="%5"
+    style="opacity:1;
+           fill:#cccccc;
+           fill-opacity:1;
+           stroke:none;
+           stroke-width:0.62179309;
+           stroke-miterlimit:4;
+           stroke-dasharray:none;
+           stroke-dashoffset:0;
+           stroke-opacity:1">
+    <desc>%6</desc>
+</rect>
+)")
+            .arg(static_cast<double>(x))
+            .arg(static_cast<double>(y))
+            .arg(static_cast<double>(width))
+            .arg(static_cast<double>(height))
+            .arg(id)
+            .arg(description.toHtmlEscaped());
+
+    QTextStream strOut(&svgFile_);
+    strOut << rect;
 }
 
 void SvgWriter::circle(const QString &/*description*/,
