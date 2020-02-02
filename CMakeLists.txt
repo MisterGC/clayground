@@ -9,6 +9,7 @@ set(CLAY_PLUGIN_BASE_DIR ${CMAKE_BINARY_DIR}/bin/plugins/Clayground)
 add_subdirectory (qml_live_loader)
 add_subdirectory (plugins)
 add_subdirectory (thirdparty/qml-box2d)
+add_subdirectory (thirdparty/simple-svg-writer)
 
 add_subdirectory (sandboxes/gui)
 add_subdirectory (sandboxes/particle)

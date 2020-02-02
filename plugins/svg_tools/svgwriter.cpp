@@ -23,12 +23,20 @@
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
 #include "svgwriter.h"
+#include <simple-svg-writer/simple_svg.h>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
 
-SvgWriter::SvgWriter()
+class SvgWriter::SvgWriterImpl
+{
+    // TODO
+};
+
+SvgWriter::SvgWriter() : impl_(new SvgWriterImpl)
 {}
+
+SvgWriter::~SvgWriter() = default;
 
 void SvgWriter::begin(float widthWu, float heightWu)
 {

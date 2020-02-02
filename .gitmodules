@@ -1,3 +1,6 @@
 [submodule "thirdparty/qml-box2d"]
 	path = thirdparty/qml-box2d
 	url = https://github.com/MisterGC/qml-box2d.git
+[submodule "thirdparty/simple-svg-writer"]
+	path = thirdparty/simple-svg-writer
+	url = https://github.com/MisterGC/simple-svg-writer.git

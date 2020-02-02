@@ -24,8 +24,10 @@
  */
 #ifndef CLAY_SVG_WRITER_H
 #define CLAY_SVG_WRITER_H 
+
 #include <QObject>
 #include <QFile>
+#include <memory>
 
 class SvgWriter: public QObject
 {
@@ -34,6 +36,7 @@ class SvgWriter: public QObject
 
 public:
     SvgWriter();
+    ~SvgWriter();
 
 public slots:
     void begin(float widthWu, float heightWu);
@@ -59,6 +62,9 @@ private:
     QString path() const;
 
 private:
+    class SvgWriterImpl;
+    std::unique_ptr<SvgWriterImpl> impl_;
+
     QString pathToSvg_;
     QFile svgFile_;
 };
