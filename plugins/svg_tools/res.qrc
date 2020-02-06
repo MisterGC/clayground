@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/clayground_internal">
-        <file>svgintro.txt</file>
-        <file>svgoutro.txt</file>
-    </qresource>
-</RCC>
-

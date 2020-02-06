@@ -39,13 +39,25 @@ CoordCanvas
     worldYMax: 10
 
     SvgWriter {
+        id: theWriter
         path: ClayLiveLoader.sandboxDir + "/../test.svg"
         Component.onCompleted: {
             begin(theCanvas.worldXMax - theCanvas.worldXMin,
                   theCanvas.worldYMax - theCanvas.worldYMin);
             rectangle("test", "{\"component\":\"Test.qml\"}", 5, 5, 2.5, 2.5);
+            rectangle("test", "{\"component\":\"Test.qml\"}", 5, 5, 2.5, 2.5);
             end();
         }
 
+    }
+
+    SvgInspector
+    {
+        id: theSvgInspector
+        property var objs: []
+
+        Component.onCompleted: setSource(theWriter.path)
+        onBegin: { console.log("Begin") }
+        onRectangle: { console.log("Rectangle") }
     }
 }

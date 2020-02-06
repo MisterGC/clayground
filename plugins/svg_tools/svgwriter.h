@@ -29,6 +29,8 @@
 #include <QFile>
 #include <memory>
 
+namespace simple_svg {class Document;}
+
 class SvgWriter: public QObject
 {
     Q_OBJECT
@@ -42,10 +44,10 @@ public slots:
     void begin(float widthWu, float heightWu);
 
     void rectangle(const QString &id, const QString& description,
-                   float x,
-                   float y,
-                   float width,
-                   float height);
+                   double x,
+                   double y,
+                   double width,
+                   double height);
 
     void circle(const QString& description,
                 float x,
@@ -62,10 +64,7 @@ private:
     QString path() const;
 
 private:
-    class SvgWriterImpl;
-    std::unique_ptr<SvgWriterImpl> impl_;
-
+    std::unique_ptr<simple_svg::Document> document_;
     QString pathToSvg_;
-    QFile svgFile_;
 };
 #endif

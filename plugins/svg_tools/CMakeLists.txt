@@ -13,7 +13,6 @@ add_library(${PROJECT_NAME} SHARED
     svgwriter.cpp
     svgwriter.h
     Sandbox.qml
-    res.qrc
     qmldir
 )
 
