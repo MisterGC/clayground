@@ -41,15 +41,25 @@ CoordCanvas
     SvgWriter {
         id: theWriter
         path: ClayLiveLoader.sandboxDir + "/../test.svg"
-        Component.onCompleted: {
+
+        Component.onCompleted:
+        {
             begin(theCanvas.worldXMax - theCanvas.worldXMin,
                   theCanvas.worldYMax - theCanvas.worldYMin);
-            rectangle("test", "{\"component\":\"Test.qml\"}", 5, 5, 2.5, 2.5);
-            rectangle("test", "{\"component\":\"Test.qml\"}", 5, 5, 2.5, 2.5);
+
+            let rcomp = JSON.stringify({component: "MyRect.qml"});
+            rectangle(5, 6, 2.5, 2.5, rcomp)
+
+            let ccomp = JSON.stringify({component: "MyCircle.qml"});
+            circle(1.5, 1, 1, ccomp)
+            circle(3.5, 3, 1, ccomp)
+
             end();
         }
 
     }
+
+    Component {id: theRect; ScalingRectangle {}}
 
     SvgInspector
     {
@@ -57,7 +67,34 @@ CoordCanvas
         property var objs: []
 
         Component.onCompleted: setSource(theWriter.path)
-        onBegin: { console.log("Begin") }
-        onRectangle: { console.log("Rectangle") }
+        onBegin: {
+            for (let obj of objs) obj.destroy();
+            objs = [];
+        }
+
+        onRectangle: {
+            console.log("A rectangle: " + description)
+            let obj = theRect.createObject(theCanvas,
+                                           {canvas: theCanvas,
+                                            color: "black",
+                                            xWu:x,
+                                            yWu:y,
+                                            widthWu:width,
+                                            heightWu:height });
+            objs.push(obj);
+        }
+
+        onCircle: {
+            console.log("A circle: " + description)
+            let obj = theRect.createObject(theCanvas,
+                                           {canvas: theCanvas,
+                                            color: "black",
+                                            xWu:x - radius,
+                                            yWu:y + radius,
+                                            widthWu: 2 * radius,
+                                            heightWu: 2 * radius,
+                                            radius: width * .5 });
+            objs.push(obj);
+        }
     }
 }

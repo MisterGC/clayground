@@ -43,16 +43,14 @@ public:
 public slots:
     void begin(float widthWu, float heightWu);
 
-    void rectangle(const QString &id, const QString& description,
-                   double x,
+    void rectangle(double x,
                    double y,
                    double width,
-                   double height);
+                   double height, const QString& description);
 
-    void circle(const QString& description,
-                float x,
-                float y,
-                float radius);
+    void circle(double x,
+                double y,
+                double radius, const QString& description);
 
     void end();
 

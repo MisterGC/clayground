@@ -41,24 +41,28 @@ void SvgWriter::begin(float widthWu, float heightWu)
     Dimensions dimensions(static_cast<double>(widthWu),
                           static_cast<double>(heightWu));
     document_.reset(new Document(pathToSvg_.toStdString(),
-                                 Layout(dimensions, Layout::BottomLeft)));
+                                 Layout(dimensions, Layout::mm, Layout::BottomLeft)));
 }
 
-void SvgWriter::rectangle(const QString& id,
-                          const QString &description,
-                          double x,
+void SvgWriter::rectangle(double x,
                           double y,
                           double width,
-                          double height)
+                          double height,
+                          const QString &description)
 {
-    *document_ << Rectangle(Point(x, y), width, height, Color::Black);
+    auto r = Rectangle(Point(x, y), width, height, Color::Black);
+    r.setDescription(description.toHtmlEscaped().toStdString());
+    *document_ << r;
 }
 
-void SvgWriter::circle(const QString &/*description*/,
-                       float /*x*/,
-                       float /*y*/,
-                       float /*radius*/)
+void SvgWriter::circle(double x,
+                       double y,
+                       double radius,
+                       const QString & description)
 {
+    auto r = Circle(Point(x,y), radius, Color::Black);
+    r.setDescription(description.toHtmlEscaped().toStdString());
+    *document_ << r;
 }
 
 void SvgWriter::end()
