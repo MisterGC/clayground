@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QXmlStreamReader>
 #include <QDebug>
+#include <QPointF>
 
 SvgInspector::SvgInspector()
 {
@@ -39,11 +40,27 @@ void SvgInspector::onFileChanged(const QString& /*path*/)
     introspect();
 }
 
+
 void SvgInspector::processShape(QXmlStreamReader& xmlReader,
                               QXmlStreamReader::TokenType& token,
                               bool& currentTokenProcessed,
                               const float& heightWu)
 {
+    auto fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
+    {
+        auto descr = QString("");
+        auto ok = xmlReader.readNextStartElement();
+        if (ok && xmlReader.name() == "desc") {
+            xmlReader.readNext();
+            descr = xmlReader.text().toString();
+        }
+        else {
+            token = xmlReader.tokenType();
+            currentTokenProcessed = false;
+        }
+        return descr;
+    };
+
     auto nam = xmlReader.name();
     if (nam == "rect")
     {
@@ -52,18 +69,8 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
         auto y = attribs.value("y").toFloat();
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
-        auto comp = attribs.value("id").toString().split("-").first();
-        auto customInfo = QString("");
-        auto ok = xmlReader.readNextStartElement();
-        if (ok && xmlReader.name() == "desc") {
-            xmlReader.readNext();
-            customInfo = xmlReader.text().toString();
-        }
-        else {
-            token = xmlReader.tokenType();
-            currentTokenProcessed = false;
-        }
-        emit rectangle(comp, x, heightWu - y, width, height,  customInfo);
+        auto descr = QString("");
+        emit rectangle(x, heightWu - y, width, height,  fetchDescr());
     }
     else if (nam == "circle")
     {
@@ -71,18 +78,22 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
         auto x = attribs.value("cx").toFloat();
         auto y = attribs.value("cy").toFloat();
         auto radius = attribs.value("r").toFloat();
-        auto comp = attribs.value("id").toString().split("-").first();
-        auto customInfo = QString("");
-        auto ok = xmlReader.readNextStartElement();
-        if (ok && xmlReader.name() == "desc") {
-            xmlReader.readNext();
-            customInfo = xmlReader.text().toString();
+        emit circle(x, heightWu - y, radius, fetchDescr());
+    }
+    else if (nam == "polygon")
+    {
+        auto attribs = xmlReader.attributes();
+        auto ppairs = attribs.value("points").toString().split(" ");
+        QVariantList points;
+        for (auto& p: ppairs) {
+            if (p.trimmed().isEmpty()) continue;
+            auto c = p.split(",");
+            auto point = QPointF(c[0].toDouble(),
+                                 static_cast<double>(heightWu)
+                                 - c[1].toDouble());
+            points.append(QVariant(point));
         }
-        else {
-            token = xmlReader.tokenType();
-            currentTokenProcessed = false;
-        }
-        emit circle(comp, x, heightWu - y, radius, customInfo);
+        emit polygon(points, fetchDescr());
     }
 }
 

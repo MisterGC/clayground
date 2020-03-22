@@ -65,6 +65,21 @@ void SvgWriter::circle(double x,
     *document_ << r;
 }
 
+void SvgWriter::polygon(QVariantList points, const QString &description)
+{
+    auto poly = Polygon(Color::Black, Color::Black);
+    for (auto& v: points)
+    {
+        if(v.canConvert<QPointF>())
+        {
+            auto p = v.toPointF();
+            poly << Point(p.x(), p.y());
+        }
+    }
+    poly.setDescription(description.toHtmlEscaped().toStdString());
+    *document_ << poly;
+}
+
 void SvgWriter::end()
 {
     document_->save();
