@@ -22,13 +22,37 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#include "scalingcanvasplugin.h"
-#include <QQmlEngine>
+import QtQuick 2.0
+import QtQuick.Shapes 1.14
 
-void ScalingCanvasPlugin::registerTypes(const char *uri)
-{
-    qmlRegisterType(QUrl("qrc:/clayground/CoordCanvas.qml"),uri, 1,0,"CoordCanvas");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingPolygon.qml"),uri, 1,0,"ScalingPolygon");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingRectangle.qml"),uri, 1,0,"ScalingRectangle");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingText.qml"),uri, 1,0,"ScalingText");
+Shape {
+    id: theShape
+    property CoordCanvas canvas: null
+    parent: canvas.coordSys
+    property real xWu: 0
+    property real yWu: 0
+
+    property alias strokeWidth: shapePath.strokeWidth
+    property alias strokeColor: shapePath.strokeColor
+    property alias fillColor:   shapePath.fillColor
+
+    x: canvas.xToScreen(xWu)
+    y: canvas.yToScreen(yWu)
+
+    Component {id: pathLine; PathLine {}}
+    function addPoint(xWu, yWu) {
+        let xScr = (xWu-theShape.xWu) * canvas.pixelPerUnit
+        let yScr = (theShape.yWu-yWu) * canvas.pixelPerUnit
+        shapePath.pathElements.push(pathLine.createObject(
+                                        shapePath,{x:xScr, y:yScr}));
+        if (xScr > width) width =  xScr;
+        if (yScr > height) height =  yScr;
+    }
+
+    ShapePath {
+        id: shapePath
+        strokeWidth: 2
+        strokeColor: "black"
+        fillColor: "transparent"
+    }
 }
