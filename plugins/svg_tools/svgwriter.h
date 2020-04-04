@@ -57,6 +57,9 @@ public slots:
     void polygon(QVariantList points,
             const QString& description);
 
+    void polyline(QVariantList points,
+            const QString& description);
+
     void end();
 
 signals:
