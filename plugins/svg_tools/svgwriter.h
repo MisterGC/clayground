@@ -22,13 +22,47 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-#include "svgutilsplugin.h"
-#include "svginspector.h"
-#include "svgwriter.h"
-#include <QDebug>
+#ifndef CLAY_SVG_WRITER_H
+#define CLAY_SVG_WRITER_H 
 
-void SvgUtilsPlugin::registerTypes(const char* uri)
+#include <QObject>
+#include <QFile>
+#include <memory>
+
+namespace simple_svg {class Document;}
+
+class SvgWriter: public QObject
 {
-    qmlRegisterType<SvgInspector>(uri, 1, 0, "SvgInspector");
-    qmlRegisterType<SvgWriter>(uri, 1, 0, "SvgWriter");
-}
+    Q_OBJECT
+    Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
+
+public:
+    SvgWriter();
+    ~SvgWriter();
+
+public slots:
+    void begin(float widthWu, float heightWu);
+
+    void rectangle(double x,
+                   double y,
+                   double width,
+                   double height, const QString& description);
+
+    void circle(double x,
+                double y,
+                double radius, const QString& description);
+
+    void end();
+
+signals:
+    void pathChanged();
+
+private:
+    void setPath(const QString& pathToSvg);
+    QString path() const;
+
+private:
+    std::unique_ptr<simple_svg::Document> document_;
+    QString pathToSvg_;
+};
+#endif
