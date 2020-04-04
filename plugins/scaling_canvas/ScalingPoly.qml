@@ -25,6 +25,7 @@
 import QtQuick 2.0
 import QtQuick.Shapes 1.14
 
+/** Represents both a polygon and a polyline as it is based on Shape with ShapePath */
 Shape {
     id: theShape
     property CoordCanvas canvas: null
@@ -41,12 +42,14 @@ Shape {
 
     Component {id: pathLine; PathLine {}}
     function addPoint(xWu, yWu) {
-        let xScr = (xWu-theShape.xWu) * canvas.pixelPerUnit
-        let yScr = (theShape.yWu-yWu) * canvas.pixelPerUnit
-        shapePath.pathElements.push(pathLine.createObject(
-                                        shapePath,{x:xScr, y:yScr}));
-        if (xScr > width) width =  xScr;
-        if (yScr > height) height =  yScr;
+        let path = pathLine.createObject( shapePath,{});
+        path.x = Qt.binding( function()
+            {return (xWu - theShape.xWu) * canvas.pixelPerUnit;});
+        path.y = Qt.binding( function()
+            {return (theShape.yWu - yWu) * canvas.pixelPerUnit;});
+        shapePath.pathElements.push(path);
+        if (path.x > width) width =  path.x;
+        if (path.y > height) height =  path.y;
     }
 
     ShapePath {

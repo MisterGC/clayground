@@ -65,12 +65,16 @@ CoordCanvas
                         ];
             polygon(verts, pcomp);
 
+            let plcomp = JSON.stringify({component: "MyPolygon.qml"});
+            verts = [Qt.point(3,8), Qt.point(4,8), Qt.point(4,7)];
+            polyline(verts, pcomp);
+
             end();
         }
     }
 
     Component {id: theRect; ScalingRectangle {}}
-    Component {id: thePoly; ScalingPolygon {fillColor:"orange"}}
+    Component {id: thePoly; ScalingPoly {fillColor:"orange"}}
 
     SvgInspector
     {
