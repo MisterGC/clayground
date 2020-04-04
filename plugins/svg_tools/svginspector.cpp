@@ -80,7 +80,7 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
         auto radius = attribs.value("r").toFloat();
         emit circle(x, heightWu - y, radius, fetchDescr());
     }
-    else if (nam == "polygon")
+    else if (nam == "polygon" || nam == "polyline")
     {
         auto attribs = xmlReader.attributes();
         auto ppairs = attribs.value("points").toString().split(" ");
@@ -93,7 +93,10 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
                                  - c[1].toDouble());
             points.append(QVariant(point));
         }
-        emit polygon(points, fetchDescr());
+        if (nam == "polygon")
+            emit polygon(points, fetchDescr());
+        else
+            emit polyline(points, fetchDescr());
     }
 }
 

@@ -46,6 +46,7 @@ signals:
     void rectangle(float x, float y, float width, float height, const QString& description);
     void circle(float x, float y, float radius, const QString& description);
     void polygon(const QVariantList& points, const QString& description);
+    void polyline(const QVariantList& points, const QString& description);
     void endGroup();
     void end();
 

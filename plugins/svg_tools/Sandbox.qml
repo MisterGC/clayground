@@ -112,8 +112,7 @@ CoordCanvas
             objs.push(obj);
         }
 
-        onPolygon: {
-            console.log("A polygon: " + description)
+        function createPoly(points) {
             let obj = thePoly.createObject(theCanvas,
                                            {canvas: theCanvas,
                                             xWu: points[0].x,
@@ -122,6 +121,21 @@ CoordCanvas
                 let p = points[i];
                 obj.addPoint(p.x, p.y);
             }
+            return obj;
+
+        }
+
+
+        onPolygon: {
+            console.log("A polygon: " + description)
+            let obj = createPoly(points);
+            objs.push(obj);
+        }
+
+        onPolyline: {
+            console.log("A polyline: " + description)
+            let obj = createPoly(points);
+            obj.fillColor = "transparent"
             objs.push(obj);
         }
     }
