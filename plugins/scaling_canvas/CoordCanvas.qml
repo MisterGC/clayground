@@ -228,6 +228,7 @@ Item {
     Loader {
         id: theOverlayLoader
         active: false
+        anchors.fill: parent
         sourceComponent: active ? theOverlayComp : null
     }
 

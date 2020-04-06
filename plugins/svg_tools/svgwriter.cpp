@@ -65,6 +65,37 @@ void SvgWriter::circle(double x,
     *document_ << r;
 }
 
+namespace {
+template<class P>
+void addAllPoints(P& poly, QVariantList points)
+{
+    for (auto& v: points)
+    {
+        if(v.canConvert<QPointF>())
+        {
+            auto p = v.toPointF();
+            poly << Point(p.x(), p.y());
+        }
+    }
+}
+}
+
+void SvgWriter::polygon(QVariantList points, const QString &description)
+{
+    auto poly = Polygon(Color::Black, Color::Black);
+    addAllPoints<Polygon>(poly, points);
+    poly.setDescription(description.toHtmlEscaped().toStdString());
+    *document_ << poly;
+}
+
+void SvgWriter::polyline(QVariantList points, const QString &description)
+{
+    auto poly = Polyline(Color::Transparent, Color::Black);
+    addAllPoints<Polyline>(poly, points);
+    poly.setDescription(description.toHtmlEscaped().toStdString());
+    *document_ << poly;
+}
+
 void SvgWriter::end()
 {
     document_->save();

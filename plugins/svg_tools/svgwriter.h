@@ -27,6 +27,8 @@
 
 #include <QObject>
 #include <QFile>
+#include <QPointF>
+#include <QList>
 #include <memory>
 
 namespace simple_svg {class Document;}
@@ -51,6 +53,12 @@ public slots:
     void circle(double x,
                 double y,
                 double radius, const QString& description);
+
+    void polygon(QVariantList points,
+            const QString& description);
+
+    void polyline(QVariantList points,
+            const QString& description);
 
     void end();
 

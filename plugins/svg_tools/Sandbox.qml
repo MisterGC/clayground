@@ -30,7 +30,7 @@ CoordCanvas
 {
     id: theCanvas
     anchors.fill: parent
-    pixelPerUnit: 50
+    pixelPerUnit: 30
     keyBoardNavigationEnabled: true
 
     worldXMin: 0
@@ -54,12 +54,27 @@ CoordCanvas
             circle(1.5, 1, 1, ccomp)
             circle(3.5, 3, 1, ccomp)
 
+            let pcomp = JSON.stringify({component: "MyPolygon.qml"});
+            let verts = [Qt.point(8,6),
+                         Qt.point(10,6),
+                         Qt.point(11,5),
+                         Qt.point(10,4),
+                         Qt.point(8,4),
+                         Qt.point(9,5),
+                         Qt.point(8,6)
+                        ];
+            polygon(verts, pcomp);
+
+            let plcomp = JSON.stringify({component: "MyPolygon.qml"});
+            verts = [Qt.point(3,8), Qt.point(4,8), Qt.point(4,7)];
+            polyline(verts, pcomp);
+
             end();
         }
-
     }
 
     Component {id: theRect; ScalingRectangle {}}
+    Component {id: thePoly; ScalingPoly {fillColor:"orange"}}
 
     SvgInspector
     {
@@ -94,6 +109,33 @@ CoordCanvas
                                             widthWu: 2 * radius,
                                             heightWu: 2 * radius,
                                             radius: width * .5 });
+            objs.push(obj);
+        }
+
+        function createPoly(points) {
+            let obj = thePoly.createObject(theCanvas,
+                                           {canvas: theCanvas,
+                                            xWu: points[0].x,
+                                            yWu: points[0].y});
+            for (let i = 1; i<points.length; ++i) {
+                let p = points[i];
+                obj.addPoint(p.x, p.y);
+            }
+            return obj;
+
+        }
+
+
+        onPolygon: {
+            console.log("A polygon: " + description)
+            let obj = createPoly(points);
+            objs.push(obj);
+        }
+
+        onPolyline: {
+            console.log("A polyline: " + description)
+            let obj = createPoly(points);
+            obj.fillColor = "transparent"
             objs.push(obj);
         }
     }
