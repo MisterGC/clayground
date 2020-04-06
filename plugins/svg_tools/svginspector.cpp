@@ -28,6 +28,10 @@
 #include <QDebug>
 #include <QPointF>
 
+#include <string>
+#include <regex>
+#include <sstream>
+
 SvgInspector::SvgInspector()
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
@@ -38,6 +42,62 @@ SvgInspector::SvgInspector()
 void SvgInspector::onFileChanged(const QString& /*path*/)
 {
     introspect();
+}
+
+void SvgInspector::onPath(const QString& dAttr, const QString& descr, double heightWu)
+{
+    const auto dPoly = dAttr.toStdString();
+
+    using namespace std;
+    const auto number = string("(?:\\s*[-]?\\d+(?:\\.\\d+)?\\s*)");
+    stringstream strstr;
+    strstr << "([mM])" << "((?:" << number << "," << number << ")+)" << "([zZ]?)";
+    const regex base_regex(strstr.str());
+    smatch base_match;
+    if (regex_match(dPoly, base_match, base_regex) &&
+        base_match.size() == 4 )
+    {
+        const auto m = base_match[1].str();
+        const auto pList = base_match[2].str();
+        const auto z = base_match[3].str();
+
+        auto lst = QString::fromStdString(pList).trimmed();
+        QVariantList points;
+        auto isPolygon = !z.empty();
+        listToPoints(lst, points, m == "M", heightWu, isPolygon);
+        if (isPolygon)
+            emit polygon(points, descr);
+        else
+            emit polyline(points, descr);
+    }
+}
+
+void SvgInspector::listToPoints(const QString& lst,
+                                QVariantList& points,
+                                bool absCoords,
+                                double heightWu,
+                                bool closePath)
+{
+    auto ppairs = lst.split(" ");
+    std::vector<QPointF> pData;
+    for (auto& p: ppairs) {
+        if (p.trimmed().isEmpty()) continue;
+        auto c = p.split(",");
+        auto point = QPointF(c[0].toDouble(),
+                (heightWu - c[1].toDouble()));
+        pData.push_back(point);
+    }
+    if (pData.empty()) return;
+    if (!absCoords) {
+        for (size_t i=1; i<pData.size(); ++i){
+            auto& p = pData[i];
+            auto& prev = pData[i-1];
+            p.setX(p.x() + prev.x());
+            p.setY(p.y() - (heightWu - prev.y()));
+        }
+    }
+    for (const auto& p: pData) points.append(p);
+    if (closePath) points.push_back(pData.front());
 }
 
 
@@ -62,9 +122,9 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
     };
 
     auto nam = xmlReader.name();
+    auto attribs = xmlReader.attributes();
     if (nam == "rect")
     {
-        auto attribs = xmlReader.attributes();
         auto x = attribs.value("x").toFloat();
         auto y = attribs.value("y").toFloat();
         auto width = attribs.value("width").toFloat();
@@ -74,7 +134,6 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
     }
     else if (nam == "circle")
     {
-        auto attribs = xmlReader.attributes();
         auto x = attribs.value("cx").toFloat();
         auto y = attribs.value("cy").toFloat();
         auto radius = attribs.value("r").toFloat();
@@ -82,21 +141,19 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
     }
     else if (nam == "polygon" || nam == "polyline")
     {
-        auto attribs = xmlReader.attributes();
-        auto ppairs = attribs.value("points").toString().split(" ");
         QVariantList points;
-        for (auto& p: ppairs) {
-            if (p.trimmed().isEmpty()) continue;
-            auto c = p.split(",");
-            auto point = QPointF(c[0].toDouble(),
-                                 static_cast<double>(heightWu)
-                                 - c[1].toDouble());
-            points.append(QVariant(point));
-        }
-        if (nam == "polygon")
+        auto isPolygon = (nam == "polygon");
+        auto lst = attribs.value("points").toString();
+        listToPoints(lst, points, true, heightWu, isPolygon);
+        if (isPolygon)
             emit polygon(points, fetchDescr());
         else
             emit polyline(points, fetchDescr());
+    }
+    else if (nam == "path")
+    {
+        auto d = attribs.value("d").toString();
+        onPath(d, fetchDescr(), heightWu);
     }
 }
 

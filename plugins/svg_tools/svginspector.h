@@ -60,6 +60,8 @@ private:
                       bool &currentTokenProcessed,
                       const float &heightWu);
     void resetFileObservation();
+    void onPath(const QString &dAttr, const QString &descr, double heightWu);
+    void listToPoints(const QString &lst, QVariantList &points, bool absCoords, double heightWu, bool closePath);
 
 private:
     QFileSystemWatcher fileObserver_;
