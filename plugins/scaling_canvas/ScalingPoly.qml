@@ -28,32 +28,61 @@ import QtQuick.Shapes 1.14
 /** Represents both a polygon and a polyline as it is based on Shape with ShapePath */
 Shape {
     id: theShape
+
     property CoordCanvas canvas: null
     parent: canvas.coordSys
-    property real xWu: 0
-    property real yWu: 0
 
-    property alias strokeWidth: shapePath.strokeWidth
-    property alias strokeColor: shapePath.strokeColor
-    property alias fillColor:   shapePath.fillColor
+    property alias _shapePath: theShapePath
+    property alias strokeWidth: theShapePath.strokeWidth
+    property alias strokeColor: theShapePath.strokeColor
+    property alias fillColor:   theShapePath.fillColor
 
-    x: canvas.xToScreen(xWu)
-    y: canvas.yToScreen(yWu)
+    property real _xWu: 0
+    property real _yWu: 0
+    property real _widthWu: 0
+    property real _heightWu: 0
+    x: canvas.xToScreen(_xWu)
+    y: canvas.yToScreen(_yWu)
+    width: _widthWu * canvas.pixelPerUnit
+    height: _heightWu * canvas.pixelPerUnit
+    property var vertices: []
+    onVerticesChanged: refresh()
+    function refresh() { _syncVisu(); }
+    function _syncVisu() {
+        theShapePath.pathElements = [];
+
+        let xMin = Number.MAX_VALUE;
+        let yMin = Number.MAX_VALUE;
+        let xMax = Number.MIN_VALUE;
+        let yMax = Number.MIN_VALUE;
+        for (const p of theShape.vertices)  {
+         if (p.x < xMin) xMin = p.x;
+         if (p.y < yMin) yMin = p.y;
+         if (p.x > xMax) xMax = p.x;
+         if (p.y > yMax) yMax = p.y;
+        }
+        theShape._xWu = xMin;
+        theShape._yWu = yMax;
+        theShape._widthWu = (xMax - xMin)
+        theShape._heightWu = (yMax - yMin)
+
+        for (const v of theShape.vertices) _addPoint(v);
+    }
 
     Component {id: pathLine; PathLine {}}
-    function addPoint(xWu, yWu) {
-        let path = pathLine.createObject( shapePath,{});
+    function _addPoint(vertex) {
+        let xWu = vertex.x
+        let yWu = vertex.y
+        let path = pathLine.createObject( theShapePath,{});
         path.x = Qt.binding( function()
-            {return (xWu - theShape.xWu) * canvas.pixelPerUnit;});
+            {return (xWu - theShape._xWu) * canvas.pixelPerUnit;});
         path.y = Qt.binding( function()
-            {return (theShape.yWu - yWu) * canvas.pixelPerUnit;});
-        shapePath.pathElements.push(path);
-        if (path.x > width) width =  path.x;
-        if (path.y > height) height =  path.y;
+            {return (theShape._yWu - yWu) * canvas.pixelPerUnit;});
+        theShapePath.pathElements.push(path);
     }
 
     ShapePath {
-        id: shapePath
+        id: theShapePath
         strokeWidth: 2
         strokeColor: "black"
         fillColor: "transparent"
