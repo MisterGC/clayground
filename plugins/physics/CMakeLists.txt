@@ -11,6 +11,7 @@ add_library(${PROJECT_NAME} SHARED
     res.qrc
     PhysicsItem.qml
     VisualizedBoxBody.qml
+    VisualizedPolyBody.qml
 )
 
 set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/${PROJECT_NAME}")

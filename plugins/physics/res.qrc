@@ -2,6 +2,7 @@
     <qresource prefix="/clayground">
         <file>PhysicsItem.qml</file>
         <file>VisualizedBoxBody.qml</file>
+        <file>VisualizedPolyBody.qml</file>
     </qresource>
 </RCC>
 
