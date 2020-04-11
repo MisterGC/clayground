@@ -115,14 +115,9 @@ CoordCanvas
         function createPoly(points) {
             let obj = thePoly.createObject(theCanvas,
                                            {canvas: theCanvas,
-                                            xWu: points[0].x,
-                                            yWu: points[0].y});
-            for (let i = 1; i<points.length; ++i) {
-                let p = points[i];
-                obj.addPoint(p.x, p.y);
-            }
+                                            vertices: points
+                                            });
             return obj;
-
         }
 
 
