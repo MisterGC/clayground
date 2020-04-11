@@ -37,6 +37,10 @@ Shape {
     property alias strokeColor: theShapePath.strokeColor
     property alias fillColor:   theShapePath.fillColor
 
+    Component.onCompleted: refresh();
+
+    property var vertices: []
+
     property real _xWu: 0
     property real _yWu: 0
     property real _widthWu: 0
@@ -45,7 +49,6 @@ Shape {
     y: canvas.yToScreen(_yWu)
     width: _widthWu * canvas.pixelPerUnit
     height: _heightWu * canvas.pixelPerUnit
-    property var vertices: []
     onVerticesChanged: refresh()
     function refresh() { _syncVisu(); }
     function _syncVisu() {
@@ -66,19 +69,28 @@ Shape {
         theShape._widthWu = (xMax - xMin)
         theShape._heightWu = (yMax - yMin)
 
-        for (const v of theShape.vertices) _addPoint(v);
+        for (const [i, v] of theShape.vertices.entries())
+            _addPoint(v, i===0);
     }
 
     Component {id: pathLine; PathLine {}}
-    function _addPoint(vertex) {
+    function _addPoint(vertex, isStart) {
         let xWu = vertex.x
         let yWu = vertex.y
-        let path = pathLine.createObject( theShapePath,{});
-        path.x = Qt.binding( function()
+        if (!isStart){
+            let path = pathLine.createObject( theShapePath,{});
+            path.x = Qt.binding( function()
             {return (xWu - theShape._xWu) * canvas.pixelPerUnit;});
-        path.y = Qt.binding( function()
+            path.y = Qt.binding( function()
             {return (theShape._yWu - yWu) * canvas.pixelPerUnit;});
-        theShapePath.pathElements.push(path);
+            theShapePath.pathElements.push(path);
+        }
+        else {
+            theShapePath.startX = Qt.binding( function()
+            {return (xWu - theShape._xWu) * canvas.pixelPerUnit;});
+            theShapePath.startY = Qt.binding( function()
+            {return (theShape._yWu - yWu) * canvas.pixelPerUnit;});
+        }
     }
 
     ShapePath {

@@ -29,19 +29,19 @@ import Clayground.ScalingCanvas 1.0
 ScalingPoly {
     id: thePoly
 
-    property var vertices: []
-    onVerticesChanged: syncShape();
-    Component.onCompleted: syncShape();
-    function onGeoUpdate() {
-        _syncShape();
+    onVerticesChanged: refresh();
+    Component.onCompleted: refresh();
+    function refresh() {
+        _syncVisu();
         _syncPhys();
     }
     function _syncPhys() {
-        const xOff = thePoly.x
-        const yOff = thePoly.y
-        let pVerts = [Qt.point(0,0)];
-        for (const pe of _shapePath.pathElements)
-            pVerts.push(Qt.point(pe.x-xOff, pe.y-yOff));
+        let pVerts = [Qt.point(_shapePath.startX, _shapePath.startY)];
+        let pes = _shapePath.pathElements;
+        for (let i=0; i<pes.length; ++i){
+            let pe = pes[i];
+            pVerts.push(Qt.point(pe.x, pe.y));
+        }
         theFixture.vertices = pVerts;
     }
 
@@ -74,12 +74,10 @@ ScalingPoly {
 
     Body {
         id: theBody
-        target: theImage
-        Polygon {
-            id: theFixture
-            width: theImage.width
-            height: theImage.height
-        }
+        target: thePoly
+        Polygon { id: theFixture; vertices:[Qt.point(0,0),
+                                            Qt.point(10,0),
+                                            Qt.point(10,10)] }
     }
 }
 
