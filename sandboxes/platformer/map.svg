@@ -14,7 +14,7 @@
    viewBox="0 0 71.561371 100.79476"
    version="1.1"
    id="svg1623"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    sodipodi:docname="map.svg">
   <defs
      id="defs1617" />
@@ -25,16 +25,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="4.3795662"
-     inkscape:cy="211.40402"
+     inkscape:zoom="3.959798"
+     inkscape:cx="140.08039"
+     inkscape:cy="128.73874"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1012"
+     inkscape:window-width="2560"
+     inkscape:window-height="1312"
      inkscape:window-x="0"
-     inkscape:window-y="32"
+     inkscape:window-y="54"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -53,7 +53,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -172,5 +172,32 @@
       <desc
          id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
     </rect>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 63.195677,92.086044 1.773358,-1.429617 2.83833,0.704885 0.103383,4.779211 -3.224438,0.0757 -2.700655,0.01262 0.21468,-2.09304 z"
+       id="path915"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccccccc">
+      <desc
+         id="desc913">{&quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
+&quot;initVals&quot;: 
+{
+&quot;bodyType&quot;: 0,
+&quot;fillColor&quot;:&quot;grey&quot;
+}}</desc>
+    </path>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 49.379316,80.331884 2.948091,1.198213 2.952838,-2.074504 -0.479916,-3.826242 -2.492735,-1.140059 -3.958667,2.64066 z"
+       id="path921"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccccccc">
+      <desc
+         id="desc923">{
+&quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
+&quot;initVals&quot;: 
+{&quot;fillColor&quot;:&quot;brown&quot;}
+}</desc>
+    </path>
   </g>
 </svg>

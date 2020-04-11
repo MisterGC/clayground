@@ -39,7 +39,7 @@ JnRPlayer
     maxYVelo: 45
     maxXVelo: 27
     categories: Box.Category2
-    collidesWith: Box.Category1
+    collidesWith: Box.Category1 | Box.Category3
     bodyType: Body.Dynamic
     density: 300.
 
