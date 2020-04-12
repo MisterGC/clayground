@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>ClayWorld.qml</file>
+    </qresource>
+</RCC>
+
