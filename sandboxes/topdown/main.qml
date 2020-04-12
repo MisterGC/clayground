@@ -29,5 +29,5 @@ Window {
     visible: true
     visibility: Window.Maximized
     title: qsTr("TopDown")
-    Sandbox { standaloneApp: true; anchors.centerIn: parent }
+    Sandbox { runsInSbx: false; anchors.centerIn: parent }
 }

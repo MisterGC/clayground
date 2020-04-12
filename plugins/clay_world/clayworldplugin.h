@@ -22,12 +22,17 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-import QtQuick 2.12
-import QtQuick.Window 2.12
+#ifndef CLAYGROUND_WORLD_PLUGIN
+#define CLAYGROUND_WORLD_PLUGIN
+#include <QQmlExtensionPlugin>
 
-Window {
-    visible: true
-    visibility: Window.Maximized
-    title: qsTr("Platformer")
-    Sandbox { runsInSbx: false; anchors.fill: parent }
-}
+class ClayWorldPlugin: public QQmlExtensionPlugin
+{
+    Q_OBJECT
+    Q_PLUGIN_METADATA(IID "clayground.worldplugin")
+
+public:
+    void registerTypes(const char* uri) override;
+};
+#endif
+

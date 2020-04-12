@@ -22,12 +22,11 @@
  * Authors:
  * Copyright (c) 2019 Serein Pfeiffer <serein.pfeiffer@gmail.com>
  */
-import QtQuick 2.12
-import QtQuick.Window 2.12
+#include "clayworldplugin.h"
+#include <QQmlEngine>
 
-Window {
-    visible: true
-    visibility: Window.Maximized
-    title: qsTr("Platformer")
-    Sandbox { runsInSbx: false; anchors.fill: parent }
+void ClayWorldPlugin::registerTypes(const char* uri)
+{
+    qmlRegisterType(QUrl("qrc:/clayground/ClayWorld.qml"),
+                    uri, 1,0,"ClayWorld");
 }

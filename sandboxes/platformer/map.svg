@@ -180,7 +180,7 @@
        sodipodi:nodetypes="cccccccc">
       <desc
          id="desc913">{&quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
-&quot;initVals&quot;: 
+&quot;properties&quot;: 
 {
 &quot;bodyType&quot;: 0,
 &quot;fillColor&quot;:&quot;grey&quot;
@@ -195,8 +195,11 @@
       <desc
          id="desc923">{
 &quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
-&quot;initVals&quot;: 
-{&quot;fillColor&quot;:&quot;brown&quot;}
+&quot;properties&quot;: 
+{
+&quot;bodyType&quot;: 2,
+&quot;fillColor&quot;:&quot;brown&quot;
+}
 }</desc>
     </path>
   </g>
