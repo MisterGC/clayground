@@ -30,6 +30,7 @@ ScalingPoly {
     id: thePoly
 
     onVerticesChanged: refresh();
+    onWidthChanged: refresh();
     Component.onCompleted: refresh();
     function refresh() {
         _syncVisu();
