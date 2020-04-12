@@ -29,5 +29,5 @@ Window {
     visible: true
     visibility: Window.Maximized
     title: qsTr("Platformer")
-    Sandbox { standaloneApp: true; anchors.fill: parent }
+    Sandbox { runsInSbx: false; anchors.fill: parent }
 }
