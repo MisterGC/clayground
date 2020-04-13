@@ -1,3 +1,5 @@
+// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+
 #ifndef CLAYFILESYSOBSERVER_H
 #define CLAYFILESYSOBSERVER_H
 #include <QObject>

@@ -1,3 +1,5 @@
+// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+
 #include "clayfilesysobserver.h"
 #include "utilityfunctions.h"
 #include <QDirIterator>

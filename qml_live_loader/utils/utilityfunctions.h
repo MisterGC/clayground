@@ -1,3 +1,5 @@
+// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+
 #ifndef CLAY_UTILITYFUNCTIONS_H
 #define CLAY_UTILITYFUNCTIONS_H
 #include <QString>
