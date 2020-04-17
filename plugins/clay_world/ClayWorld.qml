@@ -85,6 +85,9 @@ CoordCanvas
             if (!compStr.startsWith("qrc:"))
                 compStr = theWorld._resPrefix + compStr;
             let comp = Qt.createComponent(compStr);
+            if (comp.status !== Component.Ready) {
+                console.error(comp.errorString());
+            }
             return comp;
         }
 
@@ -121,8 +124,7 @@ CoordCanvas
 
         onRectangle: {
             let cfg = JSON.parse(description);
-            let compStr = theWorld._resPrefix + cfg["component"];
-            let comp = Qt.createComponent(compStr);
+            let comp = fetchComp(cfg);
             let obj = comp.createObject(coordSys,
                                         {
                                             world: thePhysicsWorld,
