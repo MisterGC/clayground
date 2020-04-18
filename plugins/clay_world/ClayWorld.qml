@@ -22,6 +22,7 @@ CoordCanvas
     }
 
     // Physics
+    property World physics: thePhysicsWorld
     property bool physicsDebugging: false
     property alias gravity: thePhysicsWorld.gravity
     property alias timeStep: thePhysicsWorld.timeStep
