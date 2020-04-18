@@ -32,8 +32,11 @@ CoordCanvas
     signal worldCreated()
     signal objectCreated(var obj)
 
-    onWidthChanged: {
-        if (width > 0) {
+    onWidthChanged: _refreshMap();
+    on_FullmappathChanged: _refreshMap();
+
+    function _refreshMap() {
+        if (width > 0 || height > 0) {
             theSvgInspector.setSource(_fullmappath);
             theCreator.start();
         }
@@ -79,6 +82,7 @@ CoordCanvas
             theWorld.worldYMax = heightWu;
             for (let obj of objs) if(obj) obj.destroy();
             objs = [];
+            theWorld.worldAboutToBeCreated();
         }
 
         function fetchComp(cfg) {
