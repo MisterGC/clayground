@@ -31,7 +31,7 @@ Item {
             gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
             keybGamepad.enabled = false;
             vgamepad.enabled = false;
-            buttonAPressed = Qt.binding(function() {return gamepad.buttonB;});
+            buttonAPressed = Qt.binding(function() {return gamepad.buttonX;});
             buttonBPressed = Qt.binding(function() {return gamepad.buttonA;});
             if (useAnalogAxis) {
                 axisX = Qt.binding(function() {return Math.abs(gamepad.axisLeftX) > .2 ? gamepad.axisLeftX : 0;});
