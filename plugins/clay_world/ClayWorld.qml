@@ -76,7 +76,7 @@ CoordCanvas
             theWorld.viewPortCenterWuY = 0;
             theWorld.worldXMax = widthWu;
             theWorld.worldYMax = heightWu;
-            for (let obj of objs) obj.destroy();
+            for (let obj of objs) if(obj) obj.destroy();
             objs = [];
         }
 
