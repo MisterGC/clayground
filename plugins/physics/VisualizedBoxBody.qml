@@ -10,6 +10,7 @@ PhysicsItem {
 
     property string source: ""
     property color color: "transparent"
+    property var image: null
 
     // Box properties
     property alias density: box.density
@@ -23,6 +24,9 @@ PhysicsItem {
     Loader {
         anchors.fill: parent
         sourceComponent: theVisuBoxBody.source !== "" ? theImgComp : theRectComp
+        onSourceComponentChanged: {
+            theVisuBoxBody.image = theVisuBoxBody.source !== "" ? item : null
+        }
     }
 
     Component {
