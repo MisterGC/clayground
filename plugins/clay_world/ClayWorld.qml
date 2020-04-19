@@ -90,13 +90,18 @@ CoordCanvas
         readonly property string componentPropKey: "component"
 
         onBegin: {
+            theWorld.worldAboutToBeCreated();
             theWorld.viewPortCenterWuX = 0;
             theWorld.viewPortCenterWuY = 0;
             theWorld.worldXMax = widthWu;
             theWorld.worldYMax = heightWu;
-            for (let obj of entities) if(obj) obj.destroy();
+            for (let i=0; i<entities.length; ++i) {
+                let obj = entities[i];
+                if (typeof obj !== 'undefined' &&
+                    obj.hasOwnProperty("destroy"))
+                    obj.destroy();
+            }
             entities = [];
-            theWorld.worldAboutToBeCreated();
         }
 
         function fetchComp(cfg) {
