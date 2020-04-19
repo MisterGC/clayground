@@ -14,8 +14,9 @@ CoordCanvas
     // General/Sandbox Mode
     property bool runsInSbx: true
     property string map: ""
-    readonly property string _fullmappath: (!runsInSbx ? ":/" : ClayLiveLoader.sandboxDir)
-                         + "/" + map
+    readonly property string _fullmappath: (map.length === 0 ? ""
+        : ((!runsInSbx ? ":/" : ClayLiveLoader.sandboxDir)
+                         + "/" + map))
     readonly property string _resPrefix: !theWorld.runsInSbx ? "qrc:/" : "file:///" + ClayLiveLoader.sandboxDir + "/"
     function resource(path) {
         return theWorld._resPrefix + path

@@ -139,7 +139,8 @@ void SvgInspector::resetFileObservation()
 {
     if (!fileObserver_.files().isEmpty())
         fileObserver_.removePaths(fileObserver_.files());
-    fileObserver_.addPath(source_);
+    if (!source_.isEmpty())
+        fileObserver_.addPath(source_);
 }
 
 QString SvgInspector::source() const
@@ -149,6 +150,7 @@ QString SvgInspector::source() const
 
 void SvgInspector::introspect()
 {
+    if (source_.isEmpty()) return;
     auto pathToSvg = source_;
 
     QFile xmlFile(pathToSvg);
