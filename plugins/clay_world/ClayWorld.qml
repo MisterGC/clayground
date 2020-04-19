@@ -22,6 +22,8 @@ CoordCanvas
         return theWorld._resPrefix + path
     }
 
+    property bool running: true
+
     // Physics
     property World physics: thePhysicsWorld
     property bool physicsDebugging: false
@@ -63,6 +65,7 @@ CoordCanvas
         gravity: Qt.point(0,15*9.81)
         timeStep: 1/60.0
         pixelsPerMeter: pixelPerUnit
+        running: theWorld.running
     }
 
     Component {
