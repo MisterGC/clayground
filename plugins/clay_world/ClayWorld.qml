@@ -33,6 +33,15 @@ CoordCanvas
     signal worldCreated()
     signal objectCreated(var obj)
 
+    property alias entities: theSvgInspector.entities
+    // Signals which are emitted when elements have
+    // been loaded which are not yet processed by
+    // ClayWorld functionality
+    signal polylineLoaded(var points, var description)
+    signal polygonLoaded(var points, var description)
+    signal rectangleLoaded(var x, var y, var width, var height, var description)
+    signal circleLoaded(var x, var y, var radius, var description)
+
     onWidthChanged: _refreshMap();
     on_FullmappathChanged: _refreshMap();
 
@@ -74,20 +83,21 @@ CoordCanvas
     SvgInspector
     {
         id: theSvgInspector
-        property var objs: []
+        property var entities: []
+        readonly property string componentPropKey: "component"
 
         onBegin: {
             theWorld.viewPortCenterWuX = 0;
             theWorld.viewPortCenterWuY = 0;
             theWorld.worldXMax = widthWu;
             theWorld.worldYMax = heightWu;
-            for (let obj of objs) if(obj) obj.destroy();
-            objs = [];
+            for (let obj of entities) if(obj) obj.destroy();
+            entities = [];
             theWorld.worldAboutToBeCreated();
         }
 
         function fetchComp(cfg) {
-            let compStr = cfg["component"];
+            let compStr = cfg[componentPropKey];
             if (!compStr.startsWith("qrc:"))
                 compStr = theWorld._resPrefix + compStr;
             let comp = Qt.createComponent(compStr);
@@ -113,8 +123,14 @@ CoordCanvas
            }
         }
 
+        function canBeHandled(objCfg) {
+            return objCfg.hasOwnProperty(componentPropKey);
+        }
+
         onPolygon: {
             let cfg = JSON.parse(description);
+            if (!canBeHandled(cfg)) theWorld.polygonLoaded(points, description);
+
             let comp = fetchComp(cfg);
             let obj = comp.createObject(coordSys,
                                         {
@@ -123,13 +139,15 @@ CoordCanvas
                                             vertices: points
                                         });
             customInit(obj, cfg);
-            objs.push(obj);
+            entities.push(obj);
             theWorld.objectCreated(obj);
             box2dWorkaround(obj);
         }
 
         onRectangle: {
             let cfg = JSON.parse(description);
+            if (!canBeHandled(cfg)) theWorld.rectangleLoaded(x, y, width, height, description);
+
             let comp = fetchComp(cfg);
             let obj = comp.createObject(coordSys,
                                         {
@@ -140,9 +158,12 @@ CoordCanvas
                                             heightWu: height,
                                         });
             obj.pixelPerUnit = Qt.binding( _ => {return theWorld.pixelPerUnit;} );
-            objs.push(obj);
+            entities.push(obj);
             theWorld.objectCreated(obj);
             box2dWorkaround(obj);
         }
+
+        onPolyline: theWorld.polylineLoaded(points, description)
+        onCircle: theWorld.circleLoaded(x, y, radius, description)
     }
 }
