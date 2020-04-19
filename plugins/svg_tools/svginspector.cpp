@@ -48,6 +48,10 @@ void SvgInspector::onPath(const QString& dAttr, const QString& descr, double hei
         else
             emit polyline(points, descr);
     }
+    else {
+        qWarning() << "Skipping unsupported path "
+                   << dAttr;
+    }
 }
 
 void SvgInspector::listToPoints(const QString& lst,
