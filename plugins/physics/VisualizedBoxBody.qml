@@ -3,40 +3,14 @@
 import QtQuick 2.0
 import Box2D 2.0
 
-Image {
-    id: theImage
+PhysicsItem {
+    id: theVisuBoxBody
 
-    property alias body: boxBody
     property alias fixture: box
 
-    property real pixelPerUnit: 1
-    property real xWu: 0
-    property real yWu: 0
-    property real widthWu: 1
-    property real heightWu: 1
-
-    x: xWu * pixelPerUnit
-    y: parent.height - yWu * pixelPerUnit
-    width: widthWu * pixelPerUnit
-    height: heightWu * pixelPerUnit
-
-    // Placeholder visu properties
-    property alias color: thePlaceholder.color
-
-    // Body properties
-    property alias world: boxBody.world
-    property alias linearDamping: boxBody.linearDamping
-    property alias angularDamping: boxBody.angularDamping
-    property alias bodyType: boxBody.bodyType
-    property alias bullet: boxBody.bullet
-    property alias sleepingAllowed: boxBody.sleepingAllowed
-    property alias fixedRotation: boxBody.fixedRotation
-    property alias active: boxBody.active
-    property alias awake: boxBody.awake
-    property alias linearVelocity: boxBody.linearVelocity
-    property alias angularVelocity: boxBody.angularVelocity
-    property alias fixtures: boxBody.fixtures
-    property alias gravityScale: boxBody.gravityScale
+    property string source: ""
+    property color color: "transparent"
+    property var image: null
 
     // Box properties
     property alias density: box.density
@@ -47,22 +21,30 @@ Image {
     property alias collidesWith: box.collidesWith
     property alias groupIndex: box.groupIndex
 
-    Rectangle {
-        id: thePlaceholder
+    Loader {
         anchors.fill: parent
-        visible: theImage.source == ""
-    }
-
-    Body {
-        id: boxBody
-        target: theImage
-
-        Box {
-            id: box
-
-            width: theImage.width
-            height: theImage.height
+        sourceComponent: theVisuBoxBody.source !== "" ? theImgComp : theRectComp
+        onSourceComponentChanged: {
+            theVisuBoxBody.image = theVisuBoxBody.source !== "" ? item : null
         }
     }
+
+    Component {
+        id: theImgComp
+        Image { source: theVisuBoxBody.source; anchors.fill: parent }
+    }
+
+    Component {
+        id: theRectComp
+        Rectangle { color: theVisuBoxBody.color; anchors.fill: parent }
+    }
+
+    fixtures: [
+        Box {
+            id: box
+            width: theVisuBoxBody.width
+            height: theVisuBoxBody.height
+        }
+    ]
 }
 

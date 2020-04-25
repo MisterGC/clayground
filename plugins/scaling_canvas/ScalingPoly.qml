@@ -14,6 +14,8 @@ Shape {
     property alias strokeWidth: theShapePath.strokeWidth
     property alias strokeColor: theShapePath.strokeColor
     property alias fillColor:   theShapePath.fillColor
+    property alias strokeStyle: theShapePath.strokeStyle
+    property alias dashPattern: theShapePath.dashPattern
 
     Component.onCompleted: refresh();
 
