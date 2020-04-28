@@ -10,6 +10,7 @@ CoordCanvas
 {
     id: theWorld
     anchors.fill: parent
+    property var components: new Map()
 
     // General/Sandbox Mode
     property bool runsInSbx: true
@@ -33,7 +34,7 @@ CoordCanvas
 
     signal worldAboutToBeCreated()
     signal worldCreated()
-    signal objectCreated(var obj)
+    signal objectCreated(var obj, var compName)
 
     property alias entities: theSvgInspector.entities
     // Signals which are emitted when elements have
@@ -74,18 +75,10 @@ CoordCanvas
     }
     Loader { sourceComponent: physicsDebugging ? physDebugComp : null }
 
-    // Workaround to support dynamic component creation
-    // and type-checking without relying on context
-    // specific instanceof
-    function isInstanceOf(obj, typename) {
-        let str = obj.toString();
-        return str.indexOf(typename + "(") === 0 ||
-                str.indexOf(typename + "_QML") === 0;
-    }
-
     SvgInspector
     {
         id: theSvgInspector
+
         property var entities: []
         readonly property string componentPropKey: "component"
 
@@ -106,13 +99,13 @@ CoordCanvas
 
         function fetchComp(cfg) {
             let compStr = cfg[componentPropKey];
-            if (!compStr.startsWith("qrc:"))
-                compStr = theWorld._resPrefix + compStr;
-            let comp = Qt.createComponent(compStr);
-            if (comp.status !== Component.Ready) {
-                console.error(comp.errorString());
+            if (theWorld.components.has(compStr)) {
+               return theWorld.components.get(compStr);
             }
-            return comp;
+            else {
+                console.warn("Unknown component, " + compStr + " cannot create instances" );
+                return null;
+            }
         }
 
         function customInit(obj, cfg) {
@@ -132,13 +125,21 @@ CoordCanvas
         }
 
         function canBeHandled(objCfg) {
-            return objCfg.hasOwnProperty(componentPropKey);
+            return objCfg.hasOwnProperty(componentPropKey)
+                   && components.has(objCfg[componentPropKey]);
+        }
+
+        function _objectCreated(obj, cfg) {
+            customInit(obj, cfg);
+            entities.push(obj);
+            let compStr = cfg[componentPropKey];
+            theWorld.objectCreated(obj, compStr);
+            box2dWorkaround(obj);
         }
 
         onPolygon: {
             let cfg = JSON.parse(description);
             if (!canBeHandled(cfg)) theWorld.polygonLoaded(points, description);
-
             let comp = fetchComp(cfg);
             let obj = comp.createObject(coordSys,
                                         {
@@ -146,16 +147,12 @@ CoordCanvas
                                             world: thePhysicsWorld,
                                             vertices: points
                                         });
-            customInit(obj, cfg);
-            entities.push(obj);
-            theWorld.objectCreated(obj);
-            box2dWorkaround(obj);
+            _objectCreated(obj, cfg);
         }
 
         onRectangle: {
             let cfg = JSON.parse(description);
             if (!canBeHandled(cfg)) theWorld.rectangleLoaded(x, y, width, height, description);
-
             let comp = fetchComp(cfg);
             let obj = comp.createObject(coordSys,
                                         {
@@ -166,9 +163,7 @@ CoordCanvas
                                             heightWu: height,
                                         });
             obj.pixelPerUnit = Qt.binding( _ => {return theWorld.pixelPerUnit;} );
-            entities.push(obj);
-            theWorld.objectCreated(obj);
-            box2dWorkaround(obj);
+            _objectCreated(obj, cfg);
         }
 
         onPolyline: theWorld.polylineLoaded(points, description)

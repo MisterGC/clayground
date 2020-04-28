@@ -13,6 +13,13 @@ ClayWorld {
     gravity: Qt.point(0,0)
     timeStep: 1/60.0
 
+    components: new Map([
+                         ['Player', c1],
+                         ['Wall', c2]
+                     ])
+    Component { id: c1; Player {} }
+    Component { id: c2; Wall {} }
+
     property var player: null
     onWorldAboutToBeCreated: player = null;
     onWorldCreated: {
@@ -43,7 +50,7 @@ ClayWorld {
     }
 
     onObjectCreated: {
-        if (isInstanceOf(obj, "Player")) {
+        if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
         }
