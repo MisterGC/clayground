@@ -32,9 +32,9 @@
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="2560"
-     inkscape:window-height="1312"
+     inkscape:window-height="1304"
      inkscape:window-x="0"
-     inkscape:window-y="54"
+     inkscape:window-y="64"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -70,7 +70,7 @@
        id="rect2172"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.62179309;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="88.594543"
@@ -80,7 +80,7 @@
        id="rect5922"
        style="opacity:1;fill:#808080;fill-opacity:1;stroke:none;stroke-width:0.20025375;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5920">{&quot;component&quot;:&quot;Player.qml&quot;}</desc>
+         id="desc5920">{&quot;component&quot;:&quot;Player&quot;}</desc>
     </rect>
     <rect
        y="-0.28403923"
@@ -90,7 +90,7 @@
        id="rect2172-5"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.72051454;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-6">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="-0.7473883"
@@ -100,7 +100,7 @@
        id="rect2172-2"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.61216283;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="-0.7517609"
@@ -110,7 +110,7 @@
        id="rect2172-5-1"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.72232378;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-6-2">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-6-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="20.287712"
@@ -120,7 +120,7 @@
        id="rect2172-2-0-2"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.30199239;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-6">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="35.844028"
@@ -130,7 +130,7 @@
        id="rect2172-2-0-7"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.46345168;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-1">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-1">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="49.991085"
@@ -140,7 +140,7 @@
        id="rect2172-2-0-72"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.37255964;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-7">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="65.329247"
@@ -150,7 +150,7 @@
        id="rect2172-2-0-94"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.44305128;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-90">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-90">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="49.846497"
@@ -160,7 +160,7 @@
        id="rect2172-2-0-91"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.34206623;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-77">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-77">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="81.820953"
@@ -170,7 +170,7 @@
        id="rect2172-2-0-3"
        style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.53236037;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall.qml&quot;}</desc>
+         id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -179,7 +179,7 @@
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccccccc">
       <desc
-         id="desc913">{&quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
+         id="desc913">{&quot;component&quot;:&quot;Rock&quot;, 
 &quot;properties&quot;: 
 {
 &quot;bodyType&quot;: 0,
@@ -194,7 +194,7 @@
        sodipodi:nodetypes="ccccccc">
       <desc
          id="desc923">{
-&quot;component&quot;:&quot;qrc:/clayground/VisualizedPolyBody.qml&quot;, 
+&quot;component&quot;:&quot;Rock&quot;, 
 &quot;properties&quot;: 
 {
 &quot;bodyType&quot;: 2,
