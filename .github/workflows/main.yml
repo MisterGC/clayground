@@ -7,7 +7,37 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Fetch Sources
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '5.14.2'
+        host: 'linux'
+        target: 'desktop'
+
+    - name: CMake Configure
+      run:  |
+        mkdir build
+        cd $GITHUB_WORKSPACE/build
+        sudo apt-get install -y ninja-build
+        cmake -DCMAKE_BUILD_TYPE=Release -GNinja ../
+
+    - name: Build
+      run:  |
+        cd $GITHUB_WORKSPACE/build
+        cmake --build .
+
+
+  build-windows:
     runs-on: windows-latest
 
     steps:
