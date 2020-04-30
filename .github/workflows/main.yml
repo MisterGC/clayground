@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+
+    - name: Fetch Sources
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '5.14.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2017_64'
+
+    - name: CMake Configure
+      run:  |
+        mkdir build
+        cd %GITHUB_WORKSPACE%\build
+        choco install ninja -y
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        cmake -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ../
+      shell: cmd
+
+    - name: Build
+      run:  |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        cd %GITHUB_WORKSPACE%\build
+        set CL=/MP
+        cmake --build .
+      shell: cmd
+
