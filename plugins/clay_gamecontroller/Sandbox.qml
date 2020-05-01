@@ -28,10 +28,16 @@ Rectangle {
         width: parent.width * .5
         height: parent.height
         Component.onCompleted: {
-            //selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K);
-            selectGamepad(0);
-            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_M, Qt.Key_N);
-            //selectTouchscreenGamepad();
+            // Use first gamepad or keyboard as fallback
+            if (numConnectedGamepads > 0)
+                selectGamepad(0);
+            else
+                selectKeyboard(Qt.Key_Up,
+                               Qt.Key_Down,
+                               Qt.Key_Left,
+                               Qt.Key_Right,
+                               Qt.Key_M,
+                               Qt.Key_N);
         }
         showDebugOverlay: true
     }
@@ -40,10 +46,11 @@ Rectangle {
         width: parent.width * .5
         height: parent.height
         Component.onCompleted: {
-            //selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K);
-            //selectGamepad(1);
-            //selectKeyboard(Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_M, Qt.Key_N);
-            selectTouchscreenGamepad();
+            // Use second gamepad or touchscreen as fallback
+            if (numConnectedGamepads > 1)
+                selectGamepad(1);
+            else
+                selectTouchscreenGamepad();
         }
         showDebugOverlay: true
     }
