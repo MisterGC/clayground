@@ -11,6 +11,15 @@ Rectangle {
     Keys.forwardTo: [controller1, controller2]
     Component.onCompleted: forceActiveFocus()
 
+    Text {
+        x: parent.width * 0.01
+        y: parent.height * 0.01
+        font.pixelSize: parent.height * 0.03
+        text: "#Gamepads: " + controller1.numConnectedGamepads
+        color: "orange"
+        font.bold: true
+    }
+
     Grid {
         anchors.fill: parent
         columns: 2
