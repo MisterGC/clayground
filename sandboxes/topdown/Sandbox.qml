@@ -55,4 +55,18 @@ ClayWorld {
             player.color = "#d45500";
         }
     }
+
+    Minimap {
+        id: theMinimap
+        opacity: 0.85
+        world: theWorld
+        width: parent.width * 0.25
+        height: width * (coordSys.height / coordSys.width)
+        anchors.right: parent.right
+        anchors.rightMargin: width * 0.1
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: anchors.rightMargin
+        color: "black"
+    }
+
 }
