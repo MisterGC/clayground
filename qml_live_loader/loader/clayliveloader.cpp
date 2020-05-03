@@ -16,7 +16,6 @@
 
 ClayLiveLoader::ClayLiveLoader(QObject *parent)
     : QObject(parent),
-      sandboxFile_(""),
       statsDb_(QSqlDatabase::addDatabase("QSQLITE")),
       reload_(this),
       altMessage_("N/A")
@@ -87,8 +86,8 @@ void ClayLiveLoader::addDynImportDir(const QString &path)
 
     QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
     if (sbxTest.exists()) {
-        if (!sandboxFile_.isEmpty()) qWarning("Sanbox has been set been set before.");
-        setSandboxFile(sbxTest.filePath());
+        if (!sandboxUrl_.isEmpty()) qWarning("Sanbox has been set been set before.");
+        setSandboxUrl(QUrl::fromLocalFile(sbxTest.filePath()));
     }
 
     if (!engine_.importPathList().contains(path))
@@ -110,10 +109,10 @@ void ClayLiveLoader::show()
 
 void ClayLiveLoader::onTimeToRestart()
 {
-    const auto sbxF = sandboxFile();
-    setSandboxFile("");
+    const auto sbxUrl = sandboxUrl();
+    setSandboxUrl(QUrl());
     clearCache();
-    setSandboxFile(sbxF);
+    setSandboxUrl(sbxUrl);
     emit restarted();
 }
 
@@ -150,22 +149,22 @@ void ClayLiveLoader::clearCache()
 }
 
 
-QString ClayLiveLoader::sandboxFile() const
+QUrl ClayLiveLoader::sandboxUrl() const
 {
-    return sandboxFile_;
+    return sandboxUrl_;
 }
 
 QString ClayLiveLoader::sandboxDir() const
 {
-    QFileInfo info(sandboxFile_);
+    QFileInfo info(sandboxUrl_.toLocalFile());
     return info.absolutePath();
 }
 
-void ClayLiveLoader::setSandboxFile(const QString& path)
+void ClayLiveLoader::setSandboxUrl(const QUrl& url)
 {
-    if (path != sandboxFile_){
-        sandboxFile_ = path;
-        emit sandboxFileChanged();
+    if (url != sandboxUrl_){
+        sandboxUrl_ = url;
+        emit sandboxUrlChanged();
         emit sandboxDirChanged();
     }
 }

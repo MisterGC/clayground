@@ -15,16 +15,14 @@ Window {
     Loader {
         id: sbxLoader
         anchors.fill: parent
-        property bool available: ClayLiveLoader.sandboxFile.length >
-                                 ClayLiveLoader.sandboxDir.length
-        source: available ? "file:" + ClayLiveLoader.sandboxFile : ""
+        source: ClayLiveLoader.sandboxUrl
     }
 
     Rectangle {
        id: messageShow
        anchors.fill: parent
        color: "black"
-       visible: !sbxLoader.available
+       visible: !sbxLoader.source
        ScrollView {
            anchors.centerIn: parent
            width: parent.width * .95
