@@ -27,7 +27,9 @@ Rectangle {
         id: controller1
         width: parent.width * .5
         height: parent.height
-        Component.onCompleted: {
+        Component.onCompleted: updateCtrl()
+        onNumConnectedGamepadsChanged: updateCtrl()
+        function updateCtrl() {
             // Use first gamepad or keyboard as fallback
             if (numConnectedGamepads > 0)
                 selectGamepad(0);
@@ -39,14 +41,17 @@ Rectangle {
                                Qt.Key_M,
                                Qt.Key_N);
         }
+
         showDebugOverlay: true
     }
     GameController {
         id: controller2
         width: parent.width * .5
         height: parent.height
-        Component.onCompleted: {
-            // Use second gamepad or touchscreen as fallback
+        Component.onCompleted: updateCtrl()
+        onNumConnectedGamepadsChanged: updateCtrl()
+        function updateCtrl() {
+            // Use first gamepad or keyboard as fallback
             if (numConnectedGamepads > 1)
                 selectGamepad(1);
             else
