@@ -7,18 +7,19 @@
 #include <QQmlApplicationEngine>
 #include <QSqlDatabase>
 #include <QTimer>
+#include <QUrl>
 
 class ClayLiveLoader: public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString sandboxFile READ sandboxFile NOTIFY sandboxFileChanged)
+    Q_PROPERTY(QUrl sandboxUrl READ sandboxUrl NOTIFY sandboxUrlChanged)
     Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
     Q_PROPERTY(QString altMessage READ altMessage NOTIFY altMessageChanged)
 
 public:
     explicit ClayLiveLoader(QObject *parent = nullptr);
 
-    QString sandboxFile() const;
+    QUrl sandboxUrl() const;
     QString sandboxDir() const;
     void addDynImportDir(const QString& path);
     void addDynPluginDir(const QString& path);
@@ -27,7 +28,7 @@ public:
     void setAltMessage(const QString &altMessage);
 
 signals:
-    void sandboxFileChanged();
+    void sandboxUrlChanged();
     void sandboxDirChanged();
     void altMessageChanged();
     void restarted();
@@ -40,7 +41,7 @@ private slots:
     void onTimeToRestart();
 
 private:
-    void setSandboxFile(const QString &path);
+    void setSandboxUrl(const QUrl &path);
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
     void storeValue(const QString& key, const QString& value);
@@ -49,7 +50,7 @@ private:
 private:
     QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
-    QString sandboxFile_;
+    QUrl sandboxUrl_;
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
