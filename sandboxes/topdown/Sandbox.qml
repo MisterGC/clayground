@@ -55,4 +55,26 @@ ClayWorld {
             player.color = "#d45500";
         }
     }
+
+    Minimap {
+        id: theMinimap
+        opacity: 0.85
+        world: theWorld
+        width: parent.width * 0.25
+        height: width * (coordSys.height / coordSys.width)
+        anchors.right: parent.right
+        anchors.rightMargin: width * 0.1
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: anchors.rightMargin
+        color: "black"
+
+        typeMapping: new Map([
+                                ['Player', mc1],
+                                ['Wall', mc2]
+                            ])
+        Component {id: mc1; Rectangle {color: "orange"}}
+        Component {id: mc2; Rectangle {color: "grey"}}
+
+    }
+
 }
