@@ -18,7 +18,9 @@ Item {
     // Visualizes the state of the GameController
     property alias showDebugOverlay: theDebugVisu.visible
 
-    property int gamepadId: gamepad.deviceId
+    property alias gamepadId: gamepad.deviceId
+    property int numConnectedGamepads: GamepadManager.connectedGamepads.length
+
     readonly property bool gamepadSelected: gamepad.deviceId !== -1
     readonly property bool vGamepadSelected: vgamepad.enabled
     readonly property bool keyboardSelected: keybGamepad.enabled
@@ -26,7 +28,7 @@ Item {
     /** Selects the specified gamepad as input source */
     function selectGamepad(gamePadIdx, useAnalogAxis) {
         if (gamePadIdx >= 0 &&
-            gamePadIdx < GamepadManager.connectedGamepads.length)
+            gamePadIdx < numConnectedGamepads)
         {
             gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
             keybGamepad.enabled = false;
