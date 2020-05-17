@@ -2,6 +2,6 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>Sandbox.qml</file>
+        <file>ExplosionFx.qml</file>
     </qresource>
 </RCC>
-
