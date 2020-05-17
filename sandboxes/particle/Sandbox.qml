@@ -1,35 +1,27 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.5
-import QtQuick.Particles 2.0
 
 Item {
-    id: root
+    id: theSbx
     anchors.fill: parent
-    Rectangle {
-    color: "black"
-    anchors.centerIn: parent
-    width: 100
-    height: 100
-    ParticleSystem { id: particleSystem; running: true }
-    Emitter {
-        id: emitter
-        width: 6*parent.width
-        height: width
-        anchors.centerIn: parent
-        system: particleSystem
-        emitRate: 80
-        lifeSpan: 500
-        lifeSpanVariation: 50
-        velocity: TargetDirection { targetX: emitter.width/2; targetY: emitter.height/2; magnitude: 200;}
-    }
-    ItemParticle {
-        system: particleSystem
-        delegate: Rectangle {
-            width: root.width/20 + Math.random() * root.width/20
+
+    property var explosion: null
+    Component.onCompleted: recreateExplosion()
+    Component {
+        id: explosionComp
+        ExplosionFx {
+            anchors.centerIn: parent
+            width: parent.width * .2
             height: width
-            color: "grey"
         }
     }
+
+    function recreateExplosion(){
+       if (explosion) explosion.destroy();
+       explosion = explosionComp.createObject(theSbx);
+       explosion.onFinished.connect(recreateExplosion);
     }
+
+    Text { x: parent.width * .02; text: "An explosion" }
 }
