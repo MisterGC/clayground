@@ -10,23 +10,18 @@ Rectangle {
     readonly property var _observed: world.coordSys
     readonly property real _xScale: (1.0 * width)/_observed.width
     readonly property real _yScale: (1.0 * height)/_observed.height
-    Component.onCompleted: {
+    Component.onCompleted: world.worldCreated.connect(onWorldCreated);
+
+    function onWorldCreated() {
         _observed.childrenChanged.connect(_updateContent);
         _observed.widthChanged.connect(_updateContent);
         _observed.heightChanged.connect(_updateContent);
         world.worldCreated.connect(_updateContent);
     }
+
     onWidthChanged: _updateContent()
     onHeightChanged: _updateContent()
     signal _cleanUp()
-
-    Component {
-        id: theEntity
-        Rectangle {
-            Component.onCompleted: theMinimap._cleanUp.connect(destroy)
-            color: "orange"
-        }
-    }
 
     function _typeAsString(obj){
         let typeStr = obj.toString();
@@ -42,6 +37,8 @@ Rectangle {
         _cleanUp();
         for (let i=1; i<_observed.children.length; ++i){
             let o = _observed.children[i];
+            // Skip object that may be already destroyed
+            if (!o) continue;
             let typStr = _typeAsString(o);
             if (theMinimap.typeMapping.has(typStr)) {
                 let comp = theMinimap.typeMapping.get(typStr);
@@ -52,6 +49,7 @@ Rectangle {
                                             });
                 obj.x = Qt.binding(function() {return o.x * _xScale});
                 obj.y = Qt.binding(function() {return o.y * _yScale});
+                theMinimap._cleanUp.connect(obj.destroy)
             }
         }
     }
