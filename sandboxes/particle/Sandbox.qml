@@ -1,27 +1,43 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.5
+import QtQuick.Controls 2.12
 
-Item {
+Rectangle {
     id: theSbx
     anchors.fill: parent
 
-    property var explosion: null
-    Component.onCompleted: recreateExplosion()
+    property var effectComponent: null
+    property var effectInstance: null
+    onEffectComponentChanged: createEffect()
+
     Component {
         id: explosionComp
         ExplosionFx {
-            anchors.centerIn: parent
-            width: parent.width * .2
+            numParts: 150
+            width: theSbx.width * .5
             height: width
+            anchors.centerIn: parent
+        }
+    }
+    Component {
+        id: absorptionComp
+        AbsorptionFx {
+            timeToLive: 1500
+            width: theSbx.width * .8
+            height: width
+            anchors.centerIn: parent
         }
     }
 
-    function recreateExplosion(){
-       if (explosion) explosion.destroy();
-       explosion = explosionComp.createObject(theSbx);
-       explosion.onFinished.connect(recreateExplosion);
+    function createEffect(){
+       effectInstance = effectComponent.createObject(theSbx);
     }
 
-    Text { x: parent.width * .02; text: "An explosion" }
+    Row {
+        id: theButtons
+        anchors.bottom: parent.bottom
+        Button { text: "Explosion";   onClicked: effectComponent = explosionComp  }
+        Button { text: "Absorption";  onClicked: effectComponent = absorptionComp }
+    }
 }
