@@ -1,9 +1,9 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#include "scalingcanvasplugin.h"
+#include "claycanvasplugin.h"
 #include <QQmlEngine>
 
-void ScalingCanvasPlugin::registerTypes(const char *uri)
+void ClayCanvasPlugin::registerTypes(const char *uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/ClayCanvas.qml"),uri, 1,0,"ClayCanvas");
     qmlRegisterType(QUrl("qrc:/clayground/ScalingPoly.qml"),uri, 1,0,"ScalingPoly");

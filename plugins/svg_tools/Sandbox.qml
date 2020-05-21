@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.12
-import Clayground.ScalingCanvas 1.0
+import Clayground.Canvas 1.0
 import Clayground.SvgUtils 1.0
 
 ClayCanvas

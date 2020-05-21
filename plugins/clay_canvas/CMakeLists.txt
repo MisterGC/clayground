@@ -1,21 +1,17 @@
-project (ScalingCanvas)
+project (ClayCanvas)
 
 set (CMAKE_AUTOMOC on)
 set (CMAKE_AUTORCC on)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
-    scalingcanvasplugin.cpp
-    scalingcanvasplugin.h
+    claycanvasplugin.cpp
     qmldir.in
     res.qrc
-    ClayCanvas.qml
     Sandbox.qml
-    ScalingRectangle.qml
-    ScalingText.qml
 )
 
-set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/${PROJECT_NAME}")
+set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/Canvas")
 set_target_properties(
 ${PROJECT_NAME}
 PROPERTIES

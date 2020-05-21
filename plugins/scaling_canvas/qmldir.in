@@ -1,3 +1,0 @@
-module Clayground.ScalingCanvas
-plugin ScalingCanvas
-classname ScalingCanvasPlugin
