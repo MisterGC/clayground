@@ -3,7 +3,7 @@
 import QtQuick 2.12
 import Clayground.ScalingCanvas 1.0
 
-CoordCanvas
+ClayCanvas
 {
     id: theCanvas
     anchors.fill: parent

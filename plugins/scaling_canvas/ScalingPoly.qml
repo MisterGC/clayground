@@ -7,7 +7,7 @@ import QtQuick.Shapes 1.14
 Shape {
     id: theShape
 
-    property CoordCanvas canvas: null
+    property ClayCanvas canvas: null
     parent: canvas.coordSys
 
     property alias _shapePath: theShapePath

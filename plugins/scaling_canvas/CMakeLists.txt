@@ -9,7 +9,7 @@ add_library(${PROJECT_NAME} SHARED
     scalingcanvasplugin.h
     qmldir.in
     res.qrc
-    CoordCanvas.qml
+    ClayCanvas.qml
     Sandbox.qml
     ScalingRectangle.qml
     ScalingText.qml

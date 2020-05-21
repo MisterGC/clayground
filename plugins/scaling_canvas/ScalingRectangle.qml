@@ -3,7 +3,7 @@
 import QtQuick 2.0
 
 Rectangle {
-    property CoordCanvas canvas: null
+    property ClayCanvas canvas: null
     parent: canvas.coordSys
     property real xWu: 0
     property real yWu: 0
