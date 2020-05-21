@@ -3,7 +3,7 @@
 import QtQuick 2.0
 import Box2D 2.0
 
-ScalingPoly {
+Poly {
     id: thePoly
 
     onVerticesChanged: refresh();

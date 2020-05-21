@@ -6,7 +6,7 @@
 void ClayCanvasPlugin::registerTypes(const char *uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/ClayCanvas.qml"),uri, 1,0,"ClayCanvas");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingPoly.qml"),uri, 1,0,"ScalingPoly");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingRectangle.qml"),uri, 1,0,"ScalingRectangle");
-    qmlRegisterType(QUrl("qrc:/clayground/ScalingText.qml"),uri, 1,0,"ScalingText");
+    qmlRegisterType(QUrl("qrc:/clayground/Poly.qml"),uri, 1,0,"Poly");
+    qmlRegisterType(QUrl("qrc:/clayground/Rectangle.qml"),uri, 1,0,"Rectangle");
+    qmlRegisterType(QUrl("qrc:/clayground/Text.qml"),uri, 1,0,"Text");
 }

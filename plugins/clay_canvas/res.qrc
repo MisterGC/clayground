@@ -1,9 +1,9 @@
 <RCC>
     <qresource prefix="/clayground">
         <file>ClayCanvas.qml</file>
-        <file>ScalingPoly.qml</file>
-        <file>ScalingRectangle.qml</file>
-        <file>ScalingText.qml</file>
+        <file>Poly.qml</file>
+        <file>Rectangle.qml</file>
+        <file>Text.qml</file>
     </qresource>
 </RCC>
 

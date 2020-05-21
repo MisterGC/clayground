@@ -51,8 +51,8 @@ ClayCanvas
         }
     }
 
-    Component {id: theRect; ScalingRectangle {}}
-    Component {id: thePoly; ScalingPoly {fillColor:"orange"}}
+    Component {id: theRect; Rectangle {}}
+    Component {id: thePoly; Poly {fillColor:"orange"}}
 
     SvgInspector
     {
