@@ -36,7 +36,7 @@ ClayCanvas
     signal worldCreated()
     signal objectCreated(var obj, var compName)
 
-    property alias entities: theSvgInspector.entities
+    property alias entities: theSvgReader.entities
     // Signals which are emitted when elements have
     // been loaded which are not yet processed by
     // ClayWorld functionality
@@ -50,7 +50,7 @@ ClayCanvas
 
     function _refreshMap() {
         if (width > 0 || height > 0) {
-            theSvgInspector.setSource(_fullmappath);
+            theSvgReader.setSource(_fullmappath);
             theCreator.start();
         }
     }
@@ -75,9 +75,9 @@ ClayCanvas
     }
     Loader { sourceComponent: physicsDebugging ? physDebugComp : null }
 
-    SvgInspector
+    SvgReader
     {
-        id: theSvgInspector
+        id: theSvgReader
 
         property var entities: []
         readonly property string componentPropKey: "component"

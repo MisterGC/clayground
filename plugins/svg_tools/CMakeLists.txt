@@ -8,8 +8,8 @@ find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 add_library(${PROJECT_NAME} SHARED
     svgutilsplugin.cpp
     svgutilsplugin.h
-    svginspector.cpp
-    svginspector.h
+    svgreader.cpp
+    svgreader.h
     svgwriter.cpp
     svgwriter.h
     Sandbox.qml
