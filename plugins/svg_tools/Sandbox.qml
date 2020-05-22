@@ -1,10 +1,10 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.12
-import Clayground.ScalingCanvas 1.0
+import Clayground.Canvas 1.0
 import Clayground.SvgUtils 1.0
 
-CoordCanvas
+ClayCanvas
 {
     id: theCanvas
     anchors.fill: parent
@@ -51,8 +51,8 @@ CoordCanvas
         }
     }
 
-    Component {id: theRect; ScalingRectangle {}}
-    Component {id: thePoly; ScalingPoly {fillColor:"orange"}}
+    Component {id: theRect; Rectangle {}}
+    Component {id: thePoly; Poly {fillColor:"orange"}}
 
     SvgInspector
     {

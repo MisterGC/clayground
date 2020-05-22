@@ -3,10 +3,10 @@
 import QtQuick 2.12
 import Box2D 2.0
 import Clayground.SvgUtils 1.0
-import Clayground.ScalingCanvas 1.0
+import Clayground.Canvas 1.0
 import Clayground.Physics 1.0
 
-CoordCanvas
+ClayCanvas
 {
     id: theWorld
     anchors.fill: parent

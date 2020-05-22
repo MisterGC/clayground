@@ -2,14 +2,16 @@
 
 import QtQuick 2.0
 
-Text {
-    property CoordCanvas canvas: null
+Rectangle {
+    property ClayCanvas canvas: null
     parent: canvas.coordSys
     property real xWu: 0
     property real yWu: 0
-    property real fontSizeWu: 10
+    property real widthWu: 0
+    property real heightWu: 0
 
     x: canvas.xToScreen(xWu)
     y: canvas.yToScreen(yWu)
-    font.pixelSize: fontSizeWu * canvas.pixelPerUnit
+    width: widthWu * canvas.pixelPerUnit
+    height: heightWu * canvas.pixelPerUnit
 }
