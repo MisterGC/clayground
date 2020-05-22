@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#include "svginspector.h"
+#include "svgreader.h"
 #include <QFile>
 #include <QXmlStreamReader>
 #include <QDebug>
@@ -10,19 +10,19 @@
 #include <regex>
 #include <sstream>
 
-SvgInspector::SvgInspector()
+SvgReader::SvgReader()
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
-            this, &SvgInspector::onFileChanged,
+            this, &SvgReader::onFileChanged,
             static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::UniqueConnection));
 }
 
-void SvgInspector::onFileChanged(const QString& /*path*/)
+void SvgReader::onFileChanged(const QString& /*path*/)
 {
     introspect();
 }
 
-void SvgInspector::onPath(const QString& dAttr, const QString& descr, double heightWu)
+void SvgReader::onPath(const QString& dAttr, const QString& descr, double heightWu)
 {
     const auto dPoly = dAttr.toStdString();
 
@@ -54,7 +54,7 @@ void SvgInspector::onPath(const QString& dAttr, const QString& descr, double hei
     }
 }
 
-void SvgInspector::listToPoints(const QString& lst,
+void SvgReader::listToPoints(const QString& lst,
                                 QVariantList& points,
                                 bool absCoords,
                                 double heightWu,
@@ -83,7 +83,7 @@ void SvgInspector::listToPoints(const QString& lst,
 }
 
 
-void SvgInspector::processShape(QXmlStreamReader& xmlReader,
+void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               QXmlStreamReader::TokenType& token,
                               bool& currentTokenProcessed,
                               const float& heightWu)
@@ -139,7 +139,7 @@ void SvgInspector::processShape(QXmlStreamReader& xmlReader,
     }
 }
 
-void SvgInspector::resetFileObservation()
+void SvgReader::resetFileObservation()
 {
     if (!fileObserver_.files().isEmpty())
         fileObserver_.removePaths(fileObserver_.files());
@@ -147,12 +147,12 @@ void SvgInspector::resetFileObservation()
         fileObserver_.addPath(source_);
 }
 
-QString SvgInspector::source() const
+QString SvgReader::source() const
 {
     return source_;
 }
 
-void SvgInspector::introspect()
+void SvgReader::introspect()
 {
     if (source_.isEmpty()) return;
     auto pathToSvg = source_;
@@ -208,7 +208,7 @@ void SvgInspector::introspect()
     emit end();
 }
 
-void SvgInspector::setSource(const QString &pathToSvg)
+void SvgReader::setSource(const QString &pathToSvg)
 {
     if (pathToSvg == source_) return;
 

@@ -54,9 +54,9 @@ ClayCanvas
     Component {id: theRect; Rectangle {}}
     Component {id: thePoly; Poly {fillColor:"orange"}}
 
-    SvgInspector
+    SvgReader
     {
-        id: theSvgInspector
+        id: theSvgReader
         property var objs: []
 
         Component.onCompleted: setSource(theWriter.path)

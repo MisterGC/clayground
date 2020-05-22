@@ -1,17 +1,17 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#ifndef POPULATOR_H
-#define POPULATOR_H
+#ifndef CLAY_SVG_READER_H
+#define CLAY_SVG_READER_H
 #include <QObject>
 #include <QFileSystemWatcher>
 #include <QXmlStreamReader>
 
-class SvgInspector: public QObject
+class SvgReader: public QObject
 {
     Q_OBJECT
 
 public:
-    SvgInspector();
+    SvgReader();
 
 public slots:
     void setSource(const QString& pathToSvg);

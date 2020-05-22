@@ -1,4 +1,4 @@
-project (SvgUtils)
+project (ClaySvg)
 
 set (CMAKE_AUTOMOC on)
 set (CMAKE_AUTORCC on)
@@ -6,17 +6,17 @@ set (CMAKE_AUTORCC on)
 find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
-    svgutilsplugin.cpp
-    svgutilsplugin.h
-    svginspector.cpp
-    svginspector.h
+    svgplugin.cpp
+    svgplugin.h
+    svgreader.cpp
+    svgreader.h
     svgwriter.cpp
     svgwriter.h
     Sandbox.qml
     qmldir
 )
 
-set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/${PROJECT_NAME}")
+set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/Svg")
 set_target_properties(
 ${PROJECT_NAME}
 PROPERTIES
