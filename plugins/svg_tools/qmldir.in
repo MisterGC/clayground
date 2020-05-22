@@ -1,3 +1,0 @@
-module Clayground.SvgUtils
-plugin SvgUtils
-classname SvgUtilsPlugin

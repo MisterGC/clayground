@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
 project (plugins)
-add_subdirectory (svg_tools)
+add_subdirectory (clay_svg)
 add_subdirectory (clay_canvas)
 add_subdirectory (clay_gamecontroller)
 add_subdirectory (physics)
