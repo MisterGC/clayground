@@ -4,7 +4,7 @@
 #define CLAYGROUND_PHYSICS_PLUGIN 
 #include <QQmlExtensionPlugin>
 
-class PhysicsPlugin: public QQmlExtensionPlugin 
+class ClayPhysicsPlugin: public QQmlExtensionPlugin
 {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID "clayground.physicsplugin")

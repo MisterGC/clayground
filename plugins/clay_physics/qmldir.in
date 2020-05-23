@@ -1,0 +1,3 @@
+module Clayground.Physics
+plugin ClayPhysics
+classname ClayPhysicsPlugin
