@@ -1,9 +1,9 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#include "physicsplugin.h"
+#include "clayphysicsplugin.h"
 #include <QQmlEngine>
 
-void PhysicsPlugin::registerTypes(const char* uri)
+void ClayPhysicsPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/PhysicsItem.qml"),uri, 1,0,"PhysicsItem");
     qmlRegisterType(QUrl("qrc:/clayground/VisualizedBoxBody.qml"),uri, 1,0,"VisualizedBoxBody");
