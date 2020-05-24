@@ -6,10 +6,8 @@ find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     clayworldplugin.cpp
-    clayworldplugin.h
     qmldir.in
     res.qrc
-    ClayWorld.qml
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)

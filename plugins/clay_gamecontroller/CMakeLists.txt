@@ -6,13 +6,8 @@ find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     claygamectrlplugin.cpp
-    claygamectrlplugin.h
     qmldir.in
     res.qrc
-    GameController.qml
-    GameControllerDV.qml
-    KeyboardGamepad.qml
-    TouchscreenGamepad.qml
     Sandbox.qml
 )
 

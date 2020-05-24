@@ -11,13 +11,10 @@ find_package(Qt5 COMPONENTS Core Quick QuickWidgets REQUIRED)
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME}
-clayrestarter.cpp
-clayrestarter.h
-main.cpp
-PixelProgress.qml
-SciFiWatch.qml
-main.qml
-res.qrc
+    clayrestarter.cpp
+    main.cpp
+    main.qml
+    res.qrc
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)

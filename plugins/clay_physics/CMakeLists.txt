@@ -6,7 +6,6 @@ find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     clayphysicsplugin.cpp
-    clayphysicsplugin.h
     qmldir.in
     res.qrc
 )

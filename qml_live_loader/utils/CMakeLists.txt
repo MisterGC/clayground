@@ -7,11 +7,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 
 add_library (${PROJECT_NAME} STATIC
-  clayfilesysobserver.cpp
-  clayfilesysobserver.h
-  utilityfunctions.cpp
-  utilityfunctions.h
-  )
+    clayfilesysobserver.cpp
+    utilityfunctions.cpp
+)
 
 target_include_directories(${PROJECT_NAME} PUBLIC .)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
