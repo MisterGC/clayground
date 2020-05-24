@@ -3,7 +3,7 @@ project (ClayWorld)
 
 set (CMAKE_AUTOMOC ON)
 set (CMAKE_AUTORCC ON)
-find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt5 5.14 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     clayworldplugin.cpp
