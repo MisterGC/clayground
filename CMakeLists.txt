@@ -1,5 +1,5 @@
-cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
-project (Clayground VERSION 2019.1)
+cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
+project (Clayground VERSION 2020.1)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

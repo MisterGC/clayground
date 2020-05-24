@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
-
+cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project(clayrestarter LANGUAGES CXX)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)

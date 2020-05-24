@@ -1,3 +1,4 @@
+cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project (ClayPhysics)
 
 set (CMAKE_AUTOMOC ON)
