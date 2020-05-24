@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project (ClayCanvas)
 
 find_package(Qt5 5.14 REQUIRED COMPONENTS Core Quick Qml)
-
 set (CMAKE_AUTOMOC ON)
 set (CMAKE_AUTORCC ON)
 

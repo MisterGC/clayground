@@ -4,13 +4,10 @@ project (topdown)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOMOC ON)
-
 find_package(Qt5 5.14 COMPONENTS Core Quick REQUIRED)
 
 add_executable (${PROJECT_NAME} main.cpp res.qrc)
-
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-
 target_link_libraries(${PROJECT_NAME}
 PRIVATE
   Qt5::Core
