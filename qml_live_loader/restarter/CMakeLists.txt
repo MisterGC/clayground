@@ -6,11 +6,10 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt5 COMPONENTS Core Quick QuickWidgets REQUIRED)
 find_package(Threads REQUIRED)
+
 add_executable(${PROJECT_NAME}
 clayrestarter.cpp
 clayrestarter.h
@@ -20,6 +19,8 @@ SciFiWatch.qml
 main.qml
 res.qrc
 )
+
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 target_link_libraries(${PROJECT_NAME}
 PRIVATE 

@@ -11,13 +11,11 @@ add_library(${PROJECT_NAME} SHARED
     Sandbox.qml
 )
 
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+
 set (PLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/Canvas")
-set_target_properties(
-${PROJECT_NAME}
+set_target_properties(${PROJECT_NAME}
 PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED on
-    CXX_EXTENSIONS NO
     LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
 )

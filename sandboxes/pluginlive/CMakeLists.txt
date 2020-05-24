@@ -13,11 +13,7 @@ Sandbox.qml
 res.qrc
 )
 
-set_target_properties (${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS NO
-    )
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 target_link_libraries(${PROJECT_NAME}
 PRIVATE
