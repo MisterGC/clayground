@@ -1,21 +1,18 @@
-cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project (clayutilities)
 
-find_package(Qt5 COMPONENTS Core REQUIRED)
+find_package(Qt5 5.14 COMPONENTS Core REQUIRED)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library (${PROJECT_NAME} STATIC
-  clayfilesysobserver.cpp
-  clayfilesysobserver.h
-  utilityfunctions.cpp
-  utilityfunctions.h
-  )
+    clayfilesysobserver.cpp
+    utilityfunctions.cpp
+)
 
 target_include_directories(${PROJECT_NAME} PUBLIC .)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
 PUBLIC 
   Qt5::Core 

@@ -1,27 +1,13 @@
-cmake_minimum_required (VERSION 3.5.0 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project (topdown)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOMOC ON)
+find_package(Qt5 5.14 COMPONENTS Core Quick REQUIRED)
 
-find_package(Qt5 COMPONENTS Core Quick REQUIRED)
-
-add_executable (${PROJECT_NAME}
-main.cpp
-main.qml
-Sandbox.qml
-Player.qml
-Wall.qml
-res.qrc
-)
-
-set_target_properties (${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS NO
-    )
-
+add_executable (${PROJECT_NAME} main.cpp res.qrc)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
 PRIVATE
   Qt5::Core
