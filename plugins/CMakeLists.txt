@@ -1,5 +1,8 @@
 cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 project (plugins)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 add_subdirectory (clay_svg)
 add_subdirectory (clay_canvas)
 add_subdirectory (clay_gamecontroller)
