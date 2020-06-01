@@ -26,6 +26,7 @@ function(clay_p PLUGIN_NAME)
     add_library(${PLUGIN_NAME} SHARED ${CLAYPLUGIN_SOURCES})
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${CLAYPLUGIN_LINK_LIBS})
     target_compile_features(${PLUGIN_NAME} PUBLIC cxx_std_17)
+    set(QML_IMPORT_PATH ${QML_IMPORT_PATH} ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "" FORCE)
 
     set_target_properties(${PLUGIN_NAME}
     PROPERTIES
