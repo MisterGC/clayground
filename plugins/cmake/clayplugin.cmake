@@ -1,3 +1,4 @@
+# Thanks to https://github.com/xarxer/cmake-qmlplugin for inspiration
 include(CMakeParseArguments)
 
 function(FindQmlPluginDump)
