@@ -2,6 +2,10 @@
 include(CMakeParseArguments)
 
 function(FindQmlPluginDump)
+    if(NOT QT_QMAKE_EXECUTABLE)
+        message(FATAL_ERROR
+                "Cannot find qmlplugindump because QT_QMAKE_EXECUTABLE is not set.")
+    endif()
     execute_process(
         COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_INSTALL_BINS
         OUTPUT_VARIABLE QT_BIN_DIR
@@ -17,8 +21,7 @@ function(clay_p PLUGIN_NAME)
     cmake_parse_arguments(CLAYPLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if(NOT CLAYPLUGIN_VERSION)
-        message(ERROR "VERSION must be set, no files generated")
-        return()
+        message(FATAL_ERROR "VERSION must be set, no files generated")
     endif()
 
     set(CMAKE_AUTOMOC ON)
