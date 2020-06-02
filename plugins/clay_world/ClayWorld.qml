@@ -2,7 +2,7 @@
 
 import QtQuick 2.12
 import Box2D 2.0
-import Clayground.SvgUtils 1.0
+import Clayground.Svg 1.0
 import Clayground.Canvas 1.0
 import Clayground.Physics 1.0
 

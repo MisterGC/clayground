@@ -29,7 +29,7 @@ jobs:
         mkdir build
         cd $GITHUB_WORKSPACE/build
         sudo apt-get install -y ninja-build
-        cmake -DCMAKE_BUILD_TYPE=Release -GNinja ../
+        cmake -DCMAKE_BUILD_TYPE=Release -DQT_QMAKE_EXECUTABLE=qmake -GNinja ../
 
     - name: Build
       run:  |
@@ -61,7 +61,7 @@ jobs:
         cd %GITHUB_WORKSPACE%\build
         choco install ninja -y
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        cmake -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ../
+        cmake -DCMAKE_BUILD_TYPE=Release -GNinja -DQT_QMAKE_EXECUTABLE=qmake -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ../
       shell: cmd
 
     - name: Build
