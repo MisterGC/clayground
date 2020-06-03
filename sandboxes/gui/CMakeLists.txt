@@ -15,5 +15,5 @@ PRIVATE
 
 add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
 set_tests_properties(test${PROJECT_NAME} PROPERTIES
-    ENVIRONMENT QT_QPA_PLATFORM=offscreen
-    )
+    ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal"
+)

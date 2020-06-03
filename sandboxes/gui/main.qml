@@ -8,5 +8,5 @@ Window {
     visible: true
     title: qsTr("Gui")
     Sandbox { anchors.fill: parent }
-    Component.onCompleted: if(Qt.platform.pluginName === "offscreen") Qt.quit()
+    Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()
 }

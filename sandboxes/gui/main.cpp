@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
-    if (QGuiApplication::platformName() == "offscreen") {
+    if (QGuiApplication::platformName() == "minimal") {
         QObject::connect(&engine,
                          &QQmlApplicationEngine::warnings,
                          [=] (const QList<QQmlError>& warnings) {
