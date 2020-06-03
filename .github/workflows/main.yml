@@ -36,6 +36,12 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         cmake --build .
 
+    - name: Test
+      uses: openrndr/setup-opengl@v1
+      run:  |
+        cd $GITHUB_WORKSPACE/build
+        ctest --output-on-failure 
+
 
   build-windows:
     runs-on: windows-latest
@@ -71,4 +77,9 @@ jobs:
         set CL=/MP
         cmake --build .
       shell: cmd
+
+    - name: Test
+      run:  |
+        cd %GITHUB_WORKSPACE%\build
+        ctest --output-on-failure 
 
