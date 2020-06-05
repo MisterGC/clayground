@@ -6,9 +6,9 @@ import QtQuick.Particles 2.0
 Item {
     id: theVFX
 
-    property alias timeToLive: destructor.interval
-    Component.onCompleted: destructor.start()
-    Timer {id: destructor; interval: 1500; onTriggered: theVFX.destroy()}
+    // Time a particle needs from out boundary to absorption center
+    property alias msFromBoundaryToCenter: emitter.lifeSpan
+    property alias particlesPerSecond: emitter.emitRate
 
     ParticleSystem {
         anchors.fill: parent
@@ -22,7 +22,8 @@ Item {
             velocity: TargetDirection {
                 targetX: emitter.width * .5
                 targetY: emitter.height * .5
-                magnitude: emitter.width
+                magnitude: 1000.0 / emitter.lifeSpan
+                proportionalMagnitude: true
             }
         }
         ItemParticle {

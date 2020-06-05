@@ -23,7 +23,8 @@ Rectangle {
     Component {
         id: absorptionComp
         AbsorptionFx {
-            timeToLive: 1500
+            msFromBoundaryToCenter: 800
+            particlesPerSecond: 250
             width: theSbx.width * .8
             height: width
             anchors.centerIn: parent
