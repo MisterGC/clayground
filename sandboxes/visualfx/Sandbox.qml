@@ -23,11 +23,14 @@ Rectangle {
     Component {
         id: absorptionComp
         AbsorptionFx {
+            id: aFx
+            Component.onCompleted: destruct.start()
             msFromBoundaryToCenter: 800
             particlesPerSecond: 250
             width: theSbx.width * .8
             height: width
             anchors.centerIn: parent
+            Timer { id: destruct;  interval: 2000; onTriggered: aFx.destroy() }
         }
     }
 
