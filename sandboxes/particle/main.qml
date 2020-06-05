@@ -8,4 +8,5 @@ Window {
     visible: true
     title: qsTr("Particle")
     Sandbox { anchors.fill: parent }
+    Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()
 }

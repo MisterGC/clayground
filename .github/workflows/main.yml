@@ -36,6 +36,11 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         cmake --build .
 
+    - name: Test
+      run:  |
+        cd $GITHUB_WORKSPACE/build
+        ctest --output-on-failure
+
 
   build-windows:
     runs-on: windows-latest
@@ -72,3 +77,8 @@ jobs:
         cmake --build .
       shell: cmd
 
+    - name: Test
+      run:  |
+        cd %GITHUB_WORKSPACE%\build
+        ctest --output-on-failure 
+      shell: cmd
