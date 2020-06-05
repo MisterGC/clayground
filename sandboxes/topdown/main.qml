@@ -8,4 +8,5 @@ Window {
     visibility: Window.Maximized
     title: qsTr("TopDown")
     Sandbox { runsInSbx: false; anchors.centerIn: parent }
+    Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()
 }
