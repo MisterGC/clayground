@@ -26,7 +26,7 @@ build interactive experiences:
 ### Available Examples
 A bunch of example application allow you to try it out easily:
 - GUI: Very basic app which helps to learn QtQuick.Controls.
-- Particle: Suitable to experiment with/learn the Qt Particle system.
+- VisualFX: Implementation of different visual effects, includes usage of the [Qt Particle System](https://doc.qt.io/qt-5/qtquick-effects-particles.html). 
 - Platformer: Starting point for a platformer game.
 - TopDown: Starting point for a topdown game (for example a classical RPG).
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin.

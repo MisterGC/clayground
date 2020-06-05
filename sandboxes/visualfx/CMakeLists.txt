@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
-project (sbx_particle)
+project (sbx_visualfx)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTORCC ON)
