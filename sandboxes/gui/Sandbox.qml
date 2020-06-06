@@ -2,29 +2,33 @@
 
 import QtQuick 2.12
 import QtQuick.Controls 2.5
+import Clayground.Storage 1.0
 
 Rectangle
 {
     color: "grey"
 
+    KeyValueStore { id: theStore; name: "gui-store" }
+
     Column
     {
-        spacing: 10
-        ComboBox {
-            width: 200
-            model: ["One", "Two", "Three"]
-        }
-        ComboBox {
-            width: 200
-            model: ["Another", "Hmm", "Three"]
-        }
-        RoundButton {
-            text: "What's this?"
-            width: 300
-        }
-        CheckBox { checked: true; text: "With Sugar" }
-        CheckBox { checked: true; text: "With Milk" }
-        CheckBox { checked: true; text: "With Water" }
-    }
+        anchors.topMargin: parent.height * .05
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.leftMargin: parent.width * .03
 
+        Label {
+            text: "Persistent Storage: Enter a text, save it and load it again."
+            color: "white"
+        }
+
+        spacing: 10
+        TextField { id: input; width: parent.width }
+
+        Row {
+            spacing: 5
+            Button { text: "Save"; onClicked: theStore.set("myvalue", input.text ) }
+            Button { text: "Load"; onClicked: input.text = theStore.get("myvalue") }
+        }
+    }
 }
