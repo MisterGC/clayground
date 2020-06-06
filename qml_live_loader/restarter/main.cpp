@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion("0.1");
 
     QQmlApplicationEngine engine;
+    engine.addImportPath("plugins");
     engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     ClayRestarter restarter;
