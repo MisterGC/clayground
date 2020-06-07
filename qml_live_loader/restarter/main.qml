@@ -3,6 +3,7 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
+import Clayground.Storage 1.0
 
 Window {
     id: theWindow
@@ -112,7 +113,7 @@ Window {
         }
     }
 
-    KeyValueStorage { id: keyvalues; name: "clayrtdb" }
+    KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayRestarter
         onRestarted: {

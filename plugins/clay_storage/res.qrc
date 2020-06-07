@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>KeyValueStore.qml</file>
+    </qresource>
+</RCC>
+

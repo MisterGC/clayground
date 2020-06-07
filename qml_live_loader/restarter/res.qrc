@@ -3,7 +3,6 @@
     <file>main.qml</file>
     <file>PixelProgress.qml</file>
     <file>SciFiWatch.qml</file>
-    <file alias="KeyValueStorage.qml">../common/KeyValueStorage.qml</file>
 </qresource>
 </RCC>
 
