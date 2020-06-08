@@ -58,9 +58,9 @@ ClayWorld {
 
     Minimap {
         id: theMinimap
-        opacity: 0.85
+        opacity: 0.75
         world: theWorld
-        width: parent.width * 0.25
+        width: parent.width * 0.2
         height: width * (coordSys.height / coordSys.width)
         anchors.right: parent.right
         anchors.rightMargin: width * 0.1
