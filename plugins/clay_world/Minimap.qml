@@ -17,6 +17,7 @@ Rectangle {
         _observed.widthChanged.connect(_updateContent);
         _observed.heightChanged.connect(_updateContent);
         world.worldCreated.connect(_updateContent);
+        _updateContent();
     }
 
     onWidthChanged: _updateContent()
