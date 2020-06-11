@@ -3,6 +3,11 @@
 #define CLAYIMAGEPROVIDER_H
 
 #include <QQuickImageProvider>
+#include <QSvgRenderer>
+#include <QHash>
+#include <QSet>
+#include <QImage>
+#include <QUrlQuery>
 
 class ImageProvider: public QObject, public QQuickImageProvider
 {
@@ -10,9 +15,15 @@ class ImageProvider: public QObject, public QQuickImageProvider
 
 public:
     ImageProvider();
+    virtual ~ImageProvider();
     QPixmap requestPixmap(const QString &path,
                           QSize *size,
                           const QSize &requestedSize) override;
+private:
+    QSvgRenderer &fetchRenderer(const QString &imgId);
+private:
+    QHash<QString, QSvgRenderer*> svgCache_;
+    void hideIgnoredColor(const QUrlQuery &queryPart, QImage &img);
 };
 
 #endif // SCALINGIMAGEPROVIDER_H

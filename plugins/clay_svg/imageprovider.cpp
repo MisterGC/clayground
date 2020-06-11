@@ -1,15 +1,55 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 #include "imageprovider.h"
 
-#include <QSvgRenderer>
 #include <QPainter>
-#include <QImage>
-#include <QDebug>
-#include <QUrlQuery>
 #include <math.h>
 
 ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
 { }
+
+ImageProvider::~ImageProvider()
+{
+    qDeleteAll(svgCache_);
+    svgCache_.clear();
+}
+
+QSvgRenderer& ImageProvider::fetchRenderer(const QString& imgId)
+{
+    QString svgDir = ":";
+    const auto sbxvar = "CLAYGROUND_SBX_DIR";
+    if (qEnvironmentVariableIsSet(sbxvar))
+        svgDir = qEnvironmentVariable(sbxvar);
+
+    const auto svgPath = QString(svgDir + "/%1.svg").arg(imgId);
+    if (!svgCache_.contains(svgPath)) {
+        svgCache_[svgPath] = new QSvgRenderer(svgPath);
+    }
+    return *svgCache_[svgPath];
+}
+
+void ImageProvider::hideIgnoredColor(const QUrlQuery& queryPart, QImage& img)
+{
+    const auto ignoredColorKey = QString("ignoredColor");
+    QColor ignoredColor;
+
+    if (queryPart.hasQueryItem(ignoredColorKey)) {
+        ignoredColor = QColor("#" + queryPart.queryItemValue(ignoredColorKey));
+    }
+
+    if (ignoredColor.isValid())
+    {
+        for (int i=0; i<img.height(); ++i) {
+            auto scan = img.scanLine(i);
+            int depth =4;
+            for (int j = 0; j < img.width(); ++j) {
+                auto& rgbpixel = *reinterpret_cast<QRgb*>(scan + j*depth);
+                if (QColor(rgbpixel) == ignoredColor)
+                    rgbpixel = QColorConstants::Transparent.rgba();
+            }
+        }
+    }
+
+}
 
 QPixmap ImageProvider::requestPixmap(const QString &path,
                                      QSize *size,
@@ -20,29 +60,19 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
 
     // TODO Involve requested size
 
-    // TODO Add caching of SVGRenderers
+    QUrlQuery queryPart;
 
-    QColor ignoredColor;
     const auto pathParts = path.split("?");
     if (pathParts.size() > 1) {
         // TODO error msg if not exactly two parts
-        auto q = QUrlQuery(pathParts[1]);
-        const auto ignoredColorKey = QString("ignoredColor");
-        if (q.hasQueryItem(ignoredColorKey)) {
-            ignoredColor = QColor("#" + q.queryItemValue(ignoredColorKey));
-        }
+        queryPart = QUrlQuery(pathParts[1]);
     }
 
     const auto id = pathParts[0];
     const auto idParts = id.split("/");
+
     const auto imgId = idParts.at(0);
-
-    QString svgDir = ":";
-    const auto sbxvar = "CLAYGROUND_SBX_DIR";
-    if (qEnvironmentVariableIsSet(sbxvar))
-        svgDir = qEnvironmentVariable(sbxvar);
-
-    QSvgRenderer renderer(QString(svgDir + "/%1.svg").arg(imgId));
+    auto& renderer = fetchRenderer(imgId);
 
     const auto partId = idParts.at(1);
     auto reqSize = requestedSize;
@@ -62,18 +92,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     size->setWidth(img.width());
     size->setHeight(img.height());
 
-    if (ignoredColor.isValid())
-    {
-        for (int i=0; i<img.height(); ++i) {
-            auto scan = img.scanLine(i);
-            int depth =4;
-            for (int j = 0; j < img.width(); ++j) {
-                auto& rgbpixel = *reinterpret_cast<QRgb*>(scan + j*depth);
-                if (QColor(rgbpixel) == ignoredColor)
-                    rgbpixel = QColorConstants::Transparent.rgba();
-            }
-        }
-    }
+    hideIgnoredColor(queryPart, img);
 
     return QPixmap::fromImage(img);
 }
