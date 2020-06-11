@@ -164,6 +164,7 @@ void ClayLiveLoader::setSandboxUrl(const QUrl& url)
 {
     if (url != sandboxUrl_){
         sandboxUrl_ = url;
+        qputenv("CLAYGROUND_SBX_DIR", sandboxDir().toUtf8());
         emit sandboxUrlChanged();
         emit sandboxDirChanged();
     }

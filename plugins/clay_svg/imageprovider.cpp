@@ -19,15 +19,19 @@ QPixmap ImageProvider::requestPixmap(const QString &id,
 
     // TODO Involve requested size
 
-    // TODO Don't use hardcoded-path but either resource or sbx dir
-
     // TODO Add caching of SVGRenderers
 
     // TODO Add ignored color as query param - only replace if set
 
     const auto idParts = id.split("/");
     const auto imgId = idParts.at(0);
-    QSvgRenderer renderer(QString("/home/mistergc/dev/mgc/clayground/sandboxes/platformer/%1.svg").arg(imgId));
+
+    QString svgDir = ":";
+    const auto sbxvar = "CLAYGROUND_SBX_DIR";
+    if (qEnvironmentVariableIsSet(sbxvar))
+        svgDir = qEnvironmentVariable(sbxvar);
+
+    QSvgRenderer renderer(QString(svgDir + "/%1.svg").arg(imgId));
 
     const auto partId = idParts.at(1);
     auto reqSize = requestedSize;
