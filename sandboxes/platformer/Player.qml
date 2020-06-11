@@ -8,7 +8,7 @@ JnRPlayer
     id: thePlayer
 
     // Graphics Configuration
-    property string spriteSource: "" 
+    property string spriteSource: ""
 
     // Game Mechanics Configuration
     energy: 10000
@@ -29,19 +29,17 @@ JnRPlayer
         else if (!isOnGround)
             desiredAnim = "jump";
 
-        if (theSprite.currentSprite !== desiredAnim)
-            theSprite.jumpTo(desiredAnim);
+        if (visu.currentSprite !== desiredAnim)
+            visu.jumpTo(desiredAnim);
     }
 
     SpriteSequence {
-        id: theSprite
+        id: visu
         parent: thePlayer.parent
         width: thePlayer.width
-        height: thePlayer.height * 1.2
-        anchors.horizontalCenter: thePlayer.horizontalCenter
-        anchors.verticalCenter: thePlayer.verticalCenter
-        anchors.verticalCenterOffset: -0.1 * thePlayer.height
         z: 99
+        height: thePlayer.height
+        anchors.centerIn: thePlayer
         interpolate: false
         transform: Rotation {
             origin.x: width * .5 ;
@@ -49,31 +47,23 @@ JnRPlayer
             axis { x: 0; y: 1; z: 0 }
             angle: thePlayer.faceRight ? 0 : 180
         }
+        function anim(id) {return spriteSource + "/" + id}
         sprites: [
             Sprite {
                 name: "walk"
-                frameWidth: 220
-                frameHeight: 230
-                source: thePlayer.spriteSource
+                source: visu.anim(name)
                 frameCount: 3
                 frameRate: 7
             },
             Sprite {
                 name: "jump"
-                frameX: 220
-                frameY: 230
-                frameWidth: 220
-                frameHeight: 230
-                source: thePlayer.spriteSource
+                source: visu.anim(name)
                 frameCount: 1
                 frameRate: 1
             },
             Sprite {
                 name: "stand"
-                frameY: 230
-                frameWidth: 220
-                frameHeight: 230
-                source: thePlayer.spriteSource
+                source: visu.anim(name)
                 frameCount: 1
                 frameRate: 1
             }

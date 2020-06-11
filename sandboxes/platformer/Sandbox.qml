@@ -67,7 +67,7 @@ ClayWorld
            obj.color = "black";
            if (obj instanceof Player) {
                player = obj;
-               player.spriteSource = theWorld.resource("player_animated.png")
+               player.spriteSource = "image://claysvg/player"
            }
        }
     }
