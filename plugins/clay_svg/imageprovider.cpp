@@ -5,12 +5,13 @@
 #include <QPainter>
 #include <QImage>
 #include <QDebug>
+#include <QUrlQuery>
 #include <math.h>
 
 ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
 { }
 
-QPixmap ImageProvider::requestPixmap(const QString &id,
+QPixmap ImageProvider::requestPixmap(const QString &path,
                                      QSize *size,
                                      const QSize &requestedSize)
 {
@@ -21,8 +22,18 @@ QPixmap ImageProvider::requestPixmap(const QString &id,
 
     // TODO Add caching of SVGRenderers
 
-    // TODO Add ignored color as query param - only replace if set
+    QColor ignoredColor;
+    const auto pathParts = path.split("?");
+    if (pathParts.size() > 1) {
+        // TODO error msg if not exactly two parts
+        auto q = QUrlQuery(pathParts[1]);
+        const auto ignoredColorKey = QString("ignoredColor");
+        if (q.hasQueryItem(ignoredColorKey)) {
+            ignoredColor = QColor("#" + q.queryItemValue(ignoredColorKey));
+        }
+    }
 
+    const auto id = pathParts[0];
     const auto idParts = id.split("/");
     const auto imgId = idParts.at(0);
 
@@ -51,17 +62,16 @@ QPixmap ImageProvider::requestPixmap(const QString &id,
     size->setWidth(img.width());
     size->setHeight(img.height());
 
-    auto scan = img.scanLine(0);
-    auto rgbpixel = reinterpret_cast<QRgb*>(scan);
-    auto brder = QColor(*rgbpixel);
-
-    for (int i=0; i<img.height(); ++i) {
-        auto scan = img.scanLine(i);
-        int depth =4;
-        for (int j = 0; j < img.width(); ++j) {
-            auto& rgbpixel = *reinterpret_cast<QRgb*>(scan + j*depth);
-            if (QColor(rgbpixel) == brder)
-                rgbpixel = QColorConstants::Transparent.rgba();
+    if (ignoredColor.isValid())
+    {
+        for (int i=0; i<img.height(); ++i) {
+            auto scan = img.scanLine(i);
+            int depth =4;
+            for (int j = 0; j < img.width(); ++j) {
+                auto& rgbpixel = *reinterpret_cast<QRgb*>(scan + j*depth);
+                if (QColor(rgbpixel) == ignoredColor)
+                    rgbpixel = QColorConstants::Transparent.rgba();
+            }
         }
     }
 

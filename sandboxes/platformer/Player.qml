@@ -47,7 +47,9 @@ JnRPlayer
             axis { x: 0; y: 1; z: 0 }
             angle: thePlayer.faceRight ? 0 : 180
         }
-        function anim(id) {return spriteSource + "/" + id}
+        function anim(id) {return spriteSource
+                           ? spriteSource + "/" + id + "?ignoredColor=ff000000"
+                           : "";}
         sprites: [
             Sprite {
                 name: "walk"
