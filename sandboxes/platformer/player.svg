@@ -14,9 +14,9 @@
    inkscape:export-filename="/home/mistergc/dev/qml_live_loader/sandboxes/jump_n_run/player.png"
    id="svg975"
    version="1.1"
-   viewBox="0 0 260.12506 259.68618"
-   height="259.68619mm"
-   width="260.12506mm">
+   viewBox="0 0 421.95416 218.12782"
+   height="218.12782mm"
+   width="421.95416mm">
   <defs
      id="defs969" />
   <sodipodi:namedview
@@ -34,8 +34,8 @@
      showgrid="false"
      inkscape:current-layer="layer1"
      inkscape:document-units="mm"
-     inkscape:cy="426.17779"
-     inkscape:cx="-67.832301"
+     inkscape:cy="451.67355"
+     inkscape:cx="904.37173"
      inkscape:zoom="0.85426755"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
@@ -57,12 +57,12 @@
   </metadata>
   <g
      style="display:inline"
-     transform="translate(200.68694,-93.99832)"
+     transform="translate(346.57827,-103.46488)"
      id="layer1"
      inkscape:groupmode="layer"
      inkscape:label="Layer 1">
     <g
-       transform="matrix(1.4168857,0,0,1.4168857,713.82436,13.20259)"
+       transform="matrix(1.4168857,0,0,1.4168857,721.76191,37.544272)"
        id="walk">
       <rect
          style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.70673001;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -276,7 +276,7 @@
       </g>
     </g>
     <g
-       transform="matrix(1.4168857,0,0,1.4168857,904.11825,-5.8308365)"
+       transform="matrix(1.4168857,0,0,1.4168857,904.11825,-42.343357)"
        id="jump">
       <g
          transform="matrix(0.31460726,0,0,0.28895153,-351.31908,242.11992)"
@@ -354,5 +354,100 @@
          id="rect2964-9-0"
          style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.70673001;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
     </g>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-191.51067"
+       y="112.90629"
+       id="text872"><tspan
+         sodipodi:role="line"
+         id="tspan870"
+         x="-191.51067"
+         y="112.90629"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332">Walk</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-190.71985"
+       y="227.54781"
+       id="text872-7"><tspan
+         sodipodi:role="line"
+         id="tspan870-2"
+         x="-190.71985"
+         y="227.54781"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332">Stand</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-85.529022"
+       y="227.27278"
+       id="text872-7-2"><tspan
+         sodipodi:role="line"
+         id="tspan870-2-6"
+         x="-85.529022"
+         y="227.27278"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332">Jump</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-346.86249"
+       y="111.50574"
+       id="text872-1"><tspan
+         sodipodi:role="line"
+         id="tspan870-0"
+         x="-346.86249"
+         y="111.50574"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332">How does this work?</tspan></text>
+    <text
+       id="text930"
+       y="124.73489"
+       x="-346.86249"
+       style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;display:inline;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       xml:space="preserve"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="124.73489"
+         x="-346.86249"
+         id="tspan928"
+         sodipodi:role="line">Each animation is </tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="137.96407"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan932">defined as a group (for</tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="151.19322"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan942">example 'walk'), </tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="164.42239"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan934">which also includes</tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="177.65157"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan936">the black borders. </tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="190.88072"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan938">In the game this border</tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="204.10989"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan944">color is  filtered out. </tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="217.33905"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan948">SvgImageProvider allows</tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.58333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332"
+         y="230.56822"
+         x="-346.86249"
+         sodipodi:role="line"
+         id="tspan950">usage of these sub-parts.</tspan></text>
   </g>
 </svg>
