@@ -9,7 +9,7 @@ clay_p( ClaySvg
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Svg"
     URI Clayground.Svg
     SOURCES
-        imageprovider.cpp svgplugin.cpp svgreader.cpp svgwriter.cpp qmldir.in
+        imageprovider.cpp svgplugin.cpp svgreader.cpp svgwriter.cpp res.qrc qmldir.in
     LINK_LIBS
         simple-svg-writer Qt5::Core Qt5::Quick Qt5::Qml Qt5::Svg
 #}

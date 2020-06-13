@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QImage>
 #include <QUrlQuery>
+#include <QSet>
 
 class ImageProvider: public QObject, public QQuickImageProvider
 {
@@ -21,8 +22,11 @@ public:
                           const QSize &requestedSize) override;
 private:
     QSvgRenderer &fetchRenderer(const QString &imgId);
+    void clearCache();
+
 private:
     QHash<QString, QSvgRenderer*> svgCache_;
+    QSet<QString> coveredImgs_;
     void hideIgnoredColor(const QUrlQuery &queryPart, QImage &img);
 };
 

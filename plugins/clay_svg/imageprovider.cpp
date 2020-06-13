@@ -9,6 +9,11 @@ ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
 
 ImageProvider::~ImageProvider()
 {
+    clearCache();
+}
+
+void ImageProvider::clearCache()
+{
     qDeleteAll(svgCache_);
     svgCache_.clear();
 }
@@ -32,9 +37,8 @@ void ImageProvider::hideIgnoredColor(const QUrlQuery& queryPart, QImage& img)
     const auto ignoredColorKey = QString("ignoredColor");
     QColor ignoredColor;
 
-    if (queryPart.hasQueryItem(ignoredColorKey)) {
+    if (queryPart.hasQueryItem(ignoredColorKey))
         ignoredColor = QColor("#" + queryPart.queryItemValue(ignoredColorKey));
-    }
 
     if (ignoredColor.isValid())
     {
@@ -69,6 +73,10 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     }
 
     const auto id = pathParts[0];
+    if (coveredImgs_.contains(id))
+        clearCache();
+    else
+        coveredImgs_.insert(id);
     const auto idParts = id.split("/");
 
     const auto imgId = idParts.at(0);

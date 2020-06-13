@@ -2,13 +2,11 @@
 
 import QtQuick 2.12
 import Box2D 2.0
+import Clayground.Svg 1.0
 
 JnRPlayer
 {
     id: thePlayer
-
-    // Graphics Configuration
-    property string spriteSource: ""
 
     // Game Mechanics Configuration
     energy: 10000
@@ -33,6 +31,12 @@ JnRPlayer
             visu.jumpTo(desiredAnim);
     }
 
+    SvgImageSource {
+        id: theSvgSource
+        svgFilename: "player"
+        annotationAARRGGBB:"ff000000"
+    }
+
     SpriteSequence {
         id: visu
         parent: thePlayer.parent
@@ -47,25 +51,22 @@ JnRPlayer
             axis { x: 0; y: 1; z: 0 }
             angle: thePlayer.faceRight ? 0 : 180
         }
-        function anim(id) {return spriteSource
-                           ? spriteSource + "/" + id + "?ignoredColor=ff000000"
-                           : "";}
         sprites: [
             Sprite {
                 name: "walk"
-                source: visu.anim(name)
+                source: theSvgSource.source(name)
                 frameCount: 3
                 frameRate: 7
             },
             Sprite {
                 name: "jump"
-                source: visu.anim(name)
+                source: theSvgSource.source(name)
                 frameCount: 1
                 frameRate: 1
             },
             Sprite {
                 name: "stand"
-                source: visu.anim(name)
+                source: theSvgSource.source(name)
                 frameCount: 1
                 frameRate: 1
             }

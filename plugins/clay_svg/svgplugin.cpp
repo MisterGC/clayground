@@ -10,6 +10,8 @@ void SvgPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType<SvgReader>(uri, 1, 0, "SvgReader");
     qmlRegisterType<SvgWriter>(uri, 1, 0, "SvgWriter");
+    qmlRegisterType(QUrl("qrc:/clayground/SvgImageSource.qml"),
+                    uri, 1,0,"SvgImageSource");
 }
 
 void SvgPlugin::initializeEngine(QQmlEngine *engine, const char */*uri*/)

@@ -65,10 +65,7 @@ ClayWorld
        }
        else {
            obj.color = "black";
-           if (obj instanceof Player) {
-               player = obj;
-               player.spriteSource = "image://claysvg/player"
-           }
+           if (obj instanceof Player) player = obj;
        }
     }
 }
