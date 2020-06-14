@@ -33,7 +33,7 @@ JnRPlayer
 
     SvgImageSource {
         id: theSvgSource
-        svgFilename: "player"
+        svgFilename: "visuals"
         annotationAARRGGBB:"ff000000"
     }
 

@@ -19,11 +19,13 @@ ClayWorld
     components: new Map([
                          ['Player', c1],
                          ['Wall', c2],
-                         ['Rock', c3]
+                         ['Rock', c3],
+                         ['Box', c4]
                      ])
     Component { id: c1; Player {} }
     Component { id: c2; Wall {} }
     Component { id: c3; VisualizedPolyBody {} }
+    Component { id: c4; WoodenBox {} }
 
     property var player: null
     onWorldAboutToBeCreated: {
