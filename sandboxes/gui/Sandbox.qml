@@ -6,7 +6,9 @@ import Clayground.Storage 1.0
 
 Rectangle
 {
+    id: dojo
     color: "grey"
+    Component.onCompleted: shortcutChecker.forceActiveFocus()
 
     KeyValueStore { id: theStore; name: "gui-store" }
 
@@ -30,5 +32,45 @@ Rectangle
             Button { text: "Save"; onClicked: theStore.set("myvalue", input.text ) }
             Button { text: "Load"; onClicked: input.text = theStore.get("myvalue") }
         }
+        ShortcutChecker {
+            id: shortcutChecker
+            focus: true
+            shortcutToMatch: quiz.shortcut
+        }
+        TrainingDb {id: db}
+        Text {
+            id: quiz
+            anchors.horizontalCenter: parent.horizontalCenter
+            font.pixelSize: dojo.height * .1
+            property var model: db.inkscape
+            property string shortcut: model[_idx].translation
+            property int _idx: 0
+            text: model[_idx].caption
+            Component.onCompleted: {
+               shortcutChecker.matchesChanged.connect(nextQuestion)
+            }
+            function nextQuestion() {
+                if (shortcutChecker.matches) {
+                    lastTime.showResult();
+                    lastTime.reset();
+                    let idx = _idx
+                    console.log("Old idx: " + idx)
+                    while (idx == _idx) {
+                        idx = Math.round(Math.random() * (model.length - 1));
+                    }
+                    _idx = idx;
+                    console.log("New idx: " + _idx)
+                }
+            }
+        }
+        Text {
+            id: lastTime
+            property int ms
+            property real seconds: (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+            function showResult() {text=seconds;}
+            function reset() {text=seconds; ms=0; tracker.restart(); }
+            Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
+        }
     }
+
 }
