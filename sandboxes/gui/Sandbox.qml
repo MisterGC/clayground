@@ -51,11 +51,11 @@ Rectangle
             }
             function nextQuestion() {
                 if (shortcutChecker.matches) {
-                    lastTime.showResult();
-                    lastTime.reset();
+                    scoring.showResult();
+                    scoring.reset();
                     let idx = _idx
                     console.log("Old idx: " + idx)
-                    while (idx == _idx) {
+                    while (idx === _idx) {
                         idx = Math.round(Math.random() * (model.length - 1));
                     }
                     _idx = idx;
@@ -64,11 +64,19 @@ Rectangle
             }
         }
         Text {
-            id: lastTime
+            id: scoring
             property int ms
-            property real seconds: (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+            property real seconds: 0
+            property int numRounds: 0
             function showResult() {text=seconds;}
-            function reset() {text=seconds; ms=0; tracker.restart(); }
+            function reset() {
+                let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+                seconds += (1.0 * currSeconds);
+                numRounds++;
+                text=(Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
+                ms=0;
+                tracker.restart();
+            }
             Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
         }
     }
