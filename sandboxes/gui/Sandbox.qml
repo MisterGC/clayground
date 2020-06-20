@@ -3,6 +3,7 @@
 import QtQuick 2.12
 import QtQuick.Controls 2.5
 import Clayground.Storage 1.0
+import Clayground.Svg 1.0
 
 Rectangle
 {
@@ -38,6 +39,15 @@ Rectangle
             shortcutToMatch: quiz.shortcut
         }
         TrainingDb {id: db}
+        Image {
+            source: theSvgSource.source(quiz.text)
+            SvgImageSource {
+                id: theSvgSource
+                svgFilename: "visuals"
+                annotationAARRGGBB:"ff000000"
+            }
+        }
+
         Text {
             id: quiz
             anchors.horizontalCenter: parent.horizontalCenter
