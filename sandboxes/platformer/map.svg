@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
@@ -14,7 +12,7 @@
    viewBox="0 0 71.561371 100.79476"
    version="1.1"
    id="svg1623"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
    sodipodi:docname="map.svg">
   <defs
      id="defs1617" />
@@ -25,22 +23,23 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.959798"
-     inkscape:cx="140.08039"
-     inkscape:cy="128.73874"
+     inkscape:zoom="2.8"
+     inkscape:cx="143.46237"
+     inkscape:cy="333.92637"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1304"
+     inkscape:window-width="1280"
+     inkscape:window-height="656"
      inkscape:window-x="0"
-     inkscape:window-y="64"
+     inkscape:window-y="27"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
      fit-margin-right="0"
      fit-margin-bottom="0"
-     inkscape:snap-global="false">
+     inkscape:snap-global="false"
+     inkscape:document-rotation="0">
     <inkscape:grid
        type="xygrid"
        id="grid6135" />
@@ -73,12 +72,12 @@
          id="desc5900">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="88.594543"
-       x="20.18437"
-       height="6.0068798"
-       width="5.7736354"
+       y="88.65448"
+       x="17.428637"
+       height="7.4847121"
+       width="6.0649633"
        id="rect5922"
-       style="opacity:1;fill:#808080;fill-opacity:1;stroke:none;stroke-width:0.20025375;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#808080;fill-opacity:1;stroke:none;stroke-width:0.229105;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5920">{&quot;component&quot;:&quot;Player&quot;}</desc>
     </rect>
@@ -166,15 +165,15 @@
        y="81.820953"
        x="3.3808258"
        height="3.7449841"
-       width="52.193932"
+       width="48.982719"
        id="rect2172-2-0-3"
-       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.53236037;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:0.515724;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 63.195677,92.086044 1.773358,-1.429617 2.83833,0.704885 0.103383,4.779211 -3.224438,0.0757 -2.700655,0.01262 0.21468,-2.09304 z"
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 63.202442,45.857302 1.773358,-1.429617 2.83833,0.704885 0.103383,4.779211 -3.224438,0.0757 -2.700655,0.01262 0.21468,-2.09304 z"
        id="path915"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccccccc">
@@ -187,8 +186,8 @@
 }}</desc>
     </path>
     <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 49.379316,80.331884 2.948091,1.198213 2.952838,-2.074504 -0.479916,-3.826242 -2.492735,-1.140059 -3.958667,2.64066 z"
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 41.755992,80.355009 2.948091,1.198213 2.952838,-2.074504 -0.479916,-3.826242 -2.492735,-1.140059 -3.958667,2.64066 z"
        id="path921"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="ccccccc">
@@ -202,5 +201,15 @@
 }
 }</desc>
     </path>
+    <rect
+       style="opacity:1;fill:#808080;fill-opacity:1;stroke:none;stroke-width:0.224165;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1228"
+       width="6.5922489"
+       height="6.5922489"
+       x="61.568405"
+       y="89.764992">
+      <desc
+         id="desc1226">{&quot;component&quot;:&quot;Box&quot;}</desc>
+    </rect>
   </g>
 </svg>

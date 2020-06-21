@@ -5,7 +5,8 @@
         <file>Player.qml</file>
         <file>Sandbox.qml</file>
         <file>Wall.qml</file>
-        <file>player_animated.png</file>
+        <file>WoodenBox.qml</file>
+        <file>visuals.svg</file>
         <file>map.svg</file>
     </qresource>
 </RCC>

@@ -15,6 +15,7 @@ class ClayLiveLoader: public QObject
     Q_PROPERTY(QUrl sandboxUrl READ sandboxUrl NOTIFY sandboxUrlChanged)
     Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
     Q_PROPERTY(QString altMessage READ altMessage NOTIFY altMessageChanged)
+    Q_PROPERTY(int numRestarts READ numRestarts NOTIFY restarted)
 
 public:
     explicit ClayLiveLoader(QObject *parent = nullptr);
@@ -26,6 +27,7 @@ public:
     void show();
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);
+    int numRestarts() const;
 
 signals:
     void sandboxUrlChanged();
@@ -54,6 +56,7 @@ private:
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
+    int numRestarts_ = 0;
 };
 
 #endif

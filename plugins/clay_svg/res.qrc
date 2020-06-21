@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>SvgImageSource.qml</file>
+    </qresource>
+</RCC>
+

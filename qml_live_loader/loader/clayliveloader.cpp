@@ -64,6 +64,11 @@ void ClayLiveLoader::storeErrors(const QString &errors)
    storeValue("lastErrorMsg", errors);
 }
 
+int ClayLiveLoader::numRestarts() const
+{
+    return numRestarts_;
+}
+
 QString ClayLiveLoader::altMessage() const
 {
     return altMessage_;
@@ -113,6 +118,7 @@ void ClayLiveLoader::onTimeToRestart()
     setSandboxUrl(QUrl());
     clearCache();
     setSandboxUrl(sbxUrl);
+    numRestarts_++;
     emit restarted();
 }
 
@@ -164,6 +170,7 @@ void ClayLiveLoader::setSandboxUrl(const QUrl& url)
 {
     if (url != sandboxUrl_){
         sandboxUrl_ = url;
+        qputenv("CLAYGROUND_SBX_DIR", sandboxDir().toUtf8());
         emit sandboxUrlChanged();
         emit sandboxDirChanged();
     }
