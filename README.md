@@ -8,7 +8,7 @@ open source.
 
 Clayground is a Qt based environment that allows using C++, JavaScript
 and QML to rapidly develop apps in a sandbox environment with live loading.
-It provides tools that try both fascilitating learning and allowing more
+It provides tools that try both facilitating learning and allowing more
 focused and faster development by reducing typical build and restart times
 significantly.
 
