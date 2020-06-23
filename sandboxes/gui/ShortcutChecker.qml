@@ -17,7 +17,9 @@ Item {
                                      [Qt.Key_L,"L"], [Qt.Key_M,"M"], [Qt.Key_N,"N"], [Qt.Key_O,"O"],
                                      [Qt.Key_P,"P"], [Qt.Key_Q,"Q"], [Qt.Key_R,"R"], [Qt.Key_S,"S"],
                                      [Qt.Key_T,"T"], [Qt.Key_U,"U"], [Qt.Key_V,"V"], [Qt.Key_W,"W"],
-                                     [Qt.Key_X,"X"], [Qt.Key_Y,"Y"], [Qt.Key_Z,"Z"]
+                                     [Qt.Key_X,"X"], [Qt.Key_Y,"Y"], [Qt.Key_Z,"Z"],
+                                     [Qt.Key_Plus,"+"], [Qt.Key_Minus,"-"], [Qt.Key_Asterisk,"*"],
+                                     [Qt.Key_NumberSign,"#"],[Qt.Key_Space,"space"]
                                  ])
     function keyToTxt(key) {
         if (keymap.has(key)) return keymap.get(key);
@@ -32,13 +34,14 @@ Item {
             modTxt += (modTxt === "" ? "" : "+") + "Alt";
         if (modifiers & Qt.ShiftModifier)
             modTxt += (modTxt === "" ? "" : "+") + "Shift";
-        console.log(modTxt)
         return modTxt;
     }
 
     Keys.onPressed: {
-        let modTxt = modToTxt(event.modifiers)
+        let withMod = shortcutToMatch.includes("+")
+        let modTxt = withMod ? modToTxt(event.modifiers) : "";
         let text = modTxt + (modTxt === "" ? "" : "+") + keyToTxt(event.key);
+        console.log("Pressed: " + text  + " " + shortcutToMatch);
         matches = (text === shortcutToMatch);
         event.accepted = true;
     }

@@ -40,6 +40,7 @@ Rectangle
         }
         TrainingDb {id: db}
         Image {
+            anchors.horizontalCenter: parent.horizontalCenter
             source: theSvgSource.source(quiz.text)
             SvgImageSource {
                 id: theSvgSource
@@ -51,7 +52,7 @@ Rectangle
         Text {
             id: quiz
             anchors.horizontalCenter: parent.horizontalCenter
-            font.pixelSize: dojo.height * .1
+            font.pixelSize: dojo.height * .07
             property var model: db.inkscape
             property string shortcut: model[_idx].translation
             property int _idx: 0
@@ -71,6 +72,11 @@ Rectangle
                     _idx = idx;
                     console.log("New idx: " + _idx)
                 }
+            }
+            Text {
+                anchors.top: parent.bottom
+                text: parent.model[parent._idx].translation
+                opacity: scoring.ms/10000
             }
         }
         Text {
