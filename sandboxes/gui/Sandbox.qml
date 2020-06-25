@@ -15,24 +15,22 @@ Rectangle
 
     Column
     {
-        anchors.topMargin: parent.height * .05
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.leftMargin: parent.width * .03
+        anchors.centerIn: parent
 
-        Label {
-            text: "Persistent Storage: Enter a text, save it and load it again."
-            color: "white"
-        }
+// Keep persistence functionality but apply it on the trainer
+//        Label {
+//            text: "Persistent Storage: Enter a text, save it and load it again."
+//            color: "white"
+//        }
 
-        spacing: 10
-        TextField { id: input; width: parent.width }
+//        spacing: 10
+//        TextField { id: input; width: parent.width }
 
-        Row {
-            spacing: 5
-            Button { text: "Save"; onClicked: theStore.set("myvalue", input.text ) }
-            Button { text: "Load"; onClicked: input.text = theStore.get("myvalue") }
-        }
+//        Row {
+//            spacing: 5
+//            Button { text: "Save"; onClicked: theStore.set("myvalue", input.text ) }
+//            Button { text: "Load"; onClicked: input.text = theStore.get("myvalue") }
+//        }
         ShortcutChecker {
             id: shortcutChecker
             focus: true
