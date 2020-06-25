@@ -62,7 +62,6 @@ Rectangle
             }
             function nextQuestion() {
                 if (shortcutChecker.matches) {
-                    scoring.showResult();
                     scoring.reset();
                     let idx = _idx
                     console.log("Old idx: " + idx)
@@ -79,21 +78,40 @@ Rectangle
                 opacity: scoring.ms/10000
             }
         }
-        Text {
-            id: scoring
-            property int ms
-            property real seconds: 0
-            property int numRounds: 0
-            function showResult() {text=seconds;}
-            function reset() {
-                let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
-                seconds += (1.0 * currSeconds);
-                numRounds++;
-                text=(Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
-                ms=0;
-                tracker.restart();
+        Item { width: 1; height: dojo.height * .1 }
+        Row {
+            spacing: 5
+            anchors.horizontalCenter: parent.horizontalCenter
+            Text {
+                id: scoring
+                property int ms
+                property real seconds: 0
+                property int numRounds: 0
+                text: "avrg: " + (Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
+                function showResult() {text=seconds;}
+                function reset() {
+                    let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+                    minS.result(currSeconds);
+                    maxS.result(currSeconds);
+                    seconds += (1.0 * currSeconds);
+                    numRounds++;
+                    ms=0;
+                    tracker.restart();
+                }
+                Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
             }
-            Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
+            Text {
+                id: minS
+                property real minSeconds: 1000
+                text: "min: " + minSeconds
+                function result(s) { if (s < minSeconds) minSeconds = s; }
+            }
+            Text {
+                id: maxS
+                property real maxSeconds: 0
+                text: "max: " + maxSeconds
+                function result(s) { if (s > maxSeconds) maxSeconds = s; }
+            }
         }
     }
 
