@@ -45,6 +45,15 @@ Rectangle
                 svgFilename: "visuals"
                 annotationAARRGGBB:"ff000000"
             }
+            Label {
+                background: Rectangle{color: "black"}
+                color: "white"
+                font.bold: true
+                anchors.centerIn: parent
+                text: " " + quiz.model[quiz._idx].translation + " "
+                opacity: scoring.ms/10000
+
+            }
         }
 
         Text {
@@ -69,11 +78,6 @@ Rectangle
                     _idx = idx;
                     console.log("New idx: " + _idx)
                 }
-            }
-            Text {
-                anchors.top: parent.bottom
-                text: parent.model[parent._idx].translation
-                opacity: scoring.ms/10000
             }
         }
         Item { width: 1; height: dojo.height * .1 }
