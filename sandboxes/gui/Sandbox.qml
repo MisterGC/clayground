@@ -77,39 +77,37 @@ Rectangle
             }
         }
         Item { width: 1; height: dojo.height * .1 }
-        Row {
-            spacing: 5
-            anchors.horizontalCenter: parent.horizontalCenter
-            Text {
-                id: scoring
-                property int ms
-                property real seconds: 0
-                property int numRounds: 0
-                text: "avrg: " + (Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
-                function showResult() {text=seconds;}
-                function reset() {
-                    let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
-                    minS.result(currSeconds);
-                    maxS.result(currSeconds);
-                    seconds += (1.0 * currSeconds);
-                    numRounds++;
-                    ms=0;
-                    tracker.restart();
-                }
-                Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
+        Text {
+            id: scoring
+            property int ms
+            property real seconds: 0
+            property int numRounds: 0
+            text: "avrg: " + (Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
+            function showResult() {text=seconds;}
+            function reset() {
+                let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+                minS.result(currSeconds);
+                maxS.result(currSeconds);
+                seconds += (1.0 * currSeconds);
+                numRounds++;
+                ms=0;
+                tracker.restart();
             }
-            Text {
-                id: minS
-                property real minSeconds: 1000
-                text: "min: " + minSeconds
-                function result(s) { if (s < minSeconds) minSeconds = s; }
-            }
-            Text {
-                id: maxS
-                property real maxSeconds: 0
-                text: "max: " + maxSeconds
-                function result(s) { if (s > maxSeconds) maxSeconds = s; }
-            }
+            Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
+        }
+        Text {
+            id: minS
+            property real minSeconds: 1000
+            property string minCaption: ""
+            text: "min: " + minSeconds + " (" + minCaption + ")"
+            function result(s) { if (s < minSeconds) {minSeconds = s; minCaption = quiz.text; }}
+        }
+        Text {
+            id: maxS
+            property real maxSeconds: 0
+            property string maxCaption: ""
+            text: "max: " + maxSeconds + " (" + maxCaption + ")"
+            function result(s) { if (s > maxSeconds) {maxSeconds = s; maxCaption=quiz.text; }}
         }
     }
 
