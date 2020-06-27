@@ -2,7 +2,6 @@
 
 import QtQuick 2.12
 import QtQuick.Controls 2.5
-import Clayground.Storage 1.0
 import Clayground.Svg 1.0
 
 Rectangle
@@ -11,26 +10,10 @@ Rectangle
     color: "grey"
     Component.onCompleted: shortcutChecker.forceActiveFocus()
 
-    KeyValueStore { id: theStore; name: "gui-store" }
-
     Column
     {
         anchors.centerIn: parent
 
-// Keep persistence functionality but apply it on the trainer
-//        Label {
-//            text: "Persistent Storage: Enter a text, save it and load it again."
-//            color: "white"
-//        }
-
-//        spacing: 10
-//        TextField { id: input; width: parent.width }
-
-//        Row {
-//            spacing: 5
-//            Button { text: "Save"; onClicked: theStore.set("myvalue", input.text ) }
-//            Button { text: "Load"; onClicked: input.text = theStore.get("myvalue") }
-//        }
         ShortcutChecker {
             id: shortcutChecker
             focus: true
@@ -71,12 +54,10 @@ Rectangle
                 if (shortcutChecker.matches) {
                     scoring.reset();
                     let idx = _idx
-                    console.log("Old idx: " + idx)
                     while (idx === _idx) {
                         idx = Math.round(Math.random() * (model.length - 1));
                     }
                     _idx = idx;
-                    console.log("New idx: " + _idx)
                 }
             }
         }
@@ -90,6 +71,8 @@ Rectangle
             function showResult() {text=seconds;}
             function reset() {
                 let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+                db.results[quiz.text] = currSeconds;
+                db.save();
                 minS.result(currSeconds);
                 maxS.result(currSeconds);
                 seconds += (1.0 * currSeconds);

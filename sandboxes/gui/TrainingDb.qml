@@ -1,8 +1,21 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.12
+import Clayground.Storage 1.0
 
 Item {
+    KeyValueStore { id: theStore; name: "training-results" }
+    property var results: new Map()
+    Component.onCompleted: load()
+    function load() {
+        results = JSON.parse(theStore.get("results", "{}"));
+        console.log("Stored res: " + JSON.stringify(results));
+    }
+    function save() {
+        theStore.set("results", JSON.stringify(results));
+        console.log("Stored res: " + JSON.stringify(results));
+    }
+
     property var inkscape: [
         // Zoom
         {translation: "-", caption: "ZoomOut"},
