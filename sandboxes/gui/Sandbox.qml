@@ -10,13 +10,29 @@ Rectangle
     color: "grey"
     Component.onCompleted: shortcutChecker.forceActiveFocus()
 
+    property bool gameRunning: practiceTime.secondsLeft > 0
+    onGameRunningChanged: if (!gameRunning) db.save()
+
+
     Column
     {
         anchors.centerIn: parent
+        visible: gameRunning
+
+        Text {
+            id: practiceTime
+            Component.onCompleted: ts.triggered.connect(onSecondPassed);
+            property int secondsLeft: 10
+            function onSecondPassed() {secondsLeft--;}
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: secondsLeft
+            Timer {id: ts; interval: 1000; running: practiceTime.secondsLeft > 0; repeat: true}
+        }
 
         ShortcutChecker {
             id: shortcutChecker
             focus: true
+            enabled: gameRunning
             shortcutToMatch: quiz.shortcut
         }
         TrainingDb {id: db}
@@ -71,8 +87,7 @@ Rectangle
             function showResult() {text=seconds;}
             function reset() {
                 let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
-                db.results[quiz.text] = currSeconds;
-                db.save();
+                db.results.set(quiz.text, currSeconds);
                 minS.result(currSeconds);
                 maxS.result(currSeconds);
                 seconds += (1.0 * currSeconds);
@@ -80,7 +95,11 @@ Rectangle
                 ms=0;
                 tracker.restart();
             }
-            Timer {id: tracker; interval: 50; onTriggered: parent.ms += interval; repeat: true; running: true}
+            Timer {id: tracker
+                   interval: 50
+                   onTriggered: parent.ms += interval
+                   repeat: true
+                   running: gameRunning}
         }
         Text {
             id: minS
@@ -97,5 +116,15 @@ Rectangle
             function result(s) { if (s > maxSeconds) {maxSeconds = s; maxCaption=quiz.text; }}
         }
     }
+
+    Scoreboard {
+        resultStorage: db
+        visible: !gameRunning
+        onVisibleChanged: if (visible) update();
+        anchors.centerIn: parent
+        width: .8 * parent.width
+        height: .8 * parent.height
+    }
+
 
 }

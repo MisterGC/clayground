@@ -5,12 +5,16 @@ import Clayground.Storage 1.0
 
 Item {
     KeyValueStore { id: theStore; name: "training-results" }
+
     property var results: new Map()
-    Component.onCompleted: load()
+    readonly property var oldResults: load()
+
     function load() {
-        results = JSON.parse(theStore.get("results", "{}"));
-        console.log("Stored res: " + JSON.stringify(results));
+        let res = JSON.parse(theStore.get("results", "{}"));
+        console.log("Stored res: " + JSON.stringify(res));
+        return res;
     }
+
     function save() {
         theStore.set("results", JSON.stringify(results));
         console.log("Stored res: " + JSON.stringify(results));
