@@ -10,14 +10,17 @@ Item {
     readonly property var oldResults: load()
 
     function load() {
-        let res = JSON.parse(theStore.get("results", "{}"));
-        console.log("Stored res: " + JSON.stringify(res));
-        return res;
+        let res = JSON.parse(theStore.get("results", []));
+        return new Map(res);
     }
 
     function save() {
-        theStore.set("results", JSON.stringify(results));
-        console.log("Stored res: " + JSON.stringify(results));
+        let arr = Array.from(results.entries());
+        if (arr.length > 0) {
+            let strRes = JSON.stringify(arr);
+            theStore.set("results", strRes);
+            console.log("Stored res: " + strRes);
+        }
     }
 
     property var inkscape: [
