@@ -14,15 +14,20 @@ ListView
         id: scoreEntry
         Row {
            spacing: 5
-           Text {text: caption}
-           Text {text: time}
-           Text {text: diff}
+           Text {text: caption; font.family: "Monospace"}
+           Text {text: time; font.family: "Monospace"}
+           Text {text: diff; font.family: "Monospace"}
         }
     }
 
     function processEntry(caption, seconds) {
-        // TODO Calc. diff based on results of prev. session
-        let entry = {"caption": caption, "time": seconds, "diff": 0};
+        let diff = 0;
+        if (resultStorage.oldResults.has(caption))
+            diff = seconds - resultStorage.oldResults.get(caption);
+        diff = diff.toFixed(2);
+        let entry = {"caption": caption.padEnd(25, ' '),
+                     "time": seconds.padEnd(5, ' '),
+                     "diff": (diff >= 0 ? "+" : "") + diff};
         theScores.append(entry);
     }
 
