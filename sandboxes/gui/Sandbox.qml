@@ -43,6 +43,8 @@ Rectangle
         Image {
             anchors.horizontalCenter: parent.horizontalCenter
             source: theSvgSource.source(quiz.text)
+            height: .3 * dojo.height
+            width: height
             SvgImageSource {
                 id: theSvgSource
                 svgFilename: "visuals"
