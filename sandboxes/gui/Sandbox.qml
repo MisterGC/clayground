@@ -11,23 +11,27 @@ Rectangle
     Component.onCompleted: shortcutChecker.forceActiveFocus()
 
     property bool gameRunning: practiceTime.secondsLeft > 0
+    readonly property int fullGameTime: 60
     onGameRunningChanged: if (!gameRunning) db.save()
 
+    Rectangle {
+        id: practiceTime
+        visible: gameRunning
+        Component.onCompleted: ts.triggered.connect(onSecondPassed);
+        property int secondsLeft: fullGameTime
+        function onSecondPassed() {secondsLeft--;}
+        anchors.horizontalCenter: parent.horizontalCenter
+        Timer {id: ts; interval: 1000; running: practiceTime.secondsLeft > 0; repeat: true}
+        height: parent.height * .06
+        width: parent.width * (1.0 * secondsLeft)/fullGameTime
+        color: "black"
+        opacity: .5
+    }
 
     Column
     {
         anchors.centerIn: parent
         visible: gameRunning
-
-        Text {
-            id: practiceTime
-            Component.onCompleted: ts.triggered.connect(onSecondPassed);
-            property int secondsLeft: 10
-            function onSecondPassed() {secondsLeft--;}
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: secondsLeft
-            Timer {id: ts; interval: 1000; running: practiceTime.secondsLeft > 0; repeat: true}
-        }
 
         ShortcutChecker {
             id: shortcutChecker
