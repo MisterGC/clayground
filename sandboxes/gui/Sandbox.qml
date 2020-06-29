@@ -55,7 +55,6 @@ Rectangle
                 anchors.centerIn: parent
                 text: " " + quiz.model[quiz._idx].translation + " "
                 opacity: scoring.ms/10000
-
             }
         }
 
@@ -87,13 +86,11 @@ Rectangle
             property int ms
             property real seconds: 0
             property int numRounds: 0
-            text: "avrg: " + (Math.round((seconds/numRounds) * 1000) / 1000).toFixed(2);
+            text: ""
             function showResult() {text=seconds;}
             function reset() {
                 let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
                 db.results.set(quiz.text, currSeconds);
-                minS.result(currSeconds);
-                maxS.result(currSeconds);
                 seconds += (1.0 * currSeconds);
                 numRounds++;
                 ms=0;
@@ -104,20 +101,6 @@ Rectangle
                    onTriggered: parent.ms += interval
                    repeat: true
                    running: gameRunning}
-        }
-        Text {
-            id: minS
-            property real minSeconds: 1000
-            property string minCaption: ""
-            text: "min: " + minSeconds + " (" + minCaption + ")"
-            function result(s) { if (s < minSeconds) {minSeconds = s; minCaption = quiz.text; }}
-        }
-        Text {
-            id: maxS
-            property real maxSeconds: 0
-            property string maxCaption: ""
-            text: "max: " + maxSeconds + " (" + maxCaption + ")"
-            function result(s) { if (s > maxSeconds) {maxSeconds = s; maxCaption=quiz.text; }}
         }
     }
 
