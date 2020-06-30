@@ -27,7 +27,7 @@ build interactive experiences:
 
 ### Available Examples
 A bunch of example application allow you to try it out easily:
-- GUI: Very simple example showing Quick Controls and the Storage plugin in action.
+- GUI: Visual training app for keyboard shortcuts, comes with a configuration for Inkscape.
 - VisualFX: Implementation of different visual effects, includes usage of the [Qt Particle System](https://doc.qt.io/qt-5/qtquick-effects-particles.html).
 - Platformer: Starting point for a platformer game.
 - TopDown: Starting point for a topdown game (for example a classical RPG).
