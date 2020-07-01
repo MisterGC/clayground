@@ -13,19 +13,41 @@ Rectangle
     property bool gameRunning: practiceTime.secondsLeft > 0
     readonly property int fullGameTime: 60
     onGameRunningChanged: if (!gameRunning) db.save()
+    anchors.fill: parent
 
     Rectangle {
         id: practiceTime
+
         visible: gameRunning
-        Component.onCompleted: ts.triggered.connect(onSecondPassed);
-        property int secondsLeft: fullGameTime
-        function onSecondPassed() {secondsLeft--;}
         anchors.horizontalCenter: parent.horizontalCenter
-        Timer {id: ts; interval: 1000; running: practiceTime.secondsLeft > 0; repeat: true}
         height: parent.height * .06
         width: parent.width * (1.0 * secondsLeft)/fullGameTime
         color: "black"
         opacity: .5
+        property int secondsLeft: fullGameTime
+
+        Timer {
+            id: oneSecond
+            interval: 1000
+            running: practiceTime.secondsLeft > 0
+            repeat: true
+            onTriggered: practiceTime.secondsLeft--;
+        }
+
+        Timer {
+            id: scoring
+            property int ms: 0
+            interval: 50
+            onTriggered: ms += interval
+            repeat: true
+            running: gameRunning
+            function reset() {
+                let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
+                db.results.set(quiz.text, currSeconds);
+                ms=0;
+                restart();
+            }
+        }
     }
 
     Column
@@ -68,9 +90,7 @@ Rectangle
             property string shortcut: model[_idx].translation
             property int _idx: 0
             text: model[_idx].caption
-            Component.onCompleted: {
-               shortcutChecker.matchesChanged.connect(nextQuestion)
-            }
+            Component.onCompleted: shortcutChecker.matchesChanged.connect(nextQuestion)
             function nextQuestion() {
                 if (shortcutChecker.matches) {
                     scoring.reset();
@@ -83,27 +103,6 @@ Rectangle
             }
         }
         Item { width: 1; height: dojo.height * .1 }
-        Text {
-            id: scoring
-            property int ms
-            property real seconds: 0
-            property int numRounds: 0
-            text: ""
-            function showResult() {text=seconds;}
-            function reset() {
-                let currSeconds = (Math.round((ms/1000) * 1000) / 1000).toFixed(2);
-                db.results.set(quiz.text, currSeconds);
-                seconds += (1.0 * currSeconds);
-                numRounds++;
-                ms=0;
-                tracker.restart();
-            }
-            Timer {id: tracker
-                   interval: 50
-                   onTriggered: parent.ms += interval
-                   repeat: true
-                   running: gameRunning}
-        }
     }
 
     Scoreboard {
