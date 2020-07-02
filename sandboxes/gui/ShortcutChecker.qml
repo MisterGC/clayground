@@ -23,7 +23,7 @@ Item {
                                  ])
     function keyToTxt(key) {
         if (keymap.has(key)) return keymap.get(key);
-        return ""
+        return "";
     }
 
     function modToTxt(modifiers) {
@@ -41,7 +41,6 @@ Item {
         let withMod = shortcutToMatch.includes("+")
         let modTxt = withMod ? modToTxt(event.modifiers) : "";
         let text = modTxt + (modTxt === "" ? "" : "+") + keyToTxt(event.key);
-        console.log("Pressed: " + text  + " " + shortcutToMatch);
         matches = (text === shortcutToMatch);
         event.accepted = true;
     }

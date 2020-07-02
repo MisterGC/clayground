@@ -34,7 +34,6 @@ ListView
     function update() {
         theScores.clear();
         let results = db.results;
-        console.log("resup: " + JSON.stringify(results));
         for (let k of results.keys())
             processEntry(k, results.get(k));
     }

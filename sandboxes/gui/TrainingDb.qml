@@ -4,6 +4,9 @@ import QtQuick 2.12
 import Clayground.Storage 1.0
 
 Item {
+
+    // Scoring Functionality
+
     KeyValueStore { id: theStore; name: "training-results" }
 
     property var results: new Map()
@@ -19,9 +22,11 @@ Item {
         if (arr.length > 0) {
             let strRes = JSON.stringify(arr);
             theStore.set("results", strRes);
-            console.log("Stored res: " + strRes);
         }
     }
+
+
+    // Training Cofigurations
 
     property var inkscape: [
         // Zoom
