@@ -10,10 +10,12 @@ Item {
     KeyValueStore { id: theStore; name: "training-results" }
 
     property var results: new Map()
-    readonly property var oldResults: load()
+    property var oldResults: new Map()
+
+    Component.onCompleted: oldResults = load();
 
     function load() {
-        let res = JSON.parse(theStore.get("results", []));
+        let res = JSON.parse(theStore.get("results", "[]"));
         return new Map(res);
     }
 
