@@ -6,13 +6,10 @@ import QtQuick.LocalStorage 2.12
 Item
 {
     property string name: ""
-    property var _db: LocalStorage.openDatabaseSync(name, "0.1", "A simple key-value store", 10000);
-
-    Component.onCompleted: {
-        _db.transaction((tx) => {
+    readonly property var _db: LocalStorage.openDatabaseSync(name, "0.1", "A simple key-value store", 10000);
+    on_DbChanged: _db.transaction((tx) => {
             tx.executeSql('CREATE TABLE IF NOT EXISTS keyvalue(key TEXT UNIQUE, value TEXT)');
         });
-    }
 
     function set(key, value) {
         var res = true;
