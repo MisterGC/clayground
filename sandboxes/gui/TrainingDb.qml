@@ -46,12 +46,12 @@ Item {
         {translation: "Ctrl++", caption: "SelectionUnion"},
 
         // Dialogs
+        {translation: "Ctrl+Shift+A", caption: "AlignAndDistribute"},
         {translation: "Ctrl+Shift+D", caption: "DialogDocProperties"},
-        {translation: "Ctrl+Shift+E", caption: "DialogExport"},
         {translation: "Ctrl+Shift+F", caption: "DialogFillStroke"},
         {translation: "Ctrl+Shift+L", caption: "DialogLayers"},
-        {translation: "Ctrl+Shift+M", caption: "DialogTransform"},
         {translation: "Ctrl+Shift+T", caption: "DialogText"},
+        {translation: "Ctrl+Shift+X", caption: "XmlEditor"},
 
         // Edit
         {translation: "Ctrl+C", caption: "EditCopy"},
