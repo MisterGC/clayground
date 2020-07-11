@@ -23,6 +23,7 @@ Item {
                                      [Qt.Key_Plus,"+"], [Qt.Key_Minus,"-"], [Qt.Key_Asterisk,"*"],
                                      [Qt.Key_NumberSign,"#"],[Qt.Key_Space,"space"], [Qt.Key_Escape, "Esc"],
                                      [Qt.Key_Percent,"%"],[Qt.Key_Slash, "/"], [Qt.Key_Tab, "Tab"],
+                                     [Qt.Key_Backtab, "Backtab"],
                                      [Qt.Key_Delete, "Del"], [Qt.Key_Period, "."], [Qt.Key_Comma, ","],
 
                                      // To be refined if actual direction is needed

@@ -37,4 +37,14 @@ ListView
         for (let k of results.keys())
             processEntry(k, results.get(k));
     }
+
+    signal nextRoundRequested();
+    Button {
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        text: "Next Round"
+        onClicked: parent.nextRoundRequested()
+    }
 }

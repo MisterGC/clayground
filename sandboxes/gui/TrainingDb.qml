@@ -12,7 +12,12 @@ Item {
     property var results: new Map()
     property var oldResults: new Map()
 
-    Component.onCompleted: oldResults = load();
+    Component.onCompleted: reset()
+
+    function reset() {
+        oldResults = load();
+        results = new Map();
+    }
 
     function load() {
         let res = JSON.parse(theStore.get("results", "[]"));
@@ -44,16 +49,18 @@ Item {
         // Selection
         {translation: "Ctrl+-", caption: "SelectionDiff"},
         {translation: "Ctrl++", caption: "SelectionUnion"},
-        {translation: "Ctrl+/", caption: "SelectionDivision"},
+        // FIXME German layout needs to press Shift to get '/'
+        {translation: "Ctrl+Shift+/", caption: "SelectionDivision"},
         {translation: "Tab", caption: "SelNextObject"},
-        {translation: "Shift+Tab", caption: "SelPrevObject"},
+        {translation: "Backtab", caption: "SelPrevObject"},
         {translation: "Del", caption: "DelSelection"},
 
         // Dialogs
         {translation: "Ctrl+Shift+A", caption: "AlignAndDistribute"},
         {translation: "Ctrl+Shift+F", caption: "DialogFillStroke"},
         {translation: "Ctrl+Shift+T", caption: "DialogText"},
-        {translation: "Ctrl+Shift+X", caption: "XmlEditor"},
+        // FIXME Shortcut is not recognized
+        //{translation: "Ctrl+Shift+X", caption: "XmlEditor"},
         {translation: "Esc", caption: "ReturnToCanvas"},
         {translation: "Ctrl+W", caption: "CloseDialog"},
 

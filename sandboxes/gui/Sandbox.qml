@@ -10,9 +10,19 @@ Rectangle
     color: "grey"
     Component.onCompleted: shortcutChecker.forceActiveFocus()
 
-    property bool gameRunning: practiceTime.secondsLeft > 0
+    readonly property bool gameRunning: secondsLeft > 0
     readonly property int fullGameTime: 60
-    onGameRunningChanged: if (!gameRunning) db.save()
+    property int secondsLeft: fullGameTime
+
+    onGameRunningChanged: {
+        if (!gameRunning)
+            db.save()
+        else {
+            db.reset();
+            secondsLeft = fullGameTime;
+            shortcutChecker.forceActiveFocus();
+        }
+    }
     anchors.fill: parent
 
     Rectangle {
@@ -21,17 +31,16 @@ Rectangle
         visible: gameRunning
         anchors.horizontalCenter: parent.horizontalCenter
         height: parent.height * .06
-        width: parent.width * (1.0 * secondsLeft)/fullGameTime
+        width: parent.width * (1.0 * dojo.secondsLeft)/fullGameTime
         color: "black"
         opacity: .5
-        property int secondsLeft: fullGameTime
 
         Timer {
             id: oneSecond
             interval: 1000
-            running: practiceTime.secondsLeft > 0
+            running: gameRunning
             repeat: true
-            onTriggered: practiceTime.secondsLeft--;
+            onTriggered: dojo.secondsLeft--;
         }
 
         Timer {
@@ -106,6 +115,7 @@ Rectangle
     }
 
     Scoreboard {
+        onNextRoundRequested: dojo.secondsLeft = dojo.fullGameTime
         resultStorage: db
         visible: !gameRunning
         onVisibleChanged: if (visible) update();
@@ -113,6 +123,5 @@ Rectangle
         width: .8 * parent.width
         height: .8 * parent.height
     }
-
 
 }
