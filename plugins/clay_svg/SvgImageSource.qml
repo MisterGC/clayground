@@ -15,9 +15,8 @@ Item
 
         source = "image://claysvg/" +
                 svgFilename +
-                "/" +
-                elementId +
                 "?ignoredColor=" + annotationAARRGGBB +
+                "&part=" + elementId +
                 sbxNoCacheWorkaround
 
         return source

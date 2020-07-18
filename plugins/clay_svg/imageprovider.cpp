@@ -77,12 +77,10 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
         clearCache();
     else
         coveredImgs_.insert(id);
-    const auto idParts = id.split("/");
 
-    const auto imgId = idParts.at(0);
-    auto& renderer = fetchRenderer(imgId);
+    auto& renderer = fetchRenderer(id);
+    const auto partId = queryPart.queryItemValue("part");
 
-    const auto partId = idParts.at(1);
     auto reqSize = requestedSize;
     if (!reqSize.isValid()) {
         const auto partRect = renderer.boundsOnElement(partId);
