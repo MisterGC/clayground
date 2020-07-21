@@ -21,13 +21,12 @@ public:
                           QSize *size,
                           const QSize &requestedSize) override;
 private:
-    QSvgRenderer &fetchRenderer(const QString &imgId);
+    QSvgRenderer &fetchRenderer(const QString& imgId, const QUrlQuery& queryPart);
     void clearCache();
 
 private:
     QHash<QString, QSvgRenderer*> svgCache_;
     QSet<QString> coveredImgs_;
-    void hideIgnoredColor(const QUrlQuery &queryPart, QImage &img);
 };
 
 #endif // SCALINGIMAGEPROVIDER_H

@@ -1,7 +1,12 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 #include "imageprovider.h"
 
+#include <QBitmap>
+#include <QRegion>
 #include <QPainter>
+#include <QFile>
+#include <QTextStream>
+#include <QDebug>
 #include <math.h>
 
 ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
@@ -18,7 +23,7 @@ void ImageProvider::clearCache()
     svgCache_.clear();
 }
 
-QSvgRenderer& ImageProvider::fetchRenderer(const QString& imgId)
+QSvgRenderer& ImageProvider::fetchRenderer(const QString& imgId, const QUrlQuery& queryPart)
 {
     QString svgDir = ":";
     const auto sbxvar = "CLAYGROUND_SBX_DIR";
@@ -27,32 +32,24 @@ QSvgRenderer& ImageProvider::fetchRenderer(const QString& imgId)
 
     const auto svgPath = QString(svgDir + "/%1.svg").arg(imgId);
     if (!svgCache_.contains(svgPath)) {
-        svgCache_[svgPath] = new QSvgRenderer(svgPath);
-    }
-    return *svgCache_[svgPath];
-}
-
-void ImageProvider::hideIgnoredColor(const QUrlQuery& queryPart, QImage& img)
-{
-    const auto ignoredColorKey = QString("ignoredColor");
-    QColor ignoredColor;
-
-    if (queryPart.hasQueryItem(ignoredColorKey))
-        ignoredColor = QColor("#" + queryPart.queryItemValue(ignoredColorKey));
-
-    if (ignoredColor.isValid())
-    {
-        for (int i=0; i<img.height(); ++i) {
-            auto scan = img.scanLine(i);
-            int depth =4;
-            for (int j = 0; j < img.width(); ++j) {
-                auto& rgbpixel = *reinterpret_cast<QRgb*>(scan + j*depth);
-                if (QColor(rgbpixel) == ignoredColor)
-                    rgbpixel = QColorConstants::Transparent.rgba();
-            }
+        QFile f(svgPath);
+        if (f.open(QFile::ReadOnly | QFile::Text))
+        {
+            const auto icKey = QString("ignoredColor");
+            QString ic;
+            if (queryPart.hasQueryItem(icKey))
+                ic = QString("#" + queryPart.queryItemValue(icKey));
+            QTextStream in(&f);
+            QString c = in.readAll();
+            if (!ic.isEmpty()) c.replace(ic, "transparent");
+            svgCache_[svgPath] = new QSvgRenderer(c.toUtf8());
+        }
+        else {
+            qCritical() << "Unable to open " << svgPath;
         }
     }
 
+    return *svgCache_[svgPath];
 }
 
 QPixmap ImageProvider::requestPixmap(const QString &path,
@@ -67,10 +64,11 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     QUrlQuery queryPart;
 
     const auto pathParts = path.split("?");
-    if (pathParts.size() > 1) {
-        // TODO error msg if not exactly two parts
-        queryPart = QUrlQuery(pathParts[1]);
-    }
+    if (pathParts.size() != 2)
+        qCritical() << "Expected path with query part "
+                       "<relative-path>?<query-part>";
+
+    queryPart = QUrlQuery(pathParts[1]);
 
     const auto id = pathParts[0];
     if (coveredImgs_.contains(id))
@@ -78,7 +76,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     else
         coveredImgs_.insert(id);
 
-    auto& renderer = fetchRenderer(id);
+    auto& renderer = fetchRenderer(id, queryPart);
     const auto partId = queryPart.queryItemValue("part");
 
     auto reqSize = requestedSize;
@@ -87,18 +85,16 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
         reqSize.setWidth(static_cast<int>(partRect.width()));
         reqSize.setHeight(static_cast<int>(partRect.height()));
     }
-    QImage img(reqSize.width(), reqSize.height(), QImage::Format_ARGB32);
 
+    QImage img(reqSize.width(), reqSize.height(), QImage::Format_ARGB32);
     QPainter painter(&img);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.setCompositionMode(QPainter::CompositionMode_Clear);
     painter.fillRect(0, 0, img.width(), img.height(), Qt::transparent);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     renderer.render(&painter, partId);
 
     size->setWidth(img.width());
     size->setHeight(img.height());
-
-    hideIgnoredColor(queryPart, img);
 
     return QPixmap::fromImage(img);
 }
