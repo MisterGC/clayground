@@ -69,7 +69,7 @@ Rectangle
             width: height
             SvgImageSource {
                 id: theSvgSource
-                svgFilename: "visuals"
+                svgPath: "visuals"
                 annotationAARRGGBB:"ff000000"
             }
             Label {

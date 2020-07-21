@@ -33,8 +33,8 @@ JnRPlayer
 
     SvgImageSource {
         id: theSvgSource
-        svgFilename: "visuals"
         annotationAARRGGBB:"ff000000"
+        svgPath: "visuals"
     }
 
     SpriteSequence {

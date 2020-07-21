@@ -9,8 +9,8 @@ VisualizedBoxBody
 {
     SvgImageSource {
         id: svg
-        svgFilename: "visuals"
         annotationAARRGGBB:"ff000000"
+        svgPath: "visuals"
     }
     source:  svg.source("box")
     bodyType: Body.Static
