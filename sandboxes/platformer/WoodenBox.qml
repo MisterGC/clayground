@@ -9,10 +9,10 @@ VisualizedBoxBody
 {
     SvgImageSource {
         id: svg
-        annotationAARRGGBB:"ff000000"
         svgPath: "visuals"
+        annotationRRGGBB:"000000"
     }
-    source:  svg.source("box")
+    source: svg.source("box")
     bodyType: Body.Static
     color: "#7084aa"
     categories: Box.Category1

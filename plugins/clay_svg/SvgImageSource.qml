@@ -4,8 +4,8 @@ import QtQuick 2.12
 
 Item
 {
-    property string annotationAARRGGBB: ""
     property string svgPath: ""
+    property string annotationRRGGBB: ""
 
     function source(elementId){
         let sbxNoCacheWorkaround = ""
@@ -14,8 +14,8 @@ Item
             sbxNoCacheWorkaround = "&dummy=" + ClayLiveLoader.numRestarts;
 
         source = "image://claysvg/" +
-                "?ignoredColor=" + annotationAARRGGBB +
                 svgPath +
+                "?ignoredColor=" + annotationRRGGBB +
                 "&part=" + elementId +
                 sbxNoCacheWorkaround
 

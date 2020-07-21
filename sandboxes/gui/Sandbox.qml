@@ -70,7 +70,7 @@ Rectangle
             SvgImageSource {
                 id: theSvgSource
                 svgPath: "visuals"
-                annotationAARRGGBB:"ff000000"
+                annotationRRGGBB:"000000"
             }
             Label {
                 background: Rectangle{color: "black"}
