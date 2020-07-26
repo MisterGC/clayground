@@ -25,7 +25,12 @@ Item {
     }
 
     function save() {
-        let arr = Array.from(results.entries());
+        let newRes = new Map(results);
+        for (let k of oldResults.keys()) {
+            if (!newRes.has(k))
+                newRes.set(k, oldResults.get(k));
+        }
+        let arr = Array.from(newRes.entries());
         if (arr.length > 0) {
             let strRes = JSON.stringify(arr);
             theStore.set("results", strRes);
