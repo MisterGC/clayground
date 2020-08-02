@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>NetworkDummy.qml</file>
+    </qresource>
+</RCC>
+
