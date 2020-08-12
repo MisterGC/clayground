@@ -15,6 +15,7 @@ ClayWorld
     pixelPerUnit: width / theWorld.worldXMax
     gravity: Qt.point(0, 15*9.81)
     timeStep: 1/60.0
+    anchors.fill: parent
 
     components: new Map([
                          ['Player', c1],

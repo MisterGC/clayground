@@ -9,7 +9,6 @@ import Clayground.Physics 1.0
 ClayCanvas
 {
     id: theWorld
-    anchors.fill: parent
     property var components: new Map()
 
     // General/Sandbox Mode
