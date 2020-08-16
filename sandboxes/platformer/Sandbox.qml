@@ -67,8 +67,8 @@ ClayWorld
            obj.collidesWith = Box.Category1 | Box.Category2 | Box.Category3;
        }
        else {
-           obj.color = "black";
            if (obj instanceof Player) player = obj;
+           else if (obj instanceof RectBoxBody) obj.color = "black";
        }
     }
 }
