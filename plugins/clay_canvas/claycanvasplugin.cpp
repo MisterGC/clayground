@@ -9,4 +9,5 @@ void ClayCanvasPlugin::registerTypes(const char *uri)
     qmlRegisterType(QUrl("qrc:/clayground/Poly.qml"),uri, 1,0,"Poly");
     qmlRegisterType(QUrl("qrc:/clayground/Rectangle.qml"),uri, 1,0,"Rectangle");
     qmlRegisterType(QUrl("qrc:/clayground/Text.qml"),uri, 1,0,"Text");
+    qmlRegisterType(QUrl("qrc:/clayground/Image.qml"),uri, 1,0,"Image");
 }
