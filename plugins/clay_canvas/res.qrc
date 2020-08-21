@@ -3,6 +3,7 @@
         <file>ClayCanvas.qml</file>
         <file>Poly.qml</file>
         <file>Rectangle.qml</file>
+        <file>Image.qml</file>
         <file>Text.qml</file>
     </qresource>
 </RCC>

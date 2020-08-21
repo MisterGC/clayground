@@ -15,6 +15,7 @@ ClayWorld
     pixelPerUnit: width / theWorld.worldXMax
     gravity: Qt.point(0, 15*9.81)
     timeStep: 1/60.0
+    anchors.fill: parent
 
     components: new Map([
                          ['Player', c1],
@@ -66,8 +67,8 @@ ClayWorld
            obj.collidesWith = Box.Category1 | Box.Category2 | Box.Category3;
        }
        else {
-           obj.color = "black";
            if (obj instanceof Player) player = obj;
+           else if (obj instanceof RectBoxBody) obj.color = "black";
        }
     }
 }

@@ -4,7 +4,7 @@ import QtQuick 2.12
 import Box2D 2.0
 import Clayground.Physics 1.0
 
-VisualizedBoxBody
+RectBoxBody
 {
     bodyType: Body.Static
     color: "#7084aa"

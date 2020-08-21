@@ -9,7 +9,7 @@ clay_p( ClayCanvas
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Canvas"
     URI Clayground.Canvas
     SOURCES
-        claycanvasplugin.cpp res.qrc qmldir.in
+        claycanvasplugin.cpp Sandbox.qml res.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

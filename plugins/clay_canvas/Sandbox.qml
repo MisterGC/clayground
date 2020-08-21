@@ -16,6 +16,7 @@ ClayCanvas
 
     Component { id: geoFactory; Poly {canvas: theCanvas}}
     Component { id: txtFactory; Text {canvas: theCanvas; fontSizeWu:.25}}
+    Component { id: imgFactory; Image{canvas: theCanvas; source: "image.svg"}}
 
     Component.onCompleted: {
         let line = [{x:3, y:3}, {x:5, y:5}]
@@ -26,5 +27,7 @@ ClayCanvas
 
         let txt = "A triangle"
         txtFactory.createObject(theCanvas, {xWu:5.9, yWu:5.9, text:txt})
+
+        imgFactory.createObject(theCanvas, {xWu:1.0, yWu:8.0, widthWu: 2.5, heightWu: 2.5})
     }
 }

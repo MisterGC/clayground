@@ -6,6 +6,7 @@
 void ClayPhysicsPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/PhysicsItem.qml"),uri, 1,0,"PhysicsItem");
-    qmlRegisterType(QUrl("qrc:/clayground/VisualizedBoxBody.qml"),uri, 1,0,"VisualizedBoxBody");
+    qmlRegisterType(QUrl("qrc:/clayground/ImageBoxBody.qml"),uri, 1,0,"ImageBoxBody");
+    qmlRegisterType(QUrl("qrc:/clayground/RectBoxBody.qml"),uri, 1,0,"RectBoxBody");
     qmlRegisterType(QUrl("qrc:/clayground/VisualizedPolyBody.qml"),uri, 1,0,"VisualizedPolyBody");
 }

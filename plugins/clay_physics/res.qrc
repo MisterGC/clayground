@@ -1,7 +1,8 @@
 <RCC>
     <qresource prefix="/clayground">
+        <file>ImageBoxBody.qml</file>
         <file>PhysicsItem.qml</file>
-        <file>VisualizedBoxBody.qml</file>
+        <file>RectBoxBody.qml</file>
         <file>VisualizedPolyBody.qml</file>
     </qresource>
 </RCC>

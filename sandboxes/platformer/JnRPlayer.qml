@@ -4,7 +4,7 @@ import QtQuick 2.0
 import Box2D 2.0
 import Clayground.Physics 1.0
 
-VisualizedBoxBody {
+ImageBoxBody {
     id: theImage
 
     // Visual Configuration
