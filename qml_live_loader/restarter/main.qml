@@ -119,6 +119,20 @@ Window {
         onRestarted: {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
+            theRestarter.enabled = true;
         }
+        onAboutToRestart: {
+            theRestarter.enabled = false;
+        }
+    }
+
+    Button {
+        id: theRestarter
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        anchors.top: parent.top
+        anchors.topMargin: 10
+        text: "R"
+        onPressed: ClayRestarter.triggerRestart();
     }
 }
