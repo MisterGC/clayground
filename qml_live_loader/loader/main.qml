@@ -49,4 +49,9 @@ Window {
             keyvalues.set("nrRestarts", r);
         }
     }
+
+    Shortcut {
+       sequence: "r"
+       onActivated: keyvalues.set("command", "restart");
+    }
 }

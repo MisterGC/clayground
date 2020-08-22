@@ -19,15 +19,21 @@ Window {
     property int nrRestarts: 0
     property string currError: ""
 
-    Component.onCompleted: keyvalues.set("nrRestarts", 0);
+    Component.onCompleted: {
+        keyvalues.set("nrRestarts", 0);
+        keyvalues.set("command", "");
+    }
 
     Timer {
         running: true
         repeat: true
-        interval: 500
+        interval: 250
         onTriggered: {
             nrRestarts = keyvalues.get("nrRestarts", 0)
             currError = keyvalues.get("lastErrorMsg", 0)
+            let cmd = keyvalues.get("command");
+            if (cmd === "restart") ClayRestarter.triggerRestart();
+            keyvalues.set("command", "");
         }
     }
 
@@ -135,4 +141,5 @@ Window {
         text: "R"
         onPressed: ClayRestarter.triggerRestart();
     }
+
 }
