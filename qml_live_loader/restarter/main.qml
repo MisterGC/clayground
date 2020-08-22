@@ -3,7 +3,9 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
+import QtQuick.Controls.Styles 1.4
 import Clayground.Storage 1.0
+import Clayground.Svg 1.0
 
 Window {
     id: theWindow
@@ -65,6 +67,14 @@ Window {
                         color: lbl.color
                         font.pixelSize: lbl.font.pixelSize * 1.8
                     }
+                }
+                Button {
+                    id: theRestarter
+                    width: theWindow.width * .07
+                    height: width
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Image { source: theSvgSource.source("reload") }
+                    onPressed: ClayRestarter.triggerRestart();
                 }
             }
 
@@ -132,14 +142,10 @@ Window {
         }
     }
 
-    Button {
-        id: theRestarter
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        anchors.top: parent.top
-        anchors.topMargin: 10
-        text: "R"
-        onPressed: ClayRestarter.triggerRestart();
+    SvgImageSource {
+        id: theSvgSource
+        svgPath: "clayground/graphics"
+        annotationRRGGBB:"000000"
     }
 
 }
