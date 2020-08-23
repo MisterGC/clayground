@@ -1,5 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/clayground">
     <file>main.qml</file>
+    <file>MessageView.qml</file>
 </qresource>
 </RCC>

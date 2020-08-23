@@ -69,6 +69,11 @@ int ClayLiveLoader::numRestarts() const
     return numRestarts_;
 }
 
+void ClayLiveLoader::postMessage(const QString &message)
+{
+   emit messagePosted(message);
+}
+
 QString ClayLiveLoader::altMessage() const
 {
     return altMessage_;

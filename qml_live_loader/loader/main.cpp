@@ -45,40 +45,49 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
         parser.showHelp(1);
 }
 
-void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    QByteArray localMsg = msg.toLocal8Bit();
+class MsgHandlerWrapper {
 
-    switch (type) {
-    case QtDebugMsg:
-    case QtInfoMsg:
+public:
+    static ClayLiveLoader* theLoader;
+
+    static void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
     {
-        QString fileN(context.file);
-        fileN = fileN.split("/").last().split(".").first();
-        fprintf(stderr, "%s (%s::%s)\n", localMsg.constData(), fileN.toUtf8().data(), context.function);
-    } break;
-    case QtWarningMsg:
-        fprintf(stderr, "WARNING  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-        break;
-    case QtCriticalMsg:
-        fprintf(stderr, "ERROR  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-        break;
-    case QtFatalMsg:
-        fprintf(stderr, "FATAL  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-        abort();
+        QByteArray localMsg = msg.toLocal8Bit();
+
+        switch (type) {
+        case QtDebugMsg:
+        case QtInfoMsg:
+        {
+            QString fileN(context.file);
+            fileN = fileN.split("/").last().split(".").first();
+            fprintf(stderr, "%s (%s::%s)\n", localMsg.constData(), fileN.toUtf8().data(), context.function);
+            theLoader->postMessage(msg);
+        } break;
+        case QtWarningMsg:
+            fprintf(stderr, "WARNING  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+            break;
+        case QtCriticalMsg:
+            fprintf(stderr, "ERROR  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+            break;
+        case QtFatalMsg:
+            fprintf(stderr, "FATAL  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+            abort();
+        }
     }
-}
+};
+ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
-    qInstallMessageHandler(customHandler);
-
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
     QCoreApplication::setApplicationVersion("0.1");
 
     ClayLiveLoader liveLoader;
+    MsgHandlerWrapper::theLoader = &liveLoader;
+    qInstallMessageHandler(MsgHandlerWrapper::customHandler);
+
     processCmdLineArgs(app, liveLoader);
     liveLoader.show();
 
