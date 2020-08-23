@@ -2,9 +2,9 @@
 
 #include "claynetworkplugin.h"
 #include <QQmlEngine>
+#include "lobby.h"
 
 void ClayNetworkPlugin::registerTypes(const char* uri)
 {
-    qmlRegisterType(QUrl("qrc:/clayground/NetworkDummy.qml"),
-                    uri, 1,0,"NetworkDummy");
+    qmlRegisterType<Lobby>(uri, 1, 0, "Lobby");
 }
