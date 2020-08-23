@@ -24,6 +24,7 @@ Window {
     Component.onCompleted: {
         keyvalues.set("nrRestarts", 0);
         keyvalues.set("command", "");
+        keyvalues.set("options", "");
     }
 
     Timer {
@@ -70,11 +71,19 @@ Window {
                 }
                 Button {
                     id: theRestarter
-                    width: theWindow.width * .07
+                    width: theWindow.width * .05
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     background: Image { source: theSvgSource.source("reload") }
                     onPressed: ClayRestarter.triggerRestart();
+                }
+                Button {
+                    id: logToggle
+                    width: theWindow.width * .05
+                    height: width
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Image { source: theSvgSource.source("log") }
+                    onPressed: keyvalues.set("options", "log");
                 }
             }
 
