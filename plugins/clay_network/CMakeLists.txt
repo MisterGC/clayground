@@ -9,7 +9,7 @@ clay_p( ClayNetwork
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Network"
     URI Clayground.Network
     SOURCES
-        claynetworkplugin.cpp res.qrc qmldir.in
+        lobby.h lobby.cpp claynetworkplugin.cpp res.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}
