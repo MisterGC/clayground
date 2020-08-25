@@ -3,7 +3,9 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
+import QtQuick.Controls.Styles 1.4
 import Clayground.Storage 1.0
+import Clayground.Svg 1.0
 
 Window {
     id: theWindow
@@ -19,15 +21,22 @@ Window {
     property int nrRestarts: 0
     property string currError: ""
 
-    Component.onCompleted: keyvalues.set("nrRestarts", 0);
+    Component.onCompleted: {
+        keyvalues.set("nrRestarts", 0);
+        keyvalues.set("command", "");
+        keyvalues.set("options", "");
+    }
 
     Timer {
         running: true
         repeat: true
-        interval: 500
+        interval: 250
         onTriggered: {
             nrRestarts = keyvalues.get("nrRestarts", 0)
             currError = keyvalues.get("lastErrorMsg", 0)
+            let cmd = keyvalues.get("command");
+            if (cmd === "restart") ClayRestarter.triggerRestart();
+            keyvalues.set("command", "");
         }
     }
 
@@ -59,6 +68,22 @@ Window {
                         color: lbl.color
                         font.pixelSize: lbl.font.pixelSize * 1.8
                     }
+                }
+                Button {
+                    id: theRestarter
+                    width: theWindow.width * .05
+                    height: width
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Image { source: theSvgSource.source("reload") }
+                    onPressed: ClayRestarter.triggerRestart();
+                }
+                Button {
+                    id: logToggle
+                    width: theWindow.width * .05
+                    height: width
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Image { source: theSvgSource.source("log") }
+                    onPressed: keyvalues.set("options", "log");
                 }
             }
 
@@ -119,6 +144,17 @@ Window {
         onRestarted: {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
+            theRestarter.enabled = true;
+        }
+        onAboutToRestart: {
+            theRestarter.enabled = false;
         }
     }
+
+    SvgImageSource {
+        id: theSvgSource
+        svgPath: "clayground/graphics"
+        annotationRRGGBB:"000000"
+    }
+
 }

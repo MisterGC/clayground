@@ -26,6 +26,7 @@ public:
 
 public slots:
     void run();
+    void triggerRestart();
 
 private slots:
     void onSbxOutput();
@@ -33,11 +34,12 @@ private slots:
     void onTimeToRestart();
 
 signals:
+    void aboutToRestart();
     void restarted();
 
 private:
-    std::mutex mutex_;
-    std::condition_variable restarterStopped_;
+    std::timed_mutex mutex_;
+    std::condition_variable_any restarterStopped_;
     std::atomic_bool shallStop_;
     std::atomic_bool shallRestart_;
     std::unique_ptr<QProcess> sbx_;

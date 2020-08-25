@@ -48,5 +48,40 @@ Window {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
         }
+        onMessagePosted: theMessageView.add(message);
+    }
+
+    Timer {
+        running: true
+        repeat: true
+        interval: 250
+        onTriggered: {
+            let opt = keyvalues.get("options");
+            if (opt === "log") theMessageView.toggle();
+            keyvalues.set("options", "");
+        }
+    }
+
+    MessageView {
+        id: theMessageView
+        opacity: 0
+        anchors.centerIn: parent
+        width: 0.9 * parent.width
+        height: 0.75 * parent.height
+        z: 999
+        function toggle() {
+           let opac = opacity > .5 ? 0.0 : 1.0;
+           opacity = opac;
+        }
+    }
+
+    Shortcut {
+       sequence: "r"
+       onActivated: keyvalues.set("command", "restart");
+    }
+
+    Shortcut {
+       sequence: "l"
+       onActivated: theMessageView.toggle();
     }
 }

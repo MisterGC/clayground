@@ -60,6 +60,8 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     // Use error images to indicate errors img/id n/a
 
     // TODO Involve requested size
+    if (requestedSize.width() == 0 || requestedSize.height() == 0)
+        return QPixmap();
 
     QUrlQuery queryPart;
 

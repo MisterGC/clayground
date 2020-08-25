@@ -28,12 +28,14 @@ public:
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);
     int numRestarts() const;
+    void postMessage(const QString& message);
 
 signals:
     void sandboxUrlChanged();
     void sandboxDirChanged();
     void altMessageChanged();
     void restarted();
+    void messagePosted(const QString& message);
 
 private slots:
     void onFileChanged(const QString& path);

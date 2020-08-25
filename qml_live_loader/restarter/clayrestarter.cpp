@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <iostream>
 #include <thread>
+#include <chrono>
 
 ClayRestarter::ClayRestarter(QObject *parent):
     QObject(parent),
@@ -27,8 +28,8 @@ ClayRestarter::ClayRestarter(QObject *parent):
 
 ClayRestarter::~ClayRestarter()
 {
+   std::unique_lock<std::timed_mutex> ul(mutex_);
    shallStop_ = true;
-   std::unique_lock<std::mutex> ul(mutex_);
    restarterStopped_.wait(ul);
 }
 
@@ -52,6 +53,15 @@ void ClayRestarter::run()
     std::thread t([this] {
         const auto loaderCmd = QString("%1/clayliveloader").arg(QCoreApplication::applicationDirPath());
         while(true) {
+            {
+                std::lock_guard<std::timed_mutex> l(mutex_);
+                // Ensure that delete gets called after pending signal processing
+                if (sbx_.get()) {
+                    auto& p = *sbx_.release();
+                    disconnect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOutput);
+                    p.deleteLater();
+                }
+            }
             sbx_.reset(new QProcess());
             auto& p = *sbx_.get();
             connect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOutput);
@@ -72,19 +82,25 @@ void ClayRestarter::run()
             }
             emit restarted();
             auto ps = false;
-            while (!ps) {
-                ps = p.waitForFinished(500);
-                if (shallStop_) {
-                    std::lock_guard<std::mutex> l(mutex_);
+            while (!ps)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                std::lock_guard<std::timed_mutex> l(mutex_);
+                ps = p.waitForFinished(100);
+                auto timeToStopSbx = (shallStop_ || shallRestart_);
+                if (timeToStopSbx)
+                {
+                    emit aboutToRestart();
                     p.kill();
                     p.waitForFinished();
-                    restarterStopped_.notify_one();
-                    return;
-                }
-                if (shallRestart_) {
-                    p.kill();
-                    shallRestart_ = false;
-                    break;
+                    if (shallStop_) {
+                        restarterStopped_.notify_one();
+                        return;
+                    }
+                    if (shallRestart_) {
+                        shallRestart_ = false;
+                        break;
+                    }
                 }
             }
         }
@@ -92,17 +108,24 @@ void ClayRestarter::run()
     t.detach();
 }
 
+void ClayRestarter::triggerRestart()
+{
+   shallRestart_ = true;
+}
+
 void ClayRestarter::onSbxOutput()
 {
-  sbx_->setReadChannel(QProcess::StandardError);
-  auto msgs = sbx_->readAllStandardError();
-  if (!msgs.isEmpty()) {
-      auto isErr = (msgs.startsWith("ERROR") ||
-          msgs.startsWith("WARN") ||
-          msgs.startsWith("FATAL"));
-      if (isErr) qWarning("%s", qUtf8Printable(msgs));
-      else std::cout << msgs.toStdString() << std::endl;
-  }
+    if (!mutex_.try_lock_for(std::chrono::milliseconds(250))) return;
+    std::lock_guard<std::timed_mutex> l(mutex_, std::adopt_lock);
+    sbx_->setReadChannel(QProcess::StandardError);
+    auto msgs = sbx_->readAll();
+    if (!msgs.isEmpty()) {
+        auto isErr = (msgs.startsWith("ERROR") ||
+                      msgs.startsWith("WARN") ||
+                      msgs.startsWith("FATAL"));
+        if (isErr)  qWarning("%s", qUtf8Printable(msgs));
+        else  std::cout << msgs.toStdString() << std::endl;
+    }
 }
 
 void ClayRestarter::onFileSysChange(const QString &path)
