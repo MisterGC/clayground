@@ -19,6 +19,8 @@ JnRPlayer
     bodyType: Body.Dynamic
     density: 300.
 
+    property alias graphics: visu
+
     function updateAnimation(){
         let desiredAnim = "stand";
 
