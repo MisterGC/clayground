@@ -39,3 +39,15 @@ A bunch of example application allow you to try it out easily:
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/gui/Sandbox.qml` -> see the changes live applied
 5. Check out the other sandboxes in the same way :)
+
+#### Using the Logging Overlay
+The sandbox comes with a logging overlay that shows all 
+`console.log(...)` messages in a continous log view and 
+watched properties/expressions in a sticky section. You can 
+easily show/hide the overlay by using the `log` button of the 
+restarter or by pressing lower-case L when the Sbx Window has the focus.
+
+<img src="res/log_overlay.png" width="50%" height="50%" alt="LogOverlay Screenshot">
+
+Have a look at the `onWorldCreated` signal handler of the Platformer 
+Sandbox to see how you can use them.
