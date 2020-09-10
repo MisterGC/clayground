@@ -70,20 +70,27 @@ Window {
                     }
                 }
                 Button {
-                    id: theRestarter
+                    id: btnRestart
                     width: theWindow.width * .05
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     background: Image { source: theSvgSource.source("reload") }
                     onPressed: ClayRestarter.triggerRestart();
+                    ToolTip.visible: btnRestart.hovered
+                    ToolTip.text: "Restart Sbx (Press 'r' in Sbx)"
+                    ToolTip.delay: 500
                 }
                 Button {
-                    id: logToggle
+                    id: btnToggleLog
                     width: theWindow.width * .05
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     background: Image { source: theSvgSource.source("log") }
-                    onPressed: keyvalues.set("options", "log");
+                    function toggleLog() {keyvalues.set("options", "log");}
+                    onPressed: toggleLog()
+                    ToolTip.visible: btnToggleLog.hovered
+                    ToolTip.text: "Show/hide log overlay (Press 'l' in Sbx)"
+                    ToolTip.delay: 500
                 }
             }
 
@@ -144,10 +151,10 @@ Window {
         onRestarted: {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
-            theRestarter.enabled = true;
+            btnRestart.enabled = true;
         }
         onAboutToRestart: {
-            theRestarter.enabled = false;
+            btnRestart.enabled = false;
         }
     }
 

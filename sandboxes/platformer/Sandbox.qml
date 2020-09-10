@@ -29,6 +29,7 @@ ClayWorld
     Component { id: c4; WoodenBox {} }
 
     property var player: null
+    property var woodenBox: null
     onWorldAboutToBeCreated: {
         player = null;
     }
@@ -41,11 +42,17 @@ ClayWorld
                                    Qt.Key_S);
         player.desireX = Qt.binding(function() {return theGameCtrl.axisX;});
         theWorld.observedItem = player;
-    }
-    Player {
-        id: anotherPlayer
-        parent: theWorld
-        world: theWorld.physics
+
+        if (theWorld.runsInSbx) {
+            claylog.watch(player, "x")
+            claylog.watch(player, "y")
+            claylog.watch(player.graphics, "currentSprite", true)
+            // Watch distance between upper-left pos player<->woodenBox
+            claylog.watch(_ => {
+                              let d = Qt.vector2d(woodenBox.x, woodenBox.y).minus(
+                                  Qt.vector2d(player.x, player.y)).length();
+                              return "dToBox: " + Math.round(d)});
+        }
     }
 
     //physicsDebugging: true
@@ -68,7 +75,9 @@ ClayWorld
        }
        else {
            if (obj instanceof Player) player = obj;
+           else if (obj instanceof WoodenBox) woodenBox = obj;
            else if (obj instanceof RectBoxBody) obj.color = "black";
        }
     }
+
 }

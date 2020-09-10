@@ -47,8 +47,9 @@ Window {
         onRestarted: {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
+            claylog.clear();
         }
-        onMessagePosted: theMessageView.add(message);
+        onMessagePosted: claylog.add(message);
     }
 
     Timer {
@@ -57,13 +58,13 @@ Window {
         interval: 250
         onTriggered: {
             let opt = keyvalues.get("options");
-            if (opt === "log") theMessageView.toggle();
+            if (opt === "log") claylog.toggle();
             keyvalues.set("options", "");
         }
     }
 
     MessageView {
-        id: theMessageView
+        id: claylog
         opacity: 0
         anchors.centerIn: parent
         width: 0.9 * parent.width
@@ -82,6 +83,6 @@ Window {
 
     Shortcut {
        sequence: "l"
-       onActivated: theMessageView.toggle();
+       onActivated: claylog.toggle();
     }
 }
