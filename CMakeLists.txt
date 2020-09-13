@@ -22,6 +22,7 @@ add_subdirectory (thirdparty/simple-svg-writer)
 
 add_subdirectory (sandboxes/gui)
 add_subdirectory (sandboxes/visualfx)
+add_subdirectory (sandboxes/multiplayerplatformer)
 add_subdirectory (sandboxes/platformer)
 add_subdirectory (sandboxes/pluginlive)
 add_subdirectory (sandboxes/topdown)
