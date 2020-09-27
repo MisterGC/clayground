@@ -128,7 +128,8 @@ void Lobby::processDatagram()
         udpSocket->readDatagram(datagram.data(), datagram.size());
 
 
-        //TODO Process the app and groups datagrams
+        //TODO Process the app and groups datagrams, when there's another app on the same group, it need to
+        // be added to br conneted to this
 
 
 
