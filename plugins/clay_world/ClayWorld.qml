@@ -5,6 +5,7 @@ import Box2D 2.0
 import Clayground.Svg 1.0
 import Clayground.Canvas 1.0
 import Clayground.Physics 1.0
+import Clayground.Common 1.0
 
 ClayCanvas
 {
@@ -12,15 +13,11 @@ ClayCanvas
     property var components: new Map()
 
     // General/Sandbox Mode
-    property bool runsInSbx: true
     property string map: ""
     readonly property string _fullmappath: (map.length === 0 ? ""
-        : ((!runsInSbx ? ":/" : ClayLiveLoader.sandboxDir)
+        : ((!Clayground.runsInSbx ? ":/" : ClayLiveLoader.sandboxDir)
                          + "/" + map))
-    readonly property string _resPrefix: !theWorld.runsInSbx ? "qrc:/" : "file:///" + ClayLiveLoader.sandboxDir + "/"
-    function resource(path) {
-        return theWorld._resPrefix + path
-    }
+    function resource(path) { return Clayground.resource(path);}
 
     property bool running: true
 
