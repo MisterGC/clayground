@@ -15,8 +15,7 @@ ClayCanvas
     // General/Sandbox Mode
     property string map: ""
     readonly property string _fullmappath: (map.length === 0 ? ""
-        : ((!Clayground.runsInSbx ? ":/" : ClayLiveLoader.sandboxDir)
-                         + "/" + map))
+        : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
     function resource(path) { return Clayground.resource(path);}
 
     property bool running: true
