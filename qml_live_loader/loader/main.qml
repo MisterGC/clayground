@@ -13,6 +13,20 @@ Window {
     height: width
     title: qsTr("Clay Live Loader")
 
+    MessageView {
+        id: claylog
+        Component.onCompleted: Clayground.watchView = claylog;
+        opacity: 0
+        anchors.centerIn: parent
+        width: 0.9 * parent.width
+        height: 0.75 * parent.height
+        z: 999
+        function toggle() {
+            let opac = opacity > .5 ? 0.0 : 1.0;
+            opacity = opac;
+        }
+    }
+
     Loader {
         id: sbxLoader
         anchors.fill: parent
@@ -60,19 +74,6 @@ Window {
             let opt = keyvalues.get("options");
             if (opt === "log") claylog.toggle();
             keyvalues.set("options", "");
-        }
-    }
-
-    MessageView {
-        id: claylog
-        opacity: 0
-        anchors.centerIn: parent
-        width: 0.9 * parent.width
-        height: 0.75 * parent.height
-        z: 999
-        function toggle() {
-           let opac = opacity > .5 ? 0.0 : 1.0;
-           opacity = opac;
         }
     }
 
