@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.0
-import QtGamepad 1.0
+//import QtGamepad 1.0
 
 /** Represents a very simple GameController which is inspired by input possibilities of NES controller. */
 Item {
@@ -18,15 +18,16 @@ Item {
     // Visualizes the state of the GameController
     property alias showDebugOverlay: theDebugVisu.visible
 
-    property alias gamepadId: gamepad.deviceId
+    //property alias gamepadId: gamepad.deviceId
     property int numConnectedGamepads: GamepadManager.connectedGamepads.length
 
-    readonly property bool gamepadSelected: gamepad.deviceId !== -1
+    //readonly property bool gamepadSelected: gamepad.deviceId !== -1
     readonly property bool vGamepadSelected: vgamepad.enabled
     readonly property bool keyboardSelected: keybGamepad.enabled
 
     /** Selects the specified gamepad as input source */
     function selectGamepad(gamePadIdx, useAnalogAxis) {
+        /*
         if (gamePadIdx >= 0 &&
             gamePadIdx < numConnectedGamepads)
         {
@@ -46,11 +47,12 @@ Item {
         }
         else console.error("Invalid game pad index: " + gamePadIdx +
                            " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
+        */
     }
 
     /** Selects the keyboard as input */
     function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
-        gamepad.deviceId = -1;
+        /* gamepad.deviceId = -1; */
         keybGamepad.enabled = true;
         vgamepad.enabled = false;
         keybGamepad.configure(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey);
@@ -59,7 +61,7 @@ Item {
     /** Selects the touchscreen gamepad */
     function selectTouchscreenGamepad()
     {
-        gamepad.deviceId = -1;
+        /* gamepad.deviceId = -1; */
         keybGamepad.enabled = false;
         vgamepad.enabled = true;
         vgamepad.configure();
@@ -72,7 +74,7 @@ Item {
     }
 
     Keys.forwardTo: keybGamepad
-    Gamepad { id: gamepad }
+    /* Gamepad { id: gamepad } */
     KeyboardGamepad { id: keybGamepad; gameController: theController; }
     TouchscreenGamepad { id: vgamepad; gameController: theController; }
 }
