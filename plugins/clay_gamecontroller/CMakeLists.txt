@@ -9,7 +9,7 @@ clay_p( ClayGameController
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/GameController"
     URI Clayground.GameController
     SOURCES
-        claygamectrlplugin.cpp res.qrc qmldir.in Sandbox.qml
+        claygamectrlplugin.cpp clay_controller.qrc qmldir.in Sandbox.qml
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

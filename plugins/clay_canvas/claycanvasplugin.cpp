@@ -3,6 +3,11 @@
 #include "claycanvasplugin.h"
 #include <QQmlEngine>
 
+ClayCanvasPlugin::ClayCanvasPlugin()
+{
+    Q_INIT_RESOURCE(clay_canvas);
+}
+
 void ClayCanvasPlugin::registerTypes(const char *uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/ClayCanvas.qml"),uri, 1,0,"ClayCanvas");

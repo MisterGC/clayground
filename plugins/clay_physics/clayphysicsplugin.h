@@ -10,6 +10,7 @@ class ClayPhysicsPlugin: public QQmlExtensionPlugin
     Q_PLUGIN_METADATA(IID "clayground.physicsplugin")
 
 public:
+    ClayPhysicsPlugin();
     void registerTypes(const char* uri) override;
 };
 #endif

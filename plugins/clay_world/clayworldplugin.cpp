@@ -3,6 +3,11 @@
 #include "clayworldplugin.h"
 #include <QQmlEngine>
 
+ClayWorldPlugin::ClayWorldPlugin()
+{
+    Q_INIT_RESOURCE(clay_world);
+}
+
 void ClayWorldPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/ClayWorld.qml"),

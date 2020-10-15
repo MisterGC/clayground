@@ -10,6 +10,7 @@ class ClayCanvasPlugin: public QQmlExtensionPlugin
     Q_PLUGIN_METADATA(IID "com.storytelling-turtle.ClayCanvasPlugin")
 
 public:
+    ClayCanvasPlugin();
     void registerTypes(const char* uri) override;
 };
 #endif

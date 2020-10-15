@@ -6,6 +6,11 @@
 #include "imageprovider.h"
 #include <QDebug>
 
+SvgPlugin::SvgPlugin()
+{
+    Q_INIT_RESOURCE(svg);
+}
+
 void SvgPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType<SvgReader>(uri, 1, 0, "SvgReader");

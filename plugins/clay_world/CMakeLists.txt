@@ -9,7 +9,7 @@ clay_p( ClayWorld
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/World"
     URI Clayground.World
     SOURCES
-        clayworldplugin.cpp res.qrc qmldir.in
+        clayworldplugin.cpp clay_world.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

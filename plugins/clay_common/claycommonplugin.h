@@ -10,6 +10,8 @@ class ClayCommonPlugin: public QQmlExtensionPlugin
     Q_PLUGIN_METADATA(IID "clayground.commonplugin")
 
 public:
+    ClayCommonPlugin();
+
     void registerTypes(const char* uri) override;
 };
 #endif

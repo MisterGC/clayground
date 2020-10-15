@@ -9,7 +9,7 @@ clay_p( ClayPhysics
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Physics"
     URI Clayground.Physics
     SOURCES
-        clayphysicsplugin.cpp res.qrc qmldir.in
+        clayphysicsplugin.cpp clay_physics.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

@@ -27,10 +27,13 @@ function(clay_p PLUGIN_NAME)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
 
-    add_library(${PLUGIN_NAME} SHARED ${CLAYPLUGIN_SOURCES})
+    add_library(${PLUGIN_NAME} STATIC ${CLAYPLUGIN_SOURCES})
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${CLAYPLUGIN_LINK_LIBS})
     target_compile_features(${PLUGIN_NAME} PUBLIC cxx_std_17)
     set(QML_IMPORT_PATH ${QML_IMPORT_PATH} ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "" FORCE)
+    target_compile_definitions(${PLUGIN_NAME}
+	    PRIVATE
+	    QT_STATICPLUGIN)
 
     set_target_properties(${PLUGIN_NAME}
     PROPERTIES
@@ -38,7 +41,6 @@ function(clay_p PLUGIN_NAME)
         RUNTIME_OUTPUT_DIRECTORY "${CLAYPLUGIN_DEST_DIR}"
     )
 
-    FindQmlPluginDump()
 
     add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
@@ -47,10 +49,10 @@ function(clay_p PLUGIN_NAME)
     )
 
     # Generate type info, so that types are available in Qt Creator ...
-    add_custom_command( TARGET ${PLUGIN_NAME} POST_BUILD
-        COMMAND  ${QTPLUGINDUMP_BIN} -nonrelocatable
-        ${CLAYPLUGIN_URI} ${CLAYPLUGIN_VERSION}
-        $<TARGET_FILE_DIR:${PLUGIN_NAME}>/../.. > $<TARGET_FILE_DIR:${PLUGIN_NAME}>/plugin.qmltypes
-    )
+    #add_custom_command( TARGET ${PLUGIN_NAME} POST_BUILD
+    #    COMMAND  ${QTPLUGINDUMP_BIN} -nonrelocatable
+    #    ${CLAYPLUGIN_URI} ${CLAYPLUGIN_VERSION}
+    #    $<TARGET_FILE_DIR:${PLUGIN_NAME}>/../.. > $<TARGET_FILE_DIR:${PLUGIN_NAME}>/plugin.qmltypes
+    #)
 
 endfunction()
