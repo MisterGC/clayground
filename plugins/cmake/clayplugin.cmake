@@ -47,18 +47,21 @@ function(clay_p PLUGIN_NAME)
         RUNTIME_OUTPUT_DIRECTORY "${CLAYPLUGIN_DEST_DIR}"
     )
 
-
     add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/qmldir.in
         $<TARGET_FILE_DIR:${PLUGIN_NAME}>/qmldir
     )
 
-    # Generate type info, so that types are available in Qt Creator ...
-    #add_custom_command( TARGET ${PLUGIN_NAME} POST_BUILD
-    #    COMMAND  ${QTPLUGINDUMP_BIN} -nonrelocatable
-    #    ${CLAYPLUGIN_URI} ${CLAYPLUGIN_VERSION}
-    #    $<TARGET_FILE_DIR:${PLUGIN_NAME}>/../.. > $<TARGET_FILE_DIR:${PLUGIN_NAME}>/plugin.qmltypes
-    #)
+    if (${QML_PLUGIN_LINK_TYPE} STREQUAL SHARED)
+        FindQmlPluginDump()
+
+        # Generate type info, so that types are available in Qt Creator ...
+        add_custom_command( TARGET ${PLUGIN_NAME} POST_BUILD
+            COMMAND  ${QTPLUGINDUMP_BIN} -nonrelocatable
+            ${CLAYPLUGIN_URI} ${CLAYPLUGIN_VERSION}
+            $<TARGET_FILE_DIR:${PLUGIN_NAME}>/../.. > $<TARGET_FILE_DIR:${PLUGIN_NAME}>/plugin.qmltypes
+        )
+    endif()
 
 endfunction()
