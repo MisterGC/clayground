@@ -1,6 +1,10 @@
 # Thanks to https://github.com/xarxer/cmake-qmlplugin for inspiration
 include(CMakeParseArguments)
 
+if (NOT QML_PLUGIN_LINK_TYPE)
+  set(QML_PLUGIN_LINK_TYPE SHARED)
+endif()
+
 function(FindQmlPluginDump)
     if(NOT QT_QMAKE_EXECUTABLE)
         message(FATAL_ERROR
@@ -27,13 +31,15 @@ function(clay_p PLUGIN_NAME)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
 
-    add_library(${PLUGIN_NAME} STATIC ${CLAYPLUGIN_SOURCES})
+    add_library(${PLUGIN_NAME} ${QML_PLUGIN_LINK_TYPE} ${CLAYPLUGIN_SOURCES})
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${CLAYPLUGIN_LINK_LIBS})
     target_compile_features(${PLUGIN_NAME} PUBLIC cxx_std_17)
     set(QML_IMPORT_PATH ${QML_IMPORT_PATH} ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "" FORCE)
     target_compile_definitions(${PLUGIN_NAME}
-	    PRIVATE
-	    QT_STATICPLUGIN)
+    PRIVATE
+        $<$<STREQUAL:${QML_PLUGIN_LINK_TYPE},STATIC>:QT_STATICPLUGIN>
+    PUBLIC
+        $<$<STREQUAL:${QML_PLUGIN_LINK_TYPE},STATIC>:CLAY_STATIC_PLUGIN>)
 
     set_target_properties(${PLUGIN_NAME}
     PROPERTIES
