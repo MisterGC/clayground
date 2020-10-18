@@ -51,6 +51,10 @@ void Lobby::start(){
 
     QJsonDocument doc(obj);
     datagram = doc.toJson(QJsonDocument::Compact);
+
+    //To Remove! test
+    joinGroup("test");
+    qDebug()<<QString::number(groupList.count())+ " groups: "+groupList.join(",");
 }
 
 void Lobby::connectApp(const QString &app)
@@ -106,6 +110,16 @@ void Lobby::writeTCPMsg(QTcpSocket *socket, const QString &msg)
     }
 }
 
+QString Lobby::findAppByUUID(QString UUID)
+{
+    foreach(QString app, apps.keys()){
+        if(app.contains(UUID)){
+           return app;
+        }
+    }
+    return "";
+}
+
 void Lobby::broadcastDatagram()
 {
     //Broadcast app details
@@ -113,11 +127,13 @@ void Lobby::broadcastDatagram()
 
 
     //Broadcast joined groups
-    QJsonObject obj;
-    obj["UUID"] = appUUID;
-    obj["groups"] = groupList.join(",");
-    QJsonDocument doc(obj);
-    udpSocket->writeDatagram(doc.toJson(QJsonDocument::Compact), QHostAddress::Broadcast, port);
+    if(groupList.count()>0) {
+        QJsonObject obj;
+        obj["UUID"] = appUUID;
+        obj["groups"] = groupList.join(",");
+        QJsonDocument doc(obj);
+        udpSocket->writeDatagram(doc.toJson(QJsonDocument::Compact), QHostAddress::Broadcast, port);
+    }
 }
 
 void Lobby::processDatagram()
@@ -127,10 +143,30 @@ void Lobby::processDatagram()
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size());
 
-
         //TODO Process the app and groups datagrams, when there's another app on the same group, it need to
         // be added to br conneted to this
 
+        QJsonParseError *pe=new QJsonParseError();
+        QJsonDocument jsondoc;
+        jsondoc.fromJson("{\"UUID\":\"{bf8cb722-30dd-41fc-93c7-87926ce136a3}\",\"groups\":\"test\"}",pe);
+        qDebug()<<jsondoc["groups"].isUndefined();
+        qDebug()<<jsondoc["groups"];
+        qDebug()<<jsondoc[0];
+        qDebug()<<datagram;
+        qDebug()<<jsondoc.toJson(QJsonDocument::Compact);
+        qDebug()<<jsondoc.isNull();
+        qDebug()<<pe->errorString();
+        if(!jsondoc["groups"].isUndefined()){
+            QStringList groups = jsondoc["groups"].toString().split(",");
+            foreach(QString group, groups){
+                if(groupList.contains(group)){
+                    //Connect to the app that shares a group
+                    connectApp(findAppByUUID(jsondoc["UUID"].toString()));
+                    break;
+                }
+            }
+            continue;
+        }
 
 
         if(datagram==this->datagram)
