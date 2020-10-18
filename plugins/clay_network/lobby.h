@@ -47,6 +47,8 @@ private:
     QMap<QString,QVariant> apps;
     void writeTCPMsg(QTcpSocket* socket, const QString &msg);
 
+    QString findAppByUUID(QString UUID);
+
 private slots:
     void broadcastDatagram();
     void processDatagram();
