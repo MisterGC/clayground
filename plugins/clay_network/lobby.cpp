@@ -52,9 +52,6 @@ void Lobby::start(){
     QJsonDocument doc(obj);
     datagram = doc.toJson(QJsonDocument::Compact);
 
-    //To Remove! test
-    joinGroup("test");
-    qDebug()<<QString::number(groupList.count())+ " groups: "+groupList.join(",");
 }
 
 void Lobby::connectApp(const QString &app)
@@ -62,22 +59,23 @@ void Lobby::connectApp(const QString &app)
     QJsonDocument doc = QJsonDocument::fromJson(app.toUtf8());
     QJsonObject obj = doc.object();
 
-    for(const QString &ip:obj["ipList"].toString().split(","))
-    {
-        QTcpSocket *socket = new QTcpSocket(this);
+    if(tcpSocketMap.count(obj["UUID"].toString())<1){
+        for(const QString &ip:obj["ipList"].toString().split(","))
+        {
+            QTcpSocket *socket = new QTcpSocket(this);
 
-        socket->connectToHost(ip,obj["tcpPort"].toInt());
-        if (socket->waitForConnected(1000)){
-            connect(socket, SIGNAL(readyRead()), this,SLOT(readTCPDatagram()));
-            tcpSocketMap[obj["UUID"].toString()]=socket;
-            socket->write(("setUUID="+appUUID).toStdString().data());
-            socket->flush();
-            socket->waitForBytesWritten(1000);
-            emit connectedTo(obj["UUID"].toString());
-            return;
+            socket->connectToHost(ip,obj["tcpPort"].toInt());
+            if (socket->waitForConnected(1000)){
+                connect(socket, SIGNAL(readyRead()), this,SLOT(readTCPDatagram()));
+                tcpSocketMap[obj["UUID"].toString()]=socket;
+                socket->write(("setUUID="+appUUID).toStdString().data());
+                socket->flush();
+                socket->waitForBytesWritten(1000);
+                emit connectedTo(obj["UUID"].toString());
+                return;
+            }
         }
     }
-    qDebug()<<"not connected";
 }
 
 void Lobby::sendMsg(const QString &msg, const QString &UUID)
@@ -143,31 +141,20 @@ void Lobby::processDatagram()
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size());
 
-        //TODO Process the app and groups datagrams, when there's another app on the same group, it need to
-        // be added to br conneted to this
-
-        QJsonParseError *pe=new QJsonParseError();
-        QJsonDocument jsondoc;
-        jsondoc.fromJson("{\"UUID\":\"{bf8cb722-30dd-41fc-93c7-87926ce136a3}\",\"groups\":\"test\"}",pe);
-        qDebug()<<jsondoc["groups"].isUndefined();
-        qDebug()<<jsondoc["groups"];
-        qDebug()<<jsondoc[0];
-        qDebug()<<datagram;
-        qDebug()<<jsondoc.toJson(QJsonDocument::Compact);
-        qDebug()<<jsondoc.isNull();
-        qDebug()<<pe->errorString();
+        QJsonDocument jsondoc=jsondoc.fromJson(datagram);
         if(!jsondoc["groups"].isUndefined()){
-            QStringList groups = jsondoc["groups"].toString().split(",");
-            foreach(QString group, groups){
-                if(groupList.contains(group)){
-                    //Connect to the app that shares a group
-                    connectApp(findAppByUUID(jsondoc["UUID"].toString()));
-                    break;
+            if(jsondoc["UUID"].toString()!=appUUID && tcpSocketMap.count(jsondoc["UUID"].toString())<1){
+                QStringList groups = jsondoc["groups"].toString().split(",");
+                foreach(QString group, groups){
+                    if(groupList.contains(group)){
+                        //Connect to the app that shares a group
+                        connectApp(findAppByUUID(jsondoc["UUID"].toString()));
+                        break;
+                    }
                 }
             }
             continue;
         }
-
 
         if(datagram==this->datagram)
             continue;
