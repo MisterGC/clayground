@@ -24,6 +24,10 @@ Window {
             id:msgReceived
         }
 
+        ListModel{
+            id:groupsModel
+        }
+
         Column{
             y:5
             x:5
@@ -77,9 +81,37 @@ Window {
                 }
             }
 
-            Button{
-                text: "send test"
-                onClicked: lobby.sendMsg("test")
+            Row{
+                spacing: 5
+                Rectangle{
+                    width: 150
+                    height: 100
+                    border.width: 1
+                    ListView{
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        model: groupsModel
+                        delegate: Rectangle{
+                            width: 150; height: 30
+                            Text {
+                                width: 100; height: 30
+                                text: group
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row{
+                TextField{
+                    id:textField
+                    width: 300
+                }
+
+                Button{
+                    text: "Send"
+                    onClicked: lobby.sendMsg(textField.text)
+                }
             }
         }
 
@@ -89,7 +121,13 @@ Window {
                 appsModel.clear()
                 for (var prop in apps) {
                     appsModel.append(JSON.parse(prop));
-                    console.log(apps)
+                }
+            }
+            onGroupsChanged: {
+                groupsModel.clear();
+                for (var g in groups){
+                    groupsModel.append({"group":g,"UUID":groups[g]})
+                    console.log(groups[g])
                 }
             }
             onMsgReceived: {console.log(msg)
@@ -98,6 +136,7 @@ Window {
             onConnectedTo: {
                 lobbyRect.connectedApps+=UUID
             }
+            Component.onCompleted: joinGroup("haha");
         }
     }
 }

@@ -86,17 +86,18 @@ void Lobby::sendMsg(const QString &msg, const QString &UUID)
         foreach (QTcpSocket *socket, tcpSocketMap.values()) {
             writeTCPMsg(socket,msg);
         }
-
 }
 
 void Lobby::joinGroup(const QString &group)
 {
     groupList.append(group);
+    emit connectedGroupsChanged();
 }
 
 void Lobby::leaveGroup(const QString &group)
 {
     groupList.removeAll(group);
+    emit connectedGroupsChanged();
 }
 
 void Lobby::writeTCPMsg(QTcpSocket *socket, const QString &msg)
@@ -146,10 +147,20 @@ void Lobby::processDatagram()
             if(jsondoc["UUID"].toString()!=appUUID && tcpSocketMap.count(jsondoc["UUID"].toString())<1){
                 QStringList groups = jsondoc["groups"].toString().split(",");
                 foreach(QString group, groups){
+                    QVariant as;
+                    as.toStringList();
+                    QStringList glist = this->groups[group].toStringList();
+
+                    if(!glist.contains(jsondoc["UUID"].toString())){
+                        glist.append(jsondoc["UUID"].toString());
+                        this->groups[group]=glist;
+                        emit groupsChanged();
+                    }
+
                     if(groupList.contains(group)){
                         //Connect to the app that shares a group
                         connectApp(findAppByUUID(jsondoc["UUID"].toString()));
-                        break;
+                        emit connectedGroupsChanged();
                     }
                 }
             }
