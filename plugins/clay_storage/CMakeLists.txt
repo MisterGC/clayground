@@ -9,7 +9,7 @@ clay_p( ClayStorage
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Storage"
     URI Clayground.Storage
     SOURCES
-        claystorageplugin.cpp res.qrc qmldir.in
+        claystorageplugin.cpp clay_storage.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}
