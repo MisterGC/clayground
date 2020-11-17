@@ -1,7 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.0
-//import QtGamepad 1.0
 
 /** Represents a very simple GameController which is inspired by input possibilities of NES controller. */
 Item {
@@ -18,20 +17,20 @@ Item {
     // Visualizes the state of the GameController
     property alias showDebugOverlay: theDebugVisu.visible
 
-    //property alias gamepadId: gamepad.deviceId
-    property int numConnectedGamepads: GamepadManager.connectedGamepads.length
-
-    //readonly property bool gamepadSelected: gamepad.deviceId !== -1
+    // Which input source is selected?
+    readonly property bool gamepadSelected: gamepadDeviceId !== -1
     readonly property bool vGamepadSelected: vgamepad.enabled
     readonly property bool keyboardSelected: keybGamepad.enabled
 
+    // All properties of a connected, physical gamepad
+    readonly property var gamepad: gamepadLoader.item
+    readonly property int gamepadDeviceId: gamepad ? gamepad.deviceId : -1
+    readonly property int numConnectedGamepads: gamepad ? gamepad.numConnectedGamepads : 0
+
     /** Selects the specified gamepad as input source */
     function selectGamepad(gamePadIdx, useAnalogAxis) {
-        /*
-        if (gamePadIdx >= 0 &&
-            gamePadIdx < numConnectedGamepads)
-        {
-            gamepad.deviceId = GamepadManager.connectedGamepads[gamePadIdx];
+        if (!gamepad) return;
+        if (gamepad.selectGamepad(gamePadIdx, useAnalogAxis)) {
             keybGamepad.enabled = false;
             vgamepad.enabled = false;
             buttonAPressed = Qt.binding(function() {return gamepad.buttonX;});
@@ -47,12 +46,12 @@ Item {
         }
         else console.error("Invalid game pad index: " + gamePadIdx +
                            " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
-        */
+
     }
 
     /** Selects the keyboard as input */
     function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
-        /* gamepad.deviceId = -1; */
+        if (gamepad) gamepad.deviceId = -1;
         keybGamepad.enabled = true;
         vgamepad.enabled = false;
         keybGamepad.configure(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey);
@@ -61,7 +60,7 @@ Item {
     /** Selects the touchscreen gamepad */
     function selectTouchscreenGamepad()
     {
-        /* gamepad.deviceId = -1; */
+        if (gamepad) gamepad.deviceId = -1;
         keybGamepad.enabled = false;
         vgamepad.enabled = true;
         vgamepad.configure();
@@ -73,8 +72,12 @@ Item {
         observed: theController
     }
 
+    Loader {
+        id: gamepadLoader
+        source: Qt.platform !== "ios" ?  "GamepadWrapper.qml" : null
+    }
+
     Keys.forwardTo: keybGamepad
-    /* Gamepad { id: gamepad } */
     KeyboardGamepad { id: keybGamepad; gameController: theController; }
     TouchscreenGamepad { id: vgamepad; gameController: theController; }
 }
