@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
 include (clayplugin)
 
-find_package(Qt5 5.14 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
 
 clay_p( ClayWorld
 #{

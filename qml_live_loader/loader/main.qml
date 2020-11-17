@@ -3,6 +3,7 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
+import Clayground.Common 1.0
 import Clayground.Storage 1.0
 
 Window {
@@ -58,12 +59,12 @@ Window {
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayLiveLoader
-        onRestarted: {
+        function onRestarted() {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
             claylog.clear();
         }
-        onMessagePosted: claylog.add(message);
+        function onMessagePosted() { claylog.add(message); }
     }
 
     Timer {
