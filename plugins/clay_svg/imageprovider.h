@@ -30,6 +30,7 @@ private:
 private:
     QHash<QString, QSvgRenderer*> svgCache_;
     QSet<QString> coveredImgs_;
+    bool runsInSbx_ = false;
 };
 
 #endif // SCALINGIMAGEPROVIDER_H

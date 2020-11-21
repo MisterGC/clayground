@@ -9,8 +9,12 @@
 #include <QDebug>
 #include <math.h>
 
+const auto SBX_DIR_ENV_VAR = "CLAYGROUND_SBX_DIR";
+
 ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
-{ }
+{
+    runsInSbx_ = qEnvironmentVariableIsSet(SBX_DIR_ENV_VAR);
+}
 
 ImageProvider::~ImageProvider()
 {
@@ -34,15 +38,16 @@ QSvgRenderer& ImageProvider::fetchRenderer(const QString& path, QString& outElId
     outElId = queryPart.queryItemValue("part");
 
     const auto id = pathParts[0];
-    if (coveredImgs_.contains(id))
-        clearCache();
-    else
-        coveredImgs_.insert(id);
+    if (runsInSbx_) {
+        if (coveredImgs_.contains(id))
+            clearCache();
+        else
+            coveredImgs_.insert(id);
+    }
 
     QString svgDir = ":";
-    const auto sbxvar = "CLAYGROUND_SBX_DIR";
-    if (qEnvironmentVariableIsSet(sbxvar))
-        svgDir = qEnvironmentVariable(sbxvar);
+    if (runsInSbx_)
+        svgDir = qEnvironmentVariable(SBX_DIR_ENV_VAR);
 
     const auto svgPath = QString(svgDir + "/%1.svg").arg(id);
     if (!svgCache_.contains(svgPath)) {
