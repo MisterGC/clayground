@@ -148,14 +148,12 @@ Window {
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayRestarter
-        onRestarted: {
+        function onRestarted() {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
             btnRestart.enabled = true;
         }
-        onAboutToRestart: {
-            btnRestart.enabled = false;
-        }
+        function onAboutToRestart() { btnRestart.enabled = false; }
     }
 
     SvgImageSource {

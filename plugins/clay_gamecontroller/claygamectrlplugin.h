@@ -10,6 +10,8 @@ class ClayGameCtrlPlugin: public QQmlExtensionPlugin
     Q_PLUGIN_METADATA(IID "com.storytelling-turtle.ClayGameCtrlPlugin")
 
 public:
+    ClayGameCtrlPlugin();
+
     void registerTypes(const char* uri) override;
 };
 #endif

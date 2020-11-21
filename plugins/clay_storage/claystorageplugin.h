@@ -10,6 +10,8 @@ class ClayStoragePlugin: public QQmlExtensionPlugin
     Q_PLUGIN_METADATA(IID "clayground.storageplugin")
 
 public:
+    ClayStoragePlugin();
+    
     void registerTypes(const char* uri) override;
 };
 #endif

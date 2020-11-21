@@ -2,6 +2,7 @@
     <qresource prefix="/clayground">
         <file>GameController.qml</file>
         <file>GameControllerDV.qml</file>
+        <file>GamepadWrapper.qml</file>
         <file>KeyboardGamepad.qml</file>
         <file>TouchscreenGamepad.qml</file>
     </qresource>

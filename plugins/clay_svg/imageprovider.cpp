@@ -61,7 +61,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
 
     // TODO Involve requested size
     if (requestedSize.width() == 0 || requestedSize.height() == 0)
-        return QPixmap();
+        return QPixmap(1,1);
 
     QUrlQuery queryPart;
 

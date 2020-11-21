@@ -3,13 +3,13 @@ include (clayplugin)
 
 find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
 
-clay_p( ClayGameController
+clay_p( ClayCommon
 #{
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/GameController"
-    URI Clayground.GameController
+    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Common"
+    URI Clayground.Common
     SOURCES
-        claygamectrlplugin.cpp clay_controller.qrc qmldir.in Sandbox.qml
+        claycommonplugin.cpp clay_common.qrc qmldir.in
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

@@ -3,6 +3,11 @@
 #include "clayphysicsplugin.h"
 #include <QQmlEngine>
 
+ClayPhysicsPlugin::ClayPhysicsPlugin()
+{
+    Q_INIT_RESOURCE(clay_physics);
+}
+
 void ClayPhysicsPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/PhysicsItem.qml"),uri, 1,0,"PhysicsItem");

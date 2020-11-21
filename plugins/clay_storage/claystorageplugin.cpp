@@ -3,6 +3,12 @@
 #include "claystorageplugin.h"
 #include <QQmlEngine>
 
+ClayStoragePlugin::ClayStoragePlugin()
+{
+    Q_INIT_RESOURCE(clay_storage);
+}
+
+
 void ClayStoragePlugin::registerTypes(const char* uri)
 {
     qmlRegisterType(QUrl("qrc:/clayground/KeyValueStore.qml"),

@@ -6,6 +6,7 @@ import Clayground.GameController 1.0
 import Clayground.World 1.0
 import Clayground.Physics 1.0
 import Clayground.Canvas 1.0
+import Clayground.Common 1.0
 
 ClayWorld
 {
@@ -43,7 +44,7 @@ ClayWorld
         player.desireX = Qt.binding(function() {return theGameCtrl.axisX;});
         theWorld.observedItem = player;
 
-        if (theWorld.runsInSbx) {
+        if (Clayground.runsInSandbox) {
             claylog.watch(player, "x")
             claylog.watch(player, "y")
             claylog.watch(player.graphics, "currentSprite", true)

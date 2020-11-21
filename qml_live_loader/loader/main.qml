@@ -3,6 +3,7 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
+import Clayground.Common 1.0
 import Clayground.Storage 1.0
 
 Window {
@@ -12,6 +13,20 @@ Window {
     width: Screen.desktopAvailableWidth * .32
     height: width
     title: qsTr("Clay Live Loader")
+
+    MessageView {
+        id: claylog
+        Component.onCompleted: Clayground.watchView = claylog;
+        opacity: 0
+        anchors.centerIn: parent
+        width: 0.9 * parent.width
+        height: 0.75 * parent.height
+        z: 999
+        function toggle() {
+            let opac = opacity > .5 ? 0.0 : 1.0;
+            opacity = opac;
+        }
+    }
 
     Loader {
         id: sbxLoader
@@ -44,12 +59,12 @@ Window {
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayLiveLoader
-        onRestarted: {
+        function onRestarted() {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
             claylog.clear();
         }
-        onMessagePosted: claylog.add(message);
+        function onMessagePosted() { claylog.add(message); }
     }
 
     Timer {
@@ -60,19 +75,6 @@ Window {
             let opt = keyvalues.get("options");
             if (opt === "log") claylog.toggle();
             keyvalues.set("options", "");
-        }
-    }
-
-    MessageView {
-        id: claylog
-        opacity: 0
-        anchors.centerIn: parent
-        width: 0.9 * parent.width
-        height: 0.75 * parent.height
-        z: 999
-        function toggle() {
-           let opac = opacity > .5 ? 0.0 : 1.0;
-           opacity = opac;
         }
     }
 
