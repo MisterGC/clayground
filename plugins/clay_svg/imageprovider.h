@@ -20,8 +20,11 @@ public:
     QPixmap requestPixmap(const QString &path,
                           QSize *size,
                           const QSize &requestedSize) override;
+public slots:
+    bool exists(const QString& path);
+
 private:
-    QSvgRenderer &fetchRenderer(const QString& imgId, const QUrlQuery& queryPart);
+    QSvgRenderer &fetchRenderer(const QString& path, QString &outElId);
     void clearCache();
 
 private:

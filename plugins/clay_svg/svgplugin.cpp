@@ -5,6 +5,7 @@
 #include "svgwriter.h"
 #include "imageprovider.h"
 #include <QDebug>
+#include <QQmlContext>
 
 SvgPlugin::SvgPlugin()
 {
@@ -21,5 +22,7 @@ void SvgPlugin::registerTypes(const char* uri)
 
 void SvgPlugin::initializeEngine(QQmlEngine *engine, const char */*uri*/)
 {
-    engine->addImageProvider(QLatin1String("claysvg"), new ImageProvider());
+    auto provider = new ImageProvider();
+    engine->addImageProvider(QLatin1String("claysvg"), provider);
+    engine->rootContext()->setContextProperty("ClaySvgImageProvider", provider);
 }

@@ -23,14 +23,28 @@ void ImageProvider::clearCache()
     svgCache_.clear();
 }
 
-QSvgRenderer& ImageProvider::fetchRenderer(const QString& imgId, const QUrlQuery& queryPart)
+QSvgRenderer& ImageProvider::fetchRenderer(const QString& path, QString& outElId)
 {
+    const auto pathParts = path.split("?");
+    if (pathParts.size() != 2)
+        qCritical() << "Expected path with query part "
+                       "<relative-path>?<query-part>";
+
+    auto queryPart = QUrlQuery(pathParts[1]);
+    outElId = queryPart.queryItemValue("part");
+
+    const auto id = pathParts[0];
+    if (coveredImgs_.contains(id))
+        clearCache();
+    else
+        coveredImgs_.insert(id);
+
     QString svgDir = ":";
     const auto sbxvar = "CLAYGROUND_SBX_DIR";
     if (qEnvironmentVariableIsSet(sbxvar))
         svgDir = qEnvironmentVariable(sbxvar);
 
-    const auto svgPath = QString(svgDir + "/%1.svg").arg(imgId);
+    const auto svgPath = QString(svgDir + "/%1.svg").arg(id);
     if (!svgCache_.contains(svgPath)) {
         QFile f(svgPath);
         if (f.open(QFile::ReadOnly | QFile::Text))
@@ -63,23 +77,13 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     if (requestedSize.width() == 0 || requestedSize.height() == 0)
         return QPixmap(1,1);
 
-    QUrlQuery queryPart;
+    QString partId;
+    auto& renderer = fetchRenderer(path, partId);
 
-    const auto pathParts = path.split("?");
-    if (pathParts.size() != 2)
-        qCritical() << "Expected path with query part "
-                       "<relative-path>?<query-part>";
-
-    queryPart = QUrlQuery(pathParts[1]);
-
-    const auto id = pathParts[0];
-    if (coveredImgs_.contains(id))
-        clearCache();
-    else
-        coveredImgs_.insert(id);
-
-    auto& renderer = fetchRenderer(id, queryPart);
-    const auto partId = queryPart.queryItemValue("part");
+    if (!renderer.elementExists(partId)) {
+        qCritical() << "SVG element with id " << partId << "doesn't exist";
+        return QPixmap(1,1);
+    }
 
     auto reqSize = requestedSize;
     if (!reqSize.isValid()) {
@@ -99,4 +103,11 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
     size->setHeight(img.height());
 
     return QPixmap::fromImage(img);
+}
+
+bool ImageProvider::exists(const QString &path)
+{
+    QString partId;
+    auto& renderer = fetchRenderer(path, partId);
+    return renderer.elementExists(partId);
 }
