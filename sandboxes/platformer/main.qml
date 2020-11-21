@@ -7,6 +7,6 @@ Window {
     visible: true
     visibility: Window.Maximized
     title: qsTr("Platformer")
-    Sandbox { runsInSbx: false; anchors.fill: parent }
+    Sandbox { anchors.fill: parent }
     Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()
 }
