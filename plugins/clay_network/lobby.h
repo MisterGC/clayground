@@ -14,6 +14,7 @@ class Lobby : public QObject, public QQmlParserStatus
     Q_PROPERTY(QVariantMap apps READ getApps NOTIFY appsChanged)
     Q_PROPERTY(QVariantMap groups READ getGroups NOTIFY groupsChanged)
     Q_PROPERTY(QStringList connectedGroups READ getConnectedGroups NOTIFY connectedGroupsChanged)
+    Q_PROPERTY(QString appUUID READ getAppUUID)
     Q_INTERFACES(QQmlParserStatus)
 public:
     explicit Lobby(QObject *parent = nullptr);
@@ -24,6 +25,7 @@ public:
     Q_INVOKABLE void connectApp(const QString &app);
     Q_INVOKABLE void sendMsg(const QString &msg, const QString &UUID = "");
     const QString appUUID = QUuid::createUuid().toString();
+    QString getAppUUID(){return appUUID;}
 
     //Groups/rooms
     Q_INVOKABLE void joinGroup(const QString &group);
