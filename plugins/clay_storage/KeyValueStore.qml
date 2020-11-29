@@ -29,4 +29,20 @@ Item
         });
         return res;
     }
+
+    function has(key) {
+        let res = false;
+        _db.transaction((tx) => {
+            let rs = tx.executeSql('SELECT value FROM keyvalue WHERE key=?;', [key]);
+            res = rs.rows.length > 0;
+        });
+        return res;
+    }
+
+    function remove(key) {
+        _db.transaction((tx) => {
+            let rs = tx.executeSql('DELETE FROM keyvalue WHERE key=?;', [key]);
+        });
+        return true;
+    }
 }
