@@ -211,6 +211,7 @@ void Lobby::readTCPDatagram()
 
 void Lobby::processReceivedMessage(QString &msg)
 {
+    //TODO: deal with the problem when the msg contains the string "}{"
     msg = "[" + msg.replace("}{", "},{") + "]";
     QJsonDocument jsondoc=jsondoc.fromJson(msg.toStdString().data());
     for(int i = 0; i< jsondoc.array().count(); i++){
