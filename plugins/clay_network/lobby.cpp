@@ -101,9 +101,12 @@ void Lobby::leaveGroup(const QString &group)
 }
 
 void Lobby::writeTCPMsg(QTcpSocket *socket, const QString &msg)
-{
+{    
     if(socket){
-        socket->write(msg.toStdString().data());
+        QJsonObject obj;
+        obj["m"] = msg;
+        QJsonDocument doc(obj);
+        socket->write(doc.toJson(QJsonDocument::Compact).data());
         socket->flush();
         socket->waitForBytesWritten(1000);
     }
@@ -189,7 +192,7 @@ void Lobby::readTCPDatagram()
 {
     foreach (QTcpSocket *socket, tcpSocketMap.values()) {
         QString msg = socket->readAll();
-        emit msgReceived(msg);
+        processReceivedMessage(msg);
     }
 
     //TODO: If a socket gets too long in this list it should ask for its UUID or close the connection
@@ -202,6 +205,16 @@ void Lobby::readTCPDatagram()
                 emit connectedTo(msg.replace("setUUID=",""));
         }
         else
-            emit msgReceived(msg);
+            processReceivedMessage(msg);
+    }
+}
+
+void Lobby::processReceivedMessage(QString &msg)
+{
+    msg = "[" + msg.replace("}{", "},{") + "]";
+    QJsonDocument jsondoc=jsondoc.fromJson(msg.toStdString().data());
+    for(int i = 0; i< jsondoc.array().count(); i++){
+        QJsonObject obj = jsondoc.array()[i].toObject();
+        emit msgReceived(obj["m"].toString());
     }
 }

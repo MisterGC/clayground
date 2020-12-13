@@ -57,6 +57,7 @@ private:
     void writeTCPMsg(QTcpSocket* socket, const QString &msg);
 
     QString findAppByUUID(QString UUID);
+    void processReceivedMessage(QString &msg);
 
 private slots:
     void broadcastDatagram();
