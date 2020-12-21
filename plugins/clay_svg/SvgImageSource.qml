@@ -8,17 +8,23 @@ Item
     property string svgPath: ""
     property string annotationRRGGBB: ""
 
+    /** Returns true if svg contains element with specified id.*/
+    function has(elementId){
+        let url =  svgPath + "?part=" + elementId +
+                (annotationRRGGBB.length ? "&ignoredColor=" + annotationRRGGBB : "")
+        return ClaySvgImageProvider.exists(url);
+    }
+
+    /** Returns URL to fetch the specified element as an image from the SVG.*/
     function source(elementId){
         let sbxNoCacheWorkaround = ""
         if (Clayground.runsInSanbox)
             sbxNoCacheWorkaround = "&dummy=" + ClayLiveLoader.numRestarts;
-
-        source = "image://claysvg/" +
+        let url =  "image://claysvg/" +
                 svgPath +
-                "?ignoredColor=" + annotationRRGGBB +
-                "&part=" + elementId +
+                "?part=" + elementId +
+                (annotationRRGGBB.length ? "&ignoredColor=" + annotationRRGGBB : "") +
                 sbxNoCacheWorkaround
-
-        return source
+        return url;
     }
 }

@@ -64,7 +64,7 @@ Window {
             keyvalues.set("nrRestarts", r);
             claylog.clear();
         }
-        function onMessagePosted() { claylog.add(message); }
+        function onMessagePosted(message) { claylog.add(message); }
     }
 
     Timer {

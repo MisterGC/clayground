@@ -16,6 +16,17 @@ ClayCanvas
     worldYMin: 0
     worldYMax: 10
 
+    Component {
+        id: svgSourceLoader
+        SvgImageSource {
+            Component.onCompleted: {
+                console.log("Does element rect1 exist? " + exists("rect1"))
+                console.log("Does element rect2 exist? " + exists("rect2"))
+            }
+            svgPath: "somegraphics"
+        }
+    }
+
     SvgWriter {
         id: theWriter
         path: ClayLiveLoader.sandboxDir + "/../test.svg"
@@ -54,12 +65,15 @@ ClayCanvas
     Component {id: theRect; Rectangle {}}
     Component {id: thePoly; Poly {fillColor:"orange"}}
 
+    Timer {
+        running: true; interval: 500;
+        onTriggered: {theSvgReader.setSource(theWriter.path); svgSourceLoader.createObject(theCanvas);}}
+
     SvgReader
     {
         id: theSvgReader
         property var objs: []
 
-        Component.onCompleted: setSource(theWriter.path)
         onBegin: {
             for (let obj of objs) obj.destroy();
             objs = [];

@@ -20,13 +20,17 @@ public:
     QPixmap requestPixmap(const QString &path,
                           QSize *size,
                           const QSize &requestedSize) override;
+public slots:
+    bool exists(const QString& path);
+
 private:
-    QSvgRenderer &fetchRenderer(const QString& imgId, const QUrlQuery& queryPart);
+    QSvgRenderer &fetchRenderer(const QString& path, QString &outElId);
     void clearCache();
 
 private:
     QHash<QString, QSvgRenderer*> svgCache_;
     QSet<QString> coveredImgs_;
+    bool runsInSbx_ = false;
 };
 
 #endif // SCALINGIMAGEPROVIDER_H
