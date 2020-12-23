@@ -10,6 +10,7 @@ clay_p( ClayWorld
     URI Clayground.World
     SOURCES
         clayworldplugin.cpp clay_world.qrc qmldir.in
+        Sandbox.qml
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}

@@ -13,12 +13,12 @@ ClayCanvas
     property var components: new Map()
 
     // General/Sandbox Mode
+    property alias room: theWorld.coordSys
     property string map: ""
     readonly property string _fullmappath: (map.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
-    function resource(path) { return Clayground.resource(path);}
 
-    property bool running: true
+    property alias running: thePhysicsWorld.running
 
     // Physics
     property World physics: thePhysicsWorld
@@ -68,6 +68,50 @@ ClayCanvas
         DebugDraw {parent: coordSys; world: thePhysicsWorld }
     }
     Loader { sourceComponent: physicsDebugging ? physDebugComp : null }
+
+    Component.onCompleted: { _syncTimer.start();}
+
+    Timer {id: _syncTimer; interval: 50; onTriggered: {
+            theWorld.childrenChanged.connect(_moveToRoomOnDemand);
+            theWorld.room.childrenChanged.connect(_updateRoomContent);
+            _moveToRoomOnDemand(); }
+    }
+
+    function _bindRoomPropertiesOnDemand(obj){
+        if ('pixelPerUnit' in obj)
+            obj.pixelPerUnit = Qt.binding( _ => {return theWorld.pixelPerUnit;} );
+        if ('world' in obj)
+            obj.world = Qt.binding( _ => {return theWorld.physics;} );
+    }
+
+    function _moveToRoomOnDemand() {
+        if (!theWorld) return;
+        for (let i=1; i< theWorld.children.length; ++i){
+            let o = theWorld.children[i];
+            // Skip object that may be already destroyed
+            if (!o) continue;
+            let migrate = o instanceof RectBoxBody  ||
+                o instanceof VisualizedPolyBody ||
+                o instanceof ImageBoxBody  ||
+                o instanceof PhysicsItem
+            if (migrate){
+                _bindRoomPropertiesOnDemand(o);
+                o.parent = theWorld.room;
+            }
+        }
+    }
+
+    function _updateRoomContent() {
+        if (!theWorld) return;
+        let children = theWorld.room.children;
+        for (let i=1; i< children.length; ++i){
+            let o = children[i];
+            // Skip object that may be already destroyed
+            if (!o) continue;
+            _bindRoomPropertiesOnDemand(o);
+        }
+    }
+
 
     SvgReader
     {
@@ -135,12 +179,8 @@ ClayCanvas
             let cfg = JSON.parse(description);
             if (!canBeHandled(cfg)) theWorld.polygonLoaded(points, description);
             let comp = fetchComp(cfg);
-            let obj = comp.createObject(coordSys,
-                                        {
-                                            canvas: theWorld,
-                                            world: thePhysicsWorld,
-                                            vertices: points
-                                        });
+            let obj = comp.createObject(theWorld.room, { canvas: theWorld, vertices: points });
+            _bindRoomPropertiesOnDemand(obj);
             _objectCreated(obj, cfg);
         }
 
@@ -148,15 +188,8 @@ ClayCanvas
             let cfg = JSON.parse(description);
             if (!canBeHandled(cfg)) theWorld.rectangleLoaded(x, y, width, height, description);
             let comp = fetchComp(cfg);
-            let obj = comp.createObject(coordSys,
-                                        {
-                                            world: thePhysicsWorld,
-                                            xWu: x,
-                                            yWu: y,
-                                            widthWu: width,
-                                            heightWu: height,
-                                        });
-            obj.pixelPerUnit = Qt.binding( _ => {return theWorld.pixelPerUnit;} );
+            let obj = comp.createObject(theWorld.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
+            _bindRoomPropertiesOnDemand(obj);
             _objectCreated(obj, cfg);
         }
 

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   sodipodi:docname="map.svg"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   id="svg1623"
+   version="1.1"
+   viewBox="0 0 71.561371 100.79476"
+   height="100.79476mm"
+   width="71.561371mm">
+  <defs
+     id="defs1617" />
+  <sodipodi:namedview
+     inkscape:document-rotation="0"
+     inkscape:snap-global="false"
+     fit-margin-bottom="0"
+     fit-margin-right="0"
+     fit-margin-left="0"
+     fit-margin-top="0"
+     inkscape:window-maximized="1"
+     inkscape:window-y="27"
+     inkscape:window-x="0"
+     inkscape:window-height="1376"
+     inkscape:window-width="2560"
+     showgrid="false"
+     inkscape:current-layer="layer1"
+     inkscape:document-units="mm"
+     inkscape:cy="286.64411"
+     inkscape:cx="143.01696"
+     inkscape:zoom="5.6"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     borderopacity="1.0"
+     bordercolor="#666666"
+     pagecolor="#ffffff"
+     id="base">
+    <inkscape:grid
+       id="grid6135"
+       type="xygrid" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata1620">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     transform="translate(-0.09449405,0.75595238)"
+     id="layer1"
+     inkscape:groupmode="layer"
+     inkscape:label="Layer 1">
+    <rect
+       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.634712;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect2172"
+       width="71.522072"
+       height="3.8848164"
+       x="0.1399921"
+       y="96.142357">
+      <desc
+         id="desc5900">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#d45500;fill-opacity:1;stroke:none;stroke-width:0.124649;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5922"
+       width="3.5938382"
+       height="3.7390227"
+       x="28.450438"
+       y="75.319389">
+      <desc
+         id="desc5920">{&quot;component&quot;:&quot;Player&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.740514;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect2172-5"
+       width="3.7948976"
+       height="99.660851"
+       x="0.12756111"
+       y="-0.25063053">
+      <desc
+         id="desc5900-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.768636;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect2172-5-1"
+       width="4.0886078"
+       height="99.660851"
+       x="67.518784"
+       y="-0.25063053">
+      <desc
+         id="desc5900-6-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.654835;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect2172-2-7"
+       width="71.33149"
+       height="4.146111"
+       x="0.35156727"
+       y="-0.73377651">
+      <desc
+         id="desc5900-9-0">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+  </g>
+</svg>
