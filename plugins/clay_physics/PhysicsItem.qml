@@ -37,6 +37,6 @@ Item {
         id: itemBody
 
         target: item
-        world: physicsWorld
+        world: typeof physicsWorld !== 'undefined' ? physicsWorld : null
     }
 }
