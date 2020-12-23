@@ -1,5 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 import QtQuick 2.12
+import Clayground.Common 1.0
 
 Rectangle {
     id: theMinimap
@@ -24,15 +25,6 @@ Rectangle {
     onHeightChanged: _updateContent()
     signal _cleanUp()
 
-    function _typeAsString(obj){
-        let typeStr = obj.toString();
-        let idx = typeStr.indexOf("_");
-        if (idx > -1)
-            return typeStr.substring(0, idx);
-        else
-            return "";
-    }
-
     function _updateContent() {
         if (!theMinimap) return;
         _cleanUp();
@@ -40,7 +32,7 @@ Rectangle {
             let o = _observed.children[i];
             // Skip object that may be already destroyed
             if (!o) continue;
-            let typStr = _typeAsString(o);
+            let typStr = Clayground.typeName(o);
             if (theMinimap.typeMapping.has(typStr)) {
                 let comp = theMinimap.typeMapping.get(typStr);
                 let obj = comp.createObject(theMinimap,

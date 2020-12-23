@@ -16,4 +16,21 @@ Item
             console.error("N/A")
         // otherwise just ignore - check if there is a need for a warning
     }
+
+    function typeName(obj){
+        let typeStr = obj.toString();
+        let idx = typeStr.indexOf("_");
+        if (idx > -1)
+            return typeStr.substring(0, idx);
+        else {
+            idx = typeStr.indexOf("(")
+            if (idx > -1)
+                return typeStr.substring(0, idx);
+            else {
+                console.error("Unable to lookup type name of " + obj)
+                return "n/a";
+            }
+        }
+    }
+
 }
