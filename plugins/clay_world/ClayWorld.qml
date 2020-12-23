@@ -31,7 +31,6 @@ ClayCanvas
     signal worldCreated()
     signal objectCreated(var obj, var compName)
 
-    property alias entities: theSvgReader.entities
     // Signals which are emitted when elements have
     // been loaded which are not yet processed by
     // ClayWorld functionality
