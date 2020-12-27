@@ -59,7 +59,8 @@ Item {
             parent: someWorld.room; color: "black"
             xWu: (someWorld.worldXMin + someWorld.worldXMax) * .5
             yWu: (someWorld.worldYMin + someWorld.worldYMax) * .5 - 1.5 * heightWu
-            widthWu: 5; heightWu: 5}
+            widthWu: 5; heightWu: 5
+        }
 
 
         onWorldAboutToBeCreated: player = null;

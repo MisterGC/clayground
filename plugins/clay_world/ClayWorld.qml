@@ -2,30 +2,29 @@
 
 import QtQuick 2.12
 import Box2D 2.0
-import Clayground.Svg 1.0
 import Clayground.Canvas 1.0
 import Clayground.Physics 1.0
 import Clayground.Common 1.0
 
 ClayCanvas
 {
-    id: theWorld
+    id: _world
     property var components: new Map()
 
     // General/Sandbox Mode
-    property alias room: theWorld.coordSys
+    property alias room: coordSys
     property string map: ""
     readonly property string _fullmappath: (map.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
 
-    property alias running: thePhysicsWorld.running
+    property alias running: _physicsWorld.running
 
     // Physics
-    property World physics: thePhysicsWorld
+    property World physics: _physicsWorld
     property bool physicsDebugging: false
-    property alias gravity: thePhysicsWorld.gravity
-    property alias timeStep: thePhysicsWorld.timeStep
-    property alias physicsEnabled: thePhysicsWorld.running
+    property alias gravity: _physicsWorld.gravity
+    property alias timeStep: _physicsWorld.timeStep
+    property alias physicsEnabled: _physicsWorld.running
 
     signal worldAboutToBeCreated()
     signal worldCreated()
@@ -44,50 +43,42 @@ ClayCanvas
 
     function _refreshMap() {
         if (width > 0 || height > 0) {
-            theSvgReader.setSource(_fullmappath);
-            theCreator.start();
+            mapLoader.setSource(_fullmappath);
+            _createdNotify.start();
         }
     }
 
-    Timer {
-        id: theCreator
-        interval: 10
-        onTriggered: theWorld.worldCreated()
-    }
+    Timer {id: _createdNotify; interval: 10; onTriggered: _world.worldCreated()}
 
     World {
-        id: thePhysicsWorld
+        id: _physicsWorld
         gravity: Qt.point(0,15*9.81)
         timeStep: 1/60.0
         pixelsPerMeter: pixelPerUnit
-        running: theWorld.running
+        running: _world.running
     }
-
-    Component {
-        id: physDebugComp
-        DebugDraw {parent: coordSys; world: thePhysicsWorld }
-    }
-    Loader { sourceComponent: physicsDebugging ? physDebugComp : null }
+    Component { id: _physDebug; DebugDraw {parent: coordSys; world: _physicsWorld }}
+    Loader { sourceComponent: physicsDebugging ? _physDebug : null }
 
     Component.onCompleted: { _syncTimer.start();}
 
     Timer {id: _syncTimer; interval: 50; onTriggered: {
-            theWorld.childrenChanged.connect(_moveToRoomOnDemand);
-            theWorld.room.childrenChanged.connect(_updateRoomContent);
+            _world.childrenChanged.connect(_moveToRoomOnDemand);
+            _world.room.childrenChanged.connect(_updateRoomContent);
             _moveToRoomOnDemand(); }
     }
 
     function _bindRoomPropertiesOnDemand(obj){
         if ('pixelPerUnit' in obj)
-            obj.pixelPerUnit = Qt.binding( _ => {return theWorld.pixelPerUnit;} );
+            obj.pixelPerUnit = Qt.binding( _ => {return _world.pixelPerUnit;} );
         if ('world' in obj)
-            obj.world = Qt.binding( _ => {return theWorld.physics;} );
+            obj.world = Qt.binding( _ => {return _world.physics;} );
     }
 
     function _moveToRoomOnDemand() {
-        if (!theWorld) return;
-        for (let i=1; i< theWorld.children.length; ++i){
-            let o = theWorld.children[i];
+        if (!_world) return;
+        for (let i=1; i< _world.children.length; ++i){
+            let o = _world.children[i];
             // Skip object that may be already destroyed
             if (!o) continue;
             let migrate = o instanceof RectBoxBody  ||
@@ -96,14 +87,14 @@ ClayCanvas
                 o instanceof PhysicsItem
             if (migrate){
                 _bindRoomPropertiesOnDemand(o);
-                o.parent = theWorld.room;
+                o.parent = _world.room;
             }
         }
     }
 
     function _updateRoomContent() {
-        if (!theWorld) return;
-        let children = theWorld.room.children;
+        if (!_world) return;
+        let children = _world.room.children;
         for (let i=1; i< children.length; ++i){
             let o = children[i];
             // Skip object that may be already destroyed
@@ -112,88 +103,5 @@ ClayCanvas
         }
     }
 
-
-    SvgReader
-    {
-        id: theSvgReader
-
-        property var entities: []
-        readonly property string componentPropKey: "component"
-
-        onBegin: {
-            theWorld.worldAboutToBeCreated();
-            theWorld.viewPortCenterWuX = 0;
-            theWorld.viewPortCenterWuY = 0;
-            theWorld.worldXMax = widthWu;
-            theWorld.worldYMax = heightWu;
-            for (let i=0; i<entities.length; ++i) {
-                let obj = entities[i];
-                if (typeof obj !== 'undefined' &&
-                    obj.hasOwnProperty("destroy"))
-                    obj.destroy();
-            }
-            entities = [];
-        }
-
-        function fetchComp(cfg) {
-            let compStr = cfg[componentPropKey];
-            if (theWorld.components.has(compStr)) {
-               return theWorld.components.get(compStr);
-            }
-            else {
-                console.warn("Unknown component, " + compStr + " cannot create instances" );
-                return null;
-            }
-        }
-
-        function customInit(obj, cfg) {
-            let initVals = cfg["properties"];
-            if (initVals){
-                for (let p in initVals)
-                    obj[p] = initVals[p];
-            }
-        }
-
-        function box2dWorkaround(obj) {
-           if (obj.bodyType !== Body.Static ) {
-              let oldT = obj.bodyType;
-              obj.bodyType = Body.Static;
-              obj.bodyType = oldT;
-           }
-        }
-
-        function canBeHandled(objCfg) {
-            return objCfg.hasOwnProperty(componentPropKey)
-                   && components.has(objCfg[componentPropKey]);
-        }
-
-        function _objectCreated(obj, cfg) {
-            customInit(obj, cfg);
-            entities.push(obj);
-            let compStr = cfg[componentPropKey];
-            theWorld.objectCreated(obj, compStr);
-            box2dWorkaround(obj);
-        }
-
-        onPolygon: {
-            let cfg = JSON.parse(description);
-            if (!canBeHandled(cfg)) theWorld.polygonLoaded(points, description);
-            let comp = fetchComp(cfg);
-            let obj = comp.createObject(theWorld.room, { canvas: theWorld, vertices: points });
-            _bindRoomPropertiesOnDemand(obj);
-            _objectCreated(obj, cfg);
-        }
-
-        onRectangle: {
-            let cfg = JSON.parse(description);
-            if (!canBeHandled(cfg)) theWorld.rectangleLoaded(x, y, width, height, description);
-            let comp = fetchComp(cfg);
-            let obj = comp.createObject(theWorld.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
-            _bindRoomPropertiesOnDemand(obj);
-            _objectCreated(obj, cfg);
-        }
-
-        onPolyline: theWorld.polylineLoaded(points, description)
-        onCircle: theWorld.circleLoaded(x, y, radius, description)
-    }
+    MapLoader {id: mapLoader; world: _world}
 }
