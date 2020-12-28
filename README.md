@@ -1,4 +1,6 @@
-![Clayground Overview](res/clayground_overview.png)
+![clayground](res/clayground_logo.png)
+
+
 
 ## Flow, form, create 
 When participating at [Ludum Dare 44](https://ldjam.com) I started to develop
