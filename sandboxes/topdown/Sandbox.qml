@@ -34,21 +34,7 @@ ClayWorld {
     }
 
     Keys.forwardTo: theGameCtrl
-    GameController {
-        id: theGameCtrl
-        anchors.fill: parent
-
-        onAxisXChanged: {
-            if (axisX > 0) player.moveRight();
-            else if (axisX < 0) player.moveLeft();
-            else { player.stopLeft(); player.stopRight();}
-        }
-        onAxisYChanged: {
-            if (axisY > 0) player.moveUp();
-            else if (axisY < 0) player.moveDown();
-            else { player.stopUp(); player.stopDown();}
-        }
-    }
+    GameController {id: theGameCtrl; anchors.fill: parent}
 
     onMapEntityCreated: {
         if (obj instanceof Player) {
