@@ -25,7 +25,7 @@ build interactive experiences:
 - SVG Utils: Allows inspection of (Inkscape based) SVGs, can be used to create 2d scenes
 - GameController: Supports game input using three different sources GamePad, Keyboard and Touch Screen with single component.
 - Storage: Get persistent storage with a very simple API
-- World: Uses Canvas, Physics and SVG to provide a foundation for small games and simultations
+- World: Uses Canvas, Physics and SVG to provide a foundation for small games and simulations
 
 ### Available Examples
 A bunch of example application allow you to try it out easily:
@@ -36,7 +36,7 @@ A bunch of example application allow you to try it out easily:
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin.
 
 ### How to work with a sandbox?
-1. Clone this repo and build it (Qt 5.14.x, Qt Creator)
+1. Clone this repo and build it (Qt 5.15.x, Qt Creator)
 2. Start the qml_live_loader app `qml_live_loader --dynimportdir=<clone-dir>/sandboxes/gui`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/gui/Sandbox.qml` -> see the changes live applied
