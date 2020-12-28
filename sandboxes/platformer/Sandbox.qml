@@ -31,10 +31,10 @@ ClayWorld
 
     property var player: null
     property var woodenBox: null
-    onWorldAboutToBeCreated: {
+    onMapAboutToBeLoaded: {
         player = null;
     }
-    onWorldCreated: {
+    onMapLoaded: {
         theGameCtrl.selectKeyboard(Qt.Key_Up,
                                    Qt.Key_Down,
                                    Qt.Key_Left,
@@ -65,7 +65,7 @@ ClayWorld
         onButtonBPressedChanged:  if (buttonBPressed) player.jump();
     }
 
-    onObjectCreated: {
+    onMapEntityCreated: {
        if (obj instanceof VisualizedPolyBody) {
            obj.fixedRotation = false;
            obj.bullet = true

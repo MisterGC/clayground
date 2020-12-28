@@ -22,8 +22,8 @@ ClayWorld {
     Component { id: c2; Wall {} }
 
     property var player: null
-    onWorldAboutToBeCreated: player = null;
-    onWorldCreated: {
+    onMapAboutToBeLoaded: player = null;
+    onMapLoaded: {
         theGameCtrl.selectKeyboard(Qt.Key_Up,
                                    Qt.Key_Down,
                                    Qt.Key_Left,
@@ -50,7 +50,7 @@ ClayWorld {
         }
     }
 
-    onObjectCreated: {
+    onMapEntityCreated: {
         if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
