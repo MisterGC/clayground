@@ -8,10 +8,11 @@ SvgReader
 {
     property var entities: []
     readonly property string componentPropKey: "component"
-    required property ClayWorld world
+    required property var world
+    required property var components
 
     onBegin: {
-        world.worldAboutToBeCreated();
+        world.mapAboutToBeLoaded();
         world.viewPortCenterWuX = 0;
         world.viewPortCenterWuY = 0;
         world.worldXMax = widthWu;
@@ -27,8 +28,8 @@ SvgReader
 
     function fetchComp(cfg) {
         let compStr = cfg[componentPropKey];
-        if (world.components.has(compStr)) {
-            return world.components.get(compStr);
+        if (components.has(compStr)) {
+            return components.get(compStr);
         }
         else {
             console.warn("Unknown component, " + compStr + " cannot create instances" );
@@ -55,11 +56,11 @@ SvgReader
                 && components.has(objCfg[componentPropKey]);
     }
 
-    function _objectCreated(obj, cfg) {
+    function _mapEntityCreated(obj, cfg) {
         customInit(obj, cfg);
         entities.push(obj);
         let compStr = cfg[componentPropKey];
-        world.objectCreated(obj, compStr);
+        world.mapEntityCreated(obj, compStr);
         box2dWorkaround(obj);
     }
 
@@ -68,8 +69,7 @@ SvgReader
         if (!canBeHandled(cfg)) world.polygonLoaded(points, description);
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, { canvas: world, vertices: points });
-        _bindRoomPropertiesOnDemand(obj);
-        _objectCreated(obj, cfg);
+        _mapEntityCreated(obj, cfg);
     }
 
     onRectangle: {
@@ -77,8 +77,7 @@ SvgReader
         if (!canBeHandled(cfg)) world.rectangleLoaded(x, y, width, height, description);
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
-        _bindRoomPropertiesOnDemand(obj);
-        _objectCreated(obj, cfg);
+        _mapEntityCreated(obj, cfg);
     }
 
     onPolyline: world.polylineLoaded(points, description)
