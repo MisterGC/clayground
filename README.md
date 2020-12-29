@@ -16,6 +16,13 @@ significantly.
 
 ![Platformer Screenshot](res/screenshot_platformer.png)
 
+Goals/Basic Design Decisions:
+- Use Qt (Quick): Don't write everything from scratch, but think how to re-combine Qt's capabilities 
+- Code > Graphical Tools: Focus on minimizing time needed to write and debug applications
+- Don't write graphical tools, but support formats which can be used with popular free tools 
+- Add dedicated APIs but still allow bypassing them (full power of Qt/Qml, C++, JavaScript)
+- Target (rapid) prototyping and small/medium app development
+
 ### Available Plugins
 Clayground comes with a set of plugins that extend Qt capabilities in order to
 build interactive experiences:
