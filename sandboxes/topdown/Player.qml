@@ -6,28 +6,15 @@ import Clayground.Physics 1.0
 
 RectBoxBody
 {
-    id: thePlayer
-
     bodyType: Body.Dynamic
     color: "#3fa4c8"
     bullet: true
     categories: Box.Category2
     collidesWith: Box.Category1
-    opacity: energy/maxEnergy
-    fixedRotation: false
 
-    property real maxVelo: 25
-    property bool isPlayer: true
-    property int energy: 10000
-    readonly property int maxEnergy: 10000
-
-    function moveUp() { body.linearVelocity.y = -maxVelo; }
-    function moveDown() { body.linearVelocity.y = maxVelo; }
-    function moveLeft() { body.linearVelocity.x = -maxVelo; }
-    function moveRight() { body.linearVelocity.x = maxVelo; }
-
-    function stopUp() { if (body.linearVelocity.y < 0) body.linearVelocity.y = 0; }
-    function stopDown() { if (body.linearVelocity.y > 0) body.linearVelocity.y = 0; }
-    function stopLeft() { if (body.linearVelocity.x < 0) body.linearVelocity.x = 0; }
-    function stopRight() { if (body.linearVelocity.x > 0) body.linearVelocity.x = 0; }
+    readonly property real veloCompMax: 25
+    property real xDirDesire: theGameCtrl.axisX
+    linearVelocity.x: xDirDesire * veloCompMax
+    property real yDirDesire: -theGameCtrl.axisY
+    linearVelocity.y: yDirDesire * veloCompMax
 }

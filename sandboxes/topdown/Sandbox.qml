@@ -22,8 +22,8 @@ ClayWorld {
     Component { id: c2; Wall {} }
 
     property var player: null
-    onWorldAboutToBeCreated: player = null;
-    onWorldCreated: {
+    onMapAboutToBeLoaded: player = null;
+    onMapLoaded: {
         theGameCtrl.selectKeyboard(Qt.Key_Up,
                                    Qt.Key_Down,
                                    Qt.Key_Left,
@@ -34,23 +34,9 @@ ClayWorld {
     }
 
     Keys.forwardTo: theGameCtrl
-    GameController {
-        id: theGameCtrl
-        anchors.fill: parent
+    GameController {id: theGameCtrl; anchors.fill: parent}
 
-        onAxisXChanged: {
-            if (axisX > 0) player.moveRight();
-            else if (axisX < 0) player.moveLeft();
-            else { player.stopLeft(); player.stopRight();}
-        }
-        onAxisYChanged: {
-            if (axisY > 0) player.moveUp();
-            else if (axisY < 0) player.moveDown();
-            else { player.stopUp(); player.stopDown();}
-        }
-    }
-
-    onObjectCreated: {
+    onMapEntityCreated: {
         if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
