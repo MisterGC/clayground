@@ -40,7 +40,7 @@ ClayCanvas
         gravity: Qt.point(0,15*9.81)
         timeStep: 1/60.0
         pixelsPerMeter: pixelPerUnit
-        running: _world.running
+        running: true
     }
     Component { id: _physDebug; DebugDraw {parent: coordSys; world: _physicsWorld }}
     Loader { sourceComponent: physicsDebugging ? _physDebug : null }
