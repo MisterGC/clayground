@@ -44,7 +44,7 @@ A bunch of example application allow you to try it out easily:
 
 ### How to work with a sandbox?
 1. Clone this repo and build it (Qt 5.15.x, Qt Creator)
-2. Start the qml_live_loader app `qml_live_loader --dynimportdir=<clone-dir>/sandboxes/void`
+2. Start the qml_live_loader app `clayrestarter --dynimportdir=<clone-dir>/sandboxes/void`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes live applied
 5. Check out the other sandboxes in the same way :)
