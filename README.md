@@ -8,8 +8,8 @@ utilities and a LiveLoading app to ease game creation. As I really enjoyed
 using these components, I decided to create separate project and make it
 open source.
 
-Clayground is a Qt based environment that allows using C++, JavaScript
-and QML to rapidly develop apps in a sandbox environment with live loading.
+Clayground is a [Qt](https://www.qt.io) based toolset that allows using C++, JavaScript
+and [QML](https://doc.qt.io/qt-5/qtqml-index.html) to rapidly develop apps in a sandbox environment with live loading capabilities.
 It provides tools that try both facilitating learning and allowing more
 focused and faster development by reducing typical build and restart times
 significantly.
@@ -44,9 +44,9 @@ A bunch of example application allow you to try it out easily:
 
 ### How to work with a sandbox?
 1. Clone this repo and build it (Qt 5.15.x, Qt Creator)
-2. Start the qml_live_loader app `qml_live_loader --dynimportdir=<clone-dir>/sandboxes/gui`
+2. Start the qml_live_loader app `qml_live_loader --dynimportdir=<clone-dir>/sandboxes/void`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
-4. Make changes to `<clone-dir>/sandboxes/gui/Sandbox.qml` -> see the changes live applied
+4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes live applied
 5. Check out the other sandboxes in the same way :)
 
 #### Using the Logging Overlay
@@ -58,5 +58,5 @@ restarter or by pressing lower-case L when the Sbx Window has the focus.
 
 <img src="res/log_overlay.png" width="50%" height="50%" alt="LogOverlay Screenshot">
 
-Have a look at the `onWorldCreated` signal handler of the Platformer 
+Have a look at the `onMapLoaded` signal handler of the Platformer 
 Sandbox to see how you can use them.
