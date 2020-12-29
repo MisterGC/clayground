@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16)
 project (clayutilities)
 
 find_package(Qt5 5.15 COMPONENTS Core REQUIRED)
