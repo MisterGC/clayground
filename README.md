@@ -60,3 +60,14 @@ restarter or by pressing lower-case L when the Sbx Window has the focus.
 
 Have a look at the `onMapLoaded` signal handler of the Platformer 
 Sandbox to see how you can use them.
+
+### How to create a deployable app?
+Each of the demo sandboxes also comes with a CMake application configuration which 
+allows to build a standalone app. So you can just use one as a template to build your own app.
+
+### Is there any recommended development setup?
+- OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can 
+- IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim for various text processing tasks
+
+
+I hope you enjoy using clayground, feel free to create issues or to contribute :)
