@@ -8,7 +8,7 @@ Shape {
     id: theShape
 
     property ClayCanvas canvas: null
-    parent: canvas.coordSys
+    parent: canvas ? canvas.coordSys : null
 
     property alias _shapePath: theShapePath
     property alias strokeWidth: theShapePath.strokeWidth
@@ -25,10 +25,10 @@ Shape {
     property real _yWu: 0
     property real _widthWu: 0
     property real _heightWu: 0
-    x: canvas.xToScreen(_xWu)
-    y: canvas.yToScreen(_yWu)
-    width: _widthWu * canvas.pixelPerUnit
-    height: _heightWu * canvas.pixelPerUnit
+    x: canvas ? canvas.xToScreen(_xWu) : 0
+    y: canvas ? canvas.yToScreen(_yWu) : 0
+    width: _widthWu * canvas ? canvas.pixelPerUnit : 0
+    height: _heightWu * canvas ? canvas.pixelPerUnit : 0
     onVerticesChanged: refresh()
     function refresh() { _syncVisu(); }
     function _syncVisu() {

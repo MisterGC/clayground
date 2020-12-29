@@ -13,7 +13,7 @@ Item {
     property real heightWu: 1
 
     x: xWu * pixelPerUnit
-    y: parent.height - yWu * pixelPerUnit
+    y: parent ? parent.height - yWu * pixelPerUnit : 0
     width: widthWu * pixelPerUnit
     height: heightWu * pixelPerUnit
     property alias body: itemBody
