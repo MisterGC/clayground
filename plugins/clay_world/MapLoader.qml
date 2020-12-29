@@ -9,7 +9,7 @@ SvgReader
     property var entities: []
     readonly property string componentPropKey: "component"
     required property var world
-    required property var components
+    property var components: []
 
     onBegin: {
         world.mapAboutToBeLoaded();
