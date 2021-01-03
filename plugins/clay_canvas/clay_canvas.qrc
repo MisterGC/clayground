@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/clayground">
         <file>ClayCanvas.qml</file>
+        <file>Connector.qml</file>
         <file>Poly.qml</file>
         <file>Rectangle.qml</file>
         <file>Image.qml</file>
