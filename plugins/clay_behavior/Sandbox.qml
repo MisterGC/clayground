@@ -19,17 +19,18 @@ ClayWorld
     RectBoxBody {
         id: player; color: "orange"; bodyType: Body.Dynamic
         xWu: 10; yWu: 10; widthWu: 1; heightWu: 1
-        linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10; }
+        linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10;
+    }
 
 
     RectBoxBody {
         id: enemy
-        color: "transparent"; sensor:true;
+        color: "transparent";
         xWu: 5; yWu: 5;
         widthWu: 1; heightWu: 1;
-        bodyType: Body.Kinematic
-    MoveTo {actor: enemy;  anchors.centerIn: actor; destXWu: 12; destYWu: 12
-    onArrived: {destXWu = Math.random() * 2  + 1; destYWu = Math.random() * 2 + 1;}}
+        bodyType: Body.Kinematic; sensor: true;
+        MoveTo {world: world; anchors.centerIn: parent;  destXWu: 12; destYWu: 12;
+            onArrived: {destXWu = Math.random() * 10  + 1; destYWu = Math.random() * 10 + 1;}}
     }
 
 

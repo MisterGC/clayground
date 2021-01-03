@@ -7,7 +7,8 @@ import "utils.js" as Utils
 
 RectBoxBody
 {
-    bodyType: Body.Static
+    bodyType: Body.Dynamic
+    sensor: true
     visible: false
 
     signal entered(var entity)
