@@ -1,15 +1,17 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#include "claycommonplugin.h"
+#include "claybehaviorplugin.h"
 #include <QQmlEngine>
 
-ClayCommonPlugin::ClayCommonPlugin()
+ClayBehaviorPlugin::ClayBehaviorPlugin()
 {
-    Q_INIT_RESOURCE(clay_common);
+    Q_INIT_RESOURCE(clay_behavior);
 }
 
-void ClayCommonPlugin::registerTypes(const char* uri)
+void ClayBehaviorPlugin::registerTypes(const char* uri)
 {
-    qmlRegisterSingletonType(QUrl("qrc:/clayground/Clayground.qml"),
-                    uri, 1,0,"Clayground");
+    qmlRegisterType(QUrl("qrc:/clayground/Move.qml"),uri, 1,0,"Move");
+    qmlRegisterType(QUrl("qrc:/clayground/MoveTo.qml"),uri, 1,0,"MoveTo");
+    qmlRegisterType(QUrl("qrc:/clayground/FollowPath.qml"),uri, 1,0,"FollowPath");
+    qmlRegisterType(QUrl("qrc:/clayground/RectTrigger.qml"),uri, 1,0,"RectTrigger");
 }

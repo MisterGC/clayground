@@ -1,16 +1,16 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#ifndef CLAYGROUND_COMMON_PLUGIN
-#define CLAYGROUND_COMMON_PLUGIN
+#ifndef CLAYGROUND_BEHAVIOR_PLUGIN
+#define CLAYGROUND_BEHAVIOR_PLUGIN
 #include <QQmlExtensionPlugin>
 
-class ClayCommonPlugin: public QQmlExtensionPlugin
+class ClayBehaviorPlugin: public QQmlExtensionPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "clayground.commonplugin")
+    Q_PLUGIN_METADATA(IID "clayground.behaviorplugin")
 
 public:
-    ClayCommonPlugin();
+    ClayBehaviorPlugin();
 
     void registerTypes(const char* uri) override;
 };
