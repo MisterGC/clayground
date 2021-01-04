@@ -14,53 +14,43 @@ Rectangle {
     transformOrigin: Item.Center
     width: .1 * actor.width
     height: width
+    visible: debug
 
     required property ClayWorld world
     property var actor: parent
-    visible: true
+    property alias running: _veloAdaptor.running
 
     property real destXWu: 0
     property real destYWu: 0
 
-    property int desiredSpeed: 10
+    property int desiredSpeed: 2
     property var _destWp: null
     property var _detector: null
 
-    readonly property int collCatWpDetect: Box.Category15
-    readonly property int collCatWp: Box.Category16
+    readonly property int _collCatWpDetect: Box.Category15
+    readonly property int _collCatWp: Box.Category16
 
     signal arrived();
 
-//    Connections{
-//        target: world;
-//        function onPixelPerUnitChanged(){start()}
-//        function onXWuMinChanged(){start()}
-//        function onXWuMaxChanged(){start()}
-//        function onYWuMinChanged(){start()}
-//        function onYWuMaxChanged(){start()}
-//    }
-    onDestXWuChanged: start()
-    onDestYWuChanged: start()
-    onActorChanged: {
-        if (!actor) return;
-        start();
-    }
+    WorldChangedConnections { world: behavior.world; callback: behavior._adaptConfiguration}
 
-    property bool visualize: true
-    Component{id: connector; Canv.Connector{color: "lightblue"; strokeWidth: 5}}
+    onDestXWuChanged: _adaptConfiguration()
+    onDestYWuChanged: _adaptConfiguration()
+    onActorChanged: { if (!actor) return; _adaptConfiguration(); }
+
+    property bool debug: false
+    property color debugColor: "lightblue"
+    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .7; color: behavior.debugColor; strokeWidth: 5}}
+    Loader {sourceComponent: debug ? connector : null}
 
     Component {
         id: waypointComp
         RectTrigger {
             pixelPerUnit: behavior.world.pixelPerUnit
             transformOrigin: Item.Center
-            categories: behavior.collCatWp
-            collidesWith: behavior.collCatWpDetect
-            visible: true; color: "black"
-            onWidthChanged: console.log("w: " + width)
-            onXChanged: console.log("x: " + x)
-            onYChanged: console.log("y: " + y)
-            onHeightChanged: console.log("h: " + height)
+            categories: behavior._collCatWp
+            collidesWith: behavior._collCatWpDetect
+            visible: behavior.debug; color: "black"
         }
     }
 
@@ -69,31 +59,30 @@ Rectangle {
         Box {
             x: behavior.x; y: behavior.y
             width: behavior.width; height: behavior.height
-            categories: behavior.collCatWpDetect
-            collidesWith: behavior.collCatWp
+            categories: behavior._collCatWpDetect
+            collidesWith: behavior._collCatWp
             sensor: true
         }
     }
 
-    Component.onCompleted: start()
+    Component.onCompleted: {_adaptConfiguration()}
 
-    function start() {
-        if (!world  || !world.room) return;
+    function _adaptConfiguration() {
+        if (!world  || !world.room  || !actor) return;
 
-        if (!_destWp){
-            behavior._destWp = waypointComp.createObject(behavior.world.room,
-                                                {
-                                                    xWu: Qt.binding(_ => {return behavior.destXWu + actor.widthWu * .5}),
-                                                    yWu: Qt.binding(_ => {return behavior.destYWu + actor.heightWu * .5}),
-                                                    width: Qt.binding(_ => {return behavior.width;}),
-                                                    height: Qt.binding(_ => {return behavior.height;})
-                                                }
-                                                );
-            _destWp.xWu = Qt.binding(_ => {return behavior.destXWu + actor.widthWu * .5});
-            _destWp.yWu = Qt.binding(_ => {return behavior.destYWu + actor.heightWu * .5});
-            _destWp.x = Qt.binding(_ => {return world.xToScreen(behavior._destWp.xWu)});
-            _destWp.y = Qt.binding(_ => {return world.yToScreen(behavior._destWp.yWu)});
-            connector.createObject(world.room, {from: actor, to: _destWp})
+        if (waypointComp.status !== Component.Ready) return;
+        if (!_detector){
+            _detector = wpDetectComp.createObject(actor,{});
+            actor.body.addFixture(_detector);
+        }
+
+        if (!_destWp){;
+            _destWp = waypointComp.createObject(behavior.world.room);
+            _destWp.xWu = Qt.binding(_ => {return behavior.destXWu });
+            _destWp.yWu = Qt.binding(_ => {return behavior.destYWu });
+            _destWp.width= Qt.binding(_ => {return behavior.width;});
+            _destWp.height= Qt.binding(_ => {return behavior.height;});
+
             BUtils.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
                                         if (wpDetect === actor) {
                                             actor.linearVelocity.x = 0;
@@ -103,14 +92,9 @@ Rectangle {
                                     });
         }
 
-        if (!_detector){
-            _detector = wpDetectComp.createObject(actor,{});
-            actor.body.addFixture(_detector);
-        }
-        _adaptVelocity();
     }
 
-    Timer{interval: 100; repeat: true; running: true; onTriggered: _adaptVelocity() }
+    Timer{id: _veloAdaptor; interval: 100; repeat: true; onTriggered: _adaptVelocity() }
 
     function _adaptVelocity(){
         if (!_destWp) return;

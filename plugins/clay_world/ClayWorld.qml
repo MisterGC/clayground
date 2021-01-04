@@ -18,14 +18,18 @@ ClayCanvas
     property alias xWuMax: _world.worldXMax
     property alias yWuMin: _world.worldYMin
     property alias yWuMax: _world.worldYMax
+    signal setupCompleted;
 
     Component.onCompleted: { _syncTimer.start();}
 
-    Timer {id: _syncTimer; interval: 50; onTriggered:
-    {
+    Timer {
+        id: _syncTimer; interval: 50;
+        onTriggered: {
             _world.childrenChanged.connect(_moveToRoomOnDemand);
             _world.room.childrenChanged.connect(_updateRoomContent);
-            _moveToRoomOnDemand(); }
+            _moveToRoomOnDemand();
+            setupCompleted();
+        }
     }
 
 

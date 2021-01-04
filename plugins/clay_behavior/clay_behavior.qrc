@@ -4,6 +4,7 @@
         <file>MoveTo.qml</file>
         <file>FollowPath.qml</file>
         <file>RectTrigger.qml</file>
+        <file>WorldChangedConnections.qml</file>
         <file>utils.js</file>
     </qresource>
 </RCC>
