@@ -20,8 +20,8 @@ ClayCanvas
         id: svgSourceLoader
         SvgImageSource {
             Component.onCompleted: {
-                console.log("Does element rect1 exist? " + exists("rect1"))
-                console.log("Does element rect2 exist? " + exists("rect2"))
+                console.log("Does element rect1 exist? " + has("rect1"))
+                console.log("Does element rect2 exist? " + has("rect2"))
             }
             svgPath: "somegraphics"
         }
