@@ -82,44 +82,51 @@ void SvgReader::listToPoints(const QString& lst,
     if (closePath) points.push_back(pData.front());
 }
 
+QString SvgReader::fetchDescr(QXmlStreamReader &reader,
+                              QXmlStreamReader::TokenType &token,
+                              bool &currentTokenProcessed)
+{
+    auto descr = QString("");
+    auto ok = reader.readNextStartElement();
+    if (ok && reader.name() == "desc") {
+        reader.readNext();
+        descr = reader.text().toString();
+    }
+    else {
+        token = reader.tokenType();
+        currentTokenProcessed = false;
+    }
+    return descr;
+}
+
+QPointF SvgReader::applyGroupTransform(float x, float y) const
+{
+    auto pt = QPointF(x, y);
+    for (const auto& t: groupTranslates_) pt += t;
+    return pt;
+};
+
 
 void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               QXmlStreamReader::TokenType& token,
                               bool& currentTokenProcessed,
                               const float& heightWu)
 {
-    auto fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
-    {
-        auto descr = QString("");
-        auto ok = xmlReader.readNextStartElement();
-        if (ok && xmlReader.name() == "desc") {
-            xmlReader.readNext();
-            descr = xmlReader.text().toString();
-        }
-        else {
-            token = xmlReader.tokenType();
-            currentTokenProcessed = false;
-        }
-        return descr;
-    };
 
     auto nam = xmlReader.name();
     auto attribs = xmlReader.attributes();
     if (nam == "rect")
     {
-        auto x = attribs.value("x").toFloat();
-        auto y = attribs.value("y").toFloat();
+        auto p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
-        auto descr = QString("");
-        emit rectangle(x, heightWu - y, width, height,  fetchDescr());
+        emit rectangle(p.x(), heightWu - p.y(), width, height,  fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "circle")
     {
-        auto x = attribs.value("cx").toFloat();
-        auto y = attribs.value("cy").toFloat();
+        auto p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
         auto radius = attribs.value("r").toFloat();
-        emit circle(x, heightWu - y, radius, fetchDescr());
+        emit circle(p.x(), heightWu - p.y(), radius, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "polygon" || nam == "polyline")
     {
@@ -128,14 +135,14 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
-            emit polygon(points, fetchDescr());
+            emit polygon(points, fetchDescr(xmlReader, token, currentTokenProcessed));
         else
-            emit polyline(points, fetchDescr());
+            emit polyline(points, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "path")
     {
         auto d = attribs.value("d").toString();
-        onPath(d, fetchDescr(), heightWu);
+        onPath(d, fetchDescr(xmlReader, token, currentTokenProcessed), heightWu);
     }
 }
 
@@ -189,8 +196,9 @@ void SvgReader::introspect()
             }
             else if (nam == "g") {
                 auto attribs = xmlReader.attributes();
-                auto lbl = attribs.value("inkscape:label").toString();
-                emit beginGroup(lbl);
+                auto id = attribs.value("id").toString();
+                auto descr = fetchDescr(xmlReader, token, currentTokenProcessed);
+                emit beginGroup(id, descr);
             }
             else processShape(xmlReader, token, currentTokenProcessed, heightWu);
         }
