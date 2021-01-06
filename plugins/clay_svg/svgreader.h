@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QFileSystemWatcher>
 #include <QXmlStreamReader>
+#include <QStack>
+#include <QPointF>
 
 class SvgReader: public QObject
 {
@@ -41,9 +43,12 @@ private:
     void onPath(const QString &dAttr, const QString &descr, double heightWu);
     void listToPoints(const QString &lst, QVariantList &points, bool absCoords, double heightWu, bool closePath);
     QString fetchDescr(QXmlStreamReader &reader, QXmlStreamReader::TokenType &token, bool &currentTokenProcessed);
+    QPointF applyGroupTransform(float x, float y) const;
 
 private:
     QFileSystemWatcher fileObserver_;
     QString source_;
+
+    QStack<QPointF> groupTranslates_;
 };
 #endif

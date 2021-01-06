@@ -65,9 +65,8 @@ void SvgReader::listToPoints(const QString& lst,
     for (auto& p: ppairs) {
         if (p.trimmed().isEmpty()) continue;
         auto c = p.split(",");
-        auto point = QPointF(c[0].toDouble(),
-                (heightWu - c[1].toDouble()));
-        pData.push_back(point);
+        auto pnt = QPointF(c[0].toDouble(), (heightWu - c[1].toDouble()));
+        pData.push_back(pnt);
     }
     if (pData.empty()) return;
     if (!absCoords) {
@@ -78,8 +77,8 @@ void SvgReader::listToPoints(const QString& lst,
             p.setY(p.y() - (heightWu - prev.y()));
         }
     }
-    for (const auto& p: pData) points.append(p);
-    if (closePath) points.push_back(pData.front());
+    for (const auto& p: pData) points.append(applyGroupTransform(p.x(), p.y()));
+    if (closePath) points.push_back(points.front());
 }
 
 QString SvgReader::fetchDescr(QXmlStreamReader &reader,
@@ -199,6 +198,16 @@ void SvgReader::introspect()
             else if (nam == "g") {
                 auto attribs = xmlReader.attributes();
                 auto id = attribs.value("id").toString();
+                auto translate = QPointF(0., 0.);
+                if (attribs.hasAttribute("transform")){
+                    auto transf = attribs.value("transform");
+                    const auto t = QString("translate(");
+                    if (transf.startsWith(t)){
+                        auto vals = transf.mid(t.length(),transf.length() - (t.length()+1)).split(",");
+                        translate = QPointF(vals[0].toFloat(), vals[1].toFloat());
+                    }
+                }
+                groupTranslates_.push(translate);
                 auto descr = fetchDescr(xmlReader, token, currentTokenProcessed);
                 emit beginGroup(id, descr);
             }
@@ -206,7 +215,10 @@ void SvgReader::introspect()
             else processShape(xmlReader, token, currentTokenProcessed, heightWu);
         }
         else if (token == QXmlStreamReader::EndElement){
-            if (nam == "g") emit endGroup();
+            if (nam == "g") {
+                groupTranslates_.pop();
+                emit endGroup();
+            }
             else if (nam == "defs")  defsSection = false;
         }
     }
