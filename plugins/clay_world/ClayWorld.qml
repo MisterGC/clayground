@@ -55,8 +55,10 @@ ClayCanvas
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
     property alias components: mapLoader.components
     MapLoader {id: mapLoader; world: _world;}
-    onWidthChanged: _refreshMap();
-    on_FullmappathChanged: _refreshMap();
+
+    onWidthChanged: _refreshMap()
+    on_FullmappathChanged: _refreshMap()
+    onSetupCompleted: _refreshMap();
 
     // Signals informing about the loading process
     signal mapAboutToBeLoaded()
@@ -70,6 +72,7 @@ ClayCanvas
 
     function _refreshMap() {
         if (width > 0 || height > 0) {
+            mapLoader.setSource("");
             mapLoader.setSource(_fullmappath);
             _createdNotify.start();
         }
