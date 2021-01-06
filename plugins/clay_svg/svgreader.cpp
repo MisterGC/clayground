@@ -173,6 +173,8 @@ void SvgReader::introspect()
 
     auto heightWu = 0.0f;
 
+    auto defsSection = false;
+
     // Can be used to avoid reading a further element if
     // logic has not used the current one and dispatching should be done
     auto currentTokenProcessed = true;
@@ -183,7 +185,7 @@ void SvgReader::introspect()
         else currentTokenProcessed = true;
 
         auto nam = xmlReader.name();
-        if(token == QXmlStreamReader::StartElement)
+        if(token == QXmlStreamReader::StartElement && !defsSection)
         {
             if (nam == "svg") {
                 auto attribs = xmlReader.attributes();
@@ -200,11 +202,12 @@ void SvgReader::introspect()
                 auto descr = fetchDescr(xmlReader, token, currentTokenProcessed);
                 emit beginGroup(id, descr);
             }
+            else if (nam == "defs") defsSection = true;
             else processShape(xmlReader, token, currentTokenProcessed, heightWu);
         }
-        else if (token == QXmlStreamReader::EndElement &&
-                 nam == "g") {
-            endGroup();
+        else if (token == QXmlStreamReader::EndElement){
+            if (nam == "g") emit endGroup();
+            else if (nam == "defs")  defsSection = false;
         }
     }
 
