@@ -191,9 +191,9 @@ void SvgReader::introspect()
                 auto attribs = xmlReader.attributes();
                 auto wAttr = attribs.value("width");
                 if (!wAttr.endsWith("mm")) qCritical() << "Only mm as unit is supported for SVG Inspection.";
-                auto widthWu = static_cast<int>(wAttr.left(wAttr.length()-2).toFloat());
+                auto widthWu = static_cast<float>(wAttr.left(wAttr.length()-2).toFloat());
                 auto hAttr = attribs.value("height");
-                heightWu = static_cast<int>(hAttr.left(hAttr.length()-2).toFloat());
+                heightWu = static_cast<float>(hAttr.left(hAttr.length()-2).toFloat());
                 emit begin(widthWu, heightWu);
             }
             else if (nam == "g") {
