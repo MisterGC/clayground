@@ -5,10 +5,7 @@
 #include <QXmlStreamReader>
 #include <QDebug>
 #include <QPointF>
-
-#include <string>
-#include <regex>
-#include <sstream>
+#include <QRegularExpression>
 
 SvgReader::SvgReader()
 {
@@ -24,34 +21,50 @@ void SvgReader::onFileChanged(const QString& /*path*/)
 
 void SvgReader::onPath(const QString& dAttr, const QString& descr, double heightWu)
 {
-    const auto dPoly = dAttr.toStdString();
+    const auto dPoly = dAttr.split(" ");
 
-    using namespace std;
-    const auto number = string("(?:\\s*[-]?\\d+(?:\\.\\d+)?\\s*)");
-    stringstream strstr;
-    strstr << "([mM])" << "((?:" << number << "," << number << ")+)" << "([zZ]?)";
-    const regex base_regex(strstr.str());
-    smatch base_match;
-    if (regex_match(dPoly, base_match, base_regex) &&
-        base_match.size() == 4 )
-    {
-        const auto m = base_match[1].str();
-        const auto pList = base_match[2].str();
-        const auto z = base_match[3].str();
+    QPointF refPos(0.,0.);
+    QChar cmd = 'M';
+    QVector<QPointF> points;
+    auto isPolygon = false;
 
-        auto lst = QString::fromStdString(pList).trimmed();
-        QVariantList points;
-        auto isPolygon = !z.empty();
-        listToPoints(lst, points, m == "M", heightWu, isPolygon);
-        if (isPolygon)
-            emit polygon(points, descr);
-        else
-            emit polyline(points, descr);
+    QRegularExpression supportedCmds("[MmLlVvHhZz]");
+    for (const auto& t: dPoly){
+        if (supportedCmds.match(t).hasMatch()){
+            cmd = *t.begin();
+            if (cmd == 'Z' || cmd == 'z') isPolygon = true;
+        }
+        else {
+            auto nums = t.split(",");
+            auto isnum = false;
+            if (nums.empty()) {qCritical() << "svg: Expected number(s) but got none."; return;}
+            auto n1 = nums[0].toFloat(&isnum);
+            if (!isnum) {qCritical() << "svg: Expected a number but got " << t << "."; return;}
+            auto n2 = nums.length() > 1 ? nums[1].toFloat() : 0.0;
+            using Point = QPointF;
+            // L and M cmds are treated as the same because subpaths are not (yet) supported
+            switch (cmd.toLatin1()) {
+                case ('L'):
+                case ('M'): {refPos = Point(n1,n2);} break;
+                case ('l'):
+                case ('m'): {refPos = Point(refPos.x() + n1, refPos.y() + n2);} break;
+                case ('V'): {refPos = Point(refPos.x(), n1);} break;
+                case ('v'): {refPos = Point(refPos.x(), refPos.y() + n1);} break;
+                case ('H'): {refPos = Point(n1, refPos.y());} break;
+                case ('h'): {refPos = Point(refPos.x() + n1, refPos.y());} break;
+            }
+            points.push_back(refPos);
+        }
     }
-    else {
-        qWarning() << "Skipping unsupported path "
-                   << dAttr;
+
+    QVariantList varPoints;
+    for (auto& p: points){
+        p.setY(heightWu - p.y()); // svg world to clay world units
+        varPoints.push_back(applyGroupTransform(p.x(), p.y()));
     }
+
+    if (isPolygon) emit polygon(varPoints, descr);
+    else emit polyline(varPoints, descr);
 }
 
 void SvgReader::listToPoints(const QString& lst,
