@@ -7,47 +7,37 @@ import Clayground.GameController 1.0
 import Clayground.Physics 1.0
 import Clayground.World 1.0
 
-
 ClayWorld
 {
     id: theWorld
-    pixelPerUnit: width / 20
-    xWuMin: 0; xWuMax: 20
-    yWuMin: 0; yWuMax: 20
+    anchors.fill: parent
+    pixelPerUnit: height / theWorld.yWuMax
     gravity: Qt.point(0,0)
-    //running: true
-    //physicsDebugging: true
-
-    // Multi-sampe antialiasing
-    // layer.enabled: true
-    // layer.samples: 4
+    map: "map.svg"
 
     function rndCoord() {return Math.random() * 16 + 2;}
-    function rndPath(count) {
-        let wps = [];
-        for (let i=0; i<count; ++i)
-            wps.push({x: rndCoord(), y:rndCoord()})
-        return wps;
-    }
 
+    onMapLoaded: observedItem = player
+
+    // How to put together keyboard controls with physics movement?
     RectBoxBody {
         id: player; color: "orange"; bodyType: Body.Dynamic
-        xWu: 10; yWu: 10; widthWu: 1; heightWu: 1
+        xWu: 10; yWu: 10; widthWu: .9; heightWu: widthWu
         linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10;
         Canv.Text{parent: player.parent;
             anchors.horizontalCenter: player.horizontalCenter;
             anchors.bottom: player.top;
-            text: "Hello ClayWorld!";
+            text: "Player";
             font.bold: true
             fontSizeWu: .5}
     }
 
+    // Move entities randomly arround within a limited area
     Repeater{
-        model: 10
+        model: 1
         RectBoxBody {
-            color: Qt.hsla(.3, .5, .1 + Math.random() * .7, 1)
-            xWu: rndCoord(); yWu: rndCoord()
-            widthWu: .5 + Math.random() * .5; heightWu: widthWu;
+            color: "#92dfbd"
+            xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
             bodyType: Body.Kinematic; sensor: true;
             MoveTo {
                 world: theWorld; anchors.centerIn: parent;
@@ -58,23 +48,23 @@ ClayWorld
         }
     }
 
-    Repeater{
-        model: 3
-        RectBoxBody {
-            color: Qt.hsla(.9, .2, .1 + Math.random() * .7, 1)
-            function rndCoord() {return Math.random() * 16 + 2;}
-            xWu: rndCoord(); yWu: rndCoord()
-            widthWu: .5 + Math.random() * .5; heightWu: widthWu;
-            bodyType: Body.Kinematic; sensor: true;
-            FollowPath{debug: true; debugColor:parent.color ; world: theWorld; anchors.centerIn: parent; repeat: true; running: true; wpsWu: rndPath(4)}
+    // One entity follows a path
+    RectBoxBody {
+        id: pathFollower
+        property alias path: _followP.wpsWu
+        color: "#de8787"
+        xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
+        bodyType: Body.Kinematic; sensor: true;
+        FollowPath{
+            id: _followP; debug: true; debugColor: parent.color ; world: theWorld;
+            anchors.centerIn: parent; repeat: true; running: true; wpsWu: theWorld.path
         }
     }
 
-    // Borders of the world
-    RectBoxBody {color: "green"; xWu: 0; yWu: 20; widthWu: 1; heightWu: 20}
-    RectBoxBody {color: "green"; xWu: 0; yWu: 20; widthWu: 20; heightWu: 1}
-    RectBoxBody {color: "green"; xWu: 19; yWu: 20; widthWu: 1; heightWu: 20}
-    RectBoxBody {color: "green"; xWu: 0; yWu: 1; widthWu: 20; heightWu: 1}
+    components: new Map([ ['Wall', c1] ])
+    Component {id: c1; RectBoxBody { color: "#333333";  } }
+    property var path: []
+    onPolylineLoaded: {console.log("points: " + points); if (description === "PatrolPath") pathFollower.path=points;}
 
     Keys.forwardTo: ctrl
     GameController {id: ctrl; anchors.fill: parent;
