@@ -2,6 +2,7 @@
 
 import QtQuick 2.15
 import QtQuick.Shapes 1.14
+import QtQuick.Controls 2.15
 import Box2D 2.0
 import Clayground.Physics 1.0
 import Clayground.Canvas 1.0 as Canv
@@ -40,17 +41,23 @@ Rectangle {
 
     property bool debug: false
     property color debugColor: "lightblue"
-    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .7; color: behavior.debugColor; strokeWidth: 5}}
+    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .7;  color: behavior.debugColor; strokeWidth: 5}}
     Loader {sourceComponent: debug ? connector : null}
 
     Component {
         id: waypointComp
         RectTrigger {
+            z: 99
             pixelPerUnit: behavior.world.pixelPerUnit
             transformOrigin: Item.Center
             categories: behavior._collCatWp
             collidesWith: behavior._collCatWpDetect
-            visible: behavior.debug; color: "black"
+            visible: behavior.debug; color: "transparent"
+            Loader{id: wpDebug; anchors.fill: parent; sourceComponent: behavior.debug ? wpVisuComp : null}
+            Component{ id: wpVisuComp;
+            Rectangle{radius: height * .5; anchors.centerIn: parent; width: parent.width * 5; height: width; color: Qt.darker(behavior.debugColor, 1.5)
+                Text{anchors.centerIn: parent; font.bold: true; color: Qt.lighter(behavior.debugColor, 5); font.pixelSize: parent.height * .9; text: "x"}}
+            }
         }
     }
 
