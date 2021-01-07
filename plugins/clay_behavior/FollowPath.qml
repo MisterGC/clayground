@@ -3,6 +3,7 @@
 import QtQuick 2.15
 import Clayground.World 1.0
 import Clayground.Canvas 1.0 as Canv
+import QtQuick.Shapes 1.14
 
 Item
 {
@@ -17,7 +18,7 @@ Item
 
     signal arrived()
 
-    onWpsWuChanged: _currentWpIndex = 0
+    onWpsWuChanged: _currentWpIndex = wpsWu.length > 0 ? 0 : -1
 
     property alias debug: _moveto.debug
     property alias debugColor: _moveto.debugColor
@@ -25,15 +26,24 @@ Item
     Component {
         id: debugVisu
         Item{
+            id: item
             parent: behavior
-            Canv.Poly {canvas: world; vertices: wpsWu; strokeWidth: 3; strokeColor: Qt.darker(_moveto.debugColor, 1.2); }
-            Repeater{
-                model: wpsWu.length
+            Timer {id: createWps; running: true; interval: 1; onTriggered: createWpVisu();}
+            function createWpVisu() {
+                for (let i=0; i<wpsWu.length; ++i){
+                    let obj = wpComp.createObject(behavior.world.room);
+                    obj.xWu = Qt.binding(_ => {return behavior.wpsWu[i].x - .5 * obj.widthWu});
+                    obj.yWu = Qt.binding(_ => {return behavior.wpsWu[i].y + .5 * obj.heightWu});
+                }
+            }
+            Canv.Poly {canvas: world; opacity: .75
+                vertices: wpsWu; strokeStyle: ShapePath.DashLine; strokeWidth: 3; strokeColor: Qt.darker(_moveto.debugColor, 1.2); }
+            Component{
+                id: wpComp
                 Canv.Rectangle{
                     radius: height * .25
-                    color: Qt.darker(_moveto.debugColor, 1.7)
+                    color: Qt.darker(behavior.debugColor, 1.7)
                     canvas: world
-                    xWu: wpsWu[index].x - .5 * widthWu; yWu: wpsWu[index].y + .5 *  heightWu
                     widthWu: .3; heightWu: .3;
                 }
             }
