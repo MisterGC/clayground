@@ -12,6 +12,6 @@ Rectangle {
 
     x: canvas ? canvas.xToScreen(xWu) : 0
     y: canvas ? canvas.yToScreen(yWu) : 0
-    width: widthWu * canvas ? canvas.pixelPerUnit : 0
-    height: heightWu * canvas ? canvas.pixelPerUnit : 0
+    width: widthWu * (canvas ? canvas.pixelPerUnit : 0)
+    height: heightWu * (canvas ? canvas.pixelPerUnit : 0)
 }
