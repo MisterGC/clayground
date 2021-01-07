@@ -69,6 +69,8 @@ ClayCanvas
     signal polygonLoaded(var points, var description)
     signal rectangleLoaded(var x, var y, var width, var height, var description)
     signal circleLoaded(var x, var y, var radius, var description)
+    signal groupAboutToBeLoaded(var name, var description)
+    signal groupLoaded()
 
     function _refreshMap() {
         if (width > 0 || height > 0) {
