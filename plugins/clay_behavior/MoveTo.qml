@@ -20,6 +20,7 @@ Rectangle {
     required property ClayWorld world
     property var actor: parent
     property alias running: _veloAdaptor.running
+    onRunningChanged: _adaptVelocity()
 
     property real destXWu: 0
     property real destYWu: 0
@@ -104,6 +105,11 @@ Rectangle {
     Timer{id: _veloAdaptor; interval: 100; repeat: true; onTriggered: _adaptVelocity() }
 
     function _adaptVelocity(){
+        if (!behavior.running) {
+            actor.linearVelocity.x = 0.;
+            actor.linearVelocity.y = 0.;
+            return;
+        }
         if (!_destWp) return;
         let bCoords = mapFromItem(parent, x, y)
         let wpCoords = mapFromItem(_destWp.parent, _destWp.x, _destWp.y)
