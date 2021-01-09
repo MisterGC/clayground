@@ -13,7 +13,7 @@ Rectangle {
     id: behavior
 
     transformOrigin: Item.Center
-    width: .1 * actor.width
+    width: 3
     height: width
     visible: debug
 
@@ -42,7 +42,7 @@ Rectangle {
 
     property bool debug: false
     property color debugColor: "lightblue"
-    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .7;  color: behavior.debugColor; strokeWidth: 5}}
+    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .8;  color: behavior.debugColor; strokeWidth: 5}}
     Loader {sourceComponent: debug ? connector : null}
 
     Component {
@@ -54,10 +54,10 @@ Rectangle {
             categories: behavior._collCatWp
             collidesWith: behavior._collCatWpDetect
             visible: behavior.debug; color: "transparent"
-            Loader{id: wpDebug; anchors.fill: parent; sourceComponent: behavior.debug ? wpVisuComp : null}
+            Loader{id: wpDebug; anchors.centerIn: parent; sourceComponent: behavior.debug ? wpVisuComp : null}
             Component{ id: wpVisuComp;
-            Rectangle{radius: height * .5; anchors.centerIn: parent; width: parent.width * 5; height: width; color: Qt.darker(behavior.debugColor, 1.5)
-                Text{anchors.centerIn: parent; font.bold: true; color: Qt.lighter(behavior.debugColor, 5); font.pixelSize: parent.height * .9; text: "x"}}
+            Rectangle{opacity: .75; radius: height * .5; anchors.centerIn: parent; width: 20; height: width; color: Qt.darker(behavior.debugColor, 1.5)
+                Text{anchors.centerIn: parent; font.bold: true; color: Qt.lighter(behavior.debugColor, 5); font.pixelSize: parent.height * .9; text: behavior.running ? "x" : "!"}}
             }
         }
     }
