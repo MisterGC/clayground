@@ -8,6 +8,7 @@ PhysicsItem {
 
     property alias fixture: box
     property alias color: rect.color
+    property alias radius: rect.radius
 
     // Box properties
     property alias density: box.density
