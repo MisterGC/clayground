@@ -18,8 +18,6 @@ ClayWorld
     // Activate to see behavior visualization
     property bool behaviorDebug: true
 
-    function rndCoord() {return Math.random() * 16 + 2;}
-
     onMapLoaded: observedItem = player
 
     // Collision categories used by physics (see Box2D manual)
@@ -52,10 +50,8 @@ ClayWorld
 
     // Move entities randomly arround within a limited area
     property var spawnArea: null
-    Component{
-        id: spawnAreaComp
-        RectBoxBody{z:-1; color: "#92dfbd"}
-    }
+    Component{id: spawnAreaComp; RectBoxBody{z:-1; color: "#92dfbd"} }
+    onMapEntityCreated: if (compName==="SpawnArea") spawnArea = obj;
     Repeater{
         model: spawnArea ? 5 : 0
         RectBoxBody {
@@ -96,53 +92,16 @@ ClayWorld
     }
 
     // Loading the map
-    components: new Map([ ['Wall', wallComp], ['Door', doorComp], ['DoorOpener', doorSwitchComp],
-                          ['SpawnArea', spawnAreaComp]])
-    Component {id: wallComp; RectBoxBody { color: "#333333";
-
-        categories: collCat.wall
-        collidesWith: collCat.player
-        } }
+    components: new Map([ ['Wall', wallComp], ['SpawnArea', spawnAreaComp] ])
+    Component {
+        id: wallComp;
+        RectBoxBody {color: "#333333"; categories: collCat.wall; collidesWith: collCat.player}
+    }
 
     property var path: []
-    onPolylineLoaded: {
-        if (description === "PatrolPath") pathFollower.path = points;
-        else if (_currentMapGroup.startsWith("door")) doorPath = points;
-    }
+    onPolylineLoaded: { if (description === "PatrolPath") pathFollower.path = points; }
 
-
-    // Build a more complex object (automated door) based on groups in the map
-    property string _currentMapGroup: ""
-    property var doorPath: []
-    property var door: null
-    Component {id: doorComp; RectBoxBody {
-            color: "#398bbf";
-            z: -1
-            property var path: []
-            bodyType: Body.Kinematic;
-            friction: 0
-            categories: collCat.door; collidesWith: collCat.player
-            property int idx: 0;  onIdxChanged: {let p = path[idx]; _b.destXWu = p.x; _b.destYWu = p.y; _b.running = true}
-            MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running && theWorld.behaviorDebug; debugColor: parent.color}
-        }}
-    onGroupAboutToBeLoaded: {_currentMapGroup=id;}
-    onMapEntityCreated: {
-        console.log(compName)
-        if (compName === "Door")
-            door = obj;
-        else if (compName === "SpawnArea")
-            spawnArea = obj;
-    }
-    onGroupLoaded: {
-        if (_currentMapGroup.startsWith("door")){ door.path = doorPath; }
-        _currentMapGroup = ""; }
-    Component{ id: doorSwitchComp
-    RectTrigger{
-        visible: true; color: "#92c0df"
-        categories: collCat.door; collidesWith: collCat.npc
-        onEntered: {door.idx = 1; closeTimer.restart(); entity.openDoorAction.start();}
-        Timer{id: closeTimer; interval: 2500; onTriggered: door.idx = 0;}
-    }
-    }
-
+    // Encapsulate construction of door as it is made up
+    // of multiple parts (door, switches and movement path)
+    DoorBuilder{id: doorBuilder; world: theWorld }
 }

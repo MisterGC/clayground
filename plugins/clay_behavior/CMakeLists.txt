@@ -10,7 +10,7 @@ clay_p( ClayBehavior
     URI Clayground.Behavior
     SOURCES
         claybehaviorplugin.cpp clay_behavior.qrc qmldir.in
-        Sandbox.qml
+        Sandbox.qml DoorBuilder.qml
     LINK_LIBS
         Qt5::Core Qt5::Quick Qt5::Qml
 #}
