@@ -29,7 +29,7 @@ ClayWorld
     // How to put together keyboard controls with physics movement?
     RectBoxBody {
         id: player; color: "orange"; bodyType: Body.Dynamic
-        xWu: 10; yWu: 10; widthWu: .9; heightWu: widthWu
+        xWu: 7; yWu: 7; widthWu: .9; heightWu: widthWu; radius: .25*width
         linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10;
         Canv.Text{parent: player.parent;
             anchors.horizontalCenter: player.horizontalCenter;
@@ -75,7 +75,7 @@ ClayWorld
         radius: height *.25
         property alias path: _followP.wpsWu
         color: "#de8787"
-        xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
+        xWu: 3.5; yWu: 9; widthWu: .9; heightWu: widthWu;
         bodyType: Body.Kinematic; sensor: true;
         categories: theWorld._collCatNpc; collidesWith: theWorld._collCatDoor
         property alias openDoorAction: openDoor
