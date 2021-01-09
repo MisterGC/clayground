@@ -15,6 +15,9 @@ ClayWorld
     gravity: Qt.point(0,0)
     map: "map.svg"
 
+    // Activate to see behavior visualization
+    property bool behaviorDebug: true
+
     function rndCoord() {return Math.random() * 16 + 2;}
 
     onMapLoaded: observedItem = player
@@ -77,7 +80,7 @@ ClayWorld
         categories: theWorld._collCatNpc; collidesWith: theWorld._collCatDoor
         property alias openDoorAction: openDoor
         FollowPath{
-            id: _followP; debug: true; debugColor: parent.color ; world: theWorld;
+            id: _followP; debug: theWorld.behaviorDebug; debugColor: parent.color ; world: theWorld;
             anchors.centerIn: parent; repeat: true; running: true; wpsWu: theWorld.path
         }
         SequentialAnimation{id: openDoor;
@@ -115,7 +118,7 @@ ClayWorld
             friction: 0
             categories: theWorld._collCatDoor; collidesWith: theWorld._collCatPlayer
             property int idx: 0;  onIdxChanged: {let p = path[idx]; _b.destXWu = p.x; _b.destYWu = p.y; _b.running = true}
-            MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running; debugColor: parent.color}
+            MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running && theWorld.behaviorDebug; debugColor: parent.color}
         }}
     onGroupAboutToBeLoaded: {_currentMapGroup=id;}
     onMapEntityCreated: {
