@@ -44,17 +44,24 @@ ClayWorld
 
     // Move entities randomly arround within a limited area
     property var spawnArea: null
+    Component{
+        id: spawnAreaComp
+        RectBoxBody{z:-1; color: "#92dfbd"}
+    }
     Repeater{
-        model: spawnArea ? 10 : 0
+        model: spawnArea ? 5 : 0
         RectBoxBody {
-            color: "#92dfbd"
-            xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
+            function rndSpawnAreaX(){return spawnArea.xWu + Math.random() * spawnArea.widthWu}
+            function rndSpawnAreaY(){return spawnArea.yWu - Math.random() * spawnArea.heightWu}
+            color: "#1b5e41"; border.color: Qt.darker(color, 1.3); border.width: 2; radius: width*.25
+            xWu: rndSpawnAreaX(); yWu: rndSpawnAreaY(); widthWu: .7; heightWu: widthWu;
             bodyType: Body.Kinematic; sensor: true;
             MoveTo {
+                desiredSpeed: 1.1
                 world: theWorld; anchors.centerIn: parent;
-                destXWu: theWorld.rndCoord(); destYWu: theWorld.rndCoord()
-                running: true; onArrived: {destXWu = theWorld.rndCoord(); destYWu = theWorld.rndCoord();}
-                debug: true; debugColor: parent.color
+                function updateDest() {destXWu = rndSpawnAreaX(); destYWu = rndSpawnAreaY()}
+                Component.onCompleted: updateDest(); running: true; onArrived: updateDest()
+                debug: theWorld.behaviorDebug; debugColor: parent.color
             }
         }
     }
@@ -81,8 +88,9 @@ ClayWorld
     }
 
     // Loading the map
-    components: new Map([ ['Wall', c1], ['Door', c2], ['DoorOpener', c3] ])
-    Component {id: c1; RectBoxBody { color: "#333333";
+    components: new Map([ ['Wall', wallComp], ['Door', doorComp], ['DoorOpener', doorSwitchComp],
+                          ['SpawnArea', spawnAreaComp]])
+    Component {id: wallComp; RectBoxBody { color: "#333333";
 
         categories: theWorld._collCatWall
         collidesWith: theWorld._collCatPlayer
@@ -99,7 +107,7 @@ ClayWorld
     property string _currentMapGroup: ""
     property var doorPath: []
     property var door: null
-    Component {id: c2; RectBoxBody {
+    Component {id: doorComp; RectBoxBody {
             color: "#398bbf";
             z: -1
             property var path: []
@@ -111,13 +119,16 @@ ClayWorld
         }}
     onGroupAboutToBeLoaded: {_currentMapGroup=id;}
     onMapEntityCreated: {
-        if (!_currentMapGroup.startsWith("door")) return;
-        door = obj;
+        console.log(compName)
+        if (compName === "Door")
+            door = obj;
+        else if (compName === "SpawnArea")
+            spawnArea = obj;
     }
     onGroupLoaded: {
         if (_currentMapGroup.startsWith("door")){ door.path = doorPath; }
         _currentMapGroup = ""; }
-    Component{ id: c3
+    Component{ id: doorSwitchComp
     RectTrigger{
         visible: true; color: "#92c0df"
         categories: theWorld._collCatDoor; collidesWith: theWorld._collCatNpc
