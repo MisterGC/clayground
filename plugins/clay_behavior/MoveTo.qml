@@ -86,8 +86,8 @@ Rectangle {
 
         if (!_destWp){;
             _destWp = waypointComp.createObject(behavior.world.room);
-            _destWp.xWu = Qt.binding(_ => {return behavior.destXWu });
-            _destWp.yWu = Qt.binding(_ => {return behavior.destYWu });
+            _destWp.xWu = Qt.binding(_ => {return behavior.destXWu - (width/pixelPerUnit) * .5});
+            _destWp.yWu = Qt.binding(_ => {return behavior.destYWu +  (height/pixelPerUnit) * .5});
             _destWp.width= Qt.binding(_ => {return behavior.width;});
             _destWp.height= Qt.binding(_ => {return behavior.height;});
 
