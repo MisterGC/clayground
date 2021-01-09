@@ -419,9 +419,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="15.999999"
-     inkscape:cx="59.573527"
-     inkscape:cy="38.098728"
+     inkscape:zoom="63.999996"
+     inkscape:cx="47.430416"
+     inkscape:cy="43.250671"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -431,7 +431,8 @@
      inkscape:window-x="0"
      inkscape:window-y="27"
      inkscape:window-maximized="1"
-     inkscape:snap-global="false">
+     inkscape:snap-global="false"
+     showguides="true">
     <inkscape:grid
        id="grid2053"
        type="xygrid" />
@@ -521,42 +522,51 @@
          id="desc4073">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="11.576882"
+       y="11.73624"
        x="11.14824"
-       height="8.9597158"
+       height="8.8003578"
        width="0.65724713"
        id="rect4079"
-       style="opacity:1;vector-effect:none;fill:#333333;fill-opacity:1;stroke:none;stroke-width:0.798942;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#DiamondMstart);marker-mid:url(#DotM);marker-end:url(#Arrow2Mend);stop-color:#000000;stop-opacity:1">
+       style="opacity:1;vector-effect:none;fill:#333333;fill-opacity:1;stroke:none;stroke-width:0.791805;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#DiamondMstart);marker-mid:url(#DotM);marker-end:url(#Arrow2Mend);stop-color:#000000;stop-opacity:1">
       <desc
          id="desc4077">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <g
        id="door1"
-       transform="translate(-0.00862646,-0.0665657)">
+       transform="translate(-0.03725339,-0.0665657)">
       <rect
-         y="11.036654"
-         x="11.774401"
+         y="11.091612"
+         x="11.820751"
          height="0.44435897"
          width="0.41069019"
          id="rect949"
-         style="fill:#92c0df;fill-opacity:1;stroke-width:0.0222954;stroke-opacity:0.952941;stop-color:#000000" />
+         style="fill:#92c0df;fill-opacity:1;stroke-width:0.0222954;stroke-opacity:0.952941;stop-color:#000000">
+        <desc
+           id="desc1448">{&quot;component&quot;:&quot;DoorOpener&quot;}</desc>
+      </rect>
       <rect
          style="fill:#92c0df;fill-opacity:1;stroke-width:0.0218124;stroke-opacity:0.952941;stop-color:#000000"
          id="rect59"
          width="0.36759844"
          height="0.4751704"
-         x="10.818329"
-         y="10.089074" />
+         x="10.806619"
+         y="10.144207">
+        <desc
+           id="desc1446">{&quot;component&quot;:&quot;DoorOpener&quot;}</desc>
+      </rect>
       <rect
-         y="9.4002371"
-         x="11.148718"
-         height="2.3154609"
-         width="0.65667665"
+         y="9.2427034"
+         x="11.204547"
+         height="2.8435872"
+         width="0.56141108"
          id="rect953"
-         style="opacity:1;vector-effect:none;fill:#398bbf;fill-opacity:1;stroke:none;stroke-width:0.405975;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#DiamondMstart);marker-mid:url(#DotM);marker-end:url(#Arrow2Mend);stop-color:#000000;stop-opacity:1" />
+         style="opacity:1;vector-effect:none;fill:#398bbf;fill-opacity:1;stroke:none;stroke-width:0.415986;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#DiamondMstart);marker-mid:url(#DotM);marker-end:url(#Arrow2Mend);stop-color:#000000;stop-opacity:1">
+        <desc
+           id="desc1156">{&quot;component&quot;:&quot;Door&quot;}</desc>
+      </rect>
       <path
          id="path955"
-         d="M 11.481415,10.516431 11.486715,8.4304325"
+         d="M 11.481807,10.695379 11.481626,8.0802137"
          style="font-variation-settings:normal;opacity:1;vector-effect:none;fill:none;fill-opacity:1;stroke:#92c0df;stroke-width:0.076;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#DotM-1);marker-mid:url(#marker1103);marker-end:url(#marker1103);stop-color:#000000;stop-opacity:1"
          sodipodi:nodetypes="cc" />
     </g>
@@ -611,7 +621,7 @@
          y="2.8736723"><tspan>Free movement 
 </tspan></tspan><tspan
          x="128.43854"
-         y="11.405872"><tspan>within restricted</tspan><tspan
+         y="11.405872"><tspan>within restricted</tspan><tspan></tspan><tspan
            y="11.405872"> </tspan></tspan><tspan
          x="128.43854"
          y="19.938072"><tspan>Area</tspan></tspan></text>

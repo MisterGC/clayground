@@ -18,6 +18,10 @@ ClayWorld
     function rndCoord() {return Math.random() * 16 + 2;}
 
     onMapLoaded: observedItem = player
+    readonly property int _collCatPlayer: Box.Category3
+    readonly property int _collCatDoor: Box.Category4
+    readonly property int _collCatNpc: Box.Category5
+    readonly property int _collCatWall: Box.Category6
 
     // How to put together keyboard controls with physics movement?
     RectBoxBody {
@@ -29,12 +33,19 @@ ClayWorld
             anchors.bottom: player.top;
             text: "Player";
             font.bold: true
-            fontSizeWu: .5}
+            fontSizeWu: .5
+        }
+        categories: theWorld._collCatPlayer
+        collidesWith: theWorld._collCatDoor | theWorld._collCatWall
     }
+    Keys.forwardTo: ctrl
+    GameController {id: ctrl; anchors.fill: parent;
+    Component.onCompleted: selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K); }
 
     // Move entities randomly arround within a limited area
+    property var spawnArea: null
     Repeater{
-        model: 1
+        model: spawnArea ? 10 : 0
         RectBoxBody {
             color: "#92dfbd"
             xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
@@ -51,22 +62,68 @@ ClayWorld
     // One entity follows a path
     RectBoxBody {
         id: pathFollower
+        radius: height *.25
         property alias path: _followP.wpsWu
         color: "#de8787"
         xWu: theWorld.rndCoord(); yWu: theWorld.rndCoord(); widthWu: .9; heightWu: widthWu;
         bodyType: Body.Kinematic; sensor: true;
+        categories: theWorld._collCatNpc; collidesWith: theWorld._collCatDoor
+        property alias openDoorAction: openDoor
         FollowPath{
             id: _followP; debug: true; debugColor: parent.color ; world: theWorld;
             anchors.centerIn: parent; repeat: true; running: true; wpsWu: theWorld.path
         }
+        SequentialAnimation{id: openDoor;
+            ScriptAction{script: _followP.running = false;}
+            PauseAnimation {duration: 1500;}
+            ScriptAction{script: _followP.running = true;}
+        }
     }
 
-    components: new Map([ ['Wall', c1] ])
-    Component {id: c1; RectBoxBody { color: "#333333";  } }
-    property var path: []
-    onPolylineLoaded: {console.log("points: " + points); if (description === "PatrolPath") pathFollower.path=points;}
+    // Loading the map
+    components: new Map([ ['Wall', c1], ['Door', c2], ['DoorOpener', c3] ])
+    Component {id: c1; RectBoxBody { color: "#333333";
 
-    Keys.forwardTo: ctrl
-    GameController {id: ctrl; anchors.fill: parent;
-    Component.onCompleted: selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K); }
+        categories: theWorld._collCatWall
+        collidesWith: theWorld._collCatPlayer
+        } }
+
+    property var path: []
+    onPolylineLoaded: {
+        if (description === "PatrolPath") pathFollower.path = points;
+        else if (_currentMapGroup.startsWith("door")) doorPath = points;
+    }
+
+
+    // Build a more complex object (automated door) based on groups in the map
+    property string _currentMapGroup: ""
+    property var doorPath: []
+    property var door: null
+    Component {id: c2; RectBoxBody {
+            color: "#398bbf";
+            z: -1
+            property var path: []
+            bodyType: Body.Kinematic;
+            friction: 0
+            categories: theWorld._collCatDoor; collidesWith: theWorld._collCatPlayer
+            property int idx: 0;  onIdxChanged: {let p = path[idx]; _b.destXWu = p.x; _b.destYWu = p.y; _b.running = true}
+            MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running; debugColor: parent.color}
+        }}
+    onGroupAboutToBeLoaded: {_currentMapGroup=name;}
+    onMapEntityCreated: {
+        if (!_currentMapGroup.startsWith("door")) return;
+        door = obj;
+    }
+    onGroupLoaded: {
+        if (_currentMapGroup.startsWith("door")){ door.path = doorPath; }
+        _currentMapGroup = ""; }
+    Component{ id: c3
+    RectTrigger{
+        visible: true; color: "#92c0df"
+        categories: theWorld._collCatDoor; collidesWith: theWorld._collCatNpc
+        onEntered: {door.idx = 1; closeTimer.restart(); entity.openDoorAction.start();}
+        Timer{id: closeTimer; interval: 2500; onTriggered: door.idx = 0;}
+    }
+    }
+
 }
