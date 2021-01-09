@@ -25,7 +25,7 @@ Rectangle {
     property real destXWu: 0
     property real destYWu: 0
 
-    property int desiredSpeed: 2
+    property real desiredSpeed: 2
     property var _destWp: null
     property var _detector: null
 
