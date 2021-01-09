@@ -21,10 +21,15 @@ ClayWorld
     function rndCoord() {return Math.random() * 16 + 2;}
 
     onMapLoaded: observedItem = player
-    readonly property int _collCatPlayer: Box.Category3
-    readonly property int _collCatDoor: Box.Category4
-    readonly property int _collCatNpc: Box.Category5
-    readonly property int _collCatWall: Box.Category6
+
+    // Collision categories used by physics (see Box2D manual)
+    QtObject{
+        id: collCat
+        readonly property int player: Box.Category3
+        readonly property int door: Box.Category4
+        readonly property int npc: Box.Category5
+        readonly property int wall: Box.Category6
+    }
 
     // How to put together keyboard controls with physics movement?
     RectBoxBody {
@@ -38,8 +43,8 @@ ClayWorld
             font.bold: true
             fontSizeWu: .5
         }
-        categories: theWorld._collCatPlayer
-        collidesWith: theWorld._collCatDoor | theWorld._collCatWall
+        categories: collCat.player
+        collidesWith: collCat.door | collCat.wall
     }
     Keys.forwardTo: ctrl
     GameController {id: ctrl; anchors.fill: parent;
@@ -77,7 +82,7 @@ ClayWorld
         color: "#de8787"
         xWu: 3.5; yWu: 9; widthWu: .9; heightWu: widthWu;
         bodyType: Body.Kinematic; sensor: true;
-        categories: theWorld._collCatNpc; collidesWith: theWorld._collCatDoor
+        categories: collCat.npc; collidesWith: collCat.door
         property alias openDoorAction: openDoor
         FollowPath{
             id: _followP; debug: theWorld.behaviorDebug; debugColor: parent.color ; world: theWorld;
@@ -95,8 +100,8 @@ ClayWorld
                           ['SpawnArea', spawnAreaComp]])
     Component {id: wallComp; RectBoxBody { color: "#333333";
 
-        categories: theWorld._collCatWall
-        collidesWith: theWorld._collCatPlayer
+        categories: collCat.wall
+        collidesWith: collCat.player
         } }
 
     property var path: []
@@ -116,7 +121,7 @@ ClayWorld
             property var path: []
             bodyType: Body.Kinematic;
             friction: 0
-            categories: theWorld._collCatDoor; collidesWith: theWorld._collCatPlayer
+            categories: collCat.door; collidesWith: collCat.player
             property int idx: 0;  onIdxChanged: {let p = path[idx]; _b.destXWu = p.x; _b.destYWu = p.y; _b.running = true}
             MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running && theWorld.behaviorDebug; debugColor: parent.color}
         }}
@@ -134,7 +139,7 @@ ClayWorld
     Component{ id: doorSwitchComp
     RectTrigger{
         visible: true; color: "#92c0df"
-        categories: theWorld._collCatDoor; collidesWith: theWorld._collCatNpc
+        categories: collCat.door; collidesWith: collCat.npc
         onEntered: {door.idx = 1; closeTimer.restart(); entity.openDoorAction.start();}
         Timer{id: closeTimer; interval: 2500; onTriggered: door.idx = 0;}
     }
