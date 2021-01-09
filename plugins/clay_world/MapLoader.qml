@@ -68,12 +68,12 @@ SvgReader
         box2dWorkaround(obj);
     }
 
-    onBeginGroup: world.groupAboutToBeLoaded(name, description)
+    onBeginGroup: world.groupAboutToBeLoaded(id, description)
     onEndGroup: world.groupLoaded()
 
     onPolygon: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.polygonLoaded(points, description); return;}
+        if (!cfg) {world.polygonLoaded(id, points, description); return;}
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, { canvas: world, vertices: points });
         _mapEntityCreated(obj, cfg);
@@ -81,13 +81,13 @@ SvgReader
 
     onRectangle: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.rectangleLoaded(x, y, width, height, description); return;}
+        if (!cfg) {world.rectangleLoaded(id, x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
         _mapEntityCreated(obj, cfg);
     }
 
-    onPolyline: world.polylineLoaded(points, description)
-    onCircle: world.circleLoaded(x, y, radius, description)
+    onPolyline: world.polylineLoaded(id, points, description)
+    onCircle: world.circleLoaded(id, x, y, radius, description)
 }
 

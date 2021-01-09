@@ -19,7 +19,7 @@ void SvgReader::onFileChanged(const QString& /*path*/)
     introspect();
 }
 
-void SvgReader::onPath(const QString& dAttr, const QString& descr, double heightWu)
+void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& descr, double heightWu)
 {
     const auto dPoly = dAttr.split(" ");
 
@@ -63,8 +63,8 @@ void SvgReader::onPath(const QString& dAttr, const QString& descr, double height
         varPoints.push_back(applyGroupTransform(p.x(), p.y()));
     }
 
-    if (isPolygon) emit polygon(varPoints, descr);
-    else emit polyline(varPoints, descr);
+    if (isPolygon) emit polygon(id, varPoints, descr);
+    else emit polyline(id, varPoints, descr);
 }
 
 void SvgReader::listToPoints(const QString& lst,
@@ -127,18 +127,19 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
 
     auto nam = xmlReader.name();
     auto attribs = xmlReader.attributes();
+    const auto id = attribs.value("id").toString();
     if (nam == "rect")
     {
         auto p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
-        emit rectangle(p.x(), heightWu - p.y(), width, height,  fetchDescr(xmlReader, token, currentTokenProcessed));
+        emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "circle")
     {
         auto p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
         auto radius = attribs.value("r").toFloat();
-        emit circle(p.x(), heightWu - p.y(), radius, fetchDescr(xmlReader, token, currentTokenProcessed));
+        emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "polygon" || nam == "polyline")
     {
@@ -147,14 +148,14 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
-            emit polygon(points, fetchDescr(xmlReader, token, currentTokenProcessed));
+            emit polygon(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
         else
-            emit polyline(points, fetchDescr(xmlReader, token, currentTokenProcessed));
+            emit polyline(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "path")
     {
         auto d = attribs.value("d").toString();
-        onPath(d, fetchDescr(xmlReader, token, currentTokenProcessed), heightWu);
+        onPath(id, d, fetchDescr(xmlReader, token, currentTokenProcessed), heightWu);
     }
 }
 

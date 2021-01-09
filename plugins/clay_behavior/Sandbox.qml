@@ -109,7 +109,7 @@ ClayWorld
             property int idx: 0;  onIdxChanged: {let p = path[idx]; _b.destXWu = p.x; _b.destYWu = p.y; _b.running = true}
             MoveTo {id: _b; world: theWorld; onArrived: running = false; anchors.centerIn: parent; running: false; debug: running; debugColor: parent.color}
         }}
-    onGroupAboutToBeLoaded: {_currentMapGroup=name;}
+    onGroupAboutToBeLoaded: {_currentMapGroup=id;}
     onMapEntityCreated: {
         if (!_currentMapGroup.startsWith("door")) return;
         door = obj;

@@ -65,11 +65,11 @@ ClayCanvas
     signal mapLoaded()
     signal mapEntityCreated(var obj, var compName)
     // All elements that haven't been instantiated via registred comp.
-    signal polylineLoaded(var points, var description)
-    signal polygonLoaded(var points, var description)
-    signal rectangleLoaded(var x, var y, var width, var height, var description)
-    signal circleLoaded(var x, var y, var radius, var description)
-    signal groupAboutToBeLoaded(var name, var description)
+    signal polylineLoaded(var id, var points, var description)
+    signal polygonLoaded(var id, var points, var description)
+    signal rectangleLoaded(var id, var x, var y, var width, var height, var description)
+    signal circleLoaded(var id, var x, var y, var radius, var description)
+    signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded()
 
     function _refreshMap() {
