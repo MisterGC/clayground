@@ -93,8 +93,8 @@ void SvgReader::listToPoints(const QString& lst,
             p.setY(p.y() - (heightWu - prev.y()));
         }
     }
-    for (const auto& p: pData) points.append(QVariant(applyGroupTransform(p.x(), p.y())));
-    if (closePath) points.push_back(QVariant(points.front()));
+    for (const auto& p: pData) points.append(applyGroupTransform(p.x(), p.y()));
+    if (closePath) points.push_back(QVariant(pData.front()));
 }
 
 QString SvgReader::fetchDescr(QXmlStreamReader &reader,
