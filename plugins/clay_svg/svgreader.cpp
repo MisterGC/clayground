@@ -1,11 +1,14 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 #include "svgreader.h"
+
 #include <QFile>
 #include <QXmlStreamReader>
 #include <QDebug>
 #include <QPointF>
 #include <QRegularExpression>
+#include <QStringView>
+#include <QVariant>
 
 SvgReader::SvgReader()
 {
@@ -90,8 +93,8 @@ void SvgReader::listToPoints(const QString& lst,
             p.setY(p.y() - (heightWu - prev.y()));
         }
     }
-    for (const auto& p: pData) points.append(applyGroupTransform(p.x(), p.y()));
-    if (closePath) points.push_back(points.front());
+    for (const auto& p: pData) points.append(QVariant(applyGroupTransform(p.x(), p.y())));
+    if (closePath) points.push_back(QVariant(points.front()));
 }
 
 QString SvgReader::fetchDescr(QXmlStreamReader &reader,
@@ -124,8 +127,22 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               bool& currentTokenProcessed,
                               const float& heightWu)
 {
+    auto fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
+    {
+        auto descr = QString("");
+        auto ok = xmlReader.readNextStartElement();
+        if (ok && xmlReader.name() == QString("desc")) {
+            xmlReader.readNext();
+            descr = xmlReader.text().toString();
+        }
+        else {
+            token = xmlReader.tokenType();
+            currentTokenProcessed = false;
+        }
+        return descr;
+    };
 
-    auto nam = xmlReader.name();
+    auto nam = xmlReader.name().toString();
     auto attribs = xmlReader.attributes();
     const auto id = attribs.value("id").toString();
     if (nam == "rect")
@@ -197,12 +214,12 @@ void SvgReader::introspect()
         if (currentTokenProcessed) token = xmlReader.readNext();
         else currentTokenProcessed = true;
 
-        auto nam = xmlReader.name();
+        auto nam = xmlReader.name().toString();
         if(token == QXmlStreamReader::StartElement && !defsSection)
         {
             if (nam == "svg") {
                 auto attribs = xmlReader.attributes();
-                auto wAttr = attribs.value("width");
+                auto wAttr = attribs.value("width").toString();
                 if (!wAttr.endsWith("mm")) qCritical() << "Only mm as unit is supported for SVG Inspection.";
                 auto widthWu = static_cast<float>(wAttr.left(wAttr.length()-2).toFloat());
                 auto hAttr = attribs.value("height");
