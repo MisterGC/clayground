@@ -1,7 +1,7 @@
 project (MyPlugin)
 set (CMAKE_AUTOMOC on)
 
-find_package(Qt5 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 add_library(${PROJECT_NAME} SHARED
     myplugin.cpp
@@ -26,9 +26,9 @@ PROPERTIES
 target_link_libraries(
 ${PROJECT_NAME}
 PRIVATE
-    Qt5::Core
-    Qt5::Quick
-    Qt5::Qml
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Qml
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

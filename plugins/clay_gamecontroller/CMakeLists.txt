@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 clay_p( ClayGameController
 #{
@@ -11,6 +11,6 @@ clay_p( ClayGameController
     SOURCES
         claygamectrlplugin.cpp clay_controller.qrc qmldir.in Sandbox.qml
     LINK_LIBS
-        Qt5::Core Qt5::Quick Qt5::Qml
+        Qt6::Core Qt6::Quick Qt6::Qml
 #}
 )

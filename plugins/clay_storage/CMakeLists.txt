@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 clay_p( ClayStorage
 #{
@@ -11,6 +11,6 @@ clay_p( ClayStorage
     SOURCES
         claystorageplugin.cpp clay_storage.qrc qmldir.in
     LINK_LIBS
-        Qt5::Core Qt5::Quick Qt5::Qml
+        Qt6::Core Qt6::Quick Qt6::Qml
 #}
 )
