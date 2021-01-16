@@ -10,7 +10,7 @@
 #include <QUrlQuery>
 #include <QSet>
 
-class ImageProvider: public QObject, public QQuickImageProvider
+class ImageProvider: public QQuickImageProvider
 {
     Q_OBJECT
 
