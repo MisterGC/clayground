@@ -4,12 +4,12 @@ import QtQuick 2.0
 
 Text {
     property ClayCanvas canvas: null
-    parent: canvas.coordSys
+    parent: canvas ? canvas.coordSys : null
     property real xWu: 0
     property real yWu: 0
     property real fontSizeWu: 10
 
-    x: canvas.xToScreen(xWu)
-    y: canvas.yToScreen(yWu)
-    font.pixelSize: fontSizeWu * canvas.pixelPerUnit
+    x: canvas ? canvas.xToScreen(xWu) : 0
+    y: canvas ? canvas.yToScreen(yWu) : 0
+    font.pixelSize: fontSizeWu * canvas ? canvas.pixelPerUnit : 0
 }

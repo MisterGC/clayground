@@ -9,7 +9,7 @@ SvgReader
     property var entities: []
     readonly property string componentPropKey: "component"
     required property var world
-    required property var components
+    property var components: []
 
     onBegin: {
         world.mapAboutToBeLoaded();
@@ -51,9 +51,13 @@ SvgReader
         }
     }
 
-    function canBeHandled(objCfg) {
-        return objCfg.hasOwnProperty(componentPropKey)
-                && components.has(objCfg[componentPropKey]);
+    function _fetchBuilderCfg(description) {
+        if (description.length === 0) return false;
+        let cfg = JSON.parse(description);
+        if (cfg.hasOwnProperty(componentPropKey) && components.has(cfg[componentPropKey]))
+            return cfg
+        else
+            return false;
     }
 
     function _mapEntityCreated(obj, cfg) {
@@ -64,23 +68,26 @@ SvgReader
         box2dWorkaround(obj);
     }
 
+    onBeginGroup: world.groupAboutToBeLoaded(id, description)
+    onEndGroup: world.groupLoaded()
+
     onPolygon: {
-        let cfg = JSON.parse(description);
-        if (!canBeHandled(cfg)) world.polygonLoaded(points, description);
+        let cfg = _fetchBuilderCfg(description);
+        if (!cfg) {world.polygonLoaded(id, points, description); return;}
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, { canvas: world, vertices: points });
         _mapEntityCreated(obj, cfg);
     }
 
     onRectangle: {
-        let cfg = JSON.parse(description);
-        if (!canBeHandled(cfg)) world.rectangleLoaded(x, y, width, height, description);
+        let cfg = _fetchBuilderCfg(description);
+        if (!cfg) {world.rectangleLoaded(id, x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
         let obj = comp.createObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
         _mapEntityCreated(obj, cfg);
     }
 
-    onPolyline: world.polylineLoaded(points, description)
-    onCircle: world.circleLoaded(x, y, radius, description)
+    onPolyline: world.polylineLoaded(id, points, description)
+    onCircle: world.circleLoaded(id, x, y, radius, description)
 }
 

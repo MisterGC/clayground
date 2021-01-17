@@ -5,10 +5,7 @@
 #include <QXmlStreamReader>
 #include <QDebug>
 #include <QPointF>
-
-#include <string>
-#include <regex>
-#include <sstream>
+#include <QRegularExpression>
 
 SvgReader::SvgReader()
 {
@@ -22,36 +19,52 @@ void SvgReader::onFileChanged(const QString& /*path*/)
     introspect();
 }
 
-void SvgReader::onPath(const QString& dAttr, const QString& descr, double heightWu)
+void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& descr, double heightWu)
 {
-    const auto dPoly = dAttr.toStdString();
+    const auto dPoly = dAttr.split(" ");
 
-    using namespace std;
-    const auto number = string("(?:\\s*[-]?\\d+(?:\\.\\d+)?\\s*)");
-    stringstream strstr;
-    strstr << "([mM])" << "((?:" << number << "," << number << ")+)" << "([zZ]?)";
-    const regex base_regex(strstr.str());
-    smatch base_match;
-    if (regex_match(dPoly, base_match, base_regex) &&
-        base_match.size() == 4 )
-    {
-        const auto m = base_match[1].str();
-        const auto pList = base_match[2].str();
-        const auto z = base_match[3].str();
+    QPointF refPos(0.,0.);
+    QChar cmd = 'M';
+    QVector<QPointF> points;
+    auto isPolygon = false;
 
-        auto lst = QString::fromStdString(pList).trimmed();
-        QVariantList points;
-        auto isPolygon = !z.empty();
-        listToPoints(lst, points, m == "M", heightWu, isPolygon);
-        if (isPolygon)
-            emit polygon(points, descr);
-        else
-            emit polyline(points, descr);
+    QRegularExpression supportedCmds("[MmLlVvHhZz]");
+    for (const auto& t: dPoly){
+        if (supportedCmds.match(t).hasMatch()){
+            cmd = *t.begin();
+            if (cmd == 'Z' || cmd == 'z') isPolygon = true;
+        }
+        else {
+            auto nums = t.split(",");
+            auto isnum = false;
+            if (nums.empty()) {qCritical() << "svg: Expected number(s) but got none."; return;}
+            auto n1 = nums[0].toFloat(&isnum);
+            if (!isnum) {qCritical() << "svg: Expected a number but got " << t << "."; return;}
+            auto n2 = nums.length() > 1 ? nums[1].toFloat() : 0.0;
+            using Point = QPointF;
+            // L and M cmds are treated as the same because subpaths are not (yet) supported
+            switch (cmd.toLatin1()) {
+                case ('L'):
+                case ('M'): {refPos = Point(n1,n2);} break;
+                case ('l'):
+                case ('m'): {refPos = Point(refPos.x() + n1, refPos.y() + n2);} break;
+                case ('V'): {refPos = Point(refPos.x(), n1);} break;
+                case ('v'): {refPos = Point(refPos.x(), refPos.y() + n1);} break;
+                case ('H'): {refPos = Point(n1, refPos.y());} break;
+                case ('h'): {refPos = Point(refPos.x() + n1, refPos.y());} break;
+            }
+            points.push_back(refPos);
+        }
     }
-    else {
-        qWarning() << "Skipping unsupported path "
-                   << dAttr;
+
+    QVariantList varPoints;
+    for (auto& p: points){
+        p.setY(heightWu - p.y()); // svg world to clay world units
+        varPoints.push_back(applyGroupTransform(p.x(), p.y()));
     }
+
+    if (isPolygon) emit polygon(id, varPoints, descr);
+    else emit polyline(id, varPoints, descr);
 }
 
 void SvgReader::listToPoints(const QString& lst,
@@ -65,9 +78,8 @@ void SvgReader::listToPoints(const QString& lst,
     for (auto& p: ppairs) {
         if (p.trimmed().isEmpty()) continue;
         auto c = p.split(",");
-        auto point = QPointF(c[0].toDouble(),
-                (heightWu - c[1].toDouble()));
-        pData.push_back(point);
+        auto pnt = QPointF(c[0].toDouble(), (heightWu - c[1].toDouble()));
+        pData.push_back(pnt);
     }
     if (pData.empty()) return;
     if (!absCoords) {
@@ -78,9 +90,33 @@ void SvgReader::listToPoints(const QString& lst,
             p.setY(p.y() - (heightWu - prev.y()));
         }
     }
-    for (const auto& p: pData) points.append(p);
-    if (closePath) points.push_back(pData.front());
+    for (const auto& p: pData) points.append(applyGroupTransform(p.x(), p.y()));
+    if (closePath) points.push_back(points.front());
 }
+
+QString SvgReader::fetchDescr(QXmlStreamReader &reader,
+                              QXmlStreamReader::TokenType &token,
+                              bool &currentTokenProcessed)
+{
+    auto descr = QString("");
+    auto ok = reader.readNextStartElement();
+    if (ok && reader.name() == "desc") {
+        reader.readNext();
+        descr = reader.text().toString();
+    }
+    else {
+        token = reader.tokenType();
+        currentTokenProcessed = false;
+    }
+    return descr;
+}
+
+QPointF SvgReader::applyGroupTransform(float x, float y) const
+{
+    auto pt = QPointF(x, y);
+    for (const auto& t: groupTranslates_) pt += t;
+    return pt;
+};
 
 
 void SvgReader::processShape(QXmlStreamReader& xmlReader,
@@ -88,38 +124,22 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               bool& currentTokenProcessed,
                               const float& heightWu)
 {
-    auto fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
-    {
-        auto descr = QString("");
-        auto ok = xmlReader.readNextStartElement();
-        if (ok && xmlReader.name() == "desc") {
-            xmlReader.readNext();
-            descr = xmlReader.text().toString();
-        }
-        else {
-            token = xmlReader.tokenType();
-            currentTokenProcessed = false;
-        }
-        return descr;
-    };
 
     auto nam = xmlReader.name();
     auto attribs = xmlReader.attributes();
+    const auto id = attribs.value("id").toString();
     if (nam == "rect")
     {
-        auto x = attribs.value("x").toFloat();
-        auto y = attribs.value("y").toFloat();
+        auto p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
-        auto descr = QString("");
-        emit rectangle(x, heightWu - y, width, height,  fetchDescr());
+        emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "circle")
     {
-        auto x = attribs.value("cx").toFloat();
-        auto y = attribs.value("cy").toFloat();
+        auto p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
         auto radius = attribs.value("r").toFloat();
-        emit circle(x, heightWu - y, radius, fetchDescr());
+        emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "polygon" || nam == "polyline")
     {
@@ -128,14 +148,14 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
-            emit polygon(points, fetchDescr());
+            emit polygon(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
         else
-            emit polyline(points, fetchDescr());
+            emit polyline(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
     }
     else if (nam == "path")
     {
         auto d = attribs.value("d").toString();
-        onPath(d, fetchDescr(), heightWu);
+        onPath(id, d, fetchDescr(xmlReader, token, currentTokenProcessed), heightWu);
     }
 }
 
@@ -166,6 +186,8 @@ void SvgReader::introspect()
 
     auto heightWu = 0.0f;
 
+    auto defsSection = false;
+
     // Can be used to avoid reading a further element if
     // logic has not used the current one and dispatching should be done
     auto currentTokenProcessed = true;
@@ -176,27 +198,42 @@ void SvgReader::introspect()
         else currentTokenProcessed = true;
 
         auto nam = xmlReader.name();
-        if(token == QXmlStreamReader::StartElement)
+        if(token == QXmlStreamReader::StartElement && !defsSection)
         {
             if (nam == "svg") {
                 auto attribs = xmlReader.attributes();
                 auto wAttr = attribs.value("width");
                 if (!wAttr.endsWith("mm")) qCritical() << "Only mm as unit is supported for SVG Inspection.";
-                auto widthWu = static_cast<int>(wAttr.left(wAttr.length()-2).toFloat());
+                auto widthWu = static_cast<float>(wAttr.left(wAttr.length()-2).toFloat());
                 auto hAttr = attribs.value("height");
-                heightWu = static_cast<int>(hAttr.left(hAttr.length()-2).toFloat());
+                heightWu = static_cast<float>(hAttr.left(hAttr.length()-2).toFloat());
                 emit begin(widthWu, heightWu);
             }
             else if (nam == "g") {
                 auto attribs = xmlReader.attributes();
-                auto lbl = attribs.value("inkscape:label").toString();
-                emit beginGroup(lbl);
+                auto id = attribs.value("id").toString();
+                auto translate = QPointF(0., 0.);
+                if (attribs.hasAttribute("transform")){
+                    auto transf = attribs.value("transform");
+                    const auto t = QString("translate(");
+                    if (transf.startsWith(t)){
+                        auto vals = transf.mid(t.length(),transf.length() - (t.length()+1)).split(",");
+                        translate = QPointF(vals[0].toFloat(), vals[1].toFloat());
+                    }
+                }
+                groupTranslates_.push(translate);
+                auto descr = fetchDescr(xmlReader, token, currentTokenProcessed);
+                emit beginGroup(id, descr);
             }
+            else if (nam == "defs") defsSection = true;
             else processShape(xmlReader, token, currentTokenProcessed, heightWu);
         }
-        else if (token == QXmlStreamReader::EndElement &&
-                 nam == "g") {
-            endGroup();
+        else if (token == QXmlStreamReader::EndElement){
+            if (nam == "g") {
+                groupTranslates_.pop();
+                emit endGroup();
+            }
+            else if (nam == "defs")  defsSection = false;
         }
     }
 

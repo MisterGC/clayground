@@ -1,9 +1,9 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import Clayground.Canvas 1.0
+import QtQuick 2.15
+import Clayground.Canvas 1.0 as Canv
 
-ClayCanvas
+Canv.ClayCanvas
 {
     id: theCanvas
 
@@ -14,20 +14,23 @@ ClayCanvas
 
     keyBoardNavigationEnabled: true
 
-    Component { id: geoFactory; Poly {canvas: theCanvas}}
-    Component { id: txtFactory; Text {canvas: theCanvas; fontSizeWu:.25}}
-    Component { id: imgFactory; Image{canvas: theCanvas; source: "image.svg"}}
+    Component { id: polyFactory; Canv.Poly {canvas: theCanvas}}
+    Component { id: txtFactory; Canv.Text {canvas: theCanvas; fontSizeWu:.25}}
+    Component { id: imgFactory; Canv.Image{canvas: theCanvas; source: "image.svg"}}
+    Component { id: rectFactory; Canv.Rectangle{color: "black"; canvas: theCanvas; xWu: 5; yWu: 4; widthWu: 2; heightWu: 3}}
 
     Component.onCompleted: {
         let line = [{x:3, y:3}, {x:5, y:5}]
-        geoFactory.createObject(theCanvas, {vertices: line})
+        polyFactory.createObject(theCanvas, {vertices: line})
 
         let triangle = [{x:6, y:6}, {x:7, y:6}, {x: 6.5, y:7}, {x:6, y:6}]
-        geoFactory.createObject(theCanvas, {vertices: triangle, fillColor:"orange"})
+        polyFactory.createObject(theCanvas, {vertices: triangle, fillColor:"orange"})
 
         let txt = "A triangle"
         txtFactory.createObject(theCanvas, {xWu:5.9, yWu:5.9, text:txt})
 
         imgFactory.createObject(theCanvas, {xWu:1.0, yWu:8.0, widthWu: 2.5, heightWu: 2.5})
+
+        rectFactory.createObject(theCanvas);
     }
 }

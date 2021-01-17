@@ -20,8 +20,8 @@ ClayCanvas
         id: svgSourceLoader
         SvgImageSource {
             Component.onCompleted: {
-                console.log("Does element rect1 exist? " + exists("rect1"))
-                console.log("Does element rect2 exist? " + exists("rect2"))
+                console.log("Does element rect1 exist? " + has("rect1"))
+                console.log("Does element rect2 exist? " + has("rect2"))
             }
             svgPath: "somegraphics"
         }
@@ -67,8 +67,21 @@ ClayCanvas
 
     Timer {
         running: true; interval: 500;
-        onTriggered: {theSvgReader.setSource(theWriter.path); svgSourceLoader.createObject(theCanvas);}}
+        onTriggered: {
+            console.log("Read the generated SVG:");
+            theSvgReader.setSource(theWriter.path);
 
+            console.log("\n\n")
+            console.log("Read one sample SVG (created with Inkscape):")
+            inkscapeSampleReader.setSource(ClayLiveLoader.sandboxDir + "/map.svg");
+
+            console.log("\n\n")
+            console.log("Check SVG Image Provider:")
+            svgSourceLoader.createObject(theCanvas);
+        }
+    }
+
+    // Read an SVG that has been created with the SVGWriter
     SvgReader
     {
         id: theSvgReader
@@ -125,5 +138,28 @@ ClayCanvas
             obj.fillColor = "transparent"
             objs.push(obj);
         }
+    }
+
+
+    // Read an SVG that has been created with Inkscape
+    SvgReader
+    {
+        id: inkscapeSampleReader
+        property var objs: []
+
+        onBegin: {
+            for (let obj of objs) obj.destroy();
+            objs = [];
+        }
+
+        onRectangle: {
+            console.log("Rectangle{x:" + x.toFixed(2) +
+                        " y:" + y.toFixed(2) +
+                        " w:" + width.toFixed(2) +
+                        " h:" + height.toFixed(2))
+        }
+
+        onBeginGroup: {console.log("groupid: " + name + " descr: " + description);}
+        onEndGroup: {}
     }
 }

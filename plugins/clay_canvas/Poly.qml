@@ -8,7 +8,7 @@ Shape {
     id: theShape
 
     property ClayCanvas canvas: null
-    parent: canvas.coordSys
+    parent: canvas ? canvas.coordSys : null
 
     property alias _shapePath: theShapePath
     property alias strokeWidth: theShapePath.strokeWidth
@@ -16,6 +16,7 @@ Shape {
     property alias fillColor:   theShapePath.fillColor
     property alias strokeStyle: theShapePath.strokeStyle
     property alias dashPattern: theShapePath.dashPattern
+    property bool closed: (fillColor != "transparent")
 
     Component.onCompleted: refresh();
 
@@ -25,20 +26,21 @@ Shape {
     property real _yWu: 0
     property real _widthWu: 0
     property real _heightWu: 0
-    x: canvas.xToScreen(_xWu)
-    y: canvas.yToScreen(_yWu)
-    width: _widthWu * canvas.pixelPerUnit
-    height: _heightWu * canvas.pixelPerUnit
+    x: canvas ? canvas.xToScreen(_xWu) : 0
+    y: canvas ? canvas.yToScreen(_yWu) : 0
+    width: _widthWu * canvas ? canvas.pixelPerUnit : 0
+    height: _heightWu * canvas ? canvas.pixelPerUnit : 0
     onVerticesChanged: refresh()
     function refresh() { _syncVisu(); }
     function _syncVisu() {
         theShapePath.pathElements = [];
+        let verts = theShape.vertices;
 
         let xMin = Number.MAX_VALUE;
         let yMin = Number.MAX_VALUE;
         let xMax = Number.MIN_VALUE;
         let yMax = Number.MIN_VALUE;
-        for (const p of theShape.vertices)  {
+        for (const p of verts)  {
          if (p.x < xMin) xMin = p.x;
          if (p.y < yMin) yMin = p.y;
          if (p.x > xMax) xMax = p.x;
@@ -49,8 +51,9 @@ Shape {
         theShape._widthWu = (xMax - xMin)
         theShape._heightWu = (yMax - yMin)
 
-        for (const [i, v] of theShape.vertices.entries())
+        for (const [i, v] of verts.entries())
             _addPoint(v, i===0);
+        if (verts.length > 0 && closed) _addPoint(verts[0]);
     }
 
     Component {id: pathLine; PathLine {}}

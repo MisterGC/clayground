@@ -2,6 +2,7 @@
 
 import QtQuick 2.0
 import Box2D 2.0
+import Clayground.Canvas 1.0
 
 Poly {
     id: thePoly

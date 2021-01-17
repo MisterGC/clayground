@@ -10,6 +10,7 @@ clay_p( ClaySvg
     URI Clayground.Svg
     SOURCES
         imageprovider.cpp svgplugin.cpp svgreader.cpp svgwriter.cpp svg.qrc qmldir.in
+        Sandbox.qml
     LINK_LIBS
         simple-svg-writer Qt5::Core Qt5::Quick Qt5::Qml Qt5::Svg
 #}

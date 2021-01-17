@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QFileSystemWatcher>
 #include <QXmlStreamReader>
+#include <QStack>
+#include <QPointF>
 
 class SvgReader: public QObject
 {
@@ -20,11 +22,11 @@ public slots:
 signals:
     void sourceChanged();
     void begin(float widthWu, float heightWu);
-    void beginGroup(const QString& grpName);
-    void rectangle(float x, float y, float width, float height, const QString& description);
-    void circle(float x, float y, float radius, const QString& description);
-    void polygon(const QVariantList& points, const QString& description);
-    void polyline(const QVariantList& points, const QString& description);
+    void beginGroup(const QString& id, const QString& description);
+    void rectangle(const QString& id, float x, float y, float width, float height, const QString& description);
+    void circle(const QString& id, float x, float y, float radius, const QString& description);
+    void polygon(const QString& id, const QVariantList& points, const QString& description);
+    void polyline(const QString& id, const QVariantList& points, const QString& description);
     void endGroup();
     void end();
 
@@ -38,11 +40,15 @@ private:
                       bool &currentTokenProcessed,
                       const float &heightWu);
     void resetFileObservation();
-    void onPath(const QString &dAttr, const QString &descr, double heightWu);
+    void onPath(const QString &id, const QString &dAttr, const QString &descr, double heightWu);
     void listToPoints(const QString &lst, QVariantList &points, bool absCoords, double heightWu, bool closePath);
+    QString fetchDescr(QXmlStreamReader &reader, QXmlStreamReader::TokenType &token, bool &currentTokenProcessed);
+    QPointF applyGroupTransform(float x, float y) const;
 
 private:
     QFileSystemWatcher fileObserver_;
     QString source_;
+
+    QStack<QPointF> groupTranslates_;
 };
 #endif
