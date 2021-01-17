@@ -26,9 +26,9 @@ PROPERTIES
 target_link_libraries(
 ${PROJECT_NAME}
 PRIVATE
-    Qt6::Core
-    Qt6::Quick
-    Qt6::Qml
+    Qt::Core
+    Qt::Quick
+    Qt::Qml
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

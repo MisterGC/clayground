@@ -6,7 +6,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 COMPONENTS Core Quick QuickWidgets REQUIRED)
+import_qt_components(Core Quick QuickWidgets)
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME}
@@ -21,8 +21,8 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
 PRIVATE 
   clayutilities
-  Qt6::Core
-  Qt6::Quick
-  Qt6::QuickWidgets
+  Qt::Core
+  Qt::Quick
+  Qt::QuickWidgets
   Threads::Threads
 )

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
+import_qt_components(Core Quick Qml)
 
 clay_p( ClayPhysics
 #{
@@ -11,6 +11,6 @@ clay_p( ClayPhysics
     SOURCES
         clayphysicsplugin.cpp clay_physics.qrc qmldir.in
     LINK_LIBS
-        Qt6::Core Qt6::Quick Qt6::Qml
+        Qt::Core Qt::Quick Qt::Qml
 #}
 )
