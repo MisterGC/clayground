@@ -12,7 +12,7 @@
    viewBox="0 0 71.561371 100.79476"
    version="1.1"
    id="svg1623"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   inkscape:version="1.0.1 (c497b03c, 2020-09-10)"
    sodipodi:docname="map.svg">
   <defs
      id="defs1617" />
@@ -23,16 +23,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="2.8"
-     inkscape:cx="143.46237"
-     inkscape:cy="333.92637"
+     inkscape:zoom="5.6"
+     inkscape:cx="264.17666"
+     inkscape:cy="205.71208"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1280"
-     inkscape:window-height="656"
+     inkscape:window-width="1440"
+     inkscape:window-height="847"
      inkscape:window-x="0"
-     inkscape:window-y="27"
+     inkscape:window-y="25"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -59,8 +59,7 @@
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(-0.09449405,0.75595238)">
+     id="layer1">
     <rect
        y="96.342812"
        x="0.036028408"
@@ -173,7 +172,7 @@
     </rect>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 63.202442,45.857302 1.773358,-1.429617 2.83833,0.704885 0.103383,4.779211 -3.224438,0.0757 -2.700655,0.01262 0.21468,-2.09304 z"
+       d="m 63.202442,45.999042 1.773358,-1.429617 2.83833,0.704885 0.103383,4.779211 -3.224438,0.0757 -2.700655,0.01262 0.21468,-2.09304 z"
        id="path915"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccccccc">
