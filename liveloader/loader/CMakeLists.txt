@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16)
 project(clayliveloader LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
