@@ -19,6 +19,16 @@ if(ANDROID AND ${QT_VERSION_MAJOR} LESS 6)
     message(FATAL_ERROR "Android builds of Clayground are only supported starting with Qt6")
 endif()
 
+if(ANDROID)
+    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+    set(ANDROID_EXTRA_PLUGINS "${CLAY_PLUGIN_BASE_DIR}/.." "${CLAY_PLUGIN_BASE_DIR}")
+#    if (ANDROID_ABI STREQUAL "armeabi-v7a")
+#        set(ANDROID_EXTRA_LIBS
+#            ${CMAKE_CURRENT_SOURCE_DIR}/path/to/libcrypto.so
+#            ${CMAKE_CURRENT_SOURCE_DIR}/path/to/libssl.so)
+#    endif()
+endif()
+
 add_subdirectory (liveloader)
 add_subdirectory (plugins)
 add_subdirectory (thirdparty/qml-box2d)
