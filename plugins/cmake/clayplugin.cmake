@@ -53,7 +53,7 @@ function(clay_p PLUGIN_NAME)
         $<TARGET_FILE_DIR:${PLUGIN_NAME}>/qmldir
     )
 
-    if (${QML_PLUGIN_LINK_TYPE} STREQUAL SHARED)
+    if (${QML_PLUGIN_LINK_TYPE} STREQUAL SHARED AND NOT ANDROID)
         FindQmlPluginDump()
 
         # Generate type info, so that types are available in Qt Creator ...
