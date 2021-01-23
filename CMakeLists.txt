@@ -14,6 +14,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
 endif()
 
 include(qtsupportutils)
+fetch_qt_version()
+if(ANDROID AND ${QT_VERSION_MAJOR} LESS 6)
+    message(FATAL_ERROR "Android builds of Clayground are only supported starting with Qt6")
+endif()
 
 add_subdirectory (liveloader)
 add_subdirectory (plugins)
