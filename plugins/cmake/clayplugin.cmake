@@ -31,16 +31,16 @@ function(clay_p PLUGIN_NAME)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
 
+    #TODO Check again when Qt6 Android CMake is ready
     #qt_add_plugin(${PLUGIN_NAME} TYPE ${PLUGIN_TYPE} ${CLAYPLUGIN_SOURCES})
     set(output_name ${PLUGIN_NAME})
     add_library(${PLUGIN_NAME} ${QML_PLUGIN_LINK_TYPE} ${CLAYPLUGIN_SOURCES})
     set_property(TARGET ${PLUGIN_NAME} PROPERTY OUTPUT_NAME "${output_name}")
     if (ANDROID)
-        qt6_android_apply_arch_suffix("${PLUGIN_NAME}")
         string(REPLACE "." "_" PLUGIN_TYPE "${CLAYPLUGIN_URI}")
         set_target_properties(${PLUGIN_NAME}
             PROPERTIES
-            LIBRARY_OUTPUT_NAME "plugins_${PLUGIN_TYPE}_${output_name}"
+            LIBRARY_OUTPUT_NAME "qml_${PLUGIN_TYPE}_${output_name}"
             )
     endif()
 
