@@ -5,8 +5,10 @@ enable_testing()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CLAY_PLUGIN_BASE_DIR ${CMAKE_BINARY_DIR}/bin/plugins/Clayground)
-set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/plugins CACHE STRING "" FORCE)
+# Qt(5) expects Android QML plugins to be located in a qml/...
+# dir therefore Clayground just uses this approach for all platforms
+set(CLAY_PLUGIN_BASE_DIR ${CMAKE_BINARY_DIR}/bin/qml/Clayground)
+set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/qml CACHE STRING "" FORCE)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
