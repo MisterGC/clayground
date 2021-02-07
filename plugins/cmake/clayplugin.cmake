@@ -73,7 +73,8 @@ function(clay_p PLUGIN_NAME)
         add_custom_command( TARGET ${PLUGIN_NAME} POST_BUILD
             COMMAND  ${QTPLUGINDUMP_BIN} -nonrelocatable
             ${CLAYPLUGIN_URI} ${CLAYPLUGIN_VERSION}
-            ${CLAYPLUGIN_DEST_DIR}/../.. ${CLAYPLUGIN_DEST_DIR}/plugin.qmltypes
+            -output ${CLAYPLUGIN_DEST_DIR}/plugin.qmltypes
+            ${CLAYPLUGIN_DEST_DIR}/../..
         )
     endif()
 
