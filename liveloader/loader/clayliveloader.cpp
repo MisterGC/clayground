@@ -29,7 +29,7 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
     connect(&engine_, &QQmlEngine::warnings, this, &Cll::onEngineWarnings);
 
     engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
-    engine_.addImportPath("plugins");
+    engine_.addImportPath("qml");
     engine_.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     reload_.setSingleShot(true);
