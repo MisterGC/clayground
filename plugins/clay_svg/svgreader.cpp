@@ -103,7 +103,7 @@ QString SvgReader::fetchDescr(QXmlStreamReader &reader,
 {
     auto descr = QString("");
     auto ok = reader.readNextStartElement();
-    if (ok && reader.name() == "desc") {
+    if (ok && reader.name().toString() == "desc") {
         reader.readNext();
         descr = reader.text().toString();
     }
@@ -150,13 +150,13 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
         auto width = attribs.value("width").toFloat();
         auto height = attribs.value("height").toFloat();
-        emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr(xmlReader, token, currentTokenProcessed));
+        emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr());
     }
     else if (nam == "circle")
     {
         auto p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
         auto radius = attribs.value("r").toFloat();
-        emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr(xmlReader, token, currentTokenProcessed));
+        emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr());
     }
     else if (nam == "polygon" || nam == "polyline")
     {
@@ -165,14 +165,14 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
-            emit polygon(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
+            emit polygon(id, points, fetchDescr());
         else
-            emit polyline(id, points, fetchDescr(xmlReader, token, currentTokenProcessed));
+            emit polyline(id, points, fetchDescr());
     }
     else if (nam == "path")
     {
         auto d = attribs.value("d").toString();
-        onPath(id, d, fetchDescr(xmlReader, token, currentTokenProcessed), heightWu);
+        onPath(id, d, fetchDescr(), heightWu);
     }
 }
 
@@ -231,7 +231,7 @@ void SvgReader::introspect()
                 auto id = attribs.value("id").toString();
                 auto translate = QPointF(0., 0.);
                 if (attribs.hasAttribute("transform")){
-                    auto transf = attribs.value("transform");
+                    auto transf = attribs.value("transform").toString();
                     const auto t = QString("translate(");
                     if (transf.startsWith(t)){
                         auto vals = transf.mid(t.length(),transf.length() - (t.length()+1)).split(",");
