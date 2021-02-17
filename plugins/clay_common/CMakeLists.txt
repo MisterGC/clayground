@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
+import_qt_components(Core Quick Qml)
 
 clay_p( ClayCommon
 #{
@@ -11,6 +11,6 @@ clay_p( ClayCommon
     SOURCES
         claycommonplugin.cpp clay_common.qrc qmldir.in
     LINK_LIBS
-        Qt5::Core Qt5::Quick Qt5::Qml
+        Qt::Core Qt::Quick Qt::Qml
 #}
 )

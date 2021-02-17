@@ -2,6 +2,7 @@
 
 #include "svgwriter.h"
 #include <simple-svg-writer/simple_svg.h>
+#include <QVariant>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
