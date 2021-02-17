@@ -54,7 +54,11 @@ ClayCanvas
     readonly property string _fullmappath: (map.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
     property alias components: mapLoader.components
-    MapLoader {id: mapLoader; world: _world;}
+    MapLoader {
+        id: mapLoader;
+        world: _world;
+        onLoaded: world.mapLoaded()
+    }
 
     onWidthChanged: _refreshMap()
     on_FullmappathChanged: _refreshMap()
@@ -76,11 +80,9 @@ ClayCanvas
         if (width > 0 || height > 0) {
             mapLoader.setSource("");
             mapLoader.setSource(_fullmappath);
-            _createdNotify.start();
         }
     }
 
-    Timer {id: _createdNotify; interval: 10; onTriggered: _world.mapLoaded()}
     onMapLoaded: _updateRoomContent()
 
     function _moveToRoomOnDemand() {
