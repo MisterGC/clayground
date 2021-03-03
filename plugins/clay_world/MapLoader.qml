@@ -19,7 +19,6 @@ SvgReader
     onLoadingFinishedChanged: if (loadingFinished) loaded()
 
     onBegin: {
-        console.log("Begin")
         _sourceProcessed = false;
         world.mapAboutToBeLoaded();
         world.viewPortCenterWuX = 0;
@@ -92,14 +91,15 @@ SvgReader
                 }
             }
         }
-        else { console.log("Here"); _mapEntityCreated(incubator.object, cfg); }
+        else { _mapEntityCreated(incubator.object, cfg); }
     }
 
     onPolygon: {
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.polygonLoaded(id, points, description); return;}
         let comp = fetchComp(cfg);
-        let obj = comp.createObject(world.room, { canvas: world, vertices: points });
+        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points });
+        onIncubationInitiated(inc, cfg)
     }
 
     onRectangle: {

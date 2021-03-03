@@ -18,19 +18,11 @@ ClayCanvas
     property alias xWuMax: _world.worldXMax
     property alias yWuMin: _world.worldYMin
     property alias yWuMax: _world.worldYMax
-    signal setupCompleted;
 
     Component.onCompleted: { _syncTimer.start();}
-
-    Timer {
-        id: _syncTimer; interval: 50;
-        onTriggered: {
-            _world.childrenChanged.connect(_moveToRoomOnDemand);
-            _world.room.childrenChanged.connect(_updateRoomContent);
-            _moveToRoomOnDemand();
-            setupCompleted();
-        }
-    }
+    onChildrenChanged: _moveToRoomOnDemand()
+    Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
+    Timer {id: _syncTimer; interval: 1; onTriggered: _moveToRoomOnDemand();}
 
 
     // PHYSICS
@@ -62,7 +54,14 @@ ClayCanvas
 
     onWidthChanged: _refreshMap()
     on_FullmappathChanged: _refreshMap()
-    onSetupCompleted: _refreshMap();
+
+    function _refreshMap() {
+        if (width > 0 || height > 0) {
+            mapLoader.setSource("");
+            mapLoader.setSource(_fullmappath);
+        }
+    }
+    onMapLoaded: _updateRoomContent()
 
     // Signals informing about the loading process
     signal mapAboutToBeLoaded()
@@ -76,14 +75,6 @@ ClayCanvas
     signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded()
 
-    function _refreshMap() {
-        if (width > 0 || height > 0) {
-            mapLoader.setSource("");
-            mapLoader.setSource(_fullmappath);
-        }
-    }
-
-    onMapLoaded: _updateRoomContent()
 
     function _moveToRoomOnDemand() {
         if (!_world) return;
