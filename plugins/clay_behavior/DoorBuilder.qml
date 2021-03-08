@@ -33,12 +33,13 @@ Item
             _doorPath = [];
             _switches = [];
         }
-        function onMapEntityCreated(obj, compName) {
+        function onMapEntityCreated(obj, groupId, compName) {
             if (!builder._active) return;
+            console.log("entity: " + compName + " " + groupId)
             if (compName === builder._doorCompName) _door = obj;
             if (compName === builder._switchCompName) _switches.push(obj);
         }
-        function onPolylineLoaded(id, points, desc) {if (builder._active) _doorPath = points;}
+        function onPolylineLoaded(id, groupId, points, desc) {if (builder._active) _doorPath = points;}
         function onGroupLoaded() {
             if (!builder._active) return;
             _door.path = _doorPath;
@@ -66,7 +67,10 @@ Item
             property var door: null
             visible: builder.world.behaviorDebug; color: "#92c0df"
             categories: collCat.door; collidesWith: collCat.npc
-            onEntered: {door.idx = 1; closeTimer.restart(); entity.openDoorAction.start();}
+            onEntered: {
+                door.idx = 1;
+                closeTimer.restart();
+                entity.openDoorAction.start();}
             Timer{id: closeTimer; interval: 2500; onTriggered: door.idx = 0;}
         }
     }

@@ -14,6 +14,7 @@ ClayWorld
     pixelPerUnit: height / theWorld.yWuMax
     gravity: Qt.point(0,0)
     map: "map.svg"
+    loadMapAsync: false
 
     // Activate to see behavior visualization
     property bool behaviorDebug: true
