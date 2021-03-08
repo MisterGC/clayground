@@ -6,10 +6,15 @@ import Clayground.Svg 1.0
 
 SvgReader
 {
+    property bool loadEntitiesAsync: false
     property var entities: []
     readonly property string componentPropKey: "component"
     required property var world
     property var components: []
+
+    property var _groupIdStack: []
+    property string _currentGroupId: _groupIdStack.length > 0 ? _groupIdStack[_groupIdStack.length-1]
+                                                            : ""
 
     // Async loading handling
     property bool _sourceProcessed: false
@@ -70,48 +75,55 @@ SvgReader
             return false;
     }
 
-    function _mapEntityCreated(obj, cfg) {
+    function _mapEntityCreated(obj, groupId, cfg) {
         customInit(obj, cfg);
         entities.push(obj);
         let compStr = cfg[componentPropKey];
-        world.mapEntityCreated(obj, compStr);
+        world.mapEntityCreated(obj, groupId, compStr);
         box2dWorkaround(obj);
     }
 
-    onBeginGroup: world.groupAboutToBeLoaded(id, description)
-    onEndGroup: world.groupLoaded()
+    onBeginGroup: {
+        _groupIdStack.push(id);
+        world.groupAboutToBeLoaded(_currentGroupId, description);
+    }
+    onEndGroup: {
+        let grpId = _groupIdStack.pop();
+        world.groupLoaded(grpId);
+    }
 
-    function onIncubationInitiated(incubator, cfg) {
+    function onIncubationInitiated(incubator, groupId, cfg) {
+        if (!loadEntitiesAsync) incubator.forceCompletion();
         if (incubator.status !== Component.Ready) {
             _numRunningIncubators++;
-            incubator.onStatusChanged = function(status) {
+            let stu = function(status, groupId) {
                 if (status === Component.Ready){
-                    _mapEntityCreated(incubator.object, cfg);
+                    _mapEntityCreated(incubator.object, groupId, cfg);
                     _numRunningIncubators--;
                 }
             }
+            incubator.onStatusChanged = status => stu(status, groupId);
         }
-        else { _mapEntityCreated(incubator.object, cfg); }
+        else { _mapEntityCreated(incubator.object, _currentGroupId, cfg); }
     }
 
     onPolygon: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.polygonLoaded(id, points, description); return;}
+        if (!cfg) {world.polygonLoaded(id, _currentGroupId, points, description); return;}
         let comp = fetchComp(cfg);
         let inc = comp.incubateObject(world.room, { canvas: world, vertices: points });
-        onIncubationInitiated(inc, cfg)
+        onIncubationInitiated(inc, _currentGroupId, cfg)
     }
 
     onRectangle: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.rectangleLoaded(id, x, y, width, height, description); return;}
+        if (!cfg) {world.rectangleLoaded(id, _currentGroupId, x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
         var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
-        //inc.forceCompletion();
-        onIncubationInitiated(inc, cfg);
+        onIncubationInitiated(inc, _currentGroupId, cfg);
     }
 
-    onPolyline: world.polylineLoaded(id, points, description)
-    onCircle: world.circleLoaded(id, x, y, radius, description)
+    onPolyline: world.polylineLoaded(id, _currentGroupId, points, description)
+    onCircle: world.circleLoaded(id, _currentGroupId, x, y, radius, description)
 }
 

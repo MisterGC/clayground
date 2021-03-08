@@ -12,6 +12,8 @@ ClayCanvas
 
     // GENERAL/SANDBOX
     property string map: ""
+    property alias loadMapAsync: mapLoader.loadEntitiesAsync
+
     property alias room: _world.coordSys
     property alias running: _physicsWorld.running
     property alias xWuMin: _world.worldXMin
@@ -19,10 +21,8 @@ ClayCanvas
     property alias yWuMin: _world.worldYMin
     property alias yWuMax: _world.worldYMax
 
-    Component.onCompleted: { _syncTimer.start();}
-    onChildrenChanged: _moveToRoomOnDemand()
+    Component.onCompleted: { _moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand);}
     Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
-    Timer {id: _syncTimer; interval: 1; onTriggered: _moveToRoomOnDemand();}
 
 
     // PHYSICS
@@ -66,12 +66,13 @@ ClayCanvas
     // Signals informing about the loading process
     signal mapAboutToBeLoaded()
     signal mapLoaded()
-    signal mapEntityCreated(var obj, var compName)
+    signal mapEntityCreated(var obj, var groupId, var compName)
+
     // All elements that haven't been instantiated via registred comp.
-    signal polylineLoaded(var id, var points, var description)
-    signal polygonLoaded(var id, var points, var description)
-    signal rectangleLoaded(var id, var x, var y, var width, var height, var description)
-    signal circleLoaded(var id, var x, var y, var radius, var description)
+    signal polylineLoaded(var id, var groupId, var points, var description)
+    signal polygonLoaded(var id, var groupId, var points, var description)
+    signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var description)
+    signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
     signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded()
 

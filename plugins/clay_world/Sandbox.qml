@@ -39,6 +39,7 @@ Item {
         // Load a map using an svg file - Clayground supports setting properties via
         // JSON data in descriptions of SVG elements (supported by Inkscape for example)
         map: "map.svg"
+        loadMapAsync: true
         components: new Map([ ['MyComplexComp', c1], ['Wall', c2] ])
         Component { id: c1; MyComplexComp {} }
         Component { id: c2; Wall {} }
