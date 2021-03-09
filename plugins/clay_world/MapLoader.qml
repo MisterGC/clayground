@@ -19,9 +19,10 @@ SvgReader
 
     // Async loading handling
     property bool _sourceProcessed: false
-    property int _numRunningIncubators: 0
+    property int _numIncubators: 0
+    property var _numIncubatorsPerGroup: new Map()
     signal loaded()
-    property bool loadingFinished: _sourceProcessed && (_numRunningIncubators === 0)
+    property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
     onLoadingFinishedChanged: if (loadingFinished) loaded()
 
     onBegin: {
@@ -86,22 +87,29 @@ SvgReader
 
     onBeginGroup: {
         _groupIdStack.push(id);
-        world.groupAboutToBeLoaded(_currentGroupId, description);
+        world.groupAboutToBeLoaded(id, description);
     }
     onEndGroup: {
         let grpId = _groupIdStack.pop();
-        world.groupLoaded(grpId);
+        if(!_numIncubatorsPerGroup.has(grpId)) world.groupLoaded(grpId);
     }
 
     function onIncubationInitiated(incubator, groupId, cfg) {
         world.mapEntityAboutToBeCreated(groupId, cfg);
         if (!loadEntitiesAsync) incubator.forceCompletion();
         if (incubator.status !== Component.Ready) {
-            _numRunningIncubators++;
+            _numIncubators++;
+            let nr = _numIncubatorsPerGroup.has(groupId) ?
+                     _numIncubatorsPerGroup.get(groupId) :
+                     0;
+            _numIncubatorsPerGroup.set(groupId, nr+1);
             let stu = function(status, groupId) {
                 if (status === Component.Ready){
                     _mapEntityCreated(incubator.object, groupId, cfg);
-                    _numRunningIncubators--;
+                    _numIncubators--;
+                    let nr = _numIncubatorsPerGroup.get(groupId)-1;
+                    _numIncubatorsPerGroup.set(groupId, nr);
+                    if(nr === 0) world.groupLoaded(groupId);
                 }
             }
             incubator.onStatusChanged = status => stu(status, groupId);
