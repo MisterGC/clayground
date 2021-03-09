@@ -75,7 +75,7 @@ ClayCanvas
     signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var description)
     signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
     signal groupAboutToBeLoaded(var id, var description)
-    signal groupLoaded()
+    signal groupLoaded(var id)
 
 
     function _moveToRoomOnDemand() {
