@@ -94,6 +94,7 @@ SvgReader
     }
 
     function onIncubationInitiated(incubator, groupId, cfg) {
+        world.mapEntityAboutToBeCreated(groupId, cfg);
         if (!loadEntitiesAsync) incubator.forceCompletion();
         if (incubator.status !== Component.Ready) {
             _numRunningIncubators++;

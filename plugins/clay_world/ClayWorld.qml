@@ -66,6 +66,7 @@ ClayCanvas
     // Signals informing about the loading process
     signal mapAboutToBeLoaded()
     signal mapLoaded()
+    signal mapEntityAboutToBeCreated(var groupId, var compName)
     signal mapEntityCreated(var obj, var groupId, var compName)
 
     // All elements that haven't been instantiated via registred comp.
