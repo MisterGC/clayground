@@ -13,8 +13,9 @@ SvgReader
     property var components: []
 
     property var _groupIdStack: []
-    property string _currentGroupId: _groupIdStack.length > 0 ? _groupIdStack[_groupIdStack.length-1]
-                                                            : ""
+    function _currentGroupId() {
+        return _groupIdStack.length > 0 ? _groupIdStack[_groupIdStack.length-1]: "";
+    }
 
     // Async loading handling
     property bool _sourceProcessed: false
@@ -104,26 +105,26 @@ SvgReader
             }
             incubator.onStatusChanged = status => stu(status, groupId);
         }
-        else { _mapEntityCreated(incubator.object, _currentGroupId, cfg); }
+        else { _mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
     }
 
     onPolygon: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.polygonLoaded(id, _currentGroupId, points, description); return;}
+        if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
         let comp = fetchComp(cfg);
         let inc = comp.incubateObject(world.room, { canvas: world, vertices: points });
-        onIncubationInitiated(inc, _currentGroupId, cfg)
+        onIncubationInitiated(inc, _currentGroupId(), cfg)
     }
 
     onRectangle: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.rectangleLoaded(id, _currentGroupId, x, y, width, height, description); return;}
+        if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
         var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
-        onIncubationInitiated(inc, _currentGroupId, cfg);
+        onIncubationInitiated(inc, _currentGroupId(), cfg);
     }
 
-    onPolyline: world.polylineLoaded(id, _currentGroupId, points, description)
-    onCircle: world.circleLoaded(id, _currentGroupId, x, y, radius, description)
+    onPolyline: world.polylineLoaded(id, _currentGroupId(), points, description)
+    onCircle: world.circleLoaded(id, _currentGroupId(), x, y, radius, description)
 }
 
