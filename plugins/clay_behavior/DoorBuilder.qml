@@ -12,10 +12,15 @@ Item
     required property ClayWorld world
 
     // Build a more complex object (automated door) based on groups in the map
-    property bool _active: false
-    property var _door: null
-    property var _doorPath: []
-    property var _switches: []
+    property var _producedDoors: new Map()
+
+    function _getDoor(groupId) {
+        if (!_producedDoors.has(groupId)) {
+            return null;
+        }
+        else
+            return _producedDoors.get(groupId);
+    }
 
     readonly property string _doorCompName: 'Door'
     readonly property string _switchCompName: 'DoorOpener'
@@ -28,23 +33,29 @@ Item
     Connections{
         target: world
         function onGroupAboutToBeLoaded(id, desc) {
-            builder._active = id.startsWith("door");
-            _door = null;
-            _doorPath = [];
-            _switches = [];
+            if (!id.startsWith("door")) return;
+            builder._producedDoors.set(id, {
+                                           _door: null,
+                                           _doorPath: [],
+                                           _switches: []
+                                       });
+        }
+        function onGroupLoaded(id) {
+            if (!id.startsWith("door")) return;
+            let door = builder._producedDoors.get(id);
+            door._door.path = door._doorPath;
+            for (let s of door._switches) s.door = door._door;
         }
         function onMapEntityCreated(obj, groupId, compName) {
-            if (!builder._active) return;
-            console.log("entity: " + compName + " " + groupId)
-            if (compName === builder._doorCompName) _door = obj;
-            if (compName === builder._switchCompName) _switches.push(obj);
+            let door = builder._getDoor(groupId);
+            if (!door) return;
+            if (compName === builder._doorCompName) door._door = obj;
+            if (compName === builder._switchCompName) door._switches.push(obj);
         }
-        function onPolylineLoaded(id, groupId, points, desc) {if (builder._active) _doorPath = points;}
-        function onGroupLoaded() {
-            if (!builder._active) return;
-            _door.path = _doorPath;
-            for (let s of _switches) s.door = _door;
-            builder._active = false;
+        function onPolylineLoaded(id, groupId, points, desc) {
+            let door = builder._getDoor(groupId);
+            if (!door) return;
+            door._doorPath = points;
         }
     }
 
