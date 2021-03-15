@@ -8,11 +8,16 @@ import Clayground.Storage 1.0
 
 Window {
     visible: true
-    x: Screen.desktopAvailableWidth * .01
-    y: Screen.desktopAvailableHeight * .35
-    width: Screen.desktopAvailableWidth * .32
-    height: width
+    x: keyvalues.get("x",Screen.desktopAvailableWidth * .01)
+    y: keyvalues.get("y",Screen.desktopAvailableHeight * .35)
+    width: keyvalues.get("width",Screen.desktopAvailableWidth * .32)
+    height: keyvalues.get("height",width)
     title: qsTr("Clay Live Loader")
+
+    onXChanged: keyvalues.set("x",x)
+    onYChanged: keyvalues.set("y",y)
+    onWidthChanged: keyvalues.set("width",width)
+    onHeightChanged: keyvalues.set("height",height)
 
     MessageView {
         id: claylog

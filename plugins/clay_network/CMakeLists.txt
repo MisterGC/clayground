@@ -1,7 +1,7 @@
-cmake_minimum_required (VERSION 3.12.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt5 5.14 REQUIRED COMPONENTS Core Quick Qml Network)
+import_qt_components(Core Quick Qml Network)
 
 clay_p( ClayNetwork
 #{
@@ -11,6 +11,6 @@ clay_p( ClayNetwork
     SOURCES
         claynetworkplugin.cpp lobby.h lobby.cpp qmldir.in
     LINK_LIBS
-        Qt5::Core Qt5::Quick Qt5::Qml Qt5::Network
+        Qt::Core Qt::Quick Qt::Qml Qt::Network
 #}
 )

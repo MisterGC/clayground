@@ -91,6 +91,12 @@ void Lobby::sendMsg(const QString &msg, const QString &UUID)
 void Lobby::joinGroup(const QString &group)
 {
     groupList.append(group);
+    QStringList glist = this->groups[group].toStringList();
+    if(!glist.contains(appUUID)){
+        glist.append(appUUID);
+        this->groups[group]=glist;
+        emit groupsChanged();
+    }
     emit connectedGroupsChanged();
 }
 
