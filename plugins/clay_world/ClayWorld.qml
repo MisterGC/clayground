@@ -10,16 +10,23 @@ ClayCanvas
 {
     id: _world
 
-    // GENERAL/SANDBOX
-    property string map: ""
-    property alias loadMapAsync: mapLoader.loadEntitiesAsync
-
+    // GENERAL PROPERTIES
     property alias room: _world.coordSys
     property alias running: _physicsWorld.running
     property alias xWuMin: _world.worldXMin
     property alias xWuMax: _world.worldXMax
     property alias yWuMin: _world.worldYMin
     property alias yWuMax: _world.worldYMax
+
+
+    // MAP LOADING
+    // Path to SVG which contains the initial world content
+    property string map: ""
+    // Base z-coord that is used when loading entities from the map
+    property alias baseZCoord: mapLoader.baseZCoord
+    property alias lastZCoord: mapLoader.lastZCoord
+    // true -> entities get loaded without block UI
+    property alias loadMapAsync: mapLoader.loadEntitiesAsync
 
     Component.onCompleted: { _moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand);}
     Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}

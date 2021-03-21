@@ -8,6 +8,8 @@ SvgReader
 {
     property bool loadEntitiesAsync: false
     property var entities: []
+    property real baseZCoord: 0
+    property real lastZCoord: baseZCoord
     readonly property string componentPropKey: "component"
     required property var world
     property var components: []
@@ -121,7 +123,7 @@ SvgReader
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
         let comp = fetchComp(cfg);
-        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points });
+        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points, z: ++lastZCoord });
         onIncubationInitiated(inc, _currentGroupId(), cfg)
     }
 
@@ -129,7 +131,7 @@ SvgReader
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
-        var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
+        var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, z: ++lastZCoord, widthWu: width, heightWu: height});
         onIncubationInitiated(inc, _currentGroupId(), cfg);
     }
 
