@@ -11,21 +11,23 @@ class Lobby : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
     QML_ELEMENT
-    Q_PROPERTY(QVariantMap apps READ getApps NOTIFY appsChanged)
-    Q_PROPERTY(QVariantMap groups READ getGroups NOTIFY groupsChanged)
-    Q_PROPERTY(QStringList connectedGroups READ getConnectedGroups NOTIFY connectedGroupsChanged)
-    Q_PROPERTY(QString appUUID READ getAppUUID)
+    Q_PROPERTY(QVariantMap apps READ getApps NOTIFY appsChanged) //All apps in the network
+    Q_PROPERTY(QVariantMap groups READ getGroups NOTIFY groupsChanged) //All groups in the network
+    Q_PROPERTY(QStringList connectedGroups READ getConnectedGroups NOTIFY connectedGroupsChanged) //Groups this app is connected to
+    Q_PROPERTY(QString appUUID READ getAppUUID) //This app UUID
     Q_INTERFACES(QQmlParserStatus)
 public:
     explicit Lobby(QObject *parent = nullptr);
     void classBegin(){}
     void componentComplete() {start();}
     void start();
+    const QString appUUID = QUuid::createUuid().toString();
     QVariantMap getApps(){return QVariantMap(apps);}
+    QString getAppUUID(){return appUUID;}
     Q_INVOKABLE void connectApp(const QString &app);
     Q_INVOKABLE void sendMsg(const QString &msg, const QString &UUID = "");
-    const QString appUUID = QUuid::createUuid().toString();
-    QString getAppUUID(){return appUUID;}
+    Q_INVOKABLE QVariant getAppInfo(const QString &appUUID){return findAppByUUID(appUUID);}
+    Q_INVOKABLE QStringList getAppsInGroup(const QString &group){return groups[group].toStringList();}
 
     //Groups/rooms
     Q_INVOKABLE void joinGroup(const QString &group);
@@ -37,6 +39,7 @@ signals:
     void appsChanged();
     void groupsChanged();
     void connectedGroupsChanged();
+    void appsSharingGroupsChanged();
     void msgReceived(const QString &msg);
     void connectedTo(const QString &UUID);
 

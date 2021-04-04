@@ -51,6 +51,7 @@ void Lobby::start(){
 
     QJsonDocument doc(obj);
     datagram = doc.toJson(QJsonDocument::Compact);
+    apps[datagram]=QVariant(true);
 
 }
 
@@ -103,6 +104,7 @@ void Lobby::joinGroup(const QString &group)
 void Lobby::leaveGroup(const QString &group)
 {
     groupList.removeAll(group);
+    //TODO: Disconnect from other that doesn't share a group anymore
     emit connectedGroupsChanged();
 }
 

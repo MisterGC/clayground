@@ -6,10 +6,14 @@ Item {
     function updateGroups(groups){
         groupsModel.clear();
         for (var g in groups){
-            groupsModel.append({"group":g,"UUID":groups[g],"groupLength":groups[g].length})
-            console.log(lobby.appUUID+" "+groups[g])
-            console.log(groups[g].length)
+            if(g)
+                groupsModel.append({"group":g,"groupLength":groups[g]===undefined?0:groups[g].length})
         }
+    }
+
+    Timer{
+        interval: 500; running: parent.visible; repeat: true
+        onTriggered: updateGroups(lobby.groups)
     }
 
     Rectangle {
@@ -77,7 +81,8 @@ Item {
                                     }
                                     Button{
                                         text: "Join"
-                                        onClicked: lobby.joinGroup(group)
+                                        enabled: groupLength<8
+                                        onClicked: join(group)
                                     }
                                 }
                             }
@@ -86,6 +91,13 @@ Item {
                 }
             }
         }
+    }
+
+    function join(group){
+        lobby.joinGroup(group)
+        visible=false
+        waitingRoom.visible=true
+        waitingRoom.groupName=group
     }
 
     Rectangle{
@@ -109,6 +121,7 @@ Item {
                 }
                 TextField{
                     id: groupField
+                    focus: true
                 }
             }
             Row{
@@ -116,7 +129,7 @@ Item {
                 Button{
                     text: "Create"
                     onClicked: {
-                        lobby.joinGroup(groupField.text);
+                        join(groupField.text);
                         modelNewGroup.visible=false
                     }
                 }
