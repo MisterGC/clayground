@@ -10,19 +10,19 @@ Rectangle {
 
     onVisibleChanged: {
         if(visible){
-            playersInTheRoom(lobby.getAppsInGroup(groupName))
+            playersInTheRoom(lobby.appsInGroup(groupName))
         }
     }
 
     function playersInTheRoom(apps){
         appsModel.clear()
         for (var i in apps) {
-            appsModel.append(JSON.parse(lobby.getAppInfo(apps[i])));
+            appsModel.append(JSON.parse(lobby.appInfo(apps[i])));
         }
     }
     Timer{
         interval: 500; running: waitingRoom.visible; repeat: true
-        onTriggered: playersInTheRoom(lobby.getAppsInGroup(groupName))
+        onTriggered: playersInTheRoom(lobby.appsInGroup(groupName))
     }
 
     ListModel{
