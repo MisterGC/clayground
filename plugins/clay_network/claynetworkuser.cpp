@@ -1,5 +1,5 @@
 #include "claynetworkuser.h"
-#include <iostream>
+#include <QDebug>
 
 ClayNetworkUser::ClayNetworkUser(QObject *parent) :QObject(parent)
 {}
@@ -13,10 +13,9 @@ void ClayNetworkUser::start(){
     auto tcpPort = setupTcp();
 
     QJsonObject obj{
-        {"localHostName", QHostInfo::localHostName()},
         {"tcpPort", tcpPort},
         {"ipList", ""},
-        {"UUID", userId_}
+        {"userId", userId_}
     };
 
     auto allAddr = QNetworkInterface::allAddresses();
@@ -30,12 +29,12 @@ void ClayNetworkUser::start(){
 
     QJsonDocument doc(obj);
     datagram_ = doc.toJson(QJsonDocument::Compact);
-    users_[userId_] = datagram_;
+    users_[userId_] = QString(datagram_);
 }
 
 QVariantMap ClayNetworkUser::allGroups() const
 {
-    return QVariantMap(allGroups_);
+    return allGroups_;
 }
 
 QStringList ClayNetworkUser::groups() const
@@ -45,7 +44,7 @@ QStringList ClayNetworkUser::groups() const
 
 QVariantMap ClayNetworkUser::allUsers() const
 {
-    return QVariantMap(users_);
+    return users_;
 }
 
 QString ClayNetworkUser::userId() const {
@@ -53,64 +52,68 @@ QString ClayNetworkUser::userId() const {
 }
 
 Q_INVOKABLE QVariant ClayNetworkUser::userInfo(const QString &userId){
-    return userById(userId);
+    return userInfoForId(userId);
 }
 
 Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) const {
     return allGroups_[group].toStringList();
 }
 
-void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &uuid)
+void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
 {
-    if(!uuid.size()) return;
-    writeTCPMsg(tcpSocketMap_[uuid], msg);
+    if(!tcpSocketMap_.contains(userId)) {
+        qWarning() << "Cannot send direct message, there is no user " << userId;
+        return;
+    }
+    writeTcpMsg(tcpSocketMap_[userId], msg);
 }
 
 void ClayNetworkUser::sendMessage(const QString &msg)
 {
-    auto sockets = tcpSocketMap_.values();
-    for(auto* socket: sockets)
-        writeTCPMsg(socket,msg);
+    QSet<QString> relevantUsers;
+    for (const auto& g: groups_){
+        auto members = allGroups_[g].toStringList();
+        for (const auto& m: members) relevantUsers.insert(m);
+    }
+    for (const auto& u: relevantUsers){
+        if (tcpSocketMap_.contains(u))
+            writeTcpMsg(tcpSocketMap_[u],msg);
+    }
 }
 
-void ClayNetworkUser::joinGroup(const QString &group)
+void ClayNetworkUser::joinGroup(const QString &groupId)
 {
-    groups_.append(group);
-    auto glist = allGroups_[group].toStringList();
+    if (groups_.contains(groupId)) return;
+
+    groups_.append(groupId);
+    auto glist = allGroups_[groupId].toStringList();
     if(!glist.contains(userId_)){
         glist.append(userId_);
-        allGroups_[group]=glist;
+        allGroups_[groupId]=glist;
         emit groupsChanged();
     }
-    emit groupsChanged();
 }
 
-void ClayNetworkUser::leaveGroup(const QString &id)
+void ClayNetworkUser::leaveGroup(const QString &groupId)
 {
-    groups_.removeAll(id);
-    //TODO: Disconnect from other that doesn't share a group anymore
-    emit groupsChanged();
-}
+    if (groups_.contains(groupId)) return;
 
-void ClayNetworkUser::writeTCPMsg(QTcpSocket *socket, const QString &msg)
-{    
-    if(socket){
-        QJsonObject obj;
-        obj["m"] = msg;
-        auto json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
-        socket->write(json.data());
-        socket->flush();
-        socket->waitForBytesWritten(1000);
+    groups_.removeAll(groupId);
+    auto glist = allGroups_[groupId].toStringList();
+    if(glist.contains(userId_)){
+        glist.removeAll(userId_);
+        allGroups_[groupId]=glist;
+        emit groupsChanged();
     }
 }
 
-QString ClayNetworkUser::userById(const QString &userId) const
+QString ClayNetworkUser::userInfoForId(const QString &userId) const
 {
-    auto keys = users_.keys();
-    for(auto& user: keys){
-        if(user.contains(userId)) return user;
+    if (!users_.contains(userId)) {
+       qWarning() << userId_ << " doesn't know "  << userId;
+       return "";
     }
-    return "";
+    return users_[userId].toString();
 }
 
 void ClayNetworkUser::processReceivedMessage(QString &msg)
@@ -130,27 +133,27 @@ void ClayNetworkUser::processReceivedMessage(QString &msg)
 
 void ClayNetworkUser::setupUdp()
 {
-    thread_.reset(new QThread(this));
+    thread_ = new QThread(this);
     timer_.setInterval(interval_);
-    timer_.moveToThread(thread_.get());
+    timer_.moveToThread(thread_);
     thread_->start();
-    connect(thread_.get(), SIGNAL(started()), &timer_, SLOT(start()));
+    connect(thread_, SIGNAL(started()), &timer_, SLOT(start()));
 
-    udpSocket_.reset(new QUdpSocket(this));
+    udpSocket_ = new QUdpSocket(this);
     udpSocket_->bind(port_, QUdpSocket::ShareAddress);
+    connect(udpSocket_, SIGNAL(readyRead()), this, SLOT(processDatagram()));
     connect(&timer_, SIGNAL(timeout()), this, SLOT(broadcastDatagram()));
-    connect(udpSocket_.get(), SIGNAL(readyRead()), this,SLOT(processDatagram()));
 }
 
 void ClayNetworkUser::broadcastDatagram()
 {
-    //Broadcast app details
+    //Broadcast user details
     udpSocket_->writeDatagram(datagram_, QHostAddress::Broadcast, port_);
 
     //Broadcast joined groups
-    if(allGroups_.count()>0) {
+    if(groups_.count()>0) {
         QJsonObject obj;
-        obj["UUID"] = userId_;
+        obj["userId"] = userId_;
         obj["groups"] = groups_.join(",");
         QJsonDocument doc(obj);
         udpSocket_->writeDatagram(doc.toJson(QJsonDocument::Compact), QHostAddress::Broadcast, port_);
@@ -166,29 +169,27 @@ void ClayNetworkUser::processDatagram()
         udpSocket_->readDatagram(datagram.data(), datagram.size());
 
         auto jsondoc = QJsonDocument::fromJson(datagram);
-        auto uuid = jsondoc["UUID"].toString();
-        if (uuid == userId_) continue;
+        auto userId = jsondoc["userId"].toString();
+        if (userId == userId_) continue;
 
-        if(!users_.count(datagram)){
-            users_[datagram]=QVariant(true);
+        if(!users_.contains(userId)){
+            users_[userId]=QString(datagram);
+            connectViaTcpOnDemand(userInfoForId(userId));
             emit usersChanged();
         }
 
-        if(!jsondoc["groups"].isUndefined())
+        auto grStr = jsondoc["groups"].toString();
+        if (grStr.isEmpty()) return;
+
+        auto grps = grStr.split(",");
+        for(const auto& group: grps)
         {
-            auto grps = jsondoc["groups"].toString().split(",");
-            for(const auto& group: grps)
-            {
-                auto glist = allGroups_[group].toStringList();
-                if(!glist.contains(uuid)){
-                    glist.append(uuid);
-                    allGroups_[group]=glist;
-                    emit groupsChanged();
-                }
-                connectToUserViaTCP(userById(uuid));
+            auto glist = allGroups_[group].toStringList();
+            if(!glist.contains(userId)){
+                glist.append(userId);
+                allGroups_[group]=glist;
                 emit groupsChanged();
             }
-            continue;
         }
     }
 }
@@ -198,51 +199,62 @@ void ClayNetworkUser::processDatagram()
 
 int ClayNetworkUser::setupTcp(){
     auto tcpPort = port_+1;
-    tcpServer_.reset(new QTcpServer(this));
-    tcpSocket_.reset(new QTcpSocket(this));
-    connect(tcpSocket_.get(), SIGNAL(readyRead()), this,SLOT(readTCPDatagram()));
-    connect(tcpServer_.get(), SIGNAL(newConnection()), this, SLOT(newTCPConnection()));
-    while(tcpPort < port_+10 && !tcpServer_->listen(QHostAddress::Any, tcpPort))
+    tcpServer_ = new QTcpServer(this);
+    tcpSocket_ = new QTcpSocket(this);
+    connect(tcpSocket_, SIGNAL(readyRead()), this, SLOT(readTcpMessage()));
+    connect(tcpServer_, SIGNAL(newConnection()), this, SLOT(newTcpConnection()));
+    while(tcpPort < port_+30 && !tcpServer_->listen(QHostAddress::Any, tcpPort))
         tcpPort++;
     return tcpPort;
 }
 
-void ClayNetworkUser::connectToUserViaTCP(const QString &userId)
+void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
 {
-    auto doc = QJsonDocument::fromJson(userId.toUtf8());
+    auto doc = QJsonDocument::fromJson(userInfo.toUtf8());
     auto obj = doc.object();
-    auto uuid = obj["UUID"].toString();
+    if (!obj.contains("userId")) return;
+    auto userId = obj["userId"].toString();
 
-    if(tcpSocketMap_.count(uuid) == 0)
+    if(tcpSocketMap_.count(userId) == 0)
     {
         auto ipList = obj["ipList"].toString().split(",");
+        auto port = obj["tcpPort"].toInt();
         for(const auto& ip: ipList)
         {
-            // TODO Fix leak
             auto* socket = new QTcpSocket(this);
-            socket->connectToHost(ip, obj["tcpPort"].toInt());
+            socket->connectToHost(ip, port);
             if (socket->waitForConnected(1000))
             {
-                connect(socket, SIGNAL(readyRead()), this, SLOT(readTCPDatagram()));
-                tcpSocketMap_[uuid] = socket;
-                socket->write(("setUUID="+userId_).toStdString().data());
-                socket->flush();
-                socket->waitForBytesWritten(1000);
-                emit connectedTo(uuid);
+                connect(socket, SIGNAL(readyRead()), this, SLOT(readTcpMessage()));
+                tcpSocketMap_[userId] = socket;
+                emit connectedTo(userId);
                 return;
             }
+            else
+                socket->deleteLater();
         }
     }
 }
 
-void ClayNetworkUser::newTCPConnection()
+void ClayNetworkUser::newTcpConnection()
 {
     auto *socket = tcpServer_->nextPendingConnection();
     tcpSocketUnnamedList_.append(socket);
-    connect(socket, SIGNAL(readyRead()), this,SLOT(readTCPDatagram()));
+    connect(socket, SIGNAL(readyRead()), this,SLOT(readTcpMessage()));
 }
 
-void ClayNetworkUser::readTCPDatagram()
+void ClayNetworkUser::writeTcpMsg(QTcpSocket *socket, const QString &msg)
+{
+    if(socket){
+        QJsonObject obj{{"m", msg}};
+        auto json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+        socket->write(json.data());
+        socket->flush();
+        socket->waitForBytesWritten(1000);
+    }
+}
+
+void ClayNetworkUser::readTcpMessage()
 {
     auto sockets = tcpSocketMap_.values();
     for (auto *socket: sockets) {
@@ -254,13 +266,7 @@ void ClayNetworkUser::readTCPDatagram()
     for(int i = tcpSocketUnnamedList_.size()-1;i>=0;i--) {
         auto* socket=tcpSocketUnnamedList_[i];
         auto msg = QString(socket->readAll());
-        if(msg.startsWith("setUUID=")){
-                tcpSocketMap_[msg.replace("setUUID=","")]=socket;
-                tcpSocketUnnamedList_.removeAt(i);
-                emit connectedTo(msg.replace("setUUID=",""));
-        }
-        else
-            processReceivedMessage(msg);
+        processReceivedMessage(msg);
     }
 }
 

@@ -5,7 +5,6 @@
 #include <QtNetwork>
 #include <QMap>
 #include <QVariant>
-#include <memory>
 
 class ClayNetworkUser : public QObject, public QQmlParserStatus
 {
@@ -25,7 +24,7 @@ public:
 
     QVariantMap allUsers() const;
     QString userId() const;
-    Q_INVOKABLE void connectToUserViaTCP(const QString &userId);
+    Q_INVOKABLE void connectViaTcpOnDemand(const QString &userInfo);
     Q_INVOKABLE void sendDirectMessage(const QString &msg, const QString &userId = "");
     Q_INVOKABLE void sendMessage(const QString &msg);
     Q_INVOKABLE QVariant userInfo(const QString &userId);
@@ -43,11 +42,11 @@ signals:
     void allGroupdsChanged();
     void appsSharingGroupsChanged();
     void msgReceived(const QString &msg);
-    void connectedTo(const QString &UUID);
+    void connectedTo(const QString &otherUser);
 
 private:
-    void writeTCPMsg(QTcpSocket* socket, const QString &msg);
-    QString userById(const QString& uuid) const;
+    void writeTcpMsg(QTcpSocket* socket, const QString &msg);
+    QString userInfoForId(const QString& uuid) const;
     void processReceivedMessage(QString &msg);
     int setupTcp();
     void setupUdp();
@@ -55,22 +54,22 @@ private:
 private slots:
     void broadcastDatagram();
     void processDatagram();
-    void newTCPConnection();
-    void readTCPDatagram();
+    void newTcpConnection();
+    void readTcpMessage();
 
 private:
     const QString userId_ = QUuid::createUuid().toString();
-    std::unique_ptr<QUdpSocket> udpSocket_ = nullptr;
-    std::unique_ptr<QTcpSocket> tcpSocket_ = nullptr;
-    std::unique_ptr<QTcpServer> tcpServer_ = nullptr;
+    QUdpSocket* udpSocket_ = nullptr;
+    QTcpSocket* tcpSocket_ = nullptr;
+    QTcpServer* tcpServer_ = nullptr;
     QMap<QString,QTcpSocket*> tcpSocketMap_; //Map of the connected TCP sockets
     QStringList groups_; //Groups the user is connected to
-    QMap<QString,QVariant>  allGroups_; //Groups mapped in the network
+    QVariantMap allGroups_; //Groups mapped in the network
     QList<QTcpSocket*> tcpSocketUnnamedList_;
     QTimer timer_;
-    std::unique_ptr<QThread> thread_;
+    QThread* thread_;
     int interval_ = 1000;
     int port_ = 3333;
     QByteArray datagram_;
-    QMap<QString, QVariant> users_;
+    QVariantMap users_;
 };
