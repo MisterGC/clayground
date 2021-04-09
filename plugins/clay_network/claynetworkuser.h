@@ -49,7 +49,7 @@ private:
     QString userInfoForId(const QString& uuid) const;
     void processReceivedMessage(QString &msg);
     int setupTcp();
-    void setupUdp();
+    void startExplorationViaUdp();
 
 private slots:
     void broadcastDatagram();
@@ -69,7 +69,6 @@ private:
     QStringList groups_; //Groups the user is connected to
     QVariantMap allGroups_; //Groups mapped in the network
     QTimer timer_;
-    QThread* thread_;
     int interval_ = 1000;
     QByteArray datagram_;
     QVariantMap users_;

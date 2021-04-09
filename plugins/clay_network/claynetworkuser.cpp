@@ -9,7 +9,6 @@ void ClayNetworkUser::componentComplete(){start();}
 
 void ClayNetworkUser::start(){
 
-    setupUdp();
     auto tcpPort = setupTcp();
 
     QJsonObject obj{
@@ -30,6 +29,8 @@ void ClayNetworkUser::start(){
     QJsonDocument doc(obj);
     datagram_ = doc.toJson(QJsonDocument::Compact);
     users_[userId_] = QString(datagram_);
+
+    startExplorationViaUdp();
 }
 
 QVariantMap ClayNetworkUser::allGroups() const
@@ -133,19 +134,16 @@ void ClayNetworkUser::processReceivedMessage(QString &msg)
 
 static constexpr auto BROADCAST_PORT = 45000u;
 
-void ClayNetworkUser::setupUdp()
+void ClayNetworkUser::startExplorationViaUdp()
 {
-    thread_ = new QThread(this);
     timer_.setInterval(interval_);
-    timer_.moveToThread(thread_);
-    thread_->start();
-    connect(thread_, SIGNAL(started()), &timer_, SLOT(start()));
 
     udpSocket_ = new QUdpSocket(this);
     udpSocket_->bind(QHostAddress::Any, BROADCAST_PORT, QUdpSocket::ShareAddress
                          | QUdpSocket::ReuseAddressHint);
     connect(udpSocket_, SIGNAL(readyRead()), this, SLOT(processDatagram()));
     connect(&timer_, SIGNAL(timeout()), this, SLOT(broadcastDatagram()));
+    timer_.start();
 }
 
 void ClayNetworkUser::broadcastDatagram()
