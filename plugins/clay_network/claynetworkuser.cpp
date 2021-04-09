@@ -131,6 +131,8 @@ void ClayNetworkUser::processReceivedMessage(QString &msg)
 
 ///////////////////////// UDP SPECIFICS
 
+static constexpr auto BROADCAST_PORT = 45000u;
+
 void ClayNetworkUser::setupUdp()
 {
     thread_ = new QThread(this);
@@ -140,7 +142,8 @@ void ClayNetworkUser::setupUdp()
     connect(thread_, SIGNAL(started()), &timer_, SLOT(start()));
 
     udpSocket_ = new QUdpSocket(this);
-    udpSocket_->bind(port_, QUdpSocket::ShareAddress);
+    udpSocket_->bind(QHostAddress::Any, BROADCAST_PORT, QUdpSocket::ShareAddress
+                         | QUdpSocket::ReuseAddressHint);
     connect(udpSocket_, SIGNAL(readyRead()), this, SLOT(processDatagram()));
     connect(&timer_, SIGNAL(timeout()), this, SLOT(broadcastDatagram()));
 }
@@ -148,7 +151,7 @@ void ClayNetworkUser::setupUdp()
 void ClayNetworkUser::broadcastDatagram()
 {
     //Broadcast user details
-    udpSocket_->writeDatagram(datagram_, QHostAddress::Broadcast, port_);
+    udpSocket_->writeDatagram(datagram_, QHostAddress::Broadcast, BROADCAST_PORT);
 
     //Broadcast joined groups
     if(groups_.count()>0) {
@@ -156,7 +159,8 @@ void ClayNetworkUser::broadcastDatagram()
         obj["userId"] = userId_;
         obj["groups"] = groups_.join(",");
         QJsonDocument doc(obj);
-        udpSocket_->writeDatagram(doc.toJson(QJsonDocument::Compact), QHostAddress::Broadcast, port_);
+        udpSocket_->writeDatagram(doc.toJson(QJsonDocument::Compact),
+                                  QHostAddress::Broadcast, BROADCAST_PORT);
     }
 }
 
