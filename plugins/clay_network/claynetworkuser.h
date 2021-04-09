@@ -47,7 +47,7 @@ signals:
 private:
     void writeTcpMsg(QTcpSocket* socket, const QString &msg);
     QString userInfoForId(const QString& uuid) const;
-    void processReceivedMessage(QString &msg);
+    void processReceivedMessage(const QString &msg);
     int setupTcp();
     void startExplorationViaUdp();
 

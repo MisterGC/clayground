@@ -62,8 +62,9 @@ Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) cons
 
 void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
 {
+    if (userId == userId_) { processReceivedMessage(msg); return; }
     if(!outTcpSocketMap_.contains(userId)) {
-        qWarning() << "Cannot send direct message, there is no user " << userId;
+        qWarning() << "User " << userId_  << "doesn't know recipient " << userId;
         return;
     }
     writeTcpMsg(outTcpSocketMap_[userId], msg);
@@ -117,11 +118,12 @@ QString ClayNetworkUser::userInfoForId(const QString &userId) const
     return users_[userId].toString();
 }
 
-void ClayNetworkUser::processReceivedMessage(QString &msg)
+void ClayNetworkUser::processReceivedMessage(const QString &msg)
 {
+    auto m = msg;
     //TODO: deal with the problem when the msg contains the string "}{"
-    msg = "[" + msg.replace("}{", "},{") + "]";
-    auto jsondoc = QJsonDocument::fromJson(msg.toStdString().data());
+    m = "[" + m.replace("}{", "},{") + "]";
+    auto jsondoc = QJsonDocument::fromJson(m.toStdString().data());
     auto arr = jsondoc.array();
     for(auto el: arr) {
         auto obj = el.toObject();
