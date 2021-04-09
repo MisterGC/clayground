@@ -59,17 +59,18 @@ private slots:
 
 private:
     const QString userId_ = QUuid::createUuid().toString();
-    QUdpSocket* udpSocket_ = nullptr;
-    QTcpSocket* tcpSocket_ = nullptr;
-    QTcpServer* tcpServer_ = nullptr;
-    QMap<QString,QTcpSocket*> tcpSocketMap_; //Map of the connected TCP sockets
+    QUdpSocket* udpSocket_ = nullptr; // Used for exploration within network
+    QTcpServer* tcpServer_ = nullptr; // Used for actual p2p communication
+
+    // TODO use only one socket (map) wait for id when incoming conn.
+    QMap<QString,QTcpSocket*> outTcpSocketMap_; // Used to send messages
+    QList<QTcpSocket*> inTcpSockets_; // Used to receive messages
+
     QStringList groups_; //Groups the user is connected to
     QVariantMap allGroups_; //Groups mapped in the network
-    QList<QTcpSocket*> tcpSocketUnnamedList_;
     QTimer timer_;
     QThread* thread_;
     int interval_ = 1000;
-    int port_ = 3333;
     QByteArray datagram_;
     QVariantMap users_;
 };

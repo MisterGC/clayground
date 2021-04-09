@@ -61,11 +61,11 @@ Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) cons
 
 void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
 {
-    if(!tcpSocketMap_.contains(userId)) {
+    if(!outTcpSocketMap_.contains(userId)) {
         qWarning() << "Cannot send direct message, there is no user " << userId;
         return;
     }
-    writeTcpMsg(tcpSocketMap_[userId], msg);
+    writeTcpMsg(outTcpSocketMap_[userId], msg);
 }
 
 void ClayNetworkUser::sendMessage(const QString &msg)
@@ -76,8 +76,8 @@ void ClayNetworkUser::sendMessage(const QString &msg)
         for (const auto& m: members) relevantUsers.insert(m);
     }
     for (const auto& u: relevantUsers){
-        if (tcpSocketMap_.contains(u))
-            writeTcpMsg(tcpSocketMap_[u],msg);
+        if (outTcpSocketMap_.contains(u))
+            writeTcpMsg(outTcpSocketMap_[u],msg);
     }
 }
 
@@ -198,14 +198,13 @@ void ClayNetworkUser::processDatagram()
 ///////////////////////// TCP SPECIFICS
 
 int ClayNetworkUser::setupTcp(){
-    auto tcpPort = port_+1;
     tcpServer_ = new QTcpServer(this);
-    tcpSocket_ = new QTcpSocket(this);
-    connect(tcpSocket_, SIGNAL(readyRead()), this, SLOT(readTcpMessage()));
     connect(tcpServer_, SIGNAL(newConnection()), this, SLOT(newTcpConnection()));
-    while(tcpPort < port_+30 && !tcpServer_->listen(QHostAddress::Any, tcpPort))
-        tcpPort++;
-    return tcpPort;
+    if (!tcpServer_->listen()){
+        qCritical() << "Unable to setup tcp " << tcpServer_->errorString();
+        return 0;
+    }
+    return tcpServer_->serverPort();
 }
 
 void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
@@ -215,7 +214,7 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
     if (!obj.contains("userId")) return;
     auto userId = obj["userId"].toString();
 
-    if(tcpSocketMap_.count(userId) == 0)
+    if(outTcpSocketMap_.count(userId) == 0)
     {
         auto ipList = obj["ipList"].toString().split(",");
         auto port = obj["tcpPort"].toInt();
@@ -225,8 +224,7 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
             socket->connectToHost(ip, port);
             if (socket->waitForConnected(1000))
             {
-                connect(socket, SIGNAL(readyRead()), this, SLOT(readTcpMessage()));
-                tcpSocketMap_[userId] = socket;
+                outTcpSocketMap_[userId] = socket;
                 emit connectedTo(userId);
                 return;
             }
@@ -239,7 +237,7 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
 void ClayNetworkUser::newTcpConnection()
 {
     auto *socket = tcpServer_->nextPendingConnection();
-    tcpSocketUnnamedList_.append(socket);
+    inTcpSockets_.append(socket);
     connect(socket, SIGNAL(readyRead()), this,SLOT(readTcpMessage()));
 }
 
@@ -256,16 +254,10 @@ void ClayNetworkUser::writeTcpMsg(QTcpSocket *socket, const QString &msg)
 
 void ClayNetworkUser::readTcpMessage()
 {
-    auto sockets = tcpSocketMap_.values();
-    for (auto *socket: sockets) {
-        auto msg = QString(socket->readAll());
-        processReceivedMessage(msg);
-    }
-
-    //TODO: If a socket gets too long in this list it should ask for its UUID or close the connection
-    for(int i = tcpSocketUnnamedList_.size()-1;i>=0;i--) {
-        auto* socket=tcpSocketUnnamedList_[i];
-        auto msg = QString(socket->readAll());
+    for(int i = inTcpSockets_.size()-1;i>=0;i--) {
+        auto& socket = *inTcpSockets_[i];
+        if (!socket.bytesAvailable()) continue;
+        auto msg = QString(socket.readAll());
         processReceivedMessage(msg);
     }
 }
