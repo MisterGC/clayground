@@ -8,10 +8,14 @@ Item
 {
     id: networkDemo
 
-    // Change the following two values to check scalability
-    // and performance:
-    readonly property int nrOfDynamicUsers: 12
-    readonly property int chatInterval: 100
+    // This demo demonstrates multiple aspects:
+    // Dynamically created set of users that communicate with each other
+    // Creation of one group with group-internal conversations
+    // Disconnect of one user after some time
+
+    // Change the following two values to check scalability and performance:
+    readonly property int nrOfDynamicUsers: 5
+    readonly property int chatInterval: 1000
 
     property var dynUsers: []
 
@@ -36,6 +40,7 @@ Item
 
     Component{
         id: dynUserComp
+
         Rectangle{
             id: rect
             color: Qt.hsla(.5, 1, .1 + (nrOfSentMsg/50) * .7, 1)
@@ -69,7 +74,7 @@ Item
         }
     }
 
-    // Demo of group-internal communication
+    // DEMO OF GROUP CONCEPT
     readonly property string group: "debating-society"
 
     Timer{
@@ -77,9 +82,11 @@ Item
         interval: chatInterval; running: true; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
-            let sender = arr[Math.floor(Math.random() * arr.length)];
-            let receiver = arr[Math.floor(Math.random() * arr.length)];
-            sender.sendDirectMessageVisu( "data from " + sender.nr, receiver);
+            if (arr.length) {
+                let sender = arr[Math.floor(Math.random() * arr.length)];
+                let receiver = arr[Math.floor(Math.random() * arr.length)];
+                sender.sendDirectMessageVisu( "data from " + sender.nr, receiver);
+            }
             alice.sendMessage(group + " rocks!")
         }
     }
@@ -88,6 +95,7 @@ Item
         id: alice
         Component.onCompleted: joinGroup(group)
         onConnectedTo: sendDirectMessage("Hi from Alice!", otherUser);
+        onDisconnectedFrom: console.log("Alice got disconnected from " + otherUser)
         onMsgReceived: console.log("Alice received: " + msg)
     }
 
@@ -95,13 +103,20 @@ Item
         id: bob
         Component.onCompleted: joinGroup(group)
         onConnectedTo: sendDirectMessage("Hi from Bob!", otherUser);
+        onDisconnectedFrom: console.log("Bob got disconnected from " + otherUser)
         onMsgReceived: {console.log("Bob received: " + msg);}
     }
+
+
+    // DISCONNECT AFTER SOME TIME (all others get informed)
+    Timer{interval: 5000; running: true; onTriggered: volatileUser.destroy();}
+    ClayNetworkUser{id: volatileUser; Component.onCompleted: joinGroup(group)}
 
     Text {
         anchors.horizontalCenter: parent.horizontalCenter;
         anchors.top: parent.top; anchors.topMargin: height * .5
         opacity: .8; font.pixelSize: parent.width * .03
-        text: "Please press 'L' to show networking log"}
+        text: "Please press 'L' to show networking log"
+    }
 
 }
