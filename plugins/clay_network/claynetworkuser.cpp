@@ -7,11 +7,14 @@ ClayNetworkUser::ClayNetworkUser(QObject *parent) :QObject(parent)
 void ClayNetworkUser::classBegin(){}
 void ClayNetworkUser::componentComplete(){start();}
 
+static const QString CLAY_NET_JSON_PROPERTY = "_CLAY_NET_";
+
 void ClayNetworkUser::start(){
 
     auto tcpPort = setupTcp();
 
     QJsonObject obj{
+        {CLAY_NET_JSON_PROPERTY, true},
         {"tcpPort", tcpPort},
         {"ipList", ""},
         {"userId", userId_}
@@ -27,8 +30,8 @@ void ClayNetworkUser::start(){
     }
 
     QJsonDocument doc(obj);
-    datagram_ = doc.toJson(QJsonDocument::Compact);
-    users_[userId_] = QString(datagram_);
+    userInfo_ = doc.toJson(QJsonDocument::Compact);
+    users_[userId_] = QString(userInfo_);
 
     startExplorationViaUdp();
 }
@@ -138,26 +141,28 @@ static constexpr auto BROADCAST_PORT = 45000u;
 
 void ClayNetworkUser::startExplorationViaUdp()
 {
-    timer_.setInterval(interval_);
+    broadcastTimer_.setInterval(broadcastInterval_);
 
     udpSocket_ = new QUdpSocket(this);
     udpSocket_->bind(QHostAddress::Any, BROADCAST_PORT, QUdpSocket::ShareAddress
                          | QUdpSocket::ReuseAddressHint);
     connect(udpSocket_, SIGNAL(readyRead()), this, SLOT(processDatagram()));
-    connect(&timer_, SIGNAL(timeout()), this, SLOT(broadcastDatagram()));
-    timer_.start();
+    connect(&broadcastTimer_, SIGNAL(timeout()), this, SLOT(broadcastDatagram()));
+    broadcastTimer_.start();
 }
 
 void ClayNetworkUser::broadcastDatagram()
 {
     //Broadcast user details
-    udpSocket_->writeDatagram(datagram_, QHostAddress::Broadcast, BROADCAST_PORT);
+    udpSocket_->writeDatagram(userInfo_, QHostAddress::Broadcast, BROADCAST_PORT);
 
     //Broadcast joined groups
     if(memberships_.count()>0) {
-        QJsonObject obj;
-        obj["userId"] = userId_;
-        obj["groups"] = memberships_.join(",");
+        QJsonObject obj{
+            {CLAY_NET_JSON_PROPERTY, true},
+            {"userId", userId_},
+            {"groups", memberships_.join(",")},
+        };
         QJsonDocument doc(obj);
         udpSocket_->writeDatagram(doc.toJson(QJsonDocument::Compact),
                                   QHostAddress::Broadcast, BROADCAST_PORT);
@@ -172,7 +177,15 @@ void ClayNetworkUser::processDatagram()
         datagram.resize(udpSocket_->pendingDatagramSize());
         udpSocket_->readDatagram(datagram.data(), datagram.size());
 
-        auto jsondoc = QJsonDocument::fromJson(datagram);
+        QJsonParseError err;
+        auto jsondoc = QJsonDocument::fromJson(datagram, &err);
+
+        // Keep it simple for the moment just ignore messages that cannot
+        // be processed - reasons could be non clay network messages or corrupted
+        // clay network messages but this is no problem as broadcasting is continous
+        if (err.error != QJsonParseError::NoError) continue;
+        if (jsondoc[CLAY_NET_JSON_PROPERTY].isUndefined()) continue;
+
         auto userId = jsondoc["userId"].toString();
         if (userId == userId_) continue;
 
