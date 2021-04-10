@@ -67,12 +67,13 @@ Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) cons
 
 void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
 {
-    if (userId == userId_) { processReceivedMessage(msg); return; }
+    if (userId == userId_) { emit msgReceived(msg); return; }
     if(!tcpSocketPerUser_.contains(userId)) {
         qWarning() << "User " << userId_  << "doesn't know recipient " << userId;
         return;
     }
-    encodeAndWriteTcp(*tcpSocketPerUser_[userId], msg);
+    auto data = msg.toUtf8();
+    writeTcp(*tcpSocketPerUser_[userId], data);
 }
 
 void ClayNetworkUser::sendMessage(const QString &msg)
@@ -83,8 +84,10 @@ void ClayNetworkUser::sendMessage(const QString &msg)
         for (const auto& m: members) relevantUsers.insert(m);
     }
     for (const auto& u: relevantUsers){
-        if (tcpSocketPerUser_.contains(u))
-            encodeAndWriteTcp(*tcpSocketPerUser_[u], msg);
+        if (tcpSocketPerUser_.contains(u)){
+            auto data = msg.toUtf8();
+            writeTcp(*tcpSocketPerUser_[u], data);
+        }
     }
 }
 
@@ -122,20 +125,6 @@ QString ClayNetworkUser::userInfoForId(const QString &userId) const
     }
     return users_[userId].toString();
 }
-
-void ClayNetworkUser::processReceivedMessage(const QString &msg)
-{
-    auto m = msg;
-    //TODO: deal with the problem when the msg contains the string "}{"
-    m = "[" + m.replace("}{", "},{") + "]";
-    auto jsondoc = QJsonDocument::fromJson(m.toStdString().data());
-    auto arr = jsondoc.array();
-    for(auto el: arr) {
-        auto obj = el.toObject();
-        emit msgReceived(obj["m"].toString());
-    }
-}
-
 
 ///////////////////////// UDP SPECIFICS
 
@@ -270,13 +259,6 @@ void ClayNetworkUser::newTcpConnection()
     connect(socket, SIGNAL(disconnected()), this, SLOT(onTcpDisconnected()));
 }
 
-void ClayNetworkUser::encodeAndWriteTcp(QTcpSocket& socket, const QString& msg)
-{
-    QJsonObject obj{{"m", msg}};
-    auto json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
-    writeTcp(socket, json);
-}
-
 void ClayNetworkUser::writeTcp(QTcpSocket& socket, QByteArray &data)
 {
     socket.write(data.data());
@@ -290,7 +272,7 @@ void ClayNetworkUser::readTcpMessage()
 {
     auto& socket = *qobject_cast<QTcpSocket*>(sender());
     auto msg = QString::fromUtf8(socket.readAll());
-    processReceivedMessage(msg);
+    emit msgReceived(msg);
 }
 
 void ClayNetworkUser::onTcpDisconnected()

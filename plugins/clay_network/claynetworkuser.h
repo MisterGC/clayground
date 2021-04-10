@@ -47,9 +47,7 @@ private:
     QVariant userInfo(const QString &userId);
     int setupTcp();
     void connectViaTcpOnDemand(const QString &userInfo);
-    void processReceivedMessage(const QString &msg);
     void startExplorationViaUdp();
-    void encodeAndWriteTcp(QTcpSocket &socket, const QString &msg);
     void writeTcp(QTcpSocket &socket, QByteArray &data);
 
 private slots:
