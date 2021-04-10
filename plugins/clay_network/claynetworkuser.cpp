@@ -33,17 +33,17 @@ void ClayNetworkUser::start(){
     startExplorationViaUdp();
 }
 
-QVariantMap ClayNetworkUser::allGroups() const
-{
-    return allGroups_;
-}
-
-QStringList ClayNetworkUser::groups() const
+QVariantMap ClayNetworkUser::groups() const
 {
     return groups_;
 }
 
-QVariantMap ClayNetworkUser::allUsers() const
+QStringList ClayNetworkUser::memberships() const
+{
+    return memberships_;
+}
+
+QVariantMap ClayNetworkUser::users() const
 {
     return users_;
 }
@@ -52,12 +52,12 @@ QString ClayNetworkUser::userId() const {
     return userId_;
 }
 
-Q_INVOKABLE QVariant ClayNetworkUser::userInfo(const QString &userId){
+QVariant ClayNetworkUser::userInfo(const QString &userId){
     return userInfoForId(userId);
 }
 
 Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) const {
-    return allGroups_[group].toStringList();
+    return groups_[group].toStringList();
 }
 
 void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
@@ -73,8 +73,8 @@ void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userI
 void ClayNetworkUser::sendMessage(const QString &msg)
 {
     QSet<QString> relevantUsers;
-    for (const auto& g: groups_){
-        auto members = allGroups_[g].toStringList();
+    for (const auto& g: memberships_){
+        auto members = groups_[g].toStringList();
         for (const auto& m: members) relevantUsers.insert(m);
     }
     for (const auto& u: relevantUsers){
@@ -85,27 +85,27 @@ void ClayNetworkUser::sendMessage(const QString &msg)
 
 void ClayNetworkUser::joinGroup(const QString &groupId)
 {
-    if (groups_.contains(groupId)) return;
+    if (memberships_.contains(groupId)) return;
 
-    groups_.append(groupId);
-    auto glist = allGroups_[groupId].toStringList();
+    memberships_.append(groupId);
+    auto glist = groups_[groupId].toStringList();
     if(!glist.contains(userId_)){
         glist.append(userId_);
-        allGroups_[groupId]=glist;
-        emit groupsChanged();
+        groups_[groupId]=glist;
+        emit membershipsChanged();
     }
 }
 
 void ClayNetworkUser::leaveGroup(const QString &groupId)
 {
-    if (groups_.contains(groupId)) return;
+    if (memberships_.contains(groupId)) return;
 
-    groups_.removeAll(groupId);
-    auto glist = allGroups_[groupId].toStringList();
+    memberships_.removeAll(groupId);
+    auto glist = groups_[groupId].toStringList();
     if(glist.contains(userId_)){
         glist.removeAll(userId_);
-        allGroups_[groupId]=glist;
-        emit groupsChanged();
+        groups_[groupId]=glist;
+        emit membershipsChanged();
     }
 }
 
@@ -154,10 +154,10 @@ void ClayNetworkUser::broadcastDatagram()
     udpSocket_->writeDatagram(datagram_, QHostAddress::Broadcast, BROADCAST_PORT);
 
     //Broadcast joined groups
-    if(groups_.count()>0) {
+    if(memberships_.count()>0) {
         QJsonObject obj;
         obj["userId"] = userId_;
-        obj["groups"] = groups_.join(",");
+        obj["groups"] = memberships_.join(",");
         QJsonDocument doc(obj);
         udpSocket_->writeDatagram(doc.toJson(QJsonDocument::Compact),
                                   QHostAddress::Broadcast, BROADCAST_PORT);
@@ -188,11 +188,11 @@ void ClayNetworkUser::processDatagram()
         auto grps = grStr.split(",");
         for(const auto& group: grps)
         {
-            auto glist = allGroups_[group].toStringList();
+            auto glist = groups_[group].toStringList();
             if(!glist.contains(userId)){
                 glist.append(userId);
-                allGroups_[group]=glist;
-                emit groupsChanged();
+                groups_[group]=glist;
+                emit membershipsChanged();
             }
         }
     }

@@ -11,9 +11,9 @@ class ClayNetworkUser : public QObject, public QQmlParserStatus
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QString userId READ userId) //Id identifying the user within the network
-    Q_PROPERTY(QStringList groups READ groups NOTIFY groupsChanged) //Groups this user is connected to
-    Q_PROPERTY(QVariantMap allUsers READ allUsers NOTIFY usersChanged) //All users in the network
-    Q_PROPERTY(QVariantMap allGroups READ allGroups NOTIFY allGroupdsChanged) //All groups in the network
+    Q_PROPERTY(QStringList memberships READ memberships NOTIFY membershipsChanged) //Groups this user is connected to
+    Q_PROPERTY(QVariantMap users READ users NOTIFY usersChanged) //All users in the network
+    Q_PROPERTY(QVariantMap groups READ groups NOTIFY groupsChanged) //All groups in the network
     Q_INTERFACES(QQmlParserStatus)
 
 public:
@@ -22,34 +22,33 @@ public:
     void componentComplete();
     void start();
 
-    QVariantMap allUsers() const;
+    QVariantMap users() const;
     QString userId() const;
-    Q_INVOKABLE void connectViaTcpOnDemand(const QString &userInfo);
     Q_INVOKABLE void sendDirectMessage(const QString &msg, const QString &userId = "");
     Q_INVOKABLE void sendMessage(const QString &msg);
-    Q_INVOKABLE QVariant userInfo(const QString &userId);
     Q_INVOKABLE QStringList usersInGroup(const QString &group) const;
 
     // Channels
     Q_INVOKABLE void joinGroup(const QString &groupId);
     Q_INVOKABLE void leaveGroup(const QString &groupId);
-    QVariantMap allGroups() const;
-    QStringList groups() const;
+    QVariantMap groups() const;
+    QStringList memberships() const;
 
 signals:
     void usersChanged();
+    void membershipsChanged();
     void groupsChanged();
-    void allGroupdsChanged();
-    void appsSharingGroupsChanged();
     void msgReceived(const QString &msg);
     void connectedTo(const QString &otherUser);
 
 private:
-    void writeTcpMsg(QTcpSocket* socket, const QString &msg);
     QString userInfoForId(const QString& uuid) const;
-    void processReceivedMessage(const QString &msg);
+    QVariant userInfo(const QString &userId);
     int setupTcp();
+    void connectViaTcpOnDemand(const QString &userInfo);
+    void processReceivedMessage(const QString &msg);
     void startExplorationViaUdp();
+    void writeTcpMsg(QTcpSocket* socket, const QString &msg);
 
 private slots:
     void broadcastDatagram();
@@ -66,8 +65,9 @@ private:
     QMap<QString,QTcpSocket*> outTcpSocketMap_; // Used to send messages
     QList<QTcpSocket*> inTcpSockets_; // Used to receive messages
 
-    QStringList groups_; //Groups the user is connected to
-    QVariantMap allGroups_; //Groups mapped in the network
+    QStringList memberships_; //Groups the user is connected to
+    QVariantMap groups_; //Groups mapped in the network
+
     QTimer timer_;
     int interval_ = 1000;
     QByteArray datagram_;
