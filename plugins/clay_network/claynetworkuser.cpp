@@ -7,7 +7,9 @@ ClayNetworkUser::ClayNetworkUser(QObject *parent) :QObject(parent)
 void ClayNetworkUser::classBegin(){}
 void ClayNetworkUser::componentComplete(){start();}
 
-static const QString CLAY_NET_JSON_PROPERTY = "_CLAY_NET_";
+constexpr auto CLAY_NET_JSON_PROPERTY = "_CLAY_NET_";
+// TODO Make it confifgurable
+constexpr auto TIME_OUT_INTERVAL_MS = 10000u; //Interval used for all TCP ops
 
 void ClayNetworkUser::start(){
 
@@ -66,11 +68,11 @@ Q_INVOKABLE QStringList ClayNetworkUser::usersInGroup(const QString &group) cons
 void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userId)
 {
     if (userId == userId_) { processReceivedMessage(msg); return; }
-    if(!outTcpSocketMap_.contains(userId)) {
+    if(!tcpSocketPerUser_.contains(userId)) {
         qWarning() << "User " << userId_  << "doesn't know recipient " << userId;
         return;
     }
-    writeTcpMsg(outTcpSocketMap_[userId], msg);
+    encodeAndWriteTcp(*tcpSocketPerUser_[userId], msg);
 }
 
 void ClayNetworkUser::sendMessage(const QString &msg)
@@ -81,8 +83,8 @@ void ClayNetworkUser::sendMessage(const QString &msg)
         for (const auto& m: members) relevantUsers.insert(m);
     }
     for (const auto& u: relevantUsers){
-        if (outTcpSocketMap_.contains(u))
-            writeTcpMsg(outTcpSocketMap_[u],msg);
+        if (tcpSocketPerUser_.contains(u))
+            encodeAndWriteTcp(*tcpSocketPerUser_[u], msg);
     }
 }
 
@@ -217,7 +219,7 @@ void ClayNetworkUser::processDatagram()
 int ClayNetworkUser::setupTcp(){
     tcpServer_ = new QTcpServer(this);
     connect(tcpServer_, SIGNAL(newConnection()), this, SLOT(newTcpConnection()));
-    if (!tcpServer_->listen()){
+    if (!tcpServer_->listen(QHostAddress::AnyIPv4)){
         qCritical() << "Unable to setup tcp " << tcpServer_->errorString();
         return 0;
     }
@@ -231,7 +233,7 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
     if (!obj.contains("userId")) return;
     auto userId = obj["userId"].toString();
 
-    if(outTcpSocketMap_.count(userId) == 0)
+    if(tcpSocketPerUser_.count(userId) == 0)
     {
         auto ipList = obj["ipList"].toString().split(",");
         auto port = obj["tcpPort"].toInt();
@@ -239,14 +241,18 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
         {
             auto* socket = new QTcpSocket(this);
             socket->connectToHost(ip, port);
-            if (socket->waitForConnected(1000))
+            // TODO Cover by configurable timeout
+            if (socket->waitForConnected(TIME_OUT_INTERVAL_MS))
             {
-                outTcpSocketMap_[userId] = socket;
+                auto data = userId_.toUtf8();
+                writeTcp(*socket, data);
+                tcpSocketPerUser_[userId] = socket;
                 emit connectedTo(userId);
                 return;
             }
             else
                 socket->deleteLater();
+            connect(socket, SIGNAL(disconnected()), this, SLOT(onTcpDisconnected()));
         }
     }
 }
@@ -254,28 +260,51 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
 void ClayNetworkUser::newTcpConnection()
 {
     auto *socket = tcpServer_->nextPendingConnection();
-    inTcpSockets_.append(socket);
-    connect(socket, SIGNAL(readyRead()), this,SLOT(readTcpMessage()));
+    if (!socket->waitForReadyRead(TIME_OUT_INTERVAL_MS)){
+        qCritical() << "Waiting for other's userId timed out - no connection :(";
+        return;
+    }
+    auto userId = QString::fromUtf8(socket->readAll());
+    tcpSocketPerUser_[userId] = socket;
+    connect(socket, SIGNAL(readyRead()), this, SLOT(readTcpMessage()));
+    connect(socket, SIGNAL(disconnected()), this, SLOT(onTcpDisconnected()));
 }
 
-void ClayNetworkUser::writeTcpMsg(QTcpSocket *socket, const QString &msg)
+void ClayNetworkUser::encodeAndWriteTcp(QTcpSocket& socket, const QString& msg)
 {
-    if(socket){
-        QJsonObject obj{{"m", msg}};
-        auto json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
-        socket->write(json.data());
-        socket->flush();
-        socket->waitForBytesWritten(1000);
-    }
+    QJsonObject obj{{"m", msg}};
+    auto json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    writeTcp(socket, json);
+}
+
+void ClayNetworkUser::writeTcp(QTcpSocket& socket, QByteArray &data)
+{
+    socket.write(data.data());
+    socket.flush();
+    // TODO Make this configurable based on the amount of data
+    // and network bandwidth
+    socket.waitForBytesWritten(TIME_OUT_INTERVAL_MS);
 }
 
 void ClayNetworkUser::readTcpMessage()
 {
-    for(int i = inTcpSockets_.size()-1;i>=0;i--) {
-        auto& socket = *inTcpSockets_[i];
-        if (!socket.bytesAvailable()) continue;
-        auto msg = QString(socket.readAll());
-        processReceivedMessage(msg);
-    }
+    auto& socket = *qobject_cast<QTcpSocket*>(sender());
+    auto msg = QString::fromUtf8(socket.readAll());
+    processReceivedMessage(msg);
 }
 
+void ClayNetworkUser::onTcpDisconnected()
+{
+    auto socket = qobject_cast<QTcpSocket*>(sender());
+    QString usrId;
+    auto uids = tcpSocketPerUser_.keys();
+    for (const auto& uid: uids){
+        auto s = tcpSocketPerUser_[uid];
+        if (s == socket) usrId = uid;
+    }
+    if (!usrId.isEmpty()){
+        tcpSocketPerUser_.take(usrId)->deleteLater();
+        users_.remove(usrId);
+        emit disconnectedFrom(usrId);
+    }
+}

@@ -40,6 +40,7 @@ signals:
     void groupsChanged();
     void msgReceived(const QString &msg);
     void connectedTo(const QString &otherUser);
+    void disconnectedFrom(const QString& otherUser);
 
 private:
     QString userInfoForId(const QString& uuid) const;
@@ -48,13 +49,15 @@ private:
     void connectViaTcpOnDemand(const QString &userInfo);
     void processReceivedMessage(const QString &msg);
     void startExplorationViaUdp();
-    void writeTcpMsg(QTcpSocket* socket, const QString &msg);
+    void encodeAndWriteTcp(QTcpSocket &socket, const QString &msg);
+    void writeTcp(QTcpSocket &socket, QByteArray &data);
 
 private slots:
     void broadcastDatagram();
     void processDatagram();
     void newTcpConnection();
     void readTcpMessage();
+    void onTcpDisconnected();
 
 private:
     const QString userId_ = QUuid::createUuid().toString();
@@ -64,8 +67,7 @@ private:
     QTcpServer* tcpServer_ = nullptr; // Used for actual p2p communication
 
     // TODO use only one socket (map) wait for id when incoming conn.
-    QMap<QString,QTcpSocket*> outTcpSocketMap_; // Used to send messages
-    QList<QTcpSocket*> inTcpSockets_; // Used to receive messages
+    QMap<QString, QTcpSocket*> tcpSocketPerUser_; // Used to send messages
 
     QVariantMap users_;
     QStringList memberships_; //Groups the user is connected to
