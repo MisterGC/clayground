@@ -79,7 +79,7 @@ Item
 
     Timer{
         id: conversationSim
-        interval: chatInterval; running: true; repeat: true;
+        interval: chatInterval; running: false; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
             if (arr.length) {
@@ -109,7 +109,12 @@ Item
 
 
     // DISCONNECT AFTER SOME TIME (all others get informed)
-    Timer{interval: 5000; running: true; onTriggered: volatileUser.destroy();}
+    Timer{interval: 5000; running: true;
+        onTriggered: {
+            volatileUser.destroy();
+            conversationSim.start();
+        }
+    }
     ClayNetworkUser{id: volatileUser; Component.onCompleted: joinGroup(group)}
 
     Text {
