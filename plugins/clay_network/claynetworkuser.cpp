@@ -1,5 +1,6 @@
 #include "claynetworkuser.h"
 #include <QDebug>
+#include <QtConcurrent/QtConcurrent>
 
 ClayNetworkUser::ClayNetworkUser(QObject *parent) :QObject(parent)
 {}
@@ -8,7 +9,11 @@ void ClayNetworkUser::classBegin(){}
 void ClayNetworkUser::componentComplete(){start();}
 
 constexpr auto CLAY_NET_JSON_PROPERTY = "_CLAY_NET_";
-// TODO Make it confifgurable
+constexpr auto TCP_PORT_PROPERTY = "tcpPort";
+constexpr auto IP_LIST_PROPERTY = "ipList";
+constexpr auto USER_ID_PROPERTY = "userId";
+
+// TODO Make it configurable
 constexpr auto TIME_OUT_INTERVAL_MS = 10000u; //Interval used for all TCP ops
 
 void ClayNetworkUser::start(){
@@ -17,17 +22,17 @@ void ClayNetworkUser::start(){
 
     QJsonObject obj{
         {CLAY_NET_JSON_PROPERTY, true},
-        {"tcpPort", tcpPort},
-        {"ipList", ""},
-        {"userId", userId_}
+        {TCP_PORT_PROPERTY, tcpPort},
+        {IP_LIST_PROPERTY, ""},
+        {USER_ID_PROPERTY, userId_}
     };
 
     auto allAddr = QNetworkInterface::allAddresses();
     for(const auto& h: allAddr)
     {
       if(h.protocol() == QAbstractSocket::IPv4Protocol)
-        obj["ipList"] = obj["ipList"].toString()
-                +(obj["ipList"].toString().isEmpty()?"":",")
+        obj[IP_LIST_PROPERTY] = obj[IP_LIST_PROPERTY].toString()
+                +(obj[IP_LIST_PROPERTY].toString().isEmpty()?"":",")
                 +h.toString();
     }
 
@@ -72,8 +77,7 @@ void ClayNetworkUser::sendDirectMessage(const QString &msg, const QString &userI
         qWarning() << "User " << userId_  << "doesn't know recipient " << userId;
         return;
     }
-    auto data = msg.toUtf8();
-    writeTcp(*tcpSocketPerUser_[userId], data);
+    encodeAndWriteTcp(msg, userId);
 }
 
 void ClayNetworkUser::sendMessage(const QString &msg)
@@ -86,7 +90,7 @@ void ClayNetworkUser::sendMessage(const QString &msg)
     for (const auto& u: relevantUsers){
         if (tcpSocketPerUser_.contains(u)){
             auto data = msg.toUtf8();
-            writeTcp(*tcpSocketPerUser_[u], data);
+            encodeAndWriteTcp(msg, u);
         }
     }
 }
@@ -151,7 +155,7 @@ void ClayNetworkUser::broadcastDatagram()
     if(memberships_.count()>0) {
         QJsonObject obj{
             {CLAY_NET_JSON_PROPERTY, true},
-            {"userId", userId_},
+            {USER_ID_PROPERTY, userId_},
             {"groups", memberships_.join(",")},
         };
         QJsonDocument doc(obj);
@@ -177,7 +181,7 @@ void ClayNetworkUser::processDatagram()
         if (err.error != QJsonParseError::NoError) continue;
         if (jsondoc[CLAY_NET_JSON_PROPERTY].isUndefined()) continue;
 
-        auto userId = jsondoc["userId"].toString();
+        auto userId = jsondoc[USER_ID_PROPERTY].toString();
         if (userId == userId_) continue;
 
         if(!users_.contains(userId)){
@@ -219,13 +223,13 @@ void ClayNetworkUser::connectViaTcpOnDemand(const QString &userInfo)
 {
     auto doc = QJsonDocument::fromJson(userInfo.toUtf8());
     auto obj = doc.object();
-    if (!obj.contains("userId")) return;
-    auto userId = obj["userId"].toString();
+    if (!obj.contains(USER_ID_PROPERTY)) return;
+    auto userId = obj[USER_ID_PROPERTY].toString();
 
     if(tcpSocketPerUser_.count(userId) == 0)
     {
-        auto ipList = obj["ipList"].toString().split(",");
-        auto port = obj["tcpPort"].toInt();
+        auto ipList = obj[IP_LIST_PROPERTY].toString().split(",");
+        auto port = obj[TCP_PORT_PROPERTY].toInt();
         for(const auto& ip: ipList)
         {
             auto* socket = new QTcpSocket(this);
@@ -259,6 +263,21 @@ void ClayNetworkUser::newTcpConnection()
     connect(socket, SIGNAL(disconnected()), this, SLOT(onTcpDisconnected()));
 }
 
+void ClayNetworkUser::encodeAndWriteTcp(QString msg, const QString& recipientId) {
+    auto unsupportedMsg = (msg.contains(QChar::LineFeed) || msg.contains(QChar::CarriageReturn));
+    if (unsupportedMsg) {
+        qWarning() << "Message contains linebreak, this is not supported " << msg;
+        return;
+    }
+
+    auto* socket = tcpSocketPerUser_[recipientId];
+    auto sepMsg = (msg + "\n");
+    QtConcurrent::run([this, socket, sepMsg](){
+        auto data = sepMsg.toUtf8();
+        writeTcp(*socket, data);
+    });
+}
+
 void ClayNetworkUser::writeTcp(QTcpSocket& socket, QByteArray &data)
 {
     socket.write(data.data());
@@ -271,8 +290,10 @@ void ClayNetworkUser::writeTcp(QTcpSocket& socket, QByteArray &data)
 void ClayNetworkUser::readTcpMessage()
 {
     auto& socket = *qobject_cast<QTcpSocket*>(sender());
-    auto msg = QString::fromUtf8(socket.readAll());
-    emit msgReceived(msg);
+    while (socket.canReadLine()){
+        auto msg = QString::fromUtf8(socket.readLine());
+        emit msgReceived(msg);
+    }
 }
 
 void ClayNetworkUser::onTcpDisconnected()

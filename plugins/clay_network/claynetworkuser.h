@@ -48,6 +48,7 @@ private:
     int setupTcp();
     void connectViaTcpOnDemand(const QString &userInfo);
     void startExplorationViaUdp();
+    void encodeAndWriteTcp(QString msg, const QString &recipientId);
     void writeTcp(QTcpSocket &socket, QByteArray &data);
 
 private slots:
