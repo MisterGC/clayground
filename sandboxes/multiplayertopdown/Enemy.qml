@@ -6,4 +6,11 @@ Rectangle {
     color:Qt.rgba(Math.random(),Math.random(),Math.random(),1)
 
     property string uUID:""
+
+    Behavior on x{
+        NumberAnimation{}
+    }
+    Behavior on y{
+        NumberAnimation{}
+    }
 }
