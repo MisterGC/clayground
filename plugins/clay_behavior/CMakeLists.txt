@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 
-find_package(Qt5 5.15 REQUIRED COMPONENTS Core Quick Qml)
+import_qt_components(Core Quick Qml)
 
 clay_p( ClayBehavior
 #{
@@ -12,6 +12,6 @@ clay_p( ClayBehavior
         claybehaviorplugin.cpp clay_behavior.qrc qmldir.in
         Sandbox.qml DoorBuilder.qml
     LINK_LIBS
-        Qt5::Core Qt5::Quick Qt5::Qml
+        Qt::Core Qt::Quick Qt::Qml
 #}
 )
