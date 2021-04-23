@@ -1,77 +1,48 @@
 #pragma once
 
-#include <QObject>
-#include <qqml.h>
-#include <QtNetwork>
-#include <QMap>
-#include <QVariant>
+#include <QAbstractSocket>
+#include <QHash>
+#include <QHostAddress>
+#include <QQmlComponent>
+#include "server.h"
 
-class ClayNetworkUser : public QObject, public QQmlParserStatus
+class PeerManager;
+
+class ClayNetworkUser : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QString userId READ userId) //Id identifying the user within the network
-    Q_PROPERTY(QStringList memberships READ memberships NOTIFY membershipsChanged) //Groups this user is connected to
-    Q_PROPERTY(QVariantMap users READ users NOTIFY usersChanged) //All users in the network
-    Q_PROPERTY(QVariantMap groups READ groups NOTIFY groupsChanged) //All groups in the network
-    Q_INTERFACES(QQmlParserStatus)
+    //Q_PROPERTY(QStringList memberships READ memberships NOTIFY membershipsChanged) //Groups this user is connected to
+    //Q_PROPERTY(QVariantMap users READ users NOTIFY usersChanged) //All users in the network
+    //Q_PROPERTY(QVariantMap groups READ groups NOTIFY groupsChanged) //All groups in the network
 
 public:
-    explicit ClayNetworkUser(QObject *parent = nullptr);
-    void classBegin();
-    void componentComplete();
-    void start();
+    ClayNetworkUser();
 
-    QVariantMap users() const;
     QString userId() const;
-    Q_INVOKABLE void sendDirectMessage(const QString &msg, const QString &userId = "");
-    Q_INVOKABLE void sendMessage(const QString &msg);
-    Q_INVOKABLE QStringList usersInGroup(const QString &group) const;
+    bool hasConnection(const QHostAddress &senderIp, int senderPort = -1) const;
 
-    // Channels
-    Q_INVOKABLE void joinGroup(const QString &groupId);
-    Q_INVOKABLE void leaveGroup(const QString &groupId);
-    QVariantMap groups() const;
-    QStringList memberships() const;
+public slots:
+    void sendDirectMessage(const QString& userId, const QString &message);
+    void broadcastMessage(const QString& message);
 
 signals:
-    void usersChanged();
-    void membershipsChanged();
-    void groupsChanged();
-    void msgReceived(const QString &msg);
-    void connectedTo(const QString &otherUser);
-    void disconnectedFrom(const QString& otherUser);
-
-private:
-    QString userInfoForId(const QString& uuid) const;
-    QVariant userInfo(const QString &userId);
-    int setupTcp();
-    void connectViaTcpOnDemand(const QString &userInfo);
-    void startExplorationViaUdp();
-    void encodeAndWriteTcp(QString msg, const QString &recipientId);
-    void writeTcp(QTcpSocket &socket, QByteArray &data);
+    void newMessage(const QString &from, const QString &message);
+    void newParticipant(const QString &user);
+    void participantLeft(const QString &user);
 
 private slots:
-    void broadcastDatagram();
-    void processDatagram();
-    void newTcpConnection();
-    void readTcpMessage();
-    void onTcpDisconnected();
+    void newConnection(Connection *conn);
+    void connectionError(QAbstractSocket::SocketError socketError);
+    void disconnected();
+    void readyForUse();
 
 private:
-    const QString userId_ = QUuid::createUuid().toString();
-    QByteArray userInfo_; // Contains userId, ip adresses and used tcp port
+    void removeConnection(Connection *connection);
 
-    QUdpSocket* udpSocket_ = nullptr; // Used for exploration within network
-    QTcpServer* tcpServer_ = nullptr; // Used for actual p2p communication
-
-    // TODO use only one socket (map) wait for id when incoming conn.
-    QMap<QString, QTcpSocket*> tcpSocketPerUser_; // Used to send messages
-
-    QVariantMap users_;
-    QStringList memberships_; //Groups the user is connected to
-    QVariantMap groups_; //Groups mapped in the network
-
-    QTimer broadcastTimer_;
-    int broadcastInterval_ = 1000;
+private:
+    PeerManager *peerManager;
+    Server server;
+    QMultiHash<QHostAddress, Connection *> peers;
 };

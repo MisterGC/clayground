@@ -14,8 +14,8 @@ Item
     // Disconnect of one user after some time
 
     // Change the following two values to check scalability and performance:
-    readonly property int nrOfDynamicUsers: 5
-    readonly property int chatInterval: 1000
+    readonly property int nrOfDynamicUsers: 10
+    readonly property int chatInterval: 100
 
     property var dynUsers: []
 
@@ -55,12 +55,13 @@ Item
 
             property alias nr: dynUser.nr
             property alias userId: dynUser.userId
-            function sendDirectMessage(msg, uId) {dynUser.sendDirectMessage(msg, uId)}
-            function sendDirectMessageVisu(msg, user) {
+            function sendDirectMessage(user, msg) {dynUser.sendDirectMessage(user, msg)}
+            function sendDirectMessageVisu(user, msg) {
+                console.log("Send visu message to " + user.userId)
                 let obj = textMsgComp.createObject(networkDemo, {x: rect.x, y:rect.y, text: msg})
                 obj.x = user.x;
                 obj.y = user.y;
-                dynUser.sendDirectMessage(msg, user.userId)
+                dynUser.sendDirectMessage(user.userId, msg)
                 nrOfSentMsg++;
             }
 
@@ -68,8 +69,8 @@ Item
                 id: dynUser
                 property int nr: 0
                 readonly property string myMsg: "Msg from user dynamic_" + nr + "!"
-                onMsgReceived: console.log(nr + " received: "  + msg)
-                onConnectedTo: sendDirectMessage("Hi from dynUser_" + nr + "!", otherUser);
+                onNewMessage: console.log(nr + " received: "  + message)
+                onNewParticipant: {sendDirectMessage(user, "Hi from dynUser_" + nr + "!");}
             }
         }
     }
@@ -79,43 +80,43 @@ Item
 
     Timer{
         id: conversationSim
-        interval: chatInterval; running: false; repeat: true;
+        interval: chatInterval; running: true; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
             if (arr.length) {
                 let sender = arr[Math.floor(Math.random() * arr.length)];
                 let receiver = arr[Math.floor(Math.random() * arr.length)];
-                sender.sendDirectMessageVisu( "data from " + sender.nr, receiver);
+                sender.sendDirectMessageVisu(receiver, "data from " + sender.nr);
             }
-            alice.sendMessage(group + " rocks!")
+            //alice.sendMessage(group + " rocks!")
         }
     }
 
-    ClayNetworkUser{
-        id: alice
-        Component.onCompleted: joinGroup(group)
-        onConnectedTo: sendDirectMessage("Hi from Alice!", otherUser);
-        onDisconnectedFrom: console.log("Alice got disconnected from " + otherUser)
-        onMsgReceived: console.log("Alice received: " + msg)
-    }
+//    ClayNetworkUser{
+//        id: alice
+//        Component.onCompleted: joinGroup(group)
+//        onConnectedTo: sendDirectMessage("Hi from Alice!", otherUser);
+//        onDisconnectedFrom: console.log("Alice got disconnected from " + otherUser)
+//        onMsgReceived: console.log("Alice received: " + msg)
+//    }
 
-    ClayNetworkUser{
-        id: bob
-        Component.onCompleted: joinGroup(group)
-        onConnectedTo: sendDirectMessage("Hi from Bob!", otherUser);
-        onDisconnectedFrom: console.log("Bob got disconnected from " + otherUser)
-        onMsgReceived: {console.log("Bob received: " + msg);}
-    }
+//    ClayNetworkUser{
+//        id: bob
+//        Component.onCompleted: joinGroup(group)
+//        onConnectedTo: sendDirectMessage("Hi from Bob!", otherUser);
+//        onDisconnectedFrom: console.log("Bob got disconnected from " + otherUser)
+//        onMsgReceived: {console.log("Bob received: " + msg);}
+//    }
 
 
-    // DISCONNECT AFTER SOME TIME (all others get informed)
-    Timer{interval: 5000; running: true;
-        onTriggered: {
-            volatileUser.destroy();
-            conversationSim.start();
-        }
-    }
-    ClayNetworkUser{id: volatileUser; Component.onCompleted: joinGroup(group)}
+//    // DISCONNECT AFTER SOME TIME (all others get informed)
+//    Timer{interval: 5000; running: true;
+//        onTriggered: {
+//            volatileUser.destroy();
+//            conversationSim.start();
+//        }
+//    }
+//    ClayNetworkUser{id: volatileUser; Component.onCompleted: joinGroup(group)}
 
     Text {
         anchors.horizontalCenter: parent.horizontalCenter;
