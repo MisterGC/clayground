@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project (Clayground VERSION 2021.1)
+project (Clayground VERSION 2021.2)
 
 enable_testing()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
