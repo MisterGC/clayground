@@ -13,7 +13,11 @@ Item {
                                      });
     }
 
-    function connectOnLeft(fixture, method) {
-        fixture.endContact.connect((f) => {method(f.getBody().target);});
+    function connectOnLeft(fixture, method, fixtureCheck) {
+        fixture.endContact.connect((f) => {
+                                         if (!fixtureCheck ||
+                                             (fixtureCheck && fixtureCheck(f)))
+                                         method(f.getBody().target);
+                                   });
     }
 }
