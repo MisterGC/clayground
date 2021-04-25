@@ -15,10 +15,10 @@ endif()
 
 include(qtsupportutils)
 
-add_subdirectory (liveloader)
-add_subdirectory (plugins)
 add_subdirectory (thirdparty/qml-box2d)
 add_subdirectory (thirdparty/simple-svg-writer)
+add_subdirectory (liveloader)
+add_subdirectory (plugins)
 
 add_subdirectory (sandboxes/gui)
 add_subdirectory (sandboxes/visualfx)

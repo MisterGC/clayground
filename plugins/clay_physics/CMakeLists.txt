@@ -11,6 +11,6 @@ clay_p( ClayPhysics
     SOURCES
         clayphysicsplugin.cpp clay_physics.qrc qmldir.in
     LINK_LIBS
-        Qt::Core Qt::Quick Qt::Qml
+        Qt::Core Qt::Quick Qt::Qml box2dqml
 #}
 )

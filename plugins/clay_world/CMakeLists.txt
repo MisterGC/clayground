@@ -12,6 +12,6 @@ clay_p( ClayWorld
         clayworldplugin.cpp clay_world.qrc qmldir.in
         Sandbox.qml
     LINK_LIBS
-        Qt::Core Qt::Quick Qt::Qml
+        Qt::Core Qt::Quick Qt::Qml ClayPhysics
 #}
 )
