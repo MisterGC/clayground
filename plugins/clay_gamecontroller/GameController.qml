@@ -74,7 +74,7 @@ Item {
 
     Loader {
         id: gamepadLoader
-        source: Qt.platform !== "ios" ?  "GamepadWrapper.qml" : null
+        source: Qt.platform.os !== "ios" ?  "GamepadWrapper.qml" : null
     }
 
     Keys.forwardTo: keybGamepad
