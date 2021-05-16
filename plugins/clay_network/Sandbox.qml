@@ -14,7 +14,7 @@ Item
     // Disconnect of one user after some time
 
     // Change the following two values to check scalability and performance:
-    readonly property int nrOfDynamicUsers: 10
+    readonly property int nrOfDynamicUsers: 4
     readonly property int chatInterval: 100
 
     property var dynUsers: []
@@ -64,6 +64,8 @@ Item
                 dynUser.sendDirectMessage(user.userId, msg)
                 nrOfSentMsg++;
             }
+            Timer {interval: Math.random()*10000; running: true
+            onTriggered: rect.destroy(); }
 
             ClayNetworkUser{
                 id: dynUser
@@ -71,6 +73,7 @@ Item
                 readonly property string myMsg: "Msg from user dynamic_" + nr + "!"
                 onNewMessage: console.log(nr + " received: "  + message)
                 onNewParticipant: {sendDirectMessage(user, "Hi from dynUser_" + nr + "!");}
+                onParticipantLeft:  {console.log("Participant " + user + " left.");}
             }
         }
     }
@@ -80,7 +83,7 @@ Item
 
     Timer{
         id: conversationSim
-        interval: chatInterval; running: true; repeat: true;
+        interval: chatInterval; running: false; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
             if (arr.length) {

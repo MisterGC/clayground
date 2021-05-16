@@ -85,9 +85,9 @@ void ClayNetworkUser::removeConnection(Connection *connection)
 {
     if (peers.contains(connection->peerAddress())) {
         peers.remove(connection->peerAddress());
-        auto nick = connection->name();
-        if (!nick.isEmpty())
-            emit participantLeft(nick);
+        auto userId = connection->name();
+        if (!userId.isEmpty())
+            emit participantLeft(userId);
     }
     connection->deleteLater();
 }
