@@ -8,7 +8,6 @@ ClayNetworkUser::ClayNetworkUser()
 {
     peerManager = new PeerManager(this);
     peerManager->setServerPort(server.serverPort());
-    peerManager->startBroadcasting();
 
     connect(peerManager, &PeerManager::newConnection,
             this, &ClayNetworkUser::newConnection);
@@ -26,7 +25,6 @@ void ClayNetworkUser::sendDirectMessage(const QString& userId, const QString &me
     }
 
     for (auto *c : qAsConst(peers)) {
-        qDebug() << "Eval " << c->name();
         if (c->name() == userId) c->sendMessage(message);
     }
 }
@@ -111,4 +109,13 @@ void ClayNetworkUser::removeConnection(Connection *connection)
             emit participantLeft(userId);
     }
     connection->deleteLater();
+}
+
+void ClayNetworkUser::classBegin()
+{
+}
+
+void ClayNetworkUser::componentComplete()
+{
+    peerManager->startBroadcasting();
 }

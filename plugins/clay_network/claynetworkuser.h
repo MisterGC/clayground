@@ -8,7 +8,7 @@
 
 class PeerManager;
 
-class ClayNetworkUser : public QObject
+class ClayNetworkUser : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
     QML_ELEMENT
@@ -23,6 +23,8 @@ public:
     void setAppData(const QString &appData);
     QString appData() const;
 
+    void classBegin() override;
+    void componentComplete() override;
 
 public slots:
     void sendDirectMessage(const QString& userId, const QString &message);
