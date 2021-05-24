@@ -10,16 +10,19 @@ Item
 
     // This demo demonstrates multiple aspects:
     // Dynamically created set of users that communicate with each other
-    // Creation of one group with group-internal conversations
-    // Disconnect of one user after some time
+    // Disconnects of dynamically created users after random time
+    readonly property bool demoDynamicUsers: true
+    // Creation of one group with fixed set of usfalse and group-internal conversations
+    readonly property bool demoGroupConcept: false
 
     // Change the following two values to check scalability and performance:
-    readonly property int nrOfDynamicUsers: 4
-    readonly property int chatInterval: 100
+    readonly property int nrOfDynamicUsers: 10
+    readonly property int chatInterval: 500
 
     property var dynUsers: []
 
     Component.onCompleted: {
+        if (!demoDynamicUsers) return;
         for (let i=0; i<nrOfDynamicUsers; ++i)
             dynUsers.push(dynUserComp.createObject(networkDemo, {nr:i}));
     }
@@ -63,7 +66,6 @@ Item
             property alias userId: dynUser.userId
             function sendDirectMessage(user, msg) {dynUser.sendDirectMessage(user, msg)}
             function sendDirectMessageVisu(user, msg) {
-                console.log("Send visu message to " + user.userId)
                 let obj = textMsgComp.createObject(networkDemo, {x: rect.x, y:rect.y, text: msg})
                 obj.x = user.x;
                 obj.y = user.y;
