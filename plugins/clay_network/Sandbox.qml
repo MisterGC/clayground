@@ -92,9 +92,12 @@ Item
         interval: chatInterval; running: false; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
-            if (arr.length) {
-                let sender = arr[Math.floor(Math.random() * arr.length)];
-                let receiver = arr[Math.floor(Math.random() * arr.length)];
+            if (arr.length > 0) {
+                let idx1 = Math.round(Math.random() * (arr.length -1));
+                let idx2 = Math.round(Math.random() * (arr.length -1));
+                let sender = arr[idx1];
+                let receiver = arr[idx2];
+                if (!sender || !receiver) return;
                 sender.sendDirectMessageVisu(receiver, "data from " + sender.nr);
             }
             //alice.sendMessage(group + " rocks!")
