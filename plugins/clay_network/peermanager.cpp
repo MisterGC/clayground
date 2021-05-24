@@ -50,6 +50,7 @@
 ****************************************************************************/
 
 #include <QtNetwork>
+#include <QUuid>
 
 #include "claynetworkuser.h"
 #include "connection.h"
@@ -63,18 +64,7 @@ PeerManager::PeerManager(ClayNetworkUser *client)
 {
     this->client = client;
 
-    static const char *envVariables[] = {
-        "USERNAME", "USER", "USERDOMAIN", "HOSTNAME", "DOMAINNAME"
-    };
-
-    for (const char *varname : envVariables) {
-        username = qEnvironmentVariable(varname);
-        if (!username.isNull())
-            break;
-    }
-
-    if (username.isEmpty())
-        username = "unknown";
+    userid = QUuid::createUuid().toString();
 
     updateAddresses();
     serverPort = 0;
@@ -94,9 +84,9 @@ void PeerManager::setServerPort(int port)
     serverPort = port;
 }
 
-QString PeerManager::userName() const
+QString PeerManager::userId() const
 {
-    return username;
+    return userid;
 }
 
 void PeerManager::startBroadcasting()
@@ -119,7 +109,7 @@ void PeerManager::sendBroadcastDatagram()
     {
         QCborStreamWriter writer(&datagram);
         writer.startArray(2);
-        writer.append(username);
+        writer.append(userid);
         writer.append(serverPort);
         writer.endArray();
     }
@@ -172,7 +162,7 @@ void PeerManager::readBroadcastDatagram()
 
         if (!client->hasConnection(senderIp)) {
             Connection *connection = new Connection(this);
-            connection->setGreetingMessage(username);
+            connection->setGreetingMessage(userid);
             emit newConnection(connection);
             connection->connectToHost(senderIp, senderServerPort);
         }

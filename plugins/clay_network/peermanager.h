@@ -68,7 +68,7 @@ public:
     PeerManager(ClayNetworkUser *client);
 
     void setServerPort(int port);
-    QString userName() const;
+    QString userId() const;
     void startBroadcasting();
     bool isLocalHostAddress(const QHostAddress &address) const;
 
@@ -87,7 +87,7 @@ private:
     QList<QHostAddress> ipAddresses;
     QUdpSocket broadcastSocket;
     QTimer broadcastTimer;
-    QString username;
+    QString userid;
     int serverPort;
 };
 
