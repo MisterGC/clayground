@@ -89,7 +89,7 @@ Item
 
     Timer{
         id: conversationSim
-        interval: chatInterval; running: false; repeat: true;
+        interval: chatInterval; running: true; repeat: true;
         onTriggered: {
             let arr = networkDemo.dynUsers;
             if (arr.length > 0) {
