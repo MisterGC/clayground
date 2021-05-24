@@ -10,7 +10,7 @@ clay_p( ClayNetwork
     URI Clayground.Network
     SOURCES
         claynetworkplugin.cpp claynetworkuser.cpp connection.cpp peermanager.cpp server.cpp
-        Sandbox.qml qmldir.in
+        clay_network.qrc Sandbox.qml qmldir.in
     LINK_LIBS
         Qt::Core Qt::Quick Qt::Qml Qt::Network
 #}

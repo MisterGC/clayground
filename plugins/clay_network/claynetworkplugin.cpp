@@ -7,4 +7,5 @@
 void ClayNetworkPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType<ClayNetworkUser>(uri, 1, 0, "ClayNetworkUser");
+    qmlRegisterType(QUrl("qrc:/clayground/ClayNetworkGroupUser.qml"),uri, 1,0,"ClayNetworkGroupUser");
 }
