@@ -69,6 +69,7 @@ static const int PingInterval = 5 * 1000;
  *  ping        = { 1 => null }
  *  pong        = { 2 => null }
  *  greeting    = { 3 => text }
+ *  appdata    =  { 4 => text }
  */
 
 Connection::Connection(QObject *parent)
@@ -129,6 +130,14 @@ bool Connection::sendMessage(const QString &message)
     writer.append(message);
     writer.endMap();
     return true;
+}
+
+void Connection::sendAppDataUpdate(const QString &appData)
+{
+    writer.startMap(1);
+    writer.append(AppData);
+    writer.append(appData);
+    writer.endMap();
 }
 
 void Connection::timerEvent(QTimerEvent *timerEvent)
@@ -260,6 +269,9 @@ void Connection::processData()
     switch (currentDataType) {
     case PlainText:
         emit newMessage(username, buffer);
+        break;
+    case AppData:
+        emit appDataUpdate(username, buffer);
         break;
     case Ping:
         writer.startMap(1);

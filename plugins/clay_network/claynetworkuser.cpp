@@ -54,6 +54,19 @@ bool ClayNetworkUser::hasConnection(const QHostAddress &senderIp, int senderPort
     return false;
 }
 
+void ClayNetworkUser::setAppData(const QString& appData)
+{
+    if (appData_ != appData){
+        appData_ = appData;
+        for (auto *c : qAsConst(peers)) c->sendAppDataUpdate(appData);
+    }
+}
+
+QString ClayNetworkUser::appData() const
+{
+   return appData_;
+}
+
 void ClayNetworkUser::newConnection(Connection *conn)
 {
     conn->setGreetingMessage(peerManager->userId());
@@ -69,6 +82,7 @@ void ClayNetworkUser::readyForUse()
         return;
 
     connect(conn,  &Connection::newMessage, this, &ClayNetworkUser::newMessage);
+    connect(conn,  &Connection::appDataUpdate, this, &ClayNetworkUser::appDataUpdate);
     peers.insert(conn->peerAddress(), conn);
 
     auto userId = conn->name();

@@ -76,6 +76,7 @@ public:
         Ping,
         Pong,
         Greeting,
+        AppData,
         Undefined
     };
 
@@ -86,10 +87,12 @@ public:
     QString name() const;
     void setGreetingMessage(const QString &message);
     bool sendMessage(const QString &message);
+    void sendAppDataUpdate(const QString& appData);
 
 signals:
     void readyForUse();
     void newMessage(const QString &from, const QString &message);
+    void appDataUpdate(const QString &from, const QString &data);
 
 protected:
     void timerEvent(QTimerEvent *timerEvent) override;
