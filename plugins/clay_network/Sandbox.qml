@@ -70,7 +70,7 @@ Item
                 dynUser.sendDirectMessage(user.userId, msg)
                 nrOfSentMsg++;
             }
-            Timer {interval: Math.random()*10000; running: true
+            Timer {interval: 5000 + Math.random()*10000; running: true
             onTriggered: rect.destroy(); }
 
             ClayNetworkUser{
