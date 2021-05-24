@@ -19,7 +19,14 @@ ClayNetworkUser::ClayNetworkUser()
 void ClayNetworkUser::sendDirectMessage(const QString& userId, const QString &message)
 {
     if (message.isEmpty()) return;
+    // Support self talk
+    if (userId == this->userId()) {
+        newMessage(userId, message);
+        return;
+    }
+
     for (auto *c : qAsConst(peers)) {
+        qDebug() << "Eval " << c->name();
         if (c->name() == userId) c->sendMessage(message);
     }
 }
@@ -32,7 +39,7 @@ void ClayNetworkUser::broadcastMessage(const QString &message)
 
 QString ClayNetworkUser::userId() const
 {
-    return server.serverAddress().toString() + ":" + QString::number(server.serverPort());
+    return peerManager->userId();
 }
 
 bool ClayNetworkUser::hasConnection(const QHostAddress &senderIp, int senderPort) const
@@ -49,7 +56,7 @@ bool ClayNetworkUser::hasConnection(const QHostAddress &senderIp, int senderPort
 
 void ClayNetworkUser::newConnection(Connection *conn)
 {
-    conn->setGreetingMessage(peerManager->userName());
+    conn->setGreetingMessage(peerManager->userId());
     connect(conn, &Connection::errorOccurred, this, &ClayNetworkUser::connectionError);
     connect(conn, &Connection::disconnected, this, &ClayNetworkUser::disconnected);
     connect(conn, &Connection::readyForUse, this, &ClayNetworkUser::readyForUse);

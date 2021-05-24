@@ -161,10 +161,12 @@ void PeerManager::readBroadcastDatagram()
             continue;
 
         if (!client->hasConnection(senderIp)) {
+            qDebug() << "A NEW CONNECTION PEER " << senderIp << ": " << senderServerPort;
             Connection *connection = new Connection(this);
             connection->setGreetingMessage(userid);
             emit newConnection(connection);
             connection->connectToHost(senderIp, senderServerPort);
+            qDebug() << "A NEW CONNECTION PEER END " << senderIp << ": " << senderServerPort;
         }
     }
 }
@@ -173,11 +175,16 @@ void PeerManager::updateAddresses()
 {
     broadcastAddresses.clear();
     ipAddresses.clear();
-    const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &interface : interfaces) {
-        const QList<QNetworkAddressEntry> entries = interface.addressEntries();
-        for (const QNetworkAddressEntry &entry : entries) {
-            QHostAddress broadcastAddress = entry.broadcast();
+    using Qni = QNetworkInterface;
+    const auto interfaces = Qni::allInterfaces();
+    for (const auto &interface : interfaces) {
+        if (!(interface.type() == Qni::Ethernet || interface.type() == Qni::Wifi) ||
+              interface.flags() & QNetworkInterface::IsLoopBack ||
+              !(interface.flags() & QNetworkInterface::IsRunning)) continue;
+        qDebug() << "INTERFACE type " <<  interface.type() << " flags " << interface.flags();
+        const auto entries = interface.addressEntries();
+        for (const auto &entry : entries) {
+            auto broadcastAddress = entry.broadcast();
             if (broadcastAddress != QHostAddress::Null && entry.ip() != QHostAddress::LocalHost) {
                 broadcastAddresses << broadcastAddress;
                 ipAddresses << entry.ip();

@@ -101,8 +101,9 @@ Connection::Connection(qintptr socketDescriptor, QObject *parent)
 
 Connection::~Connection()
 {
-    if (isGreetingMessageSent) {
-        // Indicate clean shutdown.
+    if (isGreetingMessageSent &&
+        QAbstractSocket::state() == QAbstractSocket::ConnectedState) {
+        // Indicate clean shutdown if there is still a connection
         writer.endArray();
         waitForBytesWritten(2000);
     }
@@ -235,8 +236,8 @@ void Connection::sendGreetingMessage()
 
 void Connection::processGreeting()
 {
-    username = buffer + '@' + peerAddress().toString() + ':'
-            + QString::number(peerPort());
+    username = buffer;
+    qDebug() << "GREETING " << username;
     currentDataType = Undefined;
     buffer.clear();
 
