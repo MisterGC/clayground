@@ -43,6 +43,12 @@ Item
 
         Rectangle{
             id: rect
+
+            Component.onDestruction: {
+                let i = networkDemo.dynUsers.findIndex((e) => e.userId === rect.userId);
+                if (i>-1) networkDemo.dynUsers.splice(i, 1);
+            }
+
             color: Qt.hsla(.5, 1, .1 + (nrOfSentMsg/50) * .7, 1)
             width: (parent.height*.6)/nrOfDynamicUsers; height: width;
             radius: width * .1
