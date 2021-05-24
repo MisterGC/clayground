@@ -13,7 +13,7 @@ Item
     // Disconnects of dynamically created users after random time
     readonly property bool demoDynamicUsers: true
     // Creation of one group with fixed set of usfalse and group-internal conversations
-    readonly property bool demoGroupConcept: false
+    readonly property bool demoGroupConcept: true
 
     // Change the following two values to check scalability and performance:
     readonly property int nrOfDynamicUsers: 10
@@ -87,7 +87,8 @@ Item
     }
 
     // DEMO OF GROUP CONCEPT
-    readonly property string group: "debating-society"
+    readonly property string group1: "debating-society"
+    readonly property string group2: "anothergroup"
 
     Timer{
         id: conversationSim
@@ -102,35 +103,36 @@ Item
                 if (!sender || !receiver) return;
                 sender.sendDirectMessageVisu(receiver, "data from " + sender.nr);
             }
-            //alice.sendMessage(group + " rocks!")
+            if (!demoGroupConcept) return;
+            alice.sendGroupMessage(group1, group1 + " rocks!");
+            anotherGuy.sendGroupMessage(group2, group2 + " is cool too!");
         }
     }
 
-//    ClayNetworkUser{
-//        id: alice
-//        Component.onCompleted: joinGroup(group)
-//        onConnectedTo: sendDirectMessage("Hi from Alice!", otherUser);
-//        onDisconnectedFrom: console.log("Alice got disconnected from " + otherUser)
-//        onMsgReceived: console.log("Alice received: " + msg)
-//    }
+    ClayNetworkGroupUser{
+        id: alice
+        name: "alice"
+        Component.onCompleted: joinGroup(group1);
+        onNewMessage: console.log(name + " got a message from " +
+                                  nameForId(from) + ": " + message)
+    }
 
-//    ClayNetworkUser{
-//        id: bob
-//        Component.onCompleted: joinGroup(group)
-//        onConnectedTo: sendDirectMessage("Hi from Bob!", otherUser);
-//        onDisconnectedFrom: console.log("Bob got disconnected from " + otherUser)
-//        onMsgReceived: {console.log("Bob received: " + msg);}
-//    }
+    ClayNetworkGroupUser{
+        id: bob
+        name: "bob"
+        Component.onCompleted: {joinGroup(group1); joinGroup(group2);}
+        onNewMessage: console.log(name + " got a message from " +
+                                  nameForId(from) + ": " + message)
+    }
 
+    ClayNetworkGroupUser{
+        id: anotherGuy
+        name: "anotherGuy"
+        Component.onCompleted: joinGroup(group2)
+        onNewMessage: console.log(name + " got a message from " +
+                                  nameForId(from) + ": " + message)
+    }
 
-//    // DISCONNECT AFTER SOME TIME (all others get informed)
-//    Timer{interval: 5000; running: true;
-//        onTriggered: {
-//            volatileUser.destroy();
-//            conversationSim.start();
-//        }
-//    }
-//    ClayNetworkUser{id: volatileUser; Component.onCompleted: joinGroup(group)}
 
     Text {
         anchors.horizontalCenter: parent.horizontalCenter;
