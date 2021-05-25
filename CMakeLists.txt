@@ -21,13 +21,13 @@ if(ANDROID AND ${QT_VERSION_MAJOR} GREATER 5)
     message(FATAL_ERROR "Android builds of Clayground are only supported with Qt5")
 endif()
 
+add_subdirectory (thirdparty/qml-box2d)
+add_subdirectory (thirdparty/simple-svg-writer)
+add_subdirectory (plugins)
+
 if(NOT ANDROID)
     add_subdirectory (liveloader)
 endif()
-
-add_subdirectory (plugins)
-add_subdirectory (thirdparty/qml-box2d)
-add_subdirectory (thirdparty/simple-svg-writer)
 
 if(NOT ANDROID)
     add_subdirectory (sandboxes/gui)
