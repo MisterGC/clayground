@@ -6,12 +6,29 @@ import Clayground.Svg 1.0
 
 SvgReader
 {
+    property bool loadEntitiesAsync: false
     property var entities: []
+    property real baseZCoord: 0
+    property real lastZCoord: baseZCoord
     readonly property string componentPropKey: "component"
     required property var world
     property var components: []
 
+    property var _groupIdStack: []
+    function _currentGroupId() {
+        return _groupIdStack.length > 0 ? _groupIdStack[_groupIdStack.length-1]: "";
+    }
+
+    // Async loading handling
+    property bool _sourceProcessed: false
+    property int _numIncubators: 0
+    property var _numIncubatorsPerGroup: new Map()
+    signal loaded()
+    property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
+    onLoadingFinishedChanged: if (loadingFinished) loaded()
+
     onBegin: {
+        _sourceProcessed = false;
         world.mapAboutToBeLoaded();
         world.viewPortCenterWuX = 0;
         world.viewPortCenterWuY = 0;
@@ -25,6 +42,8 @@ SvgReader
         }
         entities = [];
     }
+
+    onEnd: _sourceProcessed = true;
 
     function fetchComp(cfg) {
         let compStr = cfg[componentPropKey];
@@ -60,34 +79,63 @@ SvgReader
             return false;
     }
 
-    function _mapEntityCreated(obj, cfg) {
+    function _mapEntityCreated(obj, groupId, cfg) {
         customInit(obj, cfg);
         entities.push(obj);
         let compStr = cfg[componentPropKey];
-        world.mapEntityCreated(obj, compStr);
+        world.mapEntityCreated(obj, groupId, compStr);
         box2dWorkaround(obj);
     }
 
-    onBeginGroup: world.groupAboutToBeLoaded(id, description)
-    onEndGroup: world.groupLoaded()
+    onBeginGroup: {
+        _groupIdStack.push(id);
+        world.groupAboutToBeLoaded(id, description);
+    }
+    onEndGroup: {
+        let grpId = _groupIdStack.pop();
+        if(!_numIncubatorsPerGroup.has(grpId)) world.groupLoaded(grpId);
+    }
+
+    function onIncubationInitiated(incubator, groupId, cfg) {
+        world.mapEntityAboutToBeCreated(groupId, cfg);
+        if (!loadEntitiesAsync) incubator.forceCompletion();
+        if (incubator.status !== Component.Ready) {
+            _numIncubators++;
+            let nr = _numIncubatorsPerGroup.has(groupId) ?
+                     _numIncubatorsPerGroup.get(groupId) :
+                     0;
+            _numIncubatorsPerGroup.set(groupId, nr+1);
+            let stu = function(status, groupId) {
+                if (status === Component.Ready){
+                    _mapEntityCreated(incubator.object, groupId, cfg);
+                    _numIncubators--;
+                    let nr = _numIncubatorsPerGroup.get(groupId)-1;
+                    _numIncubatorsPerGroup.set(groupId, nr);
+                    if(nr === 0) world.groupLoaded(groupId);
+                }
+            }
+            incubator.onStatusChanged = status => stu(status, groupId);
+        }
+        else { _mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
+    }
 
     onPolygon: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.polygonLoaded(id, points, description); return;}
+        if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
         let comp = fetchComp(cfg);
-        let obj = comp.createObject(world.room, { canvas: world, vertices: points });
-        _mapEntityCreated(obj, cfg);
+        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points, z: ++lastZCoord });
+        onIncubationInitiated(inc, _currentGroupId(), cfg)
     }
 
     onRectangle: {
         let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.rectangleLoaded(id, x, y, width, height, description); return;}
+        if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
-        let obj = comp.createObject(world.room, {xWu: x, yWu: y, widthWu: width, heightWu: height});
-        _mapEntityCreated(obj, cfg);
+        var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, z: ++lastZCoord, widthWu: width, heightWu: height});
+        onIncubationInitiated(inc, _currentGroupId(), cfg);
     }
 
-    onPolyline: world.polylineLoaded(id, points, description)
-    onCircle: world.circleLoaded(id, x, y, radius, description)
+    onPolyline: world.polylineLoaded(id, _currentGroupId(), points, description)
+    onCircle: world.circleLoaded(id, _currentGroupId(), x, y, radius, description)
 }
 

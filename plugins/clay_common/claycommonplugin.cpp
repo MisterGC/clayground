@@ -1,6 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 #include "claycommonplugin.h"
+#include "claystopwatch.h"
 #include <QQmlEngine>
 
 ClayCommonPlugin::ClayCommonPlugin()
@@ -12,4 +13,5 @@ void ClayCommonPlugin::registerTypes(const char* uri)
 {
     qmlRegisterSingletonType(QUrl("qrc:/clayground/Clayground.qml"),
                     uri, 1,0,"Clayground");
+    qmlRegisterType<ClayStopWatch>(uri, 1, 0, "ClayStopWatch");
 }

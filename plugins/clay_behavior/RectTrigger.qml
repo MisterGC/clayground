@@ -3,7 +3,6 @@
 import QtQuick 2.15
 import Box2D 2.0
 import Clayground.Physics 1.0
-import "utils.js" as Utils
 
 RectBoxBody
 {
@@ -13,6 +12,6 @@ RectBoxBody
 
     signal entered(var entity)
 
-    Component.onCompleted: Utils.connectOnEntered(fixtures[0], _onEntered)
+    Component.onCompleted: ClayPhysics.connectOnEntered(fixtures[0], _onEntered)
     function _onEntered(entity) { entered(entity); }
 }

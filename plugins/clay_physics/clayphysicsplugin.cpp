@@ -14,4 +14,7 @@ void ClayPhysicsPlugin::registerTypes(const char* uri)
     qmlRegisterType(QUrl("qrc:/clayground/ImageBoxBody.qml"),uri, 1,0,"ImageBoxBody");
     qmlRegisterType(QUrl("qrc:/clayground/RectBoxBody.qml"),uri, 1,0,"RectBoxBody");
     qmlRegisterType(QUrl("qrc:/clayground/VisualizedPolyBody.qml"),uri, 1,0,"VisualizedPolyBody");
+    qmlRegisterType(QUrl("qrc:/clayground/CollisionTracker.qml"),uri, 1,0,"CollisionTracker");
+    qmlRegisterSingletonType(QUrl("qrc:/clayground/PhysicsUtils.qml"),
+                    uri, 1,0,"ClayPhysics");
 }

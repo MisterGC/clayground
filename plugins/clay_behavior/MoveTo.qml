@@ -7,7 +7,6 @@ import Box2D 2.0
 import Clayground.Physics 1.0
 import Clayground.Canvas 1.0 as Canv
 import Clayground.World 1.0
-import "utils.js" as BUtils
 
 Rectangle {
     id: behavior
@@ -91,7 +90,7 @@ Rectangle {
             _destWp.width= Qt.binding(_ => {return behavior.width;});
             _destWp.height= Qt.binding(_ => {return behavior.height;});
 
-            BUtils.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
+            ClayPhysics.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
                                         if (wpDetect === actor) {
                                             actor.linearVelocity.x = 0;
                                             actor.linearVelocity.y = 0;

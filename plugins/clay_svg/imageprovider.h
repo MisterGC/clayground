@@ -28,7 +28,7 @@ public slots:
     bool exists(const QString& path);
 
 private:
-    QSvgRenderer &fetchRenderer(const QString& path, QString &outElId);
+    QSvgRenderer *fetchRenderer(const QString& path, QString &outElId);
     void clearCache();
 
 private:
