@@ -3,7 +3,7 @@
 import QtQuick 2.0
 import Clayground.Network 1.0
 
-ClayNetworkUser {
+ClayNetworkNode {
     id: _groupUser
     property var _groups: new Set()
     property var _otherUsers: new Map()

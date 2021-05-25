@@ -57,7 +57,7 @@
 #include <QTimer>
 #include <QUdpSocket>
 
-class ClayNetworkUser;
+class ClayNetworkNode;
 class Connection;
 
 class PeerManager : public QObject
@@ -65,7 +65,7 @@ class PeerManager : public QObject
     Q_OBJECT
 
 public:
-    PeerManager(ClayNetworkUser *client);
+    PeerManager(ClayNetworkNode *client);
 
     void setServerPort(int port);
     QString userId() const;
@@ -82,7 +82,7 @@ private slots:
 private:
     void updateAddresses();
 
-    ClayNetworkUser *client;
+    ClayNetworkNode *client;
     QList<QHostAddress> broadcastAddresses;
     QList<QHostAddress> ipAddresses;
     QUdpSocket broadcastSocket;

@@ -52,14 +52,14 @@
 #include <QtNetwork>
 #include <QUuid>
 
-#include "claynetworkuser.h"
+#include "claynetworknode.h"
 #include "connection.h"
 #include "peermanager.h"
 
 static const qint32 BroadcastInterval = 2000;
 static const unsigned broadcastPort = 45000;
 
-PeerManager::PeerManager(ClayNetworkUser *client)
+PeerManager::PeerManager(ClayNetworkNode *client)
     : QObject(client)
 {
     this->client = client;

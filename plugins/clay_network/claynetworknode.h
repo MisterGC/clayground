@@ -8,7 +8,7 @@
 
 class PeerManager;
 
-class ClayNetworkUser : public QObject, public QQmlParserStatus
+class ClayNetworkNode : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
     QML_ELEMENT
@@ -16,7 +16,7 @@ class ClayNetworkUser : public QObject, public QQmlParserStatus
     Q_PROPERTY(QString _appData WRITE setAppData READ appData) //data which is used for app specific logic
 
 public:
-    ClayNetworkUser();
+    ClayNetworkNode();
 
     QString userId() const;
     bool hasConnection(const QHostAddress &senderIp, int senderPort = -1) const;

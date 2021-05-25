@@ -2,10 +2,10 @@
 
 #include <QQmlEngine>
 #include "claynetworkplugin.h"
-#include "claynetworkuser.h"
+#include "claynetworknode.h"
 
 void ClayNetworkPlugin::registerTypes(const char* uri)
 {
-    qmlRegisterType<ClayNetworkUser>(uri, 1, 0, "ClayNetworkUser");
-    qmlRegisterType(QUrl("qrc:/clayground/ClayNetworkGroupUser.qml"),uri, 1,0,"ClayNetworkGroupUser");
+    qmlRegisterType<ClayNetworkNode>(uri, 1, 0, "ClayNetworkNode");
+    qmlRegisterType(QUrl("qrc:/clayground/ClayNetworkUser.qml"),uri, 1,0,"ClayNetworkUser");
 }

@@ -109,7 +109,7 @@ Item
         }
     }
 
-    ClayNetworkGroupUser{
+    ClayNetworkUser{
         id: alice
         name: "alice"
         Component.onCompleted: joinGroup(group1);
@@ -117,7 +117,7 @@ Item
                                   nameForId(from) + ": " + message)
     }
 
-    ClayNetworkGroupUser{
+    ClayNetworkUser{
         id: bob
         name: "bob"
         Component.onCompleted: {joinGroup(group1); joinGroup(group2);}
@@ -125,7 +125,7 @@ Item
                                   nameForId(from) + ": " + message)
     }
 
-    ClayNetworkGroupUser{
+    ClayNetworkUser{
         id: anotherGuy
         name: "anotherGuy"
         Component.onCompleted: joinGroup(group2)

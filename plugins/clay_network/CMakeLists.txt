@@ -9,7 +9,7 @@ clay_p( ClayNetwork
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Network"
     URI Clayground.Network
     SOURCES
-        claynetworkplugin.cpp claynetworkuser.cpp connection.cpp peermanager.cpp server.cpp
+        claynetworkplugin.cpp claynetworknode.cpp connection.cpp peermanager.cpp server.cpp
         clay_network.qrc Sandbox.qml qmldir.in
     LINK_LIBS
         Qt::Core Qt::Quick Qt::Qml Qt::Network

@@ -1,21 +1,21 @@
 #include <QtNetwork>
 
-#include "claynetworkuser.h"
+#include "claynetworknode.h"
 #include "connection.h"
 #include "peermanager.h"
 
-ClayNetworkUser::ClayNetworkUser()
+ClayNetworkNode::ClayNetworkNode()
 {
     peerManager = new PeerManager(this);
     peerManager->setServerPort(server.serverPort());
 
     connect(peerManager, &PeerManager::newConnection,
-            this, &ClayNetworkUser::newConnection);
+            this, &ClayNetworkNode::newConnection);
     connect(&server, &Server::newConnection,
-            this, &ClayNetworkUser::newConnection);
+            this, &ClayNetworkNode::newConnection);
 }
 
-void ClayNetworkUser::sendDirectMessage(const QString& userId, const QString &message)
+void ClayNetworkNode::sendDirectMessage(const QString& userId, const QString &message)
 {
     if (message.isEmpty()) return;
     // Support self talk
@@ -29,18 +29,18 @@ void ClayNetworkUser::sendDirectMessage(const QString& userId, const QString &me
     }
 }
 
-void ClayNetworkUser::broadcastMessage(const QString &message)
+void ClayNetworkNode::broadcastMessage(const QString &message)
 {
     if (message.isEmpty()) return;
     for (auto *c : qAsConst(peers)) c->sendMessage(message);
 }
 
-QString ClayNetworkUser::userId() const
+QString ClayNetworkNode::userId() const
 {
     return peerManager->userId();
 }
 
-bool ClayNetworkUser::hasConnection(const QHostAddress &senderIp, int senderPort) const
+bool ClayNetworkNode::hasConnection(const QHostAddress &senderIp, int senderPort) const
 {
     if (senderPort == -1) return peers.contains(senderIp);
     if (!peers.contains(senderIp)) return false;
@@ -52,7 +52,7 @@ bool ClayNetworkUser::hasConnection(const QHostAddress &senderIp, int senderPort
     return false;
 }
 
-void ClayNetworkUser::setAppData(const QString& appData)
+void ClayNetworkNode::setAppData(const QString& appData)
 {
     if (appData_ != appData){
         appData_ = appData;
@@ -60,27 +60,27 @@ void ClayNetworkUser::setAppData(const QString& appData)
     }
 }
 
-QString ClayNetworkUser::appData() const
+QString ClayNetworkNode::appData() const
 {
    return appData_;
 }
 
-void ClayNetworkUser::newConnection(Connection *conn)
+void ClayNetworkNode::newConnection(Connection *conn)
 {
     conn->setGreetingMessage(peerManager->userId());
-    connect(conn, &Connection::errorOccurred, this, &ClayNetworkUser::connectionError);
-    connect(conn, &Connection::disconnected, this, &ClayNetworkUser::disconnected);
-    connect(conn, &Connection::readyForUse, this, &ClayNetworkUser::readyForUse);
+    connect(conn, &Connection::errorOccurred, this, &ClayNetworkNode::connectionError);
+    connect(conn, &Connection::disconnected, this, &ClayNetworkNode::disconnected);
+    connect(conn, &Connection::readyForUse, this, &ClayNetworkNode::readyForUse);
 }
 
-void ClayNetworkUser::readyForUse()
+void ClayNetworkNode::readyForUse()
 {
     auto *conn = qobject_cast<Connection *>(sender());
     if (!conn || hasConnection(conn->peerAddress(), conn->peerPort()))
         return;
 
-    connect(conn,  &Connection::newMessage, this, &ClayNetworkUser::newMessage);
-    connect(conn,  &Connection::appDataUpdate, this, &ClayNetworkUser::appDataUpdate);
+    connect(conn,  &Connection::newMessage, this, &ClayNetworkNode::newMessage);
+    connect(conn,  &Connection::appDataUpdate, this, &ClayNetworkNode::appDataUpdate);
     peers.insert(conn->peerAddress(), conn);
 
     auto userId = conn->name();
@@ -88,19 +88,19 @@ void ClayNetworkUser::readyForUse()
         emit newParticipant(userId);
 }
 
-void ClayNetworkUser::disconnected()
+void ClayNetworkNode::disconnected()
 {
     if (auto* conn = qobject_cast<Connection *>(sender()))
         removeConnection(conn);
 }
 
-void ClayNetworkUser::connectionError(QAbstractSocket::SocketError /* socketError */)
+void ClayNetworkNode::connectionError(QAbstractSocket::SocketError /* socketError */)
 {
     if (auto *conn = qobject_cast<Connection *>(sender()))
         removeConnection(conn);
 }
 
-void ClayNetworkUser::removeConnection(Connection *connection)
+void ClayNetworkNode::removeConnection(Connection *connection)
 {
     if (peers.contains(connection->peerAddress())) {
         peers.remove(connection->peerAddress());
@@ -111,11 +111,11 @@ void ClayNetworkUser::removeConnection(Connection *connection)
     connection->deleteLater();
 }
 
-void ClayNetworkUser::classBegin()
+void ClayNetworkNode::classBegin()
 {
 }
 
-void ClayNetworkUser::componentComplete()
+void ClayNetworkNode::componentComplete()
 {
     peerManager->startBroadcasting();
 }
