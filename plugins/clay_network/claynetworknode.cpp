@@ -84,8 +84,10 @@ void ClayNetworkNode::readyForUse()
     peers.insert(conn->peerAddress(), conn);
 
     auto userId = conn->name();
-    if (!userId.isEmpty())
+    if (!userId.isEmpty()) {
+        conn->sendAppDataUpdate(appData_);
         emit newParticipant(userId);
+    }
 }
 
 void ClayNetworkNode::disconnected()

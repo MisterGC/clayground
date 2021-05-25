@@ -37,7 +37,6 @@ ClayNetworkNode {
         else
             return "????";
     }
-    onNewParticipant: _appData = _appData + " "
     onAppDataUpdate: {
         _otherUsers.set(user, JSON.parse(data));
         let cfg = _otherUsers.get(user);
