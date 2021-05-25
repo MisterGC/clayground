@@ -10,6 +10,7 @@ ClayNetworkNode {
     property string name: ""
     onNameChanged: _updateAppData()
 
+    Component.onCompleted: _updateAppData()
     function joinGroup(groupId) { _groups.add(groupId); _updateAppData();}
     function leaveGroup(groupId) { _groups.remove(groupId); _updateAppData();}
     function _updateAppData(){
