@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
         );
     }
 
-    engine.addImportPath(QCoreApplication::applicationDirPath() + "/plugins");
+    engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine.load(QUrl("qrc:/main.qml"));
     return app.exec();
 }

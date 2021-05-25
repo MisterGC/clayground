@@ -27,7 +27,7 @@ void ImageProvider::clearCache()
     svgCache_.clear();
 }
 
-QSvgRenderer& ImageProvider::fetchRenderer(const QString& path, QString& outElId)
+QSvgRenderer* ImageProvider::fetchRenderer(const QString& path, QString& outElId)
 {
     const auto pathParts = path.split("?");
     if (pathParts.size() != 2)
@@ -59,16 +59,17 @@ QSvgRenderer& ImageProvider::fetchRenderer(const QString& path, QString& outElId
             if (queryPart.hasQueryItem(icKey))
                 ic = QString("#" + queryPart.queryItemValue(icKey));
             QTextStream in(&f);
-            QString c = in.readAll();
+            auto c = in.readAll();
             if (!ic.isEmpty()) c.replace(ic, "transparent");
             svgCache_[svgPath] = new QSvgRenderer(c.toUtf8());
         }
         else {
             qCritical() << "Unable to open " << svgPath;
+            return nullptr;
         }
     }
 
-    return *svgCache_[svgPath];
+    return svgCache_[svgPath];
 }
 
 QPixmap ImageProvider::requestPixmap(const QString &path,
@@ -83,10 +84,13 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
         return QPixmap(1,1);
 
     QString partId;
-    auto& renderer = fetchRenderer(path, partId);
+    auto r = fetchRenderer(path, partId);
+    if (!r) return QPixmap(1, 1);
+    auto& renderer = *r;
 
     if (!renderer.elementExists(partId)) {
-        qCritical() << "SVG element with id " << partId << "doesn't exist";
+        qCritical() << "SVG element with id " << partId
+                    << "doesn't exist in " << path;
         return QPixmap(1,1);
     }
 
@@ -113,6 +117,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
 bool ImageProvider::exists(const QString &path)
 {
     QString partId;
-    auto& renderer = fetchRenderer(path, partId);
-    return renderer.elementExists(partId);
+    auto renderer = fetchRenderer(path, partId);
+    if (!renderer) return false;
+    return renderer->elementExists(partId);
 }

@@ -9,7 +9,10 @@ clay_p( ClayCommon
     DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Common"
     URI Clayground.Common
     SOURCES
-        claycommonplugin.cpp clay_common.qrc qmldir.in
+        claycommonplugin.cpp 
+        claystopwatch.cpp
+        clay_common.qrc 
+        qmldir.in
     LINK_LIBS
         Qt::Core Qt::Quick Qt::Qml
 #}

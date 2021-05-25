@@ -10,27 +10,26 @@ ClayCanvas
 {
     id: _world
 
-    // GENERAL/SANDBOX
-    property string map: ""
+    // GENERAL PROPERTIES
     property alias room: _world.coordSys
     property alias running: _physicsWorld.running
     property alias xWuMin: _world.worldXMin
     property alias xWuMax: _world.worldXMax
     property alias yWuMin: _world.worldYMin
     property alias yWuMax: _world.worldYMax
-    signal setupCompleted;
 
-    Component.onCompleted: { _syncTimer.start();}
 
-    Timer {
-        id: _syncTimer; interval: 50;
-        onTriggered: {
-            _world.childrenChanged.connect(_moveToRoomOnDemand);
-            _world.room.childrenChanged.connect(_updateRoomContent);
-            _moveToRoomOnDemand();
-            setupCompleted();
-        }
-    }
+    // MAP LOADING
+    // Path to SVG which contains the initial world content
+    property string map: ""
+    // Base z-coord that is used when loading entities from the map
+    property alias baseZCoord: mapLoader.baseZCoord
+    property alias lastZCoord: mapLoader.lastZCoord
+    // true -> entities get loaded without block UI
+    property alias loadMapAsync: mapLoader.loadEntitiesAsync
+
+    Component.onCompleted: { _moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand);}
+    Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
 
 
     // PHYSICS
@@ -54,34 +53,37 @@ ClayCanvas
     readonly property string _fullmappath: (map.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
     property alias components: mapLoader.components
-    MapLoader {id: mapLoader; world: _world;}
+    MapLoader {
+        id: mapLoader;
+        world: _world;
+        onLoaded: world.mapLoaded()
+    }
 
     onWidthChanged: _refreshMap()
     on_FullmappathChanged: _refreshMap()
-    onSetupCompleted: _refreshMap();
-
-    // Signals informing about the loading process
-    signal mapAboutToBeLoaded()
-    signal mapLoaded()
-    signal mapEntityCreated(var obj, var compName)
-    // All elements that haven't been instantiated via registred comp.
-    signal polylineLoaded(var id, var points, var description)
-    signal polygonLoaded(var id, var points, var description)
-    signal rectangleLoaded(var id, var x, var y, var width, var height, var description)
-    signal circleLoaded(var id, var x, var y, var radius, var description)
-    signal groupAboutToBeLoaded(var id, var description)
-    signal groupLoaded()
 
     function _refreshMap() {
         if (width > 0 || height > 0) {
             mapLoader.setSource("");
             mapLoader.setSource(_fullmappath);
-            _createdNotify.start();
         }
     }
-
-    Timer {id: _createdNotify; interval: 10; onTriggered: _world.mapLoaded()}
     onMapLoaded: _updateRoomContent()
+
+    // Signals informing about the loading process
+    signal mapAboutToBeLoaded()
+    signal mapLoaded()
+    signal mapEntityAboutToBeCreated(var groupId, var compName)
+    signal mapEntityCreated(var obj, var groupId, var compName)
+
+    // All elements that haven't been instantiated via registred comp.
+    signal polylineLoaded(var id, var groupId, var points, var description)
+    signal polygonLoaded(var id, var groupId, var points, var description)
+    signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var description)
+    signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
+    signal groupAboutToBeLoaded(var id, var description)
+    signal groupLoaded(var id)
+
 
     function _moveToRoomOnDemand() {
         if (!_world) return;

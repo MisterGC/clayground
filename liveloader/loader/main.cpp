@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QQmlDebuggingEnabler>
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
@@ -79,6 +80,7 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
+    QQmlDebuggingEnabler enabler;
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
