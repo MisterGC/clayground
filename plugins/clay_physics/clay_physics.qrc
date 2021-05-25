@@ -1,7 +1,9 @@
 <RCC>
     <qresource prefix="/clayground">
+        <file>CollisionTracker.qml</file>
         <file>ImageBoxBody.qml</file>
         <file>PhysicsItem.qml</file>
+        <file>PhysicsUtils.qml</file>
         <file>RectBoxBody.qml</file>
         <file>VisualizedPolyBody.qml</file>
     </qresource>

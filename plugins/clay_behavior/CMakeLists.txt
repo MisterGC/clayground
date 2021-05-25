@@ -12,6 +12,6 @@ clay_p( ClayBehavior
         claybehaviorplugin.cpp clay_behavior.qrc qmldir.in
         Sandbox.qml DoorBuilder.qml
     LINK_LIBS
-        Qt::Core Qt::Quick Qt::Qml
+        Qt::Core Qt::Quick Qt::Qml ClayWorld
 #}
 )
