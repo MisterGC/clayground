@@ -75,6 +75,13 @@ ClayWorld {
             otherPlayers.set(user, obj);
             theWorld._regulatedSendPosition();
         }
+        onParticipantLeft: {
+            if (otherPlayers.has(user)){
+                let u = otherPlayers.get(user);
+                u.destroy();
+                otherPlayers.delete(user);
+            }
+        }
         onNewMessage: {
             if (otherPlayers.has(from)){
                 let p = otherPlayers.get(from);
