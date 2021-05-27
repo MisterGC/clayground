@@ -48,6 +48,6 @@ Server::Server(QObject *parent)
 void Server::incomingConnection(qintptr socketDescriptor)
 {
     qDebug() << "INCOMING CONN";
-    Connection *connection = new Connection(socketDescriptor, this);
+    auto *connection = new Connection(socketDescriptor, this);
     emit newConnection(connection);
 }

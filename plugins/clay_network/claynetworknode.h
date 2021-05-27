@@ -20,6 +20,7 @@ public:
 
     QString userId() const;
     bool hasConnection(const QHostAddress &senderIp, int senderPort = -1) const;
+    bool hasConnectionTo(const QString &userId) const;
     void setAppData(const QString &appData);
     QString appData() const;
 

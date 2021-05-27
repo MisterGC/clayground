@@ -121,6 +121,7 @@ void PeerManager::readBroadcastDatagram()
                                          &senderIp, &senderPort) == -1)
             continue;
 
+        QString otherUserId;
         int senderServerPort;
         {
             // decode the datagram
@@ -133,8 +134,9 @@ void PeerManager::readBroadcastDatagram()
             reader.enterContainer();
             if (reader.lastError() != QCborError::NoError || !reader.isString())
                 continue;
-            while (reader.readString().status == QCborStreamReader::Ok) {
-                // we don't actually need the username right now
+
+            while (reader.isString()) {
+                otherUserId += (reader.readString().data);
             }
 
             if (reader.lastError() != QCborError::NoError || !reader.isUnsignedInteger())
@@ -145,9 +147,9 @@ void PeerManager::readBroadcastDatagram()
         if (isLocalHostAddress(senderIp) && senderServerPort == serverPort)
             continue;
 
-        if (!client->hasConnection(senderIp)) {
+        if (!client->hasConnectionTo(otherUserId)) {
             qDebug() << "A NEW CONNECTION PEER " << senderIp << ": " << senderServerPort;
-            Connection *connection = new Connection(this);
+            auto *connection = new Connection(this);
             connection->setGreetingMessage(userid);
             emit newConnection(connection);
             connection->connectToHost(senderIp, senderServerPort);

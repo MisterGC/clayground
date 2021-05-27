@@ -40,6 +40,14 @@ QString ClayNetworkNode::userId() const
     return peerManager->userId();
 }
 
+bool ClayNetworkNode::hasConnectionTo(const QString& userId) const
+{
+    for (auto *c : qAsConst(peers)) {
+       if (c->name() == userId) return true;
+    }
+    return false;
+}
+
 bool ClayNetworkNode::hasConnection(const QHostAddress &senderIp, int senderPort) const
 {
     if (senderPort == -1) return peers.contains(senderIp);
@@ -81,10 +89,12 @@ void ClayNetworkNode::readyForUse()
 
     connect(conn,  &Connection::newMessage, this, &ClayNetworkNode::newMessage);
     connect(conn,  &Connection::appDataUpdate, this, &ClayNetworkNode::appDataUpdate);
+
+    auto alreadyKnown = hasConnectionTo(conn->name());
     peers.insert(conn->peerAddress(), conn);
 
     auto userId = conn->name();
-    if (!userId.isEmpty()) {
+    if (!userId.isEmpty() && !alreadyKnown) {
         conn->sendAppDataUpdate(appData_);
         emit newParticipant(userId);
     }
