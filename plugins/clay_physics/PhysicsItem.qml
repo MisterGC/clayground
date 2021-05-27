@@ -9,11 +9,17 @@ Item {
     property real pixelPerUnit: 1
     property real xWu: 0
     property real yWu: 0
+
+    // Bidirectional updates as phyics item's x-y coords may be controlled by
+    // physics or by canvas world units -> no unidirection binding possible
+    onXWuChanged: x = xWu * pixelPerUnit
+    onYWuChanged: y = parent ? parent.height - yWu * pixelPerUnit : 0
+    onXChanged: xWu = (1/pixelPerUnit) * x;
+    onYChanged: yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
+
     property real widthWu: 1
     property real heightWu: 1
 
-    x: xWu * pixelPerUnit
-    y: parent ? parent.height - yWu * pixelPerUnit : 0
     width: widthWu * pixelPerUnit
     height: heightWu * pixelPerUnit
     property alias body: itemBody
