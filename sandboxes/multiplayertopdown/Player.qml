@@ -6,15 +6,18 @@ import Clayground.Physics 1.0
 
 RectBoxBody
 {
+    id: player
     bodyType: Body.Dynamic
     color: "#3fa4c8"
-    bullet: true
+    bullet: !remoteControlled
     categories: Box.Category2
     collidesWith: Box.Category1
 
+    property bool remoteControlled: bodyType === Body.Static
+
     readonly property real veloCompMax: 25
-    property real xDirDesire: theGameCtrl.axisX
+    property real xDirDesire: remoteControlled ? 0 : theGameCtrl.axisX
     linearVelocity.x: xDirDesire * veloCompMax
-    property real yDirDesire: -theGameCtrl.axisY
+    property real yDirDesire: remoteControlled ? 0 : -theGameCtrl.axisY
     linearVelocity.y: yDirDesire * veloCompMax
 }

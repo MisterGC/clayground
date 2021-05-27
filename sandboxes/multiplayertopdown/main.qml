@@ -9,7 +9,7 @@ import Clayground.Network 1.0
 Window {
     id: theApp
     visible: true
-    visibility: Window.Maximized
+    visibility: Window.FullScreen
     title: qsTr("TopDown")
     Sandbox {id:sandBox}
     Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()

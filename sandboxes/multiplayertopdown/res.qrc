@@ -5,9 +5,5 @@
         <file>Sandbox.qml</file>
         <file>Wall.qml</file>
         <file>map.svg</file>
-        <file>Enemy.qml</file>
-        <file>GameWorld.qml</file>
-        <file>RoomScreen.qml</file>
-        <file>WaitingRoom.qml</file>
     </qresource>
 </RCC>

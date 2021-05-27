@@ -3,76 +3,85 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.12
+import Box2D 2.0
 import Clayground.Network 1.0
+import Clayground.World 1.0
+import Clayground.GameController 1.0
 
-//Game idea, finding other players before a time limit
-Rectangle {
-    id: window
+ClayWorld {
+    id: theWorld
 
+    map: "map.svg"
+    pixelPerUnit: width / theWorld.worldXMax
+    gravity: Qt.point(0,0)
+    timeStep: 1/60.0
     anchors.fill: parent
 
-    // Start or join a game
-    RoomScreen{ id:roomScreen; anchors.fill: parent }
-    // Wait for game to be started
-    WaitingRoom{ id: waitingRoom; visible: false }
-    // Actual Game
-    GameWorld{id:sandBox;  anchors.centerIn: parent; focus:true}
 
-    // ClayNetwork
-    Lobby {
-        id:lobby
+    components: new Map([
+                         ['Player', playerComp],
+                         ['Wall', wallComp]
+                     ])
+    Component { id: playerComp; Player {} }
+    Component { id: wallComp; Wall {} }
 
-        // nodeId
+    property var player: null
+    onMapAboutToBeLoaded: player = null;
+    onMapLoaded: {
+        theGameCtrl.selectKeyboard(Qt.Key_Up,
+                                   Qt.Key_Down,
+                                   Qt.Key_Left,
+                                   Qt.Key_Right,
+                                   Qt.Key_A,
+                                   Qt.Key_S);
+        theWorld.observedItem = player;
+    }
 
-        // There are nodes in the general ClayNetwork
-        // they can join and leave, there is always info about
-        // all the nodes in the network - there is no need
-        // to deal with IPs or ports there are only nodeIds
-        // which can be mapped to a human-readable name (optional)
+    Keys.forwardTo: theGameCtrl
+    GameController {id: theGameCtrl; anchors.fill: parent}
 
-        // onNodeJoined(<nodeId>)
-        // onNodeLeft(<nodeId>)
-        // nodes -> list<uuid>
-        // name(<nodeId>)
-        onAppsChanged: {}
-
-
-        // There are sessions that can be created within the
-        // network, each node can only be in one session at a
-        // time - later this concept may be extended to multiple
-        // session (so the backend may already provide them) but
-        // they are not exposed
-
-        // onSessionCreated(<sessionid>)
-        // onSessionDestroyed
-        // name(<sessionid>) -> string
-        // sessions -> list<uuid>
-        // createSession -> uuid (sessionid)
-        // joinSession
-        // onSessionJoined(<nodeId>)
-        // onSessionLeft(<nodeId>)
-        onGroupsChanged: {
-            roomScreen.updateGroups(groups)
+    onMapEntityCreated: {
+        if (obj instanceof Player) {
+            player = obj;
+            player.color = "#d45500";
+            player.onXWuChanged.connect(_regulatedSendPosition)
+            player.onYWuChanged.connect(_regulatedSendPosition)
+            _regulatedSendPosition();
         }
+    }
 
+    property int updateFreq: 25
+    Timer {id: updateTimer; interval: updateFreq; onTriggered: _sendPosition()}
+    function _regulatedSendPosition(){
+        if (updateTimer.running) return;
+        updateTimer.restart();
+        _sendPosition();
+    }
 
-        // Message sending and receiving is only possible for a node
-        // when it has joined a session, messages can be sent to all,
-        // a group or individuals within the same session
+    function _sendPosition(){
+        networkUser.broadcastMessage(JSON.stringify({xWu: player.xWu, yWu: player.yWu}))
+    }
 
-        // onMessage(string)
-        // sendMessage(<receivers>) if no receiver specified
-        onMsgReceived: {console.log(msg)
-            //msgReceived.append({"msg":msg})
-            var obj = JSON.parse(msg)
-            sandBox.moveEnemy(obj.uUID,obj.x,obj.y)
+    ClayNetworkUser {
+        id: networkUser
+
+        property var otherPlayers: new Map()
+        onNewParticipant: {
+            let obj = playerComp.createObject(theWorld, {
+                                                  xWu: player.xWu, yWu: player.yWu,
+                                                  bodyType: Body.Static, sensor: true,
+                                                  widthWu: player.widthWu, heightWu: player.heightWu
+                                              });
+            otherPlayers.set(user, obj);
+            theWorld._regulatedSendPosition();
         }
-        onConnectedTo: sandBox.addEnemy(UUID);
-        onAppsSharingGroupsChanged: {
-            console.log(appsSharingGroups)
-        }
-        onConnectedGroupsChanged: {
-            console.log(connectedGroups)
+        onNewMessage: {
+            if (otherPlayers.has(from)){
+                let p = otherPlayers.get(from);
+                let update = JSON.parse(message);
+                p.xWu = update.xWu;
+                p.yWu = update.yWu;
+            }
         }
     }
 }
