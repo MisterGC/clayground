@@ -3,6 +3,7 @@
 #include <QQmlEngine>
 #include "claynetworkplugin.h"
 #include "claynetworknode.h"
+#include "claywebaccess.h"
 
 ClayNetworkPlugin::ClayNetworkPlugin()
 {
@@ -12,5 +13,6 @@ ClayNetworkPlugin::ClayNetworkPlugin()
 void ClayNetworkPlugin::registerTypes(const char* uri)
 {
     qmlRegisterType<ClayNetworkNode>(uri, 1, 0, "ClayNetworkNode");
+    qmlRegisterType<ClayWebAccess>(uri, 1, 0, "ClayWebAccess");
     qmlRegisterType(QUrl("qrc:/clayground/ClayNetworkUser.qml"),uri, 1,0,"ClayNetworkUser");
 }
