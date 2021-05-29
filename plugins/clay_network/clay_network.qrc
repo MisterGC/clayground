@@ -2,4 +2,12 @@
     <qresource prefix="/clayground">
         <file>ClayNetworkUser.qml</file>
     </qresource>
+    <qresource prefix="/clayground/jsonata">
+        <file alias="datetime.js">../../thirdparty/jsonata/src/datetime.js</file>
+        <file alias="functions.js">../../thirdparty/jsonata/src/functions.js</file>
+        <file alias="jsonata.js">../../thirdparty/jsonata/src/jsonata.js</file>
+        <file alias="parser.js">../../thirdparty/jsonata/src/parser.js</file>
+        <file alias="signature.js">../../thirdparty/jsonata/src/signature.js</file>
+        <file alias="utils.js">../../thirdparty/jsonata/src/utils.js</file>
+    </qresource>
 </RCC>
