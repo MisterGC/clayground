@@ -1,7 +1,10 @@
 project (MyPlugin)
 set (CMAKE_AUTOMOC on)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt6 COMPONENTS Quick Core Qml QUIET)
+if (NOT Qt6_FOUND)
+    find_package(Qt5 5.15 COMPONENTS Quick Core Qml REQUIRED)
+endif()
 
 add_library(${PROJECT_NAME} SHARED
     myplugin.cpp
