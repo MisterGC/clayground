@@ -7,6 +7,9 @@ import Clayground.Canvas 1.0
 Poly {
     id: thePoly
 
+    // TODO Fix coord syncing x,y -> canvas world coord if item is physics controlled
+    // see https://github.com/MisterGC/clayground/issues/68
+
     onVerticesChanged: refresh();
     onWidthChanged: refresh();
     Component.onCompleted: refresh();

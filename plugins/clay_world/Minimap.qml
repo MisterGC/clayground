@@ -11,13 +11,12 @@ Rectangle {
     readonly property var _observed: world.room
     readonly property real _xScale: (1.0 * width)/_observed.width
     readonly property real _yScale: (1.0 * height)/_observed.height
-    Component.onCompleted: world.mapLoaded.connect(onMapLoaded);
 
-    function onMapLoaded() {
+    Component.onCompleted:
+    {
         _observed.childrenChanged.connect(_updateContent);
         _observed.widthChanged.connect(_updateContent);
         _observed.heightChanged.connect(_updateContent);
-        world.mapLoaded.connect(_updateContent);
         _updateContent();
     }
 
@@ -35,13 +34,11 @@ Rectangle {
             let typStr = Clayground.typeName(o);
             if (theMinimap.typeMapping.has(typStr)) {
                 let comp = theMinimap.typeMapping.get(typStr);
-                let obj = comp.createObject(theMinimap,
-                                            {
-                                                width: o.width * _xScale,
-                                                height: o.height * _yScale
-                                            });
-                obj.x = Qt.binding(function() {return o.x * _xScale});
-                obj.y = Qt.binding(function() {return o.y * _yScale});
+                let obj = comp.createObject(theMinimap);
+                obj.width = Qt.binding(_ => {return o.width * _xScale});
+                obj.height = Qt.binding(_ => {return o.height * _yScale});
+                obj.x = Qt.binding(_ => {return o.x * _xScale});
+                obj.y = Qt.binding(_ => {return o.y * _yScale});
                 theMinimap._cleanUp.connect(obj.destroy)
             }
         }

@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/clayground">
+        <file>ClayNetworkUser.qml</file>
+    </qresource>
+</RCC>

@@ -3,7 +3,6 @@
 import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.5
-import QtQuick.Controls.Styles 1.4
 import Clayground.Storage 1.0
 import Clayground.Svg 1.0
 
