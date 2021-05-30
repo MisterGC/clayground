@@ -1,9 +1,12 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 import QtQuick 2.12
+import QtQuick.Window 2.12
+import QtQuick.Controls 2.12
 import Box2D 2.0
-import Clayground.GameController 1.0
+import Clayground.Network 1.0
 import Clayground.World 1.0
+import Clayground.GameController 1.0
 
 ClayWorld {
     id: theWorld
@@ -14,12 +17,16 @@ ClayWorld {
     timeStep: 1/60.0
     anchors.fill: parent
 
+    // Set this property to true if you want to run the app
+    // on multiple computers within one LAN
+    property bool multiplayer: false
+
     components: new Map([
-                         ['Player', c1],
-                         ['Wall', c2]
+                         ['Player', playerComp],
+                         ['Wall', wallComp]
                      ])
-    Component { id: c1; Player {} }
-    Component { id: c2; Wall {} }
+    Component { id: playerComp; Player {} }
+    Component { id: wallComp; Wall {} }
 
     property var player: null
     onMapAboutToBeLoaded: player = null;
@@ -40,28 +47,78 @@ ClayWorld {
         if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
+            if (multiplayer) {
+                player.onXWuChanged.connect(_networking.regulatedSendPosition)
+                player.onYWuChanged.connect(_networking.regulatedSendPosition)
+                _networking.regulatedSendPosition();
+            }
         }
     }
 
     Minimap {
-        id: theMinimap
         opacity: 0.75
         world: theWorld
-        width: parent.width * 0.2
-        height: width * (coordSys.height / coordSys.width)
+        width: theWorld.width * 0.2
+        height: width * (_observed.height / _observed.width)
         anchors.right: parent.right
         anchors.rightMargin: width * 0.1
         anchors.bottom: parent.bottom
         anchors.bottomMargin: anchors.rightMargin
         color: "black"
-
         typeMapping: new Map([
-                                ['Player', mc1],
-                                ['Wall', mc2]
-                            ])
+                                 ['Player', mc1],
+                                 ['Wall', mc2]
+                             ])
         Component {id: mc1; Rectangle {color: "orange"}}
         Component {id: mc2; Rectangle {color: "grey"}}
-
     }
 
+    property var _networking: _netLoader.item
+    Loader {id: _netLoader; sourceComponent: theWorld.multiplayer ? _networkingComp : null}
+    Component {
+        id: _networkingComp
+        Item {
+            property int updateFreq: 25
+            Timer {id: updateTimer; interval: updateFreq; onTriggered: sendPosition()}
+            function regulatedSendPosition(){
+                if (updateTimer.running) return;
+                updateTimer.restart();
+                sendPosition();
+            }
+
+            function sendPosition(){
+                networkUser.broadcastMessage(JSON.stringify({xWu: player.xWu, yWu: player.yWu}))
+            }
+
+            ClayNetworkUser {
+                id: networkUser
+
+                property var otherPlayers: new Map()
+                onNewParticipant: {
+                    let obj = playerComp.createObject(theWorld, {
+                                                          xWu: player.xWu, yWu: player.yWu,
+                                                          bodyType: Body.Static, sensor: true,
+                                                          widthWu: player.widthWu, heightWu: player.heightWu
+                                                      });
+                    otherPlayers.set(user, obj);
+                    _networking.regulatedSendPosition();
+                }
+                onParticipantLeft: {
+                    if (otherPlayers.has(user)){
+                        let u = otherPlayers.get(user);
+                        u.destroy();
+                        otherPlayers.delete(user);
+                    }
+                }
+                onNewMessage: {
+                    if (otherPlayers.has(from)){
+                        let p = otherPlayers.get(from);
+                        let update = JSON.parse(message);
+                        p.xWu = update.xWu;
+                        p.yWu = update.yWu;
+                    }
+                }
+            }
+        }
+    }
 }
