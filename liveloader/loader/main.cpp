@@ -23,13 +23,14 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
     }
     else if (isSbxMode)
     {
+        // Only consider the last setting of sbx idx
+        // this allows overriding it easily
+        auto sbxIdxs = parser.values(SBX_INDEX_ARG);
+        qDebug() << "SBX Idx: " << sbxIdxs.size() << " " << sbxIdxs.last().toInt();
+        loader.setSbxIndex(sbxIdxs.last().toInt());
+
         if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
-            for (auto& val: parser.values(DYN_IMPORT_DIR_ARG))
-            {
-                QDir dir(val);
-                if (!dir.exists()) parser.showHelp(1);
-                loader.addDynImportDir(val);
-            }
+            loader.addDynImportDirs(parser.values(DYN_IMPORT_DIR_ARG));
         }
 
         if (parser.isSet(DYN_PLUGIN_ARG)) {

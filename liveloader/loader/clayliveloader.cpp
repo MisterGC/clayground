@@ -87,17 +87,36 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
     }
 }
 
-void ClayLiveLoader::addDynImportDir(const QString &path)
+void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 {
-    if (!QDir(path).exists()) {
-        auto msg = QString("Dir %1 doesn't exist.").arg(path).toStdString();
-        qFatal("%s", msg.c_str());
+    auto idx = 1;
+    qDebug() << "Num import dirs " << dirs.length();
+    for (auto& dir: dirs) {
+        if (QDir(dir).exists()) addDynImportDir(dir, idx++);
+        else
+        {
+            qCritical() << "Tried to add import dir '" << dir
+                        << "' but this directory doesn't exist.";
+        }
     }
+    if (sandboxUrl_.isEmpty())
+        qCritical() << "No 'Sandbox.qml' found, please check the import dirs.";
+}
 
-    QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
-    if (sbxTest.exists()) {
-        if (!sandboxUrl_.isEmpty()) qWarning("Sanbox has been set been set before.");
-        setSandboxUrl(QUrl::fromLocalFile(sbxTest.filePath()));
+void ClayLiveLoader::addDynImportDir(const QString &path, const int idx)
+{
+    auto tryAssignSbx = (usedSbxIdx_ == USE_LATEST_AVAILABLE_SBX_IDX ||
+                         idx == usedSbxIdx_);
+    if (tryAssignSbx){
+        QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
+        if (sbxTest.exists()) {
+            if (!sandboxUrl_.isEmpty()) qWarning("Sanbox has been set been set before.");
+            setSandboxUrl(QUrl::fromLocalFile(sbxTest.filePath()));
+        }
+        else if (usedSbxIdx_ != USE_LATEST_AVAILABLE_SBX_IDX) {
+            qCritical() << "Import dir " << path << " doesn't contain 'Sandbox.qml'"
+                           ", please check the directory";
+        }
     }
 
     if (!engine_.importPathList().contains(path))
@@ -169,6 +188,11 @@ QString ClayLiveLoader::sandboxDir() const
 {
     QFileInfo info(sandboxUrl_.toLocalFile());
     return info.absolutePath();
+}
+
+void ClayLiveLoader::setSbxIndex(int sbxIdx)
+{
+   usedSbxIdx_ = sbxIdx;
 }
 
 void ClayLiveLoader::setSandboxUrl(const QUrl& url)

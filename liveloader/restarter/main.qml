@@ -24,18 +24,28 @@ Window {
         keyvalues.set("nrRestarts", 0);
         keyvalues.set("command", "");
         keyvalues.set("options", "");
+        _commandProc.start();
     }
 
     Timer {
-        running: true
+        id: _commandProc
+        running: false
         repeat: true
         interval: 250
         onTriggered: {
-            nrRestarts = keyvalues.get("nrRestarts", 0)
-            currError = keyvalues.get("lastErrorMsg", 0)
-            let cmd = keyvalues.get("command");
-            if (cmd === "restart") ClayRestarter.triggerRestart();
-            keyvalues.set("command", "");
+            nrRestarts = keyvalues.get("nrRestarts", 0);
+            currError = keyvalues.get("lastErrorMsg", 0);
+            const cmd = keyvalues.get("command");
+            if (cmd){
+                const cmdParts = cmd.split(' ');
+                if (cmdParts[0] === "restart") {
+                    let idx = -1;
+                    if (cmdParts.length === 2) idx = parseInt(cmdParts[1]);
+                    console.log(cmdParts[0] + " " + idx)
+                    ClayRestarter.triggerRestart(idx);
+                }
+                keyvalues.set("command", "");
+            }
         }
     }
 

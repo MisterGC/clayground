@@ -83,10 +83,18 @@ Window {
         }
     }
 
+    function initRestart(sbxIdx){ keyvalues.set("command", "restart " + sbxIdx); }
+
     Shortcut {
        sequence: "r"
-       onActivated: keyvalues.set("command", "restart");
+       onActivated: initRestart(-1)
     }
+
+    Shortcut { sequence: "Ctrl+1"; onActivated: initRestart(1) }
+    Shortcut { sequence: "Ctrl+2"; onActivated: initRestart(2) }
+    Shortcut { sequence: "Ctrl+3"; onActivated: initRestart(3) }
+    Shortcut { sequence: "Ctrl+4"; onActivated: initRestart(4) }
+    Shortcut { sequence: "Ctrl+5"; onActivated: initRestart(5) }
 
     Shortcut {
        sequence: "l"

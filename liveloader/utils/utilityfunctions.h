@@ -22,6 +22,14 @@ static constexpr const char* DYN_IMPORT_DIR_ARG_DESCR =
                       "may change while the app is running. This can be a part "
                       "with used QML files as well as a dir containing a plugin.";
 
+static constexpr const char* SBX_INDEX_ARG = "sbxindex";
+static constexpr const char* SBX_INDEX_ARG_DESCR =
+                      "Specifies which of the dynamic import directories contains "
+                      "the Sandbox.qml which should be used - if not specified, each "
+                      "directory is checked and the last one with a Sandbox.qml wins."
+                      "Index has to be within [1;numOfDynImportDirs].";
+static constexpr int  USE_LATEST_AVAILABLE_SBX_IDX = -1;
+
 static constexpr const char* MESSAGE_ARG = "message";
 static constexpr const char* MESSAGE_ARG_DESCR =
                       "When this arg is set, the specified message is shown instead of "

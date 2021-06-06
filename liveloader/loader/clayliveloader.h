@@ -3,6 +3,7 @@
 #ifndef QML_ENGINE_WRAPPER_H
 #define QML_ENGINE_WRAPPER_H
 #include <clayfilesysobserver.h>
+#include <utilityfunctions.h>
 #include <QObject>
 #include <QQmlApplicationEngine>
 #include <QSqlDatabase>
@@ -22,7 +23,8 @@ public:
 
     QUrl sandboxUrl() const;
     QString sandboxDir() const;
-    void addDynImportDir(const QString& path);
+    void setSbxIndex(int sbxIdx);
+    void addDynImportDirs(const QStringList &dirs);
     void addDynPluginDir(const QString& path);
     void show();
     QString altMessage() const;
@@ -45,6 +47,7 @@ private slots:
     void onTimeToRestart();
 
 private:
+    void addDynImportDir(const QString& path, const int idx);
     void setSandboxUrl(const QUrl &path);
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
@@ -54,6 +57,7 @@ private:
 private:
     QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
+    int usedSbxIdx_ = USE_LATEST_AVAILABLE_SBX_IDX;
     QUrl sandboxUrl_;
     QSqlDatabase statsDb_;
     QTimer reload_;

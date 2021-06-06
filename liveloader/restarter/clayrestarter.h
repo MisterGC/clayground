@@ -3,6 +3,7 @@
 #ifndef CLAY_RESTARTER_H
 #define CLAY_RESTARTER_H 
 #include <clayfilesysobserver.h>
+#include <utilityfunctions.h>
 
 #include <QLoggingCategory>
 #include <QObject>
@@ -26,7 +27,7 @@ public:
 
 public slots:
     void run();
-    void triggerRestart();
+    void triggerRestart(int sbxIdx = USE_LATEST_AVAILABLE_SBX_IDX);
 
 private slots:
     void onSbxOutput();
@@ -42,6 +43,7 @@ private:
     std::condition_variable_any restarterStopped_;
     std::atomic_bool shallStop_;
     std::atomic_bool shallRestart_;
+    std::atomic_int sbxIdx_;
     std::unique_ptr<QProcess> sbx_;
     ClayFileSysObserver fileObserver_;
     std::map<QString, QString> sourceToBuildDir_;

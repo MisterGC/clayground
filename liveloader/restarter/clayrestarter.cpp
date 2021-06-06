@@ -15,6 +15,7 @@ ClayRestarter::ClayRestarter(QObject *parent):
     QObject(parent),
     shallStop_(false),
     shallRestart_(false),
+    sbxIdx_(USE_LATEST_AVAILABLE_SBX_IDX),
     sbx_(nullptr),
     logCat_(LIVE_LOADER_CAT)
 {
@@ -65,8 +66,11 @@ void ClayRestarter::run()
             sbx_.reset(new QProcess());
             auto& p = *sbx_.get();
             connect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOutput);
-            if (buildWaitList_.empty())
-                p.start(loaderCmd, QCoreApplication::arguments());
+            if (buildWaitList_.empty()){
+                auto args = QCoreApplication::arguments();
+                args << QString("--%1").arg(SBX_INDEX_ARG) << QString::number(sbxIdx_);
+                p.start(loaderCmd, args);
+            }
             else {
                 auto msg = buildWaitList_.join(";");
                 p.start(loaderCmd,
@@ -108,8 +112,9 @@ void ClayRestarter::run()
     t.detach();
 }
 
-void ClayRestarter::triggerRestart()
+void ClayRestarter::triggerRestart(int sbxIdx)
 {
+   sbxIdx_ = sbxIdx;
    shallRestart_ = true;
 }
 
