@@ -90,7 +90,6 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
 void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 {
     auto idx = 1;
-    qDebug() << "Num import dirs " << dirs.length();
     for (auto& dir: dirs) {
         if (QDir(dir).exists()) addDynImportDir(dir, idx++);
         else
