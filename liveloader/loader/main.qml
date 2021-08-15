@@ -100,9 +100,9 @@ Window {
         repeat: true
         interval: 250
         onTriggered: {
-            let opt = keyvalues.get("options");
-            if (opt === "log") claylog.toggle();
-
+            let opt = keyvalues.get("liveLoaderCtrl");
+            if (opt === "toggleHelp") guideScreen.toggle();
+            keyvalues.set("liveLoaderCtrl", "")
         }
     }
 
