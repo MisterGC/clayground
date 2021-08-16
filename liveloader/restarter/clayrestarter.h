@@ -27,7 +27,7 @@ public:
 
 public slots:
     void run();
-    void triggerRestart(int sbxIdx = USE_LATEST_AVAILABLE_SBX_IDX);
+    void triggerRestart(int sbxIdx = USE_FIRST_SBX_IDX);
 
 private slots:
     void onSbxOutput();

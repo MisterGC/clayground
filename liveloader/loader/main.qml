@@ -148,9 +148,9 @@ Window {
     Shortcut { sequence: _SC_RESTART_SBX; onActivated: _restart(-1) }
     Shortcut { sequence: _SC_TOGGLE_LOG; onActivated: claylog.toggle(); }
     Shortcut { sequence: _SC_TOGGLE_GUIDE; onActivated: guideScreen.toggle(); }
-    Shortcut {sequence: _scRestartSbx(1); onActivated: _restart(1)}
-    Shortcut {sequence: _scRestartSbx(2); onActivated: _restart(2)}
-    Shortcut {sequence: _scRestartSbx(3); onActivated: _restart(3)}
-    Shortcut {sequence: _scRestartSbx(4); onActivated: _restart(4)}
-    Shortcut {sequence: _scRestartSbx(5); onActivated: _restart(5)}
+    Shortcut {sequence: _scRestartSbx(1); onActivated: _restart(0)}
+    Shortcut {sequence: _scRestartSbx(2); onActivated: _restart(1)}
+    Shortcut {sequence: _scRestartSbx(3); onActivated: _restart(2)}
+    Shortcut {sequence: _scRestartSbx(4); onActivated: _restart(3)}
+    Shortcut {sequence: _scRestartSbx(5); onActivated: _restart(4)}
 }

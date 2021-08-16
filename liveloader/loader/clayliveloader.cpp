@@ -98,24 +98,17 @@ void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
                         << "' but this directory doesn't exist.";
         }
     }
-    if (sandboxUrl_.isEmpty())
+
+    if (allSbxs_.isEmpty())
         qCritical() << "No 'Sandbox.qml' found, please check the import dirs.";
 }
 
 void ClayLiveLoader::addDynImportDir(const QString &path, const int idx)
 {
-    auto tryAssignSbx = (usedSbxIdx_ == USE_LATEST_AVAILABLE_SBX_IDX ||
-                         idx == usedSbxIdx_);
-    if (tryAssignSbx){
-        QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
-        if (sbxTest.exists()) {
-            if (!sandboxUrl_.isEmpty()) qWarning("Sanbox has been set been set before.");
-            setSandboxUrl(QUrl::fromLocalFile(sbxTest.filePath()));
-        }
-        else if (usedSbxIdx_ != USE_LATEST_AVAILABLE_SBX_IDX) {
-            qCritical() << "Import dir " << path << " doesn't contain 'Sandbox.qml'"
-                           ", please check the directory";
-        }
+    QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
+    if (sbxTest.exists()) {
+        const auto url = QUrl::fromLocalFile(sbxTest.filePath());
+        allSbxs_ << url;
     }
 
     if (!engine_.importPathList().contains(path))
@@ -137,10 +130,10 @@ void ClayLiveLoader::show()
 
 void ClayLiveLoader::onTimeToRestart()
 {
-    const auto sbxUrl = sandboxUrl();
-    setSandboxUrl(QUrl());
+    auto idx = sbxIdx_;
+    setSbxIndex(USE_NONE_SBX_IDX);
     clearCache();
-    setSandboxUrl(sbxUrl);
+    setSbxIndex(idx);
     numRestarts_++;
     emit restarted();
 }
@@ -180,24 +173,24 @@ void ClayLiveLoader::clearCache()
 
 QUrl ClayLiveLoader::sandboxUrl() const
 {
-    return sandboxUrl_;
+    return sbxIdx_ >= 0 ? allSbxs_[sbxIdx_] : QUrl();
 }
 
 QString ClayLiveLoader::sandboxDir() const
 {
-    QFileInfo info(sandboxUrl_.toLocalFile());
+    QFileInfo info(sandboxUrl().toLocalFile());
     return info.absolutePath();
 }
 
 void ClayLiveLoader::setSbxIndex(int sbxIdx)
 {
-   usedSbxIdx_ = sbxIdx;
-}
+    if (sbxIdx >= allSbxs_.size()){
+        qCritical() << "Sbx Idx out of bounds " << sbxIdx << " len " << allSbxs_.size();
+        return;
+    }
 
-void ClayLiveLoader::setSandboxUrl(const QUrl& url)
-{
-    if (url != sandboxUrl_){
-        sandboxUrl_ = url;
+    if (sbxIdx_ != sbxIdx){
+        sbxIdx_ = sbxIdx;
         qputenv("CLAYGROUND_SBX_DIR", sandboxDir().toUtf8());
         emit sandboxUrlChanged();
         emit sandboxDirChanged();

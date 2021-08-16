@@ -25,10 +25,11 @@ static constexpr const char* DYN_IMPORT_DIR_ARG_DESCR =
 static constexpr const char* SBX_INDEX_ARG = "sbxindex";
 static constexpr const char* SBX_INDEX_ARG_DESCR =
                       "Specifies which of the dynamic import directories contains "
-                      "the Sandbox.qml which should be used - if not specified, each "
-                      "directory is checked and the last one with a Sandbox.qml wins."
-                      "Index has to be within [1;numOfDynImportDirs].";
-static constexpr int  USE_LATEST_AVAILABLE_SBX_IDX = -1;
+                      "the Sandbox.qml which should be used - if not specified, the first "
+                      "import directory containing a Sandbox.qml wins."
+                      "Index has to be within [0;numOfDynImportDirs-1].";
+static constexpr int  USE_FIRST_SBX_IDX = -1;
+static constexpr int  USE_NONE_SBX_IDX = -2;
 
 static constexpr const char* MESSAGE_ARG = "message";
 static constexpr const char* MESSAGE_ARG_DESCR =

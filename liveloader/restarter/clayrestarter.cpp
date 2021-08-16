@@ -15,7 +15,7 @@ ClayRestarter::ClayRestarter(QObject *parent):
     QObject(parent),
     shallStop_(false),
     shallRestart_(false),
-    sbxIdx_(USE_LATEST_AVAILABLE_SBX_IDX),
+    sbxIdx_(USE_FIRST_SBX_IDX),
     sbx_(nullptr),
     logCat_(LIVE_LOADER_CAT)
 {

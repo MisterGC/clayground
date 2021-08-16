@@ -48,7 +48,7 @@ private slots:
 
 private:
     void addDynImportDir(const QString& path, const int idx);
-    void setSandboxUrl(const QUrl &path);
+    void setSbxUrl(const QUrl &url);
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
     void storeValue(const QString& key, const QString& value);
@@ -57,8 +57,8 @@ private:
 private:
     QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
-    int usedSbxIdx_ = USE_LATEST_AVAILABLE_SBX_IDX;
-    QUrl sandboxUrl_;
+    QVector<QUrl> allSbxs_;
+    int sbxIdx_ = USE_NONE_SBX_IDX;
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
