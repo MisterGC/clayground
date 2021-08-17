@@ -89,32 +89,39 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
 
 void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 {
-    auto idx = 1;
     for (auto& dir: dirs) {
-        if (QDir(dir).exists()) addDynImportDir(dir, idx++);
+        if (QDir(dir).exists()) addDynImportDir(dir);
         else
         {
             qCritical() << "Tried to add import dir '" << dir
                         << "' but this directory doesn't exist.";
         }
     }
-
-    if (allSbxs_.isEmpty())
-        qCritical() << "No 'Sandbox.qml' found, please check the import dirs.";
 }
 
-void ClayLiveLoader::addDynImportDir(const QString &path, const int idx)
+void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 {
-    QFileInfo sbxTest(QString("%1/Sandbox.qml").arg(path));
-    if (sbxTest.exists()) {
-        const auto url = QUrl::fromLocalFile(sbxTest.filePath());
-        allSbxs_ << url;
+    for (auto& sbx: sbxFiles) {
+        QFileInfo sbxTest(sbx);
+        if (sbxTest.exists()) {
+            const auto url = QUrl::fromLocalFile(sbxTest.filePath());
+            allSbxs_ << url;
+        }
+        else
+            qCritical() << "File " << sbx << " doesn't exist -> don't add sbx.";
     }
 
-    if (!engine_.importPathList().contains(path))
-        engine_.addImportPath(path);
+    if (allSbxs_.isEmpty())
+        qFatal("No sandbox specified or available -> cannot use any.'");
+}
 
-    fileObserver_.observeDir(path);
+
+void ClayLiveLoader::addDynImportDir(const QString &path)
+{
+    if (!engine_.importPathList().contains(path)){
+        engine_.addImportPath(path);
+        fileObserver_.observeDir(path);
+    }
 }
 
 void ClayLiveLoader::addDynPluginDir(const QString &path)
@@ -191,6 +198,8 @@ void ClayLiveLoader::setSbxIndex(int sbxIdx)
 
     if (sbxIdx_ != sbxIdx){
         sbxIdx_ = sbxIdx;
+        auto sbxDir = QFileInfo(sandboxDir());
+        if (sbxDir.exists()) addDynImportDir(sandboxDir());
         qputenv("CLAYGROUND_SBX_DIR", sandboxDir().toUtf8());
         emit sandboxUrlChanged();
         emit sandboxDirChanged();

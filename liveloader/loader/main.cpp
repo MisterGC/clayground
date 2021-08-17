@@ -16,6 +16,7 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 
     auto isMessageMode = parser.isSet(MESSAGE_ARG);
     auto isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
+                     parser.isSet(SBX_ARG) ||
                      parser.isSet(DYN_PLUGIN_ARG);
     if (isMessageMode) {
         auto msg = parser.value(MESSAGE_ARG);
@@ -23,9 +24,11 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
     }
     else if (isSbxMode)
     {
-        if (parser.isSet(DYN_IMPORT_DIR_ARG)) {
+        if (parser.isSet(DYN_IMPORT_DIR_ARG))
             loader.addDynImportDirs(parser.values(DYN_IMPORT_DIR_ARG));
-        }
+
+        if (parser.isSet(SBX_ARG))
+            loader.addSandboxes(parser.values(SBX_ARG));
 
         if (parser.isSet(DYN_PLUGIN_ARG)) {
             for (auto& val: parser.values(DYN_PLUGIN_ARG))

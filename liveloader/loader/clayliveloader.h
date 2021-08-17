@@ -24,6 +24,7 @@ public:
     QUrl sandboxUrl() const;
     QString sandboxDir() const;
     void setSbxIndex(int sbxIdx);
+    void addSandboxes(const QStringList &sbxFiles);
     void addDynImportDirs(const QStringList &dirs);
     void addDynPluginDir(const QString& path);
     void show();
@@ -47,7 +48,7 @@ private slots:
     void onTimeToRestart();
 
 private:
-    void addDynImportDir(const QString& path, const int idx);
+    void addDynImportDir(const QString& path);
     void setSbxUrl(const QUrl &url);
     void clearCache();
     bool isQmlPlugin(const QString &path) const;
