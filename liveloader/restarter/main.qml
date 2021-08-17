@@ -41,7 +41,6 @@ Window {
                 if (cmdParts[0] === "restart") {
                     let idx = -1;
                     if (cmdParts.length === 2) idx = parseInt(cmdParts[1]);
-                    console.log(cmdParts[0] + " " + idx)
                     ClayRestarter.triggerRestart(idx);
                 }
                 keyvalues.set("command", "");

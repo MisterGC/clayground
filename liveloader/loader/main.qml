@@ -111,7 +111,7 @@ Window {
         property alias keys: _keys.text
         property alias descr: _descr.text
         Rectangle {width: _keys.width * 1.2; height: _keys.height * 1.2;
-            Text {id: _keys; anchors.centerIn: parent; color: "#D69545"; text: "Ctrl+R"}
+            Text {id: _keys; anchors.centerIn: parent; color: "#D69545"}
             color: "transparent"; border.color: _keys.color; border.width: 2}
         Text {id: _descr; color: "#D69545"; text: "Restart current sandbox."}
 
