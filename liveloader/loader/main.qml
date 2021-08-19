@@ -106,22 +106,11 @@ Window {
         }
     }
 
-    component ShortcutDescr: Row  {
-        spacing: 5
-        property alias keys: _keys.text
-        property alias descr: _descr.text
-        Rectangle {width: _keys.width * 1.2; height: _keys.height * 1.2;
-            Text {id: _keys; anchors.centerIn: parent; color: "#D69545"}
-            color: "transparent"; border.color: _keys.color; border.width: 2}
-        Text {id: _descr; color: "#D69545"; text: "Restart current sandbox."}
-
-    }
-
     // The guide screen and all (documented) shortcuts
-    readonly property string _SC_RESTART_SBX: "Ctrl+R"
-    readonly property string _SC_TOGGLE_LOG: "Ctrl+L"
-    readonly property string _SC_TOGGLE_GUIDE: "Ctrl+G"
-    function _scRestartSbx(sbxIdx) {return "Ctrl+" + sbxIdx;}
+    readonly property string _SC_USED_MOD: "Ctrl+"
+    readonly property string _SC_TOGGLE_LOG: _SC_USED_MOD + "L"
+    readonly property string _SC_TOGGLE_GUIDE: _SC_USED_MOD + "G"
+    function _scRestartSbx(sbxIdx) {return _SC_USED_MOD + sbxIdx;}
     function _restart(sbxIdx){ keyvalues.set("command", "restart " + sbxIdx); }
 
     Rectangle {
@@ -131,12 +120,18 @@ Window {
        Column {
            anchors.centerIn: parent
            spacing: 5
-           Text {anchors.horizontalCenter: parent.horizontalCenter; font.bold: true;
-               color: "#D69545"; text: "[== TINY HELPFUL CHEAT SHEET ==]"}
-           ShortcutDescr {keys: "Ctrl+<nr>"; descr: "Restart the sandbox with index <nr>."}
-           ShortcutDescr {keys: _SC_RESTART_SBX; descr: "Restart current sandbox."}
+           Text {font.bold: true; color: "#D69545"; text: "OVERLAYS"}
            ShortcutDescr {keys: _SC_TOGGLE_LOG; descr: "Show/Hide log overlay"}
            ShortcutDescr {keys: _SC_TOGGLE_GUIDE; descr: "Show/Hide this guide overlay."}
+           Text {font.bold: true; color: "#D69545"; text: "SANDBOXES"}
+           Repeater {
+               model: ClayLiveLoader.sandboxes
+               ShortcutDescr {
+                   property var segs: modelData.split('/')
+                   keys: _scRestartSbx(index+1)
+                   descr: segs[segs.length-2] + "/" + segs[segs.length-1]
+               }
+           }
        }
        opacity: 0
        visible: opacity > .1
@@ -145,9 +140,8 @@ Window {
        MouseArea {anchors.fill: parent; onClicked: guideScreen.toggle();}
     }
 
-    Shortcut { sequence: _SC_RESTART_SBX; onActivated: _restart(-1) }
-    Shortcut { sequence: _SC_TOGGLE_LOG; onActivated: claylog.toggle(); }
-    Shortcut { sequence: _SC_TOGGLE_GUIDE; onActivated: guideScreen.toggle(); }
+    Shortcut {sequence: _SC_TOGGLE_LOG; onActivated: claylog.toggle(); }
+    Shortcut {sequence: _SC_TOGGLE_GUIDE; onActivated: guideScreen.toggle(); }
     Shortcut {sequence: _scRestartSbx(1); onActivated: _restart(0)}
     Shortcut {sequence: _scRestartSbx(2); onActivated: _restart(1)}
     Shortcut {sequence: _scRestartSbx(3); onActivated: _restart(2)}

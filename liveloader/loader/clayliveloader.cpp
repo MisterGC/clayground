@@ -101,6 +101,7 @@ void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 
 void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 {
+    auto cnt = allSbxs_.size();
     for (auto& sbx: sbxFiles) {
         QFileInfo sbxTest(sbx);
         if (sbxTest.exists()) {
@@ -111,8 +112,16 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
             qCritical() << "File " << sbx << " doesn't exist -> don't add sbx.";
     }
 
+    if (allSbxs_.size() != cnt) emit sandboxesChanged();
     if (allSbxs_.isEmpty())
         qFatal("No sandbox specified or available -> cannot use any.'");
+}
+
+QStringList ClayLiveLoader::sandboxes() const
+{
+   QStringList lst;
+   for (const auto& sbx: allSbxs_) lst << sbx.toString();
+   return lst;
 }
 
 

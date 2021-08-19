@@ -15,6 +15,7 @@ class ClayLiveLoader: public QObject
     Q_OBJECT
     Q_PROPERTY(QUrl sandboxUrl READ sandboxUrl NOTIFY sandboxUrlChanged)
     Q_PROPERTY(QString sandboxDir READ sandboxDir NOTIFY sandboxDirChanged)
+    Q_PROPERTY(QStringList sandboxes READ sandboxes NOTIFY sandboxesChanged)
     Q_PROPERTY(QString altMessage READ altMessage NOTIFY altMessageChanged)
     Q_PROPERTY(int numRestarts READ numRestarts NOTIFY restarted)
 
@@ -25,6 +26,7 @@ public:
     QString sandboxDir() const;
     void setSbxIndex(int sbxIdx);
     void addSandboxes(const QStringList &sbxFiles);
+    QStringList sandboxes() const;
     void addDynImportDirs(const QStringList &dirs);
     void addDynPluginDir(const QString& path);
     void show();
@@ -36,6 +38,7 @@ public:
 signals:
     void sandboxUrlChanged();
     void sandboxDirChanged();
+    void sandboxesChanged();
     void altMessageChanged();
     void restarted();
     void messagePosted(const QString& message);

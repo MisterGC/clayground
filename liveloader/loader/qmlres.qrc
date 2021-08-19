@@ -2,5 +2,6 @@
 <qresource prefix="/clayground">
     <file>main.qml</file>
     <file>MessageView.qml</file>
+    <file>ShortcutDescr.qml</file>
 </qresource>
 </RCC>
