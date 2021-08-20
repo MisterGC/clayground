@@ -16,13 +16,13 @@
 #include <memory>
 #include <mutex>
 
-class ClayRestarter: public QObject 
+class ClayDojo: public QObject 
 {
     Q_OBJECT
 
 public:
-    ClayRestarter(QObject* parent = nullptr);
-    ~ClayRestarter();
+    ClayDojo(QObject* parent = nullptr);
+    ~ClayDojo();
     void addDynPluginDepedency(const QString &srcPath, const QString &binPath);
 
 public slots:

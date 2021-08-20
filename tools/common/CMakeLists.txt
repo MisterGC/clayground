@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project (clayutilities)
+project (claytoolscommon)
 
 import_qt_components(Core)
 

@@ -14,7 +14,7 @@ Window {
     y: Screen.desktopAvailableHeight * .01
     width: Screen.desktopAvailableWidth * .32
     height: Screen.desktopAvailableHeight * .2
-    title: qsTr("Clay Dev Session")
+    title: qsTr("Clay Dojo")
     opacity: .95
 
     property int nrRestarts: 0
@@ -41,7 +41,7 @@ Window {
                 if (cmdParts[0] === "restart") {
                     let idx = -1;
                     if (cmdParts.length === 2) idx = parseInt(cmdParts[1]);
-                    ClayRestarter.triggerRestart(idx);
+                    ClayDojo.triggerRestart(idx);
                 }
                 keyvalues.set("command", "");
             }
@@ -142,7 +142,7 @@ Window {
 
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
-        target: ClayRestarter
+        target: ClayDojo
         function onRestarted() {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);

@@ -6,7 +6,7 @@
 #include <QCommandLineParser>
 
 // HINT:
-// The following arguments are processed by both the ClayRestarter
+// The following arguments are processed by both the ClayDojo
 // as well as the ClayLiveLoader - have a look at the description
 // to better understand their purpose.
 

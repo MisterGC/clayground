@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-#include "clayrestarter.h"
+#include "claydojo.h"
 #include <utilityfunctions.h>
 
 #include <QCoreApplication>
@@ -11,7 +11,7 @@
 #include <thread>
 #include <chrono>
 
-ClayRestarter::ClayRestarter(QObject *parent):
+ClayDojo::ClayDojo(QObject *parent):
     QObject(parent),
     shallStop_(false),
     shallRestart_(false),
@@ -19,22 +19,22 @@ ClayRestarter::ClayRestarter(QObject *parent):
     sbx_(nullptr),
     logCat_(LIVE_LOADER_CAT)
 {
-    connect(&fileObserver_, &ClayFileSysObserver::fileChanged, this, &ClayRestarter::onFileSysChange);
-    connect(&fileObserver_, &ClayFileSysObserver::fileAdded, this, &ClayRestarter::onFileSysChange);
-    connect(&fileObserver_, &ClayFileSysObserver::fileRemoved, this, &ClayRestarter::onFileSysChange);
+    connect(&fileObserver_, &ClayFileSysObserver::fileChanged, this, &ClayDojo::onFileSysChange);
+    connect(&fileObserver_, &ClayFileSysObserver::fileAdded, this, &ClayDojo::onFileSysChange);
+    connect(&fileObserver_, &ClayFileSysObserver::fileRemoved, this, &ClayDojo::onFileSysChange);
 
     restart_.setSingleShot(true);
-    connect(&restart_, &QTimer::timeout, this, &ClayRestarter::onTimeToRestart);
+    connect(&restart_, &QTimer::timeout, this, &ClayDojo::onTimeToRestart);
 }
 
-ClayRestarter::~ClayRestarter()
+ClayDojo::~ClayDojo()
 {
    std::unique_lock<std::timed_mutex> ul(mutex_);
    shallStop_ = true;
    restarterStopped_.wait(ul);
 }
 
-void ClayRestarter::addDynPluginDepedency(const QString& srcPath,
+void ClayDojo::addDynPluginDepedency(const QString& srcPath,
                                      const QString& binPath)
 {
     qCDebug(logCat_) << "New dyn plugin dir: " << srcPath << " " << binPath;
@@ -49,7 +49,7 @@ void ClayRestarter::addDynPluginDepedency(const QString& srcPath,
     qCDebug(logCat_) << "Added plugin dependency " << srcPath << " , " << binPath;
 }
 
-void ClayRestarter::run()
+void ClayDojo::run()
 {
     std::thread t([this] {
         const auto loaderCmd = QString("%1/clayliveloader").arg(QCoreApplication::applicationDirPath());
@@ -59,13 +59,13 @@ void ClayRestarter::run()
                 // Ensure that delete gets called after pending signal processing
                 if (sbx_.get()) {
                     auto& p = *sbx_.release();
-                    disconnect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOutput);
+                    disconnect(&p, &QProcess::readyReadStandardError, this, &ClayDojo::onSbxOutput);
                     p.deleteLater();
                 }
             }
             sbx_.reset(new QProcess());
             auto& p = *sbx_.get();
-            connect(&p, &QProcess::readyReadStandardError, this, &ClayRestarter::onSbxOutput);
+            connect(&p, &QProcess::readyReadStandardError, this, &ClayDojo::onSbxOutput);
             if (buildWaitList_.empty()){
                 auto args = QCoreApplication::arguments();
                 args << QString("--%1").arg(SBX_INDEX_ARG) << QString::number(sbxIdx_);
@@ -112,13 +112,13 @@ void ClayRestarter::run()
     t.detach();
 }
 
-void ClayRestarter::triggerRestart(int sbxIdx)
+void ClayDojo::triggerRestart(int sbxIdx)
 {
    sbxIdx_ = sbxIdx;
    shallRestart_ = true;
 }
 
-void ClayRestarter::onSbxOutput()
+void ClayDojo::onSbxOutput()
 {
     if (!mutex_.try_lock_for(std::chrono::milliseconds(250))) return;
     std::lock_guard<std::timed_mutex> l(mutex_, std::adopt_lock);
@@ -133,7 +133,7 @@ void ClayRestarter::onSbxOutput()
     }
 }
 
-void ClayRestarter::onFileSysChange(const QString &path)
+void ClayDojo::onFileSysChange(const QString &path)
 {
    auto dir = QFileInfo(path).absoluteDir();
    if (!dir.exists()) {
@@ -172,7 +172,7 @@ void ClayRestarter::onFileSysChange(const QString &path)
    }
 }
 
-void ClayRestarter::onTimeToRestart()
+void ClayDojo::onTimeToRestart()
 {
     shallRestart_ = true;
 }

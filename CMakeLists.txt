@@ -26,7 +26,7 @@ add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (plugins)
 
 if(NOT ANDROID)
-    add_subdirectory (liveloader)
+    add_subdirectory (tools)
 endif()
 
 if(NOT ANDROID)
