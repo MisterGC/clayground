@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
 #include "utilityfunctions.h"
-#include "clayrestarter.h"
+#include "claydojo.h"
 #include <QTimer>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -10,7 +10,7 @@
 #include <QDebug>
 #include <QCommandLineParser>
 
-void processCmdLineArgs(const QGuiApplication& app, ClayRestarter& restarter)
+void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
 {
     QCommandLineParser parser;
     addCommonArgs(parser);
@@ -29,19 +29,19 @@ void processCmdLineArgs(const QGuiApplication& app, ClayRestarter& restarter)
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName("ClayRestarter");
-    QGuiApplication::setApplicationVersion("0.1");
+    QGuiApplication::setApplicationName("ClayDojo");
+    QGuiApplication::setApplicationVersion("0.2");
 
     QQmlApplicationEngine engine;
     engine.addImportPath("qml");
     engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
-    ClayRestarter restarter;
-    processCmdLineArgs(app, restarter);
-    engine.rootContext()->setContextProperty("ClayRestarter", &restarter);
+    ClayDojo dojo;
+    processCmdLineArgs(app, dojo);
+    engine.rootContext()->setContextProperty("ClayDojo", &dojo);
     engine.load(QUrl("qrc:/clayground/main.qml"));
 
-    QTimer::singleShot(0, &restarter, SLOT(run()));
+    QTimer::singleShot(0, &dojo, SLOT(run()));
 
     return app.exec();
 }

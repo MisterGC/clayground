@@ -2,28 +2,32 @@
 
 
 
-## Flow, form, create 
+## Overview: Flow, Form, Create 
 When participating at [Ludum Dare 44](https://ldjam.com) I started to develop
-utilities and a LiveLoading app to ease game creation. As I really enjoyed
-using these components, I decided to create separate project and make it
+utilities and a live loading app to ease game creation. As I really enjoyed
+using these components, I decided to create a separate project and to make it
 open source.
 
 Clayground is a [Qt](https://www.qt.io) based toolset that allows using C++, JavaScript
-and [QML](https://doc.qt.io/qt-5/qtqml-index.html) to rapidly develop apps in a sandbox environment with live loading capabilities.
-It provides tools that try both facilitating learning and allowing more
-focused and faster development by reducing typical build and restart times
-significantly.
+and [QML](https://doc.qt.io/qt-5/qtqml-index.html) to rapidly develop apps in a sandbox
+environment with live loading capabilities.  It provides tools that try both, facilitating
+learning and allowing more focused and faster development by reducing typical build and restart times significantly.
 
 ![Platformer Screenshot](res/screenshot_platformer.png)
 
 Goals/Basic Design Decisions:
-- Use Qt (Quick): Don't write everything from scratch, but think how to re-combine Qt's capabilities 
-- Code > Graphical Tools: Focus on minimizing time needed to write and debug applications
-- Don't write graphical tools, but support formats which can be used with popular free tools 
-- Add dedicated APIs but still allow bypassing them (full power of Qt/Qml, C++, JavaScript)
-- Target (rapid) prototyping and small/medium app development
+- Target Scope: Optimize for (rapid) prototyping and small/medium app development
+- Focus on written source code and keyboard actions not for usage of graphical tools
+- Full control: Add dedicated APIs but allow bypassing them easily (full power of C++, Qt/Qml, JavaScript)
+- Don't provide (graphical) tools: Go for approaches that allow usage of freely available, popular tools like Qt Creator, Git and Inkscape
+- Qt as Foundation: Don't write everything from scratch, but think how to re-combine Qt's capabilities 
 
-### Available Plugins
+Main components:
+- **Dojo**: Sandbox environment which is designed to be used for rapid dev, it is typically put next to a code editor/IDE, code changes are automatically applied 
+- **Plugins**: Different packages that can be used to build (interactive) apps
+- **Examples**: Demonstrate the usage of Clayground, all examples can be either used with Dojo or standalone
+
+### Plugins: Clayground's basic building blocks
 Clayground comes with a set of plugins that extend Qt capabilities in order to
 build interactive experiences:
 - Physics/Box2D: Adds 2D Physics capabilities
@@ -34,32 +38,30 @@ build interactive experiences:
 - Storage: Get persistent storage with a very simple API
 - World: Uses Canvas, Physics and SVG to provide a foundation for small games and simulations
 
-### Available Examples
+### Examples: See how problems can be solved with Clayground
 A bunch of example application allow you to try it out easily:
 - GUI: Visual training app for keyboard shortcuts, comes with a configuration for Inkscape.
 - VisualFX: Implementation of different visual effects, includes usage of the [Qt Particle System](https://doc.qt.io/qt-5/qtquick-effects-particles.html).
 - Platformer: Starting point for a platformer game.
-- TopDown: Starting point for a topdown game (for example a classical RPG).
-- PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin.
+- TopDown: Starting point for a topdown game (for example a classical RPG), comes with network support 
+- PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin
 
 ### How to work with a sandbox?
 1. Clone this repo and build it (Qt 5.15.x, Qt Creator)
-2. Start the qml_live_loader app `clayrestarter --dynimportdir=<clone-dir>/sandboxes/void`
+2. Start the dojo app `claydojo --sbx=<clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
-4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes live applied
-5. Check out the other sandboxes in the same way :)
+4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
+5. Press `G` in the app window to show the Guide/Help overlay.
+6. Check out the other sandboxes in the same way :)
+
 
 #### Using the Logging Overlay
-The sandbox comes with a logging overlay that shows all 
-`console.log(...)` messages in a continous log view and 
-watched properties/expressions in a sticky section. You can 
-easily show/hide the overlay by using the `log` button of the 
-restarter or by pressing lower-case L when the Sbx Window has the focus.
+The sandbox comes with a logging overlay that shows all `console.log(...)` messages in a continous log view and watched properties/expressions in a sticky section. You can 
+easily show/hide the logging overlay by pressing `L` when the Sandbox Window has the focus.
 
 <img src="res/log_overlay.png" width="50%" height="50%" alt="LogOverlay Screenshot">
 
-Have a look at the `onMapLoaded` signal handler of the Platformer 
-Sandbox to see how you can use them.
+Have a look at the `onMapLoaded` signal handler of the Platformer Sandbox to see how you can use them.
 
 ### How to create a deployable app?
 Each of the demo sandboxes also comes with a CMake application configuration which 
@@ -67,7 +69,9 @@ allows to build a standalone app. So you can just use one as a template to build
 
 ### Is there any recommended development setup?
 - OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can 
-- IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim for various text processing tasks
+- IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim and VS Code for various text processing tasks
 
+Feel free to contact me, create issues or to contribute :)
 
-I hope you enjoy using clayground, feel free to create issues or to contribute :)
+Enjoy life,<br>
+`mgc`

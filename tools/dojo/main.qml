@@ -14,7 +14,7 @@ Window {
     y: Screen.desktopAvailableHeight * .01
     width: Screen.desktopAvailableWidth * .32
     height: Screen.desktopAvailableHeight * .2
-    title: qsTr("Clay Dev Session")
+    title: qsTr("Clay Dojo")
     opacity: .95
 
     property int nrRestarts: 0
@@ -23,19 +23,28 @@ Window {
     Component.onCompleted: {
         keyvalues.set("nrRestarts", 0);
         keyvalues.set("command", "");
-        keyvalues.set("options", "");
+        keyvalues.set("liveLoaderCtrl", "");
+        _commandProc.start();
     }
 
     Timer {
-        running: true
+        id: _commandProc
+        running: false
         repeat: true
         interval: 250
         onTriggered: {
-            nrRestarts = keyvalues.get("nrRestarts", 0)
-            currError = keyvalues.get("lastErrorMsg", 0)
-            let cmd = keyvalues.get("command");
-            if (cmd === "restart") ClayRestarter.triggerRestart();
-            keyvalues.set("command", "");
+            nrRestarts = keyvalues.get("nrRestarts", 0);
+            currError = keyvalues.get("lastErrorMsg", 0);
+            const cmd = keyvalues.get("command");
+            if (cmd){
+                const cmdParts = cmd.split(' ');
+                if (cmdParts[0] === "restart") {
+                    let idx = -1;
+                    if (cmdParts.length === 2) idx = parseInt(cmdParts[1]);
+                    ClayDojo.triggerRestart(idx);
+                }
+                keyvalues.set("command", "");
+            }
         }
     }
 
@@ -68,40 +77,16 @@ Window {
                         font.pixelSize: lbl.font.pixelSize * 1.8
                     }
                 }
-                Button {
-                    id: btnRestart
-                    width: theWindow.width * .05
-                    height: width
-                    anchors.verticalCenter: parent.verticalCenter
-                    background: Image { source: theSvgSource.source("reload") }
-                    onPressed: ClayRestarter.triggerRestart();
-                    ToolTip.visible: btnRestart.hovered
-                    ToolTip.text: "Restart Sbx (Press 'r' in Sbx)"
-                    ToolTip.delay: 500
-                }
-                Button {
-                    id: btnToggleLog
-                    width: theWindow.width * .05
-                    height: width
-                    anchors.verticalCenter: parent.verticalCenter
-                    background: Image { source: theSvgSource.source("log") }
-                    function toggleLog() {keyvalues.set("options", "log");}
-                    onPressed: toggleLog()
-                    ToolTip.visible: btnToggleLog.hovered
-                    ToolTip.text: "Show/hide log overlay (Press 'l' in Sbx)"
-                    ToolTip.delay: 500
-                }
             }
 
             Text {
                 id: briefStatus
 
-                anchors.horizontalCenter: parent.horizontalCenter
                 color: blinkColor
-                horizontalAlignment: Text.AlignHCenter
+                anchors { left: parent.left; leftMargin: watch.width * .05}
                 font.family: "Monospace"
                 font.pixelSize: watch.width * 0.06
-                text: errDetected ? "<b>CRITICAL ERROR</b>" : "All Systems up and running"
+                text: errDetected ? "<b>> CRITICAL ERROR</b>" : "> All Systems up and running..."
 
                 property color blinkColor: errDetected ? "#D64545" : watch.secondsColor
                 property bool errDetected: currError !== ""
@@ -144,21 +129,23 @@ Window {
         }
     }
 
+    Button {
+        id: btnToggleHelp
+        text: "?"; font.family: "Monospace"; font.pixelSize: lbl.font.pixelSize * 1.8
+        width: height; flat: true; highlighted: true
+        anchors.top: parent.top; anchors.topMargin: height * .1;
+        anchors.right: parent.right; anchors.rightMargin: width * .1;
+        ToolTip {visible: btnToggleHelp.hovered; text: "Show/hide help overlay"; delay: 500}
+        function toggleHelp() {keyvalues.set("liveLoaderCtrl", "toggleHelp");}
+        onPressed: toggleHelp()
+    }
+
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
-        target: ClayRestarter
+        target: ClayDojo
         function onRestarted() {
             let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
             keyvalues.set("nrRestarts", r);
-            btnRestart.enabled = true;
         }
-        function onAboutToRestart() { btnRestart.enabled = false; }
     }
-
-    SvgImageSource {
-        id: theSvgSource
-        svgPath: "clayground/graphics"
-        annotationRRGGBB:"000000"
-    }
-
 }

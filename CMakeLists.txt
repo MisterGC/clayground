@@ -25,15 +25,9 @@ add_subdirectory (thirdparty/qml-box2d)
 add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (plugins)
 
+# Qt has problems with multiple executables when building for Android
+# TODO Re-check if support for Android got better in Qt6
 if(NOT ANDROID)
-    add_subdirectory (liveloader)
-endif()
-
-if(NOT ANDROID)
-    add_subdirectory (sandboxes/gui)
-    add_subdirectory (sandboxes/visualfx)
-    add_subdirectory (sandboxes/platformer)
-    add_subdirectory (sandboxes/pluginlive)
-    add_subdirectory (sandboxes/topdown)
-    add_subdirectory (sandboxes/void)
+    add_subdirectory (tools)
+    add_subdirectory (examples)
 endif()
