@@ -12,5 +12,5 @@ add_subdirectory (clay_svg)
 #add_subdirectory (clay_network)
 
 add_subdirectory (clay_physics)
-#add_subdirectory (clay_world)
+add_subdirectory (clay_world)
 #add_subdirectory (clay_behavior)

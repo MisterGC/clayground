@@ -1,8 +1,0 @@
-<RCC>
-    <qresource prefix="/clayground">
-        <file>ClayWorld.qml</file>
-        <file>MapLoader.qml</file>
-        <file>Minimap.qml</file>
-    </qresource>
-</RCC>
-

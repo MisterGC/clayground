@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
-import QtQuick 2.12
-import Clayground.Common 1.0
+import QtQuick
+import Clayground.Common
 
 Rectangle {
     id: theMinimap
