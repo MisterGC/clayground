@@ -1,6 +1,0 @@
-<RCC>
-    <qresource prefix="/clayground">
-        <file>Clayground.qml</file>
-    </qresource>
-</RCC>
-
