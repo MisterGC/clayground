@@ -1,3 +1,0 @@
-module Clayground.Storage
-plugin ClayStorage
-classname ClayStoragePlugin
