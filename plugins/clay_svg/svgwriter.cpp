@@ -14,7 +14,6 @@ SvgWriter::SvgWriter() : document_(new Document(""))
 
 SvgWriter::~SvgWriter() = default;
 
-
 void SvgWriter::begin(float widthWu, float heightWu)
 {
     Dimensions dimensions(static_cast<double>(widthWu),

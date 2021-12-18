@@ -7,10 +7,12 @@
 #include <QXmlStreamReader>
 #include <QStack>
 #include <QPointF>
+#include <qqmlregistration.h>
 
 class SvgReader: public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
 
 public:
     SvgReader();

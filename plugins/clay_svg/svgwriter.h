@@ -8,12 +8,14 @@
 #include <QPointF>
 #include <QList>
 #include <memory>
+#include <qqmlregistration.h>
 
 namespace simple_svg {class Document;}
 
 class SvgWriter: public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
 
 public:
