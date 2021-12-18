@@ -1,3 +1,0 @@
-module Clayground.GameController
-plugin ClayGameController
-classname ClayGameCtrlPlugin

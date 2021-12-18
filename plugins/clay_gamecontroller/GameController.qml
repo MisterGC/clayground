@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
+import QtQuick
 
 /** Represents a very simple GameController which is inspired by input possibilities of NES controller. */
 Item {
