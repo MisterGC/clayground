@@ -1,8 +1,8 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
+import QtQuick as Quick
 
-Text {
+Quick.Text {
     property ClayCanvas canvas: null
     parent: canvas ? canvas.coordSys : null
     property real xWu: 0

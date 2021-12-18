@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
-import QtQuick.Shapes 1.14
+import QtQuick
+import QtQuick.Shapes
 
 /** Connects to item (incl. automatic position updates) */
 Shape {

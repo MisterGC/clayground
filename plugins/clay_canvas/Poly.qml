@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
-import QtQuick.Shapes 1.14
+import QtQuick
+import QtQuick.Shapes
 
 /** Represents both a polygon and a polyline as it is based on Shape with ShapePath */
 Shape {

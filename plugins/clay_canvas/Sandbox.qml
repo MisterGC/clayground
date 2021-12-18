@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.15
-import Clayground.Canvas 1.0 as Canv
+import QtQuick
+import Clayground.Canvas as Canv
 
 Canv.ClayCanvas
 {
