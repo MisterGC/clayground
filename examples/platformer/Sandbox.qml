@@ -1,12 +1,12 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import Box2D 2.0
-import Clayground.GameController 1.0
-import Clayground.World 1.0
-import Clayground.Physics 1.0
-import Clayground.Canvas 1.0
-import Clayground.Common 1.0
+import QtQuick
+import Box2D
+import Clayground.GameController
+import Clayground.World
+import Clayground.Physics
+import Clayground.Canvas
+import Clayground.Common
 
 ClayWorld
 {
@@ -65,7 +65,7 @@ ClayWorld
         onButtonBPressedChanged:  if (buttonBPressed) player.jump();
     }
 
-    onMapEntityCreated: {
+    onMapEntityCreated: (obj) => {
        if (obj instanceof VisualizedPolyBody) {
            obj.fixedRotation = false;
            obj.bullet = true
