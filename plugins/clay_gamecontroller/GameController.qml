@@ -23,7 +23,8 @@ Item {
     readonly property bool keyboardSelected: keybGamepad.enabled
 
     // All properties of a connected, physical gamepad
-    readonly property var gamepad: gamepadLoader.item
+    // TODO: Reactivate Gamepad
+    readonly property var gamepad: null//gamepadLoader.item
     readonly property int gamepadDeviceId: gamepad ? gamepad.deviceId : -1
     readonly property int numConnectedGamepads: gamepad ? gamepad.numConnectedGamepads : 0
 
@@ -72,10 +73,12 @@ Item {
         observed: theController
     }
 
-    Loader {
-        id: gamepadLoader
-        source: Qt.platform.os !== "ios" ?  "GamepadWrapper.qml" : null
-    }
+    // TODO There is not yet a Qt6.x version available that supports
+    // Gamepad again - either wait for a version or use an alternative
+//    Loader {
+//        id: gamepadLoader
+//        source: Qt.platform.os !== "ios" ?  "GamepadWrapper.qml" : null
+//    }
 
     Keys.forwardTo: keybGamepad
     KeyboardGamepad { id: keybGamepad; gameController: theController; }

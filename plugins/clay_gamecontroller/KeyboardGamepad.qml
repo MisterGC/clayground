@@ -22,7 +22,7 @@ Item
         buttonBKey = bB;
     }
 
-    Keys.onPressed: {
+    Keys.onPressed: (event)=> {
         if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
@@ -35,7 +35,7 @@ Item
         }
     }
 
-    Keys.onReleased: {
+    Keys.onReleased: (event)=> {
         if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
