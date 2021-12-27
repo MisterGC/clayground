@@ -38,8 +38,7 @@
 #define SERVER_H
 
 #include <QTcpServer>
-
-class Connection;
+#include "connection.h"
 
 class Server : public QTcpServer
 {

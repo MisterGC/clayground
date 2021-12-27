@@ -9,7 +9,7 @@ add_subdirectory (clay_canvas)
 add_subdirectory (clay_gamecontroller)
 add_subdirectory (clay_storage)
 add_subdirectory (clay_svg)
-#add_subdirectory (clay_network)
+add_subdirectory (clay_network)
 
 add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
