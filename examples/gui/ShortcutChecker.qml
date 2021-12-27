@@ -51,7 +51,7 @@ Item {
         return modTxt;
     }
 
-    Keys.onPressed: {
+    Keys.onPressed: (event) => {
         let withMod = shortcutToMatch.includes("+")
         let modTxt = withMod ? modToTxt(event.modifiers) : "";
         let text = modTxt + (modTxt === "" ? "" : "+") + keyToTxt(event.key);
