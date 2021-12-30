@@ -90,7 +90,7 @@ Rectangle {
             _destWp.width= Qt.binding(_ => {return behavior.width;});
             _destWp.height= Qt.binding(_ => {return behavior.height;});
 
-            ClayPhysics.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
+            PhysicsUtils.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
                                         if (wpDetect === actor) {
                                             actor.linearVelocity.x = 0;
                                             actor.linearVelocity.y = 0;
