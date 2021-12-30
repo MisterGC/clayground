@@ -16,6 +16,10 @@ Item {
     onYWuChanged: y = parent ? parent.height - yWu * pixelPerUnit : 0
     onXChanged: xWu = (1/pixelPerUnit) * x;
     onYChanged: yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
+    onPixelPerUnitChanged: {
+        x = xWu * pixelPerUnit;
+        y = parent ? parent.height - yWu * pixelPerUnit : 0;
+    }
 
     property real widthWu: 1
     property real heightWu: 1
