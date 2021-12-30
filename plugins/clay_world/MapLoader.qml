@@ -6,6 +6,11 @@ import Clayground.Svg
 
 SvgReader
 {
+    property bool active: false
+    property string mapSource: ""
+    onActiveChanged: if (active && mapSource) setSource(mapSource)
+    onMapSourceChanged: if (active && mapSource) setSource(mapSource)
+
     property bool loadEntitiesAsync: false
     property var entities: []
     property real baseZCoord: 0

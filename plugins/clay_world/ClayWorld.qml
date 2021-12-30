@@ -28,7 +28,8 @@ ClayCanvas
     // true -> entities get loaded without block UI
     property alias loadMapAsync: mapLoader.loadEntitiesAsync
 
-    Component.onCompleted: { _moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand);}
+    Component.onCompleted: {_moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand); _loadActive.restart();}
+    Timer {id: _loadActive; interval: 1; onTriggered: mapLoader.active = true;}
     Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
 
 
@@ -63,9 +64,9 @@ ClayCanvas
     on_FullmappathChanged: _refreshMap()
 
     function _refreshMap() {
-        if (width > 0 || height > 0) {
-            mapLoader.setSource("");
-            mapLoader.setSource(_fullmappath);
+        if (width > 0 && height > 0) {
+            mapLoader.mapSource = "";
+            mapLoader.mapSource = _fullmappath;
         }
     }
     onMapLoaded: _updateRoomContent()
