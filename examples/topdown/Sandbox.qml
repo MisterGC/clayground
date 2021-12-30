@@ -43,7 +43,7 @@ ClayWorld {
     Keys.forwardTo: theGameCtrl
     GameController {id: theGameCtrl; anchors.fill: parent}
 
-    onMapEntityCreated: (obj) => {
+    onMapEntityCreated: (obj, groupId, compName) => {
         if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
