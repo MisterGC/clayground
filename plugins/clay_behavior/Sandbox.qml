@@ -10,10 +10,11 @@ import Clayground.World 1.0
 ClayWorld
 {
     id: theWorld
+
+    map: "map.svg";
     anchors.fill: parent
     pixelPerUnit: height / theWorld.yWuMax
     gravity: Qt.point(0,0)
-    map: "map.svg"
     loadMapAsync: false
 
     // Activate to see behavior visualization
@@ -32,7 +33,7 @@ ClayWorld
 
     // How to put together keyboard controls with physics movement?
     RectBoxBody {
-        id: player; color: "orange"; bodyType: Body.Dynamic
+        id: player; color: "orange"; bodyType: Body.Dynamic; z:99
         xWu: 7; yWu: 7; widthWu: .9; heightWu: widthWu; radius: .25*width
         linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10;
         Canv.Text{parent: player.parent;
@@ -45,9 +46,14 @@ ClayWorld
         categories: collCat.player
         collidesWith: collCat.door | collCat.wall
     }
+
     Keys.forwardTo: ctrl
-    GameController {id: ctrl; anchors.fill: parent;
-    Component.onCompleted: selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_J, Qt.Key_K); }
+    GameController {
+        id: ctrl; anchors.fill: parent;
+        Component.onCompleted: selectKeyboard(
+                                   Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right,
+                                   Qt.Key_J, Qt.Key_K);
+    }
 
     // Move entities randomly arround within a limited area
     property var spawnArea: null
@@ -58,7 +64,9 @@ ClayWorld
         RectBoxBody {
             function rndSpawnAreaX(){return spawnArea.xWu + Math.random() * spawnArea.widthWu}
             function rndSpawnAreaY(){return spawnArea.yWu - Math.random() * spawnArea.heightWu}
-            color: "#1b5e41"; border.color: Qt.darker(color, 1.3); border.width: 2; radius: width*.25
+            color: "#1b5e41"; z: 99
+            border.color: Qt.darker(color, 1.3); border.width: 2;
+            radius: width*.25
             xWu: rndSpawnAreaX(); yWu: rndSpawnAreaY(); widthWu: .7; heightWu: widthWu;
             bodyType: Body.Kinematic; sensor: true;
             MoveTo {
@@ -74,8 +82,8 @@ ClayWorld
     // One entity follows a path
     RectBoxBody {
         id: pathFollower
+        parent: theWorld.room
         radius: height *.25
-        property alias path: _followP.wpsWu
         color: "#de8787"
         xWu: 3.5; yWu: 9; widthWu: .9; heightWu: widthWu;
         bodyType: Body.Kinematic; sensor: true;

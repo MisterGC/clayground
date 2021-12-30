@@ -72,8 +72,6 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: {_adaptConfiguration()}
-
     function _adaptConfiguration() {
         if (!world  || !world.room  || !actor) return;
 
@@ -83,12 +81,8 @@ Rectangle {
             actor.body.addFixture(_detector);
         }
 
-        if (!_destWp){;
+        if (!_destWp){
             _destWp = waypointComp.createObject(behavior.world.room);
-            _destWp.xWu = Qt.binding(_ => {return behavior.destXWu - (width/pixelPerUnit) * .5});
-            _destWp.yWu = Qt.binding(_ => {return behavior.destYWu +  (height/pixelPerUnit) * .5});
-            _destWp.width= Qt.binding(_ => {return behavior.width;});
-            _destWp.height= Qt.binding(_ => {return behavior.height;});
 
             PhysicsUtils.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {
                                         if (wpDetect === actor) {
@@ -99,6 +93,10 @@ Rectangle {
                                     });
         }
 
+        _destWp.xWu = behavior.destXWu;
+        _destWp.yWu = behavior.destYWu;
+        _destWp.width = behavior.width;
+        _destWp.height = behavior.height;
     }
 
     Timer{id: _veloAdaptor; interval: 100; repeat: true; onTriggered: _adaptVelocity() }
@@ -117,7 +115,7 @@ Rectangle {
         let dY = wpCoords.y - bCoords.y;
         let v = Qt.vector2d(dX, dY);
         let l = v.length();
-        if (l > 1) {
+        if (l > 4) {
             v = v.times(desiredSpeed/l);
             actor.linearVelocity.x = v.x;
             actor.linearVelocity.y = v.y;

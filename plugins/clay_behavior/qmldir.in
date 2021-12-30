@@ -1,3 +1,0 @@
-module Clayground.Behavior
-plugin ClayBehavior
-classname ClayBehaviorPlugin
