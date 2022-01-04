@@ -22,6 +22,7 @@ function(clay_p PLUGIN_NAME)
             VERSION ${CLAYPLUGIN_VERSION}
             SOURCES ${CLAYPLUGIN_SOURCES}
             QML_FILES ${CLAYPLUGIN_QML_FILES}
+            NO_CACHEGEN
             )
 
     target_compile_features(${PLUGIN_NAME} PUBLIC cxx_std_17)

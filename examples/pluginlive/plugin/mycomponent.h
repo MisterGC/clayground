@@ -1,19 +1,16 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+#pragma once
 
-#ifndef MYCOMPONENT_H
-#define MYCOMPONENT_H
 #include <QObject>
-#include <QString>
+#include <qqmlregistration.h>
+//#include <QtQuick>
 
 class MyComponent: public QObject
 {
     Q_OBJECT
-
-public:
-    MyComponent();
+    QML_ELEMENT
 
 public slots:
-    QString sayHello() const;
-    QString sayBye() const;
+    QString sayHello();
+    QString sayBye();
 };
-#endif

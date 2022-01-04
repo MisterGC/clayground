@@ -2,14 +2,12 @@
 
 #include "mycomponent.h"
 
-MyComponent::MyComponent() {}
-
-QString MyComponent::sayHello() const
+QString MyComponent::sayHello()
 {
     return "It works :)";
 }
 
-QString MyComponent::sayBye() const
+QString MyComponent::sayBye()
 {
     return "Bye bye";
 }

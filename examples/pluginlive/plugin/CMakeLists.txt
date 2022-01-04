@@ -1,41 +1,13 @@
 project (MyPlugin)
-set (CMAKE_AUTOMOC on)
 
-find_package(Qt6 COMPONENTS Quick Core Qml QUIET)
-if (NOT Qt6_FOUND)
-    find_package(Qt5 5.15 COMPONENTS Quick Core Qml REQUIRED)
-endif()
+include (clayplugin)
+import_qt_components(Core Quick Qml)
 
-add_library(${PROJECT_NAME} SHARED
-    myplugin.cpp
-    myplugin.h
-    mycomponent.cpp
-    mycomponent.h
-    qmldir.in
-)
-
-set (PLUGIN_DEST_DIR "${CMAKE_BINARY_DIR}/bin/plugins/${PROJECT_NAME}")
-
-set_target_properties(
-${PROJECT_NAME}
-PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED on
-    CXX_EXTENSIONS NO
-    LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_DEST_DIR}"
-)
-
-target_link_libraries(
-${PROJECT_NAME}
-PRIVATE
-    Qt::Core
-    Qt::Quick
-    Qt::Qml
-)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/qmldir.in
-    ${PLUGIN_DEST_DIR}/qmldir
+clay_p( MyPlugin
+    VERSION 1.0
+    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/MyPlugin"
+    URI Clayground.MyPlugin
+    QML_FILES MyItem.qml
+    SOURCES  mycomponent.cpp
+    LINK_LIBS Qt::Core Qt::Quick Qt::Qml
 )
