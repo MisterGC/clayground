@@ -3,10 +3,8 @@ include (clayplugin)
 
 import_qt_components(Core Quick Qml)
 
-clay_p( ClayBehavior
+clay_p( Behavior
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Behavior"
-    URI Clayground.Behavior
     QML_FILES
         FollowPath.qml Move.qml MoveTo.qml RectTrigger.qml
         WorldChangedConnections.qml Sandbox.qml DoorBuilder.qml

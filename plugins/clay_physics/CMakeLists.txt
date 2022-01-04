@@ -7,10 +7,8 @@ import_qt_components(Core Quick Qml)
 # instructions for singletons
 set_source_files_properties(PhysicsUtils.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-clay_p( ClayPhysics
+clay_p( Physics
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Physics"
-    URI Clayground.Physics
     QML_FILES
             CollisionTracker.qml
             ImageBoxBody.qml

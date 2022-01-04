@@ -3,10 +3,8 @@ include (clayplugin)
 
 import_qt_components(Core Quick Qml)
 
-clay_p( ClayGameController
+clay_p( GameController
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/GameController"
-    URI Clayground.GameController
     QML_FILES
             Sandbox.qml
             GameController.qml

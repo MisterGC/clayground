@@ -3,10 +3,8 @@ include (clayplugin)
 
 import_qt_components(Core Quick Qml Network)
 
-clay_p( ClayNetwork
+clay_p( Network
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Network"
-    URI Clayground.Network
     SOURCES
         claynetworknode.cpp connection.cpp peermanager.cpp server.cpp
     QML_FILES

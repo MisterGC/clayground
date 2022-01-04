@@ -12,8 +12,11 @@ function(clay_p PLUGIN_NAME)
     set(multiValueArgs SOURCES QML_FILES LINK_LIBS)
     cmake_parse_arguments(CLAYPLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    if(NOT CLAYPLUGIN_VERSION)
-        message(FATAL_ERROR "VERSION must be set, no files generated")
+    if(NOT CLAYPLUGIN_DEST_DIR AND NOT CLAYPLUGIN_URI)
+        set(CLAYPLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/${PLUGIN_NAME}")
+        set(CLAYPLUGIN_URI "Clayground.${PLUGIN_NAME}")
+        set(PLUGIN_NAME "Clay${PLUGIN_NAME}")
+        message("Fix names: ${PLUGIN_NAME} ${CLAYPLUGIN_DEST_DIR} ${CLAYPLUGIN_URI}")
     endif()
 
     qt_add_qml_module(${PLUGIN_NAME}

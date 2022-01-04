@@ -3,10 +3,8 @@ include (clayplugin)
 
 import_qt_components(Core Quick Qml)
 
-clay_p( ClayWorld
+clay_p( World
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/World"
-    URI Clayground.World
     QML_FILES
         ClayWorld.qml
         MapLoader.qml
