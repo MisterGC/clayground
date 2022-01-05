@@ -47,7 +47,7 @@ A bunch of example application allow you to try it out easily:
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin
 
 ### How to work with a sandbox?
-1. Clone this repo and build it (Qt 5.15.x, Qt Creator)
+1. Clone this repo and build it (Qt 5.15.x, Qt Creator). Make sure to pull the submodules `git submodule update --recursive --init`
 2. Start the dojo app `claydojo --sbx=<clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
