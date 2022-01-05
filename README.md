@@ -9,7 +9,7 @@ using these components, I decided to create a separate project and to make it
 open source.
 
 Clayground is a [Qt](https://www.qt.io) based toolset that allows using C++, JavaScript
-and [QML](https://doc.qt.io/qt-5/qtqml-index.html) to rapidly develop apps in a sandbox
+and [QML](https://doc.qt.io/qt-6/qtqml-index.html) to rapidly develop apps in a sandbox
 environment with live loading capabilities.  It provides tools that try both, facilitating
 learning and allowing more focused and faster development by reducing typical build and restart times significantly.
 
@@ -47,7 +47,7 @@ A bunch of example application allow you to try it out easily:
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin
 
 ### How to work with a sandbox?
-1. Clone this repo and build it (Qt 5.15.x, Qt Creator). Make sure to pull the submodules `git submodule update --recursive --init`
+1. Clone this repo and build it (Qt 6.2.2 or higher, Qt Creator). Make sure to pull the submodules `git submodule update --recursive --init`
 2. Start the dojo app `claydojo --sbx=<clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the window to a location that allows you to keep it visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
