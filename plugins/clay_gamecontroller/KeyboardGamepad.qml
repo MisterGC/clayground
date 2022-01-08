@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
+import QtQuick
 
 Item
 {
@@ -22,7 +22,7 @@ Item
         buttonBKey = bB;
     }
 
-    Keys.onPressed: {
+    Keys.onPressed: (event)=> {
         if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {
@@ -35,7 +35,7 @@ Item
         }
     }
 
-    Keys.onReleased: {
+    Keys.onReleased: (event)=> {
         if (!enabled || event.isAutoRepeat) return;
         switch (event.key)
         {

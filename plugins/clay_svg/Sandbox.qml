@@ -1,8 +1,8 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import Clayground.Canvas 1.0
-import Clayground.Svg 1.0
+import QtQuick
+import Clayground.Canvas
+import Clayground.Svg
 
 ClayCanvas
 {
@@ -126,13 +126,13 @@ ClayCanvas
         }
 
 
-        onPolygon: {
+        onPolygon: (points, description) => {
             console.log("A polygon: " + description)
             let obj = createPoly(points);
             objs.push(obj);
         }
 
-        onPolyline: {
+        onPolyline: (points, description) => {
             console.log("A polyline: " + description)
             let obj = createPoly(points);
             obj.fillColor = "transparent"
@@ -152,14 +152,14 @@ ClayCanvas
             objs = [];
         }
 
-        onRectangle: {
+        onRectangle: (x, y, width, height) => {
             console.log("Rectangle{x:" + x.toFixed(2) +
                         " y:" + y.toFixed(2) +
                         " w:" + width.toFixed(2) +
                         " h:" + height.toFixed(2))
         }
 
-        onBeginGroup: {console.log("groupid: " + name + " descr: " + description);}
+        onBeginGroup: (name, description) => {console.log("groupid: " + name + " descr: " + description);}
         onEndGroup: {}
     }
 }

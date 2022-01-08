@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ master, develop ]
+    branches: [ main ]
 
 jobs:
   build-linux:
@@ -17,12 +17,16 @@ jobs:
       with:
         submodules: 'recursive'
 
+    # TODO Use a/the next official release
     - name: Install Qt
-      uses: jurplel/install-qt-action@v2
+      uses: jurplel/install-qt-action@v2.14.0
       with:
-        version: '5.15.2'
+        version: '6.2.2'
         host: 'linux'
         target: 'desktop'
+        arch: 'gcc_64'
+        modules: 'qtmultimedia'
+        aqtversion: '==2.0.5'
 
     - name: CMake Configure
       run:  |
@@ -53,12 +57,14 @@ jobs:
         submodules: 'recursive'
 
     - name: Install Qt
-      uses: jurplel/install-qt-action@v2
+      uses: jurplel/install-qt-action@v2.14.0
       with:
-        version: '5.15.2'
+        version: '6.2.2'
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2019_64'
+        modules: 'qtmultimedia'
+        aqtversion: '==2.0.5'
 
     - name: CMake Configure
       run:  |

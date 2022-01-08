@@ -1,3 +1,0 @@
-module Clayground.Svg
-plugin ClaySvg
-classname SvgPlugin

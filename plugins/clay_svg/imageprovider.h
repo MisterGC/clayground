@@ -10,11 +10,7 @@
 #include <QUrlQuery>
 #include <QSet>
 
-class ImageProvider:
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-        public QObject,
-#endif
-        public QQuickImageProvider
+class ImageProvider: public QQuickImageProvider
 {
     Q_OBJECT
 

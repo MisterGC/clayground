@@ -1,3 +1,0 @@
-module Clayground.World
-plugin ClayWorld
-classname ClayWorldPlugin

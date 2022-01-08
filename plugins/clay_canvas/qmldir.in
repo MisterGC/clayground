@@ -1,3 +1,0 @@
-module Clayground.Canvas
-plugin ClayCanvas
-classname ClayCanvasPlugin

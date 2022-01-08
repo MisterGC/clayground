@@ -1,3 +1,0 @@
-module Clayground.Network
-plugin ClayNetwork
-classname ClayNetworkPlugin

@@ -1,16 +1,21 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.19)
 include (clayplugin)
 
 import_qt_components(Core Quick Qml)
 
-clay_p( ClayPhysics
-#{
+# Needs to be told first otherwise clay_p / qml_add_module don't generate
+# instructions for singletons
+set_source_files_properties(PhysicsUtils.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+clay_p( Physics
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Physics"
-    URI Clayground.Physics
-    SOURCES
-        clayphysicsplugin.cpp clay_physics.qrc qmldir.in
+    QML_FILES
+            CollisionTracker.qml
+            ImageBoxBody.qml
+            PhysicsItem.qml
+            PhysicsUtils.qml
+            RectBoxBody.qml
+            VisualizedPolyBody.qml
     LINK_LIBS
-        Qt::Core Qt::Quick Qt::Qml box2dqml
-#}
+        Qt::Core Qt::Quick Qt::Qml
 )

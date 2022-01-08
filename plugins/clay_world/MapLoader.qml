@@ -1,11 +1,16 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import Box2D 2.0
-import Clayground.Svg 1.0
+import QtQuick
+import Box2D
+import Clayground.Svg
 
 SvgReader
 {
+    property bool active: false
+    property string mapSource: ""
+    onActiveChanged: if (active && mapSource) setSource(mapSource)
+    onMapSourceChanged: if (active && mapSource) setSource(mapSource)
+
     property bool loadEntitiesAsync: false
     property var entities: []
     property real baseZCoord: 0
@@ -27,7 +32,7 @@ SvgReader
     property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
     onLoadingFinishedChanged: if (loadingFinished) loaded()
 
-    onBegin: {
+    onBegin: (widthWu, heightWu) => {
         _sourceProcessed = false;
         world.mapAboutToBeLoaded();
         world.viewPortCenterWuX = 0;
@@ -87,7 +92,7 @@ SvgReader
         box2dWorkaround(obj);
     }
 
-    onBeginGroup: {
+    onBeginGroup: (id, description) => {
         _groupIdStack.push(id);
         world.groupAboutToBeLoaded(id, description);
     }
@@ -119,7 +124,7 @@ SvgReader
         else { _mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
     }
 
-    onPolygon: {
+    onPolygon: (id, points, description) => {
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
         let comp = fetchComp(cfg);
@@ -127,7 +132,7 @@ SvgReader
         onIncubationInitiated(inc, _currentGroupId(), cfg)
     }
 
-    onRectangle: {
+    onRectangle: (id, x, y, width, height, description) => {
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
@@ -135,7 +140,7 @@ SvgReader
         onIncubationInitiated(inc, _currentGroupId(), cfg);
     }
 
-    onPolyline: world.polylineLoaded(id, _currentGroupId(), points, description)
-    onCircle: world.circleLoaded(id, _currentGroupId(), x, y, radius, description)
+    onPolyline: (id, points, description) => {world.polylineLoaded(id, _currentGroupId(), points, description);}
+    onCircle: (id, x, y, radius, description) => {world.circleLoaded(id, _currentGroupId(), x, y, radius, description);}
 }
 

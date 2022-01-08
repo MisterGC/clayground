@@ -79,9 +79,9 @@ Item
                 id: dynUser
                 property int nr: 0
                 readonly property string myMsg: "Msg from user dynamic_" + nr + "!"
-                onNewMessage: console.log(nr + " received: "  + message)
-                onNewParticipant: {sendDirectMessage(user, "Hi from dynUser_" + nr + "!");}
-                onParticipantLeft:  {console.log("Participant " + user + " left.");}
+                onNewMessage: (message) => console.log(nr + " received: "  + message)
+                onNewParticipant: (user) => {sendDirectMessage(user, "Hi from dynUser_" + nr + "!");}
+                onParticipantLeft: (user) => {console.log("Participant " + user + " left.");}
             }
         }
     }
@@ -113,7 +113,7 @@ Item
         id: alice
         name: "alice"
         Component.onCompleted: joinGroup(group1);
-        onNewMessage: console.log(name + " got a message from " +
+        onNewMessage: (from, message) => console.log(name + " got a message from " +
                                   nameForId(from) + ": " + message)
     }
 
@@ -121,7 +121,7 @@ Item
         id: bob
         name: "bob"
         Component.onCompleted: {joinGroup(group1); joinGroup(group2);}
-        onNewMessage: console.log(name + " got a message from " +
+        onNewMessage: (from, message) => console.log(name + " got a message from " +
                                   nameForId(from) + ": " + message)
     }
 

@@ -1,10 +1,10 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import QtQuick.Window 2.12
-import QtQuick.Controls 2.5
-import Clayground.Storage 1.0
-import Clayground.Svg 1.0
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import Clayground.Storage
+import Clayground.Svg
 
 Window {
     id: theWindow

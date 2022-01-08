@@ -12,3 +12,5 @@ PRIVATE
   Qt::Core
   Qt::Quick
 )
+
+add_subdirectory(plugin)

@@ -1,3 +1,0 @@
-module Clayground.Common
-plugin ClayCommon
-classname ClayCommonPlugin

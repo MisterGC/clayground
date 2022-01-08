@@ -78,7 +78,7 @@ Item
             property var door: null
             visible: builder.world.behaviorDebug; color: "#92c0df"
             categories: collCat.door; collidesWith: collCat.npc
-            onEntered: {
+            onEntered: (entity) =>  {
                 door.idx = 1;
                 closeTimer.restart();
                 entity.openDoorAction.start();}

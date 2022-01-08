@@ -12,6 +12,6 @@ RectBoxBody
 
     signal entered(var entity)
 
-    Component.onCompleted: ClayPhysics.connectOnEntered(fixtures[0], _onEntered)
+    Component.onCompleted: PhysicsUtils.connectOnEntered(fixtures[0], _onEntered)
     function _onEntered(entity) { entered(entity); }
 }

@@ -1,19 +1,15 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.19)
 include (clayplugin)
 
 import_qt_components(Core Quick Qml)
 
-clay_p( ClayCommon
-#{
+# Needs to be told first otherwise clay_p / qml_add_module don't generate
+# instructions for singletons
+set_source_files_properties(Clayground.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+clay_p( Common
     VERSION 1.0
-    DEST_DIR  "${CLAY_PLUGIN_BASE_DIR}/Common"
-    URI Clayground.Common
-    SOURCES
-        claycommonplugin.cpp 
-        claystopwatch.cpp
-        clay_common.qrc 
-        qmldir.in
-    LINK_LIBS
-        Qt::Core Qt::Quick Qt::Qml
-#}
+    SOURCES claystopwatch.cpp
+    QML_FILES Clayground.qml
+    LINK_LIBS Qt::Core Qt::Quick Qt::Qml
 )

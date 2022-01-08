@@ -1,6 +1,6 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.0
+import QtQuick
 
 Item {
     id: theWorld
@@ -164,7 +164,7 @@ Item {
             height: flckable.contentHeight
         }
         Component.onCompleted: flckable.forceActiveFocus()
-        Keys.onPressed: {
+        Keys.onPressed: (event) => {
             if (theWorld.keyBoardNavigationEnabled) {
                 if (event.key === Qt.Key_I) {
                     if (flckable.contentY > 10) flckable.contentY -= 10
@@ -197,7 +197,7 @@ Item {
             }
             theWorld.keyPressed(event)
         }
-        Keys.onReleased: {
+        Keys.onReleased: (event) => {
             theWorld.keyReleased(event)
         }
 

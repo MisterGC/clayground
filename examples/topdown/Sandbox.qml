@@ -43,7 +43,7 @@ ClayWorld {
     Keys.forwardTo: theGameCtrl
     GameController {id: theGameCtrl; anchors.fill: parent}
 
-    onMapEntityCreated: {
+    onMapEntityCreated: (obj, groupId, compName) => {
         if (obj instanceof Player) {
             player = obj;
             player.color = "#d45500";
@@ -94,7 +94,7 @@ ClayWorld {
                 id: networkUser
 
                 property var otherPlayers: new Map()
-                onNewParticipant: {
+                onNewParticipant: (user) => {
                     let obj = playerComp.createObject(theWorld, {
                                                           xWu: player.xWu, yWu: player.yWu,
                                                           bodyType: Body.Static, sensor: true,
@@ -103,14 +103,14 @@ ClayWorld {
                     otherPlayers.set(user, obj);
                     _networking.regulatedSendPosition();
                 }
-                onParticipantLeft: {
+                onParticipantLeft: (user) => {
                     if (otherPlayers.has(user)){
                         let u = otherPlayers.get(user);
                         u.destroy();
                         otherPlayers.delete(user);
                     }
                 }
-                onNewMessage: {
+                onNewMessage: (from) => {
                     if (otherPlayers.has(from)){
                         let p = otherPlayers.get(from);
                         let update = JSON.parse(message);

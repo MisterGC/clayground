@@ -1,13 +1,19 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import QtQuick.Controls 2.5
-import MyPlugin 1.0
+import QtQuick
+import QtQuick.Controls
+import Clayground.MyPlugin
 
 Rectangle
 {
     color: "orange"
+
     MyComponent { id: myComp }
+
+    MyItem {
+        someCustomProperty: "10"
+    }
+
     Text {
         anchors.centerIn: parent
         text: myComp.sayHello() + " or " + myComp.sayBye()
