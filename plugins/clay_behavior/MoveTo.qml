@@ -1,12 +1,12 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.15
-import QtQuick.Shapes 1.14
-import QtQuick.Controls 2.15
-import Box2D 2.0
-import Clayground.Physics 1.0
-import Clayground.Canvas 1.0 as Canv
-import Clayground.World 1.0
+import QtQuick
+import QtQuick.Shapes
+import QtQuick.Controls
+import Box2D
+import Clayground.Physics
+import Clayground.Canvas as Canv
+import Clayground.World
 
 Rectangle {
     id: behavior

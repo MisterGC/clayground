@@ -1,12 +1,12 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import QtQuick.Window 2.12
-import QtQuick.Controls 2.12
-import Box2D 2.0
-import Clayground.Network 1.0
-import Clayground.World 1.0
-import Clayground.GameController 1.0
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import Box2D
+import Clayground.Network
+import Clayground.World
+import Clayground.GameController
 
 ClayWorld {
     id: theWorld

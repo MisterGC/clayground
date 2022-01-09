@@ -1,9 +1,9 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.15
-import Clayground.World 1.0
-import Clayground.Canvas 1.0 as Canv
-import QtQuick.Shapes 1.14
+import QtQuick
+import Clayground.World
+import Clayground.Canvas as Canv
+import QtQuick.Shapes
 
 Item
 {

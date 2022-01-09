@@ -1,7 +1,7 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import Clayground.Storage 1.0
+import QtQuick
+import Clayground.Storage
 
 Item {
 

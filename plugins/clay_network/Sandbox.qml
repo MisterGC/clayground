@@ -1,8 +1,8 @@
 // (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import Clayground.Network 1.0
+import QtQuick
+import QtQuick.Controls
+import Clayground.Network
 
 Item
 {
