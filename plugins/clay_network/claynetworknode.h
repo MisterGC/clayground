@@ -1,3 +1,4 @@
+// (c) Clayground Contributors - zlib license, see "LICENSE" file
 #pragma once
 
 #include <QAbstractSocket>

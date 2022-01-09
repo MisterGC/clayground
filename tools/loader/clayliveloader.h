@@ -1,7 +1,6 @@
 // (c) Clayground Contributors - zlib license, see "LICENSE" file
+#pragma once
 
-#ifndef QML_ENGINE_WRAPPER_H
-#define QML_ENGINE_WRAPPER_H
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
 #include <QObject>
@@ -68,5 +67,3 @@ private:
     QString altMessage_;
     int numRestarts_ = 0;
 };
-
-#endif

@@ -1,7 +1,6 @@
 // (c) Clayground Contributors - zlib license, see "LICENSE" file
+#pragma once
 
-#ifndef CLAYFILESYSOBSERVER_H
-#define CLAYFILESYSOBSERVER_H
 #include <QObject>
 #include <QFileSystemWatcher>
 #include <QLoggingCategory>
@@ -32,6 +31,3 @@ private:
     QFileSystemWatcher fileObserver_;
     QLoggingCategory logCat_;
 };
-
-#endif
-

@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <qqmlregistration.h>
-//#include <QtQuick>
 
 class MyComponent: public QObject
 {

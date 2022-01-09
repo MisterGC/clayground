@@ -33,9 +33,7 @@
 **
 **
 ****************************************************************************/
-
-#ifndef CONNECTION_H
-#define CONNECTION_H
+#pragma once
 
 #include <QCborStreamReader>
 #include <QCborStreamWriter>
@@ -105,5 +103,3 @@ private:
     int transferTimerId;
     bool isGreetingMessageSent;
 };
-
-#endif

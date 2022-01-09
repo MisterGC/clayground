@@ -1,7 +1,6 @@
 // (c) Clayground Contributors - zlib license, see "LICENSE" file
+#pragma once
 
-#ifndef CLAY_UTILITYFUNCTIONS_H
-#define CLAY_UTILITYFUNCTIONS_H
 #include <QString>
 #include <QCommandLineParser>
 
@@ -49,5 +48,3 @@ static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 static constexpr int RAPID_CHANGE_CATCHTIME = 100;
 
 void addCommonArgs(QCommandLineParser &parser);
-
-#endif //CLAY_UTILITYFUNCTIONS_H
