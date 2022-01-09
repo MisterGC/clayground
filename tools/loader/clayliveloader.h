@@ -1,4 +1,4 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - zlib license, see "LICENSE" file
 
 #ifndef QML_ENGINE_WRAPPER_H
 #define QML_ENGINE_WRAPPER_H

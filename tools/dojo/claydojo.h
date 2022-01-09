@@ -1,4 +1,4 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - zlib license, see "LICENSE" file
 
 #ifndef CLAY_RESTARTER_H
 #define CLAY_RESTARTER_H 

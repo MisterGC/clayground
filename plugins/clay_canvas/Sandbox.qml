@@ -1,4 +1,4 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - zlib license, see "LICENSE" file
 
 import QtQuick
 import Clayground.Canvas as Canv
