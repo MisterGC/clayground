@@ -1,4 +1,4 @@
-// (c) Clayground Contributors - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "utilityfunctions.h"
 #include "claydojo.h"
