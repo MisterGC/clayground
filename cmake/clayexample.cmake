@@ -11,7 +11,9 @@ function(clay_example EXAMPLE_NAME)
     set(CMAKE_AUTORCC ON)
     import_qt_components(Core Quick)
 
-    add_executable (${PROJECT_NAME} main.cpp res.qrc)
+    configure_file(${CMAKE_SOURCE_DIR}/cmake/main_example.cpp.in main.cpp)
+    add_executable (${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/main.cpp res.qrc)
+
     target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
     target_link_libraries(${PROJECT_NAME}
     PRIVATE
