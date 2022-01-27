@@ -1,7 +1,6 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+#pragma once
 
-#ifndef CLAY_RESTARTER_H
-#define CLAY_RESTARTER_H 
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
 
@@ -51,4 +50,3 @@ private:
     QTimer restart_;
     QLoggingCategory logCat_;
 };
-#endif

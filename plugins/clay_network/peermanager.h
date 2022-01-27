@@ -33,9 +33,7 @@
 **
 **
 ****************************************************************************/
-
-#ifndef PEERMANAGER_H
-#define PEERMANAGER_H
+#pragma once
 
 #include <QByteArray>
 #include <QList>
@@ -76,5 +74,3 @@ private:
     QString userid;
     int serverPort;
 };
-
-#endif

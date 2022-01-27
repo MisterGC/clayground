@@ -33,9 +33,7 @@
 **
 **
 ****************************************************************************/
-
-#ifndef SERVER_H
-#define SERVER_H
+#pragma once
 
 #include <QTcpServer>
 #include "connection.h"
@@ -53,5 +51,3 @@ signals:
 protected:
     void incomingConnection(qintptr socketDescriptor) override;
 };
-
-#endif

@@ -1,7 +1,7 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
-import QtQuick 2.15
-import Clayground.World 1.0
+import QtQuick
+import Clayground.World
 
 Connections{
     required property var callback

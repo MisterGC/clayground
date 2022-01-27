@@ -1,3 +1,4 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 #pragma once
 
 #include <QAbstractSocket>

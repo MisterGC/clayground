@@ -1,7 +1,7 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
-import QtQuick 2.0
-import Clayground.Network 1.0
+import QtQuick
+import Clayground.Network
 
 ClayNetworkNode {
     id: _groupUser

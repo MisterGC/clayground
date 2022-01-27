@@ -1,7 +1,5 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
-
-#ifndef CLAY_SVG_WRITER_H
-#define CLAY_SVG_WRITER_H 
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+#pragma once
 
 #include <QObject>
 #include <QFile>
@@ -53,4 +51,3 @@ private:
     std::unique_ptr<simple_svg::Document> document_;
     QString pathToSvg_;
 };
-#endif

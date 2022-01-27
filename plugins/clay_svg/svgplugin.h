@@ -1,7 +1,6 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+#pragma once
 
-#ifndef CLAY_SVG_PLUGIN_H
-#define CLAY_SVG_PLUGIN_H
 #include <QQmlExtensionPlugin>
 #include <QQmlEngine>
 
@@ -14,4 +13,3 @@ public:
     void registerTypes(const char* uri) override;
     void initializeEngine(QQmlEngine *engine, const char *uri) override;
 };
-#endif

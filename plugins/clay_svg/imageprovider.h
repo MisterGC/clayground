@@ -1,6 +1,5 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
-#ifndef CLAYIMAGEPROVIDER_H
-#define CLAYIMAGEPROVIDER_H
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+#pragma once
 
 #include <QQuickImageProvider>
 #include <QSvgRenderer>
@@ -32,5 +31,3 @@ private:
     QSet<QString> coveredImgs_;
     bool runsInSbx_ = false;
 };
-
-#endif // SCALINGIMAGEPROVIDER_H

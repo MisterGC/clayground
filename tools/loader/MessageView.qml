@@ -1,8 +1,8 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
-import QtQuick 2.12
-import QtQml.Models 2.12
-import QtQuick.Controls 2.5
+import QtQuick
+import QtQml.Models
+import QtQuick.Controls
 
 Item {
 

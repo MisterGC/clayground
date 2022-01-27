@@ -1,4 +1,4 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 #pragma once
 
 #include <QObject>
