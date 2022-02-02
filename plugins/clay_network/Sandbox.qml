@@ -129,8 +129,9 @@ Item
         id: anotherGuy
         name: "anotherGuy"
         Component.onCompleted: joinGroup(group2)
-        onNewMessage: console.log(name + " got a message from " +
-                                  nameForId(from) + ": " + message)
+        onNewMessage: (from, message) => {
+                          console.log(name + " got a message from " +
+                                      nameForId(from) + ": " + message); }
     }
 
 

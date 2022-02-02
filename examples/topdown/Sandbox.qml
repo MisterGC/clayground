@@ -110,7 +110,7 @@ ClayWorld {
                         otherPlayers.delete(user);
                     }
                 }
-                onNewMessage: (from) => {
+                onNewMessage: (from, message) => {
                     if (otherPlayers.has(from)){
                         let p = otherPlayers.get(from);
                         let update = JSON.parse(message);
