@@ -9,7 +9,7 @@ function(clay_example EXAMPLE_NAME)
 
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
     set(CMAKE_AUTORCC ON)
-    import_qt_components(Core Quick)
+    find_package(Qt6 REQUIRED COMPONENTS Core Quick)
 
     configure_file(${CMAKE_SOURCE_DIR}/cmake/main_example.cpp.in main.cpp)
     add_executable (${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/main.cpp res.qrc)

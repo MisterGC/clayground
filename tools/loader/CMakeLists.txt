@@ -4,7 +4,7 @@ project(clayliveloader LANGUAGES CXX)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-import_qt_components(Core Quick QuickWidgets Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickWidgets Sql)
 
 add_executable(${PROJECT_NAME} 
     main.cpp

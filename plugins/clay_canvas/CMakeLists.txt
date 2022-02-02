@@ -1,7 +1,6 @@
 cmake_minimum_required (VERSION 3.19)
 include (clayplugin)
-
-import_qt_components(Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 clay_p( Canvas
     VERSION 1.0

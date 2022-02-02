@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
-
-import_qt_components(Core Quick Qml Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml Network)
 
 clay_p( Network
     VERSION 1.0
