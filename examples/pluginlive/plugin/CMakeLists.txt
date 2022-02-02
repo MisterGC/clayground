@@ -1,7 +1,7 @@
 project (MyPlugin)
 
 include (clayplugin)
-import_qt_components(Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 clay_p( MyPlugin
     VERSION 1.0

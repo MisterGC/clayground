@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 include (clayplugin)
-
-import_qt_components(Core Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 # Needs to be told first otherwise clay_p / qml_add_module don't generate
 # instructions for singletons

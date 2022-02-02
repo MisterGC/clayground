@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project (claytoolscommon)
-
-import_qt_components(Core)
+find_package(Qt6 REQUIRED COMPONENTS Core)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)

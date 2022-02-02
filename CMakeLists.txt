@@ -13,12 +13,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
   set(QML_PLUGIN_LINK_TYPE STATIC CACHE STRING "" FORCE)
 endif()
 
-include(qtsupportutils)
-fetch_qt_version()
-if(ANDROID AND ${QT_VERSION_MAJOR} GREATER 5)
-    message(FATAL_ERROR "Android builds of Clayground are only supported with Qt5")
-endif()
-
 add_subdirectory (thirdparty/qml-box2d)
 add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (plugins)

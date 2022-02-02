@@ -6,7 +6,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-import_qt_components(Core Quick QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickWidgets)
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME}
