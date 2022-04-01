@@ -7,13 +7,16 @@
 #include <QDebug>
 #include <QQmlContext>
 
-void SvgPlugin::registerTypes(const char* uri)
-{ }
+Clayground_SvgPlugin::Clayground_SvgPlugin(QObject *parent):
+    QQmlEngineExtensionPlugin(parent)
+{
+    volatile auto registration = &qml_register_types_Clayground_Svg;
+    Q_UNUSED(registration);
+}
 
-void SvgPlugin::initializeEngine(QQmlEngine *engine, const char */*uri*/)
+void Clayground_SvgPlugin::initializeEngine(QQmlEngine *engine, const char */*uri*/)
 {
     auto provider = new ImageProvider();
     engine->addImageProvider(QLatin1String("claysvg"), provider);
     engine->rootContext()->setContextProperty("ClaySvgImageProvider", provider);
 }
-

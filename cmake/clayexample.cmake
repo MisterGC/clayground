@@ -7,15 +7,7 @@ macro(clay_example EXAMPLE_NAME)
     set (multiValueArgs SOURCES QML_FILES RES_FILES)
     cmake_parse_arguments(CLAYEXAMPLE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    if (ANDROID)
-        if ( NOT ("${CMAKE_PROJECT_NAME}" STREQUAL "${CLAYGROUND_PROJECT_NAME}")
-            OR NOT ("${EXAMPLE_NAME}" STREQUAL "${CLAY_ANDROID_ACTIVE_EXAMPLE}"))
-            return()
-        endif()
-    endif()
-
     cmake_minimum_required(VERSION 3.16)
-
     project (${EXAMPLE_NAME} VERSION ${CLAYEXAMPLE_VERSION})
 
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -23,7 +15,6 @@ macro(clay_example EXAMPLE_NAME)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
-
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Quick)
@@ -41,17 +32,26 @@ macro(clay_example EXAMPLE_NAME)
     )
 
     target_compile_definitions(${PROJECT_NAME}
-        PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)
+        PRIVATE
+            $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
+            $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
+    )
     target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
-    target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core Qt::Quick)
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+            Qt::Core
+            Qt::Quick
+            ${ALL_STATIC_CLAY_PLUGIN_TARGETS})
+
     qt_import_qml_plugins(${PROJECT_NAME})
     qt_finalize_executable(${PROJECT_NAME})
 
-    #add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
-    #set_tests_properties(test${PROJECT_NAME} PROPERTIES
-    #    ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal"
-    #)
-
+    if (NOT ANDROID)
+        add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+        set_tests_properties(test${PROJECT_NAME} PROPERTIES
+            ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal"
+        )
+    endif()
 
 endmacro()
