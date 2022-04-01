@@ -5,7 +5,6 @@ import Box2D
 import Clayground.GameController
 import Clayground.World
 import Clayground.Physics
-import Clayground.Canvas
 import Clayground.Common
 
 ClayWorld
@@ -34,13 +33,18 @@ ClayWorld
     onMapAboutToBeLoaded: {
         player = null;
     }
-    onMapLoaded: {
-        theGameCtrl.selectKeyboard(Qt.Key_Up,
-                                   Qt.Key_Down,
-                                   Qt.Key_Left,
-                                   Qt.Key_Right,
-                                   Qt.Key_A,
-                                   Qt.Key_S);
+    onMapLoaded:
+    {
+        const os = Qt.platform.os;
+        if(os === "ios" || os === "android")
+            theGameCtrl.selectTouchscreenGamepad();
+        else
+        {
+             theGameCtrl.selectKeyboard(Qt.Key_Up, Qt.Key_Down,
+                                        Qt.Key_Left, Qt.Key_Right,
+                                        Qt.Key_A, Qt.Key_S);
+        }
+
         player.desireX = Qt.binding(function() {return theGameCtrl.axisX;});
         theWorld.observedItem = player;
 

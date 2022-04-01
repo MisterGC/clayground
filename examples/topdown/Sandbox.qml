@@ -30,18 +30,22 @@ ClayWorld {
 
     property var player: null
     onMapAboutToBeLoaded: player = null;
-    onMapLoaded: {
-        theGameCtrl.selectKeyboard(Qt.Key_Up,
-                                   Qt.Key_Down,
-                                   Qt.Key_Left,
-                                   Qt.Key_Right,
-                                   Qt.Key_A,
-                                   Qt.Key_S);
+    onMapLoaded:
+    {
+        const os = Qt.platform.os;
+        if(os === "ios" || os === "android")
+            theGameCtrl.selectTouchscreenGamepad();
+        else
+        {
+             theGameCtrl.selectKeyboard(Qt.Key_Up, Qt.Key_Down,
+                                        Qt.Key_Left, Qt.Key_Right,
+                                        Qt.Key_A, Qt.Key_S);
+        }
         theWorld.observedItem = player;
     }
 
     Keys.forwardTo: theGameCtrl
-    GameController {id: theGameCtrl; anchors.fill: parent}
+    GameController {id: theGameCtrl; anchors.fill: parent; Component.onCompleted: selectTouchscreenGamepad();}
 
     onMapEntityCreated: (obj, groupId, compName) => {
         if (obj instanceof Player) {
