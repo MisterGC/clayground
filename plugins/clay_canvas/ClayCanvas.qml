@@ -8,6 +8,7 @@ Item {
     property alias deviceScalingFactor: flckable.deviceScalingFactor
     property alias zoomFactor: flckable.zoomFactor
     property alias pixelPerUnit: flckable.pixelPerUnit
+    property alias interactive: flckable.interactive
 
     property alias worldXMin: flckable.worldXMin
     property alias worldXMax:  flckable.worldXMax
