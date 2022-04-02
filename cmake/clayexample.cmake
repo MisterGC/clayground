@@ -19,7 +19,7 @@ macro(clay_example EXAMPLE_NAME)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Quick)
 
-    configure_file(${CMAKE_SOURCE_DIR}/cmake/main_example.cpp.in main.cpp)
+    configure_file(${CLAY_CMAKE_SCRIPT_DIR}/main_example.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} MANUAL_FINALIZATION
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAYEXAMPLE_SOURCES} )
