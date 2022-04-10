@@ -6,6 +6,7 @@ project (Clayground VERSION 2022.1)
 # COMMON CONFIGURATION
 enable_testing()
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}")
+set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 
 if (NOT ANDROID) # Qt Android cmake causes problems otherwise
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

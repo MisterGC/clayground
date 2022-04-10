@@ -82,10 +82,9 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 int main(int argc, char *argv[])
 {
     QQmlDebuggingEnabler enabler;
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
-    QCoreApplication::setApplicationVersion("0.1");
+    QCoreApplication::setApplicationVersion(CLAY_LOADER_VERSION);
 
     ClayLiveLoader liveLoader;
     MsgHandlerWrapper::theLoader = &liveLoader;

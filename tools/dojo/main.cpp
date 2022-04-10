@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName("ClayDojo");
-    QGuiApplication::setApplicationVersion("0.2");
+    QGuiApplication::setApplicationVersion(CLAY_DOJO_VERSION);
 
     QQmlApplicationEngine engine;
     engine.addImportPath("qml");
