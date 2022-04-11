@@ -62,6 +62,10 @@ void ClayLiveLoader::storeValue(const QString &key, const QString &value)
 void ClayLiveLoader::storeErrors(const QString &errors)
 {
    storeValue("lastErrorMsg", errors);
+
+void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
+{
+    storeValue("command", QString("restart %1").arg(sbxIdx));
 }
 
 int ClayLiveLoader::numRestarts() const
@@ -105,6 +109,8 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
     for (auto& sbx: sbxFiles) {
         QFileInfo sbxTest(sbx);
         if (sbxTest.exists()) {
+            const auto dir = sbxTest.absoluteDir().absolutePath();
+            fileObserver_.observeDir(dir);
             const auto url = QUrl::fromLocalFile(sbxTest.filePath());
             allSbxs_ << url;
         }
@@ -154,8 +160,30 @@ void ClayLiveLoader::onTimeToRestart()
     emit restarted();
 }
 
+bool ClayLiveLoader::restartIfDifferentSbx(const QString& path)
+{
+    auto const dir = QFileInfo(path).absoluteDir().absolutePath();
+    for (size_t i = 0; i<allSbxs_.size(); ++i)
+    {
+       const auto& el = allSbxs_[static_cast<qsizetype>(i)];
+       if(!el.isLocalFile()) continue;
+       auto const sbxDir = QFileInfo(el.toLocalFile())
+               .absoluteDir().absolutePath();
+       if (sbxDir == dir)
+       {
+           if (i == sbxIdx_) break;
+           else {
+               restartSandbox(i);
+               return true;
+           }
+       }
+    }
+    return false;
+}
+
 void ClayLiveLoader::onFileChanged(const QString &path)
 {
+    if (restartIfDifferentSbx(path)) return;
     if (isQmlPlugin(path)) QGuiApplication::quit();
     reload_.start(RAPID_CHANGE_CATCHTIME);
 }

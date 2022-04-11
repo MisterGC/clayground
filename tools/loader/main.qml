@@ -111,7 +111,7 @@ Window {
     readonly property string _SC_TOGGLE_LOG: _SC_USED_MOD + "L"
     readonly property string _SC_TOGGLE_GUIDE: _SC_USED_MOD + "G"
     function _scRestartSbx(sbxIdx) {return _SC_USED_MOD + sbxIdx;}
-    function _restart(sbxIdx){ keyvalues.set("command", "restart " + sbxIdx); }
+    function _restart(sbxIdx){ ClayLiveLoader.restartSandbox(sbxIdx); }
 
     Rectangle {
        id: guideScreen
