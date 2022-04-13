@@ -19,12 +19,15 @@ ClayDojo::ClayDojo(QObject *parent):
     sbx_(nullptr),
     logCat_(LIVE_LOADER_CAT)
 {
-    connect(&fileObserver_, &ClayFileSysObserver::fileChanged, this, &ClayDojo::onFileSysChange);
-    connect(&fileObserver_, &ClayFileSysObserver::fileAdded, this, &ClayDojo::onFileSysChange);
-    connect(&fileObserver_, &ClayFileSysObserver::fileRemoved, this, &ClayDojo::onFileSysChange);
+    using Cdo = ClayDojo;
+    using Cfo = ClayFileSysObserver;
+
+    connect(&fileObserver_, &Cfo::fileChanged, this, &Cdo::onFileSysChange);
+    connect(&fileObserver_, &Cfo::fileAdded,   this, &Cdo::onFileSysChange);
+    connect(&fileObserver_, &Cfo::fileRemoved, this, &Cdo::onFileSysChange);
 
     restart_.setSingleShot(true);
-    connect(&restart_, &QTimer::timeout, this, &ClayDojo::onTimeToRestart);
+    connect(&restart_, &QTimer::timeout, this, &Cdo::onTimeToRestart);
 }
 
 ClayDojo::~ClayDojo()
