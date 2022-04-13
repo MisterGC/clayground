@@ -11,10 +11,10 @@
 
 const auto SBX_DIR_ENV_VAR = "CLAYGROUND_SBX_DIR";
 
-ImageProvider::ImageProvider(): QQuickImageProvider(QQuickImageProvider::Pixmap)
-{
-    runsInSbx_ = qEnvironmentVariableIsSet(SBX_DIR_ENV_VAR);
-}
+ImageProvider::ImageProvider():
+    QQuickImageProvider(QQuickImageProvider::Pixmap),
+    runsInSbx_(qEnvironmentVariableIsSet(SBX_DIR_ENV_VAR))
+{}
 
 ImageProvider::~ImageProvider()
 {

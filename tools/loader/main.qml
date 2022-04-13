@@ -47,7 +47,7 @@ Window {
 
             font.pixelSize: parent.height * .06
             font.bold: true; color: "white"; anchors.centerIn: parent
-            visible: sbxLoader.source !== ""; opacity: 1.0;
+            visible: sbxLoader.source; opacity: 1.0;
 
             Behavior on opacity {NumberAnimation{duration: _lblSrc.ttl}}
             property int ttl: 750
