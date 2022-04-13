@@ -16,10 +16,10 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
     addCommonArgs(parser);
     parser.process(app);
     if (parser.isSet(DYN_PLUGIN_ARG)) {
-        for (auto& val: parser.values(DYN_PLUGIN_ARG))
+        for (auto const& val: parser.values(DYN_PLUGIN_ARG))
         {
             qDebug() << "Found dynplugin" << val;
-            auto dynPlugDirs = val.split(",");
+            auto const dynPlugDirs = val.split(",");
             if (dynPlugDirs.length() != 2) parser.showHelp();
             restarter.addDynPluginDepedency(dynPlugDirs[0], dynPlugDirs[1]);
         }

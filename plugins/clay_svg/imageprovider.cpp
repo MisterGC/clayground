@@ -34,10 +34,10 @@ QSvgRenderer* ImageProvider::fetchRenderer(const QString& path, QString& outElId
         qCritical() << "Expected path with query part "
                        "<relative-path>?<query-part>";
 
-    auto queryPart = QUrlQuery(pathParts[1]);
+    auto const queryPart = QUrlQuery(pathParts[1]);
     outElId = queryPart.queryItemValue("part");
 
-    const auto id = pathParts[0];
+    auto const id = pathParts[0];
     if (runsInSbx_) {
         if (coveredImgs_.contains(id))
             clearCache();
@@ -49,12 +49,12 @@ QSvgRenderer* ImageProvider::fetchRenderer(const QString& path, QString& outElId
     if (runsInSbx_)
         svgDir = qEnvironmentVariable(SBX_DIR_ENV_VAR);
 
-    const auto svgPath = QString(svgDir + "/%1.svg").arg(id);
+    auto const svgPath = QString(svgDir + "/%1.svg").arg(id);
     if (!svgCache_.contains(svgPath)) {
         QFile f(svgPath);
         if (f.open(QFile::ReadOnly | QFile::Text))
         {
-            const auto icKey = QString("ignoredColor");
+            auto const icKey = QString("ignoredColor");
             QString ic;
             if (queryPart.hasQueryItem(icKey))
                 ic = QString("#" + queryPart.queryItemValue(icKey));
@@ -84,7 +84,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
         return QPixmap(1,1);
 
     QString partId;
-    auto r = fetchRenderer(path, partId);
+    auto const r = fetchRenderer(path, partId);
     if (!r) return QPixmap(1, 1);
     auto& renderer = *r;
 
@@ -96,7 +96,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
 
     auto reqSize = requestedSize;
     if (!reqSize.isValid()) {
-        const auto partRect = renderer.boundsOnElement(partId);
+        auto const partRect = renderer.boundsOnElement(partId);
         reqSize.setWidth(static_cast<int>(partRect.width()));
         reqSize.setHeight(static_cast<int>(partRect.height()));
     }
@@ -117,7 +117,7 @@ QPixmap ImageProvider::requestPixmap(const QString &path,
 bool ImageProvider::exists(const QString &path)
 {
     QString partId;
-    auto renderer = fetchRenderer(path, partId);
+    auto const renderer = fetchRenderer(path, partId);
     if (!renderer) return false;
     return renderer->elementExists(partId);
 }

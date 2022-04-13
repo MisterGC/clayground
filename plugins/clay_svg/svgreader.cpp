@@ -24,7 +24,7 @@ void SvgReader::onFileChanged(const QString& /*path*/)
 
 void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& descr, double heightWu)
 {
-    const auto dPoly = dAttr.split(" ");
+    auto const dPoly = dAttr.split(" ");
 
     QPointF refPos(0.,0.);
     QChar cmd = 'M';
@@ -32,18 +32,18 @@ void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& d
     auto isPolygon = false;
 
     QRegularExpression supportedCmds("[MmLlVvHhZz]");
-    for (const auto& t: dPoly){
+    for (auto const& t: dPoly){
         if (supportedCmds.match(t).hasMatch()){
             cmd = *t.begin();
             if (cmd == 'Z' || cmd == 'z') isPolygon = true;
         }
         else {
-            auto nums = t.split(",");
+            auto const nums = t.split(",");
             auto isnum = false;
             if (nums.empty()) {qCritical() << "svg: Expected number(s) but got none."; return;}
-            auto n1 = nums[0].toFloat(&isnum);
+            auto const n1 = nums[0].toFloat(&isnum);
             if (!isnum) {qCritical() << "svg: Expected a number but got " << t << "."; return;}
-            auto n2 = nums.length() > 1 ? nums[1].toFloat() : 0.0;
+            auto const n2 = nums.length() > 1 ? nums[1].toFloat() : 0.0;
             using Point = QPointF;
             // L and M cmds are treated as the same because subpaths are not (yet) supported
             switch (cmd.toLatin1()) {
@@ -76,9 +76,9 @@ void SvgReader::listToPoints(const QString& lst,
                                 double heightWu,
                                 bool closePath)
 {
-    auto ppairs = lst.split(" ");
+    auto const ppairs = lst.split(" ");
     std::vector<QPointF> pData;
-    for (auto& p: ppairs) {
+    for (auto const& p: ppairs) {
         if (p.trimmed().isEmpty()) continue;
         auto c = p.split(",");
         auto pnt = QPointF(c[0].toDouble(), (heightWu - c[1].toDouble()));
@@ -88,12 +88,12 @@ void SvgReader::listToPoints(const QString& lst,
     if (!absCoords) {
         for (size_t i=1; i<pData.size(); ++i){
             auto& p = pData[i];
-            auto& prev = pData[i-1];
+            auto const& prev = pData[i-1];
             p.setX(p.x() + prev.x());
             p.setY(p.y() - (heightWu - prev.y()));
         }
     }
-    for (const auto& p: pData) points.append(QVariant(applyGroupTransform(p.x(), p.y())));
+    for (auto const& p: pData) points.append(QVariant(applyGroupTransform(p.x(), p.y())));
     if (closePath) points.push_back(QVariant(points.front()));
 }
 
@@ -102,7 +102,7 @@ QString SvgReader::fetchDescr(QXmlStreamReader &reader,
                               bool &currentTokenProcessed)
 {
     auto descr = QString("");
-    auto ok = reader.readNextStartElement();
+    auto const ok = reader.readNextStartElement();
     if (ok && reader.name().toString() == "desc") {
         reader.readNext();
         descr = reader.text().toString();
@@ -127,10 +127,10 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               bool& currentTokenProcessed,
                               const float& heightWu)
 {
-    auto fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
+    auto const fetchDescr = [&xmlReader, &token, &currentTokenProcessed]()
     {
         auto descr = QString("");
-        auto ok = xmlReader.readNextStartElement();
+        auto const ok = xmlReader.readNextStartElement();
         if (ok && xmlReader.name() == QString("desc")) {
             xmlReader.readNext();
             descr = xmlReader.text().toString();
@@ -142,27 +142,27 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         return descr;
     };
 
-    auto nam = xmlReader.name().toString();
-    auto attribs = xmlReader.attributes();
+    auto const nam = xmlReader.name().toString();
+    auto const attribs = xmlReader.attributes();
     const auto id = attribs.value("id").toString();
     if (nam == "rect")
     {
-        auto p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
-        auto width = attribs.value("width").toFloat();
-        auto height = attribs.value("height").toFloat();
+        auto const p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
+        auto const width = attribs.value("width").toFloat();
+        auto const height = attribs.value("height").toFloat();
         emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr());
     }
     else if (nam == "circle")
     {
-        auto p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
-        auto radius = attribs.value("r").toFloat();
+        auto const p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
+        auto const radius = attribs.value("r").toFloat();
         emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr());
     }
     else if (nam == "polygon" || nam == "polyline")
     {
         QVariantList points;
-        auto isPolygon = (nam == "polygon");
-        auto lst = attribs.value("points").toString();
+        auto const isPolygon = (nam == "polygon");
+        auto const lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
             emit polygon(id, points, fetchDescr());
@@ -171,7 +171,7 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
     }
     else if (nam == "path")
     {
-        auto d = attribs.value("d").toString();
+        auto const d = attribs.value("d").toString();
         onPath(id, d, fetchDescr(), heightWu);
     }
 }
@@ -192,7 +192,7 @@ QString SvgReader::source() const
 void SvgReader::introspect()
 {
     if (source_.isEmpty()) return;
-    auto pathToSvg = source_;
+    auto const pathToSvg = source_;
 
     QFile xmlFile(pathToSvg);
     if (!xmlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -214,32 +214,32 @@ void SvgReader::introspect()
         if (currentTokenProcessed) token = xmlReader.readNext();
         else currentTokenProcessed = true;
 
-        auto nam = xmlReader.name().toString();
+        auto const nam = xmlReader.name().toString();
         if(token == QXmlStreamReader::StartElement && !defsSection)
         {
             if (nam == "svg") {
-                auto attribs = xmlReader.attributes();
-                auto wAttr = attribs.value("width").toString();
+                auto const attribs = xmlReader.attributes();
+                auto const wAttr = attribs.value("width").toString();
                 if (!wAttr.endsWith("mm")) qCritical() << "Only mm as unit is supported for SVG Inspection.";
-                auto widthWu = static_cast<float>(wAttr.left(wAttr.length()-2).toFloat());
-                auto hAttr = attribs.value("height");
-                heightWu = static_cast<float>(hAttr.left(hAttr.length()-2).toFloat());
+                auto const widthWu = wAttr.left(wAttr.length()-2).toFloat();
+                auto const hAttr = attribs.value("height");
+                heightWu = hAttr.left(hAttr.length()-2).toFloat();
                 emit begin(widthWu, heightWu);
             }
             else if (nam == "g") {
-                auto attribs = xmlReader.attributes();
-                auto id = attribs.value("id").toString();
+                auto const attribs = xmlReader.attributes();
+                auto const id = attribs.value("id").toString();
                 auto translate = QPointF(0., 0.);
                 if (attribs.hasAttribute("transform")){
-                    auto transf = attribs.value("transform").toString();
-                    const auto t = QString("translate(");
+                    auto const transf = attribs.value("transform").toString();
+                    auto const t = QString("translate(");
                     if (transf.startsWith(t)){
-                        auto vals = transf.mid(t.length(),transf.length() - (t.length()+1)).split(",");
+                        auto const vals = transf.mid(t.length(),transf.length() - (t.length()+1)).split(",");
                         translate = QPointF(vals[0].toFloat(), vals[1].toFloat());
                     }
                 }
                 groupTranslates_.push(translate);
-                auto descr = fetchDescr(xmlReader, token, currentTokenProcessed);
+                auto const descr = fetchDescr(xmlReader, token, currentTokenProcessed);
                 emit beginGroup(id, descr);
             }
             else if (nam == "defs") defsSection = true;

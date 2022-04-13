@@ -62,6 +62,7 @@ void ClayLiveLoader::storeValue(const QString &key, const QString &value)
 void ClayLiveLoader::storeErrors(const QString &errors)
 {
    storeValue("lastErrorMsg", errors);
+}
 
 void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
 {
@@ -93,7 +94,7 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
 
 void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 {
-    for (auto& dir: dirs) {
+    for (auto const& dir: dirs) {
         if (QDir(dir).exists()) addDynImportDir(dir);
         else
         {
@@ -105,13 +106,13 @@ void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 
 void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 {
-    auto cnt = allSbxs_.size();
-    for (auto& sbx: sbxFiles) {
+    auto const cnt = allSbxs_.size();
+    for (auto const& sbx: sbxFiles) {
         QFileInfo sbxTest(sbx);
         if (sbxTest.exists()) {
-            const auto dir = sbxTest.absoluteDir().absolutePath();
+            auto const dir = sbxTest.absoluteDir().absolutePath();
             fileObserver_.observeDir(dir);
-            const auto url = QUrl::fromLocalFile(sbxTest.filePath());
+            auto const url = QUrl::fromLocalFile(sbxTest.filePath());
             allSbxs_ << url;
         }
         else
@@ -126,7 +127,7 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 QStringList ClayLiveLoader::sandboxes() const
 {
    QStringList lst;
-   for (const auto& sbx: allSbxs_) lst << sbx.toString();
+   for (auto const& sbx: allSbxs_) lst << sbx.toString();
    return lst;
 }
 
@@ -152,7 +153,7 @@ void ClayLiveLoader::show()
 
 void ClayLiveLoader::onTimeToRestart()
 {
-    auto idx = sbxIdx_;
+    auto const idx = sbxIdx_;
     setSbxIndex(USE_NONE_SBX_IDX);
     clearCache();
     setSbxIndex(idx);
@@ -201,7 +202,7 @@ void ClayLiveLoader::onFileRemoved(const QString &path)
 void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
 {
    QString errors = "";
-   for (auto& w: warnings)
+   for (auto const& w: warnings)
        errors += (w.toString() + "\n");
    storeErrors(errors);
 }

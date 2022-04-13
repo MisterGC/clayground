@@ -72,14 +72,15 @@ void ClayDojo::run()
                 p.start(loaderCmd, args);
             }
             else {
-                auto msg = buildWaitList_.join(";");
+                auto const msg = buildWaitList_.join(";");
                 p.start(loaderCmd,
                         {QString("--%1").arg(MESSAGE_ARG),
                          QString("\"Waiting for plugin dirs %2 to be updated.\"")
                          .arg(msg)});
             }
-            if (!p.waitForStarted(5000)) {
-                const auto err = p.errorString().toStdString();
+            auto constexpr MAX_START_WAIT_TIME = 5000;
+            if (!p.waitForStarted(MAX_START_WAIT_TIME)) {
+                auto const err = p.errorString().toStdString();
                 qCritical("Couldn't run live loader: %s",
                           qUtf8Printable(p.errorString()));
                 break;
@@ -88,9 +89,11 @@ void ClayDojo::run()
             auto ps = false;
             while (!ps)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                auto constexpr TIME_FOR_ACTION_IN_OTHER_THREAD = 50;
+                std::this_thread::sleep_for(std::chrono::milliseconds(TIME_FOR_ACTION_IN_OTHER_THREAD));
                 std::lock_guard<std::timed_mutex> l(mutex_);
-                ps = p.waitForFinished(100);
+                auto constexpr MAX_TIME_PER_TRY = 100;
+                ps = p.waitForFinished(MAX_TIME_PER_TRY);
                 auto timeToStopSbx = (shallStop_ || shallRestart_);
                 if (timeToStopSbx)
                 {
@@ -120,10 +123,11 @@ void ClayDojo::triggerRestart(int sbxIdx)
 
 void ClayDojo::onSbxOutput()
 {
-    if (!mutex_.try_lock_for(std::chrono::milliseconds(250))) return;
+    auto constexpr MAX_TIME_PER_TRY = 250;
+    if (!mutex_.try_lock_for(std::chrono::milliseconds(MAX_TIME_PER_TRY))) return;
     std::lock_guard<std::timed_mutex> l(mutex_, std::adopt_lock);
     sbx_->setReadChannel(QProcess::StandardError);
-    auto msgs = sbx_->readAll();
+    auto const msgs = sbx_->readAll();
     if (!msgs.isEmpty()) {
         auto isErr = (msgs.startsWith("ERROR") ||
                       msgs.startsWith("WARN") ||
@@ -135,21 +139,21 @@ void ClayDojo::onSbxOutput()
 
 void ClayDojo::onFileSysChange(const QString &path)
 {
-   auto dir = QFileInfo(path).absoluteDir();
+   auto const dir = QFileInfo(path).absoluteDir();
    if (!dir.exists()) {
        qCritical("Cannot process dir that doesn't exist: %s",
                  qUtf8Printable(dir.path()));
    }
-   auto p = dir.path();
+   auto const p = dir.path();
    qCDebug(logCat_) << "FileSys changed " << p;
    auto sourceDir = QString();
-   for (auto& s: sourceToBuildDir_)
+   for (auto const& s: sourceToBuildDir_)
        if (p.startsWith(s.first)) {
           sourceDir = s.first;
           break;
        }
    if (!sourceDir.isEmpty()) {
-       auto b = sourceToBuildDir_[sourceDir];
+       auto const& b = sourceToBuildDir_[sourceDir];
        if (!buildWaitList_.contains(b)) {
            buildWaitList_.append(b);
            restart_.start(RAPID_CHANGE_CATCHTIME);
@@ -159,7 +163,7 @@ void ClayDojo::onFileSysChange(const QString &path)
    else
    {
        auto binDir = QString();
-       for (auto& b: sourceToBuildDir_)
+       for (auto const& b: sourceToBuildDir_)
            if (p.startsWith(b.second)){
                binDir = b.second;
                break;
