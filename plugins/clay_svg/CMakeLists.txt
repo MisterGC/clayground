@@ -24,7 +24,7 @@ qt_add_qml_module( ClaySvg
     CLASS_NAME Clayground_SvgPlugin
 )
 
+extend_static_plugin_cfg("ClaySvg" "Clayground_SvgPlugin")
 set_target_properties(ClaySvg PROPERTIES AUTOMOC TRUE)
-
 target_compile_features(ClaySvg PUBLIC cxx_std_17)
 target_link_libraries(ClaySvg PRIVATE Qt::Core Qt::Quick Qt::Qml Qt6::Svg simple-svg-writer )

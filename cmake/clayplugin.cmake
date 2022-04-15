@@ -1,5 +1,7 @@
-# Thanks to https://github.com/xarxer/cmake-qmlplugin for inspiration
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
 include(CMakeParseArguments)
+
+# Thanks to https://github.com/xarxer/cmake-qmlplugin for initial inspiration
 
 # TODO Think about to get rid of this function completly as soon
 # as Qt6.3 has been released and qt_add_qml_module is more mature
@@ -12,11 +14,12 @@ function(clay_p PLUGIN_NAME)
     set(multiValueArgs SOURCES QML_FILES LINK_LIBS)
     cmake_parse_arguments(CLAYPLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    extend_static_plugin_cfg("Clay${PLUGIN_NAME}plugin" "Clayground_${PLUGIN_NAME}Plugin")
+
     if(NOT CLAYPLUGIN_DEST_DIR AND NOT CLAYPLUGIN_URI)
         set(CLAYPLUGIN_DEST_DIR "${CLAY_PLUGIN_BASE_DIR}/${PLUGIN_NAME}")
         set(CLAYPLUGIN_URI "Clayground.${PLUGIN_NAME}")
         set(PLUGIN_NAME "Clay${PLUGIN_NAME}")
-        message("Fix names: ${PLUGIN_NAME} ${CLAYPLUGIN_DEST_DIR} ${CLAYPLUGIN_URI}")
     endif()
 
     qt_add_qml_module(${PLUGIN_NAME}
@@ -34,67 +37,19 @@ function(clay_p PLUGIN_NAME)
 
 endfunction()
 
-function(fetch_all_static_clay_plugins)
 
-    if ("${CLAYPLUGIN_LINKING}" STREQUAL "SHARED")
-        set(ALL_STATIC_CLAY_PLUGIN_TARGETS "" PARENT_SCOPE)
-        set(LOAD_ALL_STATIC_CLAY_PLUGINS "" PARENT_SCOPE)
-        return()
+function(init_static_plugin_cfg)
+    set(CLAYGROUND_STATIC_PLUGINS "" CACHE INTERNAL "")
+    set(CLAYGROUND_IMPORT_PLUGINS "" CACHE INTERNAL "")
+    if ("${CLAYPLUGIN_LINKING}" STREQUAL "STATIC")
+        set(CLAYGROUND_IMPORT_PLUGINS "#include<QtQml/qqmlextensionplugin.h>" CACHE INTERNAL "")
     endif()
+endfunction()
 
-    set(load_all_plugins "#include <QtQml/qqmlextensionplugin.h>")
 
-    if (TARGET Box2Dplugin)
-        list(APPEND all_static_clay_plugins Box2Dplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Box2DPlugin)")
+function(extend_static_plugin_cfg plugin_target plugin_import)
+    if ("${CLAYPLUGIN_LINKING}" STREQUAL "STATIC")
+        set(CLAYGROUND_STATIC_PLUGINS "${CLAYGROUND_STATIC_PLUGINS};${plugin_target}" CACHE INTERNAL "")
+        set(CLAYGROUND_IMPORT_PLUGINS "${CLAYGROUND_IMPORT_PLUGINS} Q_IMPORT_QML_PLUGIN(${plugin_import})" CACHE INTERNAL "")
     endif()
-
-    if (TARGET ClayCommonplugin)
-        list(APPEND all_static_clay_plugins ClayCommonplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_CommonPlugin)")
-    endif()
-
-    if (TARGET ClayCanvasplugin)
-        list(APPEND all_static_clay_plugins ClayCanvasplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_CanvasPlugin)")
-    endif()
-
-    if (TARGET ClayGameControllerplugin)
-        list(APPEND all_static_clay_plugins ClayGameControllerplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_GameControllerPlugin)")
-    endif()
-
-    if (TARGET ClayStorageplugin)
-        list(APPEND all_static_clay_plugins ClayStorageplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_StoragePlugin)")
-    endif()
-
-    if (TARGET ClaySvg)
-        list(APPEND all_static_clay_plugins ClaySvg)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_SvgPlugin)")
-    endif()
-
-    if (TARGET ClayNetworkplugin)
-        list(APPEND all_static_clay_plugins ClayNetworkplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_NetworkPlugin)")
-    endif()
-
-    if (TARGET ClayPhysicsplugin)
-        list(APPEND all_static_clay_plugins ClayPhysicsplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_PhysicsPlugin)")
-    endif()
-
-    if (TARGET ClayWorldplugin)
-        list(APPEND all_static_clay_plugins ClayWorldplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_WorldPlugin)")
-    endif()
-
-    if (TARGET ClayBehaviorplugin)
-        list(APPEND all_static_clay_plugins ClayBehaviorplugin)
-        set(load_all_plugins "${load_all_plugins}\nQ_IMPORT_QML_PLUGIN(Clayground_BehaviorPlugin)")
-    endif()
-
-    set(ALL_STATIC_CLAY_PLUGIN_TARGETS ${all_static_clay_plugins} PARENT_SCOPE)
-    set(LOAD_ALL_STATIC_CLAY_PLUGINS ${load_all_plugins} PARENT_SCOPE)
-
 endfunction()

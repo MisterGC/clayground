@@ -4,7 +4,7 @@
 #include <QQmlApplicationEngine>
 #include <QDebug>
 
-${LOAD_ALL_STATIC_CLAY_PLUGINS}
+${CLAYGROUND_IMPORT_PLUGINS}
 
 int main(int argc, char *argv[])
 {

@@ -18,7 +18,7 @@ macro(clay_example EXAMPLE_NAME)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Quick)
-
+    string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
     configure_file(${CLAY_CMAKE_SCRIPT_DIR}/main_example.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} MANUAL_FINALIZATION
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
@@ -42,7 +42,7 @@ macro(clay_example EXAMPLE_NAME)
         PRIVATE
             Qt::Core
             Qt::Quick
-            ${ALL_STATIC_CLAY_PLUGIN_TARGETS})
+            $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
     qt_import_qml_plugins(${PROJECT_NAME})
     qt_finalize_executable(${PROJECT_NAME})
