@@ -17,6 +17,14 @@ set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 if (NOT ANDROID) # Qt Android cmake causes problems otherwise
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+else()
+    # In some environements Qt (Creator) produces a gradle properties
+    # file with invalid androidBuildToolsVersion value - the following
+    # option allows to workaround this bug by allowing to provide the version
+    # explicitely. (See https://bugreports.qt.io/browse/QTBUG-94956)
+    set(CLAY_ANDROID_BUILD_TOOLS_VERSION
+        "DO_NOT_USE" CACHE STRING
+        "Set to the used version, if you need to workaround QTBUG-94956")
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -46,11 +54,3 @@ if(NOT ANDROID)
     add_subdirectory (tools)
 endif()
 add_subdirectory (examples)
-
-
-# ANDROID PACKAGING CFG
-if(ANDROID)
-#   # Set this directory in case you want to customize packaging of the Android App
-#   # (name, icons, permissions ...) - see also Qt docs
-#   # set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/android" CACHE INTERNAL "")
-endif()

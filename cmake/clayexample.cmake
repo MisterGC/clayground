@@ -18,8 +18,14 @@ macro(clay_example EXAMPLE_NAME)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Quick)
-    string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
-    configure_file(${CLAY_CMAKE_SCRIPT_DIR}/main_example.cpp.in main.cpp)
+
+    set(example_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/example_app)
+    set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
+    if(${CLAYGROUND_IMPORT_PLUGINS})
+        string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
+    endif()
+
+    configure_file(${example_templ_dir}/main.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} MANUAL_FINALIZATION
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAYEXAMPLE_SOURCES} )
@@ -44,14 +50,24 @@ macro(clay_example EXAMPLE_NAME)
             Qt::Quick
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
-    qt_import_qml_plugins(${PROJECT_NAME})
-    qt_finalize_executable(${PROJECT_NAME})
-
     if (NOT ANDROID)
         add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
         set_tests_properties(test${PROJECT_NAME} PROPERTIES
             ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal"
         )
+    else()
+        set(CLAY_APP_TARGET "${PROJECT_NAME}")
+        set(CLAY_APP_VERSION "${CLAYEXAMPLE_VERSION}")
+        set(android_templ_dir ${example_templ_dir}/android)
+        configure_file(${android_templ_dir}/android_manifest.xml.in android/AndroidManifest.xml)
+        if (NOT CLAY_ANDROID_BUILD_TOOLS_VERSION STREQUAL "DO_NOT_USE")
+            configure_file(${android_templ_dir}/gradle.properties.in android/gradle.properties)
+        endif()
+        file(COPY ${android_templ_dir}/res DESTINATION android)
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/android)
     endif()
 
+    qt_import_qml_plugins(${PROJECT_NAME})
+    qt_finalize_executable(${PROJECT_NAME})
 endmacro()
