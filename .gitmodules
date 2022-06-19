@@ -4,3 +4,6 @@
 [submodule "thirdparty/simple-svg-writer"]
 	path = thirdparty/simple-svg-writer
 	url = https://github.com/MisterGC/simple-svg-writer.git
+[submodule "thirdparty/csv-parser"]
+	path = thirdparty/csv-parser/csv-parser
+	url = https://github.com/vincentlaucsb/csv-parser.git
