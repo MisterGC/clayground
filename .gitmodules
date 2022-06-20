@@ -4,3 +4,6 @@
 [submodule "thirdparty/simple-svg-writer"]
 	path = thirdparty/simple-svg-writer
 	url = https://github.com/MisterGC/simple-svg-writer.git
+[submodule "thirdparty/jsonata"]
+	path = thirdparty/jsonata
+	url = https://github.com/MisterGC/jsonata.git
