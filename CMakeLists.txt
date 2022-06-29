@@ -47,7 +47,7 @@ if (TARGET Box2Dplugin)
     extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
 endif()
 add_subdirectory (thirdparty/simple-svg-writer)
-
+add_subdirectory (thirdparty/csv-parser)
 
 # CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
 add_subdirectory (plugins)

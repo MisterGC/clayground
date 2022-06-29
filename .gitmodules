@@ -7,3 +7,6 @@
 [submodule "thirdparty/jsonata"]
 	path = thirdparty/jsonata
 	url = https://github.com/MisterGC/jsonata.git
+[submodule "thirdparty/csv-parser"]
+	path = thirdparty/csv-parser/csv-parser
+	url = https://github.com/vincentlaucsb/csv-parser.git
