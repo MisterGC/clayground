@@ -5,6 +5,8 @@
 #include <qqmlregistration.h>
 #include <QStringList>
 
+namespace csv { class CSVReader; }
+
 class CsvReader : public QObject
 {
     Q_OBJECT
@@ -36,6 +38,9 @@ signals:
     void delimiterChanged();
 
     void quoteChanged();
+
+private:
+    void readContent(csv::CSVReader &reader);
 
 private:
     QString source_;

@@ -2,6 +2,8 @@
 #include "csvreader.h"
 #include <csv.hpp>
 #include <QDebug>
+#include <QFileInfo>
+#include <sstream>
 
 const QString &CsvReader::source() const
 {
@@ -16,23 +18,38 @@ void CsvReader::setSource(const QString &newSource)
     emit sourceChanged();
 }
 
-void CsvReader::load()
+void CsvReader::readContent(csv::CSVReader& reader)
 {
-    csv::CSVFormat format;
-    format.delimiter(delimiter().front().toLatin1());
-    format.quote(quote().front().toLatin1());
-    csv::CSVReader reader(source_.toStdString(),format);
-
     auto colNames = reader.get_col_names();
     QStringList vals;
 
     for (auto const& n: colNames) vals << QString::fromStdString(n);
+    qDebug() << vals.join(",");
     emit columnNames(vals);
 
     for (auto const& r: reader) {
         vals.clear();
         for (auto & field: r) { vals << QString::fromStdString(field.get<>()); }
         emit row(vals);
+    }
+}
+
+void CsvReader::load()
+{
+    csv::CSVFormat format;
+    format.delimiter(delimiter().front().toLatin1());
+    format.quote(quote().front().toLatin1());
+    format.trim({' '});
+
+    if(QFileInfo::exists(source_)) {
+        csv::CSVReader reader(source_.toStdString(),format);
+        readContent(reader);
+    }
+    else {
+        std::stringstream str;
+        str << source_.toStdString();
+        csv::CSVReader reader(str, format);
+        readContent(reader);
     }
 }
 
