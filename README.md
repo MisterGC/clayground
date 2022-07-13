@@ -30,13 +30,15 @@ Main components:
 ### Plugins: Clayground's basic building blocks
 Clayground comes with a set of plugins that extend Qt capabilities in order to
 build interactive experiences:
+- Text: Utilities and components to process (CSV, JSON) and present text
 - Physics: Adds 2D Physics capabilities based on Box2D
 - Canvas: A canvas component that provides a 2D virtual/world coordinate
   system, tries to hide dealing with pixels as much as possible.
-- SVG Utils: Allows inspection of (Inkscape based) SVGs, can be used to create 2d scenes
+- SVG: Allows inspection of (Inkscape based) SVGs, can be used to create 2d scenes
 - GameController: Supports game input using two different sources Keyboard and Touch Screen with single component (unfortunately Qt6 doesn't support Qt Gamepad yet(?))
 - Storage: Get persistent storage with a very simple API
 - World: Uses Canvas, Physics and SVG to provide a foundation for small games and simulations
+- Behavior: Collection of components that allow define entity behavior (Move, FollowPath ...) 
 - Network: Simple networking with automatic detection of other nodes and high-level peer to peer messaging
 
 ### Examples: See how problems can be solved with Clayground
@@ -48,7 +50,7 @@ A bunch of example application allow you to try it out easily:
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin
 
 ### How to work with a sandbox?
-1. Clone this repo and build it using CMake (Qt 6.2.4+, Qt Creator 7.0.0+). Make sure to pull the submodules `git submodule update --recursive --init`
+1. Clone this repo and build it using CMake (Qt 6.3.0+, Qt Creator 7.0.0+). Make sure to pull the submodules `git submodule update --recursive --init`
 2. Start the dojo app `claydojo --sbx <clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the created windows to a location that allows you to keep them visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
