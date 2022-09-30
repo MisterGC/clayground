@@ -28,5 +28,5 @@ protected:
     void highlightBlock(const QString &text);
 private:
     QString search_;
-    QQuickTextDocument* document_;
+    QQuickTextDocument* document_ = nullptr;
 };

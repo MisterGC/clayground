@@ -81,7 +81,7 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
-    QQmlDebuggingEnabler enabler;
+    QQmlDebuggingEnabler::enableDebugging(true);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
     QCoreApplication::setApplicationVersion(CLAY_LOADER_VERSION);

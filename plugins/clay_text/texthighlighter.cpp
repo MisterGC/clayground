@@ -48,7 +48,6 @@ void TextHighlighter::setQuickDocument(QQuickTextDocument *newDocument)
         return;
     document_ = newDocument;
     if (document_) {
-        qDebug() << " da docu " << document_->textDocument();
         setDocument(document_->textDocument());
     }
     emit quickDocumentChanged();
