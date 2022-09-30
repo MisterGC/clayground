@@ -1,25 +1,57 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+
 cmake_minimum_required(VERSION 3.19)
-project (Clayground VERSION 2021.2)
+project (Clayground VERSION 2022.1)
 
+# CMAKE INCLUDES
+set(CLAY_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CLAY_CMAKE_SCRIPT_DIR}")
+include(clayplugin)
+
+
+# COMMON CONFIGURATION
 enable_testing()
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CLAY_PLUGIN_BASE_DIR ${CMAKE_BINARY_DIR}/bin/qml/Clayground)
-set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/qml CACHE STRING "" FORCE)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}")
+set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
-  set(QML_PLUGIN_LINK_TYPE STATIC CACHE STRING "" FORCE)
+if (NOT ANDROID) # Qt Android cmake causes problems otherwise
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+else()
+    # In some environements Qt (Creator) produces a gradle properties
+    # file with invalid androidBuildToolsVersion value - the following
+    # option allows to workaround this bug by allowing to provide the version
+    # explicitely. (See https://bugreports.qt.io/browse/QTBUG-94956)
+    set(CLAY_ANDROID_BUILD_TOOLS_VERSION
+        "DO_NOT_USE" CACHE STRING
+        "Set to the used version, if you need to workaround QTBUG-94956")
 endif()
 
-add_subdirectory (thirdparty/qml-box2d)
-add_subdirectory (thirdparty/simple-svg-writer)
-add_subdirectory (plugins)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/qml CACHE STRING "" FORCE)
+set(CLAY_PLUGIN_BASE_DIR ${QML_IMPORT_PATH}/Clayground)
+set(CLAY_DEPS_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
 
-# Qt has problems with multiple executables when building for Android
-# TODO Re-check if support for Android got better in Qt6
+
+# PLUGIN LINKING
+set(CLAYPLUGIN_LINKING SHARED)
+if (ANDROID) # Avoids plugin loading problems
+    set(CLAYPLUGIN_LINKING STATIC)
+endif()
+init_static_plugin_cfg()
+
+
+# DEPENDENCIES
+add_subdirectory (thirdparty/qml-box2d)
+if (TARGET Box2Dplugin)
+    extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
+endif()
+add_subdirectory (thirdparty/simple-svg-writer)
+add_subdirectory (thirdparty/csv-parser)
+
+# CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
+add_subdirectory (plugins)
 if(NOT ANDROID)
     add_subdirectory (tools)
-    add_subdirectory (examples)
 endif()
+add_subdirectory (examples)

@@ -9,8 +9,10 @@ set (CMAKE_AUTORCC ON)
 # qt_add_qml_module have to be used to get image provider working
 qt_add_qml_module( ClaySvg
     VERSION 1.0
-    OUTPUT_DIRECTORY  "${CLAY_PLUGIN_BASE_DIR}/Svg"
     URI Clayground.Svg
+    PLUGIN_TARGET ClaySvg
+    ${CLAYPLUGIN_LINKING}
+    OUTPUT_DIRECTORY  "${CLAY_PLUGIN_BASE_DIR}/Svg"
     SOURCES imageprovider.cpp svgplugin.cpp svgreader.cpp svgwriter.cpp
     QML_FILES Sandbox.qml SvgImageSource.qml
 
@@ -18,9 +20,11 @@ qt_add_qml_module( ClaySvg
     # following the workaround described in  https://www.qt.io/blog/qml-modules-in-qt-6.2
     NO_PLUGIN_OPTIONAL
     NO_GENERATE_PLUGIN_SOURCE
-    CLASS_NAME SvgPlugin
-    PLUGIN_TARGET ClaySvg
+    NO_CACHEGEN
+    CLASS_NAME Clayground_SvgPlugin
 )
 
+extend_static_plugin_cfg("ClaySvg" "Clayground_SvgPlugin")
+set_target_properties(ClaySvg PROPERTIES AUTOMOC TRUE)
 target_compile_features(ClaySvg PUBLIC cxx_std_17)
-target_link_libraries(ClaySvg PRIVATE Qt::Core Qt::Quick Qt::Qml Qt::Svg simple-svg-writer )
+target_link_libraries(ClaySvg PRIVATE Qt::Core Qt::Quick Qt::Qml Qt6::Svg simple-svg-writer )

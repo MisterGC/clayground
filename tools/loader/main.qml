@@ -47,7 +47,7 @@ Window {
 
             font.pixelSize: parent.height * .06
             font.bold: true; color: "white"; anchors.centerIn: parent
-            visible: sbxLoader.source !== ""; opacity: 1.0;
+            visible: sbxLoader.source; opacity: 1.0;
 
             Behavior on opacity {NumberAnimation{duration: _lblSrc.ttl}}
             property int ttl: 750
@@ -111,7 +111,7 @@ Window {
     readonly property string _SC_TOGGLE_LOG: _SC_USED_MOD + "L"
     readonly property string _SC_TOGGLE_GUIDE: _SC_USED_MOD + "G"
     function _scRestartSbx(sbxIdx) {return _SC_USED_MOD + sbxIdx;}
-    function _restart(sbxIdx){ keyvalues.set("command", "restart " + sbxIdx); }
+    function _restart(sbxIdx){ ClayLiveLoader.restartSandbox(sbxIdx); }
 
     Rectangle {
        id: guideScreen

@@ -32,7 +32,8 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
     if (QDir(path).exists())
     {
         const auto allFiles = fo.files();
-        QDirIterator it(path, QDir::Files|QDir::Dirs, QDirIterator::Subdirectories);
+        QDirIterator it(path, QDir::NoDotDot|QDir::Files|QDir::Dirs,
+                        QDirIterator::Subdirectories);
         while (it.hasNext()) {
             it.next();
             auto fp = it.filePath();

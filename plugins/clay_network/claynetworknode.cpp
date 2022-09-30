@@ -90,10 +90,10 @@ void ClayNetworkNode::readyForUse()
     connect(conn,  &Connection::newMessage, this, &ClayNetworkNode::newMessage);
     connect(conn,  &Connection::appDataUpdate, this, &ClayNetworkNode::appDataUpdate);
 
-    auto alreadyKnown = hasConnectionTo(conn->name());
+    const auto alreadyKnown = hasConnectionTo(conn->name());
     peers.insert(conn->peerAddress(), conn);
 
-    auto userId = conn->name();
+    const auto userId = conn->name();
     if (!userId.isEmpty() && !alreadyKnown) {
         conn->sendAppDataUpdate(appData_);
         emit newParticipant(userId);
@@ -116,7 +116,7 @@ void ClayNetworkNode::removeConnection(Connection *connection)
 {
     if (peers.contains(connection->peerAddress())) {
         peers.remove(connection->peerAddress());
-        auto userId = connection->name();
+        const auto userId = connection->name();
         if (!userId.isEmpty())
             emit participantLeft(userId);
     }

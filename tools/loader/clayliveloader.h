@@ -34,6 +34,9 @@ public:
     int numRestarts() const;
     void postMessage(const QString& message);
 
+public slots:
+    void restartSandbox(uint8_t sbxIdx);
+
 signals:
     void sandboxUrlChanged();
     void sandboxDirChanged();
@@ -56,6 +59,7 @@ private:
     bool isQmlPlugin(const QString &path) const;
     void storeValue(const QString& key, const QString& value);
     void storeErrors(const QString& errors);
+    bool restartIfDifferentSbx(const QString &path);
 
 private:
     QQmlApplicationEngine engine_;

@@ -167,7 +167,7 @@ void Connection::processReadyRead()
         } else {
             // Current state: read command payload
             if (reader.isString()) {
-                auto r = reader.readString();
+                auto const r = reader.readString();
                 buffer += r.data;
                 if (r.status != QCborStreamReader::EndOfString)
                     continue;

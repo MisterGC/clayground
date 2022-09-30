@@ -1,15 +1,18 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #pragma once
 
-#include <QQmlExtensionPlugin>
+#include <QQmlEngineExtensionPlugin>
 #include <QQmlEngine>
 
-class SvgPlugin: public QQmlExtensionPlugin
+extern void qml_register_types_Clayground_Svg();
+Q_GHS_KEEP_REFERENCE(qml_register_types_Clayground_Svg);
+
+class Clayground_SvgPlugin: public QQmlEngineExtensionPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "com.storytelling-turtle.SvgPlugin")
+    Q_PLUGIN_METADATA(IID QQmlEngineExtensionInterface_iid)
 
 public:
-    void registerTypes(const char* uri) override;
+    Clayground_SvgPlugin(QObject* parent = nullptr);
     void initializeEngine(QQmlEngine *engine, const char *uri) override;
 };

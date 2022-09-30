@@ -64,6 +64,11 @@ void ClayLiveLoader::storeErrors(const QString &errors)
    storeValue("lastErrorMsg", errors);
 }
 
+void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
+{
+    storeValue("command", QString("restart %1").arg(sbxIdx));
+}
+
 int ClayLiveLoader::numRestarts() const
 {
     return numRestarts_;
@@ -89,7 +94,7 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
 
 void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 {
-    for (auto& dir: dirs) {
+    for (auto const& dir: dirs) {
         if (QDir(dir).exists()) addDynImportDir(dir);
         else
         {
@@ -101,11 +106,13 @@ void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
 
 void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 {
-    auto cnt = allSbxs_.size();
-    for (auto& sbx: sbxFiles) {
+    auto const cnt = allSbxs_.size();
+    for (auto const& sbx: sbxFiles) {
         QFileInfo sbxTest(sbx);
         if (sbxTest.exists()) {
-            const auto url = QUrl::fromLocalFile(sbxTest.filePath());
+            auto const dir = sbxTest.absoluteDir().absolutePath();
+            fileObserver_.observeDir(dir);
+            auto const url = QUrl::fromLocalFile(sbxTest.filePath());
             allSbxs_ << url;
         }
         else
@@ -120,7 +127,7 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 QStringList ClayLiveLoader::sandboxes() const
 {
    QStringList lst;
-   for (const auto& sbx: allSbxs_) lst << sbx.toString();
+   for (auto const& sbx: allSbxs_) lst << sbx.toString();
    return lst;
 }
 
@@ -146,7 +153,7 @@ void ClayLiveLoader::show()
 
 void ClayLiveLoader::onTimeToRestart()
 {
-    auto idx = sbxIdx_;
+    auto const idx = sbxIdx_;
     setSbxIndex(USE_NONE_SBX_IDX);
     clearCache();
     setSbxIndex(idx);
@@ -154,8 +161,30 @@ void ClayLiveLoader::onTimeToRestart()
     emit restarted();
 }
 
+bool ClayLiveLoader::restartIfDifferentSbx(const QString& path)
+{
+    auto const dir = QFileInfo(path).absoluteDir().absolutePath();
+    for (size_t i = 0; i<allSbxs_.size(); ++i)
+    {
+       const auto& el = allSbxs_[static_cast<qsizetype>(i)];
+       if(!el.isLocalFile()) continue;
+       auto const sbxDir = QFileInfo(el.toLocalFile())
+               .absoluteDir().absolutePath();
+       if (sbxDir == dir)
+       {
+           if (i == sbxIdx_) break;
+           else {
+               restartSandbox(i);
+               return true;
+           }
+       }
+    }
+    return false;
+}
+
 void ClayLiveLoader::onFileChanged(const QString &path)
 {
+    if (restartIfDifferentSbx(path)) return;
     if (isQmlPlugin(path)) QGuiApplication::quit();
     reload_.start(RAPID_CHANGE_CATCHTIME);
 }
@@ -173,7 +202,7 @@ void ClayLiveLoader::onFileRemoved(const QString &path)
 void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
 {
    QString errors = "";
-   for (auto& w: warnings)
+   for (auto const& w: warnings)
        errors += (w.toString() + "\n");
    storeErrors(errors);
 }

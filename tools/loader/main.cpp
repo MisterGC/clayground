@@ -14,12 +14,12 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
     addCommonArgs(parser);
     parser.process(app);
 
-    auto isMessageMode = parser.isSet(MESSAGE_ARG);
-    auto isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
+    auto const isMessageMode = parser.isSet(MESSAGE_ARG);
+    auto const isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
                      parser.isSet(SBX_ARG) ||
                      parser.isSet(DYN_PLUGIN_ARG);
     if (isMessageMode) {
-        auto msg = parser.value(MESSAGE_ARG);
+        auto const msg = parser.value(MESSAGE_ARG);
         loader.setAltMessage(msg);
     }
     else if (isSbxMode)
@@ -31,16 +31,16 @@ void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
             loader.addSandboxes(parser.values(SBX_ARG));
 
         if (parser.isSet(DYN_PLUGIN_ARG)) {
-            for (auto& val: parser.values(DYN_PLUGIN_ARG))
+            for (auto const& val: parser.values(DYN_PLUGIN_ARG))
             {
-                auto dynPlugDirs = val.split(",");
+                auto const dynPlugDirs = val.split(",");
                 if (dynPlugDirs.length() != 2 || !QDir(dynPlugDirs[1]).exists())
                     parser.showHelp(1);
                 loader.addDynPluginDir(dynPlugDirs[1]);
             }
         }
 
-        auto idx = parser.value(SBX_INDEX_ARG).toInt();
+        auto const idx = parser.value(SBX_INDEX_ARG).toInt();
         loader.setSbxIndex(idx == USE_FIRST_SBX_IDX ? 0 : idx);
     }
     else
@@ -82,10 +82,9 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 int main(int argc, char *argv[])
 {
     QQmlDebuggingEnabler enabler;
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
-    QCoreApplication::setApplicationVersion("0.1");
+    QCoreApplication::setApplicationVersion(CLAY_LOADER_VERSION);
 
     ClayLiveLoader liveLoader;
     MsgHandlerWrapper::theLoader = &liveLoader;

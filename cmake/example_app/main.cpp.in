@@ -4,6 +4,8 @@
 #include <QQmlApplicationEngine>
 #include <QDebug>
 
+${CLAYGROUND_IMPORT_PLUGINS}
+
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
@@ -20,7 +22,11 @@ int main(int argc, char *argv[])
         );
     }
 
+#ifdef CLAYPLUGIN_LINKING_STATIC
+    engine.addImportPath(QStringLiteral(":/"));
+#else
     engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
+#endif
     engine.load(QUrl("qrc:/main.qml"));
     return app.exec();
 }

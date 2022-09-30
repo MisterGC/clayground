@@ -1,0 +1,5 @@
+# TODO Find a different way to ensure that the
+# the correct value is used
+# Workaround as Qt generates on some platforms a
+# wrong value for the androidBuildToolsVersion ('zipalign')
+androidBuildToolsVersion=${CLAY_ANDROID_BUILD_TOOLS_VERSION}

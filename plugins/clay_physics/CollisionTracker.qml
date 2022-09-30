@@ -4,7 +4,11 @@ import QtQuick
 import Box2D
 
 Item {
+    id: _collisionTracker
     property var entities: new Set()
+    property bool debug: false
+    property var debugMarkers: debug ? new Map() : null
+
     property var fixture: null
     onFixtureChanged: {
         if (fixture) {
@@ -13,8 +17,8 @@ Item {
         }
     }
 
-    signal entered(var entity)
-    signal left(var entity)
+    signal beginContact(entity: var)
+    signal endContact(entity: var)
 
     function _onDestruction(entity) {
         // TODO Clean solution, disconnect when entity left
@@ -24,17 +28,32 @@ Item {
     }
 
     function _onEntered(entity) {
-        entity.Component.destruction.connect(_ => {_onDestruction(entity);})
+        entity.Component.destruction.connect(_ => {_collisionTracker._onDestruction(entity);})
         entities.add(entity);
-        entered(entity);
+        if (debug){
+            let obj = debugMarker.createObject(entity, {width: (entity.width * 1.25)});
+            debugMarkers.set(entity, obj);
+        }
+        beginContact(entity);
         entitiesChanged();
     }
 
     function _onLeft(entity) {
-        if (entities.has(entity))
+        if (entities.has(entity)){
             entities.delete(entity);
-        left(entity)
+            if (debugMarkers && debugMarkers.has(entity)) {
+                let m = debugMarkers.get(entity);
+                m.destroy();
+                debugMarkers.delete(entity);
+            }
+        }
+        endContact(entity)
         entitiesChanged();
     }
+
+    Component {id: debugMarker;
+        Rectangle{color: "red"; opacity: .75; z: -1
+                  radius: width * .1
+                  height: width; anchors.centerIn: parent}}
 
 }
