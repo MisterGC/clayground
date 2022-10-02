@@ -6,7 +6,7 @@ pragma Singleton
 Item
 {
     readonly property bool runsInSandbox: typeof ClayLiveLoader != 'undefined'
-    readonly property string _resPrefix: !runsInSandbox ? "qrc:/" : "file:///" + ClayLiveLoader.sandboxDir + "/"
+    readonly property string _resPrefix: !runsInSandbox ? "qrc:/" : ClayLiveLoader.sandboxDir + "/"
     property var watchView: null
     function resource(path) {return _resPrefix + path}
     function watch(obj, prop, logPropChange) {
