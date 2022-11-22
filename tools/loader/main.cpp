@@ -7,6 +7,7 @@
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QQmlDebuggingEnabler>
+#include <QtGlobal>
 
 void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
 {
@@ -81,7 +82,11 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+    QQmlDebuggingEnabler::enableDebugging(true);
+#else
     QQmlDebuggingEnabler enabler;
+#endif
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
     QCoreApplication::setApplicationVersion(CLAY_LOADER_VERSION);

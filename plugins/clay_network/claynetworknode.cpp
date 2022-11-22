@@ -20,7 +20,7 @@ void ClayNetworkNode::sendDirectMessage(const QString& userId, const QString &me
     if (message.isEmpty()) return;
     // Support self talk
     if (userId == this->userId()) {
-        newMessage(userId, message);
+        emit newMessage(userId, message);
         return;
     }
 
