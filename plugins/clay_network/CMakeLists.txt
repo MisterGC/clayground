@@ -7,7 +7,7 @@ clay_p( Network
     SOURCES
         claynetworknode.cpp claywebaccess.cpp connection.cpp peermanager.cpp server.cpp
     QML_FILES
-        ClayNetworkUser.qml ClayHttpClient.qml Sandbox.qml
+        ClayNetworkUser.qml ClayHttpClient.qml Sandbox.qml SandboxHttpClient.qml
     LINK_LIBS
         Qt::Core Qt::Quick Qt::Qml Qt::Network
 )
