@@ -6,7 +6,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickWidgets Quick3D Quick3DPhysics)
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME}
@@ -26,5 +26,7 @@ PRIVATE
   Qt::Core
   Qt::Quick
   Qt::QuickWidgets
+  Qt::Quick3D
+  Qt::Quick3DPhysics
   Threads::Threads
 )
