@@ -6,6 +6,7 @@ add_subdirectory (platformer)
 add_subdirectory (topdown)
 add_subdirectory (visualfx)
 add_subdirectory (void)
+add_subdirectory (world3d)
 
 if (NOT ANDROID)
     add_subdirectory (pluginlive)
