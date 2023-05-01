@@ -3,5 +3,6 @@
         <file>main.qml</file>
         <file>Sandbox.qml</file>
         <file>Vehicle.qml</file>
+        <file>ClayWorld3d.qml</file>
     </qresource>
 </RCC>
