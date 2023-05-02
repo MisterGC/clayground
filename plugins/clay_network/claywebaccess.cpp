@@ -42,12 +42,32 @@ int ClayWebAccess::putBinary(const QString &url,
 int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
                                const QString &url,
                                const QByteArray &data,
-                               const QString &contentType)
+                               const QString &contentType,
+                               const QString &authString)
 {
     auto req = QNetworkRequest(url);
     if (!contentType.isEmpty())
         req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
     QNetworkReply *reply;
+
+    QStringList authParts = authString.split(" ", Qt::SkipEmptyParts);
+    if (authParts.size() == 2) {
+        QString authType = authParts[0].toLower();
+        QString authToken = authParts[1];
+        if (authType == "basic") {
+            // Set Basic authentication header
+            QByteArray auth = authToken.toUtf8().toBase64();
+            req.setRawHeader("Authorization", QString("Basic %1").arg(auth.data()).toUtf8());
+        }
+        else if (authType == "api-key") {
+            // Set API key header
+            req.setRawHeader("X-API-Key", authToken.toUtf8());
+        }
+        else if (authType == "oauth2") {
+            // Set OAuth 2.0 access token header
+            req.setRawHeader("Authorization", QString("Bearer %1").arg(authToken).toUtf8());
+        }
+    }
 
     switch (operation) {
         case QNetworkAccessManager::GetOperation:

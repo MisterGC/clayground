@@ -32,7 +32,8 @@ private:
     int sendRequest(QNetworkAccessManager::Operation operation,
                     const QString &url,
                     const QByteArray &data = QByteArray(),
-                    const QString &contentType = "");
+                    const QString &contentType = "",
+                    const QString &authString = "");
 
 signals:
     void reply(int requestId, int returnCode, const QString& text);

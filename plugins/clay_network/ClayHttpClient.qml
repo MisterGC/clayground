@@ -29,22 +29,19 @@ Item {
     function _updateServiceAccess() {
         service = {};
         for (const [endpoint, config] of Object.entries(endpoints)) {
-            service[endpoint] = (...args) => {
-                const buildPath = (template, params) => {
-                    let index = 0;
-                    return template.replace(/{\w+}/g, () => params[index++] || '');
-                };
-                const data = config.type === 'postJson' ? args.shift() : null;
-                const url = this.baseUrl + '/' + buildPath(config.path, args);
-                switch (config.type) {
-                    case 'get':
-                        return _webAccess.get(url);
-                    case 'postJson':
-                        return _webAccess.postJson(url, JSON.stringify(data));
-                    default:
-                        console.log(`Method '${config.type}' not supported.`);
+            accessor[endpoint] = function(...params) {
+                let url = endpoints[endpoint];
+                const placeholders = url.match(/\{[^\}]+\}/g);
+
+                if (placeholders) {
+                    for (const placeholder of placeholders) {
+                        const param = params.shift();
+                        url = url.replace(placeholder, encodeURIComponent(param));
+                    }
                 }
-            };
+                const [method, path] = url.split(' ', 2);
+                const body = params.length > 0 ? JSON.stringify(params[0]) : null;
+            }
         }
     }
 

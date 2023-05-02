@@ -20,8 +20,10 @@ Rectangle {
         {
             id: restClient
             baseUrl: "https://jsonplaceholder.typicode.com"
+            apiToken: "ENV.MY_API_TOKEN"
             endpoints:  ({
-                             posts: {type: 'get', path: "posts/{postId}", json: false}
+                             user: "GET users/{groupId}?id={userid}",
+                             news: "POST news/{category} {news_as_json}"
                          })
             onReply: (requestId, returnCode, text) => {
                          txt.text = text;
