@@ -18,25 +18,23 @@ Rectangle {
 
         ClayHttpClient
         {
-            id: restClient
+            id: jsonPlaceholder
+
             baseUrl: "https://jsonplaceholder.typicode.com"
-            apiToken: "ENV.MY_API_TOKEN"
             endpoints:  ({
-                             user: "GET users/{groupId}?id={userid}",
-                             news: "POST news/{category} {news_as_json}"
+                             pubPost: "POST posts {data}",
+                             getPost: "GET posts/{postId}"
                          })
-            onReply: (requestId, returnCode, text) => {
-                         txt.text = text;
-                         console.log(text)
-                     }
-            onError: (requestId, returnCode, text) => {
-                         txt.text = text;
-                     }
+            onReply: (requestId, returnCode, text) => {console.log("SUCC " + text); txt.text = text; }
+            onError: (requestId, returnCode, text) => {console.log("ERR " + text); txt.text = text; }
         }
 
         Component.onCompleted: {
-            let client = restClient.service;
-            client.posts(4)
+            let client = jsonPlaceholder.api;
+            let requestId = client.pubPost(JSON.stringify({"hohoh": "world"}));
+            //Hint: There are already 100 posts, 101 is the newly added one
+            requestId = client.getPost(101)
+
         }
     }
 
