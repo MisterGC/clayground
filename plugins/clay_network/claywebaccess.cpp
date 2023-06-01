@@ -1,6 +1,12 @@
-#include <QtNetwork>
-
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "claywebaccess.h"
+
+#include <QtNetwork>
+#include <QMetaEnum>
+#include <QProcessEnvironment>
+#include <QString>
+#include <QStringList>
+#include <QFile>
 
 ClayWebAccess::ClayWebAccess(QObject* parent)
 {
@@ -8,67 +14,113 @@ ClayWebAccess::ClayWebAccess(QObject* parent)
             this, &ClayWebAccess::onFinished);
 }
 
-int ClayWebAccess::get(const QString &url)
+int ClayWebAccess::get(const QString &url, const QString& auth)
 {
-    return sendRequest(QNetworkAccessManager::GetOperation, url);
+    return sendRequest(QNetworkAccessManager::GetOperation,
+                       url,
+                       auth);
 }
 
-int ClayWebAccess::postJson(const QString &url, const QString& jsonData)
+int ClayWebAccess::post(const QString &url,
+                        const QString& json,
+                        const QString& auth)
 {
-    auto data = jsonData.toUtf8();
-    return postBinary(url, data, "application/json");
+    return sendRequest(QNetworkAccessManager::PostOperation,
+                       url,
+                       auth,
+                       json.toUtf8(),
+                       "application/json");
 }
 
-int ClayWebAccess::putJson(const QString &url, const QString& jsonData)
+constexpr char ENV_PREFIX[] = "env.";
+constexpr char FILE_PREFIX[] = "file://";
+
+QString ClayWebAccess::resolveAuthString(const QString& authStr)
 {
-    auto data = jsonData.toUtf8();
-    return putBinary(url, data, "application/json");
+    if (authStr.startsWith(ENV_PREFIX))
+    {
+        auto variableName = authStr.mid(sizeof(ENV_PREFIX) - 1);
+        auto env = QProcessEnvironment::systemEnvironment();
+        auto value = env.value(variableName);
+        return value;
+    }
+    else if (authStr.startsWith(FILE_PREFIX))
+    {
+        auto fileName = authStr.mid(sizeof(FILE_PREFIX) - 1);
+        QFile file(fileName);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream stream(&file);
+            auto value = stream.readAll();
+            file.close();
+            return value.trimmed();
+        }
+        else
+        {
+            qWarning() << "Failed to open file:" << fileName;
+        }
+    }
+
+    return authStr;
 }
 
-int ClayWebAccess::postBinary(const QString &url,
-                              const QByteArray& data,
-                              const QString& contentType)
+int ClayWebAccess::remPendingRequest(QNetworkReply* reply)
 {
-    return sendRequest(QNetworkAccessManager::PostOperation, url, data, contentType);
+    int requestId = -1;
+    for (auto it = pendingRequests_.cbegin(); it != pendingRequests_.cend(); ++it)
+    {
+        if (it.value() == reply)
+        {
+            requestId = it.key();
+            pendingRequests_.erase(it);
+            break;
+        }
+    }
+    return requestId;
 }
 
-int ClayWebAccess::putBinary(const QString &url,
-                             const QByteArray& data,
-                             const QString& contentType)
-{
-    return sendRequest(QNetworkAccessManager::PutOperation, url, data, contentType);
+void ClayWebAccess::handleNetworkError(QNetworkReply* reply, const QString& errorDetails) {
+    auto reqId = remPendingRequest(reply);
+    auto errorStr = QString("Request to URL %1 failed: %2").
+                    arg(reply->url().toString(), errorDetails);
+    constexpr int HTTP_BAD_REQUEST = 400;
+    emit error(reqId, HTTP_BAD_REQUEST, errorStr);
 }
 
 int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
                                const QString &url,
+                               const QString &authString,
                                const QByteArray &data,
-                               const QString &contentType,
-                               const QString &authString)
+                               const QString &contentType)
 {
     auto req = QNetworkRequest(url);
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     if (!contentType.isEmpty())
         req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
-    QNetworkReply *reply;
 
-    QStringList authParts = authString.split(" ", Qt::SkipEmptyParts);
+    auto authParts = authString.split(" ", Qt::SkipEmptyParts);
     if (authParts.size() == 2) {
-        QString authType = authParts[0].toLower();
-        QString authToken = authParts[1];
-        if (authType == "basic") {
-            // Set Basic authentication header
-            QByteArray auth = authToken.toUtf8().toBase64();
-            req.setRawHeader("Authorization", QString("Basic %1").arg(auth.data()).toUtf8());
+        auto authType = authParts[0];
+        auto authStr = authParts[1];
+        if (authType == "Bearer") {
+            auto resAuth = resolveAuthString(authStr);
+            req.setRawHeader("Authorization",
+                             QString("Bearer %1").arg(resAuth).toUtf8());
         }
-        else if (authType == "api-key") {
-            // Set API key header
-            req.setRawHeader("X-API-Key", authToken.toUtf8());
-        }
-        else if (authType == "oauth2") {
-            // Set OAuth 2.0 access token header
-            req.setRawHeader("Authorization", QString("Bearer %1").arg(authToken).toUtf8());
+        else {
+            qWarning() << "Skipping unsupported auth type: " << authString;
         }
     }
 
+    qDebug() << "Request URL:" << req.url().toString();
+
+    QList<QByteArray> headers = req.rawHeaderList();
+    qDebug() << "Request Headers:";
+    foreach (const QByteArray& header, headers) {
+        qDebug() << header << ":" << req.rawHeader(header);
+    }
+
+    QNetworkReply *reply = nullptr;
     switch (operation) {
         case QNetworkAccessManager::GetOperation:
             reply = networkManager_.get(req);
@@ -76,38 +128,51 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
         case QNetworkAccessManager::PostOperation:
             reply = networkManager_.post(req, data);
             break;
-        case QNetworkAccessManager::PutOperation:
-            reply = networkManager_.put(req, data);
-            break;
         default:
             return -1;
     }
 
-    int requestId = nextRequestId_++;
+    if (reply)
+    {
+        // Register error handlers, they are invoked before the request
+        // is handled in the finshed slot for the network manager
+        connect(reply, &QNetworkReply::errorOccurred, this, [this](QNetworkReply::NetworkError code){
+            auto metaEnum = QMetaEnum::fromType<QNetworkReply::NetworkError>();
+            auto reply = qobject_cast<QNetworkReply*>(sender());
+            auto errDetails = QString("%1 %2")
+                                  .arg(metaEnum.valueToKey(code),
+                                       reply->errorString());
+            handleNetworkError(reply,errDetails);
+        });
+        connect(reply, &QNetworkReply::sslErrors, this, [this](const QList<QSslError> &errors) {
+            QStringList errorMessages;
+            for (const auto &error : errors) {
+                errorMessages << QString("SSL error: %1").arg(error.errorString());
+            }
+            handleNetworkError(qobject_cast<QNetworkReply*>(sender()),
+                               errorMessages.join("\n"));
+        });
+    }
+
+    auto requestId = nextRequestId_++;
     pendingRequests_[requestId] = reply;
     return requestId;
 }
 
-
 void ClayWebAccess::onFinished(QNetworkReply *networkReply)
 {
-    int requestId = -1;
-    int returnCode = networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    auto text = QString::fromUtf8(networkReply->readAll());
-    for (auto it = pendingRequests_.cbegin(); it != pendingRequests_.cend(); ++it)
+    auto requestId = remPendingRequest(networkReply);
+    if (requestId != -1)
     {
-        if (it.value() == networkReply)
+        auto returnCode = networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        auto text = QString::fromUtf8(networkReply->readAll());
+        if (networkReply->error() == QNetworkReply::NoError)
+            emit reply(requestId, returnCode, text);
+        else
         {
-            requestId = it.key();
-            pendingRequests_.erase(it);
-            break;
+            auto errStr = QString("%1 %2").arg(text, networkReply->errorString());
+            emit error(requestId, returnCode, errStr);
         }
     }
-
-    if (networkReply->error() == QNetworkReply::NoError)
-        emit reply(requestId, returnCode, text);
-    else
-        emit error(requestId, returnCode, text);
-
     networkReply->deleteLater();
 }
