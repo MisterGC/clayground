@@ -93,7 +93,7 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
                                const QByteArray &data,
                                const QString &contentType)
 {
-    auto req = QNetworkRequest(url);
+    auto req = QNetworkRequest(QUrl(url));
     req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     if (!contentType.isEmpty())
         req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
@@ -110,14 +110,6 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
         else {
             qWarning() << "Skipping unsupported auth type: " << authString;
         }
-    }
-
-    qDebug() << "Request URL:" << req.url().toString();
-
-    QList<QByteArray> headers = req.rawHeaderList();
-    qDebug() << "Request Headers:";
-    foreach (const QByteArray& header, headers) {
-        qDebug() << header << ":" << req.rawHeader(header);
     }
 
     QNetworkReply *reply = nullptr;
