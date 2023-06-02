@@ -85,6 +85,8 @@ Item {
                             return _webAccess.get(url, authString);
                         case "POST":
                             var json = jsonName !== "" && args.length ? args[args.length - 1] : "";
+                            if (typeof json == "object" && json !== null && !Array.isArray(json))
+                                json = JSON.stringify(json);
                             return _webAccess.post(url, json, authString);
                     }
                 }
