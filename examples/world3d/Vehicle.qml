@@ -48,26 +48,10 @@ CharacterController {
         materials: _material
     }
 
-    DynamicRigidBody {
-        scale: Qt.vector3d(.5, .5, .5)
-        position: Qt.vector3d(100, 0, 100)
-        collisionShapes: BoxShape { id: boxShape }
-        Model {
-            source: "#Cube"
-            materials: PrincipledMaterial {
-                baseColor: Qt.rgba(Math.random(),
-                                   Math.random(),
-                                   Math.random(), 1)
-            }
-            castsShadows: true
-        }
-    }
-
     Wheel {position: Qt.vector3d(30, -30, -10) }
     Wheel {position: Qt.vector3d(30, -30, 65); turnEnabled: true }
     Wheel {position: Qt.vector3d(-30, -30, -10) }
     Wheel {position: Qt.vector3d(-30, -30, 65); turnEnabled: true}
-
 
     // Movement Behavior
     movement: Qt.vector3d(0, 0, speed)
