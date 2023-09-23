@@ -25,16 +25,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.067591986"
-     inkscape:cx="1405.4921"
-     inkscape:cy="1442.4787"
+     inkscape:zoom="0.03978398"
+     inkscape:cx="4763.2237"
+     inkscape:cy="3745.2261"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1059"
-     inkscape:window-height="692"
-     inkscape:window-x="708"
-     inkscape:window-y="85"
+     inkscape:window-width="755"
+     inkscape:window-height="597"
+     inkscape:window-x="15"
+     inkscape:window-y="490"
      inkscape:window-maximized="0"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -86,24 +86,68 @@
          id="desc5900-9-6-67">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="721.87482"
-       x="685.08478"
+       y="728.36823"
+       x="761.19104"
        height="95.648827"
        width="102.20354"
        id="rect2172-2-0-77-3"
-       style="fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:3.76481;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:3.76481;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="184.69563"
-       x="232.67728"
-       height="162.9937"
-       width="102.20354"
+       y="222.64883"
+       x="165.23914"
+       height="79.881088"
+       width="88.542625"
        id="rect2172-2-0-77-3-7"
-       style="fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:4.9146;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="fill:#71c837;fill-opacity:1;stroke:none;stroke-width:3.20235;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67-6-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:14.3539px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';fill:#0088aa;stroke-width:0.759745"
+       x="32.656136"
+       y="31.292557"
+       id="text304"><tspan
+         sodipodi:role="line"
+         id="tspan302"
+         style="fill:#0088aa;stroke-width:0.759745"
+         x="32.656136"
+         y="31.292557">ClayWorld.Type: {component: &quot;Wall&quot;; height: 100}</tspan></text>
+    <a
+       id="a472"
+       style="fill:#0088aa;fill-opacity:1"
+       transform="translate(206.34384,68.51089)">
+      <desc
+         id="desc474">ClayWorld.Type
+{
+// Boss
+hitpoints: 100
+height: 10
+}</desc>
+      <rect
+         y="105.38309"
+         x="417.05756"
+         height="162.9937"
+         width="102.20354"
+         id="rect468"
+         style="fill:#0088aa;fill-opacity:1;stroke:none;stroke-width:4.9146;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+        <desc
+           id="desc466">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+      </rect>
+    </a>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:14.3539px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';fill:#71c837;fill-opacity:1;stroke-width:0.759745"
+       x="33.381275"
+       y="54.187317"
+       id="text961"><tspan
+         sodipodi:role="line"
+         id="tspan959"
+         style="fill:#71c837;fill-opacity:1;stroke-width:0.759745"
+         x="33.381275"
+         y="54.187317">ClayWorld.Type: {component: &quot;Wall&quot;; height: 50}</tspan></text>
   </g>
 </svg>
