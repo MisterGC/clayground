@@ -41,6 +41,7 @@ private slots:
 
 private:
     QString resolveAuthString(const QString &authStr);
+    void handleAuthorization(QNetworkRequest &req, const QString &authString);
     int remPendingRequest(QNetworkReply *reply);
     void handleNetworkError(QNetworkReply *reply, const QString &errorDetails);
     int sendRequest(QNetworkAccessManager::Operation operation,

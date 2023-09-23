@@ -23,7 +23,7 @@ Item {
 
     // Object which contains all the methods based on the baseUrl and
     // end point configuration.
-    property var api: ({})
+    property alias api: _apiConstructor.api
 
 
     // AUTHENTICATION/AUTHORIZATION
@@ -42,9 +42,8 @@ Item {
     // an error happened during execution
     signal error(int requestId, int returnCode, string text);
 
-
-    onBaseUrlChanged: _updateServiceAccess()
-    onEndpointsChanged: _updateServiceAccess()
+    onBaseUrlChanged: _apiConstructor.updateServiceAccess()
+    onEndpointsChanged: _apiConstructor.updateServiceAccess()
 
     ClayWebAccess {
         id: _webAccess
@@ -56,41 +55,58 @@ Item {
                   }
     }
 
-    function _updateServiceAccess() {
-        _clayHttpClient.api = {};
+    QtObject
+    {
+        id: _apiConstructor
 
-        var authString = "";
-        if (_clayHttpClient.bearerToken !== "") {
-            authString = "Bearer " + _clayHttpClient.bearerToken;
+        // Holds the JavasScript object with methods that allow
+        // convenient invocation of HTTP APIs
+        property var api: ({})
+
+        // (Re-)Generates the API object based on the service config
+        function updateServiceAccess() {
+            api = {};
+            const authString = _formAuthString(_clayHttpClient.bearerToken);
+
+            for (let endpoint in _clayHttpClient.endpoints) {
+                const parts = _clayHttpClient.endpoints[endpoint].split(' ');
+                const httpMethod = parts[0].toUpperCase();
+                const endpointUrl = parts[1];
+                const jsonName = parts.length > 2 ? parts[2] : "";
+
+                // Use IIFE to create a new scope that can maintain correct values for each endpoint.
+                api[endpoint] = ((endpointUrl, httpMethod, jsonName) => {
+                    return function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        const url = _constructUrl(_clayHttpClient.baseUrl, endpointUrl, args);
+                        const json = jsonName !== "" && args.length ? args[args.length - 1] : "";
+                        return _handleRequestMethod(httpMethod, url, json, authString);
+                    };
+                })(endpointUrl, httpMethod, jsonName);
+            }
         }
 
-        for (var endpoint in _clayHttpClient.endpoints) {
-            var parts = _clayHttpClient.endpoints[endpoint].split(' ');
-            var httpMethod = parts[0].toUpperCase();
-            var endpointUrl = parts[1];
-            var jsonName = parts.length > 2 ? parts[2] : "";
+        function _formAuthString(bearerToken) {
+            return bearerToken !== "" ? `Bearer ${bearerToken}` : "";
+        }
 
-            // Ensure that every function has its relevant argument
-            // values otherwise all would just reference the last
-            // values of endpointUrl, httpMethod and jsonName
-            (function(endpointUrl, httpMethod, jsonName) {
-                _clayHttpClient.api[endpoint] = function() {
-                    var url = _clayHttpClient.baseUrl + "/" + endpointUrl;
-                    var args = Array.prototype.slice.call(arguments);
-                    url = url.replace(/\{.*?\}/g, function() {
-                        return args.shift();
-                    });
-                    switch (httpMethod) {
-                        case "GET":
-                            return _webAccess.get(url, authString);
-                        case "POST":
-                            var json = jsonName !== "" && args.length ? args[args.length - 1] : "";
-                            if (typeof json == "object" && json !== null && !Array.isArray(json))
-                                json = JSON.stringify(json);
-                            return _webAccess.post(url, json, authString);
-                    }
-                }
-            })(endpointUrl, httpMethod, jsonName);
+        function _constructUrl(baseUrl, endpointUrl, args) {
+            let url = `${baseUrl}/${endpointUrl}`;
+            url = url.replace(/\{.*?\}/g, () => args.shift());
+            return url;
+        }
+
+        function _handleRequestMethod(httpMethod, url, json, authString) {
+            switch (httpMethod) {
+                case "GET":
+                    return _webAccess.get(url, authString);
+                case "POST":
+                    // Convert JSON object to string if necessary
+                    if (typeof json == "object" && json !== null && !Array.isArray(json))
+                        json = JSON.stringify(json);
+                    return _webAccess.post(url, json, authString);
+            }
         }
     }
+
 }

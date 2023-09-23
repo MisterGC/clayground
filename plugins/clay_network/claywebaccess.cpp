@@ -87,17 +87,8 @@ void ClayWebAccess::handleNetworkError(QNetworkReply* reply, const QString& erro
     emit error(reqId, HTTP_BAD_REQUEST, errorStr);
 }
 
-int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
-                               const QString &url,
-                               const QString &authString,
-                               const QByteArray &data,
-                               const QString &contentType)
+void ClayWebAccess::handleAuthorization(QNetworkRequest &req, const QString &authString)
 {
-    auto req = QNetworkRequest(QUrl(url));
-    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-    if (!contentType.isEmpty())
-        req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
-
     auto authParts = authString.split(" ", Qt::SkipEmptyParts);
     if (authParts.size() == 2) {
         auto authType = authParts[0];
@@ -111,6 +102,20 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
             qWarning() << "Skipping unsupported auth type: " << authString;
         }
     }
+}
+
+int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
+                               const QString &url,
+                               const QString &authString,
+                               const QByteArray &data,
+                               const QString &contentType)
+{
+    auto req = QNetworkRequest(QUrl(url));
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    if (!contentType.isEmpty())
+        req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
+
+    handleAuthorization(req, authString);
 
     QNetworkReply *reply = nullptr;
     switch (operation) {
