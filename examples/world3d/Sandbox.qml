@@ -54,28 +54,6 @@ Rectangle {
             materials: PrincipledMaterial {
                 baseColor: Qt.rgba(0, 0, 1, 1)
             }
-//            onBoundsChanged: {
-//                console.log("BOUNDS")
-//                console.log(bounds.minimum + " -> " + bounds.maximum)
-//                console.log("scale: " + parent.scale)
-//                console.log("pos: " + parent.position)
-//                console.log(
-//                            "l: " + dim.x * scale.x +
-//                            "w: " + dim.z * scale.z +
-//                            "h: " + dim.y * scale.y)
-//            }
-//            onScaleChanged: {
-//                console.log("SCALE")
-//                console.log(bounds.minimum + " -> " + bounds.maximum)
-//                let dim = bounds.maximum - bounds.minimum
-//                console.log("scale: " + scale)
-//                console.log(
-//                            "l: " + dim.x * scale.x +
-//                            "w: " + dim.z * scale.z +
-//                            "h: " + dim.y * scale.y)
-
-//            }
-
             castsShadows: true
         }
     }
@@ -107,34 +85,6 @@ Rectangle {
     Node {
         id: _scene
         parent: _world.sceneNode
-
-//        Node { property int size: 1000
-//            Node {
-//                y: 100
-//                Rectangle{
-//                    color: white
-//                    width: txt.width * 1.1
-//                    height: txt.height * 1.1
-//                    Text{
-//                        id: txt
-//                        text: "min: " + _cubus.bounds.minimum + "\n" +
-//                              "max: " + _cubus.bounds.maximum + "\n"
-//                    }
-//                }
-//            }
-//            Model {
-//                id: _cubus
-//                property real size: parent.size / 100
-//                position: Qt.vector3d(parent.size * .5, 0, parent.size * .5)
-//                scale: Qt.vector3d(size, size, size)
-//                source: "#Cube"
-//                materials: PrincipledMaterial {
-//                    baseColor: Qt.rgba(1, 0, 0, 1)
-//                }
-//                castsShadows: true
-//            }
-//        }
-
 
         Repeater3D {
             model: 0

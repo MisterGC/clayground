@@ -106,24 +106,24 @@ SvgReader
     function onIncubationInitiated(incubator, groupId, cfg) {
         world.mapEntityAboutToBeCreated(groupId, cfg);
         if (!loadEntitiesAsync) incubator.forceCompletion();
+
         if (incubator.status !== Component.Ready) {
             _numIncubators++;
-            let nr = _numIncubatorsPerGroup.has(groupId) ?
-                     _numIncubatorsPerGroup.get(groupId) :
-                     0;
-            _numIncubatorsPerGroup.set(groupId, nr+1);
-            let stu = function(status, groupId) {
-                if (status === Component.Ready){
+            let nr = _numIncubatorsPerGroup.get(groupId) || 0;
+            _numIncubatorsPerGroup.set(groupId, nr + 1);
+
+            incubator.onStatusChanged = (status) => {
+                if (status === Component.Ready) {
                     _mapEntityCreated(incubator.object, groupId, cfg);
                     _numIncubators--;
-                    let nr = _numIncubatorsPerGroup.get(groupId)-1;
+                    let nr = _numIncubatorsPerGroup.get(groupId) - 1;
                     _numIncubatorsPerGroup.set(groupId, nr);
-                    if(nr === 0) world.groupLoaded(groupId);
+                    if (nr === 0) world.groupLoaded(groupId);
                 }
-            }
-            incubator.onStatusChanged = status => stu(status, groupId);
+            };
+        } else {
+            _mapEntityCreated(incubator.object, _currentGroupId(), cfg);
         }
-        else { _mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
     }
 
     onPolygon: (id, points, description) => {

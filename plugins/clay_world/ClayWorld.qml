@@ -85,26 +85,24 @@ ClayCanvas
     signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded(var id)
 
-
     function _moveToRoomOnDemand() {
         if (!_world) return;
-        _forEachElement(_world.children,
-                        (obj) => {
-                            let migrate = obj instanceof RectBoxBody  ||
-                            obj instanceof VisualizedPolyBody ||
-                            obj instanceof ImageBoxBody  ||
-                            obj instanceof PhysicsItem
-                            if (migrate) {
-                                _updatePropertyBindingsOnDemand(obj);
-                                obj.parent = _world.room;
-                            }
-                        }
-                        );
+        for (let obj of _world.children) {
+            let migrate = obj instanceof RectBoxBody  ||
+                obj instanceof VisualizedPolyBody ||
+                obj instanceof ImageBoxBody  ||
+                obj instanceof PhysicsItem;
+
+            if (migrate) {
+                _updatePropertyBindingsOnDemand(obj);
+                obj.parent = _world.room;
+            }
+        }
     }
 
     function _updateRoomContent() {
         if (!_world) return;
-        _forEachElement(_world.room.children, _updatePropertyBindingsOnDemand);
+        _world.room.children.forEach(_updatePropertyBindingsOnDemand);
     }
 
     function _updatePropertyBindingsOnDemand(obj){
@@ -113,12 +111,4 @@ ClayCanvas
         if ("world" in obj)
             obj.world = Qt.binding( _ => {return _world.physics;} );
     }
-
-    function _forEachElement(objs, func){
-        for (let i=0; i<objs.length; ++i){
-            let o = objs[i];
-            if (o) func(o);
-        }
-    }
-
 }

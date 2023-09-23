@@ -246,12 +246,17 @@ Item {
                          y = (world.size) - (y - .5 * height)
 
                          let cfg = _fetchBuilderCfg(description);
-                         if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
-                         let comp = fetchComp(cfg);
-                         var inc = comp.incubateObject(world.sceneNode, {"position.x": x,
-                                                           "position.y": 0, "position.z": y,
-                                                           "scale.x": width/100, "scale.z": height/100});
-                         onIncubationInitiated(inc, _currentGroupId(), cfg);
+                         if (cfg)
+                         {
+                             let comp = fetchComp(cfg);
+                             let inc = comp.incubateObject(world.sceneNode, {"position.x": x,
+                                                               "position.y": 0, "position.z": y,
+                                                               "scale.x": width/100, "scale.z": height/100});
+                             onIncubationInitiated(inc, _currentGroupId(), cfg);
+                             return;
+                         }
+
+                         world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description);
                      }
 
         onPolygon: (id, points, description) => {console.log("Not yet supported.");}
