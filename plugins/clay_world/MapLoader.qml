@@ -6,23 +6,30 @@ import Clayground.Svg
 
 SvgReader
 {
+    // World and Entity properties
+    required property var world
+    property bool loadEntitiesAsync: false
+    property var entities: []
+    property var components: []
+
+    // Map loading properties and events
     property bool active: false
     property string mapSource: ""
     onActiveChanged: if (active && mapSource) setSource(mapSource)
     onMapSourceChanged: if (active && mapSource) setSource(mapSource)
 
-    property bool loadEntitiesAsync: false
-    property var entities: []
+    // Z coordinate properties
     property real baseZCoord: 0
     property real lastZCoord: baseZCoord
-    readonly property string componentPropKey: "component"
-    required property var world
-    property var components: []
 
+    // Group ID handling
     property var _groupIdStack: []
     function _currentGroupId() {
         return _groupIdStack.length > 0 ? _groupIdStack[_groupIdStack.length-1]: "";
     }
+
+    // Component key
+    readonly property string componentPropKey: "component"
 
     // Async loading handling
     property bool _sourceProcessed: false
@@ -39,12 +46,7 @@ SvgReader
         world.viewPortCenterWuY = 0;
         world.worldXMax = widthWu;
         world.worldYMax = heightWu;
-        for (let i=0; i<entities.length; ++i) {
-            let obj = entities[i];
-            if (typeof obj !== 'undefined' &&
-                    obj.hasOwnProperty("destroy"))
-                obj.destroy();
-        }
+        entities.forEach(obj => obj && obj.destroy && obj.destroy());
         entities = [];
     }
 
