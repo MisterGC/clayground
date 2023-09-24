@@ -26,13 +26,10 @@ Rectangle {
 
     Vehicle {
         id: _vehicle
-        parent: _scene
+        parent: _world.root
 
         // physics
         position: Qt.vector3d(800, 175, -850)
-        onPositionChanged: {
-            //console.log(position)
-        }
 
         gravity: _world.physics.gravity
         sendTriggerReports: true
@@ -61,7 +58,7 @@ Rectangle {
     ClayWorld3d {
         id: _world
         anchors.fill: parent
-        //observedObject: _cubus
+        observedObject: _vehicle
         showFloorGrid: true
         size: 100
 
@@ -72,7 +69,6 @@ Rectangle {
                                 ['Wall', wallComp]
                             ])
         onMapEntityCreated: (obj, groupId, compName) => {
-                                console.log("Blub " + obj)
                                 let model = obj.model
                                 let max = model.bounds.maximum
                                 let min = model.bounds.minimum
@@ -80,21 +76,5 @@ Rectangle {
                                 console.log(min)
                             }
         Component { id: wallComp; WallElement {} }
-    }
-
-    Node {
-        id: _scene
-        parent: _world.sceneNode
-
-        Repeater3D {
-            model: 0
-            delegate: WallElement {
-                position: Qt.vector3d(
-                              2000 * Math.random() * (Math.random() > .5 ? -1 : 1),
-                              100 ,
-                              2000 * Math.random() * (Math.random() > .5 ? -1 : 1))
-
-            }
-        }
     }
 }
