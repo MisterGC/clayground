@@ -10,8 +10,16 @@ Item {
     property string scene: ""
     readonly property string _fullmappath: (scene.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + scene))
+    property SceneLoaderBase _sceneLoader: null
+
     on_FullmappathChanged: _sceneLoader.sceneSource = _fullmappath
-    property alias components: _sceneLoader.components
+    required property var components
+    onComponentsChanged: {
+        if (_sceneLoader) {
+            _sceneLoader.components = components;
+        }
+    }
+
     Component.onCompleted: _sceneLoader.sceneSource = _fullmappath
 
     // Signals informing about the loading process
@@ -28,9 +36,4 @@ Item {
     signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
     signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded(var id)
-
-    ClaySceneLoader {
-        id: _sceneLoader
-        world: _clayWorld
-    }
 }

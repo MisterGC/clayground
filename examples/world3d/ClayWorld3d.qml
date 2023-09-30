@@ -22,6 +22,10 @@ ClayWorldBase {
     // Wether to show a grid or not
     property alias showFloorGrid: _axisHelper.enableXZGrid
 
+    _sceneLoader: SceneLoader3d {
+        world: _clayWorld3d
+    }
+
     PhysicsWorld {
         id: _physicsWorld
         running: true
