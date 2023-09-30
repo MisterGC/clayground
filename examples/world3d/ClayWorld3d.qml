@@ -13,7 +13,11 @@ ClayWorldBase {
     id: _clayWorld3d
 
     readonly property Node root: _daScene
+
+    // Physics properties
     readonly property PhysicsWorld physics: _physicsWorld
+    property alias debugPhysics: _physicsWorld.forceDebugDraw
+
     property alias observedObject: _cameraRoot.parent
     property alias camera: _camera
 
@@ -31,7 +35,6 @@ ClayWorldBase {
         id: _physicsWorld
         running: true
         scene: _daScene
-        forceDebugDraw: false
     }
 
     View3D {
