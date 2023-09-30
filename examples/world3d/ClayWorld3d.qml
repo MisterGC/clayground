@@ -15,6 +15,7 @@ ClayWorldBase {
     readonly property Node root: _daScene
     readonly property PhysicsWorld physics: _physicsWorld
     property alias observedObject: _cameraRoot.parent
+    property alias camera: _camera
 
     // Floor configuration
     // Size of the quadratic floor in world units
@@ -60,7 +61,6 @@ ClayWorldBase {
             origin: _cameraRoot
             anchors.fill: parent
             panEnabled: false
-            //Keys.forwardTo: theGameCtrl
         }
 
         Node {

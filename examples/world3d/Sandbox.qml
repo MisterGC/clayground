@@ -13,7 +13,7 @@ Rectangle {
     id: name
     color: "green"
 
-    Keys.forwardTo: theGameCtrl
+    //Keys.forwardTo: theGameCtrl
     GameController {
         id: theGameCtrl;
         anchors.fill: parent;
@@ -57,13 +57,23 @@ Rectangle {
     ClayWorld3d {
         id: _world
         anchors.fill: parent
-        observedObject: _vehicle
+        //observedObject: _vehicle
         showFloorGrid: true
         size: 100
 
 
+        Component.onCompleted: {
+            const wSizeHalf = _world.size * .5
+            _world.camera.position = Qt.vector3d(1020, 2184 , 1150)
+            _world.camera.lookAt(Qt.vector3d(1020,0,1150))
+            scene = "map.svg"
+        }
+
+        WasdController {
+            controlledObject: _world.camera
+        }
+
         scene: ""
-        Component.onCompleted: scene = "map.svg"
         components: new Map([
                                 ['Wall', wallComp]
                             ])
