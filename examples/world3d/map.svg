@@ -27,7 +27,7 @@
      inkscape:pageshadow="2"
      inkscape:zoom="0.45010435"
      inkscape:cx="2321.6838"
-     inkscape:cy="2400.5544"
+     inkscape:cy="3344.7799"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="true"
@@ -140,6 +140,16 @@
        style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:4.5774;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67-6-74-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       y="720.03607"
+       x="499.56921"
+       height="238.56294"
+       width="100"
+       id="rect2172-2-0-77-3-87-1-5"
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:5.88126;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-67-6-74-5-8">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
   </g>
 </svg>
