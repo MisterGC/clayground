@@ -1,5 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+
 /**
  * Common base functionality for both for 2D and 3D worlds
  */
@@ -11,14 +13,30 @@ Item {
     readonly property string _fullmappath: (scene.length === 0 ? ""
         : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + scene))
     property SceneLoaderBase _sceneLoader: null
+    // If true, loads the entities async if supported
+    property bool loadMapAsync: false
 
-    on_FullmappathChanged: _sceneLoader.sceneSource = _fullmappath
+    onWidthChanged: _refreshMap()
+    onHeightChanged: _refreshMap()
+    on_FullmappathChanged: _refreshMap()
+    function _refreshMap() {
+        if (width > 0 && height > 0) {
+            _sceneLoader.sceneSource = "";
+            _sceneLoader.sceneSource = _fullmappath;
+        }
+    }
+
     required property var components
     onComponentsChanged: {
         if (_sceneLoader) {
             _sceneLoader.components = components;
         }
     }
+
+    // Physics
+    // Set to true to activate graphical physics debugging
+    property bool debugPhysics: false
+
 
     Component.onCompleted: _sceneLoader.sceneSource = _fullmappath
 

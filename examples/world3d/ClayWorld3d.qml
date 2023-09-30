@@ -16,13 +16,12 @@ ClayWorldBase {
 
     // Physics properties
     readonly property PhysicsWorld physics: _physicsWorld
-    property alias debugPhysics: _physicsWorld.forceDebugDraw
 
     // Camera properties
     property alias observedObject: _cameraRoot.parent
     property alias camera: _camera
     // If true the camera can be moved around with WASD keys
-    readonly property bool freeCamera: _world.observedObject === _freeCamEnabled
+    readonly property bool freeCamera: _world.observedObject == _freeCamEnabled
 
     // Floor configuration
     // Size of the quadratic floor in world units
@@ -32,12 +31,14 @@ ClayWorldBase {
 
     _sceneLoader: SceneLoader3d {
         world: _clayWorld3d
+        loadEntitiesAsync: _clayWorld3d.loadMapAsync
     }
 
     PhysicsWorld {
         id: _physicsWorld
         running: true
         scene: _daScene
+        forceDebugDraw: _clayWorld3d.debugPhysics
     }
 
     View3D {

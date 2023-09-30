@@ -60,7 +60,7 @@ ClayWorld
         }
     }
 
-    //physicsDebugging: true
+    //debugPhysics: true
 
     Keys.forwardTo: theGameCtrl
     GameController {
