@@ -10,13 +10,19 @@ import QtQuick.Window
 import Clayground.GameController
 
 Rectangle {
-    id: name
+    id: _mainItem
     color: "green"
 
-    //Keys.forwardTo: theGameCtrl
+    Component.onCompleted: {
+        if (!_world.freeCamera)
+            theGameCtrl.forceActiveFocus();
+    }
+    Keys.forwardTo: _world.freeCamera ? _world : theGameCtrl
     GameController {
         id: theGameCtrl;
+        z: 99
         anchors.fill: parent;
+        //showDebugOverlay: true
         Component.onCompleted: {
             selectKeyboard(Qt.Key_W, Qt.Key_S,
                            Qt.Key_A, Qt.Key_D,
@@ -40,6 +46,7 @@ Rectangle {
         maxTurnSpeed: 10
         turnDesire: -theGameCtrl.axisX
     }
+
     component WallElement : StaticRigidBody {
         scale: Qt.vector3d(.5, .5, .5)
         collisionShapes: BoxShape { id: boxShape }
@@ -57,20 +64,18 @@ Rectangle {
     ClayWorld3d {
         id: _world
         anchors.fill: parent
+
         //observedObject: _vehicle
         showFloorGrid: true
         size: 100
 
-
         Component.onCompleted: {
-            const wSizeHalf = _world.size * .5
-            _world.camera.position = Qt.vector3d(1020, 2184 , 1150)
-            _world.camera.lookAt(Qt.vector3d(1020,0,1150))
+            if (_world.freeCamera) {
+                const wSizeHalf = _world.size * .5
+                _world.camera.position = Qt.vector3d(1020, 2184 , 1150)
+                _world.camera.lookAt(Qt.vector3d(1020,0,1150))
+            }
             scene = "map.svg"
-        }
-
-        WasdController {
-            controlledObject: _world.camera
         }
 
         scene: ""

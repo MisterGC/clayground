@@ -18,8 +18,11 @@ ClayWorldBase {
     readonly property PhysicsWorld physics: _physicsWorld
     property alias debugPhysics: _physicsWorld.forceDebugDraw
 
+    // Camera properties
     property alias observedObject: _cameraRoot.parent
     property alias camera: _camera
+    // If true the camera can be moved around with WASD keys
+    readonly property bool freeCamera: _world.observedObject === _freeCamEnabled
 
     // Floor configuration
     // Size of the quadratic floor in world units
@@ -48,22 +51,38 @@ ClayWorldBase {
         camera: _camera
         AxisHelper { id: _axisHelper }
 
-        Node {
-            id: _cameraRoot
-            PerspectiveCamera {
-                id: _camera
-                z: 700
-                y: 200
-                clipFar: 5000
-                clipNear: 1
+        Loader3D {
+            sourceComponent: _world.freeCamera ? _wasdCtrl : _orbitCtrl
+            Component {
+                id: _wasdCtrl
+                WasdController {
+                    parent: _viewport
+                    controlledObject: _world.camera
+                }
+            }
+            Component {
+                id: _orbitCtrl
+                OrbitCameraController {
+                    parent: _viewport
+                    camera: _world.camera
+                    origin: _cameraRoot
+                    panEnabled: false
+                }
             }
         }
 
-        OrbitCameraController {
-            camera: _camera
-            origin: _cameraRoot
-            anchors.fill: parent
-            panEnabled: false
+        Node {
+            id: _freeCamEnabled
+            Node {
+                id: _cameraRoot
+                PerspectiveCamera {
+                    id: _camera
+                    z: 700
+                    y: 200
+                    clipFar: 5000
+                    clipNear: 1
+                }
+            }
         }
 
         Node {
