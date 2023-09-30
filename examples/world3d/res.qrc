@@ -2,6 +2,9 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>Sandbox.qml</file>
+        <file>Sandbox2d.qml</file>
+        <file>Player2d.qml</file>
+        <file>Wall2d.qml</file>
         <file>Vehicle.qml</file>
         <file>ClayWorld3d.qml</file>
         <file>ClayWorld2d.qml</file>
