@@ -7,7 +7,7 @@
    viewBox="0 0 2000 2000"
    version="1.1"
    id="svg1623"
-   inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)"
+   inkscape:version="1.3 (0e150ed, 2023-07-21)"
    sodipodi:docname="map.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -25,16 +25,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.03978398"
-     inkscape:cx="4763.2237"
-     inkscape:cy="3745.2261"
+     inkscape:zoom="0.45010435"
+     inkscape:cx="2321.6838"
+     inkscape:cy="2400.5544"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="755"
-     inkscape:window-height="597"
-     inkscape:window-x="15"
-     inkscape:window-y="490"
+     showgrid="true"
+     inkscape:window-width="1520"
+     inkscape:window-height="916"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
      inkscape:window-maximized="0"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -48,7 +48,11 @@
        type="xygrid"
        id="grid6135"
        originx="-105.07621"
-       originy="-58.664872" />
+       originy="-58.664872"
+       spacingy="1"
+       spacingx="1"
+       units="mm"
+       visible="true" />
   </sodipodi:namedview>
   <metadata
      id="metadata1620">
@@ -66,44 +70,24 @@
      inkscape:groupmode="layer"
      id="layer1">
     <rect
-       y="0.15991388"
-       x="0.40714383"
-       height="10"
-       width="10"
-       id="rect2172-5-2-44"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.380777;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc5900-6-28-30">{&quot;component&quot;:&quot;Wall&quot;}</desc>
-    </rect>
-    <rect
-       y="364.44962"
-       x="474.63403"
-       height="15"
-       width="15"
-       id="rect2172-2-0-77"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.571165;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc5900-9-6-67">{&quot;component&quot;:&quot;Wall&quot;}</desc>
-    </rect>
-    <rect
-       y="728.36823"
-       x="761.19104"
-       height="95.648827"
-       width="102.20354"
+       y="0"
+       x="0"
+       height="2000"
+       width="100"
        id="rect2172-2-0-77-3"
-       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:3.76481;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:17.0288;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="222.64883"
-       x="165.23914"
-       height="79.881088"
-       width="88.542625"
-       id="rect2172-2-0-77-3-7"
-       style="fill:#71c837;fill-opacity:1;stroke:none;stroke-width:3.20235;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       y="0.99368602"
+       x="1895.1786"
+       height="2000"
+       width="100"
+       id="rect2172-2-0-77-3-8"
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:17.0288;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-9-6-67-6-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+         id="desc5900-9-6-67-6-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <text
        xml:space="preserve"
@@ -116,28 +100,6 @@
          style="fill:#0088aa;stroke-width:0.759745"
          x="32.656136"
          y="31.292557">ClayWorld.Type: {component: &quot;Wall&quot;; height: 100}</tspan></text>
-    <a
-       id="a472"
-       style="fill:#0088aa;fill-opacity:1"
-       transform="translate(206.34384,68.51089)">
-      <desc
-         id="desc474">ClayWorld.Type
-{
-// Boss
-hitpoints: 100
-height: 10
-}</desc>
-      <rect
-         y="105.38309"
-         x="417.05756"
-         height="162.9937"
-         width="102.20354"
-         id="rect468"
-         style="fill:#0088aa;fill-opacity:1;stroke:none;stroke-width:4.9146;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-        <desc
-           id="desc466">{&quot;component&quot;:&quot;Wall&quot;}</desc>
-      </rect>
-    </a>
     <text
        xml:space="preserve"
        style="font-weight:bold;font-size:14.3539px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';fill:#71c837;fill-opacity:1;stroke-width:0.759745"
@@ -149,5 +111,35 @@ height: 10
          style="fill:#71c837;fill-opacity:1;stroke-width:0.759745"
          x="33.381275"
          y="54.187317">ClayWorld.Type: {component: &quot;Wall&quot;; height: 50}</tspan></text>
+    <rect
+       y="576.08527"
+       x="399.01682"
+       height="144.51068"
+       width="100"
+       id="rect2172-2-0-77-3-87"
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:4.5774;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-67-6-74">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       y="432.66171"
+       x="499.09274"
+       height="144.51068"
+       width="100"
+       id="rect2172-2-0-77-3-87-4"
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:4.5774;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-67-6-74-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       y="575.53033"
+       x="599.06427"
+       height="144.51068"
+       width="100"
+       id="rect2172-2-0-77-3-87-1"
+       style="fill:#8dd35f;fill-opacity:1;stroke:none;stroke-width:4.5774;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-67-6-74-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
   </g>
 </svg>

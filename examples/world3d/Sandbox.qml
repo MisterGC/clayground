@@ -46,7 +46,6 @@ Rectangle {
         readonly property Model model: _wallElementModel
         Model {
             id: _wallElementModel
-            position.z: 10
             source: "#Cube"
             materials: PrincipledMaterial {
                 baseColor: Qt.rgba(0, 0, 1, 1)
