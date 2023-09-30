@@ -4,5 +4,10 @@
         <file>Sandbox.qml</file>
         <file>Vehicle.qml</file>
         <file>ClayWorld3d.qml</file>
+        <file>ClayWorld2d.qml</file>
+        <file>ClayWorldBase.qml</file>
+        <file>SceneLoaderBase.qml</file>
+        <file>SceneLoader2d.qml</file>
+        <file>SceneLoader3d.qml</file>
     </qresource>
 </RCC>

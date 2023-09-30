@@ -1,5 +1,8 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import Clayground.Svg
+
 /**
  * Covers base common functionality for 2d and 3d scenes.
  */
@@ -36,19 +39,17 @@ SvgReader
     property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
     onLoadingFinishedChanged: if (loadingFinished) loaded()
 
+    function _onBeginSpecifics(widthWu, heightWu) {
+        throw new Error("Not implemented");
+    }
+
     onBegin: (widthWu, heightWu) => {
-                _sourceProcessed = false;
-                console.log("WIDTH: " + widthWu + " HEIGHT: " + heightWu)
-                world.size = widthWu;
-                world.mapAboutToBeLoaded();
-                for (let i=0; i<entities.length; ++i) {
-                    let obj = entities[i];
-                    if (typeof obj !== 'undefined' &&
-                        obj.hasOwnProperty("destroy"))
-                    obj.destroy();
-                }
-                entities = [];
-            }
+        _sourceProcessed = false;
+        world.mapAboutToBeLoaded();
+        _onBeginSpecifics(widthWu, heightWu);
+        entities.forEach(obj => obj && obj.destroy && obj.destroy());
+        entities = [];
+    }
 
     onEnd: _sourceProcessed = true;
 
@@ -106,9 +107,6 @@ SvgReader
             let stu = function(status, groupId) {
                 if (status === Component.Ready){
                     _mapEntityCreated(incubator.object, groupId, cfg);
-                    console.log("INCU AS Position: " + incubator.object.position)
-                    console.log("INCU AS Scale: " + incubator.object.scale)
-                    console.log("INCU AS Parent: " + incubator.object.parent)
                     _numIncubators--;
                     let nr = _numIncubatorsPerGroup.get(groupId)-1;
                     _numIncubatorsPerGroup.set(groupId, nr);

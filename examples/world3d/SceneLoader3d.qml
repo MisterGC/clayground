@@ -6,6 +6,10 @@
  */
 SceneLoaderBase
 {
+    function _onBeginSpecifics(widthWu, heightWu) {
+        world.size = widthWu;
+    }
+
     onRectangle: (id, x, y, width, height, description) => {
                     const scaleX = width/100;
                     const scaleZ = height/100;

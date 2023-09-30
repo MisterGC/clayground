@@ -6,84 +6,66 @@ import Clayground.Canvas
 import Clayground.Physics
 import Clayground.Common
 
-ClayCanvas
+ClayWorldBase
 {
     id: _world
+    anchors.fill: parent
 
     // GENERAL PROPERTIES
-    property alias room: _world.coordSys
+    property alias room: _theCanvas.coordSys
     property alias running: _physicsWorld.running
-    property alias xWuMin: _world.worldXMin
-    property alias xWuMax: _world.worldXMax
-    property alias yWuMin: _world.worldYMin
-    property alias yWuMax: _world.worldYMax
+    property alias xWuMin: _theCanvas.worldXMin
+    property alias xWuMax: _theCanvas.worldXMax
+    property alias yWuMin: _theCanvas.worldYMin
+    property alias yWuMax: _theCanvas.worldYMax
+
+    property alias pixelPerUnit: _theCanvas.pixelPerUnit
+    property alias viewPortCenterWuX: _theCanvas.viewPortCenterWuX
+    property alias viewPortCenterWuY: _theCanvas.viewPortCenterWuY
+
+    property alias observedItem: _theCanvas.observedItem
 
 
     // MAP LOADING
-    // Path to SVG which contains the initial world content
-    property string map: ""
-    // Base z-coord that is used when loading entities from the map
-    property alias baseZCoord: mapLoader.baseZCoord
-    property alias lastZCoord: mapLoader.lastZCoord
+    _sceneLoader: SceneLoader2d {
+        id: _sceneLoader2d
+        loadEntitiesAsync: _world.loadMapAsync
+        world: _world
+     }
     // true -> entities get loaded without block UI
-    property alias loadMapAsync: mapLoader.loadEntitiesAsync
-
-    Component.onCompleted: {_moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand); _loadActive.restart();}
-    Timer {id: _loadActive; interval: 1; onTriggered: mapLoader.active = true;}
-    Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
-
+    // already in base
+    //property alias loadMapAsync: _sceneLoader2d.loadEntitiesAsync
+    // Base z-coord that is used when loading entities from the map
+    property alias baseZCoord: _sceneLoader2d.baseZCoord
+    property alias lastZCoord: _sceneLoader2d.lastZCoord
 
     // PHYSICS
-    property World physics: _physicsWorld
-    property bool physicsDebugging: false
+    property alias physics: _physicsWorld
     property alias gravity: _physicsWorld.gravity
     property alias timeStep: _physicsWorld.timeStep
     property alias physicsEnabled: _physicsWorld.running
-    World {
-        id: _physicsWorld
-        gravity: Qt.point(0,15*9.81)
-        timeStep: 1/60.0
-        pixelsPerMeter: pixelPerUnit
-        running: true
-    }
-    Component { id: _physDebug; DebugDraw {parent: coordSys; world: _physicsWorld }}
-    Loader { sourceComponent: physicsDebugging ? _physDebug : null }
 
+    ClayCanvas {
+        id: _theCanvas
+        anchors.fill: parent
+        Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; world: _physicsWorld }}
+        Loader { sourceComponent: debugPhysics ? _physDebug : null }
 
-    // MAP LOADING
-    readonly property string _fullmappath: (map.length === 0 ? ""
-        : ((!Clayground.runsInSandbox ? ":/" : ClayLiveLoader.sandboxDir) + "/" + map))
-    property alias components: mapLoader.components
-    MapLoader {
-        id: mapLoader;
-        world: _world;
-        onLoaded: world.mapLoaded()
-    }
-
-    onWidthChanged: _refreshMap()
-    on_FullmappathChanged: _refreshMap()
-
-    function _refreshMap() {
-        if (width > 0 && height > 0) {
-            mapLoader.mapSource = "";
-            mapLoader.mapSource = _fullmappath;
+        World {
+            id: _physicsWorld
+            gravity: Qt.point(0,15*9.81)
+            timeStep: 1/60.0
+            pixelsPerMeter: _theCanvas.pixelPerUnit
+            running: true
         }
     }
+
+    Component.onCompleted: {_moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand); _loadActive.restart();}
+    Timer {id: _loadActive; interval: 1; onTriggered: _sceneLoader2d.active = true;}
+    Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
+
+    // MAP LOADING
     onMapLoaded: _updateRoomContent()
-
-    // Signals informing about the loading process
-    signal mapAboutToBeLoaded()
-    signal mapLoaded()
-    signal mapEntityAboutToBeCreated(var groupId, var compName)
-    signal mapEntityCreated(var obj, var groupId, var compName)
-
-    // All elements that haven't been instantiated via registred comp.
-    signal polylineLoaded(var id, var groupId, var points, var description)
-    signal polygonLoaded(var id, var groupId, var points, var description)
-    signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var description)
-    signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
-    signal groupAboutToBeLoaded(var id, var description)
-    signal groupLoaded(var id)
 
     function _moveToRoomOnDemand() {
         if (!_world) return;
@@ -107,7 +89,7 @@ ClayCanvas
 
     function _updatePropertyBindingsOnDemand(obj){
         if ("pixelPerUnit" in obj)
-            obj.pixelPerUnit = Qt.binding( _ => {return _world.pixelPerUnit;} );
+            obj.pixelPerUnit = Qt.binding( _ => {return _theCanvas.pixelPerUnit;} );
         if ("world" in obj)
             obj.world = Qt.binding( _ => {return _world.physics;} );
     }
