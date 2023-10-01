@@ -83,14 +83,7 @@ ClayWorldBase {
             id: _freeCamEnabled
             Node {
                 id: _cameraRoot
-                PerspectiveCamera {
-                    id: _camera
-                    x: 0
-                    z: 0
-                    y: 400
-                    clipFar: 5000
-                    clipNear: 1
-                }
+                PerspectiveCamera { id: _camera; clipFar: 5000; clipNear: 1}
             }
         }
 

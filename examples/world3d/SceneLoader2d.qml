@@ -46,7 +46,6 @@ SceneLoaderBase
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
         let comp = fetchComp(cfg);
-        console.log("id: " + id + " x: " + x + " y: " + y)
         var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, z: ++lastZCoord, widthWu: width, heightWu: height});
         onIncubationInitiated(inc, _currentGroupId(), cfg);
     }
