@@ -59,15 +59,13 @@ ClayWorld3d {
     onMapEntityCreated: (obj, groupId, compName) => {
         if (obj instanceof Player3d) {
             player = obj;
-            // movement configuration
-            //bind speedDesire to -theGameCtrl.axis
-            player.maxSpeed = 500
+            player.maxSpeed = 100
             observedObject = player;
+            camera.position = Qt.vector3d(0, player.y + 700, 0)
         }
     }
 
     component WallElement : StaticRigidBody {
-        scale: Qt.vector3d(.5, .5, .5)
         collisionShapes: BoxShape { id: boxShape }
         readonly property Model model: _wallElementModel
         Model {
@@ -79,10 +77,6 @@ ClayWorld3d {
             castsShadows: true
         }
     }
-
-    //observedObject: _vehicle
-    showFloorGrid: true
-    xWuMax: 100
 
     Component { id: playerComp; Player3d {} }
     components: new Map([

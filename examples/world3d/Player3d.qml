@@ -10,7 +10,7 @@ CharacterController {
     id: _car
 
     // >0 -> forward, <0 -> backwards
-    property int maxSpeed: 10
+    property int maxSpeed: 1
 
     readonly property real xDirDesire: theGameCtrl.axisX
     movement.x: xDirDesire * maxSpeed

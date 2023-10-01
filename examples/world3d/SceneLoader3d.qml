@@ -27,7 +27,7 @@ SceneLoaderBase
                                 "position.y": 10,
                                 "position.z": z,
                                 "scale.x": scaleX,
-                                "scale.y": 1,
+                                "scale.y": .2,
                                 "scale.z": scaleZ
                             });
                         onIncubationInitiated(inc, _currentGroupId(), cfg);
