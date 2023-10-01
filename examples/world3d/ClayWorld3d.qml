@@ -53,7 +53,7 @@ ClayWorldBase {
         anchors.fill: parent
 
         environment: SceneEnvironment {
-            clearColor: "#d6dbdf"
+            clearColor: "black"
             backgroundMode: SceneEnvironment.Color
         }
         camera: _camera
