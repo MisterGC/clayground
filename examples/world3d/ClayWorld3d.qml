@@ -35,8 +35,6 @@ ClayWorldBase {
     property real xWuMax: 100
     readonly property real zWuMin: 0
     property real zWuMax: 100
-    // Wether to show a grid or not
-    property alias showFloorGrid: _axisHelper.enableXZGrid
 
     _sceneLoader: SceneLoader3d {
         world: _clayWorld3d
@@ -59,7 +57,7 @@ ClayWorldBase {
             backgroundMode: SceneEnvironment.Color
         }
         camera: _camera
-        AxisHelper { id: _axisHelper }
+        AxisHelper { id: _axisHelper; visible: _clayWorld3d.debugRendering }
 
         Loader3D {
             sourceComponent: _world.freeCamera ? _wasdCtrl : _orbitCtrl

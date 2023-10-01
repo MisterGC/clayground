@@ -33,6 +33,11 @@ Item {
         }
     }
 
+    // Visuals
+    // Set to true to activate debugging of the visualization
+    // Axis ...
+    property bool debugRendering: false
+
     // Physics
     // Set to true to activate graphical physics debugging
     property bool debugPhysics: false

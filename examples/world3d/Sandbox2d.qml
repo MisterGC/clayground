@@ -14,6 +14,7 @@ ClayWorld2d {
     gravity: Qt.point(0,0)
     timeStep: 1/60.0
     debugPhysics: false
+    debugRendering: false
     anchors.fill: parent
 
     Component.onCompleted: scene = "map2d.svg"

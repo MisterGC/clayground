@@ -14,6 +14,8 @@ ClayWorld3d {
     id: _world
     anchors.fill: parent
 
+    debugRendering: false
+
     property var player: null
     onMapAboutToBeLoaded: player = null;
     Component.onCompleted: {

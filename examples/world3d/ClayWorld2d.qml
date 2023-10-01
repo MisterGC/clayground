@@ -47,6 +47,8 @@ ClayWorldBase
 
     ClayCanvas {
         id: _theCanvas
+
+        showDebugInfo: _world.debugRendering
         anchors.fill: parent
         Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; world: _physicsWorld }}
         Loader { sourceComponent: debugPhysics ? _physDebug : null }
