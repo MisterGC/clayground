@@ -21,11 +21,20 @@ ClayWorldBase {
     property alias observedObject: _cameraRoot.parent
     property alias camera: _camera
     // If true the camera can be moved around with WASD keys
-    readonly property bool freeCamera: _world.observedObject == _freeCamEnabled
+    readonly property bool freeCamera: observedObject == _freeCamEnabled
+    onObservedObjectChanged: {
+        if (observedObject != _freeCamEnabled)
+        {
+           camera.position = Qt.vector3d(0,1200,0)
+        }
+    }
 
     // Floor configuration
     // Size of the quadratic floor in world units
-    property real size: 100
+    readonly property real xWuMin: 0
+    property real xWuMax: 100
+    readonly property real zWuMin: 0
+    property real zWuMax: 100
     // Wether to show a grid or not
     property alias showFloorGrid: _axisHelper.enableXZGrid
 
@@ -78,8 +87,9 @@ ClayWorldBase {
                 id: _cameraRoot
                 PerspectiveCamera {
                     id: _camera
-                    z: 700
-                    y: 200
+                    x: 0
+                    z: 0
+                    y: 400
                     clipFar: 5000
                     clipNear: 1
                 }
@@ -112,22 +122,21 @@ ClayWorldBase {
                 Model {
                     id: _floorModel
                     source: "#Rectangle"
-                    position: Qt.vector3d(_clayWorld3d.size * .5,
-                                          -_clayWorld3d.size * .5, 0)
-                    scale: Qt.vector3d(_clayWorld3d.size / 100,
-                                       _clayWorld3d.size / 100,
+                    position: Qt.vector3d(_clayWorld3d.xWuMax * .5,
+                                          -_clayWorld3d.zWuMax * .5, 0)
+                    scale: Qt.vector3d(_clayWorld3d.xWuMax / 100,
+                                       _clayWorld3d.zWuMax / 100,
                                        1)
                     materials: DefaultMaterial {
                         diffuseColor: "#214478"
 
                     }
-                    castsShadows: true
+                    castsShadows: false
                     receivesShadows: true
                 }
             }
             Floor {}
         }
     }
-
 
 }

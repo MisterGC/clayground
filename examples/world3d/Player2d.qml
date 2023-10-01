@@ -12,7 +12,7 @@ RectBoxBody
     categories: Box.Category2
     collidesWith: Box.Category1
 
-    readonly property real veloCompMax: 25
+    readonly property real veloCompMax: 2000
     property real xDirDesire: theGameCtrl.axisX
     linearVelocity.x: xDirDesire * veloCompMax
     property real yDirDesire: -theGameCtrl.axisY

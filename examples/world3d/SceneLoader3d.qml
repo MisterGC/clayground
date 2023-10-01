@@ -7,14 +7,15 @@
 SceneLoaderBase
 {
     function _onBeginSpecifics(widthWu, heightWu) {
-        world.size = widthWu;
+        world.xWuMax = widthWu;
+        world.zWuMax = heightWu;
     }
 
     onRectangle: (id, x, y, width, height, description) => {
                     const scaleX = width/100;
                     const scaleZ = height/100;
                     x = x + (.5 * width)
-                    const z = (world.size - y) + (.5 * height)
+                    const z = (world.zWuMax - y) + (.5 * height)
 
                     let cfg = _fetchBuilderCfg(description);
                     if (cfg)

@@ -10,12 +10,13 @@ import Clayground.GameController
 ClayWorld2d {
     id: theWorld
 
-    scene: "map2d.svg"
     pixelPerUnit: width / theWorld.xWuMax
     gravity: Qt.point(0,0)
     timeStep: 1/60.0
     debugPhysics: false
     anchors.fill: parent
+
+    Component.onCompleted: scene = "map2d.svg"
 
     // Set this property to true if you want to run the app
     // on multiple computers within one LAN
@@ -38,9 +39,9 @@ ClayWorld2d {
             theGameCtrl.selectTouchscreenGamepad();
         else
         {
-             theGameCtrl.selectKeyboard(Qt.Key_Up, Qt.Key_Down,
-                                        Qt.Key_Left, Qt.Key_Right,
-                                        Qt.Key_A, Qt.Key_S);
+             theGameCtrl.selectKeyboard(Qt.Key_W, Qt.Key_S,
+                                        Qt.Key_A, Qt.Key_D,
+                                        Qt.Key_J, Qt.Key_K);
         }
         theWorld.observedItem = player;
     }

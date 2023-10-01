@@ -73,7 +73,7 @@ SvgReader
     function _fetchBuilderCfg(description) {
         if (description.length === 0) return false;
         let cfg = JSON.parse(description);
-        if (cfg.hasOwnProperty(componentPropKey) && components.has(cfg[componentPropKey]))
+        if (cfg.hasOwnProperty(componentPropKey) && world.components.has(cfg[componentPropKey]))
             return cfg
         else
             return false;
