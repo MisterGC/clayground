@@ -14,10 +14,12 @@ import Clayground.GameController
 
 Item {
     anchors.fill: parent
+
+    property bool is3D: true
+
     Loader {
-        active: true
         anchors.fill: parent
-        sourceComponent: _sbx2d
+        sourceComponent: is3D ? _sbx3d : _sbx2d
     }
 
     Component {
@@ -27,5 +29,13 @@ Item {
     Component {
         id: _sbx3d
         Sandbox3d {}
+    }
+
+    Button {
+        text: is3D ? "Switch to 2D" : "Switch to 3D"
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 10
+        onClicked: is3D = !is3D
     }
 }

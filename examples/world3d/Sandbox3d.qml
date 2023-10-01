@@ -23,7 +23,7 @@ ClayWorld3d {
         const wSizeHalf = _world.xWuMax * .5;
         _world.camera.position = Qt.vector3d(1020, 2184 , 1150);
         _world.camera.lookAt(Qt.vector3d(1020,0,1150));
-        scene = "map2d.svg";
+        scene = "map.svg";
     }
     Keys.forwardTo: _world.freeCamera ? _world : theGameCtrl
 

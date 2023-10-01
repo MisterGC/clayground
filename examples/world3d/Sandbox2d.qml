@@ -17,7 +17,7 @@ ClayWorld2d {
     debugRendering: false
     anchors.fill: parent
 
-    Component.onCompleted: scene = "map2d.svg"
+    Component.onCompleted: scene = "map.svg"
 
     // Set this property to true if you want to run the app
     // on multiple computers within one LAN
