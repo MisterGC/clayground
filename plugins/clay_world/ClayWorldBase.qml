@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
+import Clayground.Common
 
 /**
  * Common base functionality for both for 2D and 3D worlds

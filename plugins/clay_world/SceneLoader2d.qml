@@ -38,7 +38,7 @@ SceneLoaderBase
         let cfg = _fetchBuilderCfg(description);
         if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
         let comp = fetchComp(cfg);
-        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points, z: ++lastZCoord });
+        let inc = comp.incubateObject(world.room, { canvas: world.canvas, vertices: points, z: ++lastZCoord });
         onIncubationInitiated(inc, _currentGroupId(), cfg)
     }
 

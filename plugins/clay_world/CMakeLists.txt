@@ -11,7 +11,7 @@ clay_p( World
         SceneLoaderBase.qml
         SceneLoader2d.qml
         SceneLoader3d.qml
-        Minimap.qml
+        Minimap2d.qml
         Sandbox.qml
     LINK_LIBS
         Qt::Core Qt::Quick Qt::Qml ClayPhysics

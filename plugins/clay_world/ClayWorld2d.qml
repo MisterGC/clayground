@@ -12,6 +12,7 @@ ClayWorldBase
     anchors.fill: parent
 
     // GENERAL PROPERTIES
+    readonly property ClayCanvas canvas: _theCanvas
     property alias room: _theCanvas.coordSys
     property alias running: _physicsWorld.running
     property alias xWuMin: _theCanvas.worldXMin
