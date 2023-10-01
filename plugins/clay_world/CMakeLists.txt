@@ -5,8 +5,12 @@ find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 clay_p( World
     VERSION 1.0
     QML_FILES
-        ClayWorld.qml
-        MapLoader.qml
+        ClayWorldBase.qml
+        ClayWorld2d.qml
+        ClayWorld3d.qml
+        SceneLoaderBase.qml
+        SceneLoader2d.qml
+        SceneLoader3d.qml
         Minimap.qml
         Sandbox.qml
     LINK_LIBS

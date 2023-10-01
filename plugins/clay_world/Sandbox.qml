@@ -29,7 +29,7 @@ Item {
         Repeater {model: 1000; Text{text:""}}
     }
 
-    ClayWorld {
+    ClayWorld2d {
         id: someWorld
 
         anchors.fill: parent
@@ -38,7 +38,7 @@ Item {
 
         // Load a map using an svg file - Clayground supports setting properties via
         // JSON data in descriptions of SVG elements (supported by Inkscape for example)
-        map: "map.svg"
+        scene: "map.svg"
         loadMapAsync: true
         components: new Map([ ['MyComplexComp', c1], ['Wall', c2] ])
         Component { id: c1; MyComplexComp {} }
@@ -50,14 +50,14 @@ Item {
         WoodenBox{color: "lightgreen"}
         // Explicitly set the parent and use whichever component is suitable, but be
         // aware that pixelPerUnit and physics world are modified if present
-        RectBoxBody {parent: someWorld.room; xWu: 50; yWu: 50; widthWu: 8; heightWu: 8; color: "orange"}
+        RectBoxBody {parent: someWorld.room; xWu: 20; yWu: 20; widthWu: 8; heightWu: 8; color: "orange"}
 
         property var _timeStamp
         onMapAboutToBeLoaded: {_timeStamp = new Date()}
         onMapLoaded: {console.log("Time elapsed: " + (new Date() - _timeStamp) ) }
     }
 
-    Minimap {
+    Minimap2d {
         id: minimap
         color: "black"; opacity: 0.9
         world: someWorld
