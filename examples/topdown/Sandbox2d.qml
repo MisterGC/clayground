@@ -6,6 +6,7 @@ import QtQuick.Controls
 import Box2D
 import Clayground.Network
 import Clayground.GameController
+import Clayground.World
 
 ClayWorld2d {
     id: theWorld

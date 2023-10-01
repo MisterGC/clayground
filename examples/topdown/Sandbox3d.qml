@@ -9,6 +9,7 @@ import QtQuick3D.Physics
 import QtQuick3D.Physics.Helpers
 
 import Clayground.GameController
+import Clayground.World
 
 ClayWorld3d {
     id: _world
@@ -39,23 +40,6 @@ ClayWorld3d {
         }
     }
 
-    // Vehicle {
-    //     id: _vehicle
-    //     parent: _world.root
-
-    //     // physics
-    //     position: Qt.vector3d(800, 175, -850)
-
-    //     gravity: _world.physics.gravity
-    //     sendTriggerReports: true
-
-    //     // movement configuration
-    //     maxSpeed: 500
-    //     speedDesire: -theGameCtrl.axisY
-    //     maxTurnSpeed: 10
-    //     turnDesire: -theGameCtrl.axisX
-    // }
-
     onMapEntityCreated: (obj, groupId, compName) => {
         if (obj instanceof Player3d) {
             player = obj;
@@ -65,24 +49,11 @@ ClayWorld3d {
         }
     }
 
-    component WallElement : StaticRigidBody {
-        collisionShapes: BoxShape { id: boxShape }
-        readonly property Model model: _wallElementModel
-        Model {
-            id: _wallElementModel
-            source: "#Cube"
-            materials: PrincipledMaterial {
-                baseColor: Qt.rgba(0, 0, 1, 1)
-            }
-            castsShadows: true
-        }
-    }
-
     Component { id: playerComp; Player3d {} }
     components: new Map([
                             ['Wall', wallComp],
                             ['Player', playerComp]
                         ])
 
-    Component { id: wallComp; WallElement {} }
+    Component { id: wallComp; Wall3d {} }
 }

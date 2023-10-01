@@ -7,7 +7,6 @@ import QtQuick3D.Physics
 import QtQuick3D.Physics.Helpers
 
 CharacterController {
-    id: _car
 
     // >0 -> forward, <0 -> backwards
     property int maxSpeed: 1
@@ -33,12 +32,11 @@ CharacterController {
         id: _material
         diffuseColor: "orange"
     }
+
     Model {
         id: _front
         source: "#Cube"
         //scale: Qt.vector3d(.5, .5, .5)
         materials: _material
     }
-
-
 }
