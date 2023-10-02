@@ -74,9 +74,22 @@ SvgReader
                     if (target[keys[i]] === undefined) {
                         target[keys[i]] = {};
                     }
+                    // No further eval needed when one access
+                    // fails -> break and report
+                    if (!target.hasOwnProperty(keys[i])) {
+                        keys = [("Property " + p)];
+                        break;
+                    }
                     target = target[keys[i]];
                 }
-                target[keys[keys.length - 1]] = initVals[p];
+                if (target.hasOwnProperty(keys[keys.length - 1])) {
+                    target[keys[keys.length - 1]] = initVals[p];
+                }
+                else {
+                    console.error("SceneLoader: Cannot assign to " + p +
+                                  " as it doesn't exist in " + obj);
+                }
+
             }
         }
     }
