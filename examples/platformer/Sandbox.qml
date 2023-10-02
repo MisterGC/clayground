@@ -70,7 +70,7 @@ ClayWorld2d
         onButtonBPressedChanged:  if (buttonBPressed) player.jump();
     }
 
-    onMapEntityCreated: (obj, groupId, compName) => {
+    onMapEntityCreated: (obj, groupId, cfg) => {
        if (obj instanceof VisualizedPolyBody) {
            obj.fixedRotation = false;
            obj.bullet = true

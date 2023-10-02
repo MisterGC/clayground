@@ -46,13 +46,13 @@ Item
             door._door.path = door._doorPath;
             for (let s of door._switches) s.door = door._door;
         }
-        function onMapEntityCreated(obj, groupId, compName) {
+        function onMapEntityCreated(obj, groupId, cfg) {
             let door = builder._getDoor(groupId);
             if (!door) return;
-            if (compName === builder._doorCompName) door._door = obj;
-            if (compName === builder._switchCompName) door._switches.push(obj);
+            if (cfg.compName === builder._doorCompName) door._door = obj;
+            if (cfg.compName === builder._switchCompName) door._switches.push(obj);
         }
-        function onPolylineLoaded(id, groupId, points, desc) {
+        function onPolylineLoaded(id, groupId, points, fillColor, strokeColor, desc) {
             let door = builder._getDoor(groupId);
             if (!door) return;
             door._doorPath = points;

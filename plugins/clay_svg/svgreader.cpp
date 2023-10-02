@@ -22,7 +22,12 @@ void SvgReader::onFileChanged(const QString& /*path*/)
     introspect();
 }
 
-void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& descr, double heightWu)
+void SvgReader::onPath(const QString& id,
+                       const QString& dAttr,
+                       const QString& descr,
+                       double heightWu,
+                       const QString& fillColor,
+                       const QString& strokeColor)
 {
     auto const dPoly = dAttr.split(" ");
 
@@ -66,8 +71,8 @@ void SvgReader::onPath(const QString& id, const QString& dAttr, const QString& d
         varPoints.push_back(applyGroupTransform(p.x(), p.y()));
     }
 
-    if (isPolygon) emit polygon(id, varPoints, descr);
-    else emit polyline(id, varPoints, descr);
+    if (isPolygon) emit polygon(id, varPoints, fillColor, strokeColor, descr);
+    else emit polyline(id, varPoints, fillColor, strokeColor, descr);
 }
 
 void SvgReader::listToPoints(const QString& lst,
@@ -121,6 +126,34 @@ QPointF SvgReader::applyGroupTransform(float x, float y) const
     return pt;
 };
 
+namespace
+{
+void extractColors(const QXmlStreamAttributes& attribs, QString& fillColor, QString& strokeColor) {
+    fillColor = "#000000";  // Default values
+    strokeColor = "none";
+
+    if (attribs.hasAttribute("fill")) {
+        fillColor = attribs.value("fill").toString();
+    } else if (attribs.hasAttribute("style")) {
+        QRegularExpression reFill("fill:([^;]+)");
+        auto matchFill = reFill.match(attribs.value("style").toString());
+        if (matchFill.hasMatch()) {
+            fillColor = matchFill.captured(1);
+        }
+    }
+
+    if (attribs.hasAttribute("stroke")) {
+        strokeColor = attribs.value("stroke").toString();
+    } else if (attribs.hasAttribute("style")) {
+        QRegularExpression reStroke("stroke:([^;]+)");
+        auto matchStroke = reStroke.match(attribs.value("style").toString());
+        if (matchStroke.hasMatch()) {
+            strokeColor = matchStroke.captured(1);
+        }
+    }
+}
+
+}
 
 void SvgReader::processShape(QXmlStreamReader& xmlReader,
                               QXmlStreamReader::TokenType& token,
@@ -144,19 +177,23 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
 
     auto const nam = xmlReader.name().toString();
     auto const attribs = xmlReader.attributes();
-    const auto id = attribs.value("id").toString();
+    auto const id = attribs.value("id").toString();
+    QString fillColor, strokeColor;
+    extractColors(attribs, fillColor, strokeColor);
     if (nam == "rect")
     {
         auto const p = applyGroupTransform(attribs.value("x").toFloat(), attribs.value("y").toFloat());
         auto const width = attribs.value("width").toFloat();
         auto const height = attribs.value("height").toFloat();
-        emit rectangle(id, p.x(), heightWu - p.y(), width, height,  fetchDescr());
+        emit rectangle(id, p.x(), heightWu - p.y(), width, height,
+                       fillColor, strokeColor, fetchDescr());
     }
     else if (nam == "circle")
     {
         auto const p = applyGroupTransform(attribs.value("cx").toFloat(), attribs.value("cy").toFloat());
         auto const radius = attribs.value("r").toFloat();
-        emit circle(id, p.x(), heightWu - p.y(), radius, fetchDescr());
+        emit circle(id, p.x(), heightWu - p.y(), radius,
+                    fillColor, strokeColor, fetchDescr());
     }
     else if (nam == "polygon" || nam == "polyline")
     {
@@ -165,14 +202,14 @@ void SvgReader::processShape(QXmlStreamReader& xmlReader,
         auto const lst = attribs.value("points").toString();
         listToPoints(lst, points, true, heightWu, isPolygon);
         if (isPolygon)
-            emit polygon(id, points, fetchDescr());
+            emit polygon(id, points, fillColor, strokeColor, fetchDescr());
         else
-            emit polyline(id, points, fetchDescr());
+            emit polyline(id, points, fillColor, strokeColor,  fetchDescr());
     }
     else if (nam == "path")
     {
         auto const d = attribs.value("d").toString();
-        onPath(id, d, fetchDescr(), heightWu);
+        onPath(id, d, fetchDescr(), heightWu, fillColor, strokeColor);
     }
 }
 

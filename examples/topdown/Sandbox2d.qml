@@ -51,7 +51,7 @@ ClayWorld2d {
     Keys.forwardTo: theGameCtrl
     GameController {id: theGameCtrl; anchors.fill: parent; Component.onCompleted: selectTouchscreenGamepad();}
 
-    onMapEntityCreated: (obj, groupId, compName) => {
+    onMapEntityCreated: (obj, groupId, cfg) => {
         if (obj instanceof Player2d) {
             player = obj;
             player.color = "#d45500";

@@ -81,11 +81,15 @@ SvgReader
         }
     }
 
-    function _fetchBuilderCfg(description) {
+    function _fetchBuilderCfg(fillColor, strokeColor, description) {
         if (description.length === 0) return false;
         let cfg = JSON.parse(description);
-        if (cfg.hasOwnProperty(componentPropKey) && world.components.has(cfg[componentPropKey]))
+        if (cfg.hasOwnProperty(componentPropKey) && world.components.has(cfg[componentPropKey])) {
+            // TODO: Expose keys as consts
+            cfg["clayFillColor"] = fillColor;
+            cfg["clayStrokeColor"] = strokeColor;
             return cfg
+        }
         else
             return false;
     }
@@ -94,7 +98,7 @@ SvgReader
         customInit(obj, cfg);
         entities.push(obj);
         let compStr = cfg[componentPropKey];
-        world.mapEntityCreated(obj, groupId, compStr);
+        world.mapEntityCreated(obj, groupId, cfg);
     }
 
     onBeginGroup: (id, description) => {

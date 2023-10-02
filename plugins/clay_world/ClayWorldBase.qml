@@ -54,10 +54,10 @@ Item {
 
     // All elements that haven't been instantiated via registred comp.
     // are emitted via signals
-    signal polylineLoaded(var id, var groupId, var points, var description)
-    signal polygonLoaded(var id, var groupId, var points, var description)
-    signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var description)
-    signal circleLoaded(var id, var groupId, var x, var y, var radius, var description)
+    signal polylineLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    signal polygonLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    signal rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var fillColor, var strokeColor, var description)
+    signal circleLoaded(var id, var groupId, var x, var y, var radius, var fillColor, var strokeColor, var description)
     signal groupAboutToBeLoaded(var id, var description)
     signal groupLoaded(var id)
 }

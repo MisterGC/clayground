@@ -40,12 +40,17 @@ ClayWorld3d {
         }
     }
 
-    onMapEntityCreated: (obj, groupId, compName) => {
+    onMapEntityCreated: (obj, groupId, cfg) => {
         if (obj instanceof Player3d) {
             player = obj;
             player.maxSpeed = 100
             observedObject = player;
             camera.position = Qt.vector3d(0, player.dimensions.y * 100, 0)
+        }
+        else if (obj instanceof Wall3d) {
+            const c = Qt.color(cfg.clayFillColor);
+            obj.dimensions.y = c.hslLightness * 255;
+            obj.position.y = obj.dimensions.y * .5 + c.hslHue * 255;
         }
     }
 

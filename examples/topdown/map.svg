@@ -25,9 +25,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="231.42857"
-     inkscape:cy="648.21429"
+     inkscape:zoom="1.979899"
+     inkscape:cx="222.73864"
+     inkscape:cy="666.95322"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -76,7 +76,7 @@
        height="7.427176"
        width="44.056068"
        id="rect2172"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.688783;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.688783;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -96,7 +96,7 @@
        height="198.78781"
        width="7.1977873"
        id="rect2172-5"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -106,7 +106,7 @@
        height="7.3063068"
        width="61.922649"
        id="rect2172-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -116,7 +116,7 @@
        height="198.78781"
        width="7.1977873"
        id="rect2172-5-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -126,12 +126,12 @@
        height="7.3063068"
        width="61.922657"
        id="rect2172-2-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-0">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6133"
        width="18.307371"
        height="3.7992764"
@@ -141,7 +141,7 @@
          id="desc6131">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.912445;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.912445;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6175"
        width="79.707909"
        height="7.2040071"
@@ -151,7 +151,7 @@
          id="desc6173">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6133-6"
        width="18.307371"
        height="3.7992764"
@@ -166,7 +166,7 @@
        height="75.287849"
        width="7.72121"
        id="rect2172-5-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.918075;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.918075;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -176,7 +176,7 @@
        height="75.47525"
        width="7.720129"
        id="rect2172-5-2-9"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.919149;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.919149;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-3">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -186,7 +186,7 @@
        height="18.997627"
        width="8.1659899"
        id="rect2172-5-2-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.474269;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.474269;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -196,7 +196,7 @@
        height="21.046799"
        width="8.1417542"
        id="rect2172-5-2-4"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -206,7 +206,7 @@
        height="21.41951"
        width="8.1374826"
        id="rect2172-5-2-8"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.502714;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.502714;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-4">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -216,7 +216,7 @@
        height="21.233152"
        width="8.1396132"
        id="rect2172-5-2-5"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.500585;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.500585;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-0">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -226,7 +226,7 @@
        height="19.370108"
        width="8.1614847"
        id="rect2172-5-2-3"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.478762;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.478762;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -236,7 +236,7 @@
        height="20.487808"
        width="8.1482372"
        id="rect2172-5-2-10"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.491982;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.491982;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-63">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -246,7 +246,7 @@
        height="40.110729"
        width="7.9594388"
        id="rect2172-5-2-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.680367;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.680367;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-06">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -256,7 +256,7 @@
        height="57.304691"
        width="7.8328018"
        id="rect2172-5-2-15"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.806722;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.806722;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -266,7 +266,7 @@
        height="20.301497"
        width="8.1504183"
        id="rect2172-5-2-47"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.489806;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.489806;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -276,7 +276,7 @@
        height="20.860458"
        width="8.1439047"
        id="rect2172-5-2-6"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.496304;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.496304;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-93">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -286,7 +286,7 @@
        height="38.968884"
        width="7.9688182"
        id="rect2172-5-2-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.67101;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.67101;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-45">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -296,7 +296,7 @@
        height="60.675209"
        width="7.8105478"
        id="rect2172-5-2-25"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.828928;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.828928;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-47">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -306,19 +306,9 @@
        height="43.643578"
        width="7.9313016"
        id="rect2172-5-2-44"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.708439;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.708439;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-30">{&quot;component&quot;:&quot;Wall&quot;}</desc>
-    </rect>
-    <rect
-       y="184.57329"
-       x="58.306248"
-       height="9.2257071"
-       width="8.0928593"
-       id="rect2172-5-2-78"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.329019;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc5900-6-28-68">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;dimensions.y&quot;:20,&#10;&quot;position.y&quot;:50&#10;}&#10;}</desc>
     </rect>
     <rect
        y="59.126186"
@@ -326,7 +316,7 @@
        height="21.792257"
        width="8.1332512"
        id="rect2172-5-2-84"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.506938;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.506938;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-31">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -336,7 +326,7 @@
        height="21.046799"
        width="8.1417542"
        id="rect2172-5-2-49"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -346,7 +336,7 @@
        height="7.5965023"
        width="24.464027"
        id="rect2172-2-0"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.519088;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.519088;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -356,7 +346,7 @@
        height="7.6298676"
        width="21.32003"
        id="rect2172-2-0-8"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.485648;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.485648;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -366,7 +356,7 @@
        height="7.3162494"
        width="60.326256"
        id="rect2172-2-0-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.799962;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.799962;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -376,7 +366,7 @@
        height="7.5752754"
        width="26.584555"
        id="rect2172-2-0-6"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-4">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -386,7 +376,7 @@
        height="7.5752754"
        width="26.584558"
        id="rect2172-2-0-9"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -396,7 +386,7 @@
        height="7.6012368"
        width="24.003855"
        id="rect2172-2-0-0"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.514343;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.514343;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-48">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -406,7 +396,7 @@
        height="7.4367881"
        width="42.777065"
        id="rect2172-2-0-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.679157;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.679157;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-1">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -416,7 +406,7 @@
        height="7.6074805"
        width="23.404127"
        id="rect2172-2-0-72"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.508084;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.508084;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -426,7 +416,7 @@
        height="7.4720387"
        width="38.26104"
        id="rect2172-2-0-22"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.643829;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.643829;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-61">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -436,7 +426,7 @@
        height="7.5831265"
        width="25.789248"
        id="rect2172-2-0-06"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.532492;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.532492;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-15">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -446,7 +436,7 @@
        height="7.3112602"
        width="61.124443"
        id="rect2172-2-0-94"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.804956;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.804956;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-90">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -456,7 +446,7 @@
        height="7.651175"
        width="19.432047"
        id="rect2172-2-0-91"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-77">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -466,7 +456,7 @@
        height="7.651175"
        width="19.432047"
        id="rect2172-2-0-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-159">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -476,7 +466,7 @@
        height="7.4551864"
        width="40.385963"
        id="rect2172-2-0-77"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.660717;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.660717;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
@@ -486,9 +476,29 @@
        height="7.4699054"
        width="38.52663"
        id="rect2172-2-0-3"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.645964;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.645964;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       y="183.54112"
+       x="60.403374"
+       height="9.2257071"
+       width="8.0928593"
+       id="rect2172-5-2-78"
+       style="fill:#0f0000;fill-opacity:1;stroke:none;stroke-width:0.329019;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68">{&#10;&#10;&quot;component&quot;:&quot;Wall&quot;,&#10;&#10;&quot;properties&quot;: &#10;{&#10;&#10;}&#10;&#10;}</desc>
+    </rect>
+    <rect
+       y="156.93571"
+       x="47.45491"
+       height="9.2257071"
+       width="8.0928593"
+       id="rect2172-5-2-78-0"
+       style="fill:#1a0d00;fill-opacity:1;stroke:none;stroke-width:0.329019;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5">{&#10;&#10;&quot;component&quot;:&quot;Wall&quot;,&#10;&#10;&quot;properties&quot;: &#10;{&#10;&#10;}&#10;&#10;}</desc>
     </rect>
   </g>
 </svg>

@@ -11,11 +11,12 @@ SceneLoaderBase
         world.zWuMax = heightWu;
     }
 
-    onRectangle: (id, x, y, width, height, description) => {
+    onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
                     x = x + (.5 * width)
                     const z = (world.zWuMax - y) + (.5 * height)
+                    console.log("ON RECT with fill: " + fillColor)
 
-                    let cfg = _fetchBuilderCfg(description);
+                    let cfg = _fetchBuilderCfg(fillColor, strokeColor, description);
                     if (cfg)
                     {
                         let comp = fetchComp(cfg);
@@ -33,7 +34,7 @@ SceneLoaderBase
                     world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description);
                 }
 
-    onPolygon: (id, points, description) => {console.log("Not yet supported.");}
-    onPolyline: (id, points, description) => {console.log("Not yet supported.");}
-    onCircle: (id, x, y, radius, description) => {console.log("Not yet supported.");}
+    onPolygon: (id, points, fillColor, strokeColor, description) => {console.log("Not yet supported.");}
+    onPolyline: (id, points, fillColor, strokeColor, description) => {console.log("Not yet supported.");}
+    onCircle: (id, x, y, radius, fillColor, strokeColor, description) => {console.log("Not yet supported.");}
 }

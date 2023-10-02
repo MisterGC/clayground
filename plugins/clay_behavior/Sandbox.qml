@@ -58,7 +58,7 @@ ClayWorld
     // Move entities randomly arround within a limited area
     property var spawnArea: null
     Component{id: spawnAreaComp; RectBoxBody{z:-1; color: "#92dfbd"} }
-    onMapEntityCreated: (obj, groupId, compName) => {if (compName==="SpawnArea") spawnArea = obj; }
+    onMapEntityCreated: (obj, groupId, cfg) => {if (cfg.compName==="SpawnArea") spawnArea = obj; }
     Repeater{
         model: spawnArea ? 5 : 0
         RectBoxBody {
@@ -108,7 +108,9 @@ ClayWorld
     }
 
     property var path: []
-    onPolylineLoaded: (id, groupId, points, description) => { if (description === "PatrolPath") path = points; }
+    onPolylineLoaded: (id, groupId, points, fillColor, strokeColor, description) => {
+                          if (description === "PatrolPath") path = points;
+                      }
 
     // Encapsulate construction of door as it is made up
     // of multiple parts (door, switches and movement path)
