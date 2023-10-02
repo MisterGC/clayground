@@ -66,8 +66,19 @@ SvgReader
 
     function customInit(obj, cfg) {
         let initVals = cfg["properties"];
-        if (initVals)
-            for (let p in initVals) obj[p] = initVals[p];
+        if (initVals) {
+            for (let p in initVals) {
+                let keys = p.split('.');
+                let target = obj;
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (target[keys[i]] === undefined) {
+                        target[keys[i]] = {};
+                    }
+                    target = target[keys[i]];
+                }
+                target[keys[keys.length - 1]] = initVals[p];
+            }
+        }
     }
 
     function _fetchBuilderCfg(description) {
