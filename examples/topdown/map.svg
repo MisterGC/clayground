@@ -8,7 +8,7 @@
    version="1.1"
    id="svg1623"
    inkscape:version="1.3 (0e150ed, 2023-07-21)"
-   sodipodi:docname="map2d.svg"
+   sodipodi:docname="map.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -25,17 +25,17 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.061871843"
-     inkscape:cx="1212.1831"
-     inkscape:cy="4161.8285"
+     inkscape:zoom="1.4"
+     inkscape:cx="231.42857"
+     inkscape:cy="648.21429"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1512"
-     inkscape:window-height="844"
-     inkscape:window-x="-2"
-     inkscape:window-y="62"
-     inkscape:window-maximized="0"
+     inkscape:window-height="916"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
+     inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
      fit-margin-right="0"
@@ -318,7 +318,7 @@
        id="rect2172-5-2-78"
        style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.329019;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
-         id="desc5900-6-28-68">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+         id="desc5900-6-28-68">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;dimensions.y&quot;:20,&#10;&quot;position.y&quot;:50&#10;}&#10;}</desc>
     </rect>
     <rect
        y="59.126186"

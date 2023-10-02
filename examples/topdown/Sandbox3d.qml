@@ -45,7 +45,7 @@ ClayWorld3d {
             player = obj;
             player.maxSpeed = 100
             observedObject = player;
-            camera.position = Qt.vector3d(0, player.y + 700, 0)
+            camera.position = Qt.vector3d(0, player.dimensions.y * 100, 0)
         }
     }
 

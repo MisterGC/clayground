@@ -6,9 +6,25 @@ import QtQuick3D.Helpers
 import QtQuick3D.Physics
 import QtQuick3D.Physics.Helpers
 
-CharacterController {
+import Clayground.World
 
-    // >0 -> forward, <0 -> backwards
+CharacterController {
+    id: _player
+
+    // world scene loader uses dimensions not scaling values
+    property alias dimensions: _scaleByDims.dimensions
+    ScaleByDimensions {
+        id: _scaleByDims
+        target: _player
+        origDimensions: cCUBE_MODEL_DIMENSIONS
+    }
+
+
+    // Either set the y components here or use the
+    // initializer cfg in the scene SVG
+    dimensions.y: 10
+    position.y: dimensions.y * .5
+
     property int maxSpeed: 1
 
     readonly property real xDirDesire: theGameCtrl.axisX
@@ -36,7 +52,6 @@ CharacterController {
     Model {
         id: _front
         source: "#Cube"
-        //scale: Qt.vector3d(.5, .5, .5)
         materials: _material
     }
 }

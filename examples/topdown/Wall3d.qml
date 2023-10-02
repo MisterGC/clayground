@@ -2,10 +2,27 @@
 
 import QtQuick3D
 import QtQuick3D.Physics
+import Clayground.World
 
 StaticRigidBody {
+    id: _wall
+
     collisionShapes: BoxShape { id: boxShape }
     readonly property Model model: _wallElementModel
+
+    // world scene loader uses dimensions not scaling values
+    property alias dimensions: _scaleByDims.dimensions
+    ScaleByDimensions {
+        id: _scaleByDims
+        target: _wall
+        origDimensions: cCUBE_MODEL_DIMENSIONS
+    }
+
+    // Either set the y components here or use the
+    // initializer cfg in the scene SVG
+    dimensions.y: 10
+    position.y: dimensions.y * .5
+
     Model {
         id: _wallElementModel
         source: "#Cube"

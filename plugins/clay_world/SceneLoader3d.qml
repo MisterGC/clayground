@@ -12,8 +12,6 @@ SceneLoaderBase
     }
 
     onRectangle: (id, x, y, width, height, description) => {
-                    const scaleX = width/100;
-                    const scaleZ = height/100;
                     x = x + (.5 * width)
                     const z = (world.zWuMax - y) + (.5 * height)
 
@@ -24,11 +22,9 @@ SceneLoaderBase
                         let inc = comp.incubateObject(world.root,
                             {
                                 "position.x": x,
-                                "position.y": 10,
                                 "position.z": z,
-                                "scale.x": scaleX,
-                                "scale.y": .2,
-                                "scale.z": scaleZ
+                                "dimensions.x": width,
+                                "dimensions.z": height,
                             });
                         onIncubationInitiated(inc, _currentGroupId(), cfg);
                         return;
