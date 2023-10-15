@@ -14,7 +14,6 @@ SceneLoaderBase
     onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
                     x = x + (.5 * width)
                     const z = (world.zWuMax - y) + (.5 * height)
-                    console.log("ON RECT with fill: " + fillColor)
 
                     let cfg = _fetchBuilderCfg(fillColor, strokeColor, description);
                     if (cfg)
