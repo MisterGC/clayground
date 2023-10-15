@@ -46,6 +46,7 @@ ClayWorldBase {
         running: true
         scene: _daScene
         forceDebugDraw: _clayWorld3d.debugPhysics
+        gravity: Qt.vector3d(0, -9.81, 0)
     }
 
     View3D {

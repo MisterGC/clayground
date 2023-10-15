@@ -49,8 +49,18 @@ ClayWorld3d {
         }
         else if (obj instanceof Wall3d) {
             const c = Qt.color(cfg.clayFillColor);
-            obj.dimensions.y = c.hslLightness * 255;
-            obj.position.y = obj.dimensions.y * .5 + c.hslHue * 255;
+
+            // Hue is using degrees in SVG
+            const HSL_HUE_MAX = 360;
+            // Saturation and Lightness use percentage values
+            const HSL_LIGHTNESS_MAX = 100;
+            const HSL_SATURATION_MAX = 100;
+
+            obj.dimensions.y = c.hslLightness * HSL_LIGHTNESS_MAX;
+            obj.position.y = obj.dimensions.y * .5 + c.hslHue * HSL_HUE_MAX;
+            // and eval saturation!?
+            // or utilize the color information andassign it as wall color
+            //obj.color = c
         }
     }
 

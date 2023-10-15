@@ -11,6 +11,8 @@ import Clayground.World
 CharacterController {
     id: _player
 
+    gravity: Qt.vector3d(0, 5*-9.81, 0)
+
     // world scene loader uses dimensions not scaling values
     property alias dimensions: _scaleByDims.dimensions
     ScaleByDimensions {
