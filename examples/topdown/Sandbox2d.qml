@@ -63,24 +63,23 @@ ClayWorld2d {
         }
     }
 
-    // TODO Reactivate minimap
-    // Minimap {
-    //     opacity: 0.75
-    //     world: theWorld
-    //     width: theWorld.width * 0.2
-    //     height: width * (_observed.height / _observed.width)
-    //     anchors.right: parent.right
-    //     anchors.rightMargin: width * 0.1
-    //     anchors.bottom: parent.bottom
-    //     anchors.bottomMargin: anchors.rightMargin
-    //     color: "black"
-    //     typeMapping: new Map([
-    //                              ['Player', mc1],
-    //                              ['Wall', mc2]
-    //                          ])
-    //     Component {id: mc1; Rectangle {color: "orange"}}
-    //     Component {id: mc2; Rectangle {color: "grey"}}
-    // }
+    Minimap2d {
+        opacity: 0.75
+        world: theWorld
+        width: theWorld.width * 0.2
+        height: width * (_observed.height / _observed.width)
+        anchors.right: parent.right
+        anchors.rightMargin: width * 0.1
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: anchors.rightMargin
+        color: "black"
+        typeMapping: new Map([
+                                 ['Player2d', mc1],
+                                 ['Wall2d', mc2]
+                             ])
+        Component {id: mc1; Rectangle {color: "orange"}}
+        Component {id: mc2; Rectangle {color: "grey"}}
+    }
 
     property var _networking: _netLoader.item
     Loader {id: _netLoader; sourceComponent: theWorld.multiplayer ? _networkingComp : null}
