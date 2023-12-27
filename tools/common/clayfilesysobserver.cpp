@@ -32,8 +32,10 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
     if (QDir(path).exists())
     {
         const auto allFiles = fo.files();
-        QDirIterator it(path, QDir::NoDotDot|QDir::Files|QDir::Dirs,
+        QDirIterator it(path, QDir::NoDot|QDir::NoDotDot|QDir::Files|QDir::Dirs,
                         QDirIterator::Subdirectories);
+        qCInfo(logCat_).noquote() << "Observed directory:" << path;
+        qCInfo(logCat_).noquote() << "Files:";
         while (it.hasNext()) {
             it.next();
             auto fp = it.filePath();
@@ -41,7 +43,8 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
             if (!fo.addPath(fp))
                 qCritical("Path %s couldn't be added for observation!",
                           qUtf8Printable(fp));
-            qCDebug(logCat_) << "Observing: " << fp;
+            auto relativePath = QDir(path).relativeFilePath(fp);
+            qCInfo(logCat_).noquote() << "- " << relativePath;
             if (!initial) emit fileAdded(fp);
         }
     }
