@@ -59,11 +59,15 @@ public:
 
         switch (type) {
         case QtDebugMsg:
-        case QtInfoMsg:
         {
             QString fileN(context.file);
             fileN = fileN.split("/").last().split(".").first();
             fprintf(stderr, "%s (%s::%s)\n", localMsg.constData(), fileN.toUtf8().data(), context.function);
+            theLoader->postMessage(msg);
+        } break;
+        case QtInfoMsg:
+        {
+            fprintf(stderr, "%s\n", localMsg.constData());
             theLoader->postMessage(msg);
         } break;
         case QtWarningMsg:
