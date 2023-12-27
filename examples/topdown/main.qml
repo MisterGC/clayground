@@ -4,9 +4,9 @@ import QtQuick
 import QtQuick.Window
 
 Window {
+    visibility: Window.FullScreen
     visible: true
-    visibility: Window.Maximized
-    title: qsTr("TopDown")
-    Sandbox { anchors.centerIn: parent }
+    title: qsTr("Void")
+    Sandbox { anchors.fill: parent }
     Component.onCompleted: if(Qt.platform.pluginName === "minimal") Qt.quit()
 }

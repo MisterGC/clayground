@@ -2,20 +2,20 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="71.561371mm"
-   height="100.79476mm"
-   viewBox="0 0 71.561371 100.79476"
+   width="142mm"
+   height="201mm"
+   viewBox="0 0 142 201"
    version="1.1"
    id="svg1623"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="map.svg">
+   inkscape:version="1.3 (0e150ed, 2023-07-21)"
+   sodipodi:docname="map.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs1617" />
   <sodipodi:namedview
@@ -25,25 +25,34 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="-179.92472"
-     inkscape:cy="220.07856"
+     inkscape:zoom="3.959798"
+     inkscape:cx="144.95689"
+     inkscape:cy="479.82246"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1304"
-     inkscape:window-x="0"
-     inkscape:window-y="64"
-     inkscape:window-maximized="1"
+     inkscape:window-width="904"
+     inkscape:window-height="1027"
+     inkscape:window-x="1512"
+     inkscape:window-y="25"
+     inkscape:window-maximized="0"
      fit-margin-top="0"
      fit-margin-left="0"
      fit-margin-right="0"
      fit-margin-bottom="0"
-     inkscape:snap-global="false">
+     inkscape:snap-global="false"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1">
     <inkscape:grid
        type="xygrid"
-       id="grid6135" />
+       id="grid6135"
+       originx="0"
+       originy="0"
+       spacingy="1"
+       spacingx="1"
+       units="mm"
+       visible="false" />
   </sodipodi:namedview>
   <metadata
      id="metadata1620">
@@ -53,7 +62,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -63,424 +71,514 @@
      id="layer1"
      transform="translate(-0.09449405,0.75595238)">
     <rect
-       y="96.142357"
-       x="0.42082193"
-       height="3.7235618"
-       width="21.990046"
+       y="192.11429"
+       x="0.60837144"
+       height="7.427176"
+       width="44.056068"
        id="rect2172"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.34455863;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.688783;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="91.807335"
-       x="24.531097"
-       height="3.7390227"
-       width="3.5938382"
+       y="183.46748"
+       x="48.912224"
+       height="7.458015"
+       width="7.2000933"
        id="rect5922"
-       style="opacity:1;fill:#d45500;fill-opacity:1;stroke:none;stroke-width:0.12464929;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#d45500;fill-opacity:1;stroke:none;stroke-width:0.249179;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5920">{&quot;component&quot;:&quot;Player&quot;}</desc>
     </rect>
     <rect
-       y="-0.25063053"
-       x="0.32977182"
-       height="99.660851"
-       width="3.5926869"
+       y="-0.15529053"
+       x="0.42595661"
+       height="198.78781"
+       width="7.1977873"
        id="rect2172-5"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.72051454;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
        y="-0.34648404"
        x="0.23391822"
-       height="3.6629648"
-       width="30.90793"
+       height="7.3063068"
+       width="61.922649"
        id="rect2172-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.40515584;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="-0.25063053"
-       x="67.518784"
-       height="99.660851"
-       width="3.5926869"
+       y="-0.15529053"
+       x="135.03613"
+       height="198.78781"
+       width="7.1977873"
        id="rect2172-5-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.72051454;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:1.44034;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="-0.25063053"
-       x="40.203541"
-       height="3.6629648"
-       width="30.907932"
+       y="-0.15529053"
+       x="80.311264"
+       height="7.3063068"
+       width="61.922657"
        id="rect2172-2-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.40515584;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.809926;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-0">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.158859;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#640000;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6133"
-       width="9.1378994"
-       height="1.9047402"
-       x="31.143387"
-       y="-0.34494689">
+       width="18.307371"
+       height="3.7992764"
+       x="62.159649"
+       y="-0.34341797">
       <desc
          id="desc6131">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.45644259;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.912445;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6175"
-       width="39.785221"
-       height="3.6116779"
-       x="30.19471"
-       y="96.198296">
+       width="79.707909"
+       height="7.2040071"
+       x="60.259018"
+       y="192.22588">
       <desc
          id="desc6173">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.158859;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.317567;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect6133-6"
-       width="9.1378994"
-       height="1.9047402"
-       x="21.851589"
-       y="98.017357">
+       width="18.307371"
+       height="3.7992764"
+       x="43.543953"
+       y="195.85423">
       <desc
          id="desc6131-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="29.761538"
-       x="19.901154"
-       height="37.745026"
-       width="3.8539469"
+       y="59.708267"
+       x="39.636341"
+       height="75.287849"
+       width="7.72121"
        id="rect2172-5-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.45925456;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.918075;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="20.784874"
-       x="28.783859"
-       height="37.838982"
-       width="3.8534076"
+       y="41.803028"
+       x="57.432442"
+       height="75.47525"
+       width="7.720129"
        id="rect2172-5-2-9"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.45979363;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.919149;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-3">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="30.689964"
-       x="38.12199"
-       height="9.5243254"
-       width="4.0759535"
+       y="61.560143"
+       x="76.140968"
+       height="18.997627"
+       width="8.1659899"
        id="rect2172-5-2-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.23724796;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.474269;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="20.58515"
-       x="47.010483"
-       height="10.551663"
-       width="4.0638566"
+       y="41.404652"
+       x="93.948669"
+       height="21.046799"
+       width="8.1417542"
        id="rect2172-5-2-4"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24934484;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="11.420294"
-       x="56.460953"
-       height="10.738519"
-       width="4.0617247"
+       y="23.124033"
+       x="112.88227"
+       height="21.41951"
+       width="8.1374826"
        id="rect2172-5-2-8"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.25147694;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.502714;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-4">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="2.3483336"
-       x="46.633041"
-       height="10.645089"
-       width="4.062788"
+       y="5.0287147"
+       x="93.192482"
+       height="21.233152"
+       width="8.1396132"
        id="rect2172-5-2-5"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.25041336;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.500585;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-0">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="2.9098392"
-       x="28.673712"
-       height="9.7110653"
-       width="4.0737047"
+       y="6.1487179"
+       x="57.211769"
+       height="19.370108"
+       width="8.1614847"
        id="rect2172-5-2-3"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.23949639;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.478762;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="11.701092"
-       x="19.983566"
-       height="10.271417"
-       width="4.0670924"
+       y="23.684128"
+       x="39.801453"
+       height="20.487808"
+       width="8.1482372"
        id="rect2172-5-2-10"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24610925;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.491982;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-63">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="20.722841"
-       x="10.014317"
-       height="20.109228"
-       width="3.972856"
+       y="41.679298"
+       x="19.828506"
+       height="40.110729"
+       width="7.9594388"
        id="rect2172-5-2-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.34034538;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.680367;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-06">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="56.853477"
-       x="10.423897"
-       height="28.7293"
-       width="3.909647"
+       y="113.747"
+       x="20.649086"
+       height="57.304691"
+       width="7.8328018"
        id="rect2172-5-2-15"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.40355438;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.806722;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="57.152184"
-       x="37.93689"
-       height="10.178011"
-       width="4.068181"
+       y="114.34282"
+       x="75.770134"
+       height="20.301497"
+       width="8.1504183"
        id="rect2172-5-2-47"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24502046;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.489806;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="47.893391"
-       x="46.820957"
-       height="10.458242"
-       width="4.06493"
+       y="95.87484"
+       x="93.568962"
+       height="20.860458"
+       width="8.1439047"
        id="rect2172-5-2-6"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24827138;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.496304;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-93">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="56.630543"
-       x="56.125069"
-       height="19.536774"
-       width="3.9775379"
+       y="113.30234"
+       x="112.20933"
+       height="38.968884"
+       width="7.9688182"
        id="rect2172-5-2-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.33566365;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.67101;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-45">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="66.308441"
-       x="47.09314"
-       height="30.419085"
-       width="3.8985388"
+       y="132.60628"
+       x="94.114265"
+       height="60.675209"
+       width="7.8105478"
        id="rect2172-5-2-25"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.41466248;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.828928;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-47">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="74.971748"
-       x="19.659731"
-       height="21.880398"
-       width="3.9588118"
+       y="149.88649"
+       x="39.152664"
+       height="43.643578"
+       width="7.9313016"
        id="rect2172-5-2-44"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.35438946;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.708439;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-30">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="84.191849"
-       x="29.220007"
-       height="12.795116"
-       width="4.0394511"
-       id="rect2172-5-2-78"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.27374995;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
-      <desc
-         id="desc5900-6-28-68">{&quot;component&quot;:&quot;Wall&quot;}</desc>
-    </rect>
-    <rect
-       y="29.469713"
-       x="56.084034"
-       height="10.925394"
-       width="4.0596118"
+       y="59.126186"
+       x="112.12713"
+       height="21.792257"
+       width="8.1332512"
        id="rect2172-5-2-84"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.25358969;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.506938;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-31">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="11.419229"
-       x="38.12804"
-       height="10.551663"
-       width="4.0638566"
+       y="23.121908"
+       x="76.153099"
+       height="21.046799"
+       width="8.1417542"
        id="rect2172-5-2-49"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24934484;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.498452;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-6-28-2">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="10.202909"
-       x="11.42837"
-       height="3.8084524"
-       width="12.210918"
+       y="20.695787"
+       x="22.661503"
+       height="7.5965023"
+       width="24.464027"
        id="rect2172-2-0"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.25966844;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.519088;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="19.548977"
-       x="3.250684"
-       height="3.8251798"
-       width="10.641631"
+       y="39.337856"
+       x="6.2778735"
+       height="7.6298676"
+       width="21.32003"
        id="rect2172-2-0-8"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.24294099;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.485648;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-9">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="19.493958"
-       x="20.45215"
-       height="3.6679494"
-       width="30.111109"
+       y="39.228111"
+       x="40.740238"
+       height="7.3162494"
+       width="60.326256"
        id="rect2172-2-0-2"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.40017119;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.799962;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-6">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="10.475497"
-       x="28.806211"
-       height="3.7978106"
-       width="13.269354"
+       y="21.239502"
+       x="57.477226"
+       height="7.5752754"
+       width="26.584555"
        id="rect2172-2-0-6"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.2703101;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-4">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="10.609134"
-       x="46.980541"
-       height="3.7978106"
-       width="13.269355"
+       y="21.506062"
+       x="93.88868"
+       height="7.5752754"
+       width="26.584558"
        id="rect2172-2-0-9"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.2703101;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.540361;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-5">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="28.509684"
-       x="56.194832"
-       height="3.8108258"
-       width="11.981229"
+       y="57.211266"
+       x="112.3491"
+       height="7.6012368"
+       width="24.003855"
        id="rect2172-2-0-0"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.2572948;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.514343;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-48">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="37.771706"
-       x="38.462631"
-       height="3.7283809"
-       width="21.351645"
+       y="75.685692"
+       x="76.823425"
+       height="7.4367881"
+       width="42.777065"
        id="rect2172-2-0-7"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.33973992;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.679157;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-1">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="46.816082"
-       x="56.727802"
-       height="3.813956"
-       width="11.681883"
+       y="93.72599"
+       x="113.41689"
+       height="7.6074805"
+       width="23.404127"
        id="rect2172-2-0-72"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.25416458;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.508084;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-7">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="46.315495"
-       x="31.638418"
-       height="3.7460537"
-       width="19.097527"
+       y="92.727493"
+       x="63.151424"
+       height="7.4720387"
+       width="38.26104"
        id="rect2172-2-0-22"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.32206708;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.643829;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-61">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="55.775715"
-       x="47.112209"
-       height="3.8017466"
-       width="12.872386"
+       y="111.59726"
+       x="94.152473"
+       height="7.5831265"
+       width="25.789248"
        id="rect2172-2-0-06"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.26637402;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.532492;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-15">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="65.064667"
-       x="20.186132"
-       height="3.6654484"
-       width="30.509512"
+       y="130.12541"
+       x="40.207283"
+       height="7.3112602"
+       width="61.124443"
        id="rect2172-2-0-94"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.40267247;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.804956;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-90">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="46.671494"
-       x="3.3965809"
-       height="3.8358622"
-       width="9.6992674"
+       y="93.437592"
+       x="6.5701714"
+       height="7.651175"
+       width="19.432047"
        id="rect2172-2-0-91"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.23225856;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-77">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="55.758656"
-       x="10.479223"
-       height="3.8358622"
-       width="9.6992674"
+       y="111.56324"
+       x="20.759926"
+       height="7.651175"
+       width="19.432047"
        id="rect2172-2-0-1"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.23225856;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.464296;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-159">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="73.84848"
-       x="19.749149"
-       height="3.7376046"
-       width="20.158155"
+       y="119.17014"
+       x="28.442518"
+       height="3.1744103"
+       width="11.280326"
+       id="rect2172-2-0-1-0"
+       style="fill:#290000;fill-opacity:1;stroke:none;stroke-width:0.227857;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-159-4">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;brown&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="122.30215"
+       x="28.37805"
+       height="3.1744103"
+       width="11.280326"
+       id="rect2172-2-0-1-0-8"
+       style="fill:#1f0000;fill-opacity:1;stroke:none;stroke-width:0.227857;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-159-4-5">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;brown&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="125.47448"
+       x="28.380735"
+       height="3.1744103"
+       width="11.280326"
+       id="rect2172-2-0-1-0-8-5"
+       style="fill:#140000;fill-opacity:1;stroke:none;stroke-width:0.227857;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-159-4-5-5">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;brown&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="128.5239"
+       x="28.383421"
+       height="3.1744103"
+       width="11.280326"
+       id="rect2172-2-0-1-0-8-5-4"
+       style="fill:#0a0000;fill-opacity:1;stroke:none;stroke-width:0.227857;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-9-6-159-4-5-5-2">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;brown&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="147.64597"
+       x="39.331806"
+       height="7.4551864"
+       width="40.385963"
        id="rect2172-2-0-77"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.33051628;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.660717;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-67">{&quot;component&quot;:&quot;Wall&quot;}</desc>
     </rect>
     <rect
-       y="83.332855"
-       x="38.7216"
-       height="3.7449841"
-       width="19.230093"
+       y="166.5639"
+       x="77.34227"
+       height="7.4699054"
+       width="38.52663"
        id="rect2172-2-0-3"
-       style="opacity:1;fill:#3e1900;fill-opacity:1;stroke:none;stroke-width:0.32313678;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+       style="opacity:1;fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.645964;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
       <desc
          id="desc5900-9-6-65">{&quot;component&quot;:&quot;Wall&quot;}</desc>
+    </rect>
+    <rect
+       y="183.54112"
+       x="60.403374"
+       height="9.2257071"
+       width="8.0928593"
+       id="rect2172-5-2-78"
+       style="fill:#330000;fill-opacity:1;stroke:none;stroke-width:0.329019;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68">{&#10;&#10;&quot;component&quot;:&quot;Wall&quot;,&#10;&#10;&quot;properties&quot;: &#10;{&#10;&#10;}&#10;&#10;}</desc>
+    </rect>
+    <rect
+       y="159.04047"
+       x="52.098717"
+       height="3.9137251"
+       width="3.8434379"
+       id="rect2172-5-2-78-0"
+       style="fill:#800000;fill-opacity:1;stroke:none;stroke-width:0.147681;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;brown&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="159.04433"
+       x="55.912342"
+       height="3.9137251"
+       width="3.8434379"
+       id="rect2172-5-2-78-0-0"
+       style="fill:#330d00;fill-opacity:1;stroke:none;stroke-width:0.147681;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5-8">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;green&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="162.79146"
+       x="52.099552"
+       height="3.9137251"
+       width="3.8434379"
+       id="rect2172-5-2-78-0-4"
+       style="fill:#330d00;fill-opacity:1;stroke:none;stroke-width:0.147681;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5-0">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;green&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="158.95789"
+       x="48.29591"
+       height="3.9137251"
+       width="3.8434379"
+       id="rect2172-5-2-78-0-46"
+       style="fill:#330d00;fill-opacity:1;stroke:none;stroke-width:0.147681;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5-4">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;green&quot;&#10;}&#10;}</desc>
+    </rect>
+    <rect
+       y="155.12144"
+       x="52.151264"
+       height="3.9137251"
+       width="3.8434379"
+       id="rect2172-5-2-78-0-46-5"
+       style="fill:#330d00;fill-opacity:1;stroke:none;stroke-width:0.147681;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1">
+      <desc
+         id="desc5900-6-28-68-5-4-3">{&quot;component&quot;:&quot;Wall&quot;,&#10;&quot;properties&quot;: {&#10;&quot;color&quot;:&quot;green&quot;&#10;}&#10;}</desc>
     </rect>
   </g>
 </svg>

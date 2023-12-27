@@ -16,7 +16,7 @@ Rectangle {
     height: width
     visible: debug
 
-    required property ClayWorld world
+    required property ClayWorld2d world
     property var actor: parent
     property alias running: _veloAdaptor.running
     onRunningChanged: _adaptVelocity()
@@ -82,6 +82,7 @@ Rectangle {
         }
 
         if (!_destWp){
+            _destWp = true;
             _destWp = waypointComp.createObject(behavior.world.room);
 
             PhysicsUtils.connectOnEntered(_destWp.body.fixtures[0], (wpDetect) => {

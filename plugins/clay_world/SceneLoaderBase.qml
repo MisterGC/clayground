@@ -1,22 +1,25 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
-import Box2D
 import Clayground.Svg
 
+/**
+ * Covers base common functionality for 2d and 3d scenes.
+ */
 SvgReader
 {
-    property bool active: false
-    property string mapSource: ""
-    onActiveChanged: if (active && mapSource) setSource(mapSource)
-    onMapSourceChanged: if (active && mapSource) setSource(mapSource)
+    property bool active: true
+    property string sceneSource: ""
+    onActiveChanged: if (active && sceneSource) setSource(sceneSource)
+    onSceneSourceChanged: if (active && sceneSource) setSource(sceneSource)
 
     property bool loadEntitiesAsync: false
     property var entities: []
-    property real baseZCoord: 0
-    property real lastZCoord: baseZCoord
     readonly property string componentPropKey: "component"
-    required property var world
+
+    // 2D or 3D world the scene loader should fill
+    // with the scene content
+    property var world: null
     property var components: []
 
     property var _groupIdStack: []
@@ -29,22 +32,22 @@ SvgReader
     property int _numIncubators: 0
     property var _numIncubatorsPerGroup: new Map()
     signal loaded()
+    onLoaded: {
+        world.mapLoaded()
+    }
+
     property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
     onLoadingFinishedChanged: if (loadingFinished) loaded()
+
+    function _onBeginSpecifics(widthWu, heightWu) {
+        throw new Error("Not implemented");
+    }
 
     onBegin: (widthWu, heightWu) => {
         _sourceProcessed = false;
         world.mapAboutToBeLoaded();
-        world.viewPortCenterWuX = 0;
-        world.viewPortCenterWuY = 0;
-        world.worldXMax = widthWu;
-        world.worldYMax = heightWu;
-        for (let i=0; i<entities.length; ++i) {
-            let obj = entities[i];
-            if (typeof obj !== 'undefined' &&
-                    obj.hasOwnProperty("destroy"))
-                obj.destroy();
-        }
+        _onBeginSpecifics(widthWu, heightWu);
+        entities.forEach(obj => obj && obj.destroy && obj.destroy());
         entities = [];
     }
 
@@ -56,30 +59,50 @@ SvgReader
             return components.get(compStr);
         }
         else {
-            console.warn("Unknown component, " + compStr + " cannot create instances" );
+            console.warn("Unknown component, " + compStr + " cannot create any instance." );
             return null;
         }
     }
 
     function customInit(obj, cfg) {
         let initVals = cfg["properties"];
-        if (initVals)
-            for (let p in initVals) obj[p] = initVals[p];
-    }
+        if (initVals) {
+            for (let p in initVals) {
+                let keys = p.split('.');
+                let target = obj;
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (target[keys[i]] === undefined) {
+                        target[keys[i]] = {};
+                    }
+                    // No further eval needed when one access
+                    // fails -> break and report
+                    if (!target.hasOwnProperty(keys[i])) {
+                        keys = [("Property " + p)];
+                        break;
+                    }
+                    target = target[keys[i]];
+                }
+                if (target.hasOwnProperty(keys[keys.length - 1])) {
+                    target[keys[keys.length - 1]] = initVals[p];
+                }
+                else {
+                    console.error("SceneLoader: Cannot assign to " + p +
+                                  " as it doesn't exist in " + obj);
+                }
 
-    function box2dWorkaround(obj) {
-        if (obj.bodyType !== Body.Static ) {
-            let oldT = obj.bodyType;
-            obj.bodyType = Body.Static;
-            obj.bodyType = oldT;
+            }
         }
     }
 
-    function _fetchBuilderCfg(description) {
+    function _fetchBuilderCfg(fillColor, strokeColor, description) {
         if (description.length === 0) return false;
         let cfg = JSON.parse(description);
-        if (cfg.hasOwnProperty(componentPropKey) && components.has(cfg[componentPropKey]))
+        if (cfg.hasOwnProperty(componentPropKey) && world.components.has(cfg[componentPropKey])) {
+            // TODO: Expose keys as consts
+            cfg["clayFillColor"] = fillColor;
+            cfg["clayStrokeColor"] = strokeColor;
             return cfg
+        }
         else
             return false;
     }
@@ -88,14 +111,13 @@ SvgReader
         customInit(obj, cfg);
         entities.push(obj);
         let compStr = cfg[componentPropKey];
-        world.mapEntityCreated(obj, groupId, compStr);
-        box2dWorkaround(obj);
+        world.mapEntityCreated(obj, groupId, cfg);
     }
 
     onBeginGroup: (id, description) => {
-        _groupIdStack.push(id);
-        world.groupAboutToBeLoaded(id, description);
-    }
+                    _groupIdStack.push(id);
+                    world.groupAboutToBeLoaded(id, description);
+                }
     onEndGroup: {
         let grpId = _groupIdStack.pop();
         if(!_numIncubatorsPerGroup.has(grpId)) world.groupLoaded(grpId);
@@ -107,8 +129,8 @@ SvgReader
         if (incubator.status !== Component.Ready) {
             _numIncubators++;
             let nr = _numIncubatorsPerGroup.has(groupId) ?
-                     _numIncubatorsPerGroup.get(groupId) :
-                     0;
+                    _numIncubatorsPerGroup.get(groupId) :
+                    0;
             _numIncubatorsPerGroup.set(groupId, nr+1);
             let stu = function(status, groupId) {
                 if (status === Component.Ready){
@@ -121,26 +143,6 @@ SvgReader
             }
             incubator.onStatusChanged = status => stu(status, groupId);
         }
-        else { _mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
+        else {_mapEntityCreated(incubator.object, _currentGroupId(), cfg); }
     }
-
-    onPolygon: (id, points, description) => {
-        let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.polygonLoaded(id, _currentGroupId(), points, description); return;}
-        let comp = fetchComp(cfg);
-        let inc = comp.incubateObject(world.room, { canvas: world, vertices: points, z: ++lastZCoord });
-        onIncubationInitiated(inc, _currentGroupId(), cfg)
-    }
-
-    onRectangle: (id, x, y, width, height, description) => {
-        let cfg = _fetchBuilderCfg(description);
-        if (!cfg) {world.rectangleLoaded(id, _currentGroupId(), x, y, width, height, description); return;}
-        let comp = fetchComp(cfg);
-        var inc = comp.incubateObject(world.room, {xWu: x, yWu: y, z: ++lastZCoord, widthWu: width, heightWu: height});
-        onIncubationInitiated(inc, _currentGroupId(), cfg);
-    }
-
-    onPolyline: (id, points, description) => {world.polylineLoaded(id, _currentGroupId(), points, description);}
-    onCircle: (id, x, y, radius, description) => {world.circleLoaded(id, _currentGroupId(), x, y, radius, description);}
 }
-

@@ -7,11 +7,10 @@ import Clayground.GameController
 import Clayground.Physics
 import Clayground.World
 
-ClayWorld
+ClayWorld2d
 {
     id: theWorld
 
-    map: "map.svg";
     anchors.fill: parent
     pixelPerUnit: height / theWorld.yWuMax
     gravity: Qt.point(0,0)
@@ -20,6 +19,7 @@ ClayWorld
     // Activate to see behavior visualization
     property bool behaviorDebug: true
 
+    Component.onCompleted:  scene = "map.svg"
     onMapLoaded: observedItem = player
 
     // Collision categories used by physics (see Box2D manual)
@@ -31,12 +31,15 @@ ClayWorld
         readonly property int wall: Box.Category6
     }
 
+
     // How to put together keyboard controls with physics movement?
     RectBoxBody {
         id: player; color: "orange"; bodyType: Body.Dynamic; z:99
         xWu: 7; yWu: 7; widthWu: .9; heightWu: widthWu; radius: .25*width
         linearVelocity.x: ctrl.axisX * 10; linearVelocity.y: -ctrl.axisY * 10;
-        Canv.Text{parent: player.parent;
+        Canv.Text{
+            z: player.z
+            parent: player.parent;
             anchors.horizontalCenter: player.horizontalCenter;
             anchors.bottom: player.top;
             text: "Player";
@@ -108,7 +111,9 @@ ClayWorld
     }
 
     property var path: []
-    onPolylineLoaded: (id, groupId, points, description) => { if (description === "PatrolPath") path = points; }
+    onPolylineLoaded: (id, groupId, points, fillColor, strokeColor, description) => {
+                          if (description === "PatrolPath") path = points;
+                      }
 
     // Encapsulate construction of door as it is made up
     // of multiple parts (door, switches and movement path)

@@ -22,6 +22,8 @@ Item {
     property alias viewPortCenterWuX: flckable.viewPortCenterWuX
     property alias viewPortCenterWuY: flckable.viewPortCenterWuY
 
+    property alias showDebugInfo: theOverlayLoader.active
+
     property bool keyBoardNavigationEnabled: false
     signal keyPressed(var event)
     signal keyReleased(var event)
@@ -65,7 +67,7 @@ Item {
         id: theUnderlayLoader
 
         anchors.fill: parent
-        active: false
+        active: theOverlayLoader.active
         sourceComponent: active ? theUnderlayComp : null
         function redrawOnDemand() { if (item) item.requestPaint(); }
     }
@@ -194,7 +196,6 @@ Item {
             }
             if (event.key === Qt.Key_Space) {
                 theOverlayLoader.active = !theOverlayLoader.active;
-                theUnderlayLoader.active = !theUnderlayLoader.active;
             }
             theWorld.keyPressed(event)
         }

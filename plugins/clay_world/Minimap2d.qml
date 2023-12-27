@@ -5,7 +5,7 @@ import Clayground.Common
 Rectangle {
     id: theMinimap
 
-    required property ClayWorld world
+    required property ClayWorld2d world
     property var typeMapping: new Map()
 
     readonly property var _observed: world.room

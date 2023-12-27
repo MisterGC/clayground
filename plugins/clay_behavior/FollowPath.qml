@@ -9,7 +9,7 @@ Item
 {
     id: behavior
 
-    required property ClayWorld world
+    required property ClayWorld2d world
     property var actor: parent
     property var wpsWu: []
     property int _currentWpIndex: -1
@@ -36,14 +36,14 @@ Item
                     obj.yWu = Qt.binding(_ => {return behavior.wpsWu[i].y + .5 * obj.heightWu});
                 }
             }
-            Canv.Poly {canvas: world; opacity: .75
+            Canv.Poly {canvas: world.canvas; opacity: .75
                 vertices: wpsWu; strokeStyle: ShapePath.DashLine; strokeWidth: 3; strokeColor: Qt.darker(_moveto.debugColor, 1.2); }
             Component{
                 id: wpComp
                 Canv.Rectangle{
                     radius: height * .25
                     color: Qt.darker(behavior.debugColor, 1.7)
-                    canvas: world
+                    canvas: world.canvas
                     widthWu: .3; heightWu: .3;
                 }
             }

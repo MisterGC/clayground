@@ -5,7 +5,7 @@ import Clayground.World
 
 Connections{
     required property var callback
-    required property ClayWorld world
+    required property ClayWorld2d world
     target: world
     function onPixelPerUnitChanged(){callback()}
     function onXWuMinChanged(){callback()}

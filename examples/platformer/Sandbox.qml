@@ -7,15 +7,16 @@ import Clayground.World
 import Clayground.Physics
 import Clayground.Common
 
-ClayWorld
+ClayWorld2d
 {
     id: theWorld
 
-    map: "map.svg"
-    pixelPerUnit: width / theWorld.worldXMax
+    pixelPerUnit: width / theWorld.xWuMax
     gravity: Qt.point(0, 15*9.81)
     timeStep: 1/60.0
     anchors.fill: parent
+
+    Component.onCompleted: scene = "map.svg"
 
     components: new Map([
                          ['Player', c1],
@@ -60,7 +61,7 @@ ClayWorld
         }
     }
 
-    //physicsDebugging: true
+    //debugPhysics: true
 
     Keys.forwardTo: theGameCtrl
     GameController {
@@ -69,7 +70,7 @@ ClayWorld
         onButtonBPressedChanged:  if (buttonBPressed) player.jump();
     }
 
-    onMapEntityCreated: (obj, groupId, compName) => {
+    onMapEntityCreated: (obj, groupId, cfg) => {
        if (obj instanceof VisualizedPolyBody) {
            obj.fixedRotation = false;
            obj.bullet = true

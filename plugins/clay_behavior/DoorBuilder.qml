@@ -9,7 +9,7 @@ Item
 {
     id: builder
 
-    required property ClayWorld world
+    required property ClayWorld2d world
 
     // Build a more complex object (automated door) based on groups in the map
     property var _producedDoors: new Map()
@@ -49,10 +49,12 @@ Item
         function onMapEntityCreated(obj, groupId, compName) {
             let door = builder._getDoor(groupId);
             if (!door) return;
-            if (compName === builder._doorCompName) door._door = obj;
-            if (compName === builder._switchCompName) door._switches.push(obj);
+            if (compName === builder._doorCompName)
+                door._door = obj;
+            if (compName === builder._switchCompName)
+                door._switches.push(obj);
         }
-        function onPolylineLoaded(id, groupId, points, desc) {
+        function onPolylineLoaded(id, groupId, points, fillColor, strokeColor, desc) {
             let door = builder._getDoor(groupId);
             if (!door) return;
             door._doorPath = points;
