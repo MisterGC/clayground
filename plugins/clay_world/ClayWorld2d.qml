@@ -58,7 +58,7 @@ ClayWorldBase
             id: _physicsWorld
             gravity: Qt.point(0,15*9.81)
             timeStep: 1/60.0
-            pixelsPerMeter: _theCanvas.pixelPerUnit
+            pixelsPerMeter: _theCanvas.pixelPerUnit ? _theCanvas.pixelPerUnit : 1
             running: true
         }
     }
