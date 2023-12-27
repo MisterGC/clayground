@@ -1,7 +1,7 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 cmake_minimum_required(VERSION 3.19)
-project (Clayground VERSION 2022.1)
+project (Clayground VERSION 2023.1)
 
 # CMAKE INCLUDES
 set(CLAY_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
