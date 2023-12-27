@@ -8,6 +8,16 @@ set(CLAY_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 list(APPEND CMAKE_MODULE_PATH "${CLAY_CMAKE_SCRIPT_DIR}")
 include(clayplugin)
 
+# CHECK MIN REQUIRED QT VERSION
+set(CLAY_QT_MIN_VERSION "6.6.0")
+find_package(Qt6 ${CLAY_QT_MIN_VERSION} QUIET COMPONENTS Core)
+if (NOT Qt6_FOUND)
+    message(FATAL_ERROR
+        "\n>>>>>>>>>> CLAYGROUND CONFIGURE ERROR!!! <<<<<<<<<<<\n"
+        "Clayground requires Qt6 ${CLAY_QT_MIN_VERSION} or higher. "
+        "Please ensure it is installed and used for configuring your project."
+    )
+endif()
 
 # COMMON CONFIGURATION
 enable_testing()
