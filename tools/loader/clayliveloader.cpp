@@ -110,10 +110,12 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
     for (auto const& sbx: sbxFiles) {
         QFileInfo sbxTest(sbx);
         if (sbxTest.exists()) {
+            qInfo() << "\n\nAdd Sandbox: " << sbx;
             auto const dir = sbxTest.absoluteDir().absolutePath();
             fileObserver_.observeDir(dir);
             auto const url = QUrl::fromLocalFile(sbxTest.filePath());
             allSbxs_ << url;
+            qInfo() << "\n";
         }
         else
             qCritical() << "File " << sbx << " doesn't exist -> don't add sbx.";
