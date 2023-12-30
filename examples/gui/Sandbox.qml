@@ -79,7 +79,8 @@ Rectangle
         TrainingDb {id: db}
         Image {
             anchors.horizontalCenter: parent.horizontalCenter
-            source: theSvgSource.source(quiz.text)
+            source: theSvgSource.has(quiz.text) ? theSvgSource.source(quiz.text)
+                                                : theSvgSource.source("Default")
             height: .3 * dojo.height
             width: height
             SvgImageSource {

@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    sodipodi:docname="visuals.svg"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   inkscape:version="1.3 (0e150ed, 2023-07-21)"
    id="svg8"
    version="1.1"
    viewBox="0 0 701.71844 1069.7987"
    height="1069.7987mm"
-   width="701.71844mm">
+   width="701.71844mm"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs2">
     <rect
@@ -26,16 +26,16 @@
   <sodipodi:namedview
      inkscape:snap-global="false"
      inkscape:window-maximized="1"
-     inkscape:window-y="27"
+     inkscape:window-y="38"
      inkscape:window-x="0"
-     inkscape:window-height="656"
-     inkscape:window-width="1280"
+     inkscape:window-height="916"
+     inkscape:window-width="1512"
      showgrid="false"
      inkscape:document-rotation="0"
-     inkscape:current-layer="g1963"
+     inkscape:current-layer="Bezier"
      inkscape:document-units="mm"
-     inkscape:cy="3374.6166"
-     inkscape:cx="823.44636"
+     inkscape:cy="3520.5455"
+     inkscape:cx="2260.6756"
      inkscape:zoom="0.5500568"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
@@ -46,12 +46,19 @@
      fit-margin-top="0"
      fit-margin-left="0"
      fit-margin-right="0"
-     fit-margin-bottom="0">
+     fit-margin-bottom="0"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1">
     <inkscape:grid
        type="xygrid"
        id="grid1519"
        originx="1.7184346"
-       originy="3.1646497e-07" />
+       originy="3.1646497e-07"
+       spacingy="1"
+       spacingx="1"
+       units="mm"
+       visible="false" />
   </sodipodi:namedview>
   <metadata
      id="metadata5">
@@ -1541,7 +1548,7 @@
       <text
          xml:space="preserve"
          id="text1751"
-         style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect1753);fill:#000000;fill-opacity:1;stroke:none;" />
+         style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect1753);fill:#000000;fill-opacity:1;stroke:none" />
       <g
          id="NewLayer"
          transform="matrix(1.9521642,0,0,1.9521642,-49.340083,587.25057)">
@@ -2606,7 +2613,7 @@
       </g>
       <g
          transform="matrix(1.9521642,0,0,1.9521642,433.17482,991.53417)"
-         id="g2055">
+         id="Default">
         <g
            id="g2053">
           <rect
