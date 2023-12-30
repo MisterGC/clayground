@@ -4,7 +4,11 @@ import QtQuick
 
 Item {
     property string shortcutToMatch: ""
-    onShortcutToMatchChanged: matches = false
+    property string _currentSequence: ""
+    onShortcutToMatchChanged: {
+        matches = false;
+        _currentSequence = "";
+    }
     property bool matches: false
 
     property var keymap: new Map([
@@ -35,9 +39,9 @@ Item {
                                      [Qt.Key_F7, "F7"], [Qt.Key_F8, "F8"], [Qt.Key_F9, "F9"],
                                      [Qt.Key_F10, "F10"], [Qt.Key_F11, "F11"], [Qt.Key_F12, "F12"],
                                  ])
-    function keyToTxt(key) {
-        if (keymap.has(key)) return keymap.get(key);
-        return "";
+    function keyToTxt(key, modifier) {
+        let keyText = keymap.has(key) ? keymap.get(key) : "";
+        return keyText;
     }
 
     function modToTxt(modifiers) {
@@ -54,8 +58,20 @@ Item {
     Keys.onPressed: (event) => {
         let withMod = shortcutToMatch.includes("+")
         let modTxt = withMod ? modToTxt(event.modifiers) : "";
-        let text = modTxt + (modTxt === "" ? "" : "+") + keyToTxt(event.key);
-        matches = (text === shortcutToMatch);
+        let keyTxt = keyToTxt(event.key);
+        if (keyTxt !== "") {
+            let text = modTxt + (modTxt === "" ? "" : "+") + keyTxt;
+            _currentSequence += (_currentSequence === "" ? "" : " ");
+            _currentSequence += text;
+        }
+        console.log("Current seq: " + _currentSequence)
+        if (!shortcutToMatch.startsWith(_currentSequence)) {
+            _currentSequence = "";
+        }
+        else {
+            matches = (_currentSequence === shortcutToMatch);
+        }
+
         event.accepted = true;
     }
 }

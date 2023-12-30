@@ -59,6 +59,12 @@ Rectangle
         }
     }
 
+    Text {
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: shortcutChecker._currentSequence
+    }
+
     Column
     {
         anchors.centerIn: parent
@@ -95,7 +101,7 @@ Rectangle
             id: quiz
             anchors.horizontalCenter: parent.horizontalCenter
             font.pixelSize: dojo.height * .07
-            property var model: db.inkscape
+            property var model: db.neovim
             property string shortcut: model[_idx].translation
             property int _idx: 0
             text: model[_idx].caption

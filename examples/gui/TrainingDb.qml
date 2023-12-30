@@ -128,4 +128,54 @@ Item {
         {translation: "V", caption: "ObjectFlipVertically"},
         {translation: "H", caption: "ObjectFlipHorizontally"},
     ]
+
+    property var neovim: [
+
+        // Navigation
+        {translation: "Shift+H", caption: "PrevTab"},
+        {translation: "Shift+L", caption: "NextTab"},
+        {translation: "F", caption: "NextOccOfChar"},
+        {translation: "Shift+F", caption: "PrevOccOfChar"},
+        {translation: "Ctrl+O", caption: "PrevPosition"},
+        {translation: "Ctrl+I", caption: "NextPosition"},
+
+        // Search/Telescope
+        {translation: "space F F", caption: "FindVersionedFiles"},
+        {translation: "space F Shift+F", caption: "FindAllFiles"},
+        {translation: "space F Shift+C", caption: "FindWordAtCursor"},
+        {translation: "space F T", caption: "ColorSchemes"},
+        {translation: "space G B", caption: "GitBranches"},
+        {translation: "space G C", caption: "Commits"},
+        {translation: "space G Shift+C", caption: "CommitsCurrFile"},
+        {translation: "space G T", caption: "CommitsCurrFile"},
+
+        // Tools
+        {translation: "space T T", caption: "PerfMonitor"},
+        {translation: "space G G", caption: "Git"},
+
+        // LSP
+        {translation: "Shift+K", caption: "HoverSymbol"},
+        {translation: "space L F", caption: "FormatDocument"},
+        {translation: "G L", caption: "LineDiagnostics"},
+        {translation: "space L Shift+D", caption: "AllDiagnostics"},
+        {translation: "space L A", caption: "CodeActions"},
+        {translation: "space L R", caption: "Rename"},
+        {translation: "space L S", caption: "DocumentSymbols"},
+        {translation: "space L Shift+G", caption: "WorkspaceSymbols"},
+        {translation: "G D", caption: "Definition"},
+        {translation: "G Shift+D", caption: "Declaration"},
+        {translation: "G Shift+I", caption: "Implementation"},
+
+        // Neotree
+        {translation: "space E", caption: "NeotreeToggle"},
+        {translation: "space O", caption: "NeotreeFocus"},
+
+        {translation: "J J", caption: "BetterEscape"},
+
+        // Buffers
+        {translation: "space B C", caption: "CloseAllExceptCurr"},
+        {translation: "space B Shift+C", caption: "CloseAll"},
+        {translation: "space C", caption: "CloseCurr"},
+        {translation: "space N", caption: "NewFile"},
+    ]
 }
