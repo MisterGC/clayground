@@ -61,7 +61,7 @@ init_static_plugin_cfg()
 #add_subdirectory (thirdparty/csv-parser)
 
 # CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
-#add_subdirectory (plugins)
+add_subdirectory (plugins)
 if(NOT (ANDROID OR IOS))
     add_subdirectory (tools)
 endif()
