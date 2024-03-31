@@ -10,14 +10,14 @@ macro(clay_example EXAMPLE_NAME)
     cmake_minimum_required(VERSION 3.16)
     project (${EXAMPLE_NAME} VERSION ${CLAYEXAMPLE_VERSION})
 
-    set(CMAKE_INCLUDE_CURRENT_DIR ON)
+    #set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-    set(CMAKE_AUTOUIC ON)
+    #set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTOMOC ON)
-    set(CMAKE_AUTORCC ON)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    #set(CMAKE_AUTORCC ON)
+    #set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    find_package(Qt6 REQUIRED COMPONENTS Core Quick)
+    find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick)
 
     set(example_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/example_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
@@ -26,10 +26,27 @@ macro(clay_example EXAMPLE_NAME)
     endif()
 
     configure_file(${example_templ_dir}/main.cpp.in main.cpp)
-    qt_add_executable(${PROJECT_NAME} MANUAL_FINALIZATION
+    qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAYEXAMPLE_SOURCES} )
 
+    # target_compile_definitions(${PROJECT_NAME}
+    #     PRIVATE
+    #         $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
+    #         $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
+    # )
+    #target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+            Qt6::Core
+            Qt6::Qml
+            Qt6::Quick
+            $CACHE{CLAYGROUND_STATIC_PLUGINS})
+
+    qt6_policy(SET QTP0001 NEW)
+    message("DA PROJECT NAME: ${PROJECT_NAME}")
+    message("DA QML_FILES: ${CLAYEXAMPLE_QML_FILES}")
     qt_add_qml_module(${PROJECT_NAME}
         URI ${PROJECT_NAME}
         VERSION   ${CLAYEXAMPLE_VERSION}
@@ -37,24 +54,27 @@ macro(clay_example EXAMPLE_NAME)
         RESOURCES ${CLAYEXAMPLE_RES_FILES}
     )
 
-    target_compile_definitions(${PROJECT_NAME}
-        PRIVATE
-            $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
-            $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
-    )
-    target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-
-    target_link_libraries(${PROJECT_NAME}
-        PRIVATE
-            Qt::Core
-            Qt::Quick
-            $CACHE{CLAYGROUND_STATIC_PLUGINS})
-
     if (NOT ANDROID)
-        add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
-        set_tests_properties(test${PROJECT_NAME} PROPERTIES
-            ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal"
-        )
+        if (IOS)
+            # iOS-specific configurations
+            #set_target_properties(${PROJECT_NAME} PROPERTIES
+                #XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer"
+                #XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "YOUR_TEAM_ID_HERE"
+                #XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2" # 1=iPhone, 2=iPad, 1,2=both
+                #RESOURCE "${RESOURCE_FILES}" # Define this if you have resources
+            #)
+
+            set(asset_catalog_path "${example_templ_dir}/ios/Assets.xcassets")
+            message("ASSET CATA PATH: ${asset_catalog_path}")
+            target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
+            set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+            set_target_properties(${PROJECT_NAME}
+                PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+        else()
+            add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+            set_tests_properties(test${PROJECT_NAME} PROPERTIES
+                ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal")
+        endif()
     else()
         set(CLAY_APP_TARGET "${PROJECT_NAME}")
         set(CLAY_APP_VERSION "${CLAYEXAMPLE_VERSION}")
@@ -68,6 +88,6 @@ macro(clay_example EXAMPLE_NAME)
             QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/android)
     endif()
 
-    qt_import_qml_plugins(${PROJECT_NAME})
-    qt_finalize_executable(${PROJECT_NAME})
+    #qt_import_qml_plugins(${PROJECT_NAME})
+    #qt_finalize_executable(${PROJECT_NAME})
 endmacro()

@@ -3,5 +3,6 @@ include (clayexample)
 
 clay_example( sbx_void
     VERSION 1.0
-    SOURCES main.cpp res.qrc
+    SOURCES main.cpp
+    QML_FILES Main.qml Sandbox.qml
 )

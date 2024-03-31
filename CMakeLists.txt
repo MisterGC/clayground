@@ -25,8 +25,8 @@ set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 
 if (NOT ANDROID) # Qt Android cmake causes problems otherwise
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 else()
     # In some environements Qt (Creator) produces a gradle properties
     # file with invalid androidBuildToolsVersion value - the following
@@ -37,7 +37,7 @@ else()
         "Set to the used version, if you need to workaround QTBUG-94956")
 endif()
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/qml CACHE STRING "" FORCE)
 set(CLAY_PLUGIN_BASE_DIR ${QML_IMPORT_PATH}/Clayground)
 set(CLAY_DEPS_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
@@ -52,16 +52,16 @@ init_static_plugin_cfg()
 
 
 # DEPENDENCIES
-add_subdirectory (thirdparty/qml-box2d)
-if (TARGET Box2Dplugin)
-    extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
-endif()
-add_subdirectory (thirdparty/simple-svg-writer)
-add_subdirectory (thirdparty/csv-parser)
+#add_subdirectory (thirdparty/qml-box2d)
+#if (TARGET Box2Dplugin)
+#    extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
+#endif()
+#add_subdirectory (thirdparty/simple-svg-writer)
+#add_subdirectory (thirdparty/csv-parser)
 
 # CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
-add_subdirectory (plugins)
+#add_subdirectory (plugins)
 if(NOT ANDROID)
-    add_subdirectory (tools)
+#    add_subdirectory (tools)
 endif()
 add_subdirectory (examples)

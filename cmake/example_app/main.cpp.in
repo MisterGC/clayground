@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 #else
     engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
 #endif
-    engine.load(QUrl("qrc:/main.qml"));
+    engine.loadFromModule("sbx_void", "Main");
     return app.exec();
 }
 
