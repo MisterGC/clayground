@@ -24,28 +24,29 @@ enable_testing()
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 
-if (NOT ANDROID) # Qt Android cmake causes problems otherwise
-    #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-    #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+if (NOT (ANDROID OR IOS)) # Desktop, TODO What about WASM?
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 else()
-    # In some environements Qt (Creator) produces a gradle properties
-    # file with invalid androidBuildToolsVersion value - the following
-    # option allows to workaround this bug by allowing to provide the version
-    # explicitely. (See https://bugreports.qt.io/browse/QTBUG-94956)
-    set(CLAY_ANDROID_BUILD_TOOLS_VERSION
-        "DO_NOT_USE" CACHE STRING
-        "Set to the used version, if you need to workaround QTBUG-94956")
+    if (ANDROID)
+        # In some environements Qt (Creator) produces a gradle properties
+        # file with invalid androidBuildToolsVersion value - the following
+        # option allows to workaround this bug by allowing to provide the version
+        # explicitely. (See https://bugreports.qt.io/browse/QTBUG-94956)
+        set(CLAY_ANDROID_BUILD_TOOLS_VERSION
+            "DO_NOT_USE" CACHE STRING
+            "Set to the used version, if you need to workaround QTBUG-94956")
+    endif()
 endif()
 
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/bin/qml CACHE STRING "" FORCE)
 set(CLAY_PLUGIN_BASE_DIR ${QML_IMPORT_PATH}/Clayground)
 set(CLAY_DEPS_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
 
-
 # PLUGIN LINKING
 set(CLAYPLUGIN_LINKING SHARED)
-if (ANDROID) # Avoids plugin loading problems
+if (ANDROID OR IOS)
     set(CLAYPLUGIN_LINKING STATIC)
 endif()
 init_static_plugin_cfg()
@@ -61,7 +62,7 @@ init_static_plugin_cfg()
 
 # CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
 #add_subdirectory (plugins)
-if(NOT ANDROID)
-#    add_subdirectory (tools)
+if(NOT (ANDROID OR IOS))
+    add_subdirectory (tools)
 endif()
 add_subdirectory (examples)

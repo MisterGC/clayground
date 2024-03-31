@@ -10,12 +10,11 @@ macro(clay_app CLAYGROUND_APP_NAME)
     cmake_minimum_required(VERSION 3.16)
     project (${CLAYGROUND_APP_NAME} VERSION ${CLAYEXAMPLE_VERSION})
 
-    #set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
-    #set(CMAKE_AUTOUIC ON)
+    set(CMAKE_INCLUDE_CURRENT_DIR ON)
+    set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTOMOC ON)
-    #set(CMAKE_AUTORCC ON)
-    #set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick)
 
@@ -31,12 +30,12 @@ macro(clay_app CLAYGROUND_APP_NAME)
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAYEXAMPLE_SOURCES} )
 
-    # target_compile_definitions(${PROJECT_NAME}
-    #     PRIVATE
-    #         $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
-    #         $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
-    # )
-    #target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+    target_compile_definitions(${PROJECT_NAME}
+        PRIVATE
+            $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
+            $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
+    )
+    target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
     target_link_libraries(${PROJECT_NAME}
         PRIVATE
@@ -57,14 +56,6 @@ macro(clay_app CLAYGROUND_APP_NAME)
 
     if (NOT ANDROID)
         if (IOS)
-            # iOS-specific configurations
-            #set_target_properties(${PROJECT_NAME} PROPERTIES
-                #XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer"
-                #XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "YOUR_TEAM_ID_HERE"
-                #XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2" # 1=iPhone, 2=iPad, 1,2=both
-                #RESOURCE "${RESOURCE_FILES}" # Define this if you have resources
-            #)
-
             set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
             message("ASSET CATA PATH: ${asset_catalog_path}")
             target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
@@ -89,6 +80,5 @@ macro(clay_app CLAYGROUND_APP_NAME)
             QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/android)
     endif()
 
-    #qt_import_qml_plugins(${PROJECT_NAME})
-    #qt_finalize_executable(${PROJECT_NAME})
+    qt_import_qml_plugins(${PROJECT_NAME})
 endmacro()
