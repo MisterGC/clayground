@@ -25,6 +25,7 @@ macro(clay_example EXAMPLE_NAME)
         string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
     endif()
 
+    set(CLAYGROUND_APP_NAME ${PROJECT_NAME})
     configure_file(${example_templ_dir}/main.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
