@@ -1,14 +1,14 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 include(CMakeParseArguments)
 
-macro(clay_example EXAMPLE_NAME)
+macro(clay_app CLAYGROUND_APP_NAME)
 
     set (oneValueArgs VERSION)
     set (multiValueArgs SOURCES QML_FILES RES_FILES)
     cmake_parse_arguments(CLAYEXAMPLE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     cmake_minimum_required(VERSION 3.16)
-    project (${EXAMPLE_NAME} VERSION ${CLAYEXAMPLE_VERSION})
+    project (${CLAYGROUND_APP_NAME} VERSION ${CLAYEXAMPLE_VERSION})
 
     #set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -19,14 +19,14 @@ macro(clay_example EXAMPLE_NAME)
 
     find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick)
 
-    set(example_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/example_app)
+    set(clay_app_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
     if(${CLAYGROUND_IMPORT_PLUGINS})
         string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
     endif()
 
-    set(CLAYGROUND_APP_NAME ${PROJECT_NAME})
-    configure_file(${example_templ_dir}/main.cpp.in main.cpp)
+    set(CLAYGROUND_APP_NAME ${CLAYGROUND_APP_NAME})
+    configure_file(${clay_app_templ_dir}/main.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAYEXAMPLE_SOURCES} )
@@ -65,7 +65,7 @@ macro(clay_example EXAMPLE_NAME)
                 #RESOURCE "${RESOURCE_FILES}" # Define this if you have resources
             #)
 
-            set(asset_catalog_path "${example_templ_dir}/ios/Assets.xcassets")
+            set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
             message("ASSET CATA PATH: ${asset_catalog_path}")
             target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
             set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
@@ -79,7 +79,7 @@ macro(clay_example EXAMPLE_NAME)
     else()
         set(CLAY_APP_TARGET "${PROJECT_NAME}")
         set(CLAY_APP_VERSION "${CLAYEXAMPLE_VERSION}")
-        set(android_templ_dir ${example_templ_dir}/android)
+        set(android_templ_dir ${clay_app_templ_dir}/android)
         configure_file(${android_templ_dir}/android_manifest.xml.in android/AndroidManifest.xml)
         if (NOT CLAY_ANDROID_BUILD_TOOLS_VERSION STREQUAL "DO_NOT_USE")
             configure_file(${android_templ_dir}/gradle.properties.in android/gradle.properties)
