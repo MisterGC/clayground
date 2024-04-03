@@ -1,7 +1,7 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 cmake_minimum_required(VERSION 3.19)
-project (Clayground VERSION 2023.1)
+project (Clayground VERSION 2024.1)
 
 # CMAKE INCLUDES
 set(CLAY_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -18,6 +18,10 @@ if (NOT Qt6_FOUND)
         "Please ensure it is installed and used for configuring your project."
     )
 endif()
+
+# USER OPTIONS
+option(CLAYGROUND_WITH_TOOLS "Include Clayground tools e.g. dojo" ON)
+option(CLAYGROUND_WITH_EXAMPLES "Include Clayground examples" ON)
 
 # COMMON CONFIGURATION
 enable_testing()
@@ -62,7 +66,13 @@ add_subdirectory (thirdparty/csv-parser)
 
 # CLAYGROUND PLUGINS, TOOLS AND EXAMPLES
 add_subdirectory (plugins)
-if(NOT (ANDROID OR IOS))
-    add_subdirectory (tools)
+
+if(CLAYGROUND_WITH_TOOLS)
+    if(NOT (ANDROID OR IOS))
+        add_subdirectory (tools)
+    endif()
 endif()
-add_subdirectory (examples)
+
+if(CLAYGROUND_WITH_EXAMPLES)
+    add_subdirectory (examples)
+endif()
