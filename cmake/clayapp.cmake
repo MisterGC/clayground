@@ -45,10 +45,10 @@ macro(clay_app CLAYGROUND_APP_NAME)
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
     qt6_policy(SET QTP0001 NEW)
-    message("DA PROJECT NAME: ${PROJECT_NAME}")
-    message("DA QML_FILES: ${CLAYEXAMPLE_QML_FILES}")
     qt_add_qml_module(${PROJECT_NAME}
         URI ${PROJECT_NAME}
+        RESOURCE_PREFIX /
+        NO_RESOURCE_TARGET_PATH
         VERSION   ${CLAYEXAMPLE_VERSION}
         QML_FILES ${CLAYEXAMPLE_QML_FILES}
         RESOURCES ${CLAYEXAMPLE_RES_FILES}
@@ -57,7 +57,6 @@ macro(clay_app CLAYGROUND_APP_NAME)
     if (NOT ANDROID)
         if (IOS)
             set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
-            message("ASSET CATA PATH: ${asset_catalog_path}")
             target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
             set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
             set_target_properties(${PROJECT_NAME}
