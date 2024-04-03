@@ -5,10 +5,10 @@ macro(clay_app CLAYGROUND_APP_NAME)
 
     set (oneValueArgs VERSION)
     set (multiValueArgs SOURCES QML_FILES RES_FILES)
-    cmake_parse_arguments(CLAYEXAMPLE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(CLAYAPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     cmake_minimum_required(VERSION 3.16)
-    project (${CLAYGROUND_APP_NAME} VERSION ${CLAYEXAMPLE_VERSION})
+    project (${CLAYGROUND_APP_NAME} VERSION ${CLAYAPP_VERSION})
 
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
     set(CMAKE_AUTOUIC ON)
@@ -28,7 +28,7 @@ macro(clay_app CLAYGROUND_APP_NAME)
     configure_file(${clay_app_templ_dir}/main.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
-        ${CLAYEXAMPLE_SOURCES} )
+        ${CLAYAPP_SOURCES} )
 
     target_compile_definitions(${PROJECT_NAME}
         PRIVATE
@@ -49,9 +49,9 @@ macro(clay_app CLAYGROUND_APP_NAME)
         URI ${PROJECT_NAME}
         RESOURCE_PREFIX /
         NO_RESOURCE_TARGET_PATH
-        VERSION   ${CLAYEXAMPLE_VERSION}
-        QML_FILES ${CLAYEXAMPLE_QML_FILES}
-        RESOURCES ${CLAYEXAMPLE_RES_FILES}
+        VERSION   ${CLAYAPP_VERSION}
+        QML_FILES ${CLAYAPP_QML_FILES}
+        RESOURCES ${CLAYAPP_RES_FILES}
     )
 
     if (NOT ANDROID)
@@ -68,7 +68,7 @@ macro(clay_app CLAYGROUND_APP_NAME)
         endif()
     else()
         set(CLAY_APP_TARGET "${PROJECT_NAME}")
-        set(CLAY_APP_VERSION "${CLAYEXAMPLE_VERSION}")
+        set(CLAY_APP_VERSION "${CLAYAPP_VERSION}")
         set(android_templ_dir ${clay_app_templ_dir}/android)
         configure_file(${android_templ_dir}/android_manifest.xml.in android/AndroidManifest.xml)
         if (NOT CLAY_ANDROID_BUILD_TOOLS_VERSION STREQUAL "DO_NOT_USE")
