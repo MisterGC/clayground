@@ -1,7 +1,16 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
-include (clayexample)
+include (clayapp)
 
-clay_example( sbx_gui
+clay_app( sbx_gui
     VERSION 1.0
-    SOURCES main.cpp res.qrc
+    SOURCES main.cpp
+    QML_FILES
+        Main.qml
+        Sandbox.qml
+        Scoreboard.qml
+        ShortcutChecker.qml
+        TrainingDb.qml
+    RES_FILES
+        inkscape.xml
+        visuals.svg
 )

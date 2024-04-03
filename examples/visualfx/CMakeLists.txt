@@ -1,7 +1,13 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
-include (clayexample)
+include (clayapp)
 
-clay_example( sbx_visualfx
+clay_app( sbx_visualfx
     VERSION 1.0
-    SOURCES main.cpp res.qrc
+    SOURCES main.cpp
+    QML_FILES
+        Main.qml
+        Sandbox.qml
+        AbsorptionFx.qml
+        ExplosionFx.qml
+    RES_FILES explosion.png
 )
