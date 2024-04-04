@@ -11,8 +11,6 @@ clay_p( Common
     SOURCES
         claystopwatch.cpp
         claystopwatch.h
-        appleclasskitwrapper.cpp
-        appleclasskitwrapper.h
     QML_FILES Clayground.qml
     LINK_LIBS Qt::Core Qt::Quick Qt::Qml
 )
