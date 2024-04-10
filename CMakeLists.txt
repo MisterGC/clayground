@@ -1,7 +1,15 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 cmake_minimum_required(VERSION 3.19)
-project (Clayground VERSION 2024.1)
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
+string(STRIP "${VERSION_CONTENT}" CLAYGROUND_VERSION)
+
+project (Clayground
+         VERSION ${CLAYGROUND_VERSION}
+         DESCRIPTION "Qt-based set of tools, plugins and libs for rapid app development."
+         HOMEPAGE_URL "https://github.com/MisterGC/clayground"
+         LANGUAGES CXX)
 
 # CMAKE INCLUDES
 set(CLAY_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
