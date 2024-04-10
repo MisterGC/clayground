@@ -4,7 +4,6 @@ project (plugins)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 add_subdirectory (clay_common)
-add_subdirectory (clay_ios)
 add_subdirectory (clay_text)
 
 add_subdirectory (clay_canvas)
@@ -16,3 +15,8 @@ add_subdirectory (clay_network)
 add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)
+
+# Platform Plugins
+if (IOS)
+    add_subdirectory (clay_ios)
+endif()
