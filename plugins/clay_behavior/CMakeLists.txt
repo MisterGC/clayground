@@ -3,7 +3,7 @@ include (clayplugin)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
-clay_p( Behavior
+clay_plugin( Behavior
     VERSION 1.0
     QML_FILES
         FollowPath.qml Move.qml MoveTo.qml RectTrigger.qml

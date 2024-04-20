@@ -6,7 +6,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 # instructions for singletons
 set_source_files_properties(Clayground.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-clay_p( Common
+clay_plugin( Common
     VERSION 1.0
     SOURCES
         claystopwatch.cpp

@@ -5,7 +5,7 @@ include(CMakeParseArguments)
 
 # TODO Think about to get rid of this function completly as soon
 # as Qt6.3 has been released and qt_add_qml_module is more mature
-function(clay_p PLUGIN_NAME)
+function(clay_plugin PLUGIN_NAME)
 
     set (CMAKE_AUTOMOC ON)
     set (CMAKE_AUTORCC ON)

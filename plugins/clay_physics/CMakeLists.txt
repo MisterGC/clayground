@@ -6,7 +6,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 # instructions for singletons
 set_source_files_properties(PhysicsUtils.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-clay_p( Physics
+clay_plugin( Physics
     VERSION 1.0
     QML_FILES
             CollisionTracker.qml

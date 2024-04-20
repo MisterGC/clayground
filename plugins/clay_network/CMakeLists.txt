@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 include (clayplugin)
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml Network)
 
-clay_p( Network
+clay_plugin( Network
     VERSION 1.1
     SOURCES
         claynetworknode.cpp claywebaccess.cpp connection.cpp peermanager.cpp server.cpp

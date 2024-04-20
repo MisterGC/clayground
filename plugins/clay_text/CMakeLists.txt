@@ -10,7 +10,7 @@ set_source_files_properties(${JSONATA_SRC_DIR}/functions.js PROPERTIES QT_RESOUR
 set_source_files_properties(${JSONATA_SRC_DIR}/parser.js PROPERTIES QT_RESOURCE_ALIAS parser.js)
 set_source_files_properties(${JSONATA_SRC_DIR}/utils.js PROPERTIES QT_RESOURCE_ALIAS utils.js)
 
-clay_p( Text
+clay_plugin( Text
     VERSION 1.0
     SOURCES 
         csvreader.h csvreader.cpp 
