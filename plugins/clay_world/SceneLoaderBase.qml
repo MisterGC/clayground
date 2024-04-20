@@ -66,31 +66,31 @@ SvgReader
 
     function customInit(obj, cfg) {
         let initVals = cfg["properties"];
+
         if (initVals) {
             for (let p in initVals) {
                 let keys = p.split('.');
                 let target = obj;
+                let validPath = true;
+
                 for (let i = 0; i < keys.length - 1; i++) {
-                    if (target[keys[i]] === undefined) {
+                    if (!target.hasOwnProperty(keys[i])) {
+                        console.log(`Property '${keys[i]}' not found. Creating new object.`);
                         target[keys[i]] = {};
                     }
-                    // No further eval needed when one access
-                    // fails -> break and report
-                    if (!target.hasOwnProperty(keys[i])) {
-                        keys = [("Property " + p)];
-                        break;
-                    }
+
                     target = target[keys[i]];
                 }
-                if (target.hasOwnProperty(keys[keys.length - 1])) {
-                    target[keys[keys.length - 1]] = initVals[p];
-                }
-                else {
-                    console.error("SceneLoader: Cannot assign to " + p +
-                                  " as it doesn't exist in " + obj);
-                }
 
+                let finalKey = keys[keys.length - 1];
+                if (!target.hasOwnProperty(finalKey)) {
+                    console.log(`Creating property '${finalKey}' as it does not exist.`);
+                    target[finalKey] = {}; // Initialize it if necessary, or use another appropriate default value.
+                }
+                target[finalKey] = initVals[p]; // Assign the value.
             }
+        } else {
+            console.log("No properties to process.");
         }
     }
 
