@@ -16,7 +16,7 @@ macro(clay_app CLAYGROUND_APP_NAME)
     set(CMAKE_AUTORCC ON)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick)
+    find_package(Qt6 REQUIRED COMPONENTS Core5Compat Core Qml Quick Multimedia Sql)
 
     set(clay_app_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
@@ -36,12 +36,14 @@ macro(clay_app CLAYGROUND_APP_NAME)
             $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
     )
     target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-
     target_link_libraries(${PROJECT_NAME}
         PRIVATE
             Qt6::Core
             Qt6::Qml
             Qt6::Quick
+            Qt6::Multimedia
+            Qt6::Core5Compat
+            Qt6::Sql
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
     qt6_policy(SET QTP0001 NEW)
