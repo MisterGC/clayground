@@ -4,7 +4,7 @@ include(CMakeParseArguments)
 macro(clay_app CLAYGROUND_APP_NAME)
 
     set (oneValueArgs VERSION)
-    set (multiValueArgs SOURCES QML_FILES RES_FILES)
+    set (multiValueArgs SOURCES LINK_LIBS QML_FILES RES_FILES)
     cmake_parse_arguments(CLAYAPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     cmake_minimum_required(VERSION 3.16)
@@ -41,9 +41,7 @@ macro(clay_app CLAYGROUND_APP_NAME)
             Qt6::Core
             Qt6::Qml
             Qt6::Quick
-            Qt6::Multimedia
-            Qt6::Core5Compat
-            Qt6::Sql
+            ${CLAYAPP_LINK_LIBS}
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
     qt6_policy(SET QTP0001 NEW)
