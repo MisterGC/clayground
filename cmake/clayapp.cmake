@@ -112,12 +112,31 @@ macro(clay_app CLAY_APP_NAME)
 
         message("clay_app: Target platform iOS with ios dir: ${CLAY_APP_IOS_DIR}")
 
+        # App Metadata (Version, Permissions ...)
+        set(info_plist_path "${CLAY_APP_IOS_DIR}/Info.plist")
+        if(EXISTS "${info_plist_path}")
+            message(STATUS "Using custom Info.plist ${info_plist_path}")
+            set_target_properties(${PROJECT_NAME} PROPERTIES
+               MACOSX_BUNDLE_INFO_PLIST "${info_plist_path}")
+        else()
+            message(STATUS "No Info.plist.in present, using default one provided by CMake.")
+        endif()
+
         # Assets like app icon
         set(asset_catalog_path "${CLAY_APP_IOS_DIR}/Assets.xcassets")
         target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
         set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
         set_target_properties(${PROJECT_NAME}
             PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+
+        # Translations
+        file(GLOB_RECURSE LOCALIZATION_FILES "${CLAY_APP_IOS_DIR}/*.lproj")
+        foreach(localization_file ${LOCALIZATION_FILES})
+            get_filename_component(lang_dir "${localization_file}" DIRECTORY)
+            target_sources(${PROJECT_NAME} PRIVATE "${localization_file}")
+            set_source_files_properties("${localization_file}" PROPERTIES
+                                        MACOSX_PACKAGE_LOCATION "Resources/${lang_dir}")
+        endforeach()
 
     elseif(ANDROID) # FIXME so that it works with Qt6.6+
 
