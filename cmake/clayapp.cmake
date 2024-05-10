@@ -1,14 +1,14 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 include(CMakeParseArguments)
 
-macro(clay_app CLAYGROUND_APP_NAME)
+macro(clay_app CLAY_APP_NAME)
 
     set (oneValueArgs VERSION)
     set (multiValueArgs SOURCES LINK_LIBS QML_FILES RES_FILES)
-    cmake_parse_arguments(CLAYAPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(CLAY_APP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     cmake_minimum_required(VERSION 3.16)
-    project (${CLAYGROUND_APP_NAME} VERSION ${CLAYAPP_VERSION})
+    project (${CLAY_APP_NAME} VERSION ${CLAY_APP_VERSION})
 
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
     set(CMAKE_AUTOUIC ON)
@@ -18,17 +18,25 @@ macro(clay_app CLAYGROUND_APP_NAME)
 
     find_package(Qt6 REQUIRED COMPONENTS Core5Compat Core Qml Quick Multimedia Sql)
 
-    set(clay_app_templ_dir ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
+    set(CLAY_APP_TEMPLATE_DIR ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
     if(${CLAYGROUND_IMPORT_PLUGINS})
         string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
     endif()
 
-    set(CLAYGROUND_APP_NAME ${CLAYGROUND_APP_NAME})
-    configure_file(${clay_app_templ_dir}/main.cpp.in main.cpp)
+    set(CLAY_APP_NAME ${CLAY_APP_NAME})
+    configure_file(${CLAY_APP_TEMPLATE_DIR}/main.cpp.in main.cpp)
     qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
-        ${CLAYAPP_SOURCES} )
+        ${CLAY_APP_SOURCES} )
+
+    # Define the default resource path if not provided
+    if(NOT DEFINED CLAY_APP_IOS_RESOURCE_DIR)
+        set(CLAY_APP_IOS_RESOURCE_DIR "${CLAY_APP_TEMPLATE_DIR}/ios")
+    endif()
+    if(NOT DEFINED CLAY_APP_ANDROID_RESOURCE_DIR)
+        set(CLAY_APP_ANDROID_RESOURCE_DIR "${CLAY_APP_TEMPLATE_DIR}/android")
+    endif()
 
     target_compile_definitions(${PROJECT_NAME}
         PRIVATE
@@ -41,7 +49,7 @@ macro(clay_app CLAYGROUND_APP_NAME)
             Qt6::Core
             Qt6::Qml
             Qt6::Quick
-            ${CLAYAPP_LINK_LIBS}
+            ${CLAY_APP_LINK_LIBS}
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
     qt6_policy(SET QTP0001 NEW)
@@ -49,21 +57,21 @@ macro(clay_app CLAYGROUND_APP_NAME)
         URI ${PROJECT_NAME}
         RESOURCE_PREFIX /
         NO_RESOURCE_TARGET_PATH
-        VERSION   ${CLAYAPP_VERSION}
-        QML_FILES ${CLAYAPP_QML_FILES}
-        RESOURCES ${CLAYAPP_RES_FILES}
+        VERSION   ${CLAY_APP_VERSION}
+        QML_FILES ${CLAY_APP_QML_FILES}
+        RESOURCES ${CLAY_APP_RES_FILES}
     )
 
     if (IOS)
-        set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
+        set(asset_catalog_path "${CLAY_APP_TEMPLATE_DIR}/ios/Assets.xcassets")
         target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
         set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
         set_target_properties(${PROJECT_NAME}
             PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
-    elseif(ANDROID)
+    elseif(ANDROID) # FIXME so that it works with Qt6.6+
         set(CLAY_APP_TARGET "${PROJECT_NAME}")
-        set(CLAY_APP_VERSION "${CLAYAPP_VERSION}")
-        set(android_templ_dir ${clay_app_templ_dir}/android)
+        set(CLAY_APP_VERSION "${CLAY_APP_VERSION}")
+        set(android_templ_dir ${CLAY_APP_TEMPLATE_DIR}/android)
         configure_file(${android_templ_dir}/android_manifest.xml.in android/AndroidManifest.xml)
         if (NOT CLAY_ANDROID_BUILD_TOOLS_VERSION STREQUAL "DO_NOT_USE")
             configure_file(${android_templ_dir}/gradle.properties.in android/gradle.properties)

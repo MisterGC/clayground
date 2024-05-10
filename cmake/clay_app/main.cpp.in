@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 #else
     engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
 #endif
-    engine.loadFromModule("${CLAYGROUND_APP_NAME}", "Main");
+    engine.loadFromModule("${CLAY_APP_NAME}", "Main");
     return app.exec();
 }
 
