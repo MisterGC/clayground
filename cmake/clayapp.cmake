@@ -54,19 +54,13 @@ macro(clay_app CLAYGROUND_APP_NAME)
         RESOURCES ${CLAYAPP_RES_FILES}
     )
 
-    if (NOT ANDROID)
-        if (IOS)
-            set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
-            target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
-            set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-            set_target_properties(${PROJECT_NAME}
-                PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
-        else()
-            add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
-            set_tests_properties(test${PROJECT_NAME} PROPERTIES
-                ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal")
-        endif()
-    else()
+    if (IOS)
+        set(asset_catalog_path "${clay_app_templ_dir}/ios/Assets.xcassets")
+        target_sources(${PROJECT_NAME} PRIVATE "${asset_catalog_path}")
+        set_source_files_properties(${asset_catalog_path} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        set_target_properties(${PROJECT_NAME}
+            PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+    elseif(ANDROID)
         set(CLAY_APP_TARGET "${PROJECT_NAME}")
         set(CLAY_APP_VERSION "${CLAYAPP_VERSION}")
         set(android_templ_dir ${clay_app_templ_dir}/android)
@@ -77,6 +71,10 @@ macro(clay_app CLAYGROUND_APP_NAME)
         file(COPY ${android_templ_dir}/res DESTINATION android)
         set_target_properties(${PROJECT_NAME} PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/android)
+    else() # Desktop targets (and WASM!?)
+        add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+        set_tests_properties(test${PROJECT_NAME} PROPERTIES
+            ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal")
     endif()
 
     qt_import_qml_plugins(${PROJECT_NAME})
