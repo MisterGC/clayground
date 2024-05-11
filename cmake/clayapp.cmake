@@ -130,12 +130,23 @@ macro(clay_app CLAY_APP_NAME)
             PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
 
         # Translations
-        file(GLOB_RECURSE LOCALIZATION_FILES "${CLAY_APP_IOS_DIR}/*.lproj")
-        foreach(localization_file ${LOCALIZATION_FILES})
-            get_filename_component(lang_dir "${localization_file}" DIRECTORY)
-            target_sources(${PROJECT_NAME} PRIVATE "${localization_file}")
-            set_source_files_properties("${localization_file}" PROPERTIES
-                                        MACOSX_PACKAGE_LOCATION "Resources/${lang_dir}")
+        set(LOCALIZATION_ROOT "${CLAY_APP_IOS_DIR}")
+        file(GLOB LOCALIZATION_DIRS "${LOCALIZATION_ROOT}/*.lproj")
+        foreach(LPROJ_DIR IN LISTS LOCALIZATION_DIRS)
+            # Get the name of the .lproj directory (e.g., en.lproj)
+            get_filename_component(LPROJ_NAME "${LPROJ_DIR}" NAME)
+            # Find all files within the .lproj directory
+            file(GLOB LOCALIZATION_FILES "${LPROJ_DIR}/*")
+            # Add each file to the project sources and specify its package location
+            foreach(LOCALIZATION_FILE IN LISTS LOCALIZATION_FILES)
+                get_filename_component(FILE_NAME "${LOCALIZATION_FILE}" NAME)
+                message(STATUS "Adding localization file: ${FILE_NAME} in ${LPROJ_NAME}")
+                # Add the file to your project's sources
+                target_sources(${PROJECT_NAME} PRIVATE "${LOCALIZATION_FILE}")
+                # Set the property to ensure it's placed in the correct resource directory
+                set_source_files_properties("${LOCALIZATION_FILE}" PROPERTIES
+                                            MACOSX_PACKAGE_LOCATION "Resources/${LPROJ_NAME}")
+            endforeach()
         endforeach()
 
     elseif(ANDROID) # FIXME so that it works with Qt6.6+
