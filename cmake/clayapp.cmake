@@ -76,9 +76,13 @@ macro(clay_app CLAY_APP_NAME)
     set(CLAY_APP_NAME ${CLAY_APP_NAME})
     configure_file(${CLAY_APP_TEMPLATE_DIR}/main.cpp.in main.cpp)
 
-    qt_add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
+    qt_add_executable(${PROJECT_NAME} WIN32
         ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
         ${CLAY_APP_SOURCES} )
+
+    if(APPLE)
+        set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
+    endif()
 
     target_compile_definitions(${PROJECT_NAME}
         PRIVATE
