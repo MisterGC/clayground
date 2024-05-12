@@ -174,6 +174,16 @@ macro(clay_app CLAY_APP_NAME)
 
     else() # Desktop targets (and WASM!?)
 
+        # Integrate the QML plugins in the package
+        if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+            add_custom_command(
+                TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/qml"
+                    "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${PROJECT_NAME}.app/Contents/Resources/qml"
+            )
+        endif()
+
         add_test(NAME test${PROJECT_NAME} COMMAND ${PROJECT_NAME})
         set_tests_properties(test${PROJECT_NAME} PROPERTIES
             ENVIRONMENT "QSG_INFO=1;QT_OPENGL=software;QT_QPA_PLATFORM=minimal")
