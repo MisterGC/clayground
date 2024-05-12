@@ -22,12 +22,18 @@ int main(int argc, char *argv[])
         );
     }
 
-#ifdef CLAYPLUGIN_LINKING_STATIC
+    // Make the app's Qml resources available
     engine.addImportPath(QStringLiteral(":/"));
-#else
-    engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
+
+// On macOS the plugins are deployed to a dir where Qt
+// automatically loads from (within <app-package>/Resources/qml)
+#ifndef CLAYPLUGIN_LINKING_STATIC
+    #if defined(_WIN32) || defined(__linux__)
+        engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
+    #endif
 #endif
+
+    // Clayground expects that each app has a Main.qml as entry point
     engine.loadFromModule("${CLAY_APP_NAME}", "Main");
     return app.exec();
 }
-
