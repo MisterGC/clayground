@@ -1,7 +1,7 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 # ==========================
-# CMAKE AND QT REQUIREMENTS
+# BASIC REQUIREMENTS
 # ==========================
 
 # Study this include if you want to know more about the
@@ -12,6 +12,9 @@ include(claycommon)
 
 set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
 cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
+
+set(CLAY_CXX_STANDARD 17 CACHE INTERNAL "")
+clay_check_cxx_requirements(MIN_CXX_STANDARD ${CLAY_CXX_STANDARD})
 
 set(CLAY_QT_MIN_VERSION 6.6.0 CACHE INTERNAL "")
 clay_check_qt_requirements(MIN_VERSION ${CLAY_QT_MIN_VERSION})
@@ -26,7 +29,7 @@ option(CLAYGROUND_WITH_EXAMPLES "Include Clayground examples" ON)
 
 
 # ====================
-# BASIC PROJECT SETUP
+# PROJECT SETUP
 # ====================
 
 include(clayplugin)
@@ -47,9 +50,9 @@ enable_testing()
 init_static_plugin_cfg()
 
 
-# =============
-# DEPENDENCIES
-# =============
+# ===============
+# - DEPENDENCIES
+# ===============
 
 add_subdirectory (thirdparty/qml-box2d)
 if (TARGET Box2Dplugin)
@@ -59,9 +62,9 @@ add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (thirdparty/csv-parser)
 
 
-# ============================
-# PLUGINS, TOOLS AND EXAMPLES
-# ============================
+# ==============================
+# - PLUGINS, TOOLS AND EXAMPLES
+# ==============================
 
 add_subdirectory (plugins)
 

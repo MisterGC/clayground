@@ -1,3 +1,14 @@
+# Function to enforce and check the required C++
+# compiler version (and features)
+function(clay_check_cxx_requirements MIN_CXX_STANDARD)
+    if (NOT MIN_CXX_STANDARD)
+        message(FATAL_ERROR "No C++ standard specified for clay_check_cxx_requirements")
+    endif()
+
+    set(CMAKE_CXX_STANDARD ${MIN_CXX_STANDARD})
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endfunction()
+
 # Function to check Qt requirements
 function(clay_check_qt_requirements)
     set(options "")
