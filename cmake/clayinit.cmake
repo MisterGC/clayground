@@ -4,6 +4,12 @@ if (ANDROID OR IOS)
     set(CLAYPLUGIN_LINKING STATIC CACHE INTERNAL "")
 endif()
 
+# Set the policy CMP0048 to NEW to allow the use of VERSION
+# in the cmake project() command
+if(POLICY CMP0048)
+  cmake_policy(SET CMP0048 NEW)
+endif()
+
 # Set output directories
 if (NOT (ANDROID OR IOS)) # Desktop, TODO What about WASM?
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
