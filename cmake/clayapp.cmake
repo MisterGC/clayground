@@ -39,8 +39,7 @@ include(CMakeParseArguments)
 ##
 macro(clay_app CLAY_APP_NAME)
 
-    cmake_minimum_required(VERSION 3.16)
-    project (${CLAY_APP_NAME} VERSION ${CLAY_APP_VERSION})
+    cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
 
     # Argument Parsing
     set (oneValueArgs VERSION)
@@ -58,14 +57,30 @@ macro(clay_app CLAY_APP_NAME)
                             "${multiValueArgs}"
                             ${ARGN})
 
+    project (${CLAY_APP_NAME} VERSION ${CLAY_APP_VERSION})
+
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    # Default Qt dependencies for any clay app
-    find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick)
+    # Extract Qt libraries from LINK_LIBS
+    # Letting the user provide the Qt:: prefix also allows the Qt Creator to
+    # offer jump to for the depdendency.
+    set(QT_LIB_PREFIX "Qt::")
+    set(CLAY_APP_QT_LIBS "")
+    foreach(lib ${CLAY_APP_LINK_LIBS})
+        if(lib MATCHES "^${QT_LIB_PREFIX}")
+            string(REPLACE "${QT_LIB_PREFIX}" "" qt_lib ${lib})
+            list(APPEND CLAY_APP_QT_LIBS ${qt_lib})
+        endif()
+    endforeach()
+
+    # Find the necessary Qt packages
+    foreach(QT_LIB ${CLAY_APP_QT_LIBS})
+        find_package(Qt6 COMPONENTS ${QT_LIB} REQUIRED)
+    endforeach()
 
     set(CLAY_APP_TEMPLATE_DIR ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
@@ -90,11 +105,15 @@ macro(clay_app CLAY_APP_NAME)
             $<$<STREQUAL:"${CLAYPLUGIN_LINKING}","STATIC">:CLAYPLUGIN_LINKING_STATIC>
     )
     target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+    # Qt Lists
+    foreach(QT_LIB ${CLAY_APP_QT_LIBS})
+        target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::${QT_LIB})
+    endforeach()
+    # Custom Libs and static plugin libs
+    # (needed when plugins need to be linked
+    #  statically e.g. for iOS)
     target_link_libraries(${PROJECT_NAME}
         PRIVATE
-            Qt6::Core
-            Qt6::Qml
-            Qt6::Quick
             ${CLAY_APP_LINK_LIBS}
             $CACHE{CLAYGROUND_STATIC_PLUGINS})
 
