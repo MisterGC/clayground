@@ -41,7 +41,7 @@ include(CMakeParseArguments)
 ##
 macro(clay_app CLAY_APP_NAME)
 
-    cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
+    cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
     # Argument Parsing
     set (oneValueArgs VERSION)

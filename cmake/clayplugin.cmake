@@ -5,7 +5,7 @@ include(CMakeParseArguments)
 
 function(clay_plugin PLUGIN_NAME)
 
-    cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
+    cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
     set (CMAKE_AUTOMOC ON)
     set (CMAKE_AUTORCC ON)

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 include (clayplugin)
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml Svg)
 

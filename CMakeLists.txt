@@ -11,7 +11,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
 include(claycommon)
 
 set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
-cmake_minimum_required(VERSION ${CLAY_MIN_CMAKE_VERSION})
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
 set(CLAY_CXX_STANDARD 17 CACHE INTERNAL "")
 clay_check_cxx_requirements(MIN_CXX_STANDARD ${CLAY_CXX_STANDARD})
