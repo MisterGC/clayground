@@ -12,9 +12,11 @@ include(CMakeParseArguments)
 # Options (to be passed with ARGN):
 #   VERSION     - Specify the version of the application.
 #   SOURCES     - List of source files for the application.
-#   LINK_LIBS   - List of libraries to link against.
+#   LINK_LIBS   - List of libraries to link agains, if Qt depedencies
+#                 are listed no corresponding find_package is need
+#                 the macro takes care about it.
 #   QML_FILES   - List of QML files to be included in the application.
-#   RES_FILES   - List of resource files.
+#   RES_FILES   - List of resource files like images and sounds.
 #   IOS_DIR     - Custom directory for iOS-specific files.
 #   ANDROID_DIR - Custom directory for Android-specific files.
 #
