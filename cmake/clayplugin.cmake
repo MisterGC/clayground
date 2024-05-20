@@ -44,6 +44,7 @@ function(clay_plugin PLUGIN_NAME)
         set(PLUGIN_NAME "Clay${PLUGIN_NAME}")
     endif()
 
+    qt6_policy(SET QTP0001 NEW)
     qt_add_qml_module(${PLUGIN_NAME}
             URI ${CLAY_PLUGIN_URI}
             OUTPUT_DIRECTORY ${CLAY_PLUGIN_DEST_DIR}
