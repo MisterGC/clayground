@@ -1,28 +1,47 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 include (clayplugin)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 set (CMAKE_AUTOMOC ON)
 set (CMAKE_AUTORCC ON)
 
-find_library(STOREKIT_LIBRARY StoreKit)
+# Define common sources
+set(COMMON_SOURCES
+    clayiosbridgewrapper.h
+    iosplugin.h
+    iosplugin.cpp
+)
+
+# Define platform-specific sources
+if(IOS)
+    find_library(STOREKIT_LIBRARY StoreKit)
+    set(PLATFORM_SOURCES
+        clayiosbridgewrapper.mm
+        clayiosbridge.h
+        clayiosbridge.mm
+    )
+else()
+    set(STOREKIT_LIBRARY "")
+    set(PLATFORM_SOURCES
+        clayiosbridgewrapper.cpp
+    )
+endif()
 
 # Doesn't use clay_p as advanced, workaround options of
 # qt_add_qml_module have to be used to get image provider working
 qt_add_qml_module( ClayIos
+
     VERSION 1.0
+
     URI Clayground.Ios
     PLUGIN_TARGET ClayIos
     ${CLAYPLUGIN_LINKING}
     OUTPUT_DIRECTORY  "${CLAY_PLUGIN_BASE_DIR}/Ios"
 
     SOURCES
-        iosplugin.cpp
-        iosplugin.h
-        clayiosbridge.h
-        clayiosbridge.mm
-        clayiosbridgewrapper.h
-        clayiosbridgewrapper.mm
+        ${COMMON_SOURCES}
+        ${PLATFORM_SOURCES}
 
     # TODO: There is not yet a clean way to support for image providers, just
     # following the workaround described in  https://www.qt.io/blog/qml-modules-in-qt-6.2

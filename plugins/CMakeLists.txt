@@ -17,6 +17,4 @@ add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)
 
 # Platform Plugins
-if (IOS)
-    add_subdirectory (clay_ios)
-endif()
+add_subdirectory (clay_ios)

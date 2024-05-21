@@ -14,15 +14,9 @@ Clayground_IosPlugin::Clayground_IosPlugin(QObject *parent):
 
 void Clayground_IosPlugin::initializeEngine(QQmlEngine *engine, const char */*uri*/)
 {
-    // TODO: Integrate mirror/accessor class here
-    //engine->rootContext()->setContextProperty("ClaySvgImageProvider", provider);
-
-    //ClayIosBridge bridge;
-    //engine.rootContext()->setContextProperty("clayIosBridge", &bridge);
-
     // Instantiate IOS wrapper
     auto *bridge = new ClayIosBridgeWrapper(engine);
 
     // Use the wrapper instance to set context property
-    engine->rootContext()->setContextProperty("clayIosBridge", bridge);
+    engine->rootContext()->setContextProperty("ClayIos", bridge);
 }
