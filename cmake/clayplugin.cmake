@@ -49,7 +49,7 @@ function(clay_plugin PLUGIN_NAME)
             URI ${CLAY_PLUGIN_URI}
             OUTPUT_DIRECTORY ${CLAY_PLUGIN_DEST_DIR}
             VERSION ${CLAY_PLUGIN_VERSION}
-            ${CLAY_PLUGIN_LINKING}
+            ${CLAYPLUGIN_LINKING}
             SOURCES ${CLAY_PLUGIN_SOURCES}
             QML_FILES ${CLAY_PLUGIN_QML_FILES}
             NO_CACHEGEN
@@ -66,14 +66,15 @@ endfunction()
 function(init_static_plugin_cfg)
     set(CLAYGROUND_STATIC_PLUGINS "" CACHE INTERNAL "")
     set(CLAYGROUND_IMPORT_PLUGINS "" CACHE INTERNAL "")
-    if ("${CLAY_PLUGIN_LINKING}" STREQUAL "STATIC")
+    if ("${CLAYPLUGIN_LINKING}" STREQUAL "STATIC")
         set(CLAYGROUND_IMPORT_PLUGINS "#include<QtQml/qqmlextensionplugin.h>" CACHE INTERNAL "")
     endif()
 endfunction()
 
 
 function(extend_static_plugin_cfg plugin_target plugin_import)
-    if ("${CLAY_PLUGIN_LINKING}" STREQUAL "STATIC")
+    if ("${CLAYPLUGIN_LINKING}" STREQUAL "STATIC")
+        message("EXTENDING STATIC")
         set(CLAYGROUND_STATIC_PLUGINS "${CLAYGROUND_STATIC_PLUGINS};${plugin_target}" CACHE INTERNAL "")
         set(CLAYGROUND_IMPORT_PLUGINS "${CLAYGROUND_IMPORT_PLUGINS} Q_IMPORT_QML_PLUGIN(${plugin_import})" CACHE INTERNAL "")
     endif()
