@@ -89,8 +89,6 @@ SvgReader
                 }
                 target[finalKey] = initVals[p]; // Assign the value.
             }
-        } else {
-            console.log("No properties to process.");
         }
     }
 
