@@ -9,7 +9,6 @@ import Clayground.Common
 ClayWorldBase
 {
     id: _world
-    anchors.fill: parent
 
     // GENERAL PROPERTIES
     readonly property ClayCanvas canvas: _theCanvas
