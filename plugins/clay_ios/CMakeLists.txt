@@ -43,6 +43,9 @@ qt_add_qml_module( ClayIos
         ${COMMON_SOURCES}
         ${PLATFORM_SOURCES}
 
+    QML_FILES
+        AppReviewController.qml
+
     # TODO: There is not yet a clean way to support for image providers, just
     # following the workaround described in  https://www.qt.io/blog/qml-modules-in-qt-6.2
     NO_PLUGIN_OPTIONAL
