@@ -17,6 +17,7 @@ StaticRigidBody {
         target: _wall
         origDimensions: cCUBE_MODEL_DIMENSIONS
     }
+    property alias color: _wallMaterial.baseColor
 
     // Either set the y components here or use the
     // initializer cfg in the scene SVG
@@ -27,6 +28,7 @@ StaticRigidBody {
         id: _wallElementModel
         source: "#Cube"
         materials: PrincipledMaterial {
+            id: _wallMaterial
             baseColor: Qt.rgba(0, 0, 1, 1)
         }
         castsShadows: true

@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
+import QtQuick.Shapes
 import Box2D
 import Clayground.GameController
 import Clayground.World

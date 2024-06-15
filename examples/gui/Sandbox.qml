@@ -2,6 +2,7 @@
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.LocalStorage
 import Clayground.Svg
 
 Rectangle

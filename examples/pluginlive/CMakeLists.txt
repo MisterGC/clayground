@@ -1,7 +1,18 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
-include (clayexample)
-clay_example (sbx_plugin
+include (clayapp)
+clay_app (sbx_plugin
+
     VERSION 1.0
-    SOURCES main.cpp res.qrc
+
+    SOURCES main.cpp
+
+    QML_FILES
+        Main.qml
+        Sandbox.qml
+
+    LINK_LIBS
+        Qt::Core
+        Qt::Qml
+        Qt::Quick
 )
 add_subdirectory (plugin)

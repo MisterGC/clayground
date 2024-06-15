@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 include (clayplugin)
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml Svg)
 
 set (CMAKE_AUTOMOC ON)
 set (CMAKE_AUTORCC ON)
 
-# Doesn't use clay_p as advanced, workaround options of
+# Doesn't use clay_plugin as advanced, workaround options of
 # qt_add_qml_module have to be used to get image provider working
 qt_add_qml_module( ClaySvg
     VERSION 1.0

@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.19)
 include (clayplugin)
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Qml)
 
 set(JSONATA_SRC_DIR ${CLAY_DEPS_BASE_DIR}/jsonata/src)
 set_source_files_properties(${JSONATA_SRC_DIR}/datetime.js PROPERTIES QT_RESOURCE_ALIAS datetime.js)
@@ -10,12 +8,15 @@ set_source_files_properties(${JSONATA_SRC_DIR}/functions.js PROPERTIES QT_RESOUR
 set_source_files_properties(${JSONATA_SRC_DIR}/parser.js PROPERTIES QT_RESOURCE_ALIAS parser.js)
 set_source_files_properties(${JSONATA_SRC_DIR}/utils.js PROPERTIES QT_RESOURCE_ALIAS utils.js)
 
-clay_p( Text
+clay_plugin( Text
+
     VERSION 1.0
+
     SOURCES 
         csvreader.h csvreader.cpp 
         csvwriter.h csvwriter.cpp
         texthighlighter.h texthighlighter.cpp
+
     QML_FILES
         ${JSONATA_SRC_DIR}/datetime.js
         ${JSONATA_SRC_DIR}/jsonata.js
@@ -27,5 +28,10 @@ clay_p( Text
         HighlightedText.qml
         JsonataTransform.qml
         Sandbox.qml
-    LINK_LIBS Qt::Core Qt::Quick Qt::Qml csv-parser
+
+    LINK_LIBS
+        Qt::Core
+        Qt::Quick
+        Qt::Qml
+        csv-parser
 )

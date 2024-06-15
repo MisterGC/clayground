@@ -7,6 +7,6 @@ add_subdirectory (topdown)
 add_subdirectory (visualfx)
 add_subdirectory (void)
 
-if (NOT ANDROID)
+if (NOT (ANDROID OR IOS))
     add_subdirectory (pluginlive)
 endif()

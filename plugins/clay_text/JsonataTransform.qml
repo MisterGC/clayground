@@ -1,6 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
-import QtQuick 2.0
+import QtQuick
 import Clayground.Text
 import "qrc:/Clayground/Text/jsonata.js" as Jsonata
 
