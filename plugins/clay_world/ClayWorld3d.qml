@@ -35,6 +35,7 @@ ClayWorldBase {
     property real xWuMax: 100
     readonly property real zWuMin: 0
     property real zWuMax: 100
+    property alias floor: _floor
 
     _sceneLoader: SceneLoader3d {
         world: _clayWorld3d
@@ -127,7 +128,9 @@ ClayWorldBase {
                     receivesShadows: true
                 }
             }
-            Floor {}
+            Floor {
+                id: _floor
+            }
         }
     }
 

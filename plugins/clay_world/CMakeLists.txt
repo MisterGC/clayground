@@ -4,6 +4,12 @@ clay_plugin( World
 
     VERSION 1.0
 
+    SOURCES
+        line3dgeometry.h
+        line3dinstancing.cpp
+        line3dinstancing.h
+        line3dgeometry.cpp
+
     QML_FILES
         ClayWorldBase.qml
         ClayWorld2d.qml
@@ -18,6 +24,7 @@ clay_plugin( World
     LINK_LIBS
         Qt::Core
         Qt::Quick
+        Qt::Quick3D
         Qt::Qml
         ClayPhysics
 )
