@@ -115,18 +115,18 @@ void Line3dGeometry::updateGeometry()
 
         // Define indices for the box faces
         static const int indices[] = {
-            0, 1, 2, 3, // Start face
-            4, 5, 6, 7, // End face
-            0, 4, 1, 5, // Top face
-            2, 6, 3, 7, // Bottom face
-            0, 3, 4, 7, // Right face
-            1, 2, 5, 6  // Left face
+            0, 1, 2, 0, 2, 3, // Start face
+            4, 5, 6, 4, 6, 7, // End face
+            0, 4, 1, 1, 4, 5, // Top face
+            2, 6, 3, 3, 6, 7, // Bottom face
+            0, 3, 4, 3, 4, 7, // Right face
+            1, 5, 2, 2, 5, 6  // Left face
         };
 
         // Add indices to the buffer
         for (int idx : indices) {
             int globalIdx = vertexCount + idx;
-            indexBuffer.append(reinterpret_cast<const char*>(&globalIdx), sizeof(int));
+            indexBuffer.append(reinterpret_cast<const char*>(&globalIdx), sizeof(uint32_t));
         }
 
         vertexCount += 8;
@@ -147,8 +147,11 @@ void Line3dGeometry::updateGeometry()
     using Attr = QQuick3DGeometry::Attribute;
     addAttribute(Attr::PositionSemantic, 0, Attr::F32Type);
 
-    // Set primitive type to triangle strip
-    setPrimitiveType(QQuick3DGeometry::PrimitiveType::TriangleStrip);
+    // Add index attribute
+    addAttribute(Attr::IndexSemantic, 0, Attr::U32Type);
+
+    // Set primitive type to triangles
+    setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
 
     // Update the geometry
     update();
