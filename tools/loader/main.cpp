@@ -3,17 +3,15 @@
 #include "utilityfunctions.h"
 #include "clayliveloader.h"
 #include <QApplication>
-#include <QDir>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QDir>
 #include <QQmlDebuggingEnabler>
+#include <QQuickStyle>
 #include <QtGlobal>
 
-void processCmdLineArgs(const QGuiApplication& app, ClayLiveLoader& loader)
+void applyCliArgsToLoader(QCommandLineParser& parser, ClayLiveLoader& loader)
 {
-    QCommandLineParser parser;
-    addCommonArgs(parser);
-    parser.process(app);
 
     auto const isMessageMode = parser.isSet(MESSAGE_ARG);
     auto const isSbxMode = parser.isSet(DYN_IMPORT_DIR_ARG) ||
@@ -86,20 +84,27 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
     QQmlDebuggingEnabler::enableDebugging(true);
-#else
-    QQmlDebuggingEnabler enabler;
-#endif
+
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("ClayLiveLoader");
     QCoreApplication::setApplicationVersion(CLAY_LOADER_VERSION);
+
+    QCommandLineParser parser;
+    addCommonArgs(parser);
+    parser.process(app);
+
+    // Style needs to be set before any QML is loaded
+    // -> do it before ClayLiveLoader creation
+    if (parser.isSet(GUI_STYLE_ARG)) {
+        QQuickStyle::setStyle(parser.value(GUI_STYLE_ARG));
+    }
 
     ClayLiveLoader liveLoader;
     MsgHandlerWrapper::theLoader = &liveLoader;
     qInstallMessageHandler(MsgHandlerWrapper::customHandler);
 
-    processCmdLineArgs(app, liveLoader);
+    applyCliArgsToLoader(parser, liveLoader);
     liveLoader.show();
 
     return app.exec();

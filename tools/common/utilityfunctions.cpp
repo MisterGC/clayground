@@ -9,4 +9,5 @@ void addCommonArgs(QCommandLineParser &parser)
     parser.addOption({SBX_ARG, SBX_ARG_DESCR, "file-path", "<none>"});
     parser.addOption({SBX_INDEX_ARG, SBX_INDEX_ARG_DESCR, "index", QString::number(USE_FIRST_SBX_IDX)});
     parser.addOption({MESSAGE_ARG, MESSAGE_ARG_DESCR, "N/A"});
+    parser.addOption({GUI_STYLE_ARG, STYLE_ARG_DESCR, "style-name"});
 }
