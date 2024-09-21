@@ -20,54 +20,66 @@ void CustomLineGeometry::setVertices(const QVector<QVector3D> &newVertices)
 
 void CustomLineGeometry::updateData()
 {
-    QByteArray vertexData;
-    QByteArray indexData;
+    QByteArray vertexBuffer;
+    QByteArray indexBuffer;
     int vertexCount = 0;
 
-    // Generate geometry for each line segment
+    // Iterate over vertices and create the line geometry
     for (int i = 0; i < m_vertices.size() - 1; ++i) {
         QVector3D start = m_vertices[i];
         QVector3D end = m_vertices[i + 1];
 
-        // Generate 4 vertices for each line segment (forming a quad)
-        QVector3D vertices[4] = {
-            start,
-            start,
-            end,
-            end
-        };
-
-        // Add vertices to the buffer
+        // Define the 4 corners of the line segment
         for (int j = 0; j < 4; ++j) {
-            vertexData.append(reinterpret_cast<const char*>(&vertices[j]), sizeof(QVector3D));
+            QVector3D pos = (j < 2) ? start : end;
+            float side = (j % 2 == 0) ? -1.0f : 1.0f;
+            side = side * (j<2 ? 1.0 : -1.0);  // Use -1.0 for the first two vertices and 1.0 for the last two vertices
+
+            // Determine the other end of the line segment
+            QVector3D otherEnd = (j < 2) ? end : start;  // Use `end` if `pos` is `start`, and `start` if `pos` is `end`
+
+            // Add position
+            vertexBuffer.append(reinterpret_cast<const char*>(&pos), sizeof(QVector3D));
+
+            // Add side information and the correct other end position in the color buffer
+            QVector4D colorInfo(side, otherEnd.x(), otherEnd.y(), otherEnd.z());
+            vertexBuffer.append(reinterpret_cast<const char*>(&colorInfo), sizeof(QVector4D));
         }
 
-        // Define indices for two triangles forming the quad
-        int indices[6] = {
-            vertexCount, vertexCount + 1, vertexCount + 2,
-            vertexCount + 1, vertexCount + 3, vertexCount + 2
+        // Define indices for the two triangles forming the line segment
+        static const int indices[] = {
+            0, 1, 2,
+            1, 3, 2
         };
 
         // Add indices to the buffer
         for (int idx : indices) {
-            indexData.append(reinterpret_cast<const char*>(&idx), sizeof(int));
+            int globalIdx = vertexCount + idx;
+            indexBuffer.append(reinterpret_cast<const char*>(&globalIdx), sizeof(uint32_t));
         }
 
         vertexCount += 4;
     }
 
-    setVertexData(vertexData);
-    setIndexData(indexData);
-    setStride(sizeof(QVector3D));
-    setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
+    // Set the vertex and index data
+    setVertexData(vertexBuffer);
+    setIndexData(indexBuffer);
 
     // Set up attribute information for vertices
     QVector3D extents = calculateExtents();
     setBounds(extents, -extents);  // Set bounding volume
 
+    // Stride is now 7 floats: 3 for position, 4 for color info
+    setStride(7 * sizeof(float));
+
     // Add position attribute
     addAttribute(QQuick3DGeometry::Attribute::PositionSemantic,
                  0,
+                 QQuick3DGeometry::Attribute::F32Type);
+
+    // Add color attribute (contains side and other end position)
+    addAttribute(QQuick3DGeometry::Attribute::ColorSemantic,
+                 3 * sizeof(float),
                  QQuick3DGeometry::Attribute::F32Type);
 
     // Add index attribute
@@ -75,6 +87,10 @@ void CustomLineGeometry::updateData()
                  0,
                  QQuick3DGeometry::Attribute::U32Type);
 
+    // Set primitive type to triangles
+    setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
+
+    // Update the geometry
     update();
 }
 
