@@ -12,17 +12,17 @@ class CustomLineGeometry : public QQuick3DGeometry
 public:
     CustomLineGeometry();
 
-    Q_PROPERTY(QVector<QVector3D> vertices READ vertices WRITE setVertices NOTIFY verticesChanged)
+    Q_PROPERTY(QVector<QVector<QVector3D>> lines READ lines WRITE setLines NOTIFY linesChanged)
 
-    QVector<QVector3D> vertices() const;
-    void setVertices(const QVector<QVector3D> &newVertices);
+    QVector<QVector<QVector3D>> lines() const;
+    void setLines(const QVector<QVector<QVector3D>> &newLines);
 
 signals:
-    void verticesChanged();
+    void linesChanged();
 
 private:
     void updateData();
-    QVector<QVector3D> m_vertices;
+    QVector<QVector<QVector3D>> m_lines;
     QVector3D calculateExtents() const;
 };
 

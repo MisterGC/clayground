@@ -19,7 +19,8 @@ clay_plugin( World
         ClayWorldBase.qml
         ClayWorld2d.qml
         ClayWorld3d.qml
-        Line3d.qml
+        Line3D.qml
+        MultiLine3D.qml
         ScaleByDimensions.qml
         SceneLoaderBase.qml
         SceneLoader2d.qml
