@@ -5,6 +5,8 @@ clay_plugin( World
     VERSION 1.0
 
     SOURCES
+        box3dgeometry.cpp
+        box3dgeometry.h
         customlinegeometry.cpp
         customlinegeometry.h
         line3dgeometry.h
