@@ -22,11 +22,6 @@ Model {
 
             property real lineWidth: 1
             property color lineColor: "black"
-
-            //shadingMode: CustomMaterial.Unshaded
-            //sourceBlend: CustomMaterial.SrcAlpha
-            //destinationBlend: CustomMaterial.SrcAlpha
-
             vertexShader: "custom_line.vert"
             fragmentShader: "custom_line.frag"
         }
