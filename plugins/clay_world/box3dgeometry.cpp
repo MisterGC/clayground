@@ -1,6 +1,6 @@
 #include "box3dgeometry.h"
 
-Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1)
+Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace)
 {
     updateData();
 }
@@ -19,17 +19,111 @@ void Box3dGeometry::setSize(const QVector3D &newSize)
     updateData();
 }
 
+QVector2D Box3dGeometry::faceScale() const
+{
+    return m_faceScale;
+}
+
+void Box3dGeometry::setFaceScale(const QVector2D &newFaceScale)
+{
+    if (m_faceScale == newFaceScale)
+        return;
+    m_faceScale = newFaceScale;
+    emit faceScaleChanged();
+    updateData();
+}
+
+Box3dGeometry::ScaledFace Box3dGeometry::scaledFace() const
+{
+    return m_scaledFace;
+}
+
+void Box3dGeometry::setScaledFace(ScaledFace newScaledFace)
+{
+    if (m_scaledFace == newScaledFace)
+        return;
+    m_scaledFace = newScaledFace;
+    emit scaledFaceChanged();
+    updateData();
+}
+
 void Box3dGeometry::updateData()
 {
     // Define the 8 vertices of the box
-    QVector3D v0(-m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2); // Bottom-Back-Left
-    QVector3D v1(m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);  // Bottom-Back-Right
-    QVector3D v2(m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);   // Top-Back-Right
-    QVector3D v3(-m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);  // Top-Back-Left
-    QVector3D v4(-m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);  // Bottom-Front-Left
-    QVector3D v5(m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);   // Bottom-Front-Right
-    QVector3D v6(m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);    // Top-Front-Right
-    QVector3D v7(-m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);   // Top-Front-Left
+    QVector3D v0, v1, v2, v3, v4, v5, v6, v7;
+
+    // Apply scaling based on the selected face
+    switch (m_scaledFace) {
+    case TopFace:
+        v0 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v1 = QVector3D(m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v2 = QVector3D(m_size.x() * m_faceScale.x() / 2, m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v3 = QVector3D(-m_size.x() * m_faceScale.x() / 2, m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v4 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v5 = QVector3D(m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v6 = QVector3D(m_size.x() * m_faceScale.x() / 2, m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v7 = QVector3D(-m_size.x() * m_faceScale.x() / 2, m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        break;
+    case BottomFace:
+        v0 = QVector3D(-m_size.x() * m_faceScale.x() / 2, -m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v1 = QVector3D(m_size.x() * m_faceScale.x() / 2, -m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v2 = QVector3D(m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v3 = QVector3D(-m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v4 = QVector3D(-m_size.x() * m_faceScale.x() / 2, -m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v5 = QVector3D(m_size.x() * m_faceScale.x() / 2, -m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v6 = QVector3D(m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+        v7 = QVector3D(-m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+        break;
+    case FrontFace:
+        v0 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v1 = QVector3D(m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v2 = QVector3D(m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v3 = QVector3D(-m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v4 = QVector3D(-m_size.x() * m_faceScale.x() / 2, -m_size.y() * m_faceScale.y() / 2, m_size.z() / 2);
+        v5 = QVector3D(m_size.x() * m_faceScale.x() / 2, -m_size.y() * m_faceScale.y() / 2, m_size.z() / 2);
+        v6 = QVector3D(m_size.x() * m_faceScale.x() / 2, m_size.y() * m_faceScale.y() / 2, m_size.z() / 2);
+        v7 = QVector3D(-m_size.x() * m_faceScale.x() / 2, m_size.y() * m_faceScale.y() / 2, m_size.z() / 2);
+        break;
+    case BackFace:
+        v0 = QVector3D(-m_size.x() * m_faceScale.x() / 2, -m_size.y() * m_faceScale.y() / 2, -m_size.z() / 2);
+        v1 = QVector3D(m_size.x() * m_faceScale.x() / 2, -m_size.y() * m_faceScale.y() / 2, -m_size.z() / 2);
+        v2 = QVector3D(m_size.x() * m_faceScale.x() / 2, m_size.y() * m_faceScale.y() / 2, -m_size.z() / 2);
+        v3 = QVector3D(-m_size.x() * m_faceScale.x() / 2, m_size.y() * m_faceScale.y() / 2, -m_size.z() / 2);
+        v4 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v5 = QVector3D(m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v6 = QVector3D(m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+        v7 = QVector3D(-m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+        break;
+    case LeftFace:
+        v0 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v1 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v2 = QVector3D(-m_size.x() / 2, m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v3 = QVector3D(-m_size.x() / 2, m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v4 = QVector3D(m_size.x() / 2, -m_size.y() * m_faceScale.x() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v5 = QVector3D(m_size.x() / 2, -m_size.y() * m_faceScale.x() / 2, m_size.z() * m_faceScale.y() / 2);
+        v6 = QVector3D(m_size.x() / 2, m_size.y() * m_faceScale.x() / 2, m_size.z() * m_faceScale.y() / 2);
+        v7 = QVector3D(m_size.x() / 2, m_size.y() * m_faceScale.x() / 2, -m_size.z() * m_faceScale.y() / 2);
+        break;
+    case RightFace:
+        v0 = QVector3D(-m_size.x() / 2, -m_size.y() * m_faceScale.x() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v1 = QVector3D(-m_size.x() / 2, -m_size.y() * m_faceScale.x() / 2, m_size.z() * m_faceScale.y() / 2);
+        v2 = QVector3D(-m_size.x() / 2, m_size.y() * m_faceScale.x() / 2, m_size.z() * m_faceScale.y() / 2);
+        v3 = QVector3D(-m_size.x() / 2, m_size.y() * m_faceScale.x() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v4 = QVector3D(m_size.x() / 2, -m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        v5 = QVector3D(m_size.x() / 2, -m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v6 = QVector3D(m_size.x() / 2, m_size.y() / 2, m_size.z() * m_faceScale.y() / 2);
+        v7 = QVector3D(m_size.x() / 2, m_size.y() / 2, -m_size.z() * m_faceScale.y() / 2);
+        break;
+    default: // NoFace or unhandled cases
+        v0 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v1 = QVector3D(m_size.x() / 2, -m_size.y() / 2, -m_size.z() / 2);
+        v2 = QVector3D(m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v3 = QVector3D(-m_size.x() / 2, m_size.y() / 2, -m_size.z() / 2);
+        v4 = QVector3D(-m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v5 = QVector3D(m_size.x() / 2, -m_size.y() / 2, m_size.z() / 2);
+        v6 = QVector3D(m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+        v7 = QVector3D(-m_size.x() / 2, m_size.y() / 2, m_size.z() / 2);
+    }
 
     // Define the 6 face normals, ensuring they point outward
     const QVector3D nFront(0.0f, 0.0f, 1.0f);   // Front Face (+Z)
@@ -86,7 +180,12 @@ void Box3dGeometry::updateData()
 
     // Set up attribute information for vertices and normals
     setStride(2 * sizeof(QVector3D));  // Position + Normal data
-    setBounds(-m_size / 2, m_size / 2);
+
+    // Update the bounds to account for the scaled top
+    QVector3D maxBounds = m_size / 2;
+    maxBounds.setX(qMax(maxBounds.x(), maxBounds.x() * m_faceScale.x()));
+    maxBounds.setZ(qMax(maxBounds.z(), maxBounds.z() * m_faceScale.y()));
+    setBounds(-maxBounds, maxBounds);
 
     addAttribute(QQuick3DGeometry::Attribute::PositionSemantic,
                  0,
