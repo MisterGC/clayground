@@ -4,8 +4,6 @@
 # PROJECT BASICS
 # ===============
 
-find_package(Qt6 COMPONENTS Core Qml REQUIRED)
-
 # Initializes global context that Clayground relies on
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
 
@@ -23,6 +21,10 @@ project (Clayground
 
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}" CACHE INTERNAL "")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}" CACHE INTERNAL "")
+
+# Ensure that all Qt tools are avaible on root
+# level (needed for Qt >= 6.8.0)
+find_package(Qt6 COMPONENTS Core Qml REQUIRED)
 
 enable_testing()
 init_static_plugin_cfg()

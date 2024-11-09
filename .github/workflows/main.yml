@@ -6,89 +6,72 @@ on:
   pull_request:
     branches: [ main ]
 
+# Prevent multiple runs of the same workflow on the same ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+env:
+  QT_VERSION: '6.8.*'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
+  CMAKE_BUILD_TYPE: Release
+  AQT_VERSION: '==3.1.18'
+
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            qt-host: linux
+            qt-arch: linux_gcc_64
+          - os: windows-2022
+            qt-host: windows
+            qt-arch: win64_msvc2022_64
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-
-    - name: Fetch Sources
-      uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: '6.8.0'
-        host: 'linux'
+        version: ${{ env.QT_VERSION }}
+        host: ${{ matrix.qt-host }}
         target: 'desktop'
-        arch: 'gcc_64'
-        modules: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools'
-        aqtversion: '==3.1.11'
+        arch: ${{ matrix.qt-arch }}
+        modules: ${{ env.QT_MODULES }}
+        aqtversion: ${{ env.AQT_VERSION }}
 
-    - name: Install additional Dependencies
+    - name: Install Linux Dependencies
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
 
-    - name: CMake Configure
-      run:  |
-        mkdir build
-        cd $GITHUB_WORKSPACE/build
-        sudo apt-get install -y ninja-build
-        cmake -DCMAKE_BUILD_TYPE=Release -DQT_QMAKE_EXECUTABLE=qmake -GNinja ../
+    - name: Install Windows Dependencies
+      if: runner.os == 'Windows'
+      run: choco install ninja -y
+      shell: cmd
+
+    - name: Setup MSVC
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} .
 
     - name: Build
-      run:  |
-        cd $GITHUB_WORKSPACE/build
-        cmake --build .
+      run: cmake --build build
+      env:
+        CL: /MP  # Enable parallel compilation on Windows
 
     - name: Test
-      run:  |
-        cd $GITHUB_WORKSPACE/build
-        ctest --output-on-failure
-
-
-  build-windows:
-    runs-on: windows-2019
-
-    steps:
-
-    - name: Fetch Sources
-      uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
-
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '6.8.0'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
-        modules: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools'
-        aqtversion: '==3.1.11'
-
-    - name: CMake Configure
-      run:  |
-        mkdir build
-        cd %GITHUB_WORKSPACE%\build
-        choco install ninja -y
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        cmake -DCMAKE_BUILD_TYPE=Release -GNinja -DQT_QMAKE_EXECUTABLE=qmake -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ../
-      shell: cmd
-
-    - name: Build
-      run:  |
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        cd %GITHUB_WORKSPACE%\build
-        set CL=/MP
-        cmake --build .
-      shell: cmd
-
-    - name: Test
-      run:  |
-        cd %GITHUB_WORKSPACE%\build
-        ctest --output-on-failure
-      shell: cmd
+      working-directory: build
+      run: ctest --output-on-failure
