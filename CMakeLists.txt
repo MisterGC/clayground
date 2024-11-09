@@ -4,6 +4,8 @@
 # PROJECT BASICS
 # ===============
 
+find_package(Qt6 COMPONENTS Core Qml REQUIRED)
+
 # Initializes global context that Clayground relies on
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
 
