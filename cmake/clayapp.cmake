@@ -109,6 +109,13 @@ macro(clay_app CLAY_APP_NAME)
         ${CLAY_APP_SOURCES} )
 
     if(APPLE)
+        # Adds FFMPEG dylibs to the app package, this
+        # works for dev builds but the results get refused by the app store
+        # Unfortunately there is no workaround at the moment, but there is
+        # an open issue (+ potential patch) that needs to be fixed (see QTBUG-130813)
+        # To be re-checked as soon as a Qt version (6.8.1!?) with the fix has been
+        # released.
+        qt_add_ios_ffmpeg_libraries(${PROJECT_NAME})
         set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
     endif()
 
