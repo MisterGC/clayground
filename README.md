@@ -89,10 +89,105 @@ Have a look at the `onMapLoaded` signal handler of the Platformer Sandbox to see
 Each of the demo sandboxes also comes with a CMake application configuration which
 allows to build a standalone app. So you can just use one as a template to build your own app.
 
-### Is there any recommended development setup?
+### Recommended Development Setup
 
-- OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can
-- IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim and VS Code for various text processing tasks
+To ensure a smooth development experience, we recommend the following setup:
+
+- **Operating System**: Linux (fastest and easiest to use). Clayground has also been tested on macOS and Windows 10, but Linux is preferred for optimal performance.
+- **IDE/Editor**: Qt Creator is highly recommended as it allows for easy debugging and profiling of resulting apps. Additionally, you can use Vim and VS Code for various text processing tasks.
+
+### Detailed Steps for Setting Up the Development Environment
+
+1. **Clone the Repository**:
+   ```sh
+   git clone https://github.com/MisterGC/clayground.git
+   cd clayground
+   git submodule update --recursive --init
+   ```
+
+2. **Install Dependencies**:
+   Ensure you have the following dependencies installed:
+   - CMake (version 3.20 or higher)
+   - Qt (version 6.3.0 or higher)
+   - Qt Creator (version 7.0.0 or higher)
+
+3. **Build the Project**:
+   ```sh
+   mkdir build
+   cd build
+   cmake ..
+   make
+   ```
+
+4. **Run the Dojo App**:
+   ```sh
+   ./claydojo --sbx ../sandboxes/void/Sandbox.qml
+   ```
+
+5. **Move and Arrange Windows**:
+   Arrange the created windows in a way that allows you to keep them visible while editing code.
+
+6. **Make Changes and See Results**:
+   Make changes to `../sandboxes/void/Sandbox.qml` and see the changes applied automatically.
+
+7. **Show Guide/Help Overlay**:
+   Press `Ctrl+G` in the app window to show the Guide/Help overlay.
+
+8. **Explore Other Sandboxes**:
+   Check out the other sandboxes in the same way.
+
+### Building the Project Using CMake and Qt
+
+To build the project using CMake and Qt, follow these steps:
+
+1. **Install CMake**:
+   ```sh
+   sudo apt-get install cmake
+   ```
+
+2. **Install Qt**:
+   Download and install Qt from the official [Qt website](https://www.qt.io/download).
+
+3. **Configure the Project**:
+   ```sh
+   mkdir build
+   cd build
+   cmake ..
+   ```
+
+4. **Build the Project**:
+   ```sh
+   make
+   ```
+
+5. **Run the Dojo App**:
+   ```sh
+   ./claydojo --sbx ../sandboxes/void/Sandbox.qml
+   ```
+
+### Starting the Dojo App and Working with Sandboxes
+
+The dojo app is designed to provide a sandbox environment for rapid development. Follow these steps to start the dojo app and work with sandboxes:
+
+1. **Start the Dojo App**:
+   ```sh
+   ./claydojo --sbx <path-to-sandbox-file>
+   ```
+
+2. **Move and Arrange Windows**:
+   Arrange the created windows in a way that allows you to keep them visible while editing code.
+
+3. **Make Changes and See Results**:
+   Make changes to the specified sandbox file and see the changes applied automatically.
+
+4. **Show Guide/Help Overlay**:
+   Press `Ctrl+G` in the app window to show the Guide/Help overlay.
+
+5. **Switch Between Sandboxes**:
+   If you pass multiple `--sbx` args (up to 5) to the dojo app, you can switch between them by using `Ctrl+(1|2|3|4|5)`.
+
+6. **Using the Logging Overlay**:
+   The sandbox comes with a logging overlay that shows all `console.log(...)` messages in a continuous log view and watched properties/expressions in a sticky section. You can easily show/hide the logging overlay by pressing `Ctrl+L` when the Sandbox Window has the focus.
 
 Feel free to contact me, create issues or to contribute :)
 
