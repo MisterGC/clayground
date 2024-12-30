@@ -16,7 +16,7 @@ env:
   QT_VERSION: '6.8.*'
   QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
-  AQT_VERSION: '==3.1.18'
+  AQT_VERSION: '==3.1.21'
 
 jobs:
   build:
