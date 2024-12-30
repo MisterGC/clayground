@@ -20,6 +20,7 @@ Model {
         CustomMaterial {
             id: _lineMat
 
+            shadingMode: CustomMaterial.Unshaded
             property real lineWidth: 1
             property color lineColor: "black"
             vertexShader: "custom_line.vert"

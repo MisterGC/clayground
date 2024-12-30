@@ -1,4 +1,4 @@
-layout(location = 0) in vec4 colorOut;
+VARYING vec4 colorOut;
 
 void MAIN()
 {

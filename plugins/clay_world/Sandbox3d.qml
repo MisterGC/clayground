@@ -1,3 +1,4 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick.Controls
 import QtQuick.Window
@@ -20,13 +21,13 @@ View3D {
 
     PerspectiveCamera {
         id: camera
-        position: Qt.vector3d(-40, 100, 60)
-        eulerRotation: Qt.vector3d(-45, 0, 0)
+        position: Qt.vector3d(0, 170, 300)
+        eulerRotation: Qt.vector3d(-40, 0, 0)
     }
 
-    DirectionalLight {
-        eulerRotation: Qt.vector3d(-30, 0, 0)
-    }
+    DirectionalLight { }
+    PointLight {z: 500}
+
 
     function generateRandomLineData(anchorPoint, dimensions, maxNumPoints) {
         let numPoints = Math.floor(Math.random() * (maxNumPoints - 2)) + 2;
@@ -38,89 +39,62 @@ View3D {
                 anchorPoint.z + Math.random() * dimensions.z
             ));
         }
-        const rndCol = Qt.rgba(Math.random(), .7 + Math.random()*.2, Math.random(), 1);
-        return {
-            vertices: vertices,
-            color: rndCol,
-            width: 2
-        };
+        return vertices;
     }
 
-    Repeater3D {
-        model: 1
-        delegate: Line3d {
-            //lineData: generateRandomLineData(Qt.vector3d(0,0,0), Qt.vector3d(100,100,100), 10)
-            lineData: generateRandomLineData(Qt.vector3d(-100,-100,-100), Qt.vector3d(100,100,100), 100)
+    function generateRandomLineBatch(numLines, anchorPoint, dimensions, maxNumPoints) {
+        let allLines = [];
+        for (let i = 0; i < numLines; i++) {
+            let lineData = generateRandomLineData(anchorPoint, dimensions, maxNumPoints);
+            allLines.push(lineData);
         }
+        return allLines;
     }
 
-    Repeater3D {
-        model: 0
-        delegate: Model {
-            id: lineModel
-            property var lineData: generateRandomLineData(Qt.vector3d(-100,-100,-100), Qt.vector3d(100,100,100), 3)
 
-            geometry: Line3dGeometry {
-                id: lineGeometry
-                vertices: lineData.vertices
-                color: lineData.color
-                width: lineData.width
+    // Draw batch of lines (with same color and width)
+    // This is recommended for drawing a big number of lines,
+    // it is planned to allow color and width per line even in
+    // batches
+    MultiLine3D {
+        coords:  view.generateRandomLineBatch(1000,
+                                              Qt.vector3d(0,0,0),
+                                              Qt.vector3d(100,100,100),
+                                              2)
+        color: "blue"
+        width: 3
+        Node{
+            x: 50; y: 50; z: 100.1
+            Label {
+                color: "black"
+                background: Rectangle {opacity: .75}
+                text: "MultiLine3D"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
             }
-
-            materials: [
-                DefaultMaterial {
-                    lighting: DefaultMaterial.NoLighting
-                    cullMode: DefaultMaterial.NoCulling
-                    diffuseColor: lineGeometry.color
-                }
-            ]
         }
     }
 
-    function generateGrass(volume) {
-        let grassElements = [];
-        let minLength = 0.1 * volume.height;
-        let maxLength = volume.height;
-
-        let length = minLength + Math.random() * (maxLength - minLength);
-        let angle = Math.random() * 2 * Math.PI; // Random angle for direction in the x-z plane
-        let anchorPoint = Qt.vector3d(
-
-            volume.x + Math.random() * volume.width,
-            volume.y,
-            volume.z + Math.random() * volume.depth
-        );
-        let endPoint = Qt.vector3d(
-            anchorPoint.x + length * Math.cos(angle),
-            anchorPoint.y + length, // Grass grows upwards
-            anchorPoint.z + length * Math.sin(angle)
-        );
-
-        // Green color variations
-        let greenShade = 0.5 + Math.random() * 0.5; // Values between 0.5 and 1
-        let color = Qt.rgba(0, greenShade, 0, 1);
-
-        return{
-            vertices: [anchorPoint,endPoint],
-            color: color,
-            width: .5
-        };
-    }
-
+    // Draw inidividual lines using a 3D repeater
+    // This is only recommended when drawing a view lines
+    // e.g. for annotations
     Repeater3D {
-        model: 0
-
-        delegate:
-            BoxLine3d {
-            id: myLine
-            property var lineData: generateRandomLineData(Qt.vector3d(0,0,0),
-                                                          Qt.vector3d(100,100,100),
-                                                          5)
-            //property var lineData: generateGrass({ x: 0, y: 0, z: 0, width: 10, depth: 10, height: 1 })
-            positions: lineData.vertices
-            color: lineData.color
+        model: 10
+        delegate: Line3D {
+            coords: view.generateRandomLineData(Qt.vector3d(-110,0,0),
+                                                Qt.vector3d(100,100,100), 100)
+            color: Qt.rgba(Math.random(), Math.random(), Math.random(), 1.0)
             width: 2
-
+        }
+    }
+    Node{
+        x: -60; y: 50; z: 100.1
+        Label {
+            color: "black"
+            background: Rectangle {opacity: .75}
+            text: "Repeater3D(Line3D)"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
 

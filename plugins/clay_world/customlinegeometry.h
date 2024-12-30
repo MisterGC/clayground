@@ -2,6 +2,7 @@
 #define CUSTOMLINEGEOMETRY_H
 
 #include <QVector3D>
+#include <QPair>
 #include <QQuick3DGeometry>
 
 class CustomLineGeometry : public QQuick3DGeometry
@@ -23,7 +24,7 @@ signals:
 private:
     void updateData();
     QVector<QVector<QVector3D>> m_lines;
-    QVector3D calculateExtents() const;
+    QPair<QVector3D, QVector3D> calculateExtents() const;
 };
 
 #endif // CUSTOMLINEGEOMETRY_H

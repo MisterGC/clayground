@@ -1,4 +1,4 @@
-layout(location = 0) out vec4 colorOut;
+VARYING vec4 colorOut;
 
 void MAIN()
 {
@@ -27,6 +27,6 @@ void MAIN()
     // Transform to clip space
     POSITION = MODELVIEWPROJECTION_MATRIX * finalWorldPos;
 
-    colorOut = vec4(0.0, 0.0, 1.0, 1.0);
+    colorOut = lineColor;
 }
 

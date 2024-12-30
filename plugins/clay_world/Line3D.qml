@@ -2,14 +2,15 @@ import QtQuick
 import QtQuick3D
 
 Model {
+    id: _line
     property var coords: []
-    property color color: _lineMat.lineColor
-    property real width: _lineMat.lineWidth
+    property color color: "black"
+    property real width: 1
 
     MultiLine3D {
-        coords: [parent.coords]
-        color: parent.color
-        width: parent.width
+        coords: [_line.coords]
+        color: _line.color
+        width: _line.width
     }
 
 }

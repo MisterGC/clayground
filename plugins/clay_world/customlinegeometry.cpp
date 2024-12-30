@@ -68,8 +68,8 @@ void CustomLineGeometry::updateData()
     setIndexData(indexBuffer);
 
     // Set up attribute information for vertices
-    QVector3D extents = calculateExtents();
-    setBounds(extents, -extents);
+    auto extents = calculateExtents();
+    setBounds(extents.first, extents.second);
 
     setStride(7 * sizeof(float));
 
@@ -90,10 +90,10 @@ void CustomLineGeometry::updateData()
     update();
 }
 
-QVector3D CustomLineGeometry::calculateExtents() const
+QPair<QVector3D, QVector3D> CustomLineGeometry::calculateExtents() const
 {
     if (m_lines.isEmpty() || m_lines[0].isEmpty())
-        return QVector3D();
+        return qMakePair(QVector3D(), QVector3D());
 
     QVector3D min = m_lines[0][0];
     QVector3D max = m_lines[0][0];
@@ -109,5 +109,5 @@ QVector3D CustomLineGeometry::calculateExtents() const
         }
     }
 
-    return (max - min) * 0.5f;
+    return qMakePair(min, max);
 }
