@@ -16,8 +16,3 @@ clay_app( sbx_void
         Main.qml
         Sandbox.qml
 )
-
-target_sources(sbx_void
-  PRIVATE
-    BoxLine3d.qml
-)
