@@ -20,8 +20,8 @@ View3D {
 
     PerspectiveCamera {
         id: camera
-        position: Qt.vector3d(0, 20, 0)
-        eulerRotation: Qt.vector3d(-90, 0, 0)
+        position: Qt.vector3d(-40, 100, 60)
+        eulerRotation: Qt.vector3d(-45, 0, 0)
     }
 
     DirectionalLight {
@@ -42,15 +42,23 @@ View3D {
         return {
             vertices: vertices,
             color: rndCol,
-            width: 8
+            width: 2
         };
     }
 
     Repeater3D {
-        model: 1000
+        model: 1
+        delegate: Line3d {
+            //lineData: generateRandomLineData(Qt.vector3d(0,0,0), Qt.vector3d(100,100,100), 10)
+            lineData: generateRandomLineData(Qt.vector3d(-100,-100,-100), Qt.vector3d(100,100,100), 100)
+        }
+    }
+
+    Repeater3D {
+        model: 0
         delegate: Model {
             id: lineModel
-            property var lineData: generateRandomLineData(Qt.vector3d(-100,-100,-100), Qt.vector3d(100,100,100), 10)
+            property var lineData: generateRandomLineData(Qt.vector3d(-100,-100,-100), Qt.vector3d(100,100,100), 3)
 
             geometry: Line3dGeometry {
                 id: lineGeometry
@@ -100,7 +108,7 @@ View3D {
     }
 
     Repeater3D {
-        model: 1000
+        model: 0
 
         delegate:
             BoxLine3d {
