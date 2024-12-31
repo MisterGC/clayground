@@ -44,7 +44,7 @@ macro(clay_app CLAY_APP_NAME)
     cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
     # Argument Parsing
-    set (oneValueArgs VERSION)
+    set (oneValueArgs STYLE VERSION)
     set (multiValueArgs
             SOURCES
             LINK_LIBS
@@ -90,6 +90,17 @@ macro(clay_app CLAY_APP_NAME)
         string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
     endif()
 
+
+    # Generate the main.cpp
+    if(CLAY_APP_STYLE)
+        if(NOT "QuickControls2" IN_LIST CLAY_APP_QT_LIBS)
+            message(FATAL_ERROR "App ${CLAY_APP_NAME} uses custom style -> Qt::QuickControls2 is needed as dependency")
+        endif()
+        set(CLAY_APP_STYLE_INCLUDE "#include <QQuickStyle>")
+        set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "QQuickStyle::setStyle(\"${CLAY_APP_STYLE}\");")
+    else()
+        set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "// Uses auto-mode -> chose style based on target platform.")
+    endif()
     set(CLAY_APP_NAME ${CLAY_APP_NAME})
     configure_file(${CLAY_APP_TEMPLATE_DIR}/main.cpp.in main.cpp)
 
@@ -98,6 +109,13 @@ macro(clay_app CLAY_APP_NAME)
         ${CLAY_APP_SOURCES} )
 
     if(APPLE)
+        # Adds FFMPEG dylibs to the app package, this
+        # works for dev builds but the results get refused by the app store
+        # Unfortunately there is no workaround at the moment, but there is
+        # an open issue (+ potential patch) that needs to be fixed (see QTBUG-130813)
+        # To be re-checked as soon as a Qt version (6.8.1!?) with the fix has been
+        # released.
+        qt_add_ios_ffmpeg_libraries(${PROJECT_NAME})
         set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
     endif()
 

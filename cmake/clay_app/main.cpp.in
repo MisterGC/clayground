@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QDebug>
+${CLAY_APP_STYLE_INCLUDE}
 
 ${CLAYGROUND_IMPORT_PLUGINS}
 
@@ -32,6 +33,9 @@ int main(int argc, char *argv[])
         engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     #endif
 #endif
+
+    // Optionally set the style, if not set, the system default is used
+    ${CLAY_APP_SET_STYLE_IF_NOT_AUTO}
 
     // Clayground expects that each app has a Main.qml as entry point
     engine.loadFromModule("${CLAY_APP_NAME}", "Main");

@@ -4,7 +4,7 @@ project(clayliveloader LANGUAGES CXX)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickWidgets Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2 QuickWidgets Sql)
 
 add_executable(${PROJECT_NAME} 
     main.cpp
@@ -23,6 +23,7 @@ PRIVATE
   claytoolscommon
   Qt::Core
   Qt::Quick
+  Qt::QuickControls2
   Qt::QuickWidgets
   Qt::Sql
 )

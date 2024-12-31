@@ -41,6 +41,9 @@ static constexpr const char* MESSAGE_ARG_DESCR =
                       "When this arg is set, the specified message is shown instead of "
                       "of loading any Sandbox, all dynamic import directories are ignored in this case too.";
 
+static constexpr const char* GUI_STYLE_ARG = "guistyle";
+static constexpr const char* STYLE_ARG_DESCR = "Sets the GUI style of the Qt Quick App.";
+
 static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 
 /** Wait this time (in ms) until reacting on file change

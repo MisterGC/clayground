@@ -94,6 +94,35 @@ allows to build a standalone app. So you can just use one as a template to build
 - OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can
 - IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim and VS Code for various text processing tasks
 
+### Plugin Development
+
+ClayDojo and ClayLiveLoader support dynamic plugin development using the `--dynplugin` command-line argument. This feature allows you to specify source and binary directories for plugins, enabling hot-reloading during development.
+
+#### Using the `--dynplugin` argument
+
+The `--dynplugin` argument takes two directory paths separated by a comma:
+
+```
+--dynplugin <source_dir>,<binary_dir>
+```
+
+- `<source_dir>`: The directory containing the plugin source code
+- `<binary_dir>`: The directory where the compiled plugin binary will be placed
+
+You can specify multiple `--dynplugin` arguments for different plugins.
+
+#### Example usage
+
+```bash
+./claydojo --dynplugin /path/to/plugin/src,/path/to/plugin/build/bin
+```
+
+When using this feature:
+
+1. The tools will monitor both the source and binary directories for changes.
+2. When changes are detected in the source directory, the tool will wait for the binary directory to be updated (assuming you have a build process in place).
+3. Once the binary is updated, the tool will automatically reload the plugin by restarting the LiveLoader.
+
 Feel free to contact me, create issues or to contribute :)
 
 Enjoy life,<br>

@@ -22,6 +22,10 @@ project (Clayground
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}" CACHE INTERNAL "")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}" CACHE INTERNAL "")
 
+# Ensure that all Qt tools are avaible on root
+# level (needed for Qt >= 6.8.0)
+find_package(Qt6 COMPONENTS Core Qml REQUIRED)
+
 enable_testing()
 init_static_plugin_cfg()
 
@@ -44,7 +48,7 @@ cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 set(CLAY_CXX_STANDARD 17 CACHE INTERNAL "")
 clay_check_cxx_requirements(MIN_CXX_STANDARD ${CLAY_CXX_STANDARD})
 
-set(CLAY_QT_MIN_VERSION 6.6.0 CACHE INTERNAL "")
+set(CLAY_QT_MIN_VERSION 6.8.1 CACHE INTERNAL "")
 clay_check_qt_requirements(MIN_VERSION ${CLAY_QT_MIN_VERSION})
 
 
