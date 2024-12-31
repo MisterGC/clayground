@@ -3,27 +3,25 @@ import QtQuick3D
 import Clayground.World
 
 Node {
-    id: root
+    id: _boxLine
 
-    // Exposed properties
     property var positions: []
     property real width: 1
     property color color: "blue"
     property Material material: DefaultMaterial {
-        diffuseColor: root.color
+        diffuseColor: _boxLine.color
     }
 
-    // Private properties
-    property real _particleSize: 100 // Size of the cube model
+    property real _particleSize: 100
 
     Model {
         source: "#Cube"
         instancing: LineInstancing {
-            positions: root.positions
-            width: root.width
-            color: root.color
+            positions: _boxLine.positions
+            width: _boxLine.width
+            color: _boxLine.color
         }
-        materials: root.material
+        materials: _boxLine.material
         scale: Qt.vector3d(1/_particleSize, 1/_particleSize, 1/_particleSize)
     }
 }

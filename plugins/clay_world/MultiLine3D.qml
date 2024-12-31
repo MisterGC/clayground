@@ -1,3 +1,5 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
 import QtQuick
 import QtQuick3D
 import Clayground.World
@@ -22,7 +24,7 @@ Model {
 
             shadingMode: CustomMaterial.Unshaded
             property real lineWidth: 1
-            property color lineColor: "black"
+            property color lineColor: "red"
             vertexShader: "custom_line.vert"
             fragmentShader: "custom_line.frag"
         }

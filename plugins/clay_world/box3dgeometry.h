@@ -8,7 +8,7 @@
 class Box3dGeometry : public QQuick3DGeometry
 {
     Q_OBJECT
-    QML_NAMED_ELEMENT(Box3dGeometry)
+    QML_NAMED_ELEMENT(Box3DGeometry)
 
     Q_PROPERTY(QVector3D size READ size WRITE setSize NOTIFY sizeChanged)
     Q_PROPERTY(QVector2D faceScale READ faceScale WRITE setFaceScale NOTIFY faceScaleChanged)

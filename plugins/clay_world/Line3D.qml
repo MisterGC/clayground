@@ -1,3 +1,5 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
 import QtQuick
 import QtQuick3D
 
@@ -12,5 +14,4 @@ Model {
         color: _line.color
         width: _line.width
     }
-
 }
