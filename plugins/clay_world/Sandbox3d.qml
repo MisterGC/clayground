@@ -164,6 +164,13 @@ View3D {
         }
     }
 
+    VoxelMap {
+        x: -200; y: 150; z: 50
+        width: 10; height: 10; depth: 10
+        voxelSize: 10.0
+        defaultColor: "green"
+    }
+
     Node {
         id: _physicsRoot
 

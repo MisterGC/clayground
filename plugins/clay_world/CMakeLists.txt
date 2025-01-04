@@ -9,14 +9,18 @@ clay_plugin( World
         box3dgeometry.h
         customlinegeometry.cpp
         customlinegeometry.h
+        line3dgeometry.cpp
         line3dgeometry.h
         line3dinstancing.cpp
         line3dinstancing.h
-        line3dgeometry.cpp
+        voxelmapgeometry.cpp
+        voxelmapgeometry.h
 
     QML_FILES
         custom_line.frag
         custom_line.vert
+        voxel_map.frag
+        voxel_map.vert
 
         Box3D.qml
         Box3DBody.qml
@@ -34,6 +38,7 @@ clay_plugin( World
         SceneLoader2d.qml
         SceneLoader3d.qml
         SceneLoaderBase.qml
+        VoxelMap.qml
 
     LINK_LIBS
         Qt::Core
