@@ -165,10 +165,15 @@ View3D {
     }
 
     VoxelMap {
+        id: _voxelMap
         x: -200; y: 150; z: 50
-        width: 10; height: 10; depth: 10
+        width: 6; height: 2; depth: 2
         voxelSize: 10.0
         defaultColor: "green"
+        Component.onCompleted: {
+            _voxelMap.set(0,0,0, Qt.rgba(0,0,0,1));
+            console.log(_voxelMap.get(0,0,0))
+        }
     }
 
     Node {

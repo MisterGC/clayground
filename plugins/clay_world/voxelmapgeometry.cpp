@@ -68,14 +68,14 @@ void VoxelMapGeometry::setDefaultColor(const QColor &color)
     updateGeometry();
 }
 
-QColor VoxelMapGeometry::voxelColor(int x, int y, int z) const
+QColor VoxelMapGeometry::voxel(int x, int y, int z) const
 {
     if (x<0 || x>=m_width || y<0 || y>=m_height || z<0 || z>=m_depth)
         return Qt::transparent;
     return m_voxels[indexOf(x,y,z)];
 }
 
-void VoxelMapGeometry::setVoxelColor(int x, int y, int z, const QColor &color)
+void VoxelMapGeometry::setVoxel(int x, int y, int z, const QColor &color)
 {
     if (x<0 || x>=m_width || y<0 || y>=m_height || z<0 || z>=m_depth)
         return;
@@ -277,7 +277,7 @@ bool VoxelMapGeometry::loadFromFile(const QString &path, bool binary)
 
                 int colorPos = line.indexOf("color:") + 6;
                 QString colorStr = line.mid(colorPos).trimmed();
-                setVoxelColor(x, y, z, stringToColor(colorStr));
+                setVoxel(x, y, z, stringToColor(colorStr));
             }
         }
     }

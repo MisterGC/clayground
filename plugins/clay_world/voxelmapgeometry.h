@@ -34,8 +34,8 @@ public:
     // Color at (x,y,z)
     QColor defaultColor() const { return m_defaultColor; }
     void setDefaultColor(const QColor &color);
-    QColor voxelColor(int x, int y, int z) const;
-    void setVoxelColor(int x, int y, int z, const QColor &color);
+    Q_INVOKABLE QColor voxel(int x, int y, int z) const;
+    Q_INVOKABLE void setVoxel(int x, int y, int z, const QColor &color);
 
     // I/O
     Q_INVOKABLE bool saveToFile(const QString &path, bool binary = true);

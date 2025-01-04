@@ -10,6 +10,14 @@ Model {
     property alias voxelSize: _voxelMap.voxelSize
     property alias defaultColor: _voxelMap.defaultColor
 
+    function get(x, y, z) {
+        return _voxelMap.voxel(x,y,z);
+    }
+
+    function set(x, y, z, color) {
+        _voxelMap.setVoxel(x,y,z,color)
+    }
+
     geometry: VoxelMapGeometry {
         id: _voxelMap
     }
