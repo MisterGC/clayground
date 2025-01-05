@@ -166,26 +166,46 @@ View3D {
 
     VoxelMap {
         id: _voxelMap
-        x: -200; y: 0; z: 100
-        width: 200; height: 200; depth: 200
-        voxelSize: 8.0
+        //x: -300; y: 0; z: 100
+        instancing: InstanceList {
+            instances: [
+                InstanceListEntry {
+                    position: Qt.vector3d(-300, 0, 100)
+                    scale: Qt.vector3d(1, 1, 1)
+                },
+                InstanceListEntry {
+                    position: Qt.vector3d(-320, 0, 200)
+                    scale: Qt.vector3d(0.9, 0.9, 0.9)
+                },
+                InstanceListEntry {
+                    position: Qt.vector3d(-400, 0, 150)
+                    scale: Qt.vector3d(1.1, 1.1, 1.1)
+                }
+            ]
+        }
+        width: 30; height: 30; depth: 30
+        voxelSize: 5.0
         defaultColor: "transparent"
         Component.onCompleted: {
-            _voxelMap.set(0,0,0, "black");
-            console.log(_voxelMap.get(0,0,0))
-            _voxelMap.fillSphere(21,21,21,1, "red")
+            // To set one voxel
+            //_voxelMap.set(0,0,0, "black");
+
+            // The tree's top
             _voxelMap.fillSphere(10, 20, 10, 10, [
                                          { color: "#2D5A27", weight: 0.3 },  // Darker forest green (inner/lower foliage)
                                          { color: "#3A7729", weight: 0.3 },  // Medium forest green
-                                         { color: "#4C9A2A", weight: 0.2 },  // Bright green
+                                         { color: "#4C9A2A", weight: 0.15 },  // Bright green
+                                         { color: "red", weight: 0.05 },  // Bright green
                                          { color: "#68B030", weight: 0.15 }, // Light lime green (sun-exposed leaves)
                                          { color: "#89C34A", weight: 0.05 }  // Very light green (highlights)
-                                 ]);
+                                 ], 0.3);
+
+            // The tree's trunk
             _voxelMap.fillCylinder(10, 0, 10, 2, 10, [
                 { color: "#5C4033", weight: 0.4 },  // Dark brown
                 { color: "#8B4513", weight: 0.4 },  // Saddle brown
                 { color: "#A0522D", weight: 0.2 }   // Sienna
-            ]);
+            ], 0.0);
         }
     }
 

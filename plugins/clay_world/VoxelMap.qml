@@ -4,6 +4,9 @@ import QtQuick
 import QtQuick3D
 
 Model {
+
+    id: _voxelMapModel
+
     property alias width: _voxelMap.width
     property alias height: _voxelMap.height
     property alias depth: _voxelMap.depth
@@ -48,8 +51,8 @@ Model {
 
     materials: [
         CustomMaterial {
-            vertexShader: "voxel_map.vert"
-            fragmentShader: "voxel_map.frag"
+            vertexShader: _voxelMapModel.instancing ? "" : "voxel_map.vert"
+            fragmentShader: _voxelMapModel.instancing ? "" : "voxel_map.frag"
             shadingMode: CustomMaterial.Shaded
         }
     ]
