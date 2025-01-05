@@ -18,9 +18,16 @@ Model {
         _voxelMap.setVoxel(x,y,z,color);
     }
 
-    function fillSphere(cx, cy, cz, r, color)
-    {
-        _voxelMap.fillSphere(cx, cy, cz, r, color);
+    function fillSphere(cx, cy, cz, r, colorOrDistribution) {
+        if (Array.isArray(colorOrDistribution)) {
+            // It's already a distribution array
+            _voxelMap.fillSphere(cx, cy, cz, r, colorOrDistribution);
+        } else {
+            // It's a single color, convert to simple distribution array
+            _voxelMap.fillSphere(cx, cy, cz, r, [
+                { color: colorOrDistribution.toString(), weight: 1.0 }
+            ]);
+        }
     }
 
     geometry: VoxelMapGeometry {

@@ -3,6 +3,8 @@
 #include <QTextStream>
 #include <QDebug>
 #include <QVector3D>
+#include <random>
+#include <chrono>
 
 // Optional: for a simple YAML-like approach. Real projects may use a full YAML library.
 static QString colorToString(const QColor &c)
@@ -86,20 +88,43 @@ void VoxelMapGeometry::setVoxel(int x, int y, int z, const QColor &color)
     updateGeometry();
 }
 
-void VoxelMapGeometry::fillSphere(int cx, int cy, int cz,
-                              int r,
-                              const QColor &color)
+void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution)
 {
     // Validate inputs
-    if (r <= 0.0f) return;
+    if (r <= 0.0f || colorDistribution.isEmpty()) return;
     if (cx < -r || cy < -r || cz < -r) return;
     if (cx >= width() + r || cy >= height() + r || cz >= depth() + r) return;
 
-    // Precompute r^2 to avoid repeated multiplications
-    float r2 = r * r;
+    // Convert distribution list to vector of pairs (color, probability)
+    struct ColorProb {
+        QColor color;
+        float probability;
+    };
+    QVector<ColorProb> distribution;
+    float totalWeight = 0.0f;
 
-    // Find bounding box that encloses the sphere
-    // Using qBound to ensure values stay within valid range
+    // Process each item in the array
+    for (const QVariant &item : colorDistribution) {
+        QVariantMap entry = item.toMap();
+        if (entry.contains("color") && entry.contains("weight")) {
+            QColor color = QColor(entry["color"].toString());
+            float weight = entry["weight"].toFloat();
+            if (weight > 0.0f) {
+                totalWeight += weight;
+                distribution.append({color, weight});
+            }
+        }
+    }
+
+    if (distribution.isEmpty()) return;
+
+    // Normalize probabilities
+    for (auto &item : distribution) {
+        item.probability /= totalWeight;
+    }
+
+    // Rest of the sphere filling logic
+    float r2 = r * r;
     int minX = qBound(0, int(cx - r), width() - 1);
     int maxX = qBound(0, int(cx + r), width() - 1);
     int minY = qBound(0, int(cy - r), height() - 1);
@@ -107,8 +132,12 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz,
     int minZ = qBound(0, int(cz - r), depth() - 1);
     int maxZ = qBound(0, int(cz + r), depth() - 1);
 
-    // Early return if no valid voxels to fill
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
+
+    // Create random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
 
     for (int z = minZ; z <= maxZ; ++z) {
         for (int y = minY; y <= maxY; ++y) {
@@ -117,7 +146,20 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz,
                 float dy = float(y - cy);
                 float dz = float(z - cz);
                 if (dx*dx + dy*dy + dz*dz <= r2) {
-                    m_voxels[indexOf(x,y,z)] = color;
+                    // Pick a random color based on distribution
+                    float rand = dis(gen);
+                    float cumulative = 0.0f;
+                    QColor selectedColor = distribution[0].color; // fallback
+
+                    for (const auto &item : distribution) {
+                        cumulative += item.probability;
+                        if (rand <= cumulative) {
+                            selectedColor = item.color;
+                            break;
+                        }
+                    }
+
+                    m_voxels[indexOf(x,y,z)] = selectedColor;
                 }
             }
         }
