@@ -143,9 +143,19 @@ QColor getRandomColor(const QVector<ColorProb> &distribution) {
     return selectedColor;
 }
 
+float applyNoise(float value, float noiseFactor) {
+    if (noiseFactor <= 0.0f) return value;
+
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(-noiseFactor, noiseFactor);
+
+    return value * (1.0f + dis(gen));
 }
 
-void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution)
+}
+
+void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution, float noiseFactor)
 {
     // Validate inputs
     if (r <= 0.0f || colorDistribution.isEmpty()) return;
@@ -155,14 +165,16 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantL
     auto distribution = prepareColorDistribution(colorDistribution);
     if (distribution.isEmpty()) return;
 
-    // Adjust radius to match voxel centers
-    float r2 = (r - 0.5f) * (r - 0.5f);
-    int minX = qBound(0, int(cx - r), width() - 1);
-    int maxX = qBound(0, int(cx + r), width() - 1);
-    int minY = qBound(0, int(cy - r), height() - 1);
-    int maxY = qBound(0, int(cy + r), height() - 1);
-    int minZ = qBound(0, int(cz - r), depth() - 1);
-    int maxZ = qBound(0, int(cz + r), depth() - 1);
+    // Use maximum possible radius for bounds checking
+    float maxRadius = r * (1.0f + noiseFactor);
+    float baseR2 = (r - 0.5f) * (r - 0.5f);
+
+    int minX = qBound(0, int(cx - maxRadius), width() - 1);
+    int maxX = qBound(0, int(cx + maxRadius), width() - 1);
+    int minY = qBound(0, int(cy - maxRadius), height() - 1);
+    int maxY = qBound(0, int(cy + maxRadius), height() - 1);
+    int minZ = qBound(0, int(cz - maxRadius), depth() - 1);
+    int maxZ = qBound(0, int(cz + maxRadius), depth() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
@@ -172,7 +184,9 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantL
                 float dx = float(x - cx);
                 float dy = float(y - cy);
                 float dz = float(z - cz);
-                if (dx*dx + dy*dy + dz*dz <= r2) {
+                float distanceSquared = dx*dx + dy*dy + dz*dz;
+                float currentR2 = applyNoise(baseR2, noiseFactor);
+                if (distanceSquared <= currentR2) {
                     m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
                 }
             }
@@ -182,7 +196,7 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantL
     updateGeometry();
 }
 
-void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution)
+void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution, float noiseFactor)
 {
     // Validate inputs
     if (r <= 0.0f || height <= 0 || colorDistribution.isEmpty()) return;
@@ -192,23 +206,26 @@ void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, c
     auto distribution = prepareColorDistribution(colorDistribution);
     if (distribution.isEmpty()) return;
 
-    // Adjust radius to match voxel centers
-    float r2 = (r - 0.5f) * (r - 0.5f);
-    int minX = qBound(0, int(cx - r), width() - 1);
-    int maxX = qBound(0, int(cx + r), width() - 1);
+    // Use maximum possible radius for bounds checking
+    float maxRadius = r * (1.0f + noiseFactor);
+    float baseR2 = (r - 0.5f) * (r - 0.5f);
+
+    int minX = qBound(0, int(cx - maxRadius), width() - 1);
+    int maxX = qBound(0, int(cx + maxRadius), width() - 1);
     int minY = qBound(0, int(cy), this->height() - 1);
     int maxY = qBound(0, int(cy + height), this->height() - 1);
-    int minZ = qBound(0, int(cz - r), depth() - 1);
-    int maxZ = qBound(0, int(cz + r), depth() - 1);
+    int minZ = qBound(0, int(cz - maxRadius), depth() - 1);
+    int maxZ = qBound(0, int(cz + maxRadius), depth() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
     for (int y = minY; y <= maxY; ++y) {
+        float currentR2 = applyNoise(baseR2, noiseFactor);
         for (int z = minZ; z <= maxZ; ++z) {
             for (int x = minX; x <= maxX; ++x) {
                 float dx = float(x - cx);
                 float dz = float(z - cz);
-                if (dx*dx + dz*dz <= r2) {
+                if (dx*dx + dz*dz <= currentR2) {
                     m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
                 }
             }
@@ -264,15 +281,19 @@ void VoxelMapGeometry::updateGeometry()
         { 0.0f, -1.0f,  0.0f }  // Bottom
     };
 
+    // Calculate the offset to center the voxel map in X and Z
+    float offsetX = -(m_width * m_voxelSize) / 2.0f;
+    float offsetZ = -(m_depth * m_voxelSize) / 2.0f;
+
     for (int z = 0; z < m_depth; ++z) {
         for (int y = 0; y < m_height; ++y) {
             for (int x = 0; x < m_width; ++x) {
                 QColor c = m_voxels[indexOf(x,y,z)];
                 if (c.alpha() == 0) continue;
 
-                float fx = x * m_voxelSize;
-                float fy = y * m_voxelSize;
-                float fz = z * m_voxelSize;
+                float fx = offsetX + x * m_voxelSize;
+                float fy = y * m_voxelSize;  // Keep Y at bottom
+                float fz = offsetZ + z * m_voxelSize;
                 float s = m_voxelSize;
 
                 // Define vertices for each face (4 vertices per face)

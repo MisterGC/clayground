@@ -18,27 +18,27 @@ Model {
         _voxelMap.setVoxel(x,y,z,color);
     }
 
-    function fillSphere(cx, cy, cz, r, colorOrDistribution) {
+    function fillSphere(cx, cy, cz, r, colorOrDistribution, noiseFactor = 0.0) {
         if (Array.isArray(colorOrDistribution)) {
             // It's already a distribution array
-            _voxelMap.fillSphere(cx, cy, cz, r, colorOrDistribution);
+            _voxelMap.fillSphere(cx, cy, cz, r, colorOrDistribution, noiseFactor);
         } else {
             // It's a single color, convert to simple distribution array
             _voxelMap.fillSphere(cx, cy, cz, r, [
                 { color: colorOrDistribution.toString(), weight: 1.0 }
-            ]);
+            ], noiseFactor);
         }
     }
 
-    function fillCylinder(cx, cy, cz, r, height, colorOrDistribution) {
+    function fillCylinder(cx, cy, cz, r, height, colorOrDistribution, noiseFactor = 0.0) {
         if (Array.isArray(colorOrDistribution)) {
             // It's already a distribution array
-            _voxelMap.fillCylinder(cx, cy, cz, r, height, colorOrDistribution);
+            _voxelMap.fillCylinder(cx, cy, cz, r, height, colorOrDistribution, noiseFactor);
         } else {
             // It's a single color, convert to simple distribution array
             _voxelMap.fillCylinder(cx, cy, cz, r, height, [
                 { color: colorOrDistribution.toString(), weight: 1.0 }
-            ]);
+            ], noiseFactor);
         }
     }
 
