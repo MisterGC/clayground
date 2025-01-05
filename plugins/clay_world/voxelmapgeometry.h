@@ -43,6 +43,7 @@ public:
     Q_INVOKABLE bool loadFromFile(const QString &path, bool binary = true);
 
     Q_INVOKABLE void fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution);
+    Q_INVOKABLE void fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution);
 
 signals:
     void widthChanged();

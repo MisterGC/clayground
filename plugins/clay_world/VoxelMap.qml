@@ -30,6 +30,18 @@ Model {
         }
     }
 
+    function fillCylinder(cx, cy, cz, r, height, colorOrDistribution) {
+        if (Array.isArray(colorOrDistribution)) {
+            // It's already a distribution array
+            _voxelMap.fillCylinder(cx, cy, cz, r, height, colorOrDistribution);
+        } else {
+            // It's a single color, convert to simple distribution array
+            _voxelMap.fillCylinder(cx, cy, cz, r, height, [
+                { color: colorOrDistribution.toString(), weight: 1.0 }
+            ]);
+        }
+    }
+
     geometry: VoxelMapGeometry {
         id: _voxelMap
     }

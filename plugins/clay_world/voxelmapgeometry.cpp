@@ -168,6 +168,85 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, const QVariantL
     updateGeometry();
 }
 
+void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution)
+{
+    // Validate inputs
+    if (r <= 0.0f || height <= 0 || colorDistribution.isEmpty()) return;
+    if (cx < -r || cy < 0 || cz < -r) return;
+    if (cx >= width() + r || cy >= this->height() + height || cz >= depth() + r) return;
+
+    // Convert distribution list to vector of pairs (color, probability)
+    struct ColorProb {
+        QColor color;
+        float probability;
+    };
+    QVector<ColorProb> distribution;
+    float totalWeight = 0.0f;
+
+    // Process each item in the array
+    for (const QVariant &item : colorDistribution) {
+        QVariantMap entry = item.toMap();
+        if (entry.contains("color") && entry.contains("weight")) {
+            QColor color = QColor(entry["color"].toString());
+            float weight = entry["weight"].toFloat();
+            if (weight > 0.0f) {
+                totalWeight += weight;
+                distribution.append({color, weight});
+            }
+        }
+    }
+
+    if (distribution.isEmpty()) return;
+
+    // Normalize probabilities
+    for (auto &item : distribution) {
+        item.probability /= totalWeight;
+    }
+
+    // Cylinder filling logic
+    float r2 = r * r;
+    int minX = qBound(0, int(cx - r), width() - 1);
+    int maxX = qBound(0, int(cx + r), width() - 1);
+    int minY = qBound(0, int(cy), this->height() - 1);
+    int maxY = qBound(0, int(cy + height), this->height() - 1);
+    int minZ = qBound(0, int(cz - r), depth() - 1);
+    int maxZ = qBound(0, int(cz + r), depth() - 1);
+
+    if (minX > maxX || minY > maxY || minZ > maxZ) return;
+
+    // Create random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int z = minZ; z <= maxZ; ++z) {
+            for (int x = minX; x <= maxX; ++x) {
+                float dx = float(x - cx);
+                float dz = float(z - cz);
+                if (dx*dx + dz*dz <= r2) {
+                    // Pick a random color based on distribution
+                    float rand = dis(gen);
+                    float cumulative = 0.0f;
+                    QColor selectedColor = distribution[0].color; // fallback
+
+                    for (const auto &item : distribution) {
+                        cumulative += item.probability;
+                        if (rand <= cumulative) {
+                            selectedColor = item.color;
+                            break;
+                        }
+                    }
+
+                    m_voxels[indexOf(x,y,z)] = selectedColor;
+                }
+            }
+        }
+    }
+
+    updateGeometry();
+}
+
 bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
     // Get the neighbor coordinates based on face index
     int nx = x, ny = y, nz = z;

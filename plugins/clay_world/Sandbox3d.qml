@@ -166,7 +166,7 @@ View3D {
 
     VoxelMap {
         id: _voxelMap
-        x: -200; y: 150; z: 50
+        x: -200; y: 0; z: 100
         width: 200; height: 200; depth: 200
         voxelSize: 8.0
         defaultColor: "transparent"
@@ -174,13 +174,18 @@ View3D {
             _voxelMap.set(0,0,0, "black");
             console.log(_voxelMap.get(0,0,0))
             _voxelMap.fillSphere(21,21,21,1, "red")
-            _voxelMap.fillSphere(10, 10, 10, 10, [
+            _voxelMap.fillSphere(10, 20, 10, 10, [
                                          { color: "#2D5A27", weight: 0.3 },  // Darker forest green (inner/lower foliage)
                                          { color: "#3A7729", weight: 0.3 },  // Medium forest green
                                          { color: "#4C9A2A", weight: 0.2 },  // Bright green
                                          { color: "#68B030", weight: 0.15 }, // Light lime green (sun-exposed leaves)
                                          { color: "#89C34A", weight: 0.05 }  // Very light green (highlights)
                                  ]);
+            _voxelMap.fillCylinder(10, 0, 10, 2, 10, [
+                { color: "#5C4033", weight: 0.4 },  // Dark brown
+                { color: "#8B4513", weight: 0.4 },  // Saddle brown
+                { color: "#A0522D", weight: 0.2 }   // Sienna
+            ]);
         }
     }
 
