@@ -86,6 +86,46 @@ void VoxelMapGeometry::setVoxel(int x, int y, int z, const QColor &color)
     updateGeometry();
 }
 
+void VoxelMapGeometry::fillSphere(int cx, int cy, int cz,
+                              int r,
+                              const QColor &color)
+{
+    // Validate inputs
+    if (r <= 0.0f) return;
+    if (cx < -r || cy < -r || cz < -r) return;
+    if (cx >= width() + r || cy >= height() + r || cz >= depth() + r) return;
+
+    // Precompute r^2 to avoid repeated multiplications
+    float r2 = r * r;
+
+    // Find bounding box that encloses the sphere
+    // Using qBound to ensure values stay within valid range
+    int minX = qBound(0, int(cx - r), width() - 1);
+    int maxX = qBound(0, int(cx + r), width() - 1);
+    int minY = qBound(0, int(cy - r), height() - 1);
+    int maxY = qBound(0, int(cy + r), height() - 1);
+    int minZ = qBound(0, int(cz - r), depth() - 1);
+    int maxZ = qBound(0, int(cz + r), depth() - 1);
+
+    // Early return if no valid voxels to fill
+    if (minX > maxX || minY > maxY || minZ > maxZ) return;
+
+    for (int z = minZ; z <= maxZ; ++z) {
+        for (int y = minY; y <= maxY; ++y) {
+            for (int x = minX; x <= maxX; ++x) {
+                float dx = float(x - cx);
+                float dy = float(y - cy);
+                float dz = float(z - cz);
+                if (dx*dx + dy*dy + dz*dz <= r2) {
+                    m_voxels[indexOf(x,y,z)] = color;
+                }
+            }
+        }
+    }
+
+    updateGeometry();
+}
+
 // Build all voxel cubes in a single geometry
 void VoxelMapGeometry::updateGeometry()
 {

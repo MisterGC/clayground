@@ -167,12 +167,13 @@ View3D {
     VoxelMap {
         id: _voxelMap
         x: -200; y: 150; z: 50
-        width: 6; height: 2; depth: 2
+        width: 100; height: 100; depth: 100
         voxelSize: 10.0
-        defaultColor: "green"
+        defaultColor: "transparent"
         Component.onCompleted: {
-            _voxelMap.set(0,0,0, Qt.rgba(0,0,0,1));
+            _voxelMap.set(0,0,0, "black");
             console.log(_voxelMap.get(0,0,0))
+            _voxelMap.fillSphere(5,5,5,5, "green")
         }
     }
 

@@ -15,7 +15,12 @@ Model {
     }
 
     function set(x, y, z, color) {
-        _voxelMap.setVoxel(x,y,z,color)
+        _voxelMap.setVoxel(x,y,z,color);
+    }
+
+    function fillSphere(cx, cy, cz, r, color)
+    {
+        _voxelMap.fillSphere(cx, cy, cz, r, color);
     }
 
     geometry: VoxelMapGeometry {
