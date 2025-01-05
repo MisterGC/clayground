@@ -126,6 +126,26 @@ void VoxelMapGeometry::fillSphere(int cx, int cy, int cz,
     updateGeometry();
 }
 
+bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
+    // Get the neighbor coordinates based on face index
+    int nx = x, ny = y, nz = z;
+    switch(faceIndex) {
+        case 0: nz--; break; // Front
+        case 1: nx++; break; // Right
+        case 2: nz++; break; // Back
+        case 3: nx--; break; // Left
+        case 4: ny++; break; // Top
+        case 5: ny--; break; // Bottom
+    }
+
+    // If neighbor is outside bounds, face is visible
+    if (nx < 0 || nx >= m_width || ny < 0 || ny >= m_height || nz < 0 || nz >= m_depth)
+        return true;
+
+    // Face is visible if neighbor voxel is transparent
+    return m_voxels[indexOf(nx, ny, nz)].alpha() == 0;
+}
+
 // Build all voxel cubes in a single geometry
 void VoxelMapGeometry::updateGeometry()
 {
@@ -185,28 +205,32 @@ void VoxelMapGeometry::updateGeometry()
                 };
 
                 // Add vertices for each face
-                for (const Face& face : faces) {
-                    for (const QVector3D& vertex : face.vertices) {
-                        // Position
-                        vertexBuffer.append(reinterpret_cast<const char*>(&vertex), sizeof(QVector3D));
-                        // Color
-                        float rgba[4] = { c.redF(), c.greenF(), c.blueF(), c.alphaF() };
-                        vertexBuffer.append(reinterpret_cast<const char*>(rgba), 4 * sizeof(float));
-                        // Normal
-                        vertexBuffer.append(reinterpret_cast<const char*>(&face.normal), sizeof(QVector3D));
-                    }
+                for (int i = 0; i < 6; ++i) {
+                    // Only add face if it's visible
+                    if (isFaceVisible(x, y, z, i)) {
+                        const Face& face = faces[i];
+                        for (const QVector3D& vertex : face.vertices) {
+                            // Position
+                            vertexBuffer.append(reinterpret_cast<const char*>(&vertex), sizeof(QVector3D));
+                            // Color
+                            float rgba[4] = { c.redF(), c.greenF(), c.blueF(), c.alphaF() };
+                            vertexBuffer.append(reinterpret_cast<const char*>(rgba), 4 * sizeof(float));
+                            // Normal
+                            vertexBuffer.append(reinterpret_cast<const char*>(&face.normal), sizeof(QVector3D));
+                        }
 
-                    // Add indices for the face (2 triangles, maintaining CCW winding)
-                    quint32 indices[6] = {
-                        static_cast<quint32>(vertexCount),
-                        static_cast<quint32>(vertexCount + 1),
-                        static_cast<quint32>(vertexCount + 2),
-                        static_cast<quint32>(vertexCount),
-                        static_cast<quint32>(vertexCount + 2),
-                        static_cast<quint32>(vertexCount + 3)
-                    };
-                    indexBuffer.append(reinterpret_cast<const char*>(indices), 6 * sizeof(quint32));
-                    vertexCount += 4;
+                        // Add indices for the face (2 triangles, maintaining CCW winding)
+                        quint32 indices[6] = {
+                            static_cast<quint32>(vertexCount),
+                            static_cast<quint32>(vertexCount + 1),
+                            static_cast<quint32>(vertexCount + 2),
+                            static_cast<quint32>(vertexCount),
+                            static_cast<quint32>(vertexCount + 2),
+                            static_cast<quint32>(vertexCount + 3)
+                        };
+                        indexBuffer.append(reinterpret_cast<const char*>(indices), 6 * sizeof(quint32));
+                        vertexCount += 4;
+                    }
                 }
             }
         }
