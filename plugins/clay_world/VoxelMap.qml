@@ -51,9 +51,36 @@ Model {
 
     materials: [
         CustomMaterial {
-            vertexShader: _voxelMapModel.instancing ? "" : "voxel_map.vert"
-            fragmentShader: _voxelMapModel.instancing ? "" : "voxel_map.frag"
+            vertexShader: "voxel_map.vert"
+            fragmentShader: "voxel_map.frag"
             shadingMode: CustomMaterial.Shaded
+
+            // Add these properties for proper shadow handling
+            property bool receivesDepth: true
+            property bool receivesShadows: true
         }
     ]
+
+    // Visualize the voxel map's dimensions, works
+    // only if no instancing is used
+    // Box3D {
+    //     width: _voxelMap.width * _voxelMap.voxelSize
+    //     height: _voxelMap.height * _voxelMap.voxelSize
+    //     depth: _voxelMap.depth * _voxelMap.voxelSize
+    //     color: "orange"
+    //     opacity: .5
+    // }
+    // Loader {
+    //     sourceComponent: _debugBox
+    //     visible: true
+    // }
+    // Component {
+    //     id: _debugBox
+    //     Box3D {
+    //         width: _voxelMap.width
+    //         height: _voxelMap.height
+    //         depth: _voxelMap.depth
+    //         color: "orange"
+    //     }
+    // }
 }

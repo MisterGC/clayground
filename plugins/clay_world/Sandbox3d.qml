@@ -55,28 +55,6 @@ View3D {
             quadraticFade: 0.0001             // Very gradual falloff
             castsShadow: true                // No shadows from ambient light
         }
-
-        // DirectionalLight {
-        //     //color: Qt.rgba(1, 1, 0, 1)  // Slightly cool fill light
-        //     brightness: 0.2
-        //     eulerRotation: Qt.vector3d(0, 45, 0)
-        //     castsShadow: true
-        // }
-
-        // DirectionalLight {
-        //     //color: Qt.rgba(0, 1, 0, 1)  // Slightly cool fill light
-        //     brightness: 0.2
-        //     eulerRotation: Qt.vector3d(0, -45, 0)
-        //     castsShadow: true
-        // }
-
-        // DirectionalLight {
-        //     //color: Qt.rgba(0, 1, 0, 1)  // Slightly cool fill light
-        //     brightness: 0.2
-        //     eulerRotation: Qt.vector3d(0, 90, 0)
-        //     castsShadow: true
-        // }
-
     }
 
     function generateRandomLineData(anchorPoint, dimensions, maxNumPoints) {
@@ -107,7 +85,6 @@ View3D {
     // it is planned to allow color and width per line even in
     // batches
     MultiLine3D {
-        visible: false
         coords:  view.generateRandomLineBatch(1000,
                                               Qt.vector3d(0,0,0),
                                               Qt.vector3d(100,100,100),
@@ -130,7 +107,6 @@ View3D {
     // This is only recommended when drawing a view lines
     // e.g. for annotations
     Node {
-        visible: false
         Repeater3D {
             model: 10
             delegate: Line3D {
@@ -177,7 +153,6 @@ View3D {
     }
 
     Box3D  {
-        visible: false
         x: -200; y: 0; z: 50
         width: 100
         Node{
@@ -195,23 +170,23 @@ View3D {
     VoxelMap {
         id: _voxelMap
         castsShadows: true
-        x: 100; y: 0; z: 100
-        // instancing: InstanceList {
-        //     instances: [
-        //         InstanceListEntry {
-        //             position: Qt.vector3d(-300, 0, 100)
-        //             scale: Qt.vector3d(1, 1, 1)
-        //         },
-        //         InstanceListEntry {
-        //             position: Qt.vector3d(-320, 0, 200)
-        //             scale: Qt.vector3d(0.9, 0.9, 0.9)
-        //         },
-        //         InstanceListEntry {
-        //             position: Qt.vector3d(-400, 0, 150)
-        //             scale: Qt.vector3d(1.1, 1.1, 1.1)
-        //         }
-        //     ]
-        // }
+        //x: 100; y: 0; z: 100
+        instancing: InstanceList {
+            instances: [
+                InstanceListEntry {
+                    position: Qt.vector3d(-300, 0, 100)
+                    scale: Qt.vector3d(1, 1, 1)
+                },
+                InstanceListEntry {
+                    position: Qt.vector3d(-320, 0, 200)
+                    scale: Qt.vector3d(0.9, 0.9, 0.9)
+                },
+                InstanceListEntry {
+                    position: Qt.vector3d(-400, 0, 150)
+                    scale: Qt.vector3d(1.1, 1.1, 1.1)
+                }
+            ]
+        }
         width: 30; height: 30; depth: 30
         voxelSize: 5.0
         defaultColor: "transparent"
@@ -237,6 +212,16 @@ View3D {
             ], 0.0);
         }
     }
+    Node{
+        x: -400; y: 10; z: 200
+        Label {
+            color: "black"
+            background: Rectangle {opacity: .75}
+            text: "VoxelMap with Instancing"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
 
     Node {
         id: _physicsRoot
@@ -255,7 +240,6 @@ View3D {
                 }
             }
             Model {
-                visible: true
                 y: 0.5
                 scale: Qt.vector3d(2000, 2000, 2000)
                 eulerRotation: Qt.vector3d(-90, 0, 0)
@@ -269,36 +253,27 @@ View3D {
             }
         }
 
-        // Repeater3D{
-        //     model: 2
-        //     Box3DBody {
-        //         color: "orange"
-        //         x: 150;  y: 50; z: 50
-        //         width: 20
-        //         scaledFace: Box3DGeometry.BottomFace
-        //         faceScale: Qt.vector2d(.5, .5)
-        //     }
-        // }
-        // Node{
-        //     x: 150; y: 10; z: 100.1
-        //     Label {
-        //         color: "black"
-        //         background: Rectangle {opacity: .75}
-        //         text: "Box3DBody"
-        //         anchors.horizontalCenter: parent.horizontalCenter
-        //         anchors.verticalCenter: parent.verticalCenter
-        //     }
-        // }
-
-    }
-
-    Model {
-        x: -300; y:50; z: 200
-        source: "#Cube"
-        materials: PrincipledMaterial {
-            baseColor: "yellow"
+        Repeater3D{
+            model: 2
+            Box3DBody {
+                color: "orange"
+                x: 150;  y: 50; z: 50
+                width: 20
+                scaledFace: Box3DGeometry.BottomFace
+                faceScale: Qt.vector2d(.5, .5)
+            }
         }
-        castsShadows: true
+        Node{
+            x: 150; y: 10; z: 100.1
+            Label {
+                color: "black"
+                background: Rectangle {opacity: .75}
+                text: "Box3DBody"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
     }
 
     PhysicsWorld{
