@@ -262,6 +262,13 @@ void VoxelMapGeometry::updateGeometry()
     if (m_width <= 0 || m_height <= 0 || m_depth <= 0)
         return;
 
+    // Add bounds calculation based on voxel map dimensions
+    float halfWidth = (m_width * m_voxelSize) / 2.0f;
+    float maxHeight = m_height * m_voxelSize;
+    float halfDepth = (m_depth * m_voxelSize) / 2.0f;
+    setBounds(QVector3D(-halfWidth, 0, -halfDepth),
+             QVector3D(halfWidth, maxHeight, halfDepth));
+
     QByteArray vertexBuffer;
     QByteArray indexBuffer;
     // 24 vertices per cube (4 vertices per face * 6 faces)
