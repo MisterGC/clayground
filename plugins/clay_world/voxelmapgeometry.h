@@ -16,6 +16,7 @@ class VoxelMapGeometry : public QQuick3DGeometry
     Q_PROPERTY(int depth READ depth WRITE setDepth NOTIFY depthChanged)
     Q_PROPERTY(float voxelSize READ voxelSize WRITE setVoxelSize NOTIFY voxelSizeChanged)
     Q_PROPERTY(QColor defaultColor READ defaultColor WRITE setDefaultColor NOTIFY defaultColorChanged)
+    Q_PROPERTY(float spacing READ spacing WRITE setSpacing NOTIFY spacingChanged)
 
 public:
     explicit VoxelMapGeometry();
@@ -44,6 +45,8 @@ public:
 
     Q_INVOKABLE void fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
     Q_INVOKABLE void fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
+    float spacing() const { return m_spacing; }
+    void setSpacing(float spacing);
 
 signals:
     void widthChanged();
@@ -51,6 +54,7 @@ signals:
     void depthChanged();
     void voxelSizeChanged();
     void defaultColorChanged();
+    void spacingChanged();
 
 private:
     void updateGeometry();
@@ -62,6 +66,7 @@ private:
     float m_voxelSize = 1.0f;
     QVector<QColor> m_voxels; // flat storage of all voxel colors
     QColor m_defaultColor = Qt::red;
+    float m_spacing = 0.0f;
 
     bool isFaceVisible(int x, int y, int z, int faceIndex) const;
 };

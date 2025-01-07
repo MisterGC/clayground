@@ -11,6 +11,7 @@ Model {
     property alias height: _voxelMap.height
     property alias depth: _voxelMap.depth
     property alias voxelSize: _voxelMap.voxelSize
+    property alias spacing: _voxelMap.spacing
     property alias defaultColor: _voxelMap.defaultColor
 
     function get(x, y, z) {

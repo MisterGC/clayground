@@ -255,6 +255,15 @@ bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
     return m_voxels[indexOf(nx, ny, nz)].alpha() == 0;
 }
 
+void VoxelMapGeometry::setSpacing(float spacing)
+{
+    if (qFuzzyCompare(m_spacing, spacing))
+        return;
+    m_spacing = spacing;
+    emit spacingChanged();
+    updateGeometry();
+}
+
 // Build all voxel cubes in a single geometry
 void VoxelMapGeometry::updateGeometry()
 {
@@ -262,10 +271,15 @@ void VoxelMapGeometry::updateGeometry()
     if (m_width <= 0 || m_height <= 0 || m_depth <= 0)
         return;
 
-    // Add bounds calculation based on voxel map dimensions
-    float halfWidth = (m_width * m_voxelSize) / 2.0f;
-    float maxHeight = m_height * m_voxelSize;
-    float halfDepth = (m_depth * m_voxelSize) / 2.0f;
+    // Calculate the total size including spacing
+    float totalWidth = m_width * (m_voxelSize + m_spacing) - m_spacing;
+    float totalHeight = m_height * (m_voxelSize + m_spacing) - m_spacing;
+    float totalDepth = m_depth * (m_voxelSize + m_spacing) - m_spacing;
+
+    // Update bounds calculation
+    float halfWidth = totalWidth / 2.0f;
+    float maxHeight = totalHeight;
+    float halfDepth = totalDepth / 2.0f;
     setBounds(QVector3D(-halfWidth, 0, -halfDepth),
              QVector3D(halfWidth, maxHeight, halfDepth));
 
@@ -288,9 +302,9 @@ void VoxelMapGeometry::updateGeometry()
         { 0.0f, -1.0f,  0.0f }  // Bottom
     };
 
-    // Calculate the offset to center the voxel map in X and Z
-    float offsetX = -(m_width * m_voxelSize) / 2.0f;
-    float offsetZ = -(m_depth * m_voxelSize) / 2.0f;
+    // Update the offset calculations
+    float offsetX = -totalWidth / 2.0f;
+    float offsetZ = -totalDepth / 2.0f;
 
     for (int z = 0; z < m_depth; ++z) {
         for (int y = 0; y < m_height; ++y) {
@@ -298,9 +312,10 @@ void VoxelMapGeometry::updateGeometry()
                 QColor c = m_voxels[indexOf(x,y,z)];
                 if (c.alpha() == 0) continue;
 
-                float fx = offsetX + x * m_voxelSize;
-                float fy = y * m_voxelSize;  // Keep Y at bottom
-                float fz = offsetZ + z * m_voxelSize;
+                // Update position calculations to include spacing
+                float fx = offsetX + x * (m_voxelSize + m_spacing);
+                float fy = y * (m_voxelSize + m_spacing);
+                float fz = offsetZ + z * (m_voxelSize + m_spacing);
                 float s = m_voxelSize;
 
                 // Define vertices for each face (4 vertices per face)
