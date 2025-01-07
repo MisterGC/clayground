@@ -46,6 +46,18 @@ Model {
         }
     }
 
+    function fillBox(cx, cy, cz, width, height, depth, colorOrDistribution, noiseFactor = 0.0) {
+        if (Array.isArray(colorOrDistribution)) {
+            // It's already a distribution array
+            _voxelMap.fillBox(cx, cy, cz, width, height, depth, colorOrDistribution, noiseFactor);
+        } else {
+            // It's a single color, convert to simple distribution array
+            _voxelMap.fillBox(cx, cy, cz, width, height, depth, [
+                { color: colorOrDistribution.toString(), weight: 1.0 }
+            ], noiseFactor);
+        }
+    }
+
     geometry: VoxelMapGeometry {
         id: _voxelMap
     }

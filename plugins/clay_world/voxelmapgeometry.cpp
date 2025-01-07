@@ -235,6 +235,55 @@ void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, c
     updateGeometry();
 }
 
+void VoxelMapGeometry::fillBox(int cx, int cy, int cz, int boxWidth, int boxHeight, int boxDepth, const QVariantList &colorDistribution, float noiseFactor)
+{
+    // Validate inputs
+    if (boxWidth <= 0 || boxHeight <= 0 || boxDepth <= 0 || colorDistribution.isEmpty()) return;
+
+    auto distribution = prepareColorDistribution(colorDistribution);
+    if (distribution.isEmpty()) return;
+
+    // Calculate box bounds with noise factor
+    float halfWidth = boxWidth / 2.0f;
+    float halfHeight = boxHeight / 2.0f;
+    float halfDepth = boxDepth / 2.0f;
+
+    // Calculate boundaries in voxel coordinates
+    int minX = qBound(0, int(cx - halfWidth), width() - 1);
+    int maxX = qBound(0, int(cx + halfWidth), width() - 1);
+    int minY = qBound(0, int(cy - halfHeight), height() - 1);
+    int maxY = qBound(0, int(cy + halfHeight), height() - 1);
+    int minZ = qBound(0, int(cz - halfDepth), depth() - 1);
+    int maxZ = qBound(0, int(cz + halfDepth), depth() - 1);
+
+    if (minX > maxX || minY > maxY || minZ > maxZ) return;
+
+    // Fill the box
+    for (int z = minZ; z <= maxZ; ++z) {
+        for (int y = minY; y <= maxY; ++y) {
+            for (int x = minX; x <= maxX; ++x) {
+                // Apply noise to the box boundaries
+                if (noiseFactor > 0.0f) {
+                    float dx = float(x - cx) / halfWidth;
+                    float dy = float(y - cy) / halfHeight;
+                    float dz = float(z - cz) / halfDepth;
+
+                    // Skip if outside the noisy boundary
+                    if (std::abs(dx) > (1.0f + applyNoise(0.0f, noiseFactor)) ||
+                        std::abs(dy) > (1.0f + applyNoise(0.0f, noiseFactor)) ||
+                        std::abs(dz) > (1.0f + applyNoise(0.0f, noiseFactor))) {
+                        continue;
+                    }
+                }
+
+                m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
+            }
+        }
+    }
+
+    updateGeometry();
+}
+
 bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
     // Get the neighbor coordinates based on face index
     int nx = x, ny = y, nz = z;
