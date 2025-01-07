@@ -188,7 +188,7 @@ View3D {
             ]
         }
         width: 30; height: 30; depth: 30
-        voxelSize: 5.0
+        voxelSize: 5.0; spacing: 0.0
         defaultColor: "transparent"
         Component.onCompleted: {
             // To set one voxel
@@ -210,6 +210,13 @@ View3D {
                 { color: "#8B4513", weight: 0.4 },  // Saddle brown
                 { color: "#A0522D", weight: 0.2 }   // Sienna
             ], 0.0);
+            _voxelMap.fillBox(0,0,30,10,10,1,[
+                { color: "#5C4033", weight: 0.4 },  // Dark brown
+                { color: "#8B4513", weight: 0.4 },  // Saddle brown
+                { color: "#A0522D", weight: 0.2 }   // Sienna
+            ], 0.0);
+
+
         }
     }
     Node{
@@ -218,6 +225,42 @@ View3D {
             color: "black"
             background: Rectangle {opacity: .75}
             text: "VoxelMap with Instancing"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    VoxelMap {
+        id: _roomMap
+        castsShadows: true
+        x: 50; y: 0; z: 300
+        width: 40; height: 30; depth: 40
+        voxelSize: 5.0; spacing: 1.0
+        defaultColor: "transparent"
+        Component.onCompleted: {
+
+            // Walls with brick-like colors
+            _roomMap.fillBox(0, 1, 0, 1, 20, 40, [  // Left wall
+                { color: "#5C4033", weight: 0.4 },  // Dark brown
+                { color: "#8B4513", weight: 0.4 },  // Saddle brown
+                { color: "#A0522D", weight: 0.2 }   // Sienna
+            ]);
+
+            _roomMap.fillBox(0, 1, 0, 40, 20, 1, [  // Back wall
+                { color: "#5C4033", weight: 0.4 },
+                { color: "#8B4513", weight: 0.4 },
+                { color: "#A0522D", weight: 0.2 }
+            ], 0.3);
+        }
+    }
+
+    // Optional label for the room
+    Node {
+        x: -300; y: 30; z: 0
+        Label {
+            color: "black"
+            background: Rectangle {opacity: .75}
+            text: "Voxel Room"
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
         }
