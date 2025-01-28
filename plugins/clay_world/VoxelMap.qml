@@ -22,40 +22,67 @@ Model {
         _voxelMap.setVoxel(x,y,z,color);
     }
 
-    function fillSphere(cx, cy, cz, r, colorOrDistribution, noiseFactor = 0.0) {
-        if (Array.isArray(colorOrDistribution)) {
-            // It's already a distribution array
-            _voxelMap.fillSphere(cx, cy, cz, r, colorOrDistribution, noiseFactor);
-        } else {
-            // It's a single color, convert to simple distribution array
-            _voxelMap.fillSphere(cx, cy, cz, r, [
-                { color: colorOrDistribution.toString(), weight: 1.0 }
-            ], noiseFactor);
+    function fill(shapes) {
+        // Handle single shape case
+        if (!Array.isArray(shapes)) {
+            shapes = [shapes];
         }
-    }
 
-    function fillCylinder(cx, cy, cz, r, height, colorOrDistribution, noiseFactor = 0.0) {
-        if (Array.isArray(colorOrDistribution)) {
-            // It's already a distribution array
-            _voxelMap.fillCylinder(cx, cy, cz, r, height, colorOrDistribution, noiseFactor);
-        } else {
-            // It's a single color, convert to simple distribution array
-            _voxelMap.fillCylinder(cx, cy, cz, r, height, [
-                { color: colorOrDistribution.toString(), weight: 1.0 }
-            ], noiseFactor);
-        }
-    }
+        shapes.forEach(shape => {
+            // Support both object notation and array notation
+            let type, params;
+            if (Array.isArray(shape)) {
+                [type, params] = shape;
+            } else {
+                [[type, params]] = Object.entries(shape);
+            }
 
-    function fillBox(cx, cy, cz, width, height, depth, colorOrDistribution, noiseFactor = 0.0) {
-        if (Array.isArray(colorOrDistribution)) {
-            // It's already a distribution array
-            _voxelMap.fillBox(cx, cy, cz, width, height, depth, colorOrDistribution, noiseFactor);
-        } else {
-            // It's a single color, convert to simple distribution array
-            _voxelMap.fillBox(cx, cy, cz, width, height, depth, [
-                { color: colorOrDistribution.toString(), weight: 1.0 }
-            ], noiseFactor);
-        }
+            // Common defaults
+            const commonDefaults = {
+                pos: Qt.vector3d(0, 0, 0),
+                colors: [{ color: defaultColor, weight: 1.0 }],
+                noise: 0.0,
+                rotation: Qt.vector3d(0, 0, 0)
+            }
+
+            switch(type.toLowerCase()) {
+                case "sphere":
+                    const sphereDefaults = { radius: 1 }
+                    const s = Object.assign({}, commonDefaults, sphereDefaults, params)
+                    _voxelMap.fillSphere(
+                        s.pos.x, s.pos.y, s.pos.z,
+                        s.radius,
+                        s.colors,
+                        s.noise
+                    )
+                    break
+
+                case "cylinder":
+                    const cylinderDefaults = { radius: 1, height: 1 }
+                    const c = Object.assign({}, commonDefaults, cylinderDefaults, params)
+                    _voxelMap.fillCylinder(
+                        c.pos.x, c.pos.y, c.pos.z,
+                        c.radius,
+                        c.height,
+                        c.colors,
+                        c.noise
+                    )
+                    break
+
+                case "box":
+                    const boxDefaults = { width: 1, height: 1, depth: 1 }
+                    const b = Object.assign({}, commonDefaults, boxDefaults, params)
+                    _voxelMap.fillBox(
+                        b.pos.x, b.pos.y, b.pos.z,
+                        b.width,
+                        b.height,
+                        b.depth,
+                        b.colors,
+                        b.noise
+                    )
+                    break
+            }
+        })
     }
 
     geometry: VoxelMapGeometry {
@@ -74,26 +101,4 @@ Model {
         }
     ]
 
-    // Visualize the voxel map's dimensions, works
-    // only if no instancing is used
-    // Box3D {
-    //     width: _voxelMap.width * _voxelMap.voxelSize
-    //     height: _voxelMap.height * _voxelMap.voxelSize
-    //     depth: _voxelMap.depth * _voxelMap.voxelSize
-    //     color: "orange"
-    //     opacity: .5
-    // }
-    // Loader {
-    //     sourceComponent: _debugBox
-    //     visible: true
-    // }
-    // Component {
-    //     id: _debugBox
-    //     Box3D {
-    //         width: _voxelMap.width
-    //         height: _voxelMap.height
-    //         depth: _voxelMap.depth
-    //         color: "orange"
-    //     }
-    // }
 }

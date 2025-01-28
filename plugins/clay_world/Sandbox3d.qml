@@ -206,43 +206,38 @@ View3D {
         voxelSize: 5.0; spacing: 0.0
         defaultColor: "transparent"
         Component.onCompleted: {
-            // To set one voxel
-            //_voxelMap.set(0,0,0, "black");
 
-            // Use transparent to clear voxels e.g.
-            // _voxelMap.set(0,0,0, "transparent");
-
-
-            // The tree's top using a sphere
-            // first three numbers represent the
-            // voxel coord withing the voxel space
-            // the last one is the radius of the sphere
-            // then there is the distribution of voxel
-            // colors - the last one is noise/deviation from perfect sphere
-            _voxelMap.fillSphere(10, 15, 10, 8, [
-                                         { color: "#2D5A27", weight: 0.3 },  // Darker forest green (inner/lower foliage)
-                                         { color: "#3A7729", weight: 0.3 },  // Medium forest green
-                                         { color: "#4C9A2A", weight: 0.15 },  // Bright green
-                                         { color: "red", weight: 0.05 },  // Bright green
-                                         { color: "#68B030", weight: 0.15 }, // Light lime green (sun-exposed leaves)
-                                         { color: "#89C34A", weight: 0.05 }  // Very light green (highlights)
-                                 ], 0.3);
-
-            // The tree's trunk
-            _voxelMap.fillCylinder(10, 0, 10, 2, 10, [
-                { color: "#5C4033", weight: 0.4 },  // Dark brown
-                { color: "#8B4513", weight: 0.4 },  // Saddle brown
-                { color: "#A0522D", weight: 0.2 }   // Sienna
-            ], 0.0);
-            _voxelMap.fillBox(0,0,30,10,10,1,[
-                { color: "#5C4033", weight: 0.4 },  // Dark brown
-                { color: "#8B4513", weight: 0.4 },  // Saddle brown
-                { color: "#A0522D", weight: 0.2 }   // Sienna
-            ], 0.0);
-
+            _voxelMap.fill([
+                               // Tree crown
+                               { sphere: {
+                                       pos: Qt.vector3d(10, 15, 10),
+                                       radius: 8,
+                                       colors: [
+                                           { color: "#2D5A27", weight: 0.3 },
+                                           { color: "#3A7729", weight: 0.3 },
+                                           { color: "#4C9A2A", weight: 0.15 },
+                                           { color: "red", weight: 0.05 },
+                                           { color: "#68B030", weight: 0.15 },
+                                           { color: "#89C34A", weight: 0.05 }
+                                       ],
+                                       noise: 0.3
+                                   }},
+                               // Tree trunk
+                               { cylinder: {
+                                       pos: Qt.vector3d(10, 0, 10),
+                                       radius: 2,
+                                       height: 10,
+                                       colors: [
+                                           { color: "#5C4033", weight: 0.4 },
+                                           { color: "#8B4513", weight: 0.4 },
+                                           { color: "#A0522D", weight: 0.2 }
+                                       ]
+                                   }}
+                           ]);
 
         }
     }
+
     Node{
         x: -400; y: 10; z: 200
         Label {
@@ -258,23 +253,19 @@ View3D {
         id: _roomMap
         castsShadows: true
         x: 50; y: 0; z: 300
-        width: 40; height: 100; depth: 40
-        voxelSize: 5.0; spacing: 0.1
+        width: 40; height: 20; depth: 40
+        voxelSize: 5.0; spacing: 0.0
         defaultColor: "blue"
         Component.onCompleted: {
-
-            // Walls with brick-like colors
-            _roomMap.fillBox(0, 1, 0, 20, 100, 40, [  // Left wall
-                // { color: "#5C4033", weight: 0.4 },  // Dark brown
-                // { color: "#8B4513", weight: 0.4 },  // Saddle brown
-                { color: "transparent", weight: 1 }   // Sienna
+            _roomMap.fill([
+                {
+                    "box": {
+                        pos: Qt.vector3d(0, 1, 0),
+                        width: 20, height: 100, depth: 40,
+                        colors: [ { color: "transparent", weight: 1 } ]
+                    }
+                }
             ]);
-
-            _roomMap.fillBox(0, 1, 0, 40, 200, 1, [  // Back wall
-                { color: "#5C4033", weight: 0.4 },
-                { color: "#8B4513", weight: 0.4 },
-                { color: "#A0522D", weight: 0.2 }
-            ], 0.3);
         }
     }
 
