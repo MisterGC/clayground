@@ -15,6 +15,8 @@ clay_plugin( World
         line3dinstancing.h
         voxelmapgeometry.cpp
         voxelmapgeometry.h
+        voxelmapinstancing.cpp
+        voxelmapinstancing.h
 
     QML_FILES
         custom_line.frag
@@ -39,6 +41,7 @@ clay_plugin( World
         SceneLoader3d.qml
         SceneLoaderBase.qml
         VoxelMap.qml
+        VoxelMapInstanced.qml
 
     LINK_LIBS
         Qt::Core

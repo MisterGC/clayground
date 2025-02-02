@@ -182,6 +182,45 @@ View3D {
         receivesShadows: false
     }
 
+    VoxelMapInstanced {
+        id: _voxelMapInst
+        castsShadows: true
+        x: -200; y: 20; z: 300
+        width: 30; height: 30; depth: 30
+        voxelSize: 5.0; spacing: 5.0
+        defaultColor: "orange"
+        Component.onCompleted: {
+
+            _voxelMap.fill([
+                               // Tree crown
+                               { sphere: {
+                                       pos: Qt.vector3d(10, 15, 10),
+                                       radius: 8,
+                                       colors: [
+                                           { color: "#2D5A27", weight: 0.3 },
+                                           { color: "#3A7729", weight: 0.3 },
+                                           { color: "#4C9A2A", weight: 0.15 },
+                                           { color: "red", weight: 0.05 },
+                                           { color: "#68B030", weight: 0.15 },
+                                           { color: "#89C34A", weight: 0.05 }
+                                       ],
+                                       noise: 0.3
+                                   }},
+                               // Tree trunk
+                               { cylinder: {
+                                       pos: Qt.vector3d(10, 0, 10),
+                                       radius: 2,
+                                       height: 10,
+                                       colors: [
+                                           { color: "#5C4033", weight: 0.4 },
+                                           { color: "#8B4513", weight: 0.4 },
+                                           { color: "#A0522D", weight: 0.2 }
+                                       ]
+                                   }}
+                           ]);
+        }
+    }
+
     VoxelMap {
         id: _voxelMap
         castsShadows: true
