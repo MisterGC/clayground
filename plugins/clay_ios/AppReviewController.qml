@@ -28,10 +28,6 @@ Item {
     // Storage for persitency of prompt state
     required property KeyValueStore storage
 
-    // Text that is shown when the user is asked for
-    // a review. This text should be localized.
-    property alias requestText: _feedbackDialogText.text
-
     // Maximum number of review prompts
     property int maxPromptCount: 3
 
