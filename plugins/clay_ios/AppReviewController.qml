@@ -36,7 +36,7 @@ Item {
     property int maxPromptCount: 3
 
     // Cooldown in days between two review prompts
-    property int cooldownDays: 30
+    property int cooldownDays: 14
 
     // Minimum active time the user has to spend before the
     // first request/between requests
@@ -73,7 +73,7 @@ Item {
     // conditions are met
     function showReviewPromptOnDemand() {
         if (reviewPromptConditionsMet()) {
-            feedbackDialog.open();
+            _requestReview();
         }
     }
 
@@ -102,11 +102,6 @@ Item {
             ClayIos.requestReview();
         else
             console.warn("Review requests are only supported on iOS.");
-    }
-
-    function handleNegativeFeedback() {
-        // TODO: Do we need a special treatment
-        // for rejected review requests?
     }
 
     function _daysSince(dateString) {
@@ -138,21 +133,6 @@ Item {
                 _sessionStartTime = new Date().getTime();
                 _activityTimer.start();
             }
-        }
-    }
-
-    Dialog {
-        id: feedbackDialog
-        title: "Feedback"
-        anchors.centerIn: parent
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onAccepted: _requestReview()
-        onRejected: handleNegativeFeedback()
-
-        Text {
-            id: _feedbackDialogText
-            anchors.centerIn: parent
         }
     }
 }
