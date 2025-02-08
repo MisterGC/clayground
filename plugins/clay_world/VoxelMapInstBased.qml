@@ -12,7 +12,6 @@ VoxelMap {
         depth: _voxelMap.depth
         voxelSize: _voxelMap.voxelSize
         spacing: _voxelMap.spacing
-        defaultColor: _voxelMap.defaultColor
     }
 
     // Use a built-in cube model as the source.

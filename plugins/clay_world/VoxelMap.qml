@@ -16,10 +16,6 @@ Model {
     property real voxelSize: 1.0
     property real spacing: 1.0
 
-    // By default none of the voxels are visible
-    // and also not created in the voxel map (performance!)
-    property color defaultColor: "transparent"
-
     // The model of the voxel map
     property var model
 
@@ -49,7 +45,7 @@ Model {
             // Common defaults
             const commonDefaults = {
                 pos: Qt.vector3d(0, 0, 0),
-                colors: [{ color: defaultColor, weight: 1.0 }],
+                colors: [{ color: "transparent", weight: 1.0 }],
                 noise: 0.0,
                 rotation: Qt.vector3d(0, 0, 0)
             }

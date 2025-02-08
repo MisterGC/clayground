@@ -27,7 +27,7 @@ void VoxelMapGeometry::setWidth(int w)
     if (m_width == w)
         return;
     m_width = w;
-    m_voxels.fill(m_defaultColor, m_width * m_height * m_depth);
+    m_voxels.fill(Qt::transparent, m_width * m_height * m_depth);
     emit widthChanged();
     updateGeometry();
 }
@@ -37,7 +37,7 @@ void VoxelMapGeometry::setHeight(int h)
     if (m_height == h)
         return;
     m_height = h;
-    m_voxels.fill(m_defaultColor, m_width * m_height * m_depth);
+    m_voxels.fill(Qt::transparent, m_width * m_height * m_depth);
     emit heightChanged();
     updateGeometry();
 }
@@ -47,7 +47,7 @@ void VoxelMapGeometry::setDepth(int d)
     if (m_depth == d)
         return;
     m_depth = d;
-    m_voxels.fill(m_defaultColor, m_width * m_height * m_depth);
+    m_voxels.fill(Qt::transparent, m_width * m_height * m_depth);
     emit depthChanged();
     updateGeometry();
 }
@@ -58,15 +58,6 @@ void VoxelMapGeometry::setVoxelSize(float size)
         return;
     m_voxelSize = size;
     emit voxelSizeChanged();
-    updateGeometry();
-}
-
-void VoxelMapGeometry::setDefaultColor(const QColor &color)
-{
-    if (m_defaultColor == color)
-        return;
-    m_defaultColor = color;
-    emit defaultColorChanged();
     updateGeometry();
 }
 

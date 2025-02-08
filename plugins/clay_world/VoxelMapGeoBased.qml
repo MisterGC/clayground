@@ -14,6 +14,5 @@ VoxelMap {
         depth: _voxelMap.depth
         voxelSize: _voxelMap.voxelSize
         spacing: _voxelMap.spacing
-        defaultColor: _voxelMap.defaultColor
     }
 }

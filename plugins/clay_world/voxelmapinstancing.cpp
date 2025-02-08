@@ -18,7 +18,7 @@ void VoxelMapInstancing::setWidth(int w)
         return;
     m_width = w;
     m_voxels.resize(m_width * m_height * m_depth);
-    m_voxels.fill(m_defaultColor);
+    m_voxels.fill(Qt::transparent);
     m_dirty = true;
     emit widthChanged();
     markDirty();
@@ -30,7 +30,7 @@ void VoxelMapInstancing::setHeight(int h)
         return;
     m_height = h;
     m_voxels.resize(m_width * m_height * m_depth);
-    m_voxels.fill(m_defaultColor);
+    m_voxels.fill(Qt::transparent);
     m_dirty = true;
     emit heightChanged();
     markDirty();
@@ -42,7 +42,7 @@ void VoxelMapInstancing::setDepth(int d)
         return;
     m_depth = d;
     m_voxels.resize(m_width * m_height * m_depth);
-    m_voxels.fill(m_defaultColor);
+    m_voxels.fill(Qt::transparent);
     m_dirty = true;
     emit depthChanged();
     markDirty();
@@ -65,17 +65,6 @@ void VoxelMapInstancing::setSpacing(float s)
     m_spacing = s;
     m_dirty = true;
     emit spacingChanged();
-    markDirty();
-}
-
-void VoxelMapInstancing::setDefaultColor(const QColor &color)
-{
-    if (m_defaultColor == color)
-        return;
-    m_defaultColor = color;
-    // (Optionally, you might refill m_voxels here.)
-    m_dirty = true;
-    emit defaultColorChanged();
     markDirty();
 }
 

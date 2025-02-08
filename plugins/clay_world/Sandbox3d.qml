@@ -188,7 +188,6 @@ View3D {
         x: -200; y: 0; z: 300
         width: 30; height: 30; depth: 30
         voxelSize: 2.0; spacing: 0.0
-        defaultColor: "green"
 
         SequentialAnimation{
             loops: Animation.Infinite
@@ -268,7 +267,6 @@ View3D {
         }
         width: 30; height: 30; depth: 30
         voxelSize: 5.0; spacing: 0.0
-        defaultColor: "transparent"
         Component.onCompleted: {
 
             _voxelMap.fill([

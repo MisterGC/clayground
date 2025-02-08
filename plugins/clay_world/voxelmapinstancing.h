@@ -19,7 +19,6 @@ class VoxelMapInstancing : public QQuick3DInstancing
     Q_PROPERTY(int depth READ depth WRITE setDepth NOTIFY depthChanged)
     Q_PROPERTY(float voxelSize READ voxelSize WRITE setVoxelSize NOTIFY voxelSizeChanged)
     Q_PROPERTY(float spacing READ spacing WRITE setSpacing NOTIFY spacingChanged)
-    Q_PROPERTY(QColor defaultColor READ defaultColor WRITE setDefaultColor NOTIFY defaultColorChanged)
 
 public:
     explicit VoxelMapInstancing(QQuick3DObject *parent = nullptr);
@@ -36,9 +35,6 @@ public:
     float spacing() const { return m_spacing; }
     void setSpacing(float s);
 
-    QColor defaultColor() const { return m_defaultColor; }
-    void setDefaultColor(const QColor &color);
-
     Q_INVOKABLE QColor voxel(int x, int y, int z) const;
     Q_INVOKABLE void setVoxel(int x, int y, int z, const QColor &color);
 
@@ -52,7 +48,6 @@ signals:
     void depthChanged();
     void voxelSizeChanged();
     void spacingChanged();
-    void defaultColorChanged();
 
 protected:
     // Called by the renderer to obtain the instance buffer.
@@ -72,7 +67,6 @@ private:
     int m_depth = 0;
     float m_voxelSize = 1.0f;
     float m_spacing = 0.0f;
-    QColor m_defaultColor = Qt::transparent;
     QVector<QColor> m_voxels; // Flat storage of voxel colors.
     QByteArray m_instanceData;
     bool m_dirty = true;
