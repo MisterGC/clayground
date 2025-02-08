@@ -182,7 +182,7 @@ View3D {
         receivesShadows: false
     }
 
-    VoxelMapInstBased {
+    DynamicVoxelMap {
         id: _voxelMapInst
         castsShadows: true
         x: -200; y: 0; z: 300
@@ -245,7 +245,7 @@ View3D {
         }
     }
 
-    VoxelMapGeoBased {
+    StaticVoxelMap {
         id: _voxelMap
         castsShadows: true
         //x: 100; y: 0; z: 100
@@ -311,25 +311,29 @@ View3D {
         }
     }
 
-    // VoxelMapGeoBased {
-    //     id: _roomMap
-    //     castsShadows: true
-    //     x: 50; y: 0; z: 300
-    //     width: 40; height: 20; depth: 40
-    //     voxelSize: 5.0; spacing: 0.0
-    //     defaultColor: "blue"
-    //     Component.onCompleted: {
-    //         _roomMap.fill([
-    //             {
-    //                 "box": {
-    //                     pos: Qt.vector3d(0, 1, 0),
-    //                     width: 20, height: 100, depth: 40,
-    //                     colors: [ { color: "transparent", weight: 1 } ]
-    //                 }
-    //             }
-    //         ]);
-    //     }
-    // }
+    DynamicVoxelMap {
+        id: _roomMap
+        castsShadows: true
+        x: 50; y: 0; z: 300
+        width: 40; height: 20; depth: 40
+        voxelSize: 5.0; spacing: 0.0
+        Component.onCompleted: {
+            _roomMap.fill([
+                {
+                    "box": {
+                        pos: Qt.vector3d(20, 10, 20),
+                        width: 40, height: 20, depth: 40,
+                        colors: [ { color: "blue", weight: 1 } ]
+                    }//,
+                    // "box": {
+                    //     pos: Qt.vector3d(0, 1, 0),
+                    //     width: 20, height: 100, depth: 40,
+                    //     colors: [ { color: "transparent", weight: 1 } ]
+                    // }
+                }
+            ]);
+        }
+    }
 
     // Optional label for the room
     Node {
