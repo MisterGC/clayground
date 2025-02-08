@@ -3,12 +3,9 @@
 #include <QQuick3DInstancing>
 #include <QColor>
 #include <QVector>
+#include "voxelmapdata.h"
 
 // Helper struct used for probabilistic color selection.
-struct ColorProb {
-    QColor color;
-    float probability;
-};
 
 class VoxelMapInstancing : public QQuick3DInstancing
 {
@@ -23,24 +20,26 @@ class VoxelMapInstancing : public QQuick3DInstancing
 public:
     explicit VoxelMapInstancing(QQuick3DObject *parent = nullptr);
 
-    int width() const { return m_width; }
+    // Forward property getters/setters to m_data
+    int width() const;
+    int height() const;
+    int depth() const;
     void setWidth(int w);
-    int height() const { return m_height; }
     void setHeight(int h);
-    int depth() const { return m_depth; }
     void setDepth(int d);
-
-    float voxelSize() const { return m_voxelSize; }
+    float voxelSize() const;
     void setVoxelSize(float size);
-    float spacing() const { return m_spacing; }
-    void setSpacing(float s);
+    float spacing() const;
+    void setSpacing(float spacing);
 
+    // Forward QML-invokable methods to m_data
+    Q_INVOKABLE bool saveToFile(const QString &path, bool binary = true);
+    Q_INVOKABLE bool loadFromFile(const QString &path, bool binary = true);
     Q_INVOKABLE QColor voxel(int x, int y, int z) const;
     Q_INVOKABLE void setVoxel(int x, int y, int z, const QColor &color);
-
     Q_INVOKABLE void fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
     Q_INVOKABLE void fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
-    Q_INVOKABLE void fillBox(int cx, int cy, int cz, int boxWidth, int boxHeight, int boxDepth, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
+    Q_INVOKABLE void fillBox(int cx, int cy, int cz, int width, int height, int depth, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
 
 signals:
     void widthChanged();
@@ -55,19 +54,16 @@ protected:
 
 private:
     void updateInstanceData();
-    int indexOf(int x, int y, int z) const { return x + y * m_width + z * m_width * m_height; }
+    VoxelMapData m_data;
+    QByteArray m_instanceData;
+    bool m_dirty = true;
 
+    struct ColorProb {
+        QColor color;
+        float probability;
+    };
     // Utility functions for color distribution and noise.
     QVector<ColorProb> prepareColorDistribution(const QVariantList &colorDistribution);
     QColor getRandomColor(const QVector<ColorProb> &distribution);
     float applyNoise(float value, float noiseFactor);
-
-    int m_width = 0;
-    int m_height = 0;
-    int m_depth = 0;
-    float m_voxelSize = 1.0f;
-    float m_spacing = 0.0f;
-    QVector<QColor> m_voxels; // Flat storage of voxel colors.
-    QByteArray m_instanceData;
-    bool m_dirty = true;
 };

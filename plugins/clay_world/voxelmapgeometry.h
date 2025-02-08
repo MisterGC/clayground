@@ -5,6 +5,7 @@
 #include <QVector>
 #include <QDataStream>
 #include <QVariantMap>
+#include "voxelmapdata.h"
 
 class VoxelMapGeometry : public QQuick3DGeometry
 {
@@ -20,31 +21,26 @@ class VoxelMapGeometry : public QQuick3DGeometry
 public:
     explicit VoxelMapGeometry();
 
-    // Dimensions
-    int width() const { return m_width; }
-    int height() const { return m_height; }
-    int depth() const { return m_depth; }
+    // Forward property getters/setters to m_data
+    int width() const;
+    int height() const;
+    int depth() const;
     void setWidth(int w);
     void setHeight(int h);
     void setDepth(int d);
-
-    // Voxel size
-    float voxelSize() const { return m_voxelSize; }
+    float voxelSize() const;
     void setVoxelSize(float size);
+    float spacing() const;
+    void setSpacing(float spacing);
 
-    // I/O
+    // Forward QML-invokable methods to m_data
     Q_INVOKABLE bool saveToFile(const QString &path, bool binary = true);
     Q_INVOKABLE bool loadFromFile(const QString &path, bool binary = true);
-
     Q_INVOKABLE QColor voxel(int x, int y, int z) const;
     Q_INVOKABLE void setVoxel(int x, int y, int z, const QColor &color);
-
     Q_INVOKABLE void fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
     Q_INVOKABLE void fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
     Q_INVOKABLE void fillBox(int cx, int cy, int cz, int width, int height, int depth, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
-
-    float spacing() const { return m_spacing; }
-    void setSpacing(float spacing);
 
 signals:
     void widthChanged();
@@ -55,14 +51,6 @@ signals:
 
 private:
     void updateGeometry();
-    int indexOf(int x, int y, int z) const { return x + y*m_width + z*m_width*m_height; }
-
-    int m_width = 0;
-    int m_height = 0;
-    int m_depth = 0;
-    float m_voxelSize = 1.0f;
-    QVector<QColor> m_voxels; // flat storage of all voxel colors
-    float m_spacing = 0.0f;
-
     bool isFaceVisible(int x, int y, int z, int faceIndex) const;
+    VoxelMapData m_data;
 };
