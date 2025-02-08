@@ -79,8 +79,14 @@ Model {
     scale: Qt.vector3d(1/100, 1/100, 1/100)
 
     materials: [
-        DefaultMaterial {
-            diffuseColor: voxelInstancing.defaultColor
+        CustomMaterial {
+            vertexShader: "voxel_map.vert"
+            fragmentShader: "voxel_map.frag"
+            //shadingMode: CustomMaterial.Shaded
+
+            // Add these properties for proper shadow handling
+            //property bool receivesDepth: true
+            property bool receivesShadows: true
         }
     ]
 }

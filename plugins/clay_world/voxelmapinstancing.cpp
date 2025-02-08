@@ -253,17 +253,18 @@ QByteArray VoxelMapInstancing::getInstanceBuffer(int *instanceCount) {
 
 void VoxelMapInstancing::updateInstanceData() {
     m_instanceData.clear();
-    // Calculate overall grid dimensions.
-    float totalWidth  = m_width  * (m_voxelSize + m_spacing) - m_spacing;
-    float totalHeight = m_height * (m_voxelSize + m_spacing) - m_spacing;
-    float totalDepth  = m_depth  * (m_voxelSize + m_spacing) - m_spacing;
 
-    // Center the grid at origin
+    // Calculate overall grid dimensions (same as VoxelMapGeometry)
+    float totalWidth = m_width * (m_voxelSize + m_spacing) - m_spacing;
+    float totalHeight = m_height * (m_voxelSize + m_spacing) - m_spacing;
+    float totalDepth = m_depth * (m_voxelSize + m_spacing) - m_spacing;
+
+    // Center the grid horizontally, keep bottom at y=0 (matching VoxelMapGeometry)
     float offsetX = -totalWidth / 2.0f;
-    float offsetY = 0; // Keep base at y = 0
+    float offsetY = 0;  // Start at bottom
     float offsetZ = -totalDepth / 2.0f;
 
-    // For each non-transparent voxel, compute its instance transformation and color.
+    // For each non-transparent voxel, compute its instance transformation and color
     for (int z = 0; z < m_depth; ++z) {
         for (int y = 0; y < m_height; ++y) {
             for (int x = 0; x < m_width; ++x) {
@@ -271,16 +272,14 @@ void VoxelMapInstancing::updateInstanceData() {
                 if (c.alpha() == 0)
                     continue;
 
-                // Calculate position for this voxel
+                // Calculate position using same offset logic as VoxelMapGeometry
                 float posX = offsetX + x * (m_voxelSize + m_spacing);
                 float posY = offsetY + y * (m_voxelSize + m_spacing);
                 float posZ = offsetZ + z * (m_voxelSize + m_spacing);
 
                 QVector3D position(posX, posY, posZ);
                 QVector3D scale(m_voxelSize, m_voxelSize, m_voxelSize);
-
-                // Use identity rotation for voxels
-                QQuaternion rotation;  // Default constructor creates identity rotation
+                QQuaternion rotation;  // Identity rotation
 
                 auto entry = calculateTableEntryFromQuaternion(
                     position,

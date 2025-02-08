@@ -185,13 +185,13 @@ View3D {
     VoxelMapInstanced {
         id: _voxelMapInst
         castsShadows: true
-        x: -200; y: 20; z: 300
+        x: -200; y: 0; z: 300
         width: 30; height: 30; depth: 30
-        voxelSize: 5.0; spacing: 5.0
-        defaultColor: "orange"
+        voxelSize: 15.0; spacing: 0.0
+        defaultColor: "transparent"
         Component.onCompleted: {
 
-            _voxelMap.fill([
+            _voxelMapInst.fill([
                                // Tree crown
                                { sphere: {
                                        pos: Qt.vector3d(10, 15, 10),
