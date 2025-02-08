@@ -72,7 +72,7 @@ private:
     int m_depth = 0;
     float m_voxelSize = 1.0f;
     float m_spacing = 0.0f;
-    QColor m_defaultColor = Qt::red;
+    QColor m_defaultColor = Qt::transparent;
     QVector<QColor> m_voxels; // Flat storage of voxel colors.
     QByteArray m_instanceData;
     bool m_dirty = true;

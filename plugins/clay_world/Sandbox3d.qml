@@ -182,13 +182,31 @@ View3D {
         receivesShadows: false
     }
 
-    VoxelMapInstanced {
+    VoxelMapInstBased {
         id: _voxelMapInst
         castsShadows: true
         x: -200; y: 0; z: 300
         width: 30; height: 30; depth: 30
-        voxelSize: 15.0; spacing: 0.0
-        defaultColor: "transparent"
+        voxelSize: 2.0; spacing: 0.0
+        defaultColor: "green"
+
+        SequentialAnimation{
+            loops: Animation.Infinite
+            running: false
+            NumberAnimation {
+                target: _voxelMapInst
+                property: "spacing"
+                to: 5
+                duration: 3000
+            }
+            NumberAnimation {
+                target: _voxelMapInst
+                property: "spacing"
+                to: 0
+                duration: 3000
+            }
+        }
+
         Component.onCompleted: {
 
             _voxelMapInst.fill([
@@ -216,12 +234,19 @@ View3D {
                                            { color: "#8B4513", weight: 0.4 },
                                            { color: "#A0522D", weight: 0.2 }
                                        ]
+                                   }},
+                                   { box: {
+                                       pos: Qt.vector3d(15, 15, 15),
+                                       width: 30,
+                                       height: 30,
+                                       depth: 30,
+                                       colors: [ { color: "red", weight: 1 } ]
                                    }}
                            ]);
         }
     }
 
-    VoxelMap {
+    VoxelMapGeoBased {
         id: _voxelMap
         castsShadows: true
         //x: 100; y: 0; z: 100
@@ -288,25 +313,25 @@ View3D {
         }
     }
 
-    VoxelMap {
-        id: _roomMap
-        castsShadows: true
-        x: 50; y: 0; z: 300
-        width: 40; height: 20; depth: 40
-        voxelSize: 5.0; spacing: 0.0
-        defaultColor: "blue"
-        Component.onCompleted: {
-            _roomMap.fill([
-                {
-                    "box": {
-                        pos: Qt.vector3d(0, 1, 0),
-                        width: 20, height: 100, depth: 40,
-                        colors: [ { color: "transparent", weight: 1 } ]
-                    }
-                }
-            ]);
-        }
-    }
+    // VoxelMapGeoBased {
+    //     id: _roomMap
+    //     castsShadows: true
+    //     x: 50; y: 0; z: 300
+    //     width: 40; height: 20; depth: 40
+    //     voxelSize: 5.0; spacing: 0.0
+    //     defaultColor: "blue"
+    //     Component.onCompleted: {
+    //         _roomMap.fill([
+    //             {
+    //                 "box": {
+    //                     pos: Qt.vector3d(0, 1, 0),
+    //                     width: 20, height: 100, depth: 40,
+    //                     colors: [ { color: "transparent", weight: 1 } ]
+    //                 }
+    //             }
+    //         ]);
+    //     }
+    // }
 
     // Optional label for the room
     Node {
@@ -384,6 +409,57 @@ View3D {
         forwardSpeed: .5
         backSpeed: .5
 
+    }
+
+
+    MouseArea {
+        anchors.fill: view
+        //! [mouse area]
+
+        onClicked: (mouse) => {
+            // Get screen coordinates of the click
+            pickPosition.text = "(" + mouse.x + ", " + mouse.y + ")"
+            //! [pick result]
+            var result = view.pick(mouse.x, mouse.y);
+            //! [pick result]
+            //! [pick specifics]
+            if (result.objectHit) {
+                var pickedObject = result.objectHit;
+                // Get picked model name
+                pickName.text = pickedObject.objectName;
+                // Get other pick specifics
+                uvPosition.text = "("
+                        + result.uvPosition.x.toFixed(2) + ", "
+                        + result.uvPosition.y.toFixed(2) + ")";
+                distance.text = result.distance.toFixed(2);
+                scenePosition.text = "("
+                        + result.scenePosition.x.toFixed(2) + ", "
+                        + result.scenePosition.y.toFixed(2) + ", "
+                        + result.scenePosition.z.toFixed(2) + ")";
+                _positionMarker.position = result.scenePosition;
+                localPosition.text = "("
+                        + result.position.x.toFixed(2) + ", "
+                        + result.position.y.toFixed(2) + ", "
+                        + result.position.z.toFixed(2) + ")";
+                worldNormal.text = "("
+                        + result.sceneNormal.x.toFixed(2) + ", "
+                        + result.sceneNormal.y.toFixed(2) + ", "
+                        + result.sceneNormal.z.toFixed(2) + ")";
+                localNormal.text = "("
+                        + result.normal.x.toFixed(2) + ", "
+                        + result.normal.y.toFixed(2) + ", "
+                        + result.normal.z.toFixed(2) + ")";
+                //! [pick specifics]
+            } else {
+                pickName.text = "None";
+                uvPosition.text = "";
+                distance.text = "";
+                scenePosition.text = "";
+                localPosition.text = "";
+                worldNormal.text = "";
+                localNormal.text = "";
+            }
+        }
     }
 }
 Row {

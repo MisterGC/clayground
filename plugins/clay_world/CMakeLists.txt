@@ -41,7 +41,9 @@ clay_plugin( World
         SceneLoader3d.qml
         SceneLoaderBase.qml
         VoxelMap.qml
-        VoxelMapInstanced.qml
+        VoxelMapGeoBased.qml
+        VoxelMapInstBased.qml
+
 
     LINK_LIBS
         Qt::Core

@@ -67,7 +67,7 @@ private:
     int m_depth = 0;
     float m_voxelSize = 1.0f;
     QVector<QColor> m_voxels; // flat storage of all voxel colors
-    QColor m_defaultColor = Qt::red;
+    QColor m_defaultColor = Qt::transparent;
     float m_spacing = 0.0f;
 
     bool isFaceVisible(int x, int y, int z, int faceIndex) const;

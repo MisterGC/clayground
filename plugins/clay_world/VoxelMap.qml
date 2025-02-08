@@ -5,21 +5,30 @@ import QtQuick3D
 
 Model {
 
-    id: _voxelMapModel
+    id: _voxelMap
 
-    property alias width: _voxelMap.width
-    property alias height: _voxelMap.height
-    property alias depth: _voxelMap.depth
-    property alias voxelSize: _voxelMap.voxelSize
-    property alias spacing: _voxelMap.spacing
-    property alias defaultColor: _voxelMap.defaultColor
+    // Dimensions of the voxel map
+    property int width: 100
+    property int height: 100
+    property int depth: 100
+
+    // Size of each voxel
+    property real voxelSize: 1.0
+    property real spacing: 1.0
+
+    // By default none of the voxels are visible
+    // and also not created in the voxel map (performance!)
+    property color defaultColor: "transparent"
+
+    // The model of the voxel map
+    property var model
 
     function get(x, y, z) {
-        return _voxelMap.voxel(x,y,z);
+        return model.voxel(x,y,z);
     }
 
     function set(x, y, z, color) {
-        _voxelMap.setVoxel(x,y,z,color);
+        model.setVoxel(x,y,z,color);
     }
 
     function fill(shapes) {
@@ -49,7 +58,7 @@ Model {
                 case "sphere":
                     const sphereDefaults = { radius: 1 }
                     const s = Object.assign({}, commonDefaults, sphereDefaults, params)
-                    _voxelMap.fillSphere(
+                    model.fillSphere(
                         s.pos.x, s.pos.y, s.pos.z,
                         s.radius,
                         s.colors,
@@ -60,7 +69,7 @@ Model {
                 case "cylinder":
                     const cylinderDefaults = { radius: 1, height: 1 }
                     const c = Object.assign({}, commonDefaults, cylinderDefaults, params)
-                    _voxelMap.fillCylinder(
+                    model.fillCylinder(
                         c.pos.x, c.pos.y, c.pos.z,
                         c.radius,
                         c.height,
@@ -69,10 +78,11 @@ Model {
                     )
                     break
 
+
                 case "box":
                     const boxDefaults = { width: 1, height: 1, depth: 1 }
                     const b = Object.assign({}, commonDefaults, boxDefaults, params)
-                    _voxelMap.fillBox(
+                    model.fillBox(
                         b.pos.x, b.pos.y, b.pos.z,
                         b.width,
                         b.height,
@@ -83,10 +93,6 @@ Model {
                     break
             }
         })
-    }
-
-    geometry: VoxelMapGeometry {
-        id: _voxelMap
     }
 
     materials: [
@@ -100,5 +106,4 @@ Model {
             property bool receivesShadows: true
         }
     ]
-
 }
