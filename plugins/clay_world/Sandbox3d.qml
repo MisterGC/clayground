@@ -9,6 +9,7 @@ import QtQuick3D.Physics.Helpers
 
 import QtQuick
 import QtQuick3D
+import Clayground.Canvas3D
 import Clayground.World
 
 Item {
