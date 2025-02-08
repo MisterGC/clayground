@@ -13,6 +13,8 @@ clay_plugin( World
         line3dgeometry.h
         line3dinstancing.cpp
         line3dinstancing.h
+        voxelmapdata.cpp
+        voxelmapdata.h
         voxelmapgeometry.cpp
         voxelmapgeometry.h
         voxelmapinstancing.cpp
@@ -41,7 +43,7 @@ clay_plugin( World
         SceneLoader3d.qml
         SceneLoaderBase.qml
         VoxelMap.qml
-        DynamicVoxelMap.qml.qml
+        DynamicVoxelMap.qml
         StaticVoxelMap.qml
 
 

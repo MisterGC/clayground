@@ -191,11 +191,11 @@ View3D {
 
         SequentialAnimation{
             loops: Animation.Infinite
-            running: false
+            running: true
             NumberAnimation {
                 target: _voxelMapInst
                 property: "spacing"
-                to: 5
+                to: 2
                 duration: 3000
             }
             NumberAnimation {
@@ -233,13 +233,6 @@ View3D {
                                            { color: "#8B4513", weight: 0.4 },
                                            { color: "#A0522D", weight: 0.2 }
                                        ]
-                                   }},
-                                   { box: {
-                                       pos: Qt.vector3d(15, 15, 15),
-                                       width: 30,
-                                       height: 30,
-                                       depth: 30,
-                                       colors: [ { color: "red", weight: 1 } ]
                                    }}
                            ]);
         }
@@ -319,17 +312,37 @@ View3D {
         voxelSize: 5.0; spacing: 0.0
         Component.onCompleted: {
             _roomMap.fill([
+                // Base layer (largest)
                 {
-                    "box": {
-                        pos: Qt.vector3d(20, 10, 20),
-                        width: 40, height: 20, depth: 40,
-                        colors: [ { color: "blue", weight: 1 } ]
-                    }//,
-                    // "box": {
-                    //     pos: Qt.vector3d(0, 1, 0),
-                    //     width: 20, height: 100, depth: 40,
-                    //     colors: [ { color: "transparent", weight: 1 } ]
-                    // }
+                    box: {
+                        pos: Qt.vector3d(0, 0, 0),
+                        width: 40, height: 4, depth: 40,
+                        colors: [ { color: "#FF8C00", weight: 1 } ]  // Dark orange
+                    }
+                },
+                // Second layer
+                {
+                    box: {
+                        pos: Qt.vector3d(5, 4, 5),
+                        width: 30, height: 4, depth: 30,
+                        colors: [ { color: "#FFA500", weight: 1 } ]  // Orange
+                    }
+                },
+                // Third layer
+                {
+                    box: {
+                        pos: Qt.vector3d(10, 8, 10),
+                        width: 20, height: 4, depth: 20,
+                        colors: [ { color: "#FFB52E", weight: 1 } ]  // Light orange
+                    }
+                },
+                // Top layer (smallest)
+                {
+                    box: {
+                        pos: Qt.vector3d(15, 12, 15),
+                        width: 10, height: 4, depth: 10,
+                        colors: [ { color: "#FFD700", weight: 1 } ]  // Gold
+                    }
                 }
             ]);
         }

@@ -229,7 +229,7 @@ void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const
     notifyDataChanged();
 }
 
-void VoxelMapData::fillBox(int cx, int cy, int cz, int boxWidth, int boxHeight, int boxDepth, const QVariantList &colorDistribution, float noiseFactor)
+void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHeight, int boxDepth, const QVariantList &colorDistribution, float noiseFactor)
 {
     // Validate inputs
     if (boxWidth <= 0 || boxHeight <= 0 || boxDepth <= 0 || colorDistribution.isEmpty()) return;
@@ -237,16 +237,13 @@ void VoxelMapData::fillBox(int cx, int cy, int cz, int boxWidth, int boxHeight, 
     auto distribution = prepareColorDistribution(colorDistribution);
     if (distribution.isEmpty()) return;
 
-    float halfWidth = boxWidth / 2.0f;
-    float halfHeight = boxHeight / 2.0f;
-    float halfDepth = boxDepth / 2.0f;
-
-    int minX = qBound(0, int(cx - halfWidth), width() - 1);
-    int maxX = qBound(0, int(cx + halfWidth), width() - 1);
-    int minY = qBound(0, int(cy - halfHeight), height() - 1);
-    int maxY = qBound(0, int(cy + halfHeight), height() - 1);
-    int minZ = qBound(0, int(cz - halfDepth), depth() - 1);
-    int maxZ = qBound(0, int(cz + halfDepth), depth() - 1);
+    // Calculate bounds directly from min position
+    int maxX = qBound(0, minX + boxWidth, width() - 1);
+    int maxY = qBound(0, minY + boxHeight, height() - 1);
+    int maxZ = qBound(0, minZ + boxDepth, depth() - 1);
+    minX = qBound(0, minX, width() - 1);
+    minY = qBound(0, minY, height() - 1);
+    minZ = qBound(0, minZ, depth() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
@@ -254,13 +251,13 @@ void VoxelMapData::fillBox(int cx, int cy, int cz, int boxWidth, int boxHeight, 
         for (int y = minY; y <= maxY; ++y) {
             for (int x = minX; x <= maxX; ++x) {
                 if (noiseFactor > 0.0f) {
-                    float dx = float(x - cx) / halfWidth;
-                    float dy = float(y - cy) / halfHeight;
-                    float dz = float(z - cz) / halfDepth;
+                    float dx = float(x - minX) / boxWidth;
+                    float dy = float(y - minY) / boxHeight;
+                    float dz = float(z - minZ) / boxDepth;
 
-                    if (std::abs(dx) > (1.0f + applyNoise(0.0f, noiseFactor)) ||
-                        std::abs(dy) > (1.0f + applyNoise(0.0f, noiseFactor)) ||
-                        std::abs(dz) > (1.0f + applyNoise(0.0f, noiseFactor))) {
+                    if (dx > (1.0f + applyNoise(0.0f, noiseFactor)) ||
+                        dy > (1.0f + applyNoise(0.0f, noiseFactor)) ||
+                        dz > (1.0f + applyNoise(0.0f, noiseFactor))) {
                         continue;
                     }
                 }
