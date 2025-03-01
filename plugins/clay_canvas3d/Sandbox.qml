@@ -10,15 +10,33 @@ import QtQuick3D.Physics.Helpers
 import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
+import Clayground.Storage
 
 Item {
     anchors.fill: parent
 
 
+    KeyValueStore {
+        id: _kvStore
+        name: "Clayground.Canvas3D.Store"
+    }
 
     View3D {
         id: view
         anchors.fill: parent
+
+        Component.onCompleted: {
+            if (_kvStore.has("camPos"))
+                camera.position = JSON.parse(_kvStore.get("camPos"));
+            if (_kvStore.has("camEuler"))
+                camera.eulerRotation = JSON.parse(_kvStore.get("camEuler"));
+        }
+
+
+        Component.onDestruction: {
+            _kvStore.set("camPos", JSON.stringify(camera.position));
+            _kvStore.set("camEuler", JSON.stringify(camera.eulerRotation));
+        }
 
         // Add focus to receive key events
         focus: true
@@ -47,7 +65,6 @@ Item {
         // Add key handling
         Keys.onPressed: function(event) {
 
-            console.log("event.key", event.key)
             // Toggle control mode with 'T' key
             if (event.key === Qt.Key_T) {
                 controllingPacman = !controllingPacman;
@@ -98,7 +115,7 @@ Item {
             id: camera
             position: Qt.vector3d(-40, 120, 300)
             eulerRotation: Qt.vector3d(-15, 0, 0)
-            lookAtNode: _daNode
+            //lookAtNode: _daNode
         }
 
         Node {
