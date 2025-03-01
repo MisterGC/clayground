@@ -29,6 +29,14 @@ Model {
         model.setVoxel(x,y,z,color);
     }
 
+    function load(path) {
+        model.loadFromFile(path);
+    }
+
+    function save(path) {
+        model.saveToFile(path);
+    }
+
     function fill(shapes) {
         // Handle single shape case
         if (!Array.isArray(shapes)) {

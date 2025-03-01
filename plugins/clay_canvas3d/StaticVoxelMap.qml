@@ -7,6 +7,9 @@ VoxelMap {
     id: _voxelMap
     model: _voxelMesh
 
+    function load(path) {_voxelMesh.loadFromFile(path);}
+    function save(path) {_voxelMesh.saveToFile(path);}
+
     geometry: VoxelMapGeometry {
         id: _voxelMesh
         width: _voxelMap.width

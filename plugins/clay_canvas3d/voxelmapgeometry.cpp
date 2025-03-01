@@ -84,14 +84,14 @@ void VoxelMapGeometry::setSpacing(float spacing)
 // ==========================================
 // Delegated Methods (for QML-invokable functions)
 // ==========================================
-bool VoxelMapGeometry::saveToFile(const QString &path, bool binary)
+bool VoxelMapGeometry::saveToFile(const QString &path)
 {
-    return m_data.saveToFile(path, binary);
+    return m_data.saveToFile(path);
 }
 
-bool VoxelMapGeometry::loadFromFile(const QString &path, bool binary)
+bool VoxelMapGeometry::loadFromFile(const QString &path)
 {
-    return m_data.loadFromFile(path, binary);
+    return m_data.loadFromFile(path);
 }
 
 QColor VoxelMapGeometry::voxel(int x, int y, int z) const {

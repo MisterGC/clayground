@@ -43,8 +43,8 @@ public:
     void fillBox(int cx, int cy, int cz, int width, int height, int depth, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
 
     // I/O
-    bool saveToFile(const QString &path, bool binary = true);
-    bool loadFromFile(const QString &path, bool binary = true);
+    bool saveToFile(const QString &path);
+    bool loadFromFile(const QString &path);
 
     // Change notification
     void setOnDataChanged(std::function<void()> callback) { m_onDataChanged = callback; }

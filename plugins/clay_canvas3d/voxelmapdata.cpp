@@ -264,92 +264,176 @@ void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHe
     }
 }
 
-bool VoxelMapData::saveToFile(const QString &path, bool binary)
+bool VoxelMapData::saveToFile(const QString &path)
 {
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning() << "Could not open for writing:" << path;
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open file for writing:" << path;
         return false;
     }
-    if (binary) {
-        QDataStream out(&file);
-        out << m_width << m_height << m_depth << m_voxelSize;
-        for (const auto &col : m_voxels) {
-            out << col.rgba(); // store 32-bit RGBA
-        }
-    } else {
-        QTextStream ts(&file);
-        ts << "width: " << m_width << "\n"
-           << "height: " << m_height << "\n"
-           << "depth: " << m_depth << "\n"
-           << "voxelSize: " << m_voxelSize << "\n"
-           << "voxels:\n";
-        for (int z=0; z<m_depth; ++z) {
-            for (int y=0; y<m_height; ++y) {
-                for (int x=0; x<m_width; ++x) {
-                    QColor c = m_voxels[indexOf(x,y,z)];
-                    if (c.alpha() != 0) {
-                        ts << "  - xyz: [" << x << "," << y << "," << z << "] color: "
-                           << colorToString(c) << "\n";
-                    }
+
+    QTextStream out(&file);
+
+    // Write header with metadata
+    out << "# Clayground Voxel Map\n";
+    out << "# One line per voxel\n";
+    out << "# X Y Z RRGGBB\n";
+    out << "# Note: In this format, Y is depth and Z is height\n";
+    out << "# Dimensions: " << m_width << " " << m_depth << " " << m_height << "\n";
+    out << "# VoxelSize: " << m_voxelSize << "\n";
+    out << "# Spacing: " << m_spacing << "\n";
+
+    // Write voxel data - one line per voxel
+    // In text format: X=width, Y=depth, Z=height
+    // In our data: X=width, Y=height, Z=depth
+    for (int z = 0; z < m_depth; z++) {
+        for (int y = 0; y < m_height; y++) {
+            for (int x = 0; x < m_width; x++) {
+                QColor color = m_voxels[indexOf(x, y, z)];
+
+                // Only write non-transparent voxels
+                if (color.alpha() > 0) {
+                    // Write as "X Y Z RRGGBB" format
+                    // Map our (x,y,z) to text format (x,z,y)
+                    out << x << " " << (m_depth - z) << " " << y << " "
+                        << QString("%1%2%3")
+                           .arg(color.red(), 2, 16, QChar('0'))
+                           .arg(color.green(), 2, 16, QChar('0'))
+                           .arg(color.blue(), 2, 16, QChar('0'))
+                        << "\n";
                 }
             }
         }
     }
+
+    file.close();
     return true;
 }
 
-bool VoxelMapData::loadFromFile(const QString &path, bool binary)
+bool VoxelMapData::loadFromFile(const QString &path)
 {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        qWarning() << "Could not open for reading:" << path;
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open file for reading:" << path;
         return false;
     }
-    if (binary) {
-        QDataStream in(&file);
-        in >> m_width >> m_height >> m_depth >> m_voxelSize;
-        m_voxels.resize(m_width * m_height * m_depth);
-        for (int i = 0; i < m_voxels.size(); ++i) {
-            QRgb val;
-            in >> val;
-            m_voxels[i].setRgba(val);
-        }
-    } else {
-        QTextStream ts(&file);
-        m_voxels.clear();
-        m_width = m_height = m_depth = 0;
-        while (!ts.atEnd()) {
-            QString line = ts.readLine().trimmed();
-            if (line.startsWith("width:"))
-                m_width = line.split(":").last().trimmed().toInt();
-            else if (line.startsWith("height:"))
-                m_height = line.split(":").last().trimmed().toInt();
-            else if (line.startsWith("depth:"))
-                m_depth = line.split(":").last().trimmed().toInt();
-            else if (line.startsWith("voxelSize:"))
-                m_voxelSize = line.split(":").last().trimmed().toFloat();
-        }
-        // Rewind to parse voxel lines
-        file.seek(0);
-        ts.seek(0);
-        m_voxels.resize(m_width * m_height * m_depth);
-        while (!ts.atEnd()) {
-            QString line = ts.readLine().trimmed();
-            if (line.startsWith("- xyz:")) {
-                int start = line.indexOf('[') + 1;
-                int end = line.indexOf(']');
-                QStringList coords = line.mid(start, end - start).split(',');
-                int x = coords[0].toInt();
-                int y = coords[1].toInt();
-                int z = coords[2].toInt();
 
-                int colorPos = line.indexOf("color:") + 6;
-                QString colorStr = line.mid(colorPos).trimmed();
-                setVoxel(x, y, z, stringToColor(colorStr));
+    QTextStream in(&file);
+
+    // Default dimensions in case they're not in the file
+    int newWidth = m_width;
+    int newHeight = m_height;
+    int newDepth = m_depth;
+    float newVoxelSize = m_voxelSize;
+    float newSpacing = m_spacing;
+
+    // First pass: read metadata from comments and find max dimensions
+    QString line;
+    while (!in.atEnd()) {
+        line = in.readLine().trimmed();
+
+        // Skip empty lines
+        if (line.isEmpty()) continue;
+
+        // Process metadata in comments
+        if (line.startsWith("#")) {
+            if (line.contains("Dimensions:")) {
+                QStringList parts = line.split(" ");
+                if (parts.size() >= 5) {
+                    newWidth = parts[2].toInt();
+                    // Note: In the file, Y is depth and Z is height
+                    newDepth = parts[3].toInt();
+                    newHeight = parts[4].toInt();
+                }
+            } else if (line.contains("VoxelSize:")) {
+                QStringList parts = line.split(" ");
+                if (parts.size() >= 3) {
+                    newVoxelSize = parts[2].toFloat();
+                }
+            } else if (line.contains("Spacing:")) {
+                QStringList parts = line.split(" ");
+                if (parts.size() >= 3) {
+                    newSpacing = parts[2].toFloat();
+                }
+            }
+            continue;
+        }
+
+        // Process voxel data to find max dimensions if not specified in comments
+        QStringList parts = line.split(" ");
+        if (parts.size() >= 4) {
+            int x = parts[0].toInt();
+            // In text format: Y is depth, Z is height
+            int z = parts[1].toInt(); // This is depth in our system
+            int y = parts[2].toInt(); // This is height in our system
+
+            // Update dimensions based on voxel coordinates
+            newWidth = qMax(newWidth, x + 1);
+            newHeight = qMax(newHeight, y + 1);
+            newDepth = qMax(newDepth, z + 1);
+        }
+    }
+
+    // Update dimensions and reset voxel array
+    m_width = newWidth;
+    m_height = newHeight;
+    m_depth = newDepth;
+    m_voxelSize = newVoxelSize;
+    m_spacing = newSpacing;
+
+    m_voxels.resize(m_width * m_height * m_depth);
+    m_voxels.fill(Qt::transparent);
+
+    // Second pass: read voxel data
+    in.seek(0);
+    while (!in.atEnd()) {
+        line = in.readLine().trimmed();
+
+        // Skip empty lines and comments
+        if (line.isEmpty() || line.startsWith("#")) continue;
+
+        QStringList parts = line.split(" ");
+        if (parts.size() >= 4) {
+            int x = parts[0].toInt();
+            // In text format: Y is depth, Z is height
+            int z = newDepth-parts[1].toInt(); // This is depth in our system
+            int y = parts[2].toInt(); // This is height in our system
+
+            // Check if coordinates are within bounds
+            if (x >= 0 && x < m_width && y >= 0 && y < m_height && z >= 0 && z < m_depth) {
+                // Parse color (RRGGBB format)
+                QString colorStr = parts[3];
+                bool ok;
+                int colorValue = colorStr.toInt(&ok, 16);
+
+                if (ok) {
+                    QColor color;
+                    if (colorStr.length() <= 6) {
+                        // RRGGBB format
+                        color = QColor(
+                            (colorValue >> 16) & 0xFF,
+                            (colorValue >> 8) & 0xFF,
+                            colorValue & 0xFF,
+                            255  // Full opacity
+                        );
+                    } else {
+                        // RRGGBBAA format (if present)
+                        color = QColor(
+                            (colorValue >> 24) & 0xFF,
+                            (colorValue >> 16) & 0xFF,
+                            (colorValue >> 8) & 0xFF,
+                            colorValue & 0xFF
+                        );
+                    }
+
+                    m_voxels[indexOf(x, y, z)] = color;
+                }
             }
         }
     }
+
+    file.close();
+
     emit widthChanged();
     emit heightChanged();
     emit depthChanged();

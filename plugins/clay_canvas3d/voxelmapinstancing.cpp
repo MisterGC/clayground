@@ -71,14 +71,14 @@ void VoxelMapInstancing::setSpacing(float spacing) {
 // ==========================================
 // Delegated Methods (for QML-invokable functions)
 // ==========================================
-bool VoxelMapInstancing::saveToFile(const QString &path, bool binary)
+bool VoxelMapInstancing::saveToFile(const QString &path)
 {
-    return m_data.saveToFile(path, binary);
+    return m_data.saveToFile(path);
 }
 
-bool VoxelMapInstancing::loadFromFile(const QString &path, bool binary)
+bool VoxelMapInstancing::loadFromFile(const QString &path)
 {
-    return m_data.loadFromFile(path, binary);
+    return m_data.loadFromFile(path);
 }
 
 QColor VoxelMapInstancing::voxel(int x, int y, int z) const {

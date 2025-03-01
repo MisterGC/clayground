@@ -34,8 +34,8 @@ public:
     void setSpacing(float spacing);
 
     // Forward QML-invokable methods to m_data
-    Q_INVOKABLE bool saveToFile(const QString &path, bool binary = true);
-    Q_INVOKABLE bool loadFromFile(const QString &path, bool binary = true);
+    Q_INVOKABLE bool saveToFile(const QString &path);
+    Q_INVOKABLE bool loadFromFile(const QString &path);
     Q_INVOKABLE QColor voxel(int x, int y, int z) const;
     Q_INVOKABLE void setVoxel(int x, int y, int z, const QColor &color);
     Q_INVOKABLE void fillSphere(int cx, int cy, int cz, int r, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
