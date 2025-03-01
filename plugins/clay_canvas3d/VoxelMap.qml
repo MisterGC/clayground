@@ -19,6 +19,8 @@ Model {
     // The model of the voxel map
     property var model
 
+    property bool autoCommit: true
+
     function get(x, y, z) {
         return model.voxel(x,y,z);
     }
@@ -89,6 +91,7 @@ Model {
                     break
             }
         })
+        model.commit();
     }
 
     materials: [

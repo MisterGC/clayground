@@ -212,3 +212,8 @@ float VoxelMapInstancing::applyNoise(float value, float noiseFactor) {
     std::uniform_real_distribution<float> dis(-noiseFactor, noiseFactor);
     return value * (1.0f + dis(gen));
 }
+
+void VoxelMapInstancing::commit()
+{
+    m_data.commit();
+}

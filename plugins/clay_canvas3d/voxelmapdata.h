@@ -49,16 +49,19 @@ public:
     // Change notification
     void setOnDataChanged(std::function<void()> callback) { m_onDataChanged = callback; }
 
+    Q_INVOKABLE void commit();
+
 signals:
     void widthChanged();
     void heightChanged();
     void depthChanged();
     void voxelSizeChanged();
     void spacingChanged();
+    void autoCommitChanged();
 
 protected:
     int indexOf(int x, int y, int z) const { return x + y*m_width + z*m_width*m_height; }
-    void notifyDataChanged() { if (m_onDataChanged) m_onDataChanged(); }
+    void notifyDataChanged();
 
 private:
     static QVector<ColorProb> prepareColorDistribution(const QVariantList &colorDistribution);

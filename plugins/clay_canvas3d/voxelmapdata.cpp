@@ -187,8 +187,6 @@ void VoxelMapData::fillSphere(int cx, int cy, int cz, int r, const QVariantList 
             }
         }
     }
-
-    notifyDataChanged();
 }
 
 void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const QVariantList &colorDistribution, float noiseFactor)
@@ -225,8 +223,6 @@ void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const
             }
         }
     }
-
-    notifyDataChanged();
 }
 
 void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHeight, int boxDepth, const QVariantList &colorDistribution, float noiseFactor)
@@ -238,9 +234,9 @@ void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHe
     if (distribution.isEmpty()) return;
 
     // Calculate bounds directly from min position
-    int maxX = qBound(0, minX + boxWidth, width() - 1);
-    int maxY = qBound(0, minY + boxHeight, height() - 1);
-    int maxZ = qBound(0, minZ + boxDepth, depth() - 1);
+    int maxX = qBound(0, minX + boxWidth - 1, width() - 1);
+    int maxY = qBound(0, minY + boxHeight - 1, height() - 1);
+    int maxZ = qBound(0, minZ + boxDepth - 1, depth() - 1);
     minX = qBound(0, minX, width() - 1);
     minY = qBound(0, minY, height() - 1);
     minZ = qBound(0, minZ, depth() - 1);
@@ -266,8 +262,6 @@ void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHe
             }
         }
     }
-
-    notifyDataChanged();
 }
 
 bool VoxelMapData::saveToFile(const QString &path, bool binary)
@@ -362,4 +356,14 @@ bool VoxelMapData::loadFromFile(const QString &path, bool binary)
     emit voxelSizeChanged();
     notifyDataChanged();
     return true;
+}
+
+void VoxelMapData::commit()
+{
+    notifyDataChanged();
+}
+
+void VoxelMapData::notifyDataChanged()
+{
+    if (m_onDataChanged)  m_onDataChanged();
 }

@@ -261,3 +261,8 @@ void VoxelMapGeometry::updateGeometry()
     setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
     update(); // finalize
 }
+
+void VoxelMapGeometry::commit()
+{
+    m_data.commit();
+}
