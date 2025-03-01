@@ -125,22 +125,30 @@ Item {
             DirectionalLight {
                 id: mainLight
                 color: Qt.rgba(1, 0.98, 0.95, 1)
-                brightness: 0.7
-                eulerRotation: Qt.vector3d(-45, 0, 0)
+                brightness: 0.5  // Reduced from 0.7 for less harsh shadows
+                eulerRotation: Qt.vector3d(-30, -45, 0)  // Changed angle to better illuminate all faces
                 castsShadow: true
-                shadowFactor: 50
+                shadowFactor: 25  // Reduced from 50 for softer shadows
                 shadowMapQuality: Light.ShadowMapQualityHigh
                 shadowMapFar: 2000
                 shadowBias: 5
-                ambientColor: Qt.rgba(0.5, 0.5, 0.5, 1) // White light
+                ambientColor: Qt.rgba(0.6, 0.6, 0.6, 1)  // Increased ambient light for better fill
+            }
+
+            // Add a second directional light from another angle
+            DirectionalLight {
+                color: Qt.rgba(0.9, 0.9, 1.0, 1)  // Slightly blue-tinted light
+                brightness: 0.3
+                eulerRotation: Qt.vector3d(-20, 135, 0)  // Coming from opposite direction
+                castsShadow: false  // No shadows from fill light
             }
 
             // Add ambient point light for general illumination
             PointLight {
                 position: Qt.vector3d(0, 10000, 0)  // Position above the scene
-                brightness: 0.1                    // Low intensity to just fill shadows
+                brightness: 0.15                    // Increased from 0.1
                 quadraticFade: 0.0001             // Very gradual falloff
-                castsShadow: true                // No shadows from ambient light
+                castsShadow: false                // No shadows from ambient light
             }
         }
 
