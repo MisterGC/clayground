@@ -5,6 +5,11 @@ VoxelMap {
     id: _voxelMap
     model: _voxelInstancing
 
+    // Dimensions of the voxel map
+    property alias width: _voxelInstancing.width
+    property alias height: _voxelInstancing.height
+    property alias depth: _voxelInstancing.depth
+
     instancing: VoxelMapInstancing {
         id: _voxelInstancing
         width: _voxelMap.width

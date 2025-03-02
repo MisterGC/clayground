@@ -7,18 +7,18 @@ Model {
 
     id: _voxelMap
 
-    // Dimensions of the voxel map
-    property int width: 100
-    property int height: 100
-    property int depth: 100
 
     // Size of each voxel
     property real voxelSize: 1.0
     property real spacing: 1.0
 
-    // The model of the voxel map
-    property var model
+    // Edge properties
+    property real edgeThickness: 0.1
+    property color edgeColor: "black"
+    property bool showEdges: true
 
+    // The model of the voxel map
+    property var model: undefined
     property bool autoCommit: true
 
     function get(x, y, z) {
@@ -104,6 +104,7 @@ Model {
 
     materials: [
         CustomMaterial {
+            id: voxelMaterial
             vertexShader: "voxel_map.vert"
             fragmentShader: "voxel_map.frag"
             shadingMode: CustomMaterial.Shaded
@@ -111,6 +112,20 @@ Model {
             // Add these properties for proper shadow handling
             property bool receivesDepth: true
             property bool receivesShadows: true
+
+            // Pass voxel properties to shader
+            property real voxelSize: _voxelMap.voxelSize
+            property real voxelSpacing: _voxelMap.spacing
+            property vector3d voxelOffset: Qt.vector3d(
+                                               (_voxelMap.width % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
+                                               0, // Y starts at 0 and is not centered
+                                               (_voxelMap.depth % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
+                                               )
+
+            // Edge properties
+            property real edgeThickness: _voxelMap.edgeThickness
+            property color edgeColor: _voxelMap.edgeColor
+            property bool showEdges: _voxelMap.showEdges
         }
     ]
 }
