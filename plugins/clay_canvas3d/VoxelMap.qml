@@ -13,8 +13,8 @@ Model {
     property real spacing: 1.0
 
     // Edge properties
-    property real edgeThickness: 0.1
-    property color edgeColor: "black"
+    property real edgeThickness: 0.05
+    property real edgeColorFactor: 1.0
     property bool showEdges: true
 
     // The model of the voxel map
@@ -109,22 +109,17 @@ Model {
             fragmentShader: "voxel_map.frag"
             shadingMode: CustomMaterial.Shaded
 
-            // Add these properties for proper shadow handling
-            property bool receivesDepth: true
-            property bool receivesShadows: true
-
-            // Pass voxel properties to shader
             property real voxelSize: _voxelMap.voxelSize
             property real voxelSpacing: _voxelMap.spacing
             property vector3d voxelOffset: Qt.vector3d(
                                                (_voxelMap.width % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
-                                               0, // Y starts at 0 and is not centered
+                                               0,
                                                (_voxelMap.depth % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
                                                )
 
             // Edge properties
             property real edgeThickness: _voxelMap.edgeThickness
-            property color edgeColor: _voxelMap.edgeColor
+            property real edgeColorFactor: _voxelMap.edgeColorFactor
             property bool showEdges: _voxelMap.showEdges
         }
     ]
