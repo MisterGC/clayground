@@ -14,16 +14,16 @@ void MAIN()
         vec3 f = fract(gridPos);
         vec3 gridDist = vec3(min(1-f.x, f.x),
                              min(1-f.y, f.y),
-                             min(1-f.z, f.z)); //abs(fract(gridPos) - 0.5) * voxelSize;
+                             min(1-f.z, f.z));
 
-        // Line width as a fixed world-space value (not relative to voxel size)
-        float lineWidth = edgeThickness; //0.05;
+        // Convert lineWidth from world units to voxel-space units
+        float lineWidthVoxelSpace = edgeThickness / voxelSize;
 
         // Line is visible if any axis is close to a grid line
         float line = (
-                     (gridDist.x < lineWidth && gridDist.y < lineWidth) ||
-                     (gridDist.x < lineWidth && gridDist.z < lineWidth) ||
-                     (gridDist.y < lineWidth && gridDist.z < lineWidth))
+                     (gridDist.x < lineWidthVoxelSpace && gridDist.y < lineWidthVoxelSpace) ||
+                     (gridDist.x < lineWidthVoxelSpace && gridDist.z < lineWidthVoxelSpace) ||
+                     (gridDist.y < lineWidthVoxelSpace && gridDist.z < lineWidthVoxelSpace))
                      ? 1.0 : 0.0;
 
         // Mix the voxel color with the grid line color
