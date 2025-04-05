@@ -2,6 +2,7 @@
 
 import QtQuick
 import QtQuick3D
+import QtQuick.Window
 
 Model {
 
@@ -123,6 +124,13 @@ Model {
             property real edgeThickness: _voxelMap.edgeThickness
             property real edgeColorFactor: _voxelMap.edgeColorFactor
             property bool showEdges: _voxelMap.showEdges
+
+            // Is expose to allows drawing edges in pixels instead of
+            // of world units or pure relative voxel size - this allows
+            // same edgethickness across voxelmaps with different voxel
+            // sizes - TODO: Don't use
+            property real viewportHeight: Screen.desktopAvailableHeight
+
         }
     ]
 }

@@ -9,5 +9,8 @@ void MAIN()
     // Pass the color through
     colorOut = COLOR;
     pos = VERTEX;
+
+    // Calculate view vector (from vertex to camera)
+    vViewVec = VIEW_MATRIX[3].xyz - VERTEX;
 }
 

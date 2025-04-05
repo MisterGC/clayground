@@ -7,7 +7,6 @@ void MAIN()
 {
     if (showEdges){
         // Calculate grid lines based on world position
-        // No need for offset adjustment since we want grid lines at exact voxel boundaries
         vec3 gridPos = (pos - voxelOffset) / voxelSize;
 
         // Calculate distance to nearest grid line for each axis
@@ -16,8 +15,12 @@ void MAIN()
                              min(1-f.y, f.y),
                              min(1-f.z, f.z));
 
-        // Convert lineWidth from world units to voxel-space units
-        float lineWidthVoxelSpace = edgeThickness / voxelSize;
+        // Convert pixel width to view space based on distance from camera and viewport size
+        float distanceToCamera = length(vViewVec);
+        float pixelSizeAtDistance = distanceToCamera * edgeThickness / viewportHeight;
+
+        // Account for perspective by scaling with distance
+        float lineWidthVoxelSpace = pixelSizeAtDistance / voxelSize;
 
         // Line is visible if any axis is close to a grid line
         float line = (

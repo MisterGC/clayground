@@ -332,7 +332,7 @@ Item {
             id: _voxelMap
             castsShadows: true
             //x: 100; y: 0; z: 100
-            showEdges: true; edgeColorFactor: 0.75;
+            showEdges: true; edgeColorFactor: 0.5;
             edgeThickness: 0.5
             instancing: InstanceList {
                 instances: [
@@ -443,13 +443,13 @@ Item {
 
         DynamicVoxelMap {
             x: 200; y: 180; z: 200
-            id: _dynVoxMap
+            id: _rubikCube
             width: 3; height: 3; depth: 3
             voxelSize: 15.0; spacing: 0.0
-            showEdges: true; edgeThickness: 0.5;
+            showEdges: true; edgeThickness: 1;
             edgeColorFactor: 0.5
 
-            Component.onCompleted: _dynVoxMap.fill([{
+            Component.onCompleted: _rubikCube.fill([{
                                                         box: {
                                                             pos: Qt.vector3d(0, 0, 0),
                                                             width: 3 , height: 3, depth: 3,
@@ -483,7 +483,7 @@ Item {
                 id: _pacman
                 width: 15; height: 15; depth: 15
                 voxelSize: 4.0; spacing: 0.0
-                showEdges: true; edgeThickness: 0.5;
+                showEdges: true; edgeThickness: 1;
                 edgeColorFactor: 0.5
 
                 // Add properties to control animation speed
