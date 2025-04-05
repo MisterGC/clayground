@@ -332,6 +332,8 @@ Item {
             id: _voxelMap
             castsShadows: true
             //x: 100; y: 0; z: 100
+            showEdges: true; edgeColorFactor: 0.75;
+            edgeThickness: 0.5
             instancing: InstanceList {
                 instances: [
                     InstanceListEntry {
