@@ -49,6 +49,20 @@ Model {
             shapes = [shapes];
         }
 
+        // Utility function to process color data
+        function processColorData(colorData) {
+            if (typeof colorData === 'string') {
+                return [{ color: colorData, weight: 1 }];
+            } else if (Array.isArray(colorData) && !Array.isArray(colorData[0])) {
+                // Single [color, weight] pair
+                return [{ color: colorData[0], weight: colorData[1] || 1 }];
+            } else if (Array.isArray(colorData)) {
+                // Array of [color, weight] pairs
+                return colorData.map(([color, weight=1]) => ({ color, weight }));
+            }
+            return colorData; // Return as is if it's already in the right format
+        }
+
         shapes.forEach(shape => {
             // Support both object notation and array notation
             let type, params;
@@ -68,43 +82,76 @@ Model {
 
             switch(type.toLowerCase()) {
                 case "sphere":
-                    const sphereDefaults = { radius: 1 }
-                    const s = Object.assign({}, commonDefaults, sphereDefaults, params)
-                    model.fillSphere(
-                        s.pos.x, s.pos.y, s.pos.z,
-                        s.radius,
-                        s.colors,
-                        s.noise
-                    )
-                    break
+                    if (Array.isArray(params)) {
+                        // Compact: [x, y, z, radius, colorData, noise]
+                        const [x, y, z, radius, colorData, noise=0] = params;
+                        model.fillSphere(
+                            x, y, z,
+                            radius,
+                            processColorData(colorData),
+                            noise
+                        );
+                    } else {
+                        const sphereDefaults = { radius: 1 }
+                        const s = Object.assign({}, commonDefaults, sphereDefaults, params)
+                        model.fillSphere(
+                            s.pos.x, s.pos.y, s.pos.z,
+                            s.radius,
+                            s.colors,
+                            s.noise
+                        );
+                    }
+                    break;
 
                 case "cylinder":
-                    const cylinderDefaults = { radius: 1, height: 1 }
-                    const c = Object.assign({}, commonDefaults, cylinderDefaults, params)
-                    model.fillCylinder(
-                        c.pos.x, c.pos.y, c.pos.z,
-                        c.radius,
-                        c.height,
-                        c.colors,
-                        c.noise
-                    )
-                    break
-
+                    if (Array.isArray(params)) {
+                        // Compact: [x, y, z, radius, height, colorData, noise]
+                        const [x, y, z, radius, height, colorData, noise=0] = params;
+                        model.fillCylinder(
+                            x, y, z,
+                            radius,
+                            height,
+                            processColorData(colorData),
+                            noise
+                        );
+                    } else {
+                        const cylinderDefaults = { radius: 1, height: 1 }
+                        const c = Object.assign({}, commonDefaults, cylinderDefaults, params)
+                        model.fillCylinder(
+                            c.pos.x, c.pos.y, c.pos.z,
+                            c.radius,
+                            c.height,
+                            c.colors,
+                            c.noise
+                        );
+                    }
+                    break;
 
                 case "box":
-                    const boxDefaults = { width: 1, height: 1, depth: 1 }
-                    const b = Object.assign({}, commonDefaults, boxDefaults, params)
-                    model.fillBox(
-                        b.pos.x, b.pos.y, b.pos.z,
-                        b.width,
-                        b.height,
-                        b.depth,
-                        b.colors,
-                        b.noise
-                    )
-                    break
+                    if (Array.isArray(params)) {
+                        // Compact: [x, y, z, width, height, depth, colorData, noise]
+                        const [x, y, z, width, height, depth, colorData, noise=0] = params;
+                        model.fillBox(
+                            x, y, z,
+                            width, height, depth,
+                            processColorData(colorData),
+                            noise
+                        );
+                    } else {
+                        const boxDefaults = { width: 1, height: 1, depth: 1 }
+                        const b = Object.assign({}, commonDefaults, boxDefaults, params)
+                        model.fillBox(
+                            b.pos.x, b.pos.y, b.pos.z,
+                            b.width,
+                            b.height,
+                            b.depth,
+                            b.colors,
+                            b.noise
+                        );
+                    }
+                    break;
             }
-        })
+        });
         model.commit();
     }
 
@@ -133,4 +180,5 @@ Model {
 
         }
     ]
+
 }
