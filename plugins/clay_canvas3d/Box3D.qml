@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import Clayground.World
 
 Model {
     property alias color: _material.baseColor
