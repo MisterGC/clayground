@@ -150,7 +150,8 @@ void VoxelMapInstancing::updateInstanceData()
                 float posZ = offsetZ + z * (m_data.voxelSize() + m_data.spacing());
 
                 QVector3D position(posX, posY, posZ);
-                QVector3D scale(m_data.voxelSize(), m_data.voxelSize(), m_data.voxelSize());
+                //QVector3D scale(m_data.voxelSize(), m_data.voxelSize(), m_data.voxelSize());
+                QVector3D scale(1.0, 1.0, 1.0);
                 QQuaternion rotation; // Identity rotation
 
                 auto entry = calculateTableEntryFromQuaternion(

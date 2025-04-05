@@ -10,6 +10,10 @@ VoxelMap {
     property alias height: _voxelInstancing.height
     property alias depth: _voxelInstancing.depth
 
+    // Individual cubes + instancing are use, for each voxel, the offset
+    // is half its dimension, cause Box3DGeometry has its origin in the bottom face
+    voxelOffset: Qt.vector3d(_voxelMap.voxelSize * 0.5, 0, _voxelMap.voxelSize * 0.5)
+
     instancing: VoxelMapInstancing {
         id: _voxelInstancing
         width: _voxelMap.width
@@ -20,6 +24,8 @@ VoxelMap {
     }
 
     // Use a built-in cube model as the source.
-    source: "#Cube"
-    scale: Qt.vector3d(1/100, 1/100, 1/100)
+    geometry: Box3DGeometry {
+        id: _geometry
+        size: Qt.vector3d(_voxelMap.voxelSize, _voxelMap.voxelSize, _voxelMap.voxelSize)
+    }
 }

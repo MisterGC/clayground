@@ -12,6 +12,11 @@ Model {
     property real voxelSize: 1.0
     property real spacing: 1.0
 
+    // Relative offset of the voxel edges in
+    // relation to origin of the voxel map's local coord
+    // system, this is important for things like edge drawing
+    property vector3d voxelOffset: Qt.vector3d(0, 0, 0)
+
     // Edge properties
     property real edgeThickness: 0.05
     property real edgeColorFactor: 1.0
@@ -109,13 +114,10 @@ Model {
             fragmentShader: "voxel_map.frag"
             shadingMode: CustomMaterial.Shaded
 
+
             property real voxelSize: _voxelMap.voxelSize
             property real voxelSpacing: _voxelMap.spacing
-            property vector3d voxelOffset: Qt.vector3d(
-                                               (_voxelMap.width % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
-                                               0,
-                                               (_voxelMap.depth % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
-                                               )
+            property vector3d voxelOffset: _voxelMap.voxelOffset
 
             // Edge properties
             property real edgeThickness: _voxelMap.edgeThickness

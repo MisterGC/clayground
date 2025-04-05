@@ -12,6 +12,15 @@ VoxelMap {
     property alias height: _voxelMesh.height
     property alias depth: _voxelMesh.depth
 
+    // For StaticVoxelMaps the entire map is generated as one static mesh
+    // which has its origin in the bottom center - depending if the number
+    // of voxels along a dim is even or odd we may have to apply an offset
+    voxelOffset: Qt.vector3d(
+                     (_voxelMap.width % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
+                     0,
+                     (_voxelMap.depth % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
+                     )
+
     function load(path) {_voxelMesh.loadFromFile(path);}
     function save(path) {_voxelMesh.saveToFile(path);}
 
