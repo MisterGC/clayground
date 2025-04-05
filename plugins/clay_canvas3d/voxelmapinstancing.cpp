@@ -145,9 +145,9 @@ void VoxelMapInstancing::updateInstanceData()
                 if (c.alpha() == 0)
                     continue;
 
-                float posX = offsetX + x * (m_data.voxelSize() + m_data.spacing());
-                float posY = offsetY + y * (m_data.voxelSize() + m_data.spacing());
-                float posZ = offsetZ + z * (m_data.voxelSize() + m_data.spacing());
+                float posX = offsetX + x * (m_data.voxelSize() + m_data.spacing()) + m_data.voxelSize() / 2;
+                float posY = offsetY + y * (m_data.voxelSize() + m_data.spacing()) + m_data.voxelSize() / 2;
+                float posZ = offsetZ + z * (m_data.voxelSize() + m_data.spacing()) + m_data.voxelSize() / 2;
 
                 QVector3D position(posX, posY, posZ);
                 //QVector3D scale(m_data.voxelSize(), m_data.voxelSize(), m_data.voxelSize());
