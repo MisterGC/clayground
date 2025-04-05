@@ -76,28 +76,28 @@ Item {
             // Only handle movement keys when controlling Pacman
             if (controllingPacman) {
                 switch(event.key) {
-                    case Qt.Key_W:
-                        pacmanDirection = Qt.vector3d(0, 0, -1)
-                        _pacman.eulerRotation.y = 90  // Rotate to face -Z direction
-                        event.accepted = true
-                        break
-                    case Qt.Key_S:
-                        pacmanDirection = Qt.vector3d(0, 0, 1)
-                        _pacman.eulerRotation.y = 270   // Rotate to face +Z direction
-                        event.accepted = true
-                        break
-                    case Qt.Key_A:
-                        pacmanDirection = Qt.vector3d(-1, 0, 0)
-                        _pacman.eulerRotation.y = 180  // Rotate to face -X direction
-                        event.accepted = true
-                        break
-                    case Qt.Key_D:
-                        pacmanDirection = Qt.vector3d(1, 0, 0)
-                        _pacman.eulerRotation.y = 0    // Rotate to face +X direction
-                        event.accepted = true
-                        break
-                    default:
-                        event.accepted = false
+                case Qt.Key_W:
+                    pacmanDirection = Qt.vector3d(0, 0, -1)
+                    _pacman.eulerRotation.y = 90  // Rotate to face -Z direction
+                    event.accepted = true
+                    break
+                case Qt.Key_S:
+                    pacmanDirection = Qt.vector3d(0, 0, 1)
+                    _pacman.eulerRotation.y = 270   // Rotate to face +Z direction
+                    event.accepted = true
+                    break
+                case Qt.Key_A:
+                    pacmanDirection = Qt.vector3d(-1, 0, 0)
+                    _pacman.eulerRotation.y = 180  // Rotate to face -X direction
+                    event.accepted = true
+                    break
+                case Qt.Key_D:
+                    pacmanDirection = Qt.vector3d(1, 0, 0)
+                    _pacman.eulerRotation.y = 0    // Rotate to face +X direction
+                    event.accepted = true
+                    break
+                default:
+                    event.accepted = false
                 }
             }
         }
@@ -440,127 +440,154 @@ Item {
             }
         }
 
-    Node{
-
-        id: _daNode
-        x: 200; y: 100; z: 200
-        NumberAnimation {
-            target: _daNode
-            property: "eulerRotation.y"
-            loops: Animation.Infinite
-            running: true
-            from: 0
-            to: 360
-            duration: 10000
-        }
 
         DynamicVoxelMap {
-            id: _pacman
-            width: 15; height: 15; depth: 15
-            voxelSize: 4.0; spacing: 0.0
+            x: 200; y: 180; z: 200
+            id: _dynVoxMap
+            width: 3; height: 3; depth: 3
+            voxelSize: 15.0; spacing: 0.0
+            showEdges: true; edgeThickness: 0.5;
+            edgeColorFactor: 0.5
 
-            // Add properties to control animation speed
-            property real mouthFrequency: 2.0  // Opens mouth 2 times per second
-            property real animationPhase: 1
+            Component.onCompleted: _dynVoxMap.fill([{
+                                                        box: {
+                                                            pos: Qt.vector3d(0, 0, 0),
+                                                            width: 3 , height: 3, depth: 3,
+                                                            colors: [
+                                                                { color: "white",  weight: 1/6 },
+                                                                { color: "yellow", weight: 1/6 },
+                                                                { color: "blue",   weight: 1/6 },
+                                                                { color: "green",  weight: 1/6 },
+                                                                { color: "red",    weight: 1/6 },
+                                                                { color: "orange", weight: 1/6 }
+                                                            ]
+                                                        }
+                                                    }]);
+        }
 
-            Timer {
-                interval: 50  // Keep 50ms interval for smooth animation
-                running: true
-                repeat: true
-                onTriggered: {
-                    // Adjust phase increment based on desired frequency
-                    // frequency = 1/period
-                    // phaseIncrement = (2π * interval/1000 * frequency)
-                    _pacman.animationPhase = (_pacman.animationPhase +
-                                              (2 * Math.PI * 0.05 * _pacman.mouthFrequency)) % (2 * Math.PI)
-                    _pacman.updatePacman()
+        Node{
+
+            id: _daNode
+            x: 200; y: 100; z: 200
+            NumberAnimation {
+                target: _daNode
+                property: "eulerRotation.y"
+                loops: Animation.Infinite
+                running: false
+                from: 0
+                to: 360
+                duration: 10000
+            }
+
+            DynamicVoxelMap {
+                id: _pacman
+                width: 15; height: 15; depth: 15
+                voxelSize: 4.0; spacing: 0.0
+                showEdges: true; edgeThickness: 0.5;
+                edgeColorFactor: 0.5
+
+                // Add properties to control animation speed
+                property real mouthFrequency: 2.0  // Opens mouth 2 times per second
+                property real animationPhase: 1
+
+                Timer {
+                    interval: 50  // Keep 50ms interval for smooth animation
+                    running: true
+                    repeat: true
+                    onTriggered: {
+                        // Adjust phase increment based on desired frequency
+                        // frequency = 1/period
+                        // phaseIncrement = (2π * interval/1000 * frequency)
+                        _pacman.animationPhase = (_pacman.animationPhase +
+                                                  (2 * Math.PI * 0.05 * _pacman.mouthFrequency)) % (2 * Math.PI)
+                        _pacman.updatePacman()
+                    }
                 }
+
+                function updatePacman() {
+                    // Clear previous frame
+                    fill([{
+                              box: {
+                                  pos: Qt.vector3d(0, 0, 0),
+                                  width: width, height: height, depth: depth,
+                                  colors: [{ color: "transparent", weight: 1.0 }]
+                              }
+                          }]);
+
+                    let parts = [];
+
+                    // Calculate center position relative to dimensions
+                    let centerX = width / 2;
+                    let centerY = height / 2;
+                    let centerZ = depth / 2;
+
+                    // Calculate radius relative to the smallest dimension
+                    let radius = Math.min(width, height, depth) / 2;
+
+                    // Main body
+                    parts.push({
+                                   sphere: {
+                                       pos: Qt.vector3d(centerX, centerY, centerZ),
+                                       radius: radius,
+                                       colors: [{ color: "#FFFF00", weight: 1.0 }]
+                                   }
+                               });
+
+                    // Mouth (using box subtraction)
+                    let mouthSize = Math.abs(Math.sin(animationPhase)) * (radius * 0.4) + (radius * 0.1);
+                    parts.push({
+                                   box: {
+                                       pos: Qt.vector3d(centerX + radius * 0.3, centerY - mouthSize/2, 0),
+                                       width: width, // Make it wide enough to cut through
+                                       height: mouthSize,
+                                       depth: depth,
+                                       colors: [{ color: "transparent", weight: 1.0 }]
+                                   }
+                               });
+
+                    // Calculate eye size relative to radius
+                    let eyeSize = Math.max(radius * 0.1,2);
+
+                    // Left eye
+                    parts.push({
+                                   box: {
+                                       pos: Qt.vector3d(centerX + radius * 0.5, centerY + radius * 0.5, centerZ + radius * 0.4),
+                                       width: eyeSize,
+                                       height: eyeSize,
+                                       depth: eyeSize,
+                                       colors: [{ color: "#000000", weight: 1.0 }]
+                                   }
+                               });
+
+                    // Right eye
+                    parts.push({
+                                   box: {
+                                       pos: Qt.vector3d(centerX + radius * 0.5, centerY + radius * 0.5, centerZ - radius * 0.4),
+                                       width: eyeSize,
+                                       height: eyeSize,
+                                       depth: eyeSize,
+                                       colors: [{ color: "#000000", weight: 1.0 }]
+                                   }
+                               });
+
+                    fill(parts);
+                }
+
+                Component.onCompleted: updatePacman()
             }
+        }
 
-            function updatePacman() {
-                // Clear previous frame
-                fill([{
-                          box: {
-                              pos: Qt.vector3d(0, 0, 0),
-                              width: width, height: height, depth: depth,
-                              colors: [{ color: "transparent", weight: 1.0 }]
-                          }
-                      }]);
-
-                let parts = [];
-
-                // Calculate center position relative to dimensions
-                let centerX = width / 2;
-                let centerY = height / 2;
-                let centerZ = depth / 2;
-
-                // Calculate radius relative to the smallest dimension
-                let radius = Math.min(width, height, depth) / 2;
-
-                // Main body
-                parts.push({
-                               sphere: {
-                                   pos: Qt.vector3d(centerX, centerY, centerZ),
-                                   radius: radius,
-                                   colors: [{ color: "#FFFF00", weight: 1.0 }]
-                               }
-                           });
-
-                // Mouth (using box subtraction)
-                let mouthSize = Math.abs(Math.sin(animationPhase)) * (radius * 0.4) + (radius * 0.1);
-                parts.push({
-                               box: {
-                                   pos: Qt.vector3d(centerX + radius * 0.3, centerY - mouthSize/2, 0),
-                                   width: width, // Make it wide enough to cut through
-                                   height: mouthSize,
-                                   depth: depth,
-                                   colors: [{ color: "transparent", weight: 1.0 }]
-                               }
-                           });
-
-                // Calculate eye size relative to radius
-                let eyeSize = Math.max(radius * 0.1,2);
-
-                // Left eye
-                parts.push({
-                               box: {
-                                   pos: Qt.vector3d(centerX + radius * 0.5, centerY + radius * 0.5, centerZ + radius * 0.4),
-                                   width: eyeSize,
-                                   height: eyeSize,
-                                   depth: eyeSize,
-                                   colors: [{ color: "#000000", weight: 1.0 }]
-                               }
-                           });
-
-                // Right eye
-                parts.push({
-                               box: {
-                                   pos: Qt.vector3d(centerX + radius * 0.5, centerY + radius * 0.5, centerZ - radius * 0.4),
-                                   width: eyeSize,
-                                   height: eyeSize,
-                                   depth: eyeSize,
-                                   colors: [{ color: "#000000", weight: 1.0 }]
-                               }
-                           });
-
-                fill(parts);
+        // Update the label
+        Node {
+            x: 200; y: 40; z: 200
+            Label {
+                color: "black"
+                background: Rectangle {opacity: .75}
+                text: "Animated Pac-Man"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
             }
-
-            Component.onCompleted: updatePacman()
         }
-    }
-
-    // Update the label
-    Node {
-        x: 200; y: 40; z: 200
-        Label {
-            color: "black"
-            background: Rectangle {opacity: .75}
-            text: "Animated Pac-Man"
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-        }
-    }
 
         // Optional label for the room
         Node {
