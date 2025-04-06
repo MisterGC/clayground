@@ -52,15 +52,76 @@ void Box3dGeometry::updateData()
     // Define the 8 vertices of the box
     QVector3D v0, v1, v2, v3, v4, v5, v6, v7;
 
-    // Default case (showing the pattern - similar changes needed in other cases)
-    v0 = QVector3D(-m_size.x() / 2, 0, -m_size.z() / 2);
-    v1 = QVector3D(m_size.x() / 2, 0, -m_size.z() / 2);
-    v2 = QVector3D(m_size.x() / 2, m_size.y(), -m_size.z() / 2);
-    v3 = QVector3D(-m_size.x() / 2, m_size.y(), -m_size.z() / 2);
-    v4 = QVector3D(-m_size.x() / 2, 0, m_size.z() / 2);
-    v5 = QVector3D(m_size.x() / 2, 0, m_size.z() / 2);
-    v6 = QVector3D(m_size.x() / 2, m_size.y(), m_size.z() / 2);
-    v7 = QVector3D(-m_size.x() / 2, m_size.y(), m_size.z() / 2);
+    // Define base vertex positions
+    float halfX = m_size.x() / 2;
+    float height = m_size.y();
+    float halfZ = m_size.z() / 2;
+
+    // Apply scaling to specific face if specified
+    float scaledHalfX = halfX;
+    float scaledHalfZ = halfZ;
+    if (m_scaledFace != NoFace) {
+        scaledHalfX = halfX * m_faceScale.x();
+        scaledHalfZ = halfZ * m_faceScale.y();
+    }
+
+    // Default vertex positions (unmodified)
+    v0 = QVector3D(-halfX, 0, -halfZ);
+    v1 = QVector3D(halfX, 0, -halfZ);
+    v2 = QVector3D(halfX, height, -halfZ);
+    v3 = QVector3D(-halfX, height, -halfZ);
+    v4 = QVector3D(-halfX, 0, halfZ);
+    v5 = QVector3D(halfX, 0, halfZ);
+    v6 = QVector3D(halfX, height, halfZ);
+    v7 = QVector3D(-halfX, height, halfZ);
+
+    // Apply face scaling if needed
+    switch (m_scaledFace) {
+    case TopFace:
+        // Scale top face (v3, v2, v6, v7)
+        v3 = QVector3D(-scaledHalfX, height, -scaledHalfZ);
+        v2 = QVector3D(scaledHalfX, height, -scaledHalfZ);
+        v6 = QVector3D(scaledHalfX, height, scaledHalfZ);
+        v7 = QVector3D(-scaledHalfX, height, scaledHalfZ);
+        break;
+    case BottomFace:
+        // Scale bottom face (v0, v1, v5, v4)
+        v0 = QVector3D(-scaledHalfX, 0, -scaledHalfZ);
+        v1 = QVector3D(scaledHalfX, 0, -scaledHalfZ);
+        v5 = QVector3D(scaledHalfX, 0, scaledHalfZ);
+        v4 = QVector3D(-scaledHalfX, 0, scaledHalfZ);
+        break;
+    case FrontFace:
+        // Scale front face (v4, v5, v6, v7)
+        v4 = QVector3D(-scaledHalfX, 0, halfZ);
+        v5 = QVector3D(scaledHalfX, 0, halfZ);
+        v6 = QVector3D(scaledHalfX, height, halfZ);
+        v7 = QVector3D(-scaledHalfX, height, halfZ);
+        break;
+    case BackFace:
+        // Scale back face (v0, v1, v2, v3)
+        v0 = QVector3D(-scaledHalfX, 0, -halfZ);
+        v1 = QVector3D(scaledHalfX, 0, -halfZ);
+        v2 = QVector3D(scaledHalfX, height, -halfZ);
+        v3 = QVector3D(-scaledHalfX, height, -halfZ);
+        break;
+    case LeftFace:
+        // Scale left face (v0, v3, v7, v4)
+        v0 = QVector3D(-halfX, 0, -scaledHalfZ);
+        v3 = QVector3D(-halfX, height, -scaledHalfZ);
+        v7 = QVector3D(-halfX, height, scaledHalfZ);
+        v4 = QVector3D(-halfX, 0, scaledHalfZ);
+        break;
+    case RightFace:
+        // Scale right face (v1, v2, v6, v5)
+        v1 = QVector3D(halfX, 0, -scaledHalfZ);
+        v2 = QVector3D(halfX, height, -scaledHalfZ);
+        v6 = QVector3D(halfX, height, scaledHalfZ);
+        v5 = QVector3D(halfX, 0, scaledHalfZ);
+        break;
+    default:
+        break;
+    }
 
     // Define the 6 face normals, ensuring they point outward
     const QVector3D nFront(0.0f, 0.0f, 1.0f);   // Front Face (+Z)
@@ -118,10 +179,30 @@ void Box3dGeometry::updateData()
     // Set up attribute information for vertices and normals
     setStride(2 * sizeof(QVector3D));  // Position + Normal data
 
-    // Update the bounds to account for the scaled top
-    QVector3D maxBounds = m_size / 2;
-    maxBounds.setX(qMax(maxBounds.x(), maxBounds.x() * m_faceScale.x()));
-    maxBounds.setZ(qMax(maxBounds.z(), maxBounds.z() * m_faceScale.y()));
+    // Update the bounds to account for the scaled face
+    QVector3D maxBounds(halfX, height, halfZ);
+
+    // Adjust bounds based on which face is scaled (if any)
+    if (m_scaledFace != NoFace) {
+        switch (m_scaledFace) {
+        case TopFace:
+        case BottomFace:
+            maxBounds.setX(qMax(halfX, scaledHalfX));
+            maxBounds.setZ(qMax(halfZ, scaledHalfZ));
+            break;
+        case FrontFace:
+        case BackFace:
+            maxBounds.setX(qMax(halfX, scaledHalfX));
+            break;
+        case LeftFace:
+        case RightFace:
+            maxBounds.setZ(qMax(halfZ, scaledHalfZ));
+            break;
+        default:
+            break;
+        }
+    }
+
     setBounds(-maxBounds, maxBounds);
 
     addAttribute(QQuick3DGeometry::Attribute::PositionSemantic,
