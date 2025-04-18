@@ -1,4 +1,5 @@
-// Box3D edge detection fragment shader
+// Box3D edge detection fragment shader with screen-space consistent edges
+
 VARYING vec3 vNormal;
 VARYING vec3 vViewVec;
 VARYING vec4 colorOut;
@@ -7,34 +8,35 @@ VARYING vec3 vOrigPosition;
 VARYING vec3 vWorldPosition;
 VARYING float vFaceID;
 
-// Edge properties automatically exposed from the CustomMaterial
+// Uniforms exposed from the CustomMaterial
 // - bool showEdges
-// - float edgeThickness
+// - float edgeThickness         // thickness in pixels
 // - float edgeColorFactor
-// - float viewportHeight
+// - float viewportHeight        // still exposed for compatibility, but not used here
 
 void MAIN()
 {
-    // Base color with lighting applied
-    vec4 finalColor = colorOut.rgba;
+    vec4 finalColor = colorOut;
 
     if (showEdges) {
-        // Calculate distance from edges using UV coordinates
-        float distanceFromEdgeU = min(vUV.x, 1.0 - vUV.x);
-        float distanceFromEdgeV = min(vUV.y, 1.0 - vUV.y);
+        // Compute distance from nearest U and V edges
+        float dU = min(vUV.x, 1.0 - vUV.x);
+        float dV = min(vUV.y, 1.0 - vUV.y);
 
-        // Calculate view-dependent edge thickness
-        float viewDistance = length(vViewVec);
-        float pixelSizeAtDistance = viewDistance * edgeThickness / viewportHeight;
-        float adjustedThickness = max(edgeThickness * 0.5, pixelSizeAtDistance);
+        // Screen-space derivatives give us pixel-relative UV size
+        float fwU = fwidth(vUV.x);
+        float fwV = fwidth(vUV.y);
 
-        // Check if pixel is on an edge (similar to VoxelMap approach)
-        bool isEdge = (distanceFromEdgeU < adjustedThickness || distanceFromEdgeV < adjustedThickness);
+        // Convert edgeThickness (pixels) to UV space via fwidth
+        float edgeU = smoothstep(0.0, fwU * edgeThickness, dU);
+        float edgeV = smoothstep(0.0, fwV * edgeThickness, dV);
 
-        if (isEdge) {
-            // Apply darker color for edges, matching VoxelMap's approach
+        // Combine: 0 near edge, 1 in center; we want the inverse
+        float edgeFactor = 1.0 - min(edgeU, edgeV);
+
+        if (edgeFactor > 0.0) {
             vec3 edgeColor = colorOut.rgb * edgeColorFactor;
-            finalColor = vec4(edgeColor, 1.0);
+            finalColor = mix(finalColor, vec4(edgeColor, 1.0), edgeFactor);
         }
     }
 

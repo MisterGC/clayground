@@ -254,7 +254,7 @@ Item {
             color: "lightblue"
 
             showEdges: true
-            edgeThickness: 0.1
+            edgeThickness: 5
             edgeColorFactor: 0.4
 
             Node{

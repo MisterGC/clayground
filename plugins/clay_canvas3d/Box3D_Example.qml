@@ -43,7 +43,7 @@ View3D {
         color: "#40a0ff"
 
         // Edge settings matching VoxelMap style
-        edgeThickness: 0.03
+        edgeThickness: 5
         edgeColorFactor: 0.4
 
         // Auto-rotate animation
@@ -70,7 +70,7 @@ View3D {
         faceScale: Qt.vector2d(0.7, 0.7)
 
         // Edge settings
-        edgeThickness: 0.03
+        edgeThickness: 5
         edgeColorFactor: 0.4
 
         // Auto-rotate animation
@@ -97,7 +97,7 @@ View3D {
         faceScale: Qt.vector2d(0.5, 0.8)
 
         // Edge settings
-        edgeThickness: 0.03
+        edgeThickness: 5
         edgeColorFactor: 0.4
 
         // Auto-rotate animation
