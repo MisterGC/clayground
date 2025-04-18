@@ -7,54 +7,36 @@ VARYING vec3 vOrigPosition;
 VARYING vec3 vWorldPosition;
 VARYING float vFaceID;
 
+// Edge properties automatically exposed from the CustomMaterial
+// - bool showEdges
+// - float edgeThickness
+// - float edgeColorFactor
+// - float viewportHeight
+
 void MAIN()
 {
-    // Basic lighting calculation
-    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8));
-    vec3 normal = normalize(vNormal);
-    float diffuse = max(0.2, dot(normal, lightDir));
-
-    // Apply basic lighting to the original color
-    vec4 finalColor = vec4(colorOut.rgb * diffuse, colorOut.a);
+    // Base color with lighting applied
+    vec4 finalColor = colorOut.rgba;
 
     if (showEdges) {
         // Calculate distance from edges using UV coordinates
         float distanceFromEdgeU = min(vUV.x, 1.0 - vUV.x);
         float distanceFromEdgeV = min(vUV.y, 1.0 - vUV.y);
 
-        // View-dependent edge thickness to maintain consistent edge appearance at different distances
+        // Calculate view-dependent edge thickness
         float viewDistance = length(vViewVec);
-        float adjustedThickness = edgeThickness * (1.0 + (viewDistance * viewDistanceFactor));
+        float pixelSizeAtDistance = viewDistance * edgeThickness / viewportHeight;
+        float adjustedThickness = max(edgeThickness * 0.5, pixelSizeAtDistance);
 
-        // Process edges
-        if (distanceFromEdgeU < adjustedThickness || distanceFromEdgeV < adjustedThickness) {
-            // Get the minimum distance to any edge
-            float minDist = min(distanceFromEdgeU, distanceFromEdgeV);
+        // Check if pixel is on an edge (similar to VoxelMap approach)
+        bool isEdge = (distanceFromEdgeU < adjustedThickness || distanceFromEdgeV < adjustedThickness);
 
-            // Calculate a smooth transition factor based on distance
-            float edgeFactor = smoothstep(0.0, adjustedThickness * edgeFalloff, minDist);
-
-            // Generate the edge color based on the original color, but keep some lighting
-            vec3 edgeRGB = colorOut.rgb * edgeDarkness * max(0.5, diffuse);
-
-            // Mix original color with edge color based on distance
-            finalColor.rgb = mix(edgeRGB, finalColor.rgb, edgeFactor);
-
-            // Special handling for corners (where both U and V are near edges)
-            if (distanceFromEdgeU < adjustedThickness && distanceFromEdgeV < adjustedThickness) {
-                // Calculate combined distance for corner effect
-                float cornerDist = distanceFromEdgeU + distanceFromEdgeV;
-                float cornerFactor = smoothstep(0.0, adjustedThickness * 1.5, cornerDist);
-
-                // Apply darker color at corners, but maintain some lighting
-                vec3 cornerRGB = edgeRGB * cornerDarkness;
-                finalColor.rgb = mix(cornerRGB, finalColor.rgb, cornerFactor);
-            }
+        if (isEdge) {
+            // Apply darker color for edges, matching VoxelMap's approach
+            vec3 edgeColor = colorOut.rgb * edgeColorFactor;
+            finalColor = vec4(edgeColor, 1.0);
         }
     }
-
-    // Ensure alpha is fully opaque
-    finalColor.a = 1.0;
 
     BASE_COLOR = finalColor;
 }

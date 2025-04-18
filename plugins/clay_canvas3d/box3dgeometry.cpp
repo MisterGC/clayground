@@ -1,8 +1,7 @@
 #include "box3dgeometry.h"
 
 Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace),
-    m_showEdges(true), m_edgeThickness(0.03f), m_edgeFalloff(0.8f),
-    m_edgeDarkness(0.6f), m_cornerDarkness(0.4f), m_viewDistanceFactor(0.01f)
+    m_showEdges(true), m_edgeThickness(0.03f), m_edgeColorFactor(0.4f)
 {
     updateData();
 }
@@ -294,58 +293,16 @@ void Box3dGeometry::setEdgeThickness(float thickness)
     update();
 }
 
-float Box3dGeometry::edgeFalloff() const
+float Box3dGeometry::edgeColorFactor() const
 {
-    return m_edgeFalloff;
+    return m_edgeColorFactor;
 }
 
-void Box3dGeometry::setEdgeFalloff(float falloff)
+void Box3dGeometry::setEdgeColorFactor(float factor)
 {
-    if (qFuzzyCompare(m_edgeFalloff, falloff))
+    if (qFuzzyCompare(m_edgeColorFactor, factor))
         return;
-    m_edgeFalloff = falloff;
-    emit edgeFalloffChanged();
-    update();
-}
-
-float Box3dGeometry::edgeDarkness() const
-{
-    return m_edgeDarkness;
-}
-
-void Box3dGeometry::setEdgeDarkness(float darkness)
-{
-    if (qFuzzyCompare(m_edgeDarkness, darkness))
-        return;
-    m_edgeDarkness = darkness;
-    emit edgeDarknessChanged();
-    update();
-}
-
-float Box3dGeometry::cornerDarkness() const
-{
-    return m_cornerDarkness;
-}
-
-void Box3dGeometry::setCornerDarkness(float darkness)
-{
-    if (qFuzzyCompare(m_cornerDarkness, darkness))
-        return;
-    m_cornerDarkness = darkness;
-    emit cornerDarknessChanged();
-    update();
-}
-
-float Box3dGeometry::viewDistanceFactor() const
-{
-    return m_viewDistanceFactor;
-}
-
-void Box3dGeometry::setViewDistanceFactor(float factor)
-{
-    if (qFuzzyCompare(m_viewDistanceFactor, factor))
-        return;
-    m_viewDistanceFactor = factor;
-    emit viewDistanceFactorChanged();
+    m_edgeColorFactor = factor;
+    emit edgeColorFactorChanged();
     update();
 }

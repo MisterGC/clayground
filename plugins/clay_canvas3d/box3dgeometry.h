@@ -14,13 +14,10 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(QVector2D faceScale READ faceScale WRITE setFaceScale NOTIFY faceScaleChanged)
     Q_PROPERTY(ScaledFace scaledFace READ scaledFace WRITE setScaledFace NOTIFY scaledFaceChanged)
 
-    // Edge rendering properties
+    // Edge rendering properties (matching VoxelMap)
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
     Q_PROPERTY(float edgeThickness READ edgeThickness WRITE setEdgeThickness NOTIFY edgeThicknessChanged)
-    Q_PROPERTY(float edgeFalloff READ edgeFalloff WRITE setEdgeFalloff NOTIFY edgeFalloffChanged)
-    Q_PROPERTY(float edgeDarkness READ edgeDarkness WRITE setEdgeDarkness NOTIFY edgeDarknessChanged)
-    Q_PROPERTY(float cornerDarkness READ cornerDarkness WRITE setCornerDarkness NOTIFY cornerDarknessChanged)
-    Q_PROPERTY(float viewDistanceFactor READ viewDistanceFactor WRITE setViewDistanceFactor NOTIFY viewDistanceFactorChanged)
+    Q_PROPERTY(float edgeColorFactor READ edgeColorFactor WRITE setEdgeColorFactor NOTIFY edgeColorFactorChanged)
 
 public:
     enum ScaledFace {
@@ -52,17 +49,8 @@ public:
     float edgeThickness() const;
     void setEdgeThickness(float thickness);
 
-    float edgeFalloff() const;
-    void setEdgeFalloff(float falloff);
-
-    float edgeDarkness() const;
-    void setEdgeDarkness(float darkness);
-
-    float cornerDarkness() const;
-    void setCornerDarkness(float darkness);
-
-    float viewDistanceFactor() const;
-    void setViewDistanceFactor(float factor);
+    float edgeColorFactor() const;
+    void setEdgeColorFactor(float factor);
 
 signals:
     void sizeChanged();
@@ -72,10 +60,7 @@ signals:
     // Edge rendering signals
     void showEdgesChanged();
     void edgeThicknessChanged();
-    void edgeFalloffChanged();
-    void edgeDarknessChanged();
-    void cornerDarknessChanged();
-    void viewDistanceFactorChanged();
+    void edgeColorFactorChanged();
 
 private:
     void updateData();
@@ -86,10 +71,7 @@ private:
     // Edge rendering properties with default values
     bool m_showEdges = true;
     float m_edgeThickness = 0.03f;
-    float m_edgeFalloff = 0.8f;
-    float m_edgeDarkness = 0.6f;
-    float m_cornerDarkness = 0.4f;
-    float m_viewDistanceFactor = 0.01f;
+    float m_edgeColorFactor = 0.4f;
 };
 
 #endif // BOX3DGEOMETRY_H

@@ -9,31 +9,25 @@ VARYING float vFaceID;
 
 void MAIN()
 {
-    // Use baseColor from the CustomMaterial if available, else use vertex COLOR
-    if (baseColor.a > 0.0) {
-        colorOut = baseColor;
-    } else {
-        colorOut = COLOR;
-    }
+    // Pass the color through (baseColor is auto-connected from CustomMaterial)
+    colorOut = baseColor.a > 0.0 ? baseColor : COLOR;
 
-    // Pass texture coordinates for edge detection
+    // Pass through texture coordinates for edge detection
     vUV = UV0;
 
-    // Save original position
+    // Store original position for edge calculations
     vOrigPosition = VERTEX;
 
-    // Transform to world space
-    vec4 worldPos = MODEL_MATRIX * vec4(VERTEX, 1.0);
-    vWorldPosition = worldPos.xyz;
+    // Calculate world position for possible use in fragment shader
+    vWorldPosition = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 
-    // Calculate view vector (from vertex to camera in world space)
-    vViewVec = VIEW_MATRIX[3].xyz - worldPos.xyz;
+    // Calculate view vector (from vertex to camera)
+    vViewVec = VIEW_MATRIX[3].xyz - vWorldPosition;
 
-    // Transform normal to world space
+    // Pass normal (in world space)
     vNormal = normalize(mat3(MODEL_MATRIX) * NORMAL);
 
-    // Encode face ID for potential use in fragment shader
-    // This is helpful for face-specific edge handling
+    // Determine which face of the cube we're on based on normal
     vec3 absNormal = abs(NORMAL);
     if (absNormal.x > 0.9) {
         vFaceID = NORMAL.x > 0.0 ? 1.0 : 2.0; // Right or Left face

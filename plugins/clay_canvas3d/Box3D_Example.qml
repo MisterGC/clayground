@@ -6,6 +6,9 @@ import QtQuick.Controls
 
 import Clayground.Canvas3D
 
+// Import Screen for getting viewport height
+import QtQuick.Window
+
 View3D {
     id: view
     anchors.fill: parent
@@ -39,10 +42,9 @@ View3D {
         depth: 2
         color: "#40a0ff"
 
-        // Edge settings
+        // Edge settings matching VoxelMap style
         edgeThickness: 0.03
-        edgeDarkness: 0.5
-        cornerDarkness: 0.3
+        edgeColorFactor: 0.4
 
         // Auto-rotate animation
         NumberAnimation on eulerRotation.y {
@@ -68,8 +70,8 @@ View3D {
         faceScale: Qt.vector2d(0.7, 0.7)
 
         // Edge settings
-        edgeThickness: 0.04
-        edgeDarkness: 0.6
+        edgeThickness: 0.03
+        edgeColorFactor: 0.4
 
         // Auto-rotate animation
         NumberAnimation on eulerRotation.y {
@@ -85,9 +87,9 @@ View3D {
     Box3D {
         id: sideScaledBox
         position: Qt.vector3d(3, 0, 0)
-        width: 2
-        height: 2
-        depth: 2
+        width: 1
+        height: 1
+        depth: 1
         color: "#40ff80"
 
         // Scale the right face
@@ -95,9 +97,8 @@ View3D {
         faceScale: Qt.vector2d(0.5, 0.8)
 
         // Edge settings
-        edgeThickness: 0.05
-        edgeFalloff: 0.9
-        cornerDarkness: 0.5
+        edgeThickness: 0.03
+        edgeColorFactor: 0.4
 
         // Auto-rotate animation
         NumberAnimation on eulerRotation.y {
@@ -106,6 +107,22 @@ View3D {
             duration: 14000
             loops: Animation.Infinite
             running: animateCheckbox.checked
+        }
+    }
+
+    // Add a VoxelMap for comparison
+    VoxelMap {
+        id: voxelMapSphere
+        position: Qt.vector3d(0, -4, 0)
+        voxelSize: 0.4
+        edgeThickness: 0.03
+        edgeColorFactor: 0.4
+
+        Component.onCompleted: {
+            // Create a simple sphere shape
+            fill({
+                sphere: [0, 0, 0, 4, "#ffdd00", 0.0]
+            });
         }
     }
 
@@ -141,6 +158,7 @@ View3D {
                     regularBox.showEdges = checked
                     topScaledBox.showEdges = checked
                     sideScaledBox.showEdges = checked
+                    voxelMapSphere.showEdges = checked
                 }
             }
 
@@ -153,18 +171,20 @@ View3D {
                     regularBox.edgeThickness = value
                     topScaledBox.edgeThickness = value
                     sideScaledBox.edgeThickness = value
+                    voxelMapSphere.edgeThickness = value
                 }
             }
 
-            Text { text: "Edge Darkness" }
+            Text { text: "Edge Color Factor" }
             Slider {
-                from: 0.1
-                to: 0.9
-                value: 0.6
+                from: 0.2
+                to: 0.8
+                value: 0.4
                 onValueChanged: {
-                    regularBox.edgeDarkness = value
-                    topScaledBox.edgeDarkness = value
-                    sideScaledBox.edgeDarkness = value
+                    regularBox.edgeColorFactor = value
+                    topScaledBox.edgeColorFactor = value
+                    sideScaledBox.edgeColorFactor = value
+                    voxelMapSphere.edgeColorFactor = value
                 }
             }
         }
