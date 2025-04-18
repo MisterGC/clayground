@@ -251,6 +251,10 @@ Item {
             x: -200; y: 0; z: 50
             width: 100
             pickable: true
+            color: "lightblue"
+            showEdges: true
+            edgeThickness: 0.04
+            edgeDarkness: 0.6
             Node{
                 x: 0; y: 10; z: 50.1
                 Label {

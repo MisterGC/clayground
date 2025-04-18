@@ -25,6 +25,8 @@ clay_plugin( Canvas3D
         custom_line.vert
         voxel_map.frag
         voxel_map.vert
+        box3d.frag
+        box3d.vert
 
     QML_FILES
         Box3D.qml
@@ -35,6 +37,7 @@ clay_plugin( Canvas3D
         VoxelMap.qml
         DynamicVoxelMap.qml
         StaticVoxelMap.qml
+        Box3D_Example.qml
 
     LINK_LIBS
         Qt::Core

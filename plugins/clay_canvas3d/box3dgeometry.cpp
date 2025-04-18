@@ -1,6 +1,8 @@
 #include "box3dgeometry.h"
 
-Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace)
+Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace),
+    m_showEdges(true), m_edgeThickness(0.03f), m_edgeFalloff(0.8f),
+    m_edgeDarkness(0.6f), m_cornerDarkness(0.4f), m_viewDistanceFactor(0.01f)
 {
     updateData();
 }
@@ -66,14 +68,21 @@ void Box3dGeometry::updateData()
     }
 
     // Default vertex positions (unmodified)
-    v0 = QVector3D(-halfX, 0, -halfZ);
-    v1 = QVector3D(halfX, 0, -halfZ);
-    v2 = QVector3D(halfX, height, -halfZ);
-    v3 = QVector3D(-halfX, height, -halfZ);
-    v4 = QVector3D(-halfX, 0, halfZ);
-    v5 = QVector3D(halfX, 0, halfZ);
-    v6 = QVector3D(halfX, height, halfZ);
-    v7 = QVector3D(-halfX, height, halfZ);
+    // Vertices for standard cube - correct orientation:
+    //    v3----v2
+    //   /|     /|
+    //  v7----v6 |
+    //  | v0---|-v1
+    //  |/     |/
+    //  v4----v5
+    v0 = QVector3D(-halfX, 0, -halfZ);       // Left bottom back
+    v1 = QVector3D(halfX, 0, -halfZ);        // Right bottom back
+    v2 = QVector3D(halfX, height, -halfZ);   // Right top back
+    v3 = QVector3D(-halfX, height, -halfZ);  // Left top back
+    v4 = QVector3D(-halfX, 0, halfZ);        // Left bottom front
+    v5 = QVector3D(halfX, 0, halfZ);         // Right bottom front
+    v6 = QVector3D(halfX, height, halfZ);    // Right top front
+    v7 = QVector3D(-halfX, height, halfZ);   // Left top front
 
     // Apply face scaling if needed
     switch (m_scaledFace) {
@@ -131,53 +140,84 @@ void Box3dGeometry::updateData()
     const QVector3D nTop(0.0f, 1.0f, 0.0f);     // Top Face (+Y)
     const QVector3D nBottom(0.0f, -1.0f, 0.0f); // Bottom Face (-Y)
 
-    // Create a QByteArray to store interleaved vertex and normal data
+    // Define UV coordinates for edge detection
+    // Each face will have its own UV coordinate system (0,0) to (1,1)
+    // Bottom-left, bottom-right, top-right, top-left for each face
+    const QVector2D uvBL(0.0f, 0.0f);
+    const QVector2D uvBR(1.0f, 0.0f);
+    const QVector2D uvTR(1.0f, 1.0f);
+    const QVector2D uvTL(0.0f, 1.0f);
+
+    // Create a QByteArray to store interleaved vertex, normal, and UV data
     QByteArray vertexData;
 
-    // Lambda function to append vertex and normal data to vertexData
-    auto appendVertexNormal = [&](const QVector3D& vertex, const QVector3D& normal) {
+    // Lambda function to append vertex, normal, and UV data to vertexData
+    auto appendVertexData = [&](const QVector3D& vertex, const QVector3D& normal, const QVector2D& uv) {
         vertexData.append(reinterpret_cast<const char*>(&vertex), sizeof(QVector3D));
         vertexData.append(reinterpret_cast<const char*>(&normal), sizeof(QVector3D));
+        vertexData.append(reinterpret_cast<const char*>(&uv), sizeof(QVector2D));
     };
 
-    // Helper macro to define two triangles for each face
-#define ADD_FACE(vA, vB, vC, normal) \
-    appendVertexNormal(vA, normal); \
-        appendVertexNormal(vB, normal); \
-        appendVertexNormal(vC, normal);
+    // Define triangles directly with explicit winding using counter-clockwise order when viewed from outside
+    // Front face
+    appendVertexData(v4, nFront, uvBL);
+    appendVertexData(v5, nFront, uvBR);
+    appendVertexData(v6, nFront, uvTR);
 
-    // Front Face (+Z)
-    ADD_FACE(v4, v5, v6, nFront);
-    ADD_FACE(v4, v6, v7, nFront);
+    appendVertexData(v4, nFront, uvBL);
+    appendVertexData(v6, nFront, uvTR);
+    appendVertexData(v7, nFront, uvTL);
 
-    // Back Face (-Z)
-    ADD_FACE(v0, v2, v1, nBack);
-    ADD_FACE(v0, v3, v2, nBack);
+    // Back face
+    appendVertexData(v1, nBack, uvBR);
+    appendVertexData(v0, nBack, uvBL);
+    appendVertexData(v3, nBack, uvTL);
 
-    // Left Face (-X)
-    ADD_FACE(v0, v7, v3, nLeft);
-    ADD_FACE(v0, v4, v7, nLeft);
+    appendVertexData(v1, nBack, uvBR);
+    appendVertexData(v3, nBack, uvTL);
+    appendVertexData(v2, nBack, uvTR);
 
-    // Right Face (+X)
-    ADD_FACE(v5, v1, v2, nRight);
-    ADD_FACE(v5, v2, v6, nRight);
+    // Left face
+    appendVertexData(v0, nLeft, uvBR);
+    appendVertexData(v4, nLeft, uvBL);
+    appendVertexData(v7, nLeft, uvTL);
 
-    // Top Face (+Y)
-    ADD_FACE(v3, v7, v6, nTop);
-    ADD_FACE(v3, v6, v2, nTop);
+    appendVertexData(v0, nLeft, uvBR);
+    appendVertexData(v7, nLeft, uvTL);
+    appendVertexData(v3, nLeft, uvTR);
 
-    // Bottom Face (-Y)
-    ADD_FACE(v0, v1, v5, nBottom);
-    ADD_FACE(v0, v5, v4, nBottom);
+    // Right face
+    appendVertexData(v5, nRight, uvBL);
+    appendVertexData(v1, nRight, uvBR);
+    appendVertexData(v2, nRight, uvTR);
 
-    // Undefine the macro to prevent potential conflicts
-#undef ADD_FACE
+    appendVertexData(v5, nRight, uvBL);
+    appendVertexData(v2, nRight, uvTR);
+    appendVertexData(v6, nRight, uvTL);
+
+    // Top face
+    appendVertexData(v3, nTop, uvBL);
+    appendVertexData(v7, nTop, uvTL);
+    appendVertexData(v6, nTop, uvTR);
+
+    appendVertexData(v3, nTop, uvBL);
+    appendVertexData(v6, nTop, uvTR);
+    appendVertexData(v2, nTop, uvBR);
+
+    // Bottom face
+    appendVertexData(v4, nBottom, uvTL);
+    appendVertexData(v0, nBottom, uvBL);
+    appendVertexData(v1, nBottom, uvBR);
+
+    appendVertexData(v4, nBottom, uvTL);
+    appendVertexData(v1, nBottom, uvBR);
+    appendVertexData(v5, nBottom, uvTR);
 
     // Set the vertex data
     setVertexData(vertexData);
 
-    // Set up attribute information for vertices and normals
-    setStride(2 * sizeof(QVector3D));  // Position + Normal data
+    // Set up attribute information for vertices, normals, and UV coordinates
+    setStride(sizeof(QVector3D) + sizeof(QVector3D) + sizeof(QVector2D));  // Position + Normal + UV data
 
     // Update the bounds to account for the scaled face
     QVector3D maxBounds(halfX, height, halfZ);
@@ -205,15 +245,107 @@ void Box3dGeometry::updateData()
 
     setBounds(-maxBounds, maxBounds);
 
+    // Add position attribute (offset 0)
     addAttribute(QQuick3DGeometry::Attribute::PositionSemantic,
                  0,
                  QQuick3DGeometry::Attribute::F32Type);
 
+    // Add normal attribute (offset sizeof(QVector3D))
     addAttribute(QQuick3DGeometry::Attribute::NormalSemantic,
                  sizeof(QVector3D),
                  QQuick3DGeometry::Attribute::F32Type);
 
+    // Add texture coordinates (UV) attribute for edge detection
+    addAttribute(QQuick3DGeometry::Attribute::TexCoordSemantic,
+                 sizeof(QVector3D) + sizeof(QVector3D),
+                 QQuick3DGeometry::Attribute::F32Type);
+
     setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
 
+    update();
+}
+
+// Edge rendering property implementations
+bool Box3dGeometry::showEdges() const
+{
+    return m_showEdges;
+}
+
+void Box3dGeometry::setShowEdges(bool show)
+{
+    if (m_showEdges == show)
+        return;
+    m_showEdges = show;
+    emit showEdgesChanged();
+    update();
+}
+
+float Box3dGeometry::edgeThickness() const
+{
+    return m_edgeThickness;
+}
+
+void Box3dGeometry::setEdgeThickness(float thickness)
+{
+    if (qFuzzyCompare(m_edgeThickness, thickness))
+        return;
+    m_edgeThickness = thickness;
+    emit edgeThicknessChanged();
+    update();
+}
+
+float Box3dGeometry::edgeFalloff() const
+{
+    return m_edgeFalloff;
+}
+
+void Box3dGeometry::setEdgeFalloff(float falloff)
+{
+    if (qFuzzyCompare(m_edgeFalloff, falloff))
+        return;
+    m_edgeFalloff = falloff;
+    emit edgeFalloffChanged();
+    update();
+}
+
+float Box3dGeometry::edgeDarkness() const
+{
+    return m_edgeDarkness;
+}
+
+void Box3dGeometry::setEdgeDarkness(float darkness)
+{
+    if (qFuzzyCompare(m_edgeDarkness, darkness))
+        return;
+    m_edgeDarkness = darkness;
+    emit edgeDarknessChanged();
+    update();
+}
+
+float Box3dGeometry::cornerDarkness() const
+{
+    return m_cornerDarkness;
+}
+
+void Box3dGeometry::setCornerDarkness(float darkness)
+{
+    if (qFuzzyCompare(m_cornerDarkness, darkness))
+        return;
+    m_cornerDarkness = darkness;
+    emit cornerDarknessChanged();
+    update();
+}
+
+float Box3dGeometry::viewDistanceFactor() const
+{
+    return m_viewDistanceFactor;
+}
+
+void Box3dGeometry::setViewDistanceFactor(float factor)
+{
+    if (qFuzzyCompare(m_viewDistanceFactor, factor))
+        return;
+    m_viewDistanceFactor = factor;
+    emit viewDistanceFactorChanged();
     update();
 }
