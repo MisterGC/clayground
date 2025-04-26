@@ -14,6 +14,9 @@ and [QML](https://doc.qt.io/qt-6/qtqml-index.html) to rapidly develop apps in a 
 environment with live loading capabilities.  It provides tools that try both, facilitating
 learning and allowing more focused and faster development by reducing typical build and restart times significantly.
 
+Before distributing a Clayground-based app, please read the LICENSE file for important information
+about the Qt dependency and related licensing considerations.
+
 ![Platformer Screenshot](res/screenshot_platformer.png)
 
 Goals/Basic Design Decisions:

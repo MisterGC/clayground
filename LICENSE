@@ -1,4 +1,4 @@
-Copyright (c) 2022 Clayground Contributors (see list below)
+Copyright (c) 2025 Clayground Contributors (see list below)
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -25,3 +25,26 @@ Contributors:
 - Serein Pfeiffer <serein.pfeiffer@gmail.com> (Project Lead)
 - Fernando Tonon de Rossi (https://github.com/fernandotonon)
 - Fabian Klebert (https://github.com/fklebert)
+
+Important Note on Qt6 Dependency:
+
+This project depends on the Qt framework, which is not included
+and must be installed separately.
+
+Depending on the Qt license you use (commercial, LGPL, or GPL), different obligations may
+apply when building and distributing software based on this project:
+
+- If you use a **commercial Qt license**, you are subject to the terms of your
+  commercial agreement with The Qt Company.
+- If you use the **Open Source Qt version**:
+  - You must review which Clayground components you are using.
+  - If you only use components depending on **LGPL-licensed** Qt modules, you must
+    comply with LGPL requirements (e.g., dynamic linking, providing notices, allowing relinking).
+  - If you use components depending on **GPL-licensed** Qt modules, your project as a whole
+    becomes subject to the GPL, and any resulting binaries must comply with the GPL license
+    terms (e.g., source code disclosure).
+
+Users are responsible for ensuring compliance with the appropriate Qt license.
+
+This project itself does not include Qt or any Qt source code and does not impose any Qt license obligations beyond 
+those already applicable to users by their choice of Qt installation.
