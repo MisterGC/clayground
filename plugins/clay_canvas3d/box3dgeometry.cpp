@@ -1,7 +1,7 @@
 #include "box3dgeometry.h"
 
 Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace),
-    m_showEdges(true), m_edgeThickness(0.03f), m_edgeColorFactor(0.4f)
+    m_showEdges(true), m_edgeThickness(0.03f), m_edgeColorFactor(0.4f), m_edgeMask(AllEdges)
 {
     updateData();
 }
@@ -304,5 +304,19 @@ void Box3dGeometry::setEdgeColorFactor(float factor)
         return;
     m_edgeColorFactor = factor;
     emit edgeColorFactorChanged();
+    update();
+}
+
+int Box3dGeometry::edgeMask() const
+{
+    return m_edgeMask;
+}
+
+void Box3dGeometry::setEdgeMask(int mask)
+{
+    if (m_edgeMask == mask)
+        return;
+    m_edgeMask = mask;
+    emit edgeMaskChanged();
     update();
 }

@@ -20,15 +20,26 @@ Model {
     property alias showEdges: _geometry.showEdges
     property alias edgeThickness: _geometry.edgeThickness
     property alias edgeColorFactor: _geometry.edgeColorFactor
+    property alias edgeMask: _geometry.edgeMask
 
     // Material properties
     property bool cullMode: false
     property alias lighting: _material.lighting
 
+    // Edge mask enums exposed for easier QML usage
+    readonly property int allEdges: Box3DGeometry.AllEdges
+    readonly property int topEdges: Box3DGeometry.TopEdges
+    readonly property int bottomEdges: Box3DGeometry.BottomEdges
+    readonly property int frontEdges: Box3DGeometry.FrontEdges
+    readonly property int backEdges: Box3DGeometry.BackEdges
+    readonly property int leftEdges: Box3DGeometry.LeftEdges
+    readonly property int rightEdges: Box3DGeometry.RightEdges
+
     geometry: Box3DGeometry {
         id: _geometry
         size: Qt.vector3d(width, height, depth)
         edgeColorFactor: 0.4
+        edgeMask: Box3DGeometry.AllEdges
     }
 
     materials: [
@@ -47,6 +58,7 @@ Model {
             property bool showEdges: _geometry.showEdges
             property real edgeThickness: _geometry.edgeThickness
             property real edgeColorFactor: _geometry.edgeColorFactor
+            property int edgeMask: _geometry.edgeMask
 
             // Add viewport height for consistent edge thickness
             property real viewportHeight: Screen.desktopAvailableHeight
