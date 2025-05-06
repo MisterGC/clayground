@@ -1,0 +1,55 @@
+import QtQuick
+import QtQuick3D
+import QtQuick.Window // For Screen
+
+import Clayground.Canvas3D
+
+Model {
+    property alias color: _material.baseColor
+
+    // Dimensions, cube by default
+    property real width: 1.0
+    property real height: width
+    property real depth:  width
+
+    // Modifyable dimension of the top rectangle
+    property alias scaledFace: _geometry.scaledFace
+    property alias faceScale: _geometry.faceScale
+
+    // Edge rendering properties (matching VoxelMap)
+    property alias showEdges: _geometry.showEdges
+    property alias edgeThickness: _geometry.edgeThickness
+    property alias edgeColorFactor: _geometry.edgeColorFactor
+
+    // Material properties
+    property bool cullMode: false
+    property alias lighting: _material.lighting
+
+    geometry: Box3DGeometry {
+        id: _geometry
+        size: Qt.vector3d(width, height, depth)
+        edgeColorFactor: 0.4
+    }
+
+    materials: [
+        CustomMaterial {
+            id: _material
+            property color baseColor: "red"
+
+            vertexShader: "box3d.vert"
+            fragmentShader: "box3d.frag"
+            shadingMode: CustomMaterial.Shaded
+
+            // Add basic lighting
+            property real lighting: 1.0
+
+            // Edge settings (connected to Box3D properties)
+            property bool showEdges: _geometry.showEdges
+            property real edgeThickness: _geometry.edgeThickness
+            property real edgeColorFactor: _geometry.edgeColorFactor
+
+            // Add viewport height for consistent edge thickness
+            property real viewportHeight: Screen.desktopAvailableHeight
+        }
+    ]
+}
