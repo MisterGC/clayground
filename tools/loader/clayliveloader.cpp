@@ -35,7 +35,9 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
     reload_.setSingleShot(true);
     connect(&reload_, &QTimer::timeout, this, &Cll::onTimeToRestart);
 
+    engine_.load(QUrl());
     clearCache();
+    show();
 }
 
 bool ClayLiveLoader::isQmlPlugin(const QString& path) const
@@ -213,6 +215,7 @@ void ClayLiveLoader::clearCache()
 {
     engine_.collectGarbage();
     engine_.trimComponentCache();
+    engine_.clearSingletons();
     engine_.clearComponentCache();
     storeErrors("");
 }
@@ -220,7 +223,12 @@ void ClayLiveLoader::clearCache()
 
 QUrl ClayLiveLoader::sandboxUrl() const
 {
-    return sbxIdx_ >= 0 ? allSbxs_[sbxIdx_] : QUrl();
+    if (sbxIdx_ >= 0) {
+        auto url =  allSbxs_[sbxIdx_];
+        url.setQuery(QString("epoch=%1").arg(QDateTime::currentSecsSinceEpoch()));
+        return url;
+    }
+    return QUrl();
 }
 
 QString ClayLiveLoader::sandboxDir() const
