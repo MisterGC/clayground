@@ -44,6 +44,7 @@ Certainly, let's make it more compact while retaining the essence:
 - **Network**: Effortless node discovery and P2P messaging.
 - **SVG**: Inspect and use Inkscape-based SVGs for 2D scenes.
 - **Canvas**: Offers a 2D coordinate system, minimizes pixel-level handling.
+- **Canvas3D**: Set of 3D primitives and utilities Qt Quick 3D.
 
 **Interactive Experience Plugins:**
 

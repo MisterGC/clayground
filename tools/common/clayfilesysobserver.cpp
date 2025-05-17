@@ -39,7 +39,8 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
         while (it.hasNext()) {
             it.next();
             auto fp = it.filePath();
-            if (allFiles.contains(fp)) continue;
+            auto fi = QFileInfo(fp);
+            if (allFiles.contains(fp) || fi.isDir()) continue;
             if (!fo.addPath(fp))
                 qCritical("Path %s couldn't be added for observation!",
                           qUtf8Printable(fp));
