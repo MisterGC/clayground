@@ -3,5 +3,6 @@
     <file>main.qml</file>
     <file>MessageView.qml</file>
     <file>ShortcutDescr.qml</file>
+    <file>SandboxView.qml</file>
 </qresource>
 </RCC>

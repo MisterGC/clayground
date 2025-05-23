@@ -15,6 +15,7 @@ Window {
     width: keyvalues.get("width",Screen.desktopAvailableWidth * .32)
     height: keyvalues.get("height",width)
     title: qsTr("Clay Live Loader")
+    color: "black"  // Set window background to black
 
     onXChanged: keyvalues.set("x",x)
     onYChanged: keyvalues.set("y",y)
@@ -33,11 +34,19 @@ Window {
         function toggle() { opacity = opacity > .5 ? 0.0 : 1.0; }
     }
 
-    Loader {
+    SandboxView {
         id: sbxLoader
         anchors.fill: parent
-        source: ClayLiveLoader.sandboxUrl
-        onSourceChanged: showSbxSourceComp.createObject(parent)
+        sandboxSource: ClayLiveLoader.sandboxUrl
+        
+        Connections {
+            target: sbxLoader
+            function onSandboxSourceChanged() {
+                if (sbxLoader.sandboxSource.toString() !== "") {
+                    showSbxSourceComp.createObject(_theWindow);
+                }
+            }
+        }
     }
 
     Component {
@@ -47,11 +56,11 @@ Window {
 
             font.pixelSize: parent.height * .06
             font.bold: true; color: "white"; anchors.centerIn: parent
-            visible: sbxLoader.source; opacity: 1.0;
+            visible: sbxLoader.sandboxSource.toString() !== ""; opacity: 1.0;
 
             Behavior on opacity {NumberAnimation{duration: _lblSrc.ttl}}
             property int ttl: 750
-            property var _sbxUrlEls: sbxLoader.source.toString().split('/')
+            property var _sbxUrlEls: sbxLoader.sandboxSource.toString().split('/')
             text: _sbxUrlEls.length > 1 ? _sbxUrlEls[_sbxUrlEls.length-2] : ""
 
             Component.onCompleted: opacity = 0
@@ -66,7 +75,7 @@ Window {
        id: messageShow
        anchors.fill: parent
        color: "black"
-       visible: !sbxLoader.source
+       visible: !sbxLoader.sandboxSource || sbxLoader.sandboxSource.toString() === ""
        ScrollView {
            anchors.centerIn: parent
            width: parent.width * .95
