@@ -3,12 +3,16 @@
 #include "clayliveloader.h"
 #include <utilityfunctions.h>
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QEvent>
+#include <QEventLoop>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QLibrary>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -157,7 +161,25 @@ void ClayLiveLoader::onTimeToRestart()
 {
     auto const idx = sbxIdx_;
     setSbxIndex(USE_NONE_SBX_IDX);
+    
+    // Process any pending deletions before clearing cache
+    QCoreApplication::processEvents(QEventLoop::AllEvents);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    
+    // Clear all caches more aggressively
     clearCache();
+    
+    // Force garbage collection multiple times with event processing
+    for (int i = 0; i < 3; ++i) {
+        engine_.collectGarbage();
+        QCoreApplication::processEvents(QEventLoop::AllEvents);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    
+    // One more aggressive cleanup cycle
+    engine_.trimComponentCache();
+    engine_.collectGarbage();
+    
     setSbxIndex(idx);
     numRestarts_++;
     emit restarted();
@@ -211,16 +233,45 @@ void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
 
 void ClayLiveLoader::clearCache()
 {
+    // More aggressive cache clearing
     engine_.collectGarbage();
     engine_.trimComponentCache();
+    
+    // Don't clear singletons in Qt 6.9.0 as it removes the Qt singleton
+    // which provides essential functions like Qt.vector3d()
+    // Only clear component cache which should be sufficient for reloading
+    // engine_.clearSingletons();
+    
+    // Clear the entire component cache
     engine_.clearComponentCache();
+    
+    // Force URL interceptor to re-evaluate (if any)
+    // Note: setUrlInterceptor is deprecated in Qt 6.9.0
+    // engine_.setUrlInterceptor(nullptr);
+    
+    // Clear any stored errors
     storeErrors("");
+    
+    // Additional cleanup for import paths
+    // Note: removeImportPath has been removed in Qt 6.9.0
+    // The clearComponentCache() above should be sufficient for force re-evaluation
+    
+    // Extra aggressive cleanup for Qt Quick3D bindings
+    // This helps with partial property bindings like position.x
+    QCoreApplication::processEvents(QEventLoop::AllEvents);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    engine_.collectGarbage();
 }
 
 
 QUrl ClayLiveLoader::sandboxUrl() const
 {
-    return sbxIdx_ >= 0 ? allSbxs_[sbxIdx_] : QUrl();
+    if (sbxIdx_ >= 0) {
+        auto url =  allSbxs_[sbxIdx_];
+        url.setQuery(QString("epoch=%1").arg(QDateTime::currentSecsSinceEpoch()));
+        return url;
+    }
+    return QUrl();
 }
 
 QString ClayLiveLoader::sandboxDir() const
