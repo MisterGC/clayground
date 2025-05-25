@@ -52,6 +52,21 @@ void ClayDojo::addDynPluginDepedency(const QString& srcPath,
     qCDebug(logCat_) << "Added plugin dependency " << srcPath << " , " << binPath;
 }
 
+void ClayDojo::addSandbox(const QString& sbxPath)
+{
+    QFileInfo sbxInfo(sbxPath);
+    if (!sbxInfo.exists()) {
+        qCritical("Sandbox file must exist: %s", qUtf8Printable(sbxPath));
+        return;
+    }
+    
+    sandboxPaths_ << sbxPath;
+    auto const dir = sbxInfo.absoluteDir().absolutePath();
+    sandboxDirs_ << dir;
+    fileObserver_.observeDir(dir);
+    qCDebug(logCat_) << "Added sandbox: " << sbxPath << " in dir: " << dir;
+}
+
 void ClayDojo::run()
 {
     std::thread t([this] {
@@ -71,6 +86,10 @@ void ClayDojo::run()
             connect(&p, &QProcess::readyReadStandardError, this, &ClayDojo::onSbxOutput);
             if (buildWaitList_.empty()){
                 auto args = QCoreApplication::arguments();
+                // Pass sandboxes to loader
+                for (const auto& sbx : sandboxPaths_) {
+                    args << QString("--%1").arg(SBX_ARG) << sbx;
+                }
                 args << QString("--%1").arg(SBX_INDEX_ARG) << QString::number(sbxIdx_);
                 p.start(loaderCmd, args);
             }
@@ -149,6 +168,18 @@ void ClayDojo::onFileSysChange(const QString &path)
    }
    auto const p = dir.path();
    qCDebug(logCat_) << "FileSys changed " << p;
+   
+   // Check if it's a sandbox directory change
+   for (int i = 0; i < sandboxDirs_.size(); ++i) {
+       if (p.startsWith(sandboxDirs_[i])) {
+           qCDebug(logCat_) << "Sandbox dir changed, triggering restart for sbx" << i;
+           sbxIdx_ = i;
+           restart_.start(RAPID_CHANGE_CATCHTIME);
+           return;
+       }
+   }
+   
+   // Check if it's a source directory change
    auto sourceDir = QString();
    for (auto const& s: sourceToBuildDir_)
        if (p.startsWith(s.first)) {

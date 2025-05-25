@@ -15,6 +15,8 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
     QCommandLineParser parser;
     addCommonArgs(parser);
     parser.process(app);
+    
+    // Process dynamic plugins
     if (parser.isSet(DYN_PLUGIN_ARG)) {
         for (auto const& val: parser.values(DYN_PLUGIN_ARG))
         {
@@ -22,6 +24,14 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
             auto const dynPlugDirs = val.split(",");
             if (dynPlugDirs.length() != 2) parser.showHelp();
             restarter.addDynPluginDepedency(dynPlugDirs[0], dynPlugDirs[1]);
+        }
+    }
+    
+    // Process sandboxes
+    if (parser.isSet(SBX_ARG)) {
+        for (auto const& sbx: parser.values(SBX_ARG)) {
+            qDebug() << "Found sandbox" << sbx;
+            restarter.addSandbox(sbx);
         }
     }
 }

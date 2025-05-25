@@ -87,11 +87,6 @@ Window {
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
     Connections {
         target: ClayLiveLoader
-        function onRestarted() {
-            let r = parseInt(keyvalues.get("nrRestarts", 0)) + 1;
-            keyvalues.set("nrRestarts", r);
-            claylog.clear();
-        }
         function onMessagePosted(message) { claylog.add(message); }
     }
 

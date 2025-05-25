@@ -23,6 +23,7 @@ public:
     ClayDojo(QObject* parent = nullptr);
     ~ClayDojo();
     void addDynPluginDepedency(const QString &srcPath, const QString &binPath);
+    void addSandbox(const QString &sbxPath);
 
 public slots:
     void run();
@@ -46,6 +47,8 @@ private:
     std::unique_ptr<QProcess> sbx_;
     ClayFileSysObserver fileObserver_;
     std::map<QString, QString> sourceToBuildDir_;
+    QStringList sandboxPaths_;
+    QStringList sandboxDirs_;
     QStringList buildWaitList_;
     QTimer restart_;
     QLoggingCategory logCat_;
