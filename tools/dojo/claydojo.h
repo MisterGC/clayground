@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <QStringList>
 #include <QTimer>
+#include <QQmlApplicationEngine>
 #include <atomic>
 #include <condition_variable>
 #include <map>
@@ -24,6 +25,7 @@ public:
     ~ClayDojo();
     void addDynPluginDepedency(const QString &srcPath, const QString &binPath);
     void addSandbox(const QString &sbxPath);
+    void setQmlEngine(QQmlApplicationEngine* engine) { qmlEngine_ = engine; };
 
 public slots:
     void run();
@@ -39,6 +41,9 @@ signals:
     void restarted();
 
 private:
+    void sendFadeOutCommand();
+    
+    QQmlApplicationEngine* qmlEngine_ = nullptr;
     std::timed_mutex mutex_;
     std::condition_variable_any restarterStopped_;
     std::atomic_bool shallStop_;

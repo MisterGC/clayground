@@ -141,6 +141,11 @@ Window {
     }
 
     KeyValueStore { id: keyvalues; name: "clayrtdb" }
+    
+    function setFadeOutCommand() {
+        keyvalues.set("liveLoaderCtrl", "fadeOut");
+    }
+    
     Connections {
         target: ClayDojo
         function onRestarted() {

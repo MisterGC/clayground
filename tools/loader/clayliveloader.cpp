@@ -55,6 +55,11 @@ void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
     storeValue("command", QString("restart %1").arg(sbxIdx));
 }
 
+void ClayLiveLoader::fadeOutAndQuit()
+{
+    emit fadeOutRequested();
+}
+
 void ClayLiveLoader::postMessage(const QString &message)
 {
    emit messagePosted(message);

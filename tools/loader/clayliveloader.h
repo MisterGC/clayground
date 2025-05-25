@@ -32,6 +32,7 @@ public:
 
 public slots:
     void restartSandbox(uint8_t sbxIdx);
+    void fadeOutAndQuit();
 
 signals:
     void sandboxUrlChanged();
@@ -39,6 +40,7 @@ signals:
     void sandboxesChanged();
     void altMessageChanged();
     void messagePosted(const QString& message);
+    void fadeOutRequested();
 
 private slots:
     void onEngineWarnings(const QList<QQmlError>& warnings);

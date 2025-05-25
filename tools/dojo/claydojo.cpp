@@ -7,6 +7,8 @@
 #include <QDebug>
 #include <QDir>
 #include <QProcess>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -120,6 +122,13 @@ void ClayDojo::run()
                 if (timeToStopSbx)
                 {
                     emit aboutToRestart();
+                    
+                    // Send fade-out command before killing the process
+                    sendFadeOutCommand();
+                    
+                    // Wait for fade-out animation to complete
+                    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+                    
                     p.kill();
                     p.waitForFinished();
                     if (shallStop_) {
@@ -213,4 +222,15 @@ void ClayDojo::onFileSysChange(const QString &path)
 void ClayDojo::onTimeToRestart()
 {
     shallRestart_ = true;
+}
+
+void ClayDojo::sendFadeOutCommand()
+{
+    if (!qmlEngine_) {
+        qCritical("QML engine not set, cannot send fade-out command");
+        return;
+    }
+    
+    // Use QML to set the fade-out command through the KeyValueStore
+    QMetaObject::invokeMethod(qmlEngine_->rootObjects().first(), "setFadeOutCommand");
 }

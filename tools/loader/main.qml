@@ -10,11 +10,17 @@ Window {
     id: _theWindow
 
     visible: true
+    opacity: 0  // Start with 0 opacity for fade-in
     x: keyvalues.get("x",Screen.desktopAvailableWidth * .01)
     y: keyvalues.get("y",Screen.desktopAvailableHeight * .35)
     width: keyvalues.get("width",Screen.desktopAvailableWidth * .32)
     height: keyvalues.get("height",width)
     title: qsTr("Clay Live Loader")
+    
+    Component.onCompleted: {
+        // Fade in on startup
+        fadeInAnimation.start();
+    }
 
     onXChanged: keyvalues.set("x",x)
     onYChanged: keyvalues.set("y",y)
@@ -88,6 +94,31 @@ Window {
     Connections {
         target: ClayLiveLoader
         function onMessagePosted(message) { claylog.add(message); }
+        function onFadeOutRequested() {
+            fadeOutAnimation.start();
+        }
+    }
+    
+    // Fade animations
+    NumberAnimation {
+        id: fadeInAnimation
+        target: _theWindow
+        property: "opacity"
+        from: 0
+        to: 1
+        duration: 300
+        easing.type: Easing.InOutQuad
+    }
+    
+    NumberAnimation {
+        id: fadeOutAnimation
+        target: _theWindow
+        property: "opacity"
+        from: 1
+        to: 0
+        duration: 300
+        easing.type: Easing.InOutQuad
+        onFinished: Qt.quit()
     }
 
     Timer {
@@ -97,6 +128,7 @@ Window {
         onTriggered: {
             let opt = keyvalues.get("liveLoaderCtrl");
             if (opt === "toggleHelp") guideScreen.toggle();
+            else if (opt === "fadeOut") ClayLiveLoader.fadeOutAndQuit();
             keyvalues.set("liveLoaderCtrl", "")
         }
     }

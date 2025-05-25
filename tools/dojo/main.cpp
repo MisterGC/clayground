@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
     processCmdLineArgs(app, dojo);
     engine.rootContext()->setContextProperty("ClayDojo", &dojo);
     engine.load(QUrl("qrc:/clayground/main.qml"));
-
+    
+    dojo.setQmlEngine(&engine);
     QTimer::singleShot(0, &dojo, SLOT(run()));
 
     return app.exec();
