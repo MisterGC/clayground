@@ -18,7 +18,6 @@ class VoxelMapGeometry : public QQuick3DGeometry
     Q_PROPERTY(float voxelSize READ voxelSize WRITE setVoxelSize NOTIFY voxelSizeChanged)
     Q_PROPERTY(float spacing READ spacing WRITE setSpacing NOTIFY spacingChanged)
     Q_PROPERTY(int vertexCount READ vertexCount NOTIFY vertexCountChanged)
-    Q_PROPERTY(bool useGreedyMeshing READ useGreedyMeshing WRITE setUseGreedyMeshing NOTIFY useGreedyMeshingChanged)
 
 public:
     explicit VoxelMapGeometry();
@@ -35,8 +34,6 @@ public:
     float spacing() const;
     void setSpacing(float spacing);
     int vertexCount() const { return m_vertexCount; }
-    bool useGreedyMeshing() const { return m_useGreedyMeshing; }
-    void setUseGreedyMeshing(bool enabled);
 
     // Forward QML-invokable methods to m_data
     Q_INVOKABLE bool saveToFile(const QString &path);
@@ -55,7 +52,6 @@ signals:
     void voxelSizeChanged();
     void spacingChanged();
     void vertexCountChanged();
-    void useGreedyMeshingChanged();
 
 private:
     // Greedy meshing structures
@@ -67,11 +63,8 @@ private:
     };
     
     void updateGeometry();
-    void updateGeometryGreedy();   // Greedy meshing method
-    void updateGeometryClassic();  // Original per-voxel face method
     bool isFaceVisible(int x, int y, int z, int faceIndex) const;
     QVector<GreedyQuad> generateGreedyQuads();
     VoxelMapData m_data;
     int m_vertexCount = 0;
-    bool m_useGreedyMeshing = true;  // Default to true for efficiency
 };

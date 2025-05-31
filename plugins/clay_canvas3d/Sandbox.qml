@@ -359,8 +359,6 @@ Item {
             width: 30; height: 30; depth: 30
             voxelSize: 5.0; spacing: 0.0
             
-            // Access the underlying geometry to control greedy meshing
-            property var voxelGeometry: geometry
             
             Component.onCompleted: {
 
@@ -395,16 +393,6 @@ Item {
             }
         }
 
-        Node{
-            x: -400; y: 10; z: 200
-            Label {
-                color: "black"
-                background: Rectangle {opacity: .75}
-                text: "VoxelMap with Instancing\nVertices: " + _voxelMap.voxelGeometry.vertexCount
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
 
         DynamicVoxelMap {
             id: _roomMap
@@ -621,8 +609,6 @@ Item {
             showEdges: true; edgeColorFactor: 0.7;
             edgeThickness: 0.3
             
-            // Access the underlying geometry to control greedy meshing
-            property var voxelGeometry: geometry
             
             Component.onCompleted: {
                 // Fill the terrain with varying shades of green grass
@@ -649,17 +635,6 @@ Item {
             }
         }
         
-        // Label for the terrain
-        Node {
-            x: 0; y: 10; z: -300
-            Label {
-                color: "black"
-                background: Rectangle {opacity: .75}
-                text: "Grass Terrain (" + _terrainMap.width + "x" + _terrainMap.depth + " voxels)\nVertices: " + _terrainMap.voxelGeometry.vertexCount
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
 
         Node {
             id: _physicsRoot
@@ -918,35 +893,6 @@ Item {
             text: "Currently controlling: " + (view.controllingPacman ? "Pacman" : "Camera") + " (Press 'T' to toggle)"
         }
 
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 10
-            Text {
-                color: "white"
-                font.pointSize: 12
-                text: "Greedy Meshing:"
-            }
-            Switch {
-                id: greedySwitch
-                checked: _voxelMap.voxelGeometry.useGreedyMeshing
-                onCheckedChanged: {
-                    _voxelMap.voxelGeometry.useGreedyMeshing = checked
-                    _terrainMap.voxelGeometry.useGreedyMeshing = checked
-                }
-            }
-            Text {
-                color: "white"
-                font.pointSize: 12
-                text: greedySwitch.checked ? "ON" : "OFF"
-            }
-        }
-        
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            color: "white"
-            font.pointSize: 11
-            text: "Terrain vertices: " + _terrainMap.voxelGeometry.vertexCount + " | Trees vertices: " + _voxelMap.voxelGeometry.vertexCount
-        }
     }
 
 
