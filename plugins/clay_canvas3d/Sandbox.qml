@@ -358,6 +358,10 @@ Item {
             }
             width: 30; height: 30; depth: 30
             voxelSize: 5.0; spacing: 0.0
+            
+            // Access the underlying geometry to control greedy meshing
+            property var voxelGeometry: geometry
+            
             Component.onCompleted: {
 
                 _voxelMap.fill([
@@ -396,7 +400,7 @@ Item {
             Label {
                 color: "black"
                 background: Rectangle {opacity: .75}
-                text: "VoxelMap with Instancing"
+                text: "VoxelMap with Instancing\nVertices: " + _voxelMap.voxelGeometry.vertexCount
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -607,6 +611,56 @@ Item {
             }
         }
 
+        // Large terrain plane to test greedy meshing
+        StaticVoxelMap {
+            id: _terrainMap
+            castsShadows: true
+            x: 0; y: -10; z: 0
+            width: 100; height: 3; depth: 100
+            voxelSize: 5.0; spacing: 0.0
+            showEdges: true; edgeColorFactor: 0.7;
+            edgeThickness: 0.3
+            
+            // Access the underlying geometry to control greedy meshing
+            property var voxelGeometry: geometry
+            
+            Component.onCompleted: {
+                // Fill the terrain with varying shades of green grass
+                // Only fill the top 2 layers to avoid Z-fighting and save vertices
+                _terrainMap.fill([
+                    {
+                        box: {
+                            pos: Qt.vector3d(0, 0, 0),
+                            width: 100, height: 3, depth: 100,
+                            colors: [
+                                { color: "#2D4A2B", weight: 0.15 }, // Dark forest green
+                                { color: "#355E3B", weight: 0.15 }, // Hunter green
+                                { color: "#4F7942", weight: 0.15 }, // Fern green
+                                { color: "#4CBB17", weight: 0.10 }, // Kelly green
+                                { color: "#7CFC00", weight: 0.10 }, // Lawn green
+                                { color: "#8FBC8F", weight: 0.10 }, // Dark sea green
+                                { color: "#90EE90", weight: 0.10 }, // Light green
+                                { color: "#228B22", weight: 0.15 }  // Forest green
+                            ],
+                            noise: 0.9  // High noise for more random distribution
+                        }
+                    }
+                ]);
+            }
+        }
+        
+        // Label for the terrain
+        Node {
+            x: 0; y: 10; z: -300
+            Label {
+                color: "black"
+                background: Rectangle {opacity: .75}
+                text: "Grass Terrain (" + _terrainMap.width + "x" + _terrainMap.depth + " voxels)\nVertices: " + _terrainMap.voxelGeometry.vertexCount
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
         Node {
             id: _physicsRoot
 
@@ -658,14 +712,6 @@ Item {
 
         }*/
 
-        // Add status text to show current control mode
-        Text {
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            color: "white"
-            font.pointSize: 12
-            text: "Currently controlling: " + (view.controllingPacman ? "Pacman" : "Camera") + " (Press 'T' to toggle)"
-        }
 
         MouseArea {
             anchors.fill: view
@@ -809,10 +855,6 @@ Item {
         }
     }
 
-
-
-
-
     MouseArea {
         anchors.fill: view
         //! [mouse area]
@@ -862,6 +904,57 @@ Item {
                        }
                    }
     }
+
+    // Add status text to show current control mode
+    Column {
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 5
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: "white"
+            font.pointSize: 12
+            text: "Currently controlling: " + (view.controllingPacman ? "Pacman" : "Camera") + " (Press 'T' to toggle)"
+        }
+
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 10
+            Text {
+                color: "white"
+                font.pointSize: 12
+                text: "Greedy Meshing:"
+            }
+            Switch {
+                id: greedySwitch
+                checked: _voxelMap.voxelGeometry.useGreedyMeshing
+                onCheckedChanged: {
+                    _voxelMap.voxelGeometry.useGreedyMeshing = checked
+                    _terrainMap.voxelGeometry.useGreedyMeshing = checked
+                }
+            }
+            Text {
+                color: "white"
+                font.pointSize: 12
+                text: greedySwitch.checked ? "ON" : "OFF"
+            }
+        }
+        
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: "white"
+            font.pointSize: 11
+            text: "Terrain vertices: " + _terrainMap.voxelGeometry.vertexCount + " | Trees vertices: " + _voxelMap.voxelGeometry.vertexCount
+        }
+    }
+
+
+    DebugView {
+        source: view
+        resourceDetailsVisible: true
+    }
+
 
 
 
