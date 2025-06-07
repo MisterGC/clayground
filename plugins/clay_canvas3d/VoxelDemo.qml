@@ -175,30 +175,41 @@ View3D {
                 edgeColorFactor: 1.3
 
                 Component.onCompleted: {
-                    // Sphere
-                    fill({
-                        shape: "sphere",
-                        center: Qt.vector3d(15, 15, 15),
-                        radius: 12,
-                        color: "#e74c3c"
-                    })
-
-                    // Box
-                    fill({
-                        shape: "box",
-                        from: Qt.vector3d(30, 0, 10),
-                        to: Qt.vector3d(45, 15, 25),
-                        color: "#3498db"
-                    })
-
-                    // Cylinder
-                    fill({
-                        shape: "cylinder",
-                        from: Qt.vector3d(15, 0, 35),
-                        to: Qt.vector3d(15, 25, 35),
-                        radius: 8,
-                        color: "#f39c12"
-                    })
+                    fill([
+                        // Sphere
+                        {
+                            sphere: {
+                                pos: Qt.vector3d(15, 15, 15),
+                                radius: 12,
+                                colors: [
+                                    { color: "#e74c3c", weight: 1.0 }
+                                ]
+                            }
+                        },
+                        // Box
+                        {
+                            box: {
+                                pos: Qt.vector3d(30, 5, 10),
+                                width: 15,
+                                height: 15, 
+                                depth: 15,
+                                colors: [
+                                    { color: "#3498db", weight: 1.0 }
+                                ]
+                            }
+                        },
+                        // Cylinder
+                        {
+                            cylinder: {
+                                pos: Qt.vector3d(15, 0, 35),
+                                radius: 8,
+                                height: 25,
+                                colors: [
+                                    { color: "#f39c12", weight: 1.0 }
+                                ]
+                            }
+                        }
+                    ])
 
                     model.commit()
                 }
@@ -285,14 +296,21 @@ View3D {
                         "  333  DDD  "
                     ]
 
+                    // Draw the text pattern
                     for (var row = 0; row < pattern.length; row++) {
                         for (var col = 0; col < pattern[row].length; col++) {
                             if (pattern[row][col] !== " ") {
                                 var color = pattern[row][col] === "3" ? "#e74c3c" : "#3498db"
-                                for (var y = 0; y < 8; y++) {
-                                    for (var z = 2; z < 8; z++) {
-                                        set(col * 3 + 5, y + 5, z, color)
-                                    }
+                                // Create 3D depth for each character
+                                for (var z = 0; z < 6; z++) {
+                                    // X position based on column
+                                    var x = col * 3 + 5
+                                    // Y position based on inverted row (top to bottom)
+                                    var y = (pattern.length - 1 - row) * 3 + 5
+                                    set(x, y, z, color)
+                                    set(x + 1, y, z, color)  // Make chars 2 voxels wide
+                                    set(x, y + 1, z, color)  // Make chars 2 voxels tall
+                                    set(x + 1, y + 1, z, color)
                                 }
                             }
                         }
