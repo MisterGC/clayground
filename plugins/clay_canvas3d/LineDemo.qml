@@ -59,10 +59,10 @@ View3D {
 
         Line3D {
             coords: [
-                [0, 0, 0],
-                [50, 100, 0],
-                [100, 50, 0],
-                [150, 80, 0]
+                Qt.vector3d(0, 0, 0),
+                Qt.vector3d(50, 100, 0),
+                Qt.vector3d(100, 50, 0),
+                Qt.vector3d(150, 80, 0)
             ]
             color: "#e74c3c"
             width: 5
@@ -77,9 +77,9 @@ View3D {
 
         MultiLine3D {
             coords: [
-                [[0, 0, 0], [100, 0, 0]],    // X axis - red
-                [[0, 0, 0], [0, 100, 0]],    // Y axis - green
-                [[0, 0, 0], [0, 0, 100]]     // Z axis - blue
+                [Qt.vector3d(0, 0, 0), Qt.vector3d(100, 0, 0)],    // X axis - red
+                [Qt.vector3d(0, 0, 0), Qt.vector3d(0, 100, 0)],    // Y axis - green
+                [Qt.vector3d(0, 0, 0), Qt.vector3d(0, 0, 100)]     // Z axis - blue
             ]
             color: "#3498db"
             width: 3
@@ -117,11 +117,11 @@ View3D {
 
         BoxLine3D {
             positions: [
-                [0, 0, 0],
-                [30, 40, 20],
-                [60, 20, 40],
-                [90, 50, 60],
-                [120, 30, 80]
+                Qt.vector3d(0, 0, 0),
+                Qt.vector3d(30, 40, 20),
+                Qt.vector3d(60, 20, 40),
+                Qt.vector3d(90, 50, 60),
+                Qt.vector3d(120, 30, 80)
             ]
             width: 8
             color: "#f39c12"
@@ -148,11 +148,11 @@ View3D {
                 for (var i = 0; i <= steps; i++) {
                     var t = i / steps * Math.PI * 4
                     var r = 50 * (1 - i / steps)
-                    points.push([
+                    points.push(Qt.vector3d(
                         r * Math.cos(t + time),
                         i * 2,
                         r * Math.sin(t + time)
-                    ])
+                    ))
                 }
                 return points
             }
@@ -182,16 +182,16 @@ View3D {
                 // Horizontal lines
                 for (var z = -size/2; z <= size/2; z += step) {
                     lineArray.push([
-                        [-size/2, 0, z],
-                        [size/2, 0, z]
+                        Qt.vector3d(-size/2, 0, z),
+                        Qt.vector3d(size/2, 0, z)
                     ])
                 }
                 
                 // Vertical lines
                 for (var x = -size/2; x <= size/2; x += step) {
                     lineArray.push([
-                        [x, 0, -size/2],
-                        [x, 0, size/2]
+                        Qt.vector3d(x, 0, -size/2),
+                        Qt.vector3d(x, 0, size/2)
                     ])
                 }
                 
@@ -220,7 +220,7 @@ View3D {
                     var line = []
                     for (var z = -size/2; z <= size/2; z += step/2) {
                         var y = 20 * Math.sin(x * 0.05) * Math.cos(z * 0.05)
-                        line.push([x, y, z])
+                        line.push(Qt.vector3d(x, y, z))
                     }
                     lineArray.push(line)
                 }
@@ -228,7 +228,7 @@ View3D {
                 return lineArray
             }
             color: "#e74c3c"
-            width: 1
+            width: 2
         }
     }
 
