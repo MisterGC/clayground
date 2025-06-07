@@ -57,10 +57,10 @@ View3D {
     // ========================================
     // Demo Components
     // ========================================
-    
+
     Component {
         id: terrainDemo
-        
+
         Node {
             x: -300
             z: -100
@@ -84,7 +84,7 @@ View3D {
                                 3 * Math.sin(x * 0.3) * Math.cos(z * 0.3) +
                                 2 * Math.sin(x * 0.7) * Math.sin(z * 0.7)
                             )
-                            
+
                             for (var y = 0; y < height && y < height; y++) {
                                 var color = y < 3 ? "#8B4513" :  // Brown (dirt)
                                            y < 6 ? "#228B22" :  // Green (grass)
@@ -99,10 +99,10 @@ View3D {
             }
         }
     }
-    
+
     Component {
         id: waveDemo
-        
+
         Node {
             x: 100
             z: -100
@@ -137,7 +137,7 @@ View3D {
                             }
                         }
                     }
-                    
+
                     // Create wave
                     for (var x = 0; x < width; x++) {
                         for (var z = 0; z < depth; z++) {
@@ -145,7 +145,7 @@ View3D {
                                 5 + 4 * Math.sin((x - width/2) * 0.3 + time) *
                                         Math.cos((z - depth/2) * 0.3 + time)
                             )
-                            
+
                             for (var y = 0; y < waveHeight && y < height; y++) {
                                 var hue = (y / waveHeight) * 0.6  // Blue to cyan
                                 set(x, y, z, Qt.hsla(hue, 0.8, 0.5, 1.0))
@@ -158,10 +158,10 @@ View3D {
             }
         }
     }
-    
+
     Component {
         id: shapesDemo
-        
+
         Node {
             x: -300
             z: 100
@@ -192,7 +192,7 @@ View3D {
                             box: {
                                 pos: Qt.vector3d(30, 5, 10),
                                 width: 15,
-                                height: 15, 
+                                height: 15,
                                 depth: 15,
                                 colors: [
                                     { color: "#3498db", weight: 1.0 }
@@ -217,64 +217,11 @@ View3D {
             }
         }
     }
-    
-    Component {
-        id: painterDemo
-        
-        Node {
-            x: 100
-            z: 100
 
-            DynamicVoxelMap {
-                id: paintMap
-                width: 20
-                height: 20
-                depth: 20
-                voxelSize: 8
-                spacing: 1
-                showEdges: false
 
-                property var currentColor: "#e74c3c"
-                property var colors: ["#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6"]
-                property int colorIndex: 0
-
-                // Create a base platform
-                Component.onCompleted: {
-                    for (var x = 0; x < width; x++) {
-                        for (var z = 0; z < depth; z++) {
-                            set(x, 0, z, "#7f8c8d")
-                        }
-                    }
-                }
-
-                // Simple painting interaction (simplified for demo)
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        // Add random voxel on click
-                        var x = Math.floor(Math.random() * paintMap.width)
-                        var z = Math.floor(Math.random() * paintMap.depth)
-                        var y = 1
-                        
-                        // Find the top of the stack
-                        while (y < paintMap.height && paintMap.get(x, y, z) !== "#00000000") {
-                            y++
-                        }
-                        
-                        if (y < paintMap.height) {
-                            paintMap.set(x, y, z, paintMap.currentColor)
-                            paintMap.colorIndex = (paintMap.colorIndex + 1) % paintMap.colors.length
-                            paintMap.currentColor = paintMap.colors[paintMap.colorIndex]
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
     Component {
         id: textDemo
-        
+
         Node {
             x: -100
             z: 250
@@ -327,18 +274,17 @@ View3D {
     Loader3D {
         id: demoLoader
         asynchronous: true
-        
+
         property int currentDemoIndex: 0
         property var demoComponents: [
             terrainDemo,
             waveDemo,
             shapesDemo,
-            painterDemo,
             textDemo
         ]
-        
+
         sourceComponent: demoComponents[currentDemoIndex]
-        
+
         onStatusChanged: {
             if (status === Loader.Loading) {
                 loadingIndicator.visible = true
@@ -357,7 +303,7 @@ View3D {
         color: "#2c3e50"
         radius: 5
         visible: false
-        
+
         Text {
             anchors.centerIn: parent
             text: "Loading voxels..."
@@ -369,7 +315,7 @@ View3D {
     // Overlay with controls and info
     Item {
         anchors.fill: parent
-        
+
         // Demo selector
         Rectangle {
             anchors.top: parent.top
@@ -379,42 +325,41 @@ View3D {
             height: demoColumn.height + 20
             color: "#2c3e50"
             radius: 5
-            
+
             Column {
                 id: demoColumn
                 anchors.centerIn: parent
                 spacing: 5
-                
+
                 Text {
                     text: "Select Demo:"
                     color: "white"
                     font.bold: true
                     font.pixelSize: 14
                 }
-                
+
                 Repeater {
                     model: [
                         "Static Terrain",
                         "Dynamic Wave",
                         "Shape Filling",
-                        "Interactive Painter",
                         "Voxel Text"
                     ]
-                    
+
                     Rectangle {
                         width: 180
                         height: 30
-                        color: demoLoader.currentDemoIndex === index ? "#3498db" : 
+                        color: demoLoader.currentDemoIndex === index ? "#3498db" :
                                mouseArea.containsMouse ? "#34495e" : "transparent"
                         radius: 3
-                        
+
                         Text {
                             anchors.centerIn: parent
                             text: modelData
                             color: "white"
                             font.pixelSize: 12
                         }
-                        
+
                         MouseArea {
                             id: mouseArea
                             anchors.fill: parent
@@ -425,7 +370,7 @@ View3D {
                 }
             }
         }
-        
+
         // Info text
         Column {
             anchors.top: parent.top
@@ -450,6 +395,8 @@ View3D {
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
+
         }
     }
+
 }
