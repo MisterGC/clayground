@@ -119,11 +119,11 @@ View3D {
                 property real time: 0
 
                 Timer {
-                    interval: 50
+                    interval: 30
                     running: true
                     repeat: true
                     onTriggered: {
-                        waveMap.time += 0.1
+                        waveMap.time += 0.08
                         waveMap.updateWave()
                     }
                 }
@@ -138,17 +138,22 @@ View3D {
                         }
                     }
 
-                    // Create wave
+                    // Create smooth, calm water wave
                     for (var x = 0; x < width; x++) {
                         for (var z = 0; z < depth; z++) {
+                            // Single smooth wave moving diagonally across the surface
                             var waveHeight = Math.floor(
-                                5 + 4 * Math.sin((x - width/2) * 0.3 + time) *
-                                        Math.cos((z - depth/2) * 0.3 + time)
+                                7 + 3 * Math.sin((x + z) * 0.3 + time)
                             )
-
+                            
                             for (var y = 0; y < waveHeight && y < height; y++) {
-                                var hue = (y / waveHeight) * 0.6  // Blue to cyan
-                                set(x, y, z, Qt.hsla(hue, 0.8, 0.5, 1.0))
+                                // Water-like blue color palette - consistent blues only
+                                var depthRatio = y / waveHeight
+                                var lightness = 0.4 + (1.0 - depthRatio) * 0.3  // Lighter at surface, darker at depth
+                                var saturation = 0.8  // Consistent saturation
+                                var hue = 0.55  // True blue hue (not purple)
+                                
+                                set(x, y, z, Qt.hsla(hue, saturation, lightness, 1.0))
                             }
                         }
                     }
