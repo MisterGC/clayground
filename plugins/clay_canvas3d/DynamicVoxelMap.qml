@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick3D
+import QtQuick.Window
 
 VoxelMap {
     id: _voxelMap
@@ -28,4 +29,25 @@ VoxelMap {
         id: _geometry
         size: Qt.vector3d(_voxelMap.voxelSize, _voxelMap.voxelSize, _voxelMap.voxelSize)
     }
+
+    // Override material to use unshaded mode for more vibrant colors
+    materials: [
+        CustomMaterial {
+            id: dynamicVoxelMaterial
+            vertexShader: "voxel_map.vert"
+            fragmentShader: "voxel_map.frag"
+            shadingMode: CustomMaterial.Unshaded  // Unshaded for vibrant colors
+
+            property real voxelSize: _voxelMap.voxelSize
+            property real voxelSpacing: _voxelMap.spacing
+            property vector3d voxelOffset: _voxelMap.voxelOffset
+
+            // Edge properties
+            property real edgeThickness: _voxelMap.edgeThickness
+            property real edgeColorFactor: _voxelMap.edgeColorFactor
+            property bool showEdges: _voxelMap.showEdges
+
+            property real viewportHeight: Screen.desktopAvailableHeight
+        }
+    ]
 }
