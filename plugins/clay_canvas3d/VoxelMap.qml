@@ -11,7 +11,7 @@ Model {
 
     // Size of each voxel
     property real voxelSize: 1.0
-    property real spacing: 1.0
+    property real spacing: 0.0  // Default to solid voxels (no gaps)
 
     // Relative offset of the voxel edges in
     // relation to origin of the voxel map's local coord

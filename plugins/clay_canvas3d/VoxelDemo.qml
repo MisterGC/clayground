@@ -72,7 +72,7 @@ View3D {
                 voxelSize: 5
                 spacing: 0.5
                 showEdges: true
-                edgeColorFactor: 1.5
+                edgeColorFactor: 0.8
 
                 Component.onCompleted: {
                     // Create a simple terrain
@@ -114,7 +114,7 @@ View3D {
                 depth: 30
                 voxelSize: 5
                 spacing: 1
-                showEdges: true
+                showEdges: false
 
                 property real time: 0
 
@@ -173,6 +173,7 @@ View3D {
                 voxelSize: 4
                 showEdges: true
                 edgeColorFactor: 1.3
+                edgeThickness: 0.2
 
                 Component.onCompleted: {
                     fill([
@@ -231,7 +232,7 @@ View3D {
                 depth: 20
                 voxelSize: 8
                 spacing: 1
-                showEdges: true
+                showEdges: false
 
                 property var currentColor: "#e74c3c"
                 property var colors: ["#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6"]
