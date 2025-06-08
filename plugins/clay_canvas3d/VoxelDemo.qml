@@ -70,9 +70,9 @@ View3D {
                 height: 20
                 depth: 40
                 voxelSize: 5
-                spacing: 0.5
                 showEdges: true
                 edgeColorFactor: 0.8
+                edgeThickness: 0.4
 
                 Component.onCompleted: {
                     // Create a simple terrain
@@ -113,7 +113,6 @@ View3D {
                 height: 15
                 depth: 30
                 voxelSize: 5
-                spacing: 1
                 showEdges: false
 
                 property real time: 0
