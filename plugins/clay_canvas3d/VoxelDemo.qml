@@ -22,8 +22,8 @@ View3D {
     // Camera with stored position
     PerspectiveCamera {
         id: camera
-        position: Qt.vector3d(0, 300, 500)
-        eulerRotation.x: -30
+        position: Qt.vector3d(0, 400, 600)
+        eulerRotation.x: -35
 
         Component.onCompleted: {
             if (cameraStore && cameraStore.has("voxel_camPos"))
@@ -90,36 +90,120 @@ View3D {
             z: -100
 
             DynamicVoxelMap {
-                width: 40
-                height: 20
-                depth: 40
+                id: terrainMap
+                width: toonControls.terrainWidth
+                height: toonControls.terrainHeight
+                depth: toonControls.terrainDepth
                 voxelSize: 5
-                showEdges: true
-                edgeColorFactor: 0.7 //toonControls.useToonShading ? 1.2 : 0.8
+                showEdges: true  // Disable for better performance and visual quality
+                edgeColorFactor: 0.8
                 edgeThickness: 0.4
                 useToonShading: toonControls.useToonShading
 
-                Component.onCompleted: {
-                    // Create a simple terrain
-                    for (var x = 0; x < width; x++) {
-                        for (var z = 0; z < depth; z++) {
-                            // Generate height using sine waves
-                            var height = Math.floor(
-                                5 +
-                                3 * Math.sin(x * 0.3) * Math.cos(z * 0.3) +
-                                2 * Math.sin(x * 0.7) * Math.sin(z * 0.7)
-                            )
+                // Regenerate terrain when dimensions change
+                onWidthChanged: Qt.callLater(generateTerrain)
+                onHeightChanged: Qt.callLater(generateTerrain)
+                onDepthChanged: Qt.callLater(generateTerrain)
 
-                            for (var y = 0; y < height && y < height; y++) {
-                                var color = y < 3 ? "#8B4513" :  // Brown (dirt)
-                                           y < 6 ? "#228B22" :  // Green (grass)
-                                           y < 9 ? "#808080" :  // Gray (stone)
-                                                   "#FFFFFF"    // White (snow)
-                                set(x, y, z, color)
+                Component.onCompleted: generateTerrain()
+
+                function generateTerrain() {
+                    // Clear existing terrain
+                    for (var x = 0; x < width; x++) {
+                        for (var y = 0; y < height; y++) {
+                            for (var z = 0; z < depth; z++) {
+                                set(x, y, z, "#00000000")  // Transparent
                             }
                         }
                     }
+
+                    // Terrain generation parameters
+                    var waterLevel = Math.floor(height * 0.3)  // Water at 30% of terrain height
+                    var maxTerrainHeight = height - 2  // Leave room at top
+                    var noiseScale1 = 0.1   // Large features
+                    var noiseScale2 = 0.05  // Medium features  
+                    var noiseScale3 = 0.25  // Small details
+
+                    // Generate heightmap with multiple octaves of noise
+                    for (var x = 0; x < width; x++) {
+                        for (var z = 0; z < depth; z++) {
+                            // Multi-octave noise for realistic terrain
+                            var noise1 = Math.sin(x * noiseScale1) * Math.cos(z * noiseScale1)
+                            var noise2 = Math.sin(x * noiseScale2) * Math.cos(z * noiseScale2) * 0.5
+                            var noise3 = Math.sin(x * noiseScale3) * Math.cos(z * noiseScale3) * 0.25
+                            
+                            // Combine noise octaves
+                            var combinedNoise = noise1 + noise2 + noise3
+                            
+                            // Convert to terrain height
+                            var terrainHeight = Math.floor(
+                                waterLevel + combinedNoise * (maxTerrainHeight - waterLevel) * 0.6
+                            )
+                            
+                            // Clamp height
+                            terrainHeight = Math.max(0, Math.min(maxTerrainHeight, terrainHeight))
+
+                            // Generate terrain layers
+                            for (var y = 0; y <= Math.max(terrainHeight, waterLevel); y++) {
+                                var color = "#00000000"  // Default transparent
+
+                                if (y <= terrainHeight) {
+                                    // Solid terrain
+                                    if (y < waterLevel - 3) {
+                                        color = "#8B4513"  // Deep dirt/bedrock
+                                    } else if (y < waterLevel) {
+                                        color = "#CD853F"  // Sandy dirt near water
+                                    } else if (y <= waterLevel + 1) {
+                                        // Shore/beach area
+                                        color = (terrainHeight - waterLevel) < 2 ? "#F4A460" : "#228B22"  // Sand or grass
+                                    } else if (y < terrainHeight - 2) {
+                                        color = "#228B22"  // Grass
+                                    } else if (y < terrainHeight) {
+                                        color = "#A0522D"  // Dirt
+                                    } else {
+                                        // Surface layer based on height
+                                        if (terrainHeight > maxTerrainHeight * 0.8) {
+                                            color = "#FFFFFF"  // Snow on peaks
+                                        } else if (terrainHeight > maxTerrainHeight * 0.6) {
+                                            color = "#808080"  // Rock on high areas
+                                        } else {
+                                            color = "#228B22"  // Grass
+                                        }
+                                    }
+                                } else if (y <= waterLevel) {
+                                    // Water layer
+                                    color = "#4682B4"  // Steel blue water
+                                }
+
+                                if (color !== "#00000000") {
+                                    set(x, y, z, color)
+                                }
+                            }
+                        }
+                    }
+
+                    // Add some scattered rocks and details
+                    for (var i = 0; i < width * depth * 0.02; i++) {
+                        var rx = Math.floor(Math.random() * width)
+                        var rz = Math.floor(Math.random() * depth)
+                        
+                        // Find surface at this position
+                        var surfaceY = -1
+                        for (var ry = height - 1; ry >= 0; ry--) {
+                            if (get(rx, ry, rz) !== "#00000000") {
+                                surfaceY = ry
+                                break
+                            }
+                        }
+                        
+                        // Add rock if on solid ground above water
+                        if (surfaceY > waterLevel && surfaceY < height - 1) {
+                            set(rx, surfaceY + 1, rz, "#696969")  // Dark gray rock
+                        }
+                    }
+
                     model.commit()
+                    console.log("Generated terrain:", width + "x" + height + "x" + depth)
                 }
             }
         }
@@ -365,9 +449,14 @@ View3D {
             radius: 5
             
             // Control properties that affect the scene
-            property bool useToonShading: false
+            property bool useToonShading: true
             property bool enableShadows: true
-            property real shadowStrength: 78
+            property real shadowStrength: 50
+            
+            // Terrain generation controls
+            property int terrainWidth: 20
+            property int terrainHeight: 20
+            property int terrainDepth: 20
 
             Column {
                 id: controlColumn
@@ -392,7 +481,7 @@ View3D {
 
                     Repeater {
                         model: [
-                            "Static Terrain",
+                            "Realistic Terrain",
                             "Dynamic Wave", 
                             "Shape Filling",
                             "Voxel Text"
@@ -516,6 +605,103 @@ View3D {
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
                 }
+                
+                // ========== TERRAIN CONTROLS (only visible for terrain demo) ==========
+                Column {
+                    width: parent.width
+                    spacing: 10
+                    visible: demoLoader.currentDemoIndex === 0  // Terrain demo
+                    
+                    // Separator
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: "#34495e"
+                    }
+                    
+                    Text {
+                        text: "Terrain Generation"
+                        color: "white"
+                        font.bold: true
+                        font.pixelSize: 14
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    
+                    // Terrain dimensions
+                    GridLayout {
+                        width: parent.width
+                        columns: 2
+                        columnSpacing: 10
+                        rowSpacing: 5
+                        
+                        // Width control
+                        Text {
+                            text: "Width:"
+                            color: "white"
+                            font.pixelSize: 11
+                        }
+                        
+                        SpinBox {
+                            Layout.fillWidth: true
+                            from: 20
+                            to: 200
+                            value: toonControls.terrainWidth
+                            onValueChanged: toonControls.terrainWidth = value
+                        }
+                        
+                        // Height control
+                        Text {
+                            text: "Height:"
+                            color: "white"
+                            font.pixelSize: 11
+                        }
+                        
+                        SpinBox {
+                            Layout.fillWidth: true
+                            from: 10
+                            to: 100
+                            value: toonControls.terrainHeight
+                            onValueChanged: toonControls.terrainHeight = value
+                        }
+                        
+                        // Depth control
+                        Text {
+                            text: "Depth:"
+                            color: "white"
+                            font.pixelSize: 11
+                        }
+                        
+                        SpinBox {
+                            Layout.fillWidth: true
+                            from: 20
+                            to: 200
+                            value: toonControls.terrainDepth
+                            onValueChanged: toonControls.terrainDepth = value
+                        }
+                    }
+                    
+                    // Terrain info
+                    Text {
+                        width: parent.width
+                        text: "Total voxels: " + (toonControls.terrainWidth * toonControls.terrainHeight * toonControls.terrainDepth).toLocaleString() + 
+                              "\nFeatures: Water, Grass, Rock, Sand, Snow"
+                        color: "#ecf0f1"
+                        font.pixelSize: 9
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    
+                    // Performance warning
+                    Text {
+                        width: parent.width
+                        visible: (toonControls.terrainWidth * toonControls.terrainHeight * toonControls.terrainDepth) > 300000
+                        text: "⚠️ Large terrain may impact performance"
+                        color: "#e74c3c"
+                        font.pixelSize: 9
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
             }
         }
 
@@ -533,13 +719,13 @@ View3D {
             }
 
             Text {
-                text: "StaticVoxelMap: Best for large, unchanging structures (terrain, buildings)"
+                text: "Realistic Terrain: Procedural generation with water, grass, rock layers"
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
 
             Text {
-                text: "DynamicVoxelMap: Best for animated or frequently changing voxels"
+                text: "Scalable up to 200x100x200 voxels • Supports toon shading"
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
