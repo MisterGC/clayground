@@ -22,6 +22,11 @@ Model {
     property real edgeThickness: 0.05
     property real edgeColorFactor: 1.0
     property bool showEdges: true
+    
+    // Toon shading property - enables cartoon-style rendering
+    // Creates a Minecraft-like aesthetic with distinct light/shadow boundaries
+    // Works best with strong directional light shadows (shadowFactor ~78)
+    property alias useToonShading: voxelMaterial.useToonShading
 
     // The model of the voxel map
     property var model: undefined
@@ -171,6 +176,11 @@ Model {
             property real edgeThickness: _voxelMap.edgeThickness
             property real edgeColorFactor: _voxelMap.edgeColorFactor
             property bool showEdges: _voxelMap.showEdges
+
+            // Toon shading control
+            // When true, applies cartoon-style lighting with half-lambert formula
+            // Creates blocky shadow patterns perfect for voxel aesthetics
+            property bool useToonShading: false
 
             // Is expose to allows drawing edges in pixels instead of
             // of world units or pure relative voxel size - this allows

@@ -47,11 +47,35 @@ View3D {
         keysEnabled: true
     }
 
-    // Lighting
+    // ========================================
+    // LIGHTING SETUP FOR TOON SHADING
+    // ========================================
+    // Main directional light - configured for optimal toon shading effect
+    // For voxel maps, toon shading creates a Minecraft-like aesthetic
     DirectionalLight {
-        eulerRotation.x: -30
+        id: mainLight
+        eulerRotation.x: -35  // Angle optimized for toon shading
         eulerRotation.y: -70
+        
+        // Shadow configuration - critical for voxel toon effect
+        castsShadow: toonControls.enableShadows
+        
+        // These shadow settings create blocky shadow patterns perfect for voxels:
+        shadowFactor: toonControls.useToonShading ? 78 : 50      // Very strong shadows for toon
+        shadowMapQuality: Light.ShadowMapQualityVeryHigh          // Crisp voxel shadow edges
+        pcfFactor: toonControls.useToonShading ? 2 : 8           // Minimal softening for blocky look
+        shadowBias: 18                                            // Prevents shadow artifacts on voxel faces
+        
+        // Additional shadow settings for quality at distance
+        csmNumSplits: 3  // Cascade shadow mapping for large voxel worlds
+        brightness: 0.6
     }
+    
+    // Ambient light to ensure voxels in shadow are still visible
+    // Lower brightness for toon shading emphasizes the blocky light/shadow contrast
+    // AmbientLight {
+    //     brightness: toonControls.useToonShading ? 0.15 : 0.25  // Even lower for voxels
+    // }
 
 
     // ========================================
@@ -71,8 +95,9 @@ View3D {
                 depth: 40
                 voxelSize: 5
                 showEdges: true
-                edgeColorFactor: 0.8
+                edgeColorFactor: 0.7 //toonControls.useToonShading ? 1.2 : 0.8
                 edgeThickness: 0.4
+                useToonShading: toonControls.useToonShading
 
                 Component.onCompleted: {
                     // Create a simple terrain
@@ -114,6 +139,7 @@ View3D {
                 depth: 30
                 voxelSize: 5
                 showEdges: false
+                useToonShading: toonControls.useToonShading
 
                 property real time: 0
 
@@ -176,8 +202,9 @@ View3D {
                 depth: 50
                 voxelSize: 4
                 showEdges: true
-                edgeColorFactor: 1.3
+                edgeColorFactor: toonControls.useToonShading ? 1.8 : 1.3
                 edgeThickness: 0.2
+                useToonShading: toonControls.useToonShading
 
                 Component.onCompleted: {
                     fill([
@@ -237,6 +264,7 @@ View3D {
                 voxelSize: 4
                 spacing: 0.5
                 showEdges: true
+                useToonShading: toonControls.useToonShading
 
                 Component.onCompleted: {
                     // Create "3D" text using voxels
@@ -320,57 +348,173 @@ View3D {
     Item {
         anchors.fill: parent
 
-        // Demo selector
+        // ========================================
+        // COMBINED CONTROL PANEL
+        // ========================================
+        // Controls for both demo selection and toon shading
         Rectangle {
+            id: toonControls
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.margins: 20
-            width: 200
-            height: demoColumn.height + 20
+            width: 250
+            height: controlColumn.height + 30
             color: "#2c3e50"
+            border.color: "#34495e"
+            border.width: 2
             radius: 5
+            
+            // Control properties that affect the scene
+            property bool useToonShading: false
+            property bool enableShadows: true
+            property real shadowStrength: 78
 
             Column {
-                id: demoColumn
-                anchors.centerIn: parent
-                spacing: 5
+                id: controlColumn
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.margins: 15
+                spacing: 15
+                width: parent.width - 30
 
+                // ========== DEMO SELECTION ==========
                 Text {
-                    text: "Select Demo:"
+                    text: "Demo Selection"
                     color: "white"
                     font.bold: true
-                    font.pixelSize: 14
+                    font.pixelSize: 16
+                    anchors.horizontalCenter: parent.horizontalCenter
                 }
 
-                Repeater {
-                    model: [
-                        "Static Terrain",
-                        "Dynamic Wave",
-                        "Shape Filling",
-                        "Voxel Text"
-                    ]
+                Column {
+                    width: parent.width
+                    spacing: 5
 
-                    Rectangle {
-                        width: 180
-                        height: 30
-                        color: demoLoader.currentDemoIndex === index ? "#3498db" :
-                               mouseArea.containsMouse ? "#34495e" : "transparent"
-                        radius: 3
+                    Repeater {
+                        model: [
+                            "Static Terrain",
+                            "Dynamic Wave", 
+                            "Shape Filling",
+                            "Voxel Text"
+                        ]
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData
-                            color: "white"
-                            font.pixelSize: 12
-                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 25
+                            color: demoLoader.currentDemoIndex === index ? "#3498db" :
+                                   mouseArea.containsMouse ? "#34495e" : "transparent"
+                            radius: 3
 
-                        MouseArea {
-                            id: mouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: demoLoader.currentDemoIndex = index
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: "white"
+                                font.pixelSize: 11
+                            }
+
+                            MouseArea {
+                                id: mouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: demoLoader.currentDemoIndex = index
+                            }
                         }
                     }
+                }
+
+                // Separator
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: "#34495e"
+                }
+
+                // ========== TOON SHADING CONTROLS ==========
+                Text {
+                    text: "Toon Shading Controls"
+                    color: "white"
+                    font.bold: true
+                    font.pixelSize: 16
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+
+                // Toon shading toggle
+                Row {
+                    spacing: 10
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    CheckBox {
+                        id: toonCheckBox
+                        checked: toonControls.useToonShading
+                        onCheckedChanged: {
+                            toonControls.useToonShading = checked
+                            // When enabling toon shading, also enable shadows for best effect
+                            if (checked && !shadowCheckBox.checked) {
+                                shadowCheckBox.checked = true
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Enable Toon Shading"
+                        color: "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 12
+                    }
+                }
+
+                // Shadows toggle
+                Row {
+                    spacing: 10
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    CheckBox {
+                        id: shadowCheckBox
+                        checked: toonControls.enableShadows
+                        onCheckedChanged: toonControls.enableShadows = checked
+                    }
+                    Text {
+                        text: "Enable Shadows"
+                        color: "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 12
+                    }
+                }
+
+                // Shadow strength slider
+                Column {
+                    width: parent.width
+                    spacing: 5
+                    visible: toonControls.enableShadows
+
+                    Text {
+                        text: "Shadow Strength: " + Math.round(shadowSlider.value)
+                        color: "white"
+                        font.pixelSize: 11
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    Slider {
+                        id: shadowSlider
+                        width: parent.width - 20
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        from: 0
+                        to: 100
+                        value: toonControls.shadowStrength
+                        onValueChanged: {
+                            toonControls.shadowStrength = value
+                            mainLight.shadowFactor = value
+                        }
+                    }
+                }
+
+                // Info text specific to voxels
+                Text {
+                    width: parent.width
+                    text: toonControls.useToonShading ? 
+                          "Minecraft-like blocky shading\nwith distinct shadow boundaries" : 
+                          "Standard realistic lighting\nwith smooth shadows"
+                    color: "#ecf0f1"
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
                 }
             }
         }

@@ -25,6 +25,13 @@ Model {
     // Material properties
     property bool cullMode: false
     property alias lighting: _material.lighting
+    
+    // Toon shading property - enables cartoon-style rendering
+    // When enabled:
+    // - Uses half-lambert lighting for softer shadows
+    // - Disables specular highlights and IBL
+    // - Works best with strong directional light shadows
+    property alias useToonShading: _material.useToonShading
 
     // Edge mask enums exposed for easier QML usage
     readonly property int allEdges: Box3DGeometry.AllEdges
@@ -49,10 +56,14 @@ Model {
 
             vertexShader: "box3d.vert"
             fragmentShader: "box3d.frag"
-            shadingMode: CustomMaterial.Shaded
+            shadingMode: CustomMaterial.Unshaded
 
             // Add basic lighting
             property real lighting: 1.0
+            
+            // Toon shading control
+            // When true, applies cartoon-style lighting in the fragment shader
+            property bool useToonShading: false
 
             // Edge settings (connected to Box3D properties)
             property bool showEdges: _geometry.showEdges

@@ -14,6 +14,7 @@ VARYING float vFaceID;
 // - float edgeColorFactor
 // - int edgeMask                // bit mask for selective edge rendering
 // - float viewportHeight        // still exposed for compatibility, but not used here
+// - bool useToonShading         // enables toon/cartoon style lighting
 
 // Helper function to check if an edge should be displayed based on the mask
 bool shouldShowEdge(float faceId, vec2 uv) {
@@ -110,4 +111,94 @@ void MAIN()
     }
 
     BASE_COLOR = finalColor;
+    
+    // Set material properties appropriate for toon shading
+    // When toon shading is enabled, we want:
+    // - No metallic properties (toon is typically matte)
+    // - High roughness to eliminate specular highlights
+    if (useToonShading) {
+        METALNESS = 0.0;
+        ROUGHNESS = 1.0;  // Maximum roughness for flat shading
+    }
+    // When toon shading is disabled, use default material properties
+    // Qt will apply its standard PBR lighting model
+}
+
+// ===== TOON SHADING IMPLEMENTATION =====
+// The following functions implement cartoon-style lighting
+// Based on the half-lambert lighting model from the QtWorldSummit demo
+
+// Core toon lighting calculation using half-lambert formula
+// This creates the characteristic cartoon look by:
+// 1. Adding 0.5 to the dot product to avoid completely dark areas
+// 2. Scaling by 0.5 to normalize back to 0-1 range
+// Result: Even surfaces facing away from light receive 50% illumination
+vec3 diffuseToonSimple(in vec3 normal, in vec3 toLightDirection) {
+    float NdotL = dot(normal, toLightDirection);
+    float value = (NdotL + 1.0) * 0.5;  // Half-lambert formula
+    return vec3(value);
+}
+
+// Handle directional lights (sun, key lights)
+void DIRECTIONAL_LIGHT() {
+    if (useToonShading) {
+        // Calculate toon diffuse lighting
+        vec3 diffuse = diffuseToonSimple(NORMAL, TO_LIGHT_DIR);
+        
+        // Apply lighting with shadow contribution
+        // SHADOW_CONTRIB creates the hard light/dark transitions characteristic of toon shading
+        // Strong shadows (shadowFactor ~78) create distinct bands of light and shadow
+        DIFFUSE += diffuse * BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB;
+    } else {
+        // Standard PBR diffuse lighting when toon shading is disabled
+        // This replaces Qt's default behavior which we override by defining this function
+        float NdotL = max(dot(NORMAL, TO_LIGHT_DIR), 0.0);
+        DIFFUSE += NdotL * BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB;
+    }
+}
+
+// Handle point lights (omni-directional lights)
+void POINT_LIGHT() {
+    if (useToonShading) {
+        vec3 diffuse = diffuseToonSimple(NORMAL, TO_LIGHT_DIR);
+        // Include light attenuation for distance falloff
+        DIFFUSE += BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB * diffuse * LIGHT_ATTENUATION;
+    } else {
+        // Standard PBR point light when toon shading is disabled
+        float NdotL = max(dot(NORMAL, TO_LIGHT_DIR), 0.0);
+        DIFFUSE += NdotL * BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB * LIGHT_ATTENUATION;
+    }
+}
+
+// Handle spot lights (cone-shaped lights)
+void SPOT_LIGHT() {
+    if (useToonShading) {
+        vec3 diffuse = diffuseToonSimple(NORMAL, TO_LIGHT_DIR);
+        // Include both attenuation and spot factor for cone falloff
+        DIFFUSE += BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB * diffuse * LIGHT_ATTENUATION * SPOT_FACTOR;
+    } else {
+        // Standard PBR spot light when toon shading is disabled
+        float NdotL = max(dot(NORMAL, TO_LIGHT_DIR), 0.0);
+        DIFFUSE += NdotL * BASE_COLOR.rgb * LIGHT_COLOR * SHADOW_CONTRIB * LIGHT_ATTENUATION * SPOT_FACTOR;
+    }
+}
+
+// Handle specular highlights
+void SPECULAR_LIGHT() {
+    if (useToonShading) {
+        // Intentionally empty - no specular calculation for toon shading
+    } else {
+        // Allow Qt's default specular calculation when toon shading is disabled
+        // We don't override this - let Qt handle standard specular
+    }
+}
+
+// Handle image-based lighting
+void IBL_PROBE() {
+    if (useToonShading) {
+        // Intentionally empty - no IBL for toon shading
+    } else {
+        // Allow Qt's default IBL when toon shading is disabled
+        // We don't override this - let Qt handle standard IBL
+    }
 }
