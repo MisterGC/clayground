@@ -334,57 +334,6 @@ View3D {
     }
 
 
-    Component {
-        id: textDemo
-
-        Node {
-            x: -100
-            z: 250
-
-            StaticVoxelMap {
-                width: 50
-                height: 20
-                depth: 10
-                voxelSize: 4
-                spacing: 0.5
-                showEdges: true
-                useToonShading: toonControls.useToonShading
-
-                Component.onCompleted: {
-                    // Create "3D" text using voxels
-                    var pattern = [
-                        "  333  DDD  ",
-                        "    3  D  D ",
-                        "  333  D  D ",
-                        "    3  D  D ",
-                        "  333  DDD  "
-                    ]
-
-                    // Draw the text pattern
-                    for (var row = 0; row < pattern.length; row++) {
-                        for (var col = 0; col < pattern[row].length; col++) {
-                            if (pattern[row][col] !== " ") {
-                                var color = pattern[row][col] === "3" ? "#e74c3c" : "#3498db"
-                                // Create 3D depth for each character
-                                for (var z = 0; z < 6; z++) {
-                                    // X position based on column
-                                    var x = col * 3 + 5
-                                    // Y position based on inverted row (top to bottom)
-                                    var y = (pattern.length - 1 - row) * 3 + 5
-                                    set(x, y, z, color)
-                                    set(x + 1, y, z, color)  // Make chars 2 voxels wide
-                                    set(x, y + 1, z, color)  // Make chars 2 voxels tall
-                                    set(x + 1, y + 1, z, color)
-                                }
-                            }
-                        }
-                    }
-
-                    model.commit()
-                }
-            }
-        }
-    }
 
     // Demo loader - only loads the active demo
     Loader3D {
@@ -395,8 +344,7 @@ View3D {
         property var demoComponents: [
             terrainDemo,
             waveDemo,
-            shapesDemo,
-            textDemo
+            shapesDemo
         ]
 
         sourceComponent: demoComponents[currentDemoIndex]
@@ -483,8 +431,7 @@ View3D {
                         model: [
                             "Realistic Terrain",
                             "Dynamic Wave", 
-                            "Shape Filling",
-                            "Voxel Text"
+                            "Shape Filling"
                         ]
 
                         Rectangle {
