@@ -1,6 +1,6 @@
 # Clayground: Flow, Form, Create
 
-![clayground](res/clayground_logo.png)
+![clayground](docs/assets/images/clayground_logo.png)
 
 ## Overview
 
@@ -14,7 +14,7 @@ and [QML](https://doc.qt.io/qt-6/qtqml-index.html) to rapidly develop apps in a 
 environment with live loading capabilities.  It provides tools that try both, facilitating
 learning and allowing more focused and faster development by reducing typical build and restart times significantly.
 
-![Platformer Screenshot](res/screenshot_platformer.png)
+![Platformer Screenshot](docs/assets/images/screenshot_platformer.png)
 
 Goals/Basic Design Decisions:
 
@@ -90,7 +90,7 @@ minimal `sbx` like `examples/void/Sandbox.qml`.
 The sandbox comes with a logging overlay that shows all `console.log(...)` messages in a continous log view and watched properties/expressions in a sticky section. You can
 easily show/hide the logging overlay by pressing `Ctrl+L` when the Sandbox Window has the focus.
 
-<img src="res/log_overlay.png" width="50%" height="50%" alt="LogOverlay Screenshot">
+<img src="docs/assets/images/log_overlay.png" width="50%" height="50%" alt="LogOverlay Screenshot">
 
 Have a look at the `onMapLoaded` signal handler of the Platformer Sandbox to see how you can use them.
 

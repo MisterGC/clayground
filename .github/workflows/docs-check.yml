@@ -1,0 +1,95 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'plugins/*/README.md'
+      - 'docs/**'
+      - '.github/workflows/docs-check.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: ./docs
+          
+      - name: Sync plugin documentation
+        run: |
+          echo "Syncing plugin documentation..."
+          cd docs
+          chmod +x sync-plugin-docs.sh
+          ./sync-plugin-docs.sh
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Build with Jekyll
+        run: |
+          cd docs
+          bundle exec jekyll build --baseurl "/clayground"
+        env:
+          JEKYLL_ENV: production
+          
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs/_site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      
+      - name: Check for orphaned plugin READMEs
+        run: |
+          echo "Checking for plugin READMEs without docs..."
+          
+          # Find all plugin READMEs
+          for readme in plugins/clay_*/README.md; do
+            if [ -f "$readme" ]; then
+              plugin_name=$(basename $(dirname "$readme") | sed 's/clay_//')
+              doc_file="docs/plugins/${plugin_name}.md"
+              
+              if [ ! -f "$doc_file" ]; then
+                echo "⚠️  Plugin README without generated doc: $readme"
+                echo "   Run: cd docs && ./sync-plugin-docs.sh"
+              fi
+            fi
+          done
+          
+      - name: Validate Jekyll configuration
+        run: |
+          if [ ! -f "docs/_config.yml" ]; then
+            echo "❌ Missing docs/_config.yml"
+            exit 1
+          fi
+          echo "✅ Jekyll configuration exists"
+          
+      - name: List documentation structure
+        run: |
+          echo "Documentation structure:"
+          tree docs/ -I '_site|.jekyll-cache' || find docs -type f -name "*.md" -o -name "*.yml" | sort
