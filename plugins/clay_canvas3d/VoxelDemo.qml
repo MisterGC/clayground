@@ -429,7 +429,7 @@ View3D {
 
                     Repeater {
                         model: [
-                            "Realistic Terrain",
+                            "Terrain",
                             "Dynamic Wave", 
                             "Shape Filling"
                         ]
@@ -666,13 +666,35 @@ View3D {
             }
 
             Text {
-                text: "Realistic Terrain: Procedural generation with water, grass, rock layers"
+                text: {
+                    switch(demoLoader.currentDemoIndex) {
+                    case 0:
+                        return "Terrain: Demonstrates DynamicVoxelMap with procedural generation and per-voxel coloring"
+                    case 1:
+                        return "Dynamic Wave: Shows real-time voxel updates and smooth animations using DynamicVoxelMap"
+                    case 2:
+                        return "Shape Filling: Demonstrates StaticVoxelMap's fill() API with sphere, box, and cylinder primitives"
+                    default:
+                        return ""
+                    }
+                }
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
 
             Text {
-                text: "Scalable up to 200x100x200 voxels • Supports toon shading"
+                text: {
+                    switch(demoLoader.currentDemoIndex) {
+                    case 0:
+                        return "Features multi-layered terrain with water, grass, rock, sand, and snow • Scalable up to 200x100x200"
+                    case 1:
+                        return "Updates 30x15x30 voxels at 33 FPS • Shows depth-based coloring and wave physics"
+                    case 2:
+                        return "Uses batch filling for efficient static geometry • Supports edge rendering and toon shading"
+                    default:
+                        return ""
+                    }
+                }
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
