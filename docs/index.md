@@ -3,8 +3,6 @@ layout: home
 title: Clayground - Flow, Form, Create
 ---
 
-# Clayground: Flow, Form, Create
-
 ![clayground](assets/images/clayground_logo.png)
 
 ## Rapid Game Development with Live-Reloading
