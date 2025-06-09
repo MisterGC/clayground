@@ -34,21 +34,30 @@ Certainly, let's make it more compact while retaining the essence:
 
 ### Plugins: Your Building Blocks in Clayground
 
-**General App Building Blocks:**
+Each plugin comes with comprehensive documentation. Click the links to learn more about each one.
 
-- **Text**: Handle and display text; supports CSV, JSON.
-- **Storage**: Simple API for persistent data storage.
-- **Network**: Effortless node discovery and P2P messaging.
-- **SVG**: Inspect and use Inkscape-based SVGs for 2D scenes.
-- **Canvas**: Offers a 2D coordinate system, minimizes pixel-level handling.
-- **Canvas3D**: Set of 3D primitives and utilities Qt Quick 3D.
+**Foundation Plugins:**
 
-**Interactive Experience Plugins:**
+- **[Common](plugins/clay_common/README.md)**: Essential utilities and timing tools used across the framework
+- **[Storage](plugins/clay_storage/README.md)**: Persistent key-value storage for game data and settings
+- **[Text](plugins/clay_text/README.md)**: CSV parsing, JSON transformations, and text highlighting
+- **[SVG](plugins/clay_svg/README.md)**: Read/write SVG files and use them as image sources for game assets
 
-- **Physics**: Introduces 2D physics, based on Box2D.
-- **GameController**: Manages game inputs via Keyboard or Touch Screen. (Qt6 Gamepad support pending)
-- **World**: Combines Canvas, Physics, and SVG to scaffold games and simulations; available in 2D (based on Clayground's Canvas) and 3D (based on Qt Quick 3D)
-- **Behavior**: Defines entity behaviors like moving, path-following; currently 2D-only.
+**Rendering Plugins:**
+
+- **[Canvas](plugins/clay_canvas/README.md)**: 2D world coordinate system with camera and viewport management
+- **[Canvas3D](plugins/clay_canvas3d/README.md)**: 3D primitives including boxes, lines, and voxel maps with toon shading
+
+**Game System Plugins:**
+
+- **[Physics](plugins/clay_physics/README.md)**: Box2D-based 2D physics with world unit integration
+- **[World](plugins/clay_world/README.md)**: Complete game world management for both 2D and 3D games
+- **[Behavior](plugins/clay_behavior/README.md)**: Reusable entity behaviors like movement, path following, and triggers
+
+**Input/Output Plugins:**
+
+- **[GameController](plugins/clay_gamecontroller/README.md)**: Unified input system supporting keyboard, gamepad, and touch
+- **[Network](plugins/clay_network/README.md)**: Peer-to-peer networking and HTTP client for multiplayer and web APIs
 
 ### Examples: See how problems can be solved with Clayground
 
