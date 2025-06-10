@@ -1,0 +1,60 @@
+# Jekyll configuration for Clayground documentation
+title: Clayground
+description: Flow, Form, Create - Rapid game development framework with Qt and live-reloading
+author: mgc
+email: 
+baseurl: "/clayground" # the subpath of your site, e.g. /blog
+url: "https://mistergc.github.io" # the base hostname & protocol for your site
+
+# Build settings
+theme: minima
+plugins:
+  - jekyll-seo-tag
+
+# Minima theme settings
+minima:
+  skin: dark
+  date_format: "%b %-d, %Y"
+
+# Navigation header pages
+header_pages:
+  - plugins.md
+  - getting-started.md
+
+# Ensure trailing slashes
+permalink: pretty
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: 'highlight'
+    block:
+      line_numbers: false
+
+# Collections for organizing content
+collections:
+  plugins:
+    output: true
+    permalink: /plugins/:name/
+
+# Default layout for plugin pages
+defaults:
+  - scope:
+      path: "plugins"
+      type: "pages"
+    values:
+      layout: "default"
+      toc: true
