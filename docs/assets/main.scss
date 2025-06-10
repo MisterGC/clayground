@@ -4,18 +4,18 @@
 @import "minima";
 
 // Import Google Fonts
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 // Retro gaming color palette
 :root {
-  --bg-dark: #0a0a0f;
+  --bg-dark: #0B111C;
   --bg-secondary: #1a1a2e;
   --bg-tertiary: #16213e;
-  --text-primary: #e0e0e0;
+  --text-primary: #F7F7F7;
   --text-secondary: #a0a0a0;
-  --accent-cyan: #00ffff;
+  --accent-cyan: #00E0FF;
   --accent-magenta: #ff00ff;
-  --accent-yellow: #ffff00;
+  --accent-yellow: #FFEF00;
   --accent-green: #00ff00;
   --accent-orange: #ff6600;
   --border-color: #333;
@@ -33,16 +33,19 @@ body {
   background-attachment: fixed;
   min-height: 100vh;
   color: var(--text-primary);
-  font-family: 'Space Mono', monospace;
-  line-height: 1.6;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  font-size: 1.125rem;
+  line-height: 1.65;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 p {
   margin-bottom: 1.5rem;
-  font-size: 1.1rem;
-  line-height: 1.8;
+  font-size: 1.125rem;
+  line-height: 1.65;
+  font-weight: 400;
 }
 
 // Style the logo image
@@ -77,18 +80,39 @@ h1, h2, h3, h4, h5, h6 {
   margin-top: 2rem;
   margin-bottom: 1rem;
   text-transform: uppercase;
+  position: relative;
+  
+  // Scanline effect for headers only
+  &::before {
+    content: "";
+    position: absolute;
+    top: -20%;
+    left: -10%;
+    width: 120%;
+    height: 140%;
+    background: 
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 255, 0.06) 2px,
+        rgba(0, 255, 255, 0.06) 4px
+      );
+    pointer-events: none;
+    z-index: -1;
+    animation: scanlines 8s linear infinite;
+  }
 }
 
 h1 {
   color: var(--accent-cyan);
   text-shadow: 
     3px 3px 0px var(--accent-magenta),
-    6px 6px 0px rgba(0, 0, 0, 0.2),
-    0 0 30px rgba(0, 255, 255, 0.5);
+    6px 6px 0px rgba(0, 0, 0, 0.2);
   font-size: 2rem;
   letter-spacing: 0.05em;
   line-height: 1.4;
-  animation: glow 2s ease-in-out infinite alternate;
+  opacity: 0.85;
 }
 
 @keyframes glow {
@@ -142,13 +166,13 @@ a {
 pre.highlight,
 pre {
   background: #0a0a0a !important;
-  border: 2px solid #00ff00 !important;
+  border: 2px solid #e0e0e0 !important;
   border-radius: 0 !important;
   padding: 1.5rem !important;
   overflow-x: auto;
   box-shadow: 
-    inset 0 0 30px rgba(0, 255, 0, 0.05),
-    0 0 20px rgba(0, 255, 0, 0.2);
+    inset 0 0 30px rgba(224, 224, 224, 0.05),
+    0 0 20px rgba(224, 224, 224, 0.2);
   position: relative;
   margin: 2rem 0;
   
@@ -157,19 +181,21 @@ pre {
     position: absolute;
     top: -2px;
     left: -2px;
-    background: #00ff00;
+    background: #e0e0e0;
     color: #000;
     padding: 0.2rem 0.8rem;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 0.6rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: bold;
     z-index: 10;
   }
   
   code {
-    color: #33ff33 !important;  // Softer, more readable green
-    font-family: 'VT323', monospace !important;
-    font-size: 1.2rem !important;
-    text-shadow: 0 0 3px rgba(51, 255, 51, 0.3) !important;  // Reduced glow
+    color: #e0e0e0 !important;  // Greyish white for readability
+    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace !important;
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+    text-shadow: none !important;  // Remove glow for clarity
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
@@ -188,8 +214,8 @@ pre {
   border-radius: 0 !important;
   color: var(--accent-cyan) !important;
   border: 1px solid var(--accent-cyan) !important;
-  font-family: 'VT323', monospace !important;
-  font-size: 1.1rem !important;
+  font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace !important;
+  font-size: 0.9rem !important;
 }
 
 // Tables
@@ -206,8 +232,12 @@ table {
   
   th {
     background-color: var(--bg-secondary);
-    color: var(--accent-cyan);
+    color: #e0e0e0;
     font-weight: bold;
+  }
+  
+  td {
+    color: #d0d0d0;
   }
   
   tr:nth-child(even) {
@@ -250,8 +280,9 @@ table {
     .page-link {
       color: var(--text-primary);
       margin-left: 30px;
-      font-family: 'VT323', monospace;
-      font-size: 1.3rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
       text-transform: uppercase;
       transition: all 0.3s ease;
       position: relative;
@@ -265,11 +296,39 @@ table {
       
       &:hover {
         color: var(--accent-cyan);
-        text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        text-shadow: 0 0 4px currentColor;
         text-decoration: none;
+        transform: translateY(-2px);
         
         &:before {
           opacity: 1;
+        }
+        
+        &:after {
+          opacity: 1;
+          width: 100%;
+        }
+      }
+      
+      // Active page indicator
+      &:after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: var(--accent-cyan);
+        transition: all 0.3s ease;
+        opacity: 0;
+      }
+      
+      &.active {
+        color: var(--accent-cyan);
+        
+        &:after {
+          opacity: 1;
+          width: 100%;
         }
       }
     }
@@ -291,8 +350,8 @@ table {
   box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
   
   .footer-col-wrapper {
-    font-family: 'VT323', monospace;
-    font-size: 1.1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
   }
   
   a {
@@ -305,18 +364,25 @@ table {
   }
 }
 
+// Hero CTA section
+.hero-cta {
+  margin: 2rem 0 3rem 0;
+  text-align: center;
+}
+
 // Homepage CTA buttons
-.cta-buttons {
+.cta-buttons, .hero-cta {
   margin-top: 4rem;
   margin-bottom: 3rem;
   text-align: center;
   
   .btn {
     display: inline-block;
-    padding: 1rem 2rem;
+    padding: 0.75rem 1.75rem;
     margin: 0.5rem;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 0.8rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border: 3px solid;
@@ -445,7 +511,6 @@ ul, ol {
         left: 0;
         color: var(--accent-cyan);
         font-size: 1.5rem;
-        animation: blink 1s infinite;
       }
     }
   }
@@ -464,26 +529,28 @@ h2 + p + h3 {
   }
 }
 
-// Retro scanline effect and CRT glow
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 255, 255, 0.03) 2px,
-      rgba(0, 255, 255, 0.03) 4px
-    );
-  pointer-events: none;
-  z-index: 9999;
-  animation: scanlines 8s linear infinite;
-}
+// Retro scanline effect - removed from body, now applied only to headers
+// body::before {
+//   content: "";
+//   position: fixed;
+//   top: 0;
+//   left: 0;
+//   width: 100%;
+//   height: 100%;
+//   background: 
+//     repeating-linear-gradient(
+//       0deg,
+//       transparent,
+//       transparent 2px,
+//       rgba(0, 255, 255, 0.03) 2px,
+//       rgba(0, 255, 255, 0.03) 4px
+//     );
+//   pointer-events: none;
+//   z-index: 9999;
+//   animation: scanlines 8s linear infinite;
+// }
+
+// Scanline effect has been moved to the main header styles above
 
 @keyframes scanlines {
   0% { transform: translateY(0); }
@@ -524,11 +591,27 @@ body::after {
   .n { color: var(--text-primary); } // Name
   .o { color: var(--accent-cyan); } // Operator
   .m { color: var(--accent-green); } // Number
+  
+  // Fix dark blue on black for bash flags
+  .nt { color: var(--accent-cyan) !important; } // Name.Tag (used for flags)
+  .nb { color: var(--accent-yellow) !important; } // Name.Builtin
+  .nv { color: var(--accent-green) !important; } // Name.Variable
+  
+  // Ensure all text in code blocks is readable
+  pre code {
+    * {
+      color: #e0e0e0 !important;
+    }
+    
+    // Allow specific bright colors only where needed
+    .s, .s1, .s2 { color: var(--accent-yellow) !important; } // Strings
+    .c, .c1, .cm { color: #888 !important; } // Comments
+  }
 }
 
 // Fix content width and centering
 .wrapper {
-  max-width: 1000px !important;
+  max-width: 1040px !important;
   padding-right: 30px !important;
   padding-left: 30px !important;
   margin: 0 auto !important;
@@ -536,13 +619,120 @@ body::after {
 
 // Override minima's default content width
 .page-content .wrapper {
-  max-width: 1000px !important;
+  max-width: 1040px !important;
 }
 
 // Fix home layout
 .home {
   .wrapper {
-    max-width: 1000px !important;
+    max-width: 1040px !important;
+  }
+  
+  // Scroll indicator
+  &::before {
+    content: '▼';
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--accent-cyan);
+    font-size: 1.5rem;
+    animation: bounce 2s ease-in-out infinite;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 100;
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  40% {
+    transform: translateX(-50%) translateY(-10px);
+  }
+  60% {
+    transform: translateX(-50%) translateY(-5px);
+  }
+}
+
+// Plugin card grid
+.plugin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0 3rem 0;
+  
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.plugin-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-cyan);
+  padding: 1.5rem;
+  position: relative;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent 0%, rgba(0, 255, 255, 0.05) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 255, 255, 0.3);
+    border-color: var(--accent-yellow);
+    
+    &::before {
+      opacity: 1;
+    }
+    
+    .card-link {
+      color: var(--accent-yellow);
+      text-shadow: 0 0 8px rgba(255, 255, 0, 0.5);
+    }
+  }
+  
+  h4 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    margin-bottom: 1rem;
+    text-transform: none;
+  }
+  
+  p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+  }
+  
+  .card-link {
+    color: var(--accent-cyan);
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    
+    &:hover {
+      color: var(--accent-yellow);
+    }
   }
 }
 
@@ -551,6 +741,25 @@ body::after {
     max-width: 100% !important;
     padding-right: 20px !important;
     padding-left: 20px !important;
+  }
+}
+
+// Accessibility: Respect prefers-reduced-motion
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .home::before {
+    display: none;
+  }
+  
+  h1 {
+    &::before {
+      animation: none;
+    }
   }
 }
 

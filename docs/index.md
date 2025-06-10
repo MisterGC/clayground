@@ -9,6 +9,11 @@ title: Clayground - Flow, Form, Create
 
 Clayground is a [Qt](https://www.qt.io)-based toolset that combines C++, JavaScript, and [QML](https://doc.qt.io/qt-6/qtqml-index.html) for rapid game development in a sandbox environment with live-reloading capabilities. Born from game jam experiences, it's designed to reduce build times and accelerate the creative process.
 
+<div class="hero-cta">
+  <a href="{{ site.baseurl }}/getting-started/" class="btn btn-primary">Get Started →</a>
+  <a href="https://github.com/mistergc/clayground" class="btn btn-secondary">View on GitHub</a>
+</div>
+
 ![Platformer Screenshot](assets/images/screenshot_platformer.png)
 
 ## Why Clayground?
@@ -25,11 +30,32 @@ The live-reloading sandbox environment. Edit your code, save, and watch changes 
 
 ### 🧩 Plugins
 Modular building blocks for games:
-- **2D/3D Rendering** - Canvas systems with world coordinates
-- **Physics** - Box2D integration with world units
-- **Input** - Unified controller system for keyboard, gamepad, and touch
-- **Networking** - P2P multiplayer and HTTP APIs
-- **And more!**
+
+<div class="plugin-grid">
+  <div class="plugin-card">
+    <h4>🎨 2D/3D Rendering</h4>
+    <p>Canvas systems with world coordinates for both 2D and 3D games</p>
+    <a href="{{ site.baseurl }}/plugins/canvas/" class="card-link">Learn more →</a>
+  </div>
+  
+  <div class="plugin-card">
+    <h4>⚡ Physics</h4>
+    <p>Box2D integration with world units for realistic game physics</p>
+    <a href="{{ site.baseurl }}/plugins/physics/" class="card-link">Learn more →</a>
+  </div>
+  
+  <div class="plugin-card">
+    <h4>🎮 Input</h4>
+    <p>Unified controller system for keyboard, gamepad, and touch</p>
+    <a href="{{ site.baseurl }}/plugins/gamecontroller/" class="card-link">Learn more →</a>
+  </div>
+  
+  <div class="plugin-card">
+    <h4>🌐 Networking</h4>
+    <p>P2P multiplayer and HTTP APIs for online features</p>
+    <a href="{{ site.baseurl }}/plugins/network/" class="card-link">Learn more →</a>
+  </div>
+</div>
 
 [Explore all plugins →]({{ site.baseurl }}/plugins/)
 
