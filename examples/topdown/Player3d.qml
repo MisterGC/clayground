@@ -6,26 +6,22 @@ import QtQuick3D.Helpers
 import QtQuick3D.Physics
 import QtQuick3D.Physics.Helpers
 
-import Clayground.World
+import Clayground.Canvas3D
 
 CharacterController {
     id: _player
 
-    gravity: Qt.vector3d(0, 5*-9.81, 0)
+    gravity: Qt.vector3d(0, -9.81, 0)
 
-    // world scene loader uses dimensions not scaling values
-    property alias dimensions: _scaleByDims.dimensions
-    ScaleByDimensions {
-        id: _scaleByDims
-        target: _player
-        origDimensions: cCUBE_MODEL_DIMENSIONS
+    // Dimensions for the player
+    property real width: 7
+    property real height: 7
+    property real depth: 7
+
+    // Position player so it sits on the ground (y=0)
+    Component.onCompleted: {
+        position.y = height * 0.5
     }
-
-
-    // Either set the y components here or use the
-    // initializer cfg in the scene SVG
-    dimensions.y: 10
-    position.y: dimensions.y * .5
 
     property int maxSpeed: 1
 
@@ -39,9 +35,9 @@ CharacterController {
     collisionShapes: [
         CapsuleShape {
         id: capsuleShape
-        diameter: 100
-        height: 1
-        enableDebugDraw: true
+        diameter: _player.width
+        height: _player.height
+        enableDebugDraw: false
     }
     ]
 
@@ -51,9 +47,13 @@ CharacterController {
         diffuseColor: "orange"
     }
 
-    Model {
-        id: _front
-        source: "#Cube"
-        materials: _material
+    Box3D
+    {
+        id: _box
+        width: _player.width
+        height: _player.height
+        depth: _player.depth
+        color: "orange"
+        useToonShading: true
     }
 }

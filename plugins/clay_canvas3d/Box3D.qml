@@ -56,7 +56,7 @@ Model {
 
             vertexShader: "box3d.vert"
             fragmentShader: "box3d.frag"
-            shadingMode: CustomMaterial.Unshaded
+            shadingMode: CustomMaterial.Shaded
 
             // Add basic lighting
             property real lighting: 1.0

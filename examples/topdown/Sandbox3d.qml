@@ -17,6 +17,14 @@ ClayWorld3d {
 
     debugRendering: false
 
+    // Add a ground plane to prevent falling
+    StaticRigidBody {
+        position: Qt.vector3d(0, -10, 0)
+        collisionShapes: BoxShape {
+            extents: Qt.vector3d(10000, 20, 10000)
+        }
+    }
+
     property var player: null
     onMapAboutToBeLoaded: player = null;
     Component.onCompleted: {
@@ -45,7 +53,6 @@ ClayWorld3d {
             player = obj;
             player.maxSpeed = 100
             observedObject = player;
-            camera.position = Qt.vector3d(0, player.dimensions.y * 100, 0)
         }
         else if (obj instanceof Wall3d) {
             const c = Qt.color(cfg.clayFillColor);
@@ -56,11 +63,12 @@ ClayWorld3d {
             const HSL_LIGHTNESS_MAX = 100;
             const HSL_SATURATION_MAX = 100;
 
-            obj.dimensions.y = c.hslLightness * HSL_LIGHTNESS_MAX;
-            obj.position.y = obj.dimensions.y * .5 + c.hslHue * HSL_HUE_MAX;
-            // and eval saturation!?
-            // or utilize the color information andassign it as wall color
-            //obj.color = c
+            // Use hslLightness for height (multiply by 2 for more variation)
+            obj.height = c.hslLightness * 100;
+            // Position wall so its bottom is at y=0
+            obj.position.y = obj.height * 0.5;
+            // Use the color from the SVG
+            obj.color = c
         }
     }
 
