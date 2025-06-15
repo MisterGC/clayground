@@ -2,35 +2,34 @@
 
 import QtQuick3D
 import QtQuick3D.Physics
-import Clayground.World
+import Clayground.Canvas3D
 
 StaticRigidBody {
     id: _wall
 
-    collisionShapes: BoxShape { id: boxShape }
-    readonly property Model model: _wallElementModel
+    // Dimensions for the wall
+    property alias width: _box.width
+    property alias height: _box.height
+    property alias depth: _box.depth
+    property alias color: _box.color
 
-    // world scene loader uses dimensions not scaling values
-    property alias dimensions: _scaleByDims.dimensions
-    ScaleByDimensions {
-        id: _scaleByDims
-        target: _wall
-        origDimensions: cCUBE_MODEL_DIMENSIONS
+    // Default dimensions
+    width: 100
+    height: 100
+    depth: 100
+
+    collisionShapes: BoxShape { 
+        id: boxShape
+        extents: Qt.vector3d(_wall.width, _wall.height, _wall.depth)
     }
-    property alias color: _wallMaterial.baseColor
+    
+    readonly property Model model: _box
 
-    // Either set the y components here or use the
-    // initializer cfg in the scene SVG
-    dimensions.y: 10
-    position.y: dimensions.y * .5
-
-    Model {
-        id: _wallElementModel
-        source: "#Cube"
-        materials: PrincipledMaterial {
-            id: _wallMaterial
-            baseColor: Qt.rgba(0, 0, 1, 1)
-        }
-        castsShadows: true
+    Box3D
+    {
+        id: _box
+        color: "gray"
+        useToonShading: true
     }
+
 }
