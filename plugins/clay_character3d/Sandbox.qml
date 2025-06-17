@@ -18,7 +18,7 @@ Item {
         anchors.fill: parent
         
         environment: SceneEnvironment {
-            clearColor: "#87CEEB"
+            clearColor: "#f0f0f0"
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
@@ -26,7 +26,7 @@ Item {
             // Enable toon shading
             tonemapMode: SceneEnvironment.TonemapModeNone
         }
-        
+
         // Lighting setup for toon shading
         DirectionalLight {
             id: mainLight
@@ -35,13 +35,23 @@ Item {
             
             // Shadow configuration for toon shading effect
             castsShadow: true
-            shadowFactor: 78  // Strong shadows for toon effect
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            pcfFactor: 2  // Minimal softening to keep shadows crisp
-            shadowBias: 18
-            csmNumSplits: 3
+            shadowFactor: 60  // Reduced from 78 for better visibility
+            shadowMapQuality: Light.ShadowMapQualityHigh
+            pcfFactor: 4  // Slightly more softening for gentler shadows
+            shadowBias: 10
             
-            brightness: 1.0
+            brightness: 0.8
+            ambientColor: Qt.rgba(0.3, 0.3, 0.3, 1.0)  // Increased ambient for better visibility
+        }
+        
+        // Fill light from opposite direction to reduce harsh shadows
+        DirectionalLight {
+            id: fillLight
+            eulerRotation.x: -20
+            eulerRotation.y: 110  // From the opposite side
+            
+            castsShadow: false  // No shadows from fill light
+            brightness: 0.1  // Dimmer than main light
             ambientColor: Qt.rgba(0.1, 0.1, 0.1, 1.0)
         }
         
@@ -54,16 +64,37 @@ Item {
             orbitYawOffset: 180
         }
         
-        // Ground plane with toon shading
-        Box3D {
-            y: -0.5
+        // Ground plane using VoxelMap for better toon shading
+        StaticVoxelMap {
+            id: ground
+            y: -1
             width: 100
-            height: 1
+            height: 2
             depth: 100
-            color: "#4a9c4a"
+            voxelSize: 2.0  // Large voxels for ground
+            spacing: 0.0
+            
             showEdges: true
-            edgeColorFactor: 0.8
-            edgeThickness: 1.0
+            edgeColorFactor: 0.6
+            edgeThickness: 0.02
+            
+            Component.onCompleted: {
+                // Fill with a simple green ground
+                fill([{
+                    box: {
+                        pos: Qt.vector3d(0, 0, 0),
+                        width: 100,
+                        height: 2,
+                        depth: 100,
+                        colors: [
+                            { color: "#5cb85c", weight: 0.6 },  // Main green
+                            { color: "#4cae4c", weight: 0.3 },  // Darker green
+                            { color: "#6ec06e", weight: 0.1 }   // Lighter green
+                        ],
+                        noise: 0.2  // Add some variation
+                    }
+                }]);
+            }
         }
         
         // Create a basic character
@@ -88,7 +119,7 @@ Item {
             character: character
             enabled: true
             turnSpeed: 2.0
-            walkSpeed: 0.4
+            walkSpeed: 0.8
             axisX: gameController.axisX
             axisY: gameController.axisY
         }
