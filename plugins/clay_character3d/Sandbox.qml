@@ -89,6 +89,8 @@ Item {
             enabled: true
             turnSpeed: 2.0
             walkSpeed: 0.4
+            axisX: gameController.axisX
+            axisY: gameController.axisY
         }
         
         // Add some objects for reference
