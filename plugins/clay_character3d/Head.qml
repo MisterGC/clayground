@@ -20,12 +20,12 @@ BodyPartsGroup {
     onWidthChanged: console.log("New width: " + width)
     onHeightChanged: console.log("New height: " + width)
 
-    // Upper Head Properties
+    // Upper Head Properties with defaults
     property alias upperHeadWidth: _upperHead.width
     property alias upperHeadHeight: _upperHead.height
     property alias upperHeadDepth: _upperHead.depth
 
-    // Lower Head Properties
+    // Lower Head Properties with defaults
     property alias lowerHeadWidth: _lowerHead.width
     property alias lowerHeadHeight: _lowerHead.height
     property alias lowerHeadDepth: _lowerHead.depth
@@ -62,7 +62,11 @@ BodyPartsGroup {
     BodyPart {
         id: _upperHead
 
-        depth: _head.depth
+        // Default dimensions
+        width: 1.0
+        height: 0.8
+        depth: 1.2
+        
         showEdges: false
 
         basePos: Qt.vector3d(0, _lowerHead.height * 0.99, _head.depth * .09)
@@ -176,10 +180,10 @@ BodyPartsGroup {
     BodyPart {
         id: _lowerHead
 
-        // Base dimensions
+        // Default dimensions
         width: 1.0
         height: 0.5
-        depth: _head.depth
+        depth: 1.2
         showEdges: true
         edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
 

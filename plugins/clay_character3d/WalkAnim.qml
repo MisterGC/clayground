@@ -8,9 +8,9 @@ ProceduralAnim {
     loops: Animation.Infinite
 
     // Forward offset should be proportional to leg length for natural stride
-    property real footForwardOffset: 0.4 * entity.legLength
+    property real footForwardOffset: 0.4 * entity.legHeight
     // Hand swing should be proportional to arm length
-    property real handForwardOffset: 0.3 * entity.armLength
+    property real handForwardOffset: 0.3 * entity.armHeight
     property real footMaxRotation: 45
     property real handMaxRotation: 30
 
@@ -32,22 +32,28 @@ ProceduralAnim {
         return Qt.vector3d(basePos.x, basePos.y + verticalOffset, basePos.z + zOffset);
     }
 
-    readonly property vector3d _rightFootPosForward: _calculatePosition(entity.rightFoot, 1, footForwardOffset, false)
-    readonly property vector3d _rightFootPosBackward: _calculatePosition(entity.rightFoot, -1, -footForwardOffset, false)
+    // Access body parts through arm/leg hierarchy
+    readonly property alias rightFoot: entity.rightLeg.foot
+    readonly property alias leftFoot: entity.leftLeg.foot
+    readonly property alias rightHand: entity.rightArm.hand
+    readonly property alias leftHand: entity.leftArm.hand
 
-    readonly property vector3d _leftFootPosForward: _calculatePosition(entity.leftFoot, -1, footForwardOffset, false)
-    readonly property vector3d _leftFootPosBackward: _calculatePosition(entity.leftFoot, 1, -footForwardOffset, false)
+    readonly property vector3d _rightFootPosForward: _calculatePosition(rightFoot, 1, footForwardOffset, false)
+    readonly property vector3d _rightFootPosBackward: _calculatePosition(rightFoot, -1, -footForwardOffset, false)
 
-    readonly property vector3d _rightHandPosForward: _calculatePosition(entity.rightHand, 1, handForwardOffset, true)
-    readonly property vector3d _leftHandPosForward: _calculatePosition(entity.leftHand, 1, handForwardOffset, true)
+    readonly property vector3d _leftFootPosForward: _calculatePosition(leftFoot, -1, footForwardOffset, false)
+    readonly property vector3d _leftFootPosBackward: _calculatePosition(leftFoot, 1, -footForwardOffset, false)
 
-    readonly property vector3d _rightHandPosBackward: _calculatePosition(entity.rightHand, -1, -handForwardOffset, true)
-    readonly property vector3d _leftHandPosBackward: _calculatePosition(entity.leftHand, -1, -handForwardOffset, true)
+    readonly property vector3d _rightHandPosForward: _calculatePosition(rightHand, 1, handForwardOffset, true)
+    readonly property vector3d _leftHandPosForward: _calculatePosition(leftHand, 1, handForwardOffset, true)
+
+    readonly property vector3d _rightHandPosBackward: _calculatePosition(rightHand, -1, -handForwardOffset, true)
+    readonly property vector3d _leftHandPosBackward: _calculatePosition(leftHand, -1, -handForwardOffset, true)
 
     // Step 1: Right Foot Forward, Left Foot Backward
     ParallelAnimation {
         PosAndEulerAnim{
-            target: _walkCycle.entity.rightFoot
+            target: _walkCycle.rightFoot
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._rightFootPosBackward
@@ -56,7 +62,7 @@ ProceduralAnim {
             toEuler: _walkCycle._footEulerForward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.leftFoot
+            target: _walkCycle.leftFoot
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._leftFootPosForward
@@ -65,7 +71,7 @@ ProceduralAnim {
             toEuler: _walkCycle._footEulerBackward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.leftHand
+            target: _walkCycle.leftHand
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._leftHandPosBackward
@@ -74,7 +80,7 @@ ProceduralAnim {
             toEuler: _walkCycle._handEulerForward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.rightHand
+            target: _walkCycle.rightHand
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._rightHandPosForward
@@ -87,7 +93,7 @@ ProceduralAnim {
     // Step 2: Right Foot Backward, Left Foot Forward
     ParallelAnimation {
         PosAndEulerAnim{
-            target: _walkCycle.entity.rightFoot
+            target: _walkCycle.rightFoot
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._rightFootPosForward
@@ -96,7 +102,7 @@ ProceduralAnim {
             toEuler: _walkCycle._footEulerBackward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.leftFoot
+            target: _walkCycle.leftFoot
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._leftFootPosBackward
@@ -105,7 +111,7 @@ ProceduralAnim {
             toEuler: _walkCycle._footEulerForward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.leftHand
+            target: _walkCycle.leftHand
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._leftHandPosForward
@@ -114,7 +120,7 @@ ProceduralAnim {
             toEuler: _walkCycle._handEulerBackward
         }
         PosAndEulerAnim{
-            target: _walkCycle.entity.rightHand
+            target: _walkCycle.rightHand
 
             duration: _walkCycle.duration
             fromPos: _walkCycle._rightHandPosBackward

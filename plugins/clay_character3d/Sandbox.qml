@@ -151,7 +151,6 @@ Item {
 
         Component.onCompleted: {
             selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D, Qt.Key_Space, Qt.Key_Shift)
-            charController.bindToGameController(gameController)
         }
     }
 

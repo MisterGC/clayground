@@ -15,6 +15,8 @@ clay_plugin( Character3D
         BodyPart.qml
         BodyPartsGroup.qml
         Head.qml
+        Arm.qml
+        Leg.qml
         Hand.qml
         Foot.qml
         # Animation System

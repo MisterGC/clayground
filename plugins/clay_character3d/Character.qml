@@ -19,7 +19,7 @@ BodyPartsGroup {
 
     // TODO: Adapt on demand
     width: Math.max(shoulderWidth, waistWidth, hipWidth)
-    height: lowerHeadHeight + upperHeadHeight + neckHeight + torsoHeight + legLength
+    height: lowerHeadHeight + upperHeadHeight + neckHeight + torsoHeight + legHeight
     depth: 10
 
     Box3D {
@@ -42,16 +42,6 @@ BodyPartsGroup {
     // Head depth 1.20, based on headWidth, headDepthToHeadWidth 1.0 (approx)
     readonly property real headHeight: upperHeadHeight + lowerHeadHeight
 
-    // Upper Head Properties
-    property real upperHeadWidth: 1.00
-    property real upperHeadHeight: 0.8
-    property real upperHeadDepth: 1.20
-
-    // Lower Head Properties
-    property real lowerHeadWidth: 1.00
-    property real lowerHeadHeight: 0.5
-    property real lowerHeadDepth: 1.20
-    property real chinPointiness: 1.0
 
     // Torso
     property real shoulderWidth: 2.50 // Default based on headWidth, shoulderWidthToHeadWidth ≈2.5
@@ -60,13 +50,10 @@ BodyPartsGroup {
     property real torsoHeight: 3.667 // Default based on headHeight, torsoHeightToHeadHeight 2.75
     property real torsoDepth: 1.25 // Default based on shoulderWidth, shoulderWidthToTorsoDepth 0.5
 
-    // Arms and Hands
-    property real armLength: 3.667 // Default based on torsoHeight, armLengthToTorsoHeight 1.0
-    property real handLength: 1.137 // Default based on armLength, handLengthToArmLength ≈0.31
-
-    // Legs and Feet
-    property real legLength: 5.333 // Default based on headHeight, legLengthToHeadHeight 4.0
-    property real footLength: 1.60 // Default based on bodyHeight ≈10.67, footLengthToBodyHeight 0.15
+    // Legacy properties for default calculations only
+    // These are used internally for backward compatibility but should not be set directly
+    property real handLength: 1.137 // Used for default hand dimensions
+    property real footLength: 1.60 // Used for default foot dimensions
 
     // Actions/Activities
     enum Activity {
@@ -81,16 +68,51 @@ BodyPartsGroup {
     property alias headSkinColor: _head.skinColor
     property alias headHairColor: _head.hairColor
     property alias torsoColor: _torso.color
-    property color handsColor: "#d38d5f"
-    property color feetColor: "#d38d5f"
+    property alias handColor: _rightArm.handColor
+    property alias footColor: _rightLeg.footColor
+    
+    // Dimension aliases for full control
+    // Note: torsoWidth is an alias to shoulderWidth for consistency
+    property alias torsoWidth: _character.shoulderWidth
+    property alias torsoHeight: _torso.height
+    property alias torsoDepth: _torso.depth
+    
+    // Head dimension aliases
+    property alias upperHeadWidth: _head.upperHeadWidth
+    property alias upperHeadHeight: _head.upperHeadHeight
+    property alias upperHeadDepth: _head.upperHeadDepth
+    property alias lowerHeadWidth: _head.lowerHeadWidth
+    property alias lowerHeadHeight: _head.lowerHeadHeight
+    property alias lowerHeadDepth: _head.lowerHeadDepth
+    property alias chinPointiness: _head.chinPointiness
+
+    // Arms (symmetric - right arm drives both)
+    property alias armWidth: _rightArm.width
+    property alias armHeight: _rightArm.height
+    property alias armDepth: _rightArm.depth
+    
+    // Hands (symmetric - accessed through arm)
+    property alias handWidth: _rightArm.handWidth
+    property alias handHeight: _rightArm.handHeight
+    property alias handDepth: _rightArm.handDepth
+    
+    // Legs (symmetric)
+    property alias legWidth: _rightLeg.width
+    property alias legHeight: _rightLeg.height
+    property alias legDepth: _rightLeg.depth
+    
+    // Feet (symmetric - accessed through leg)
+    property alias footWidth: _rightLeg.footWidth
+    property alias footHeight: _rightLeg.footHeight
+    property alias footDepth: _rightLeg.footDepth
 
     // Body Parts (e.g. for animating them)
     // and their base (relative) positions
-    readonly property Hand leftHand: _leftHand
-    readonly property Hand rightHand: _rightHand
-    readonly property Foot leftFoot: _leftFoot
-    readonly property Foot rightFoot: _rightFoot
-    readonly property Head head: _head
+    readonly property alias leftArm: _leftArm
+    readonly property alias rightArm: _rightArm
+    readonly property alias leftLeg: _leftLeg
+    readonly property alias rightLeg: _rightLeg
+    readonly property alias head: _head
 
     BodyPart {
         id: _torso
@@ -98,34 +120,61 @@ BodyPartsGroup {
         width: _character.shoulderWidth; depth: _character.torsoDepth; height: _character.torsoHeight
         scaledFace: Box3DGeometry.BottomFace
         faceScale: Qt.vector2d(_character.hipWidth/_character.shoulderWidth, 1)
-        basePos: Qt.vector3d(0, _character.legLength, 0)
+        basePos: Qt.vector3d(0, _character.legHeight, 0)
 
         Head {
             id: _head
             basePos:  Qt.vector3d(0, (_character.torsoHeight + _character.neckHeight), 0)
-            lowerHeadWidth: _character.lowerHeadWidth
-            lowerHeadHeight: _character.lowerHeadHeight
-            lowerHeadDepth: _character.lowerHeadDepth
-            upperHeadWidth: _character.upperHeadWidth
-            upperHeadHeight: _character.upperHeadHeight
-            upperHeadDepth: _character.upperHeadDepth
-            chinPointiness: _character.chinPointiness
         }
 
-        // Hands
-        Hand {id: _rightHand; character: _character; left: false}
-        Hand {id: _leftHand; character: _character; left: true}
+        // Arms (containing hands)
+        Arm { 
+            id: _rightArm
+            character: _character
+            left: false
+        }
+        Arm {
+            id: _leftArm
+            character: _character
+            left: true
+            // Mirror right arm dimensions
+            width: _rightArm.width
+            height: _rightArm.height
+            depth: _rightArm.depth
+            // Mirror hand dimensions and color
+            handWidth: _rightArm.handWidth
+            handHeight: _rightArm.handHeight
+            handDepth: _rightArm.handDepth
+            handColor: _rightArm.handColor
+        }
 
-        // Feet
-        Foot {id: _rightFoot;  character: _character;  left: false}
-        Foot {id: _leftFoot; character: _character; left: true }
+        // Legs (containing feet)
+        Leg {
+            id: _rightLeg
+            character: _character
+            left: false
+        }
+        Leg {
+            id: _leftLeg
+            character: _character
+            left: true
+            // Mirror right leg dimensions
+            width: _rightLeg.width
+            height: _rightLeg.height
+            depth: _rightLeg.depth
+            // Mirror foot dimensions and color
+            footWidth: _rightLeg.footWidth
+            footHeight: _rightLeg.footHeight
+            footDepth: _rightLeg.footDepth
+            footColor: _rightLeg.footColor
+        }
     }
 
     WalkAnim {
         id: _walkAnim
         entity: _character
         duration: 1000
-        footForwardOffset: 0.4 * _character.legLength
+        footForwardOffset: 0.4 * _character.legHeight
         footMaxRotation: 45
         handMaxRotation: 30
         running: _character.activity == Character.Activity.Walking
@@ -172,13 +221,25 @@ BodyPartsGroup {
             torsoDepth: torsoDepth,
             torsoColor: torsoColor,
 
-            // Limb properties
-            armLength: armLength,
+            // Limb properties (keep legacy for compatibility)
             handLength: handLength,
-            legLength: legLength,
             footLength: footLength,
-            handsColor: handsColor,
-            feetColor: feetColor
+            handColor: handColor,
+            footColor: footColor,
+            
+            // New dimension properties
+            armWidth: armWidth,
+            armHeight: armHeight,
+            armDepth: armDepth,
+            handWidth: handWidth,
+            handHeight: handHeight,
+            handDepth: handDepth,
+            legWidth: legWidth,
+            legHeight: legHeight,
+            legDepth: legDepth,
+            footWidth: footWidth,
+            footHeight: footHeight,
+            footDepth: footDepth
         };
 
         // Convert to JSON string and save to store

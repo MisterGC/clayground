@@ -20,8 +20,8 @@ Character {
     property real shoulderWidthToTorsoDepth: 0.3
     // Arms and Hands
     // Shoulder to beginning of hand
-    property real armLengthToTorsoHeight: 1.0
-    property real armLengthToHandLength: 3
+    property real armHeightToTorsoHeight: 1.0
+    property real armHeightToHandLength: 3
     // Legs and Feet
     property real footLengthToBodyHeight: 0.15
 
@@ -36,8 +36,8 @@ Character {
     hipWidth: shoulderWidth * 0.9
     torsoHeight: headHeight * torsoHeightToHeadHeight
     torsoDepth: shoulderWidth * shoulderWidthToTorsoDepth
-    armLength: torsoHeight * armLengthToTorsoHeight
-    handLength: armLength / armLengthToHandLength
-    legLength: height - torsoHeight - neckHeight
+    armHeight: torsoHeight * armHeightToTorsoHeight
+    handLength: armHeight / armHeightToHandLength
+    legHeight: height - torsoHeight - neckHeight
     footLength: height * footLengthToBodyHeight
 }
