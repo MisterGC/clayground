@@ -5,7 +5,7 @@ SequentialAnimation {
     id: _procAnim
 
     // Entity the animation should be applied to
-    required property Node entity
+    required property var entity
     // Duration in ms of one cycle of the animation
     required property int duration
 

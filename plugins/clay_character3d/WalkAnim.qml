@@ -4,12 +4,9 @@ import QtQuick3D
 ProceduralAnim {
     id: _walkCycle
 
-    running: true
-    loops: Animation.Infinite
-
-    // Forward offset should be proportional to leg length for natural stride
+    // // Forward offset should be proportional to leg length for natural stride
     property real footForwardOffset: 0.4 * entity.legHeight
-    // Hand swing should be proportional to arm length
+    // // Hand swing should be proportional to arm length
     property real handForwardOffset: 0.3 * entity.armHeight
     property real footMaxRotation: 45
     property real handMaxRotation: 30
@@ -33,10 +30,10 @@ ProceduralAnim {
     }
 
     // Access body parts through arm/leg hierarchy
-    readonly property alias rightFoot: entity.rightLeg.foot
-    readonly property alias leftFoot: entity.leftLeg.foot
-    readonly property alias rightHand: entity.rightArm.hand
-    readonly property alias leftHand: entity.leftArm.hand
+    readonly property Foot rightFoot: entity.rightLeg.foot
+    readonly property Foot leftFoot: entity.leftLeg.foot
+    readonly property Hand rightHand: entity.rightArm.hand
+    readonly property Hand leftHand: entity.leftArm.hand
 
     readonly property vector3d _rightFootPosForward: _calculatePosition(rightFoot, 1, footForwardOffset, false)
     readonly property vector3d _rightFootPosBackward: _calculatePosition(rightFoot, -1, -footForwardOffset, false)

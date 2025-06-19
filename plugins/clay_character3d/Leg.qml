@@ -5,23 +5,12 @@ import Clayground.Canvas3D
 BodyPartsGroup {
     id: _leg
     
-    // Character this leg belongs to
-    required property var character
-    
-    // If true it's the left leg, the right leg otherwise
-    property bool left: true
-    
     // Total leg dimensions
     width: 1.067  // Default: 5.333 * 0.2
     height: 5.333 // Default leg length
     depth: 1.333  // Default: 5.333 * 0.25
     
-    // Position leg at hip
-    basePos: Qt.vector3d(
-        (left ? 1 : -1) * (character.hipWidth * 0.4),
-        0,
-        0
-    )
+    // Position is set by parent (Character.qml)
     
     // Foot dimension aliases
     property alias footWidth: _foot.width
@@ -53,10 +42,12 @@ BodyPartsGroup {
             
             Foot {
                 id: _foot
-                character: _leg.character
-                left: _leg.left
                 // Position at ankle with forward offset for natural stance
                 basePos: Qt.vector3d(0, -_lowerLeg.height, _lowerLeg.depth * 0.4)
+                // Dimensions with default bindings that can be overridden
+                width: depth * 0.5
+                depth: _leg.height * 0.5
+                height: depth * 0.3
             }
         }
     }

@@ -67,6 +67,7 @@ Item {
         // Ground plane using VoxelMap for better toon shading
         StaticVoxelMap {
             id: ground
+            visible: false
             y: -1
             width: 100
             height: 2
@@ -106,8 +107,9 @@ Item {
             headSkinColor: "#fdbcb4"
             headHairColor: "#8b4513"
             torsoColor: "#4169e1"
-            handsColor: "#fdbcb4"
-            feetColor: "#8b4513"
+            position: Qt.vector3d(0,5,0)
+            // handsColor: "#fdbcb4"
+            // feetColor: "#8b4513"
             
             // Start with idle animation
             activity: Character.Idle
@@ -188,11 +190,11 @@ Item {
                 font.pixelSize: 12
             }
             
-            Text {
-                text: "\nCharacter State: " + (character.activity === Character.Walking ? "Walking" : "Idle")
-                font.pixelSize: 12
-                color: character.activity === Character.Walking ? "green" : "gray"
-            }
+            // Text {
+            //     text: "\nCharacter State: " + (character.activity === Character.Walking ? "Walking" : "Idle")
+            //     font.pixelSize: 12
+            //     color: character.activity === Character.Walking ? "green" : "gray"
+            // }
         }
     }
 }

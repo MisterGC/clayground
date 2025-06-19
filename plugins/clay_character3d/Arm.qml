@@ -5,23 +5,12 @@ import Clayground.Canvas3D
 BodyPartsGroup {
     id: _arm
     
-    // Character this arm belongs to
-    required property var character
-    
-    // If true it's the left arm, the right arm otherwise
-    property bool left: true
-    
     // Total arm dimensions
     width: 0.917  // Default: 3.667 * 0.25
     height: 3.667 // Default arm length
     depth: 1.1    // Default: 3.667 * 0.3
     
-    // Position arm at shoulder
-    basePos: Qt.vector3d(
-        (left ? 1 : -1) * (character.shoulderWidth * 0.5),
-        character.torsoHeight - height,
-        0
-    )
+    // Position is set by parent (Character.qml)
 
     // Hand dimension aliases
     property alias handWidth: _hand.width
@@ -53,9 +42,11 @@ BodyPartsGroup {
             
             Hand {
                 id: _hand
-                character: _arm.character
-                left: _arm.left
                 basePos: Qt.vector3d(0, -_lowerArm.height, 0)
+                width: height * 0.3
+                height: _arm.height * 0.5
+                depth: height * 0.5
+
             }
         }
     }
