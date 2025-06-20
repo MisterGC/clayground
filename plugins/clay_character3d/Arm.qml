@@ -26,19 +26,21 @@ BodyPartsGroup {
     readonly property alias hand: _hand
     
     // Upper arm (shoulder to elbow)
-    BodyPartsGroup {
+    BodyPart {
         id: _upperArm
         width: _arm.width
         height: _arm.height * 0.5  // Upper arm is half of total arm length
         depth: _arm.depth
+        color: "#4169e1"  // Default blue color
         
         // Lower arm (elbow to wrist)
-        BodyPartsGroup {
+        BodyPart {
             id: _lowerArm
             width: _arm.width * 0.9  // Slightly thinner than upper arm
             height: _arm.height * 0.5  // Lower arm is half of total arm length
             depth: _arm.depth * 0.9
             basePos: Qt.vector3d(0, -_upperArm.height, 0)
+            color: "#4169e1"  // Default blue color
             
             Hand {
                 id: _hand

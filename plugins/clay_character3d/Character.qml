@@ -203,10 +203,7 @@ BodyPartsGroup {
     WalkAnim {
         id: _walkAnim
         entity: _character
-        duration: 1000
-        footForwardOffset: 0.4 * _rightLeg.height
-        footMaxRotation: 45
-        handMaxRotation: 30
+        duration: 500
         running: _character.activity == Character.Activity.Walking
         loops: Animation.Infinite
     }

@@ -26,19 +26,21 @@ BodyPartsGroup {
     readonly property alias foot: _foot
     
     // Upper leg (hip to knee)
-    BodyPartsGroup {
+    BodyPart {
         id: _upperLeg
         width: _leg.width
         height: _leg.height * 0.5  // Upper leg is half of total leg length
         depth: _leg.depth
+        color: "#708090"  // Default gray color
         
         // Lower leg (knee to ankle)
-        BodyPartsGroup {
+        BodyPart {
             id: _lowerLeg
             width: _leg.width * 0.8  // Slightly thinner than upper leg
             height: _leg.height * 0.5  // Lower leg is half of total leg length
             depth: _leg.depth * 0.8
             basePos: Qt.vector3d(0, -_upperLeg.height, 0)
+            color: "#708090"  // Default gray color
             
             Foot {
                 id: _foot
