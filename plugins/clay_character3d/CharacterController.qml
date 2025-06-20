@@ -9,7 +9,6 @@ Item {
 
     // Movement configuration
     property real turnSpeed: 2.0        // degrees per frame per unit axis
-    property real walkSpeed: 0.5        // world units per frame per unit axis
 
     // Input values (can be bound to GameController or other input sources)
     property real inputDeadzone: 0.1    // axis deadzone
@@ -59,9 +58,13 @@ Item {
                 const fwdX = Math.sin(yawRad);
                 const fwdZ = Math.cos(yawRad);
 
+                // Convert character's walk speed from units/second to units/frame
+                const frameTime = root.updateInterval / 1000.0;  // Convert ms to seconds
+                const speedPerFrame = root.character.walkSpeed * frameTime;
+
                 // Scale by input and speed
-                const deltaX = fwdX * root.processedAxisY * root.walkSpeed;
-                const deltaZ = fwdZ * root.processedAxisY * root.walkSpeed;
+                const deltaX = fwdX * root.processedAxisY * speedPerFrame;
+                const deltaZ = fwdZ * root.processedAxisY * speedPerFrame;
 
                 // Update position
                 root.character.position.x += deltaX;

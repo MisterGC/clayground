@@ -67,7 +67,7 @@ Item {
         // Ground plane using VoxelMap for better toon shading
         StaticVoxelMap {
             id: ground
-            visible: false
+            visible: true
             y: -1
             width: 100
             height: 2
@@ -107,7 +107,11 @@ Item {
             headSkinColor: "#fdbcb4"
             headHairColor: "#8b4513"
             torsoColor: "#4169e1"
-            position: Qt.vector3d(0,5,0)
+            position: Qt.vector3d(0,6,0)
+            
+            // Movement configuration
+            walkSpeed: 10.0     // Units per second
+            strideLength: 4.0  // Distance per walk cycle
             
             // Start with idle animation
             activity: Character.Idle
@@ -119,7 +123,6 @@ Item {
             character: character
             enabled: true
             turnSpeed: 2.0
-            walkSpeed: 0.8
             axisX: gameController.axisX
             axisY: gameController.axisY
         }
@@ -188,11 +191,27 @@ Item {
                 font.pixelSize: 12
             }
             
-            // Text {
-            //     text: "\nCharacter State: " + (character.activity === Character.Walking ? "Walking" : "Idle")
-            //     font.pixelSize: 12
-            //     color: character.activity === Character.Walking ? "green" : "gray"
-            // }
+            Text {
+                text: "\nWalk Parameters:"
+                font.pixelSize: 14
+                font.bold: true
+            }
+            
+            Text {
+                text: "• Speed: " + character.walkSpeed.toFixed(1) + " units/sec"
+                font.pixelSize: 12
+            }
+            
+            Text {
+                text: "• Stride: " + character.strideLength.toFixed(1) + " units"
+                font.pixelSize: 12
+            }
+            
+            Text {
+                text: "• Step rate: " + (character.walkSpeed / character.strideLength).toFixed(1) + " steps/sec"
+                font.pixelSize: 12
+                color: "blue"
+            }
         }
     }
 }

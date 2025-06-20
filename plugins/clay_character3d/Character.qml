@@ -12,9 +12,11 @@ BodyPartsGroup {
 
     property string name: "unknown"
 
-    // Configure animations (e.g. to adapt based on movement
-    // speed)
-    property alias walkCycleDuration: _walkAnim.duration
+    // Movement properties
+    property real walkSpeed: 5.0  // World units per second
+    property real strideLength: 3.0  // Distance covered per walk cycle
+    
+    // Idle animation configuration
     property alias idleCycleDuration: _idleAnim.duration
 
     // TODO: Adapt on demand
@@ -203,7 +205,7 @@ BodyPartsGroup {
     WalkAnim {
         id: _walkAnim
         entity: _character
-        duration: 500
+        duration: _character.walkSpeed > 0 ? (_character.strideLength / _character.walkSpeed) * 1000 : 1000
         running: _character.activity == Character.Activity.Walking
         loops: Animation.Infinite
     }
