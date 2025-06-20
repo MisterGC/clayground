@@ -213,7 +213,7 @@ BodyPartsGroup {
     IdleAnim {
         id: _idleAnim
         entity: _character
-        duration: 1000
+        duration: 200
         running: _character.activity == Character.Activity.Idle
         loops: 1
     }

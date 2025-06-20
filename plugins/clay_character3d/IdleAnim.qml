@@ -3,36 +3,73 @@ import QtQuick
 ProceduralAnim {
     id: _idleAnim
 
-    // Access body parts through arm/leg hierarchy
-    readonly property Foot _rightFoot: entity.rightLeg.foot
-    readonly property Foot _leftFoot: entity.leftLeg.foot
-    readonly property Hand _rightHand: entity.rightArm.hand
-    readonly property Hand _leftHand: entity.leftArm.hand
-
     ParallelAnimation {
-        PosAndEulerAnim {
+        // Reset right arm joints
+        EulerAnim {
             duration: _idleAnim.duration
-            target: _idleAnim._rightFoot
-            toPos: target.basePos
-            toEuler: Qt.vector3d(0,0,0)
+            target: entity.rightArm.upperArm
+            to: Qt.vector3d(0, 0, 0)
         }
-        PosAndEulerAnim {
+        EulerAnim {
             duration: _idleAnim.duration
-            target: _idleAnim._leftFoot
-            toPos: target.basePos
-            toEuler: Qt.vector3d(0,0,0)
+            target: entity.rightArm.lowerArm
+            to: Qt.vector3d(0, 0, 0)
         }
-        PosAndEulerAnim {
+        EulerAnim {
             duration: _idleAnim.duration
-            target: _idleAnim._rightHand
-            toPos: target.basePos
-            toEuler: Qt.vector3d(0,0,0)
+            target: entity.rightArm.hand
+            to: Qt.vector3d(0, 0, 0)
         }
-        PosAndEulerAnim {
+        
+        // Reset left arm joints
+        EulerAnim {
             duration: _idleAnim.duration
-            target: _idleAnim._leftHand
-            toPos: target.basePos
-            toEuler: Qt.vector3d(0,0,0)
+            target: entity.leftArm.upperArm
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.leftArm.lowerArm
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.leftArm.hand
+            to: Qt.vector3d(0, 0, 0)
+        }
+        
+        // Reset right leg joints
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.rightLeg.upperLeg
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.rightLeg.lowerLeg
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.rightLeg.foot
+            to: Qt.vector3d(0, 0, 0)
+        }
+        
+        // Reset left leg joints
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.leftLeg.upperLeg
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.leftLeg.lowerLeg
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.leftLeg.foot
+            to: Qt.vector3d(0, 0, 0)
         }
     }
 }
