@@ -17,9 +17,6 @@ BodyPartsGroup {
     height: upperHeadHeight + lowerHeadHeight
     depth: Math.max(upperHeadDepth, lowerHeadDepth)
 
-    onWidthChanged: console.log("New width: " + width)
-    onHeightChanged: console.log("New height: " + width)
-
     // Upper Head Properties with defaults
     property alias upperHeadWidth: _upperHead.width
     property alias upperHeadHeight: _upperHead.height
@@ -66,7 +63,7 @@ BodyPartsGroup {
         width: 1.0
         height: 0.8
         depth: 1.2
-        
+
         showEdges: false
 
         basePos: Qt.vector3d(0, _lowerHead.height * 0.99, _head.depth * .09)

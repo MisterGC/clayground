@@ -108,8 +108,6 @@ Item {
             headHairColor: "#8b4513"
             torsoColor: "#4169e1"
             position: Qt.vector3d(0,5,0)
-            // handsColor: "#fdbcb4"
-            // feetColor: "#8b4513"
             
             // Start with idle animation
             activity: Character.Idle

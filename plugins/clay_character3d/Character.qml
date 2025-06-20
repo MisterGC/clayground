@@ -14,11 +14,11 @@ BodyPartsGroup {
 
     // Configure animations (e.g. to adapt based on movement
     // speed)
-    //property alias walkCycleDuration: _walkAnim.duration
-    //property alias idleCycleDuration: _idleAnim.duration
+    property alias walkCycleDuration: _walkAnim.duration
+    property alias idleCycleDuration: _idleAnim.duration
 
     // TODO: Adapt on demand
-    width: Math.max(shoulderWidth, waistWidth, hipWidth)
+    width: Math.max(shoulderWidth, hipWidth)
     height: 10.667 // Default total height (will be recalculated if parts change)
     depth: 10
 
@@ -31,29 +31,9 @@ BodyPartsGroup {
         opacity: 0.3
     }
 
-    // Absolute dimensions - these can be set directly
-    // or calculated by a specialized component like RatioBasedCharacter
-
-    // Head
-    property real neckHeight: 0.333 // Default based on headHeight, neckHeightToHeadHeight 0.25
-
-    // Head height ~1.333 Default based on bodyHeight ≈10, headsTall ≈7.5
-    // Head width 1.0, based on headHeight, headWidthToHeadHeight 0.75
-    // Head depth 1.20, based on headWidth, headDepthToHeadWidth 1.0 (approx)
-    readonly property real headHeight: upperHeadHeight + lowerHeadHeight
-
-
-    // Torso
-    property real shoulderWidth: 2.50 // Default based on headWidth, shoulderWidthToHeadWidth ≈2.5
-    property real waistWidth: 2.00 // Default based on shoulderWidth, waistWidthToShoulderWidth ≈0.8
-    property real hipWidth: 2.25 // Default based on shoulderWidth, hipWidthToShoulderWidth ≈0.9
-
-    // Legacy properties for default calculations only
-    // These are used internally for backward compatibility but should not be set directly
-    property real handLength: 1.137 // Used for default hand dimensions
-    property real footLength: 1.60 // Used for default foot dimensions
-
-    // Actions/Activities
+    // ============================================================================
+    // ACTIVITY & BEHAVIOR PROPERTIES
+    // ============================================================================
     enum Activity {
         Walking,
         Idle
@@ -62,20 +42,14 @@ BodyPartsGroup {
     property alias faceActivity: _head.activity
     //property alias thoughts: _head.thoughts
 
-    // Colors for each body part
-    property alias headSkinColor: _head.skinColor
-    property alias headHairColor: _head.hairColor
-    property alias torsoColor: _torso.color
-    property alias handColor: _rightArm.handColor
-    // property alias footColor: _rightLeg.footColor
-    
-    // Dimension aliases for full control
-    // Note: torsoWidth is an alias to shoulderWidth for consistency
-    property alias torsoWidth: _character.shoulderWidth
-    property alias torsoHeight: _torso.height
-    property alias torsoDepth: _torso.depth
-    
-    // Head dimension aliases
+    // ============================================================================
+    // HEAD PROPERTIES
+    // ============================================================================
+    // Absolute dimensions
+    property real neckHeight: 0.333 // Default based on headHeight, neckHeightToHeadHeight 0.25
+    readonly property real headHeight: upperHeadHeight + lowerHeadHeight // Head height ~1.333 Default based on bodyHeight ≈10, headsTall ≈7.5
+
+    // Dimension aliases
     property alias upperHeadWidth: _head.upperHeadWidth
     property alias upperHeadHeight: _head.upperHeadHeight
     property alias upperHeadDepth: _head.upperHeadDepth
@@ -84,27 +58,62 @@ BodyPartsGroup {
     property alias lowerHeadDepth: _head.lowerHeadDepth
     property alias chinPointiness: _head.chinPointiness
 
-    // Arms (symmetric - right arm drives both)
+    // Colors
+    property alias headSkinColor: _head.skinColor
+    property alias headHairColor: _head.hairColor
+
+    // ============================================================================
+    // TORSO PROPERTIES
+    // ============================================================================
+    // Absolute dimensions
+    // TODO: Intro waistWidth which allows more upper body shapes (e.g. more female)
+    //property real waistWidth: 2.00 // Default based on shoulderWidth, waistWidthToShoulderWidth ≈0.8
+
+    // Dimension aliases
+    property alias shoulderWidth: _torso.width
+    property alias torsoHeight: _torso.height
+    property alias torsoDepth: _torso.depth
+    property alias hipWidth: _torso.hipWidth
+
+    // Colors
+    property alias torsoColor: _torso.color
+
+    // ============================================================================
+    // ARM PROPERTIES (symmetric - right arm drives both)
+    // ============================================================================
+    // Dimension aliases
     property alias armWidth: _rightArm.width
     property alias armHeight: _rightArm.height
     property alias armDepth: _rightArm.depth
-    
-    // Hands (symmetric - accessed through arm)
+
+    // Hand dimension aliases (accessed through arm)
     property alias handWidth: _rightArm.handWidth
     property alias handHeight: _rightArm.handHeight
     property alias handDepth: _rightArm.handDepth
-    
-    // Legs (symmetric)
+
+    // Colors
+    property alias handColor: _rightArm.handColor
+
+    // ============================================================================
+    // LEG PROPERTIES (symmetric)
+    // ============================================================================
+    // Dimension aliases
     property alias legWidth: _rightLeg.width
     property alias legHeight: _rightLeg.height
     property alias legDepth: _rightLeg.depth
-    
-    // Feet (symmetric - accessed through leg)
+
+    // Foot dimension aliases (accessed through leg)
     property alias footWidth: _rightLeg.footWidth
     property alias footHeight: _rightLeg.footHeight
     property alias footDepth: _rightLeg.footDepth
 
-    // Body Parts (e.g. for animating them)
+    // Colors
+    property alias footColor: _rightLeg.footColor
+    //property alias thoughts: _head.thoughts
+
+    // ============================================================================
+    // BODY PART REFERENCES (for animating them)
+    // ============================================================================
     // and their base (relative) positions
     readonly property Arm leftArm: _leftArm
     readonly property Arm rightArm: _rightArm
@@ -115,12 +124,14 @@ BodyPartsGroup {
     BodyPart {
         id: _torso
 
-        width: _character.shoulderWidth
-        height: 3.667 // Default torso height
-        depth: 1.25 // Default torso depth
+        width: 3.5
+        height: 3.667
+        depth: 1.25
+        property real hipWidth: 3.0
+
         scaledFace: Box3DGeometry.BottomFace
-        faceScale: Qt.vector2d(_character.hipWidth/_character.shoulderWidth, 1)
-        basePos: Qt.vector3d(0, 5.333, 0) // Default leg height
+        faceScale: Qt.vector2d(hipWidth/width, 1.0)
+        basePos: Qt.vector3d(0, 5.333, 0)
 
         Head {
             id: _head
@@ -225,7 +236,7 @@ BodyPartsGroup {
     //         footLength: footLength,
     //         handColor: handColor,
     //         footColor: footColor,
-            
+
     //         // New dimension properties
     //         armWidth: armWidth,
     //         armHeight: armHeight,
