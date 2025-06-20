@@ -18,7 +18,7 @@ BodyPartsGroup {
     property alias idleCycleDuration: _idleAnim.duration
 
     // TODO: Adapt on demand
-    width: Math.max(shoulderWidth, hipWidth)
+    width: Math.max(shoulderWidth, waistWidth, hipWidth)
     height: 10.667 // Default total height (will be recalculated if parts change)
     depth: 10
 
@@ -65,18 +65,25 @@ BodyPartsGroup {
     // ============================================================================
     // TORSO PROPERTIES
     // ============================================================================
-    // Absolute dimensions
-    // TODO: Intro waistWidth which allows more upper body shapes (e.g. more female)
-    //property real waistWidth: 2.00 // Default based on shoulderWidth, waistWidthToShoulderWidth ≈0.8
-
     // Dimension aliases
     property alias shoulderWidth: _torso.width
     property alias torsoHeight: _torso.height
     property alias torsoDepth: _torso.depth
-    property alias hipWidth: _torso.hipWidth
+    property alias waistWidth: _torso.waistWidth
 
     // Colors
     property alias torsoColor: _torso.color
+
+    // ============================================================================
+    // HIP PROPERTIES
+    // ============================================================================
+    // Dimension aliases
+    property alias hipWidth: _hip.width
+    property alias hipHeight: _hip.height
+    property alias hipDepth: _hip.depth
+
+    // Colors
+    property alias hipColor: _hip.color
 
     // ============================================================================
     // ARM PROPERTIES (symmetric - right arm drives both)
@@ -125,12 +132,12 @@ BodyPartsGroup {
         id: _torso
 
         width: 3.5
-        height: 3.667
+        height: 2.5
         depth: 1.25
-        property real hipWidth: 3.0
+        property real waistWidth: 3.0
 
         scaledFace: Box3DGeometry.BottomFace
-        faceScale: Qt.vector2d(hipWidth/width, 1.0)
+        faceScale: Qt.vector2d(waistWidth/width, 1.0)
         basePos: Qt.vector3d(0, 5.333, 0)
 
         Head {
@@ -160,23 +167,36 @@ BodyPartsGroup {
             handColor: _rightArm.handColor
         }
 
-        // // Legs (containing feet)
-        Leg {
-            id: _rightLeg
-            basePos: Qt.vector3d(_character.hipWidth * 0.4, -_torso.height, 0)
-        }
-        Leg {
-            id: _leftLeg
-            basePos: Qt.vector3d(-_character.hipWidth * 0.4, -_torso.height, 0)
-            // Mirror right leg dimensions
-            width: _rightLeg.width
-            height: _rightLeg.height
-            depth: _rightLeg.depth
-            // Mirror foot dimensions and color
-            footWidth: _rightLeg.footWidth
-            footHeight: _rightLeg.footHeight
-            footDepth: _rightLeg.footDepth
-            footColor: _rightLeg.footColor
+        // Hip (containing legs)
+        BodyPart {
+            id: _hip
+            width: 3.0
+            height: 1.167
+            depth: 1.25
+            color: "darkblue"
+
+            scaledFace: Box3DGeometry.TopFace
+            faceScale: Qt.vector2d(_torso.waistWidth/width, 1.0)
+            basePos: Qt.vector3d(0, -_torso.height, 0)
+
+            // Legs (containing feet)
+            Leg {
+                id: _rightLeg
+                basePos: Qt.vector3d(_hip.width * 0.4, -_hip.height, 0)
+            }
+            Leg {
+                id: _leftLeg
+                basePos: Qt.vector3d(-_hip.width * 0.4, -_hip.height, 0)
+                // Mirror right leg dimensions
+                width: _rightLeg.width
+                height: _rightLeg.height
+                depth: _rightLeg.depth
+                // Mirror foot dimensions and color
+                footWidth: _rightLeg.footWidth
+                footHeight: _rightLeg.footHeight
+                footDepth: _rightLeg.footDepth
+                footColor: _rightLeg.footColor
+            }
         }
     }
 
