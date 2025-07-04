@@ -3,6 +3,7 @@
 
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
+#include "clayurlinterceptor.h"
 #include <QObject>
 #include <QQmlApplicationEngine>
 #include <QSqlDatabase>
@@ -20,6 +21,7 @@ class ClayLiveLoader: public QObject
 
 public:
     explicit ClayLiveLoader(QObject *parent = nullptr);
+    ~ClayLiveLoader();
 
     QUrl sandboxUrl() const;
     QString sandboxDir() const;
@@ -60,14 +62,17 @@ private:
     void storeValue(const QString& key, const QString& value);
     void storeErrors(const QString& errors);
     bool restartIfDifferentSbx(const QString &path);
+    int getRevisionNumber(const QUrl& url);
 
 private:
     QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
+    ClayUrlInterceptor* urlInterceptor_;
     QVector<QUrl> allSbxs_;
     int sbxIdx_ = USE_NONE_SBX_IDX;
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
     int numRestarts_ = 0;
+    QHash<QUrl, int> revisionTable_;
 };

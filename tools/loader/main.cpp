@@ -84,6 +84,9 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
+    // Disable QML disk cache for live reloading
+    qputenv("QML_DISABLE_DISK_CACHE", "1");
+    
     QQmlDebuggingEnabler::enableDebugging(true);
 
     QApplication app(argc, argv);

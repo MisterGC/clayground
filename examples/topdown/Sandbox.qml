@@ -5,7 +5,7 @@ import QtQuick.Controls
 Item {
     anchors.fill: parent
 
-    property bool is3D: true
+    property bool is3D: false
 
     Loader {
         anchors.fill: parent
