@@ -48,6 +48,6 @@ static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 
 /** Wait this time (in ms) until reacting on file change
  *  events, so that multiple events within short time period are treated as one. */
-static constexpr int RAPID_CHANGE_CATCHTIME = 100;
+static constexpr int RAPID_CHANGE_CATCHTIME = 50;
 
 void addCommonArgs(QCommandLineParser &parser);

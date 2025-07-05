@@ -10,6 +10,13 @@ add_executable(${PROJECT_NAME}
     main.cpp
     qmlres.qrc
     clayliveloader.cpp
+    clayliveloader.h
+    hotreloadcontainer.cpp
+    hotreloadcontainer.h
+    mainwindow.cpp
+    mainwindow.h
+    retroeffect.cpp
+    retroeffect.h
     main.qml
 )
 

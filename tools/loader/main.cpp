@@ -2,6 +2,7 @@
 
 #include "utilityfunctions.h"
 #include "clayliveloader.h"
+#include "mainwindow.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
@@ -84,6 +85,9 @@ ClayLiveLoader * MsgHandlerWrapper::theLoader = nullptr;
 
 int main(int argc, char *argv[])
 {
+    // Disable QML disk cache for live reloading
+    qputenv("QML_DISABLE_DISK_CACHE", "1");
+    
     QQmlDebuggingEnabler::enableDebugging(true);
 
     QApplication app(argc, argv);
@@ -95,7 +99,6 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     // Style needs to be set before any QML is loaded
-    // -> do it before ClayLiveLoader creation
     if (parser.isSet(GUI_STYLE_ARG)) {
         QQuickStyle::setStyle(parser.value(GUI_STYLE_ARG));
     }
@@ -105,7 +108,10 @@ int main(int argc, char *argv[])
     qInstallMessageHandler(MsgHandlerWrapper::customHandler);
 
     applyCliArgsToLoader(parser, liveLoader);
-    liveLoader.show();
+    
+    // Create and show the main window
+    MainWindow mainWindow(&liveLoader);
+    mainWindow.show();
 
     return app.exec();
 }

@@ -36,8 +36,45 @@ Window {
     Loader {
         id: sbxLoader
         anchors.fill: parent
-        source: ClayLiveLoader.sandboxUrl
-        onSourceChanged: showSbxSourceComp.createObject(parent)
+        asynchronous: false
+        
+        property int revision: 0
+        
+        //source: ClayLiveLoader.sandboxUrl
+        
+        onSourceChanged: {
+            console.log("Loader source changed to:", source)
+            if (source != "") {
+                showSbxSourceComp.createObject(parent)
+            }
+        }
+        
+        onStatusChanged: {
+            console.log("Loader status:", status, "for source:", source)
+            if (status === Loader.Error) {
+                console.error("Failed to load:", source)
+            }
+        }
+
+        Component.onCompleted: _loadSbx()
+
+        function _loadSbx() {
+            // Force reload by briefly clearing the item
+            sbxLoader.sourceComponent = undefined;
+            sbxLoader.source = "";
+            sbxLoader.source = ClayLiveLoader.sandboxUrl;
+            // Qt.callLater(function() {
+            //     sbxLoader.source = ClayLiveLoader.sandboxUrl;
+            // });
+        }
+        
+        Connections {
+            target: ClayLiveLoader
+            function onRestarted() {
+                console.log("Restarted signal received, forcing reload");
+                sbxLoader._loadSbx();
+            }
+        }
     }
 
     Component {
@@ -47,11 +84,11 @@ Window {
 
             font.pixelSize: parent.height * .06
             font.bold: true; color: "white"; anchors.centerIn: parent
-            visible: sbxLoader.source; opacity: 1.0;
+            visible: sbxLoader.source != ""; opacity: 1.0;
 
             Behavior on opacity {NumberAnimation{duration: _lblSrc.ttl}}
             property int ttl: 750
-            property var _sbxUrlEls: sbxLoader.source.toString().split('/')
+            property var _sbxUrlEls: ClayLiveLoader.sandboxUrl.toString().split('/')
             text: _sbxUrlEls.length > 1 ? _sbxUrlEls[_sbxUrlEls.length-2] : ""
 
             Component.onCompleted: opacity = 0
