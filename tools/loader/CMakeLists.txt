@@ -15,6 +15,8 @@ add_executable(${PROJECT_NAME}
     hotreloadcontainer.h
     mainwindow.cpp
     mainwindow.h
+    retroeffect.cpp
+    retroeffect.h
     main.qml
 )
 

@@ -27,6 +27,9 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
 {
     setWindowTitle("Clay Live Loader");
     
+    // Set black background for retro TV feel
+    setStyleSheet("QMainWindow { background-color: black; }");
+    
     // Create central widget
     auto* centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);

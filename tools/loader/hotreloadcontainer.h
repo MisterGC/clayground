@@ -6,6 +6,7 @@
 #include <QQmlEngine>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
+#include <QGraphicsEffect>
 #include <QLabel>
 #include <QUrl>
 #include <memory>
@@ -33,6 +34,9 @@ signals:
     void loadingStarted();
     void loadingFinished();
     
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+    
 private slots:
     void onFadeOutFinished();
     void onFadeInFinished();
@@ -54,8 +58,8 @@ private:
     std::unique_ptr<QQmlEngine> m_engine;
     
     QLabel* m_loadingLabel;
-    QGraphicsOpacityEffect* m_currentEffect;
-    QGraphicsOpacityEffect* m_nextEffect;
+    QGraphicsEffect* m_currentEffect;
+    QGraphicsEffect* m_nextEffect;
     QGraphicsOpacityEffect* m_loadingEffect;
     
     bool m_isReloading;
