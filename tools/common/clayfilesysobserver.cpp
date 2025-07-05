@@ -13,8 +13,8 @@ ClayFileSysObserver::ClayFileSysObserver(QObject *parent) :
 {
     connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
             this, &ClayFileSysObserver::onFileChanged);
-    connect(&fileObserver_, &QFileSystemWatcher::fileChanged,
-            this, &ClayFileSysObserver::onFileChanged);
+    connect(&fileObserver_, &QFileSystemWatcher::directoryChanged,
+            this, &ClayFileSysObserver::onDirChanged);
 }
 
 void ClayFileSysObserver::observeDir(const QString &path)
@@ -24,6 +24,33 @@ void ClayFileSysObserver::observeDir(const QString &path)
         qFatal("%s", msg.c_str());
     }
     syncWithDir(path, true);
+}
+
+void ClayFileSysObserver::observeFile(const QString &path)
+{
+    QFileInfo fileInfo(path);
+    if (fileInfo.exists()) {
+        // Watch both the symlink and the actual file
+        if (!fileObserver_.addPath(path)) {
+            qCritical("File %s couldn't be added for observation!", qUtf8Printable(path));
+        } else {
+            qCInfo(logCat_).noquote() << "Now watching file:" << path;
+        }
+        
+        // If it's a symlink, also watch the target
+        if (fileInfo.isSymLink()) {
+            QString targetPath = fileInfo.canonicalFilePath();
+            if (!targetPath.isEmpty() && QFileInfo::exists(targetPath)) {
+                if (!fileObserver_.addPath(targetPath)) {
+                    qCritical("Symlink target %s couldn't be added for observation!", qUtf8Printable(targetPath));
+                } else {
+                    qCInfo(logCat_).noquote() << "Also watching symlink target:" << targetPath;
+                }
+            }
+        }
+    } else {
+        qCritical("File %s doesn't exist!", qUtf8Printable(path));
+    }
 }
 
 void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
