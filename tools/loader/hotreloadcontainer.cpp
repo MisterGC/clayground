@@ -1,7 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "hotreloadcontainer.h"
-#include "retroeffect.h"
 #include <QVBoxLayout>
 #include <QQmlContext>
 #include <QQmlError>
@@ -119,76 +118,25 @@ void HotReloadContainer::startFadeOut()
     if (!m_currentWidget)
         return;
         
-    // Create retro TV effect
-    auto* retroEffect = new RetroTVEffect();
-    m_currentWidget->setGraphicsEffect(retroEffect);
-    m_currentEffect = retroEffect;
+    // Just hide the current widget immediately
+    m_currentWidget->hide();
     
-    // Create animation group for TV turn-off effect
-    auto* animGroup = new QParallelAnimationGroup(this);
-    
-    // Vertical collapse (like old TV turning off)
-    auto* verticalHold = new QPropertyAnimation(retroEffect, "verticalHold", this);
-    verticalHold->setDuration(800);
-    verticalHold->setStartValue(0.0);
-    verticalHold->setEndValue(0.5);
-    verticalHold->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(verticalHold);
-    
-    // Brightness fade
-    auto* brightness = new QPropertyAnimation(retroEffect, "brightness", this);
-    brightness->setDuration(1000);
-    brightness->setStartValue(1.0);
-    brightness->setEndValue(0.0);
-    brightness->setEasingCurve(QEasingCurve::InOutQuad);
-    animGroup->addAnimation(brightness);
-    
-    // Add noise
-    auto* noise = new QPropertyAnimation(retroEffect, "noiseLevel", this);
-    noise->setDuration(600);
-    noise->setStartValue(0.0);
-    noise->setEndValue(0.3);
-    noise->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(noise);
-    
-    // Chromatic aberration
-    auto* chroma = new QPropertyAnimation(retroEffect, "chromaShift", this);
-    chroma->setDuration(800);
-    chroma->setStartValue(0.0);
-    chroma->setEndValue(5.0);
-    chroma->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(chroma);
-    
-    // Scanlines
-    auto* scanlines = new QPropertyAnimation(retroEffect, "scanlineOffset", this);
-    scanlines->setDuration(1000);
-    scanlines->setStartValue(0.0);
-    scanlines->setEndValue(100.0);
-    animGroup->addAnimation(scanlines);
-    
-    connect(animGroup, &QParallelAnimationGroup::finished, [this, animGroup]() {
-        animGroup->deleteLater();
-        onFadeOutFinished();
-    });
-    
-    animGroup->start();
+    // Go straight to fade out finished
+    onFadeOutFinished();
 }
 
 void HotReloadContainer::onFadeOutFinished()
 {
     showLoadingScreen();
     
-    // Defer engine destruction until after loading screen is visible
-    QTimer::singleShot(100, this, [this]() {
-        // Destroy old engine and create new one
-        destroyCurrentEngine();
-        createNewEngine();
-        
-        // Load content in new widget
-        if (m_nextWidget && !m_source.isEmpty()) {
-            m_nextWidget->setSource(m_source);
-        }
-    });
+    // Start engine operations immediately
+    destroyCurrentEngine();
+    createNewEngine();
+    
+    // Load content in new widget
+    if (m_nextWidget && !m_source.isEmpty()) {
+        m_nextWidget->setSource(m_source);
+    }
 }
 
 void HotReloadContainer::showLoadingScreen()
@@ -198,50 +146,27 @@ void HotReloadContainer::showLoadingScreen()
     m_loadingLabel->show();
     m_loadingLabel->raise();
     
-    // Fade in loading screen
-    auto* fadeIn = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-    fadeIn->setDuration(150);
-    fadeIn->setStartValue(0.0);
-    fadeIn->setEndValue(1.0);
-    
-    connect(fadeIn, &QPropertyAnimation::finished, fadeIn, &QObject::deleteLater);
-    fadeIn->start();
+    // Show immediately at full opacity
+    m_loadingEffect->setOpacity(1.0);
 }
 
 void HotReloadContainer::hideLoadingScreen()
 {
-    // Glitch out the loading screen
-    auto* glitchAnim = new QSequentialAnimationGroup(this);
+    // Start fade in of new content immediately
+    startFadeIn();
     
-    // Quick flashes
-    for (int i = 0; i < 3; ++i) {
-        auto* flash = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-        flash->setDuration(50);
-        flash->setStartValue(1.0);
-        flash->setEndValue(0.2);
-        glitchAnim->addAnimation(flash);
-        
-        auto* flashBack = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-        flashBack->setDuration(50);
-        flashBack->setStartValue(0.2);
-        flashBack->setEndValue(1.0);
-        glitchAnim->addAnimation(flashBack);
-    }
-    
-    // Final fade
+    // Simple quick fade out of loading screen
     auto* fadeOut = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-    fadeOut->setDuration(200);
+    fadeOut->setDuration(100); // Quick 100ms fade
     fadeOut->setStartValue(1.0);
     fadeOut->setEndValue(0.0);
-    glitchAnim->addAnimation(fadeOut);
     
-    connect(glitchAnim, &QSequentialAnimationGroup::finished, [this, glitchAnim]() {
-        glitchAnim->deleteLater();
+    connect(fadeOut, &QPropertyAnimation::finished, [this, fadeOut]() {
+        fadeOut->deleteLater();
         m_loadingLabel->hide();
-        startFadeIn();
     });
     
-    glitchAnim->start();
+    fadeOut->start();
 }
 
 void HotReloadContainer::startFadeIn()
@@ -249,83 +174,27 @@ void HotReloadContainer::startFadeIn()
     if (!m_nextWidget)
         return;
         
-    // Create retro TV turn-on effect
-    auto* retroEffect = new RetroTVEffect();
-    m_nextWidget->setGraphicsEffect(retroEffect);
-    m_nextEffect = retroEffect;
+    // Simple fast fade in
+    auto* opacityEffect = new QGraphicsOpacityEffect();
+    m_nextWidget->setGraphicsEffect(opacityEffect);
+    m_nextEffect = opacityEffect;
     
-    // Start with TV off state
-    retroEffect->setBrightness(0.0);
-    retroEffect->setVerticalHold(0.3);
-    retroEffect->setNoiseLevel(0.5);
-    retroEffect->setChromaShift(8.0);
-    retroEffect->setScanlineOffset(0.0);
+    // Start transparent
+    opacityEffect->setOpacity(0.0);
     
-    // Create animation sequence for TV turn-on
-    auto* animSeq = new QSequentialAnimationGroup(this);
+    // Quick fade in animation
+    auto* fadeIn = new QPropertyAnimation(opacityEffect, "opacity", this);
+    fadeIn->setDuration(150); // Fast 150ms fade
+    fadeIn->setStartValue(0.0);
+    fadeIn->setEndValue(1.0);
+    fadeIn->setEasingCurve(QEasingCurve::OutQuad);
     
-    // First: Quick static burst
-    auto* staticBurst = new QParallelAnimationGroup(this);
-    
-    auto* noise = new QPropertyAnimation(retroEffect, "noiseLevel", this);
-    noise->setDuration(200);
-    noise->setStartValue(0.8);
-    noise->setEndValue(0.1);
-    staticBurst->addAnimation(noise);
-    
-    auto* brightnessBurst = new QPropertyAnimation(retroEffect, "brightness", this);
-    brightnessBurst->setDuration(200);
-    brightnessBurst->setStartValue(0.0);
-    brightnessBurst->setEndValue(0.8);
-    brightnessBurst->setEasingCurve(QEasingCurve::OutQuad);
-    staticBurst->addAnimation(brightnessBurst);
-    
-    animSeq->addAnimation(staticBurst);
-    
-    // Then: Stabilize picture
-    auto* stabilize = new QParallelAnimationGroup(this);
-    
-    auto* brightnessStable = new QPropertyAnimation(retroEffect, "brightness", this);
-    brightnessStable->setDuration(600);
-    brightnessStable->setStartValue(0.8);
-    brightnessStable->setEndValue(1.0);
-    brightnessStable->setEasingCurve(QEasingCurve::InOutQuad);
-    stabilize->addAnimation(brightnessStable);
-    
-    auto* verticalFix = new QPropertyAnimation(retroEffect, "verticalHold", this);
-    verticalFix->setDuration(400);
-    verticalFix->setStartValue(0.3);
-    verticalFix->setEndValue(0.0);
-    verticalFix->setEasingCurve(QEasingCurve::OutBounce);
-    stabilize->addAnimation(verticalFix);
-    
-    auto* chromaFix = new QPropertyAnimation(retroEffect, "chromaShift", this);
-    chromaFix->setDuration(500);
-    chromaFix->setStartValue(8.0);
-    chromaFix->setEndValue(0.0);
-    chromaFix->setEasingCurve(QEasingCurve::OutQuad);
-    stabilize->addAnimation(chromaFix);
-    
-    auto* noiseFade = new QPropertyAnimation(retroEffect, "noiseLevel", this);
-    noiseFade->setDuration(600);
-    noiseFade->setStartValue(0.1);
-    noiseFade->setEndValue(0.0);
-    stabilize->addAnimation(noiseFade);
-    
-    auto* scanlines = new QPropertyAnimation(retroEffect, "scanlineOffset", this);
-    scanlines->setDuration(800);
-    scanlines->setStartValue(0.0);
-    scanlines->setEndValue(50.0);
-    stabilize->addAnimation(scanlines);
-    
-    animSeq->addAnimation(stabilize);
-    
-    connect(animSeq, &QSequentialAnimationGroup::finished, [this, animSeq]() {
-        animSeq->deleteLater();
+    connect(fadeIn, &QPropertyAnimation::finished, [this, fadeIn]() {
+        fadeIn->deleteLater();
         onFadeInFinished();
     });
     
-    animSeq->start();
+    fadeIn->start();
 }
 
 void HotReloadContainer::onFadeInFinished()
@@ -430,9 +299,8 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
         case QQuickWidget::Ready:
             qDebug() << "QML loaded successfully from" << widget->source();
             if (m_isReloading && widget == m_nextWidget.get()) {
-                // Widget is already shown but transparent
-                // Small delay to ensure rendering is complete
-                QTimer::singleShot(100, this, &HotReloadContainer::hideLoadingScreen);
+                // Hide loading screen immediately
+                hideLoadingScreen();
             }
             break;
             
