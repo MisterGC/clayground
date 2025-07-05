@@ -119,59 +119,11 @@ void HotReloadContainer::startFadeOut()
     if (!m_currentWidget)
         return;
         
-    // Create retro TV effect
-    auto* retroEffect = new RetroTVEffect();
-    m_currentWidget->setGraphicsEffect(retroEffect);
-    m_currentEffect = retroEffect;
+    // Just hide the current widget immediately
+    m_currentWidget->hide();
     
-    // Create animation group for TV turn-off effect
-    auto* animGroup = new QParallelAnimationGroup(this);
-    
-    // Vertical collapse (like old TV turning off)
-    auto* verticalHold = new QPropertyAnimation(retroEffect, "verticalHold", this);
-    verticalHold->setDuration(800);
-    verticalHold->setStartValue(0.0);
-    verticalHold->setEndValue(0.5);
-    verticalHold->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(verticalHold);
-    
-    // Brightness fade
-    auto* brightness = new QPropertyAnimation(retroEffect, "brightness", this);
-    brightness->setDuration(1000);
-    brightness->setStartValue(1.0);
-    brightness->setEndValue(0.0);
-    brightness->setEasingCurve(QEasingCurve::InOutQuad);
-    animGroup->addAnimation(brightness);
-    
-    // Add noise
-    auto* noise = new QPropertyAnimation(retroEffect, "noiseLevel", this);
-    noise->setDuration(600);
-    noise->setStartValue(0.0);
-    noise->setEndValue(0.3);
-    noise->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(noise);
-    
-    // Chromatic aberration
-    auto* chroma = new QPropertyAnimation(retroEffect, "chromaShift", this);
-    chroma->setDuration(800);
-    chroma->setStartValue(0.0);
-    chroma->setEndValue(5.0);
-    chroma->setEasingCurve(QEasingCurve::InQuad);
-    animGroup->addAnimation(chroma);
-    
-    // Scanlines
-    auto* scanlines = new QPropertyAnimation(retroEffect, "scanlineOffset", this);
-    scanlines->setDuration(1000);
-    scanlines->setStartValue(0.0);
-    scanlines->setEndValue(100.0);
-    animGroup->addAnimation(scanlines);
-    
-    connect(animGroup, &QParallelAnimationGroup::finished, [this, animGroup]() {
-        animGroup->deleteLater();
-        onFadeOutFinished();
-    });
-    
-    animGroup->start();
+    // Go straight to fade out finished
+    onFadeOutFinished();
 }
 
 void HotReloadContainer::onFadeOutFinished()
@@ -198,9 +150,9 @@ void HotReloadContainer::showLoadingScreen()
     m_loadingLabel->show();
     m_loadingLabel->raise();
     
-    // Fade in loading screen
+    // Fade in loading screen quickly
     auto* fadeIn = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-    fadeIn->setDuration(150);
+    fadeIn->setDuration(100);
     fadeIn->setStartValue(0.0);
     fadeIn->setEndValue(1.0);
     
@@ -214,15 +166,15 @@ void HotReloadContainer::hideLoadingScreen()
     auto* glitchAnim = new QSequentialAnimationGroup(this);
     
     // Quick flashes
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 2; ++i) {
         auto* flash = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-        flash->setDuration(50);
+        flash->setDuration(30);
         flash->setStartValue(1.0);
         flash->setEndValue(0.2);
         glitchAnim->addAnimation(flash);
         
         auto* flashBack = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-        flashBack->setDuration(50);
+        flashBack->setDuration(30);
         flashBack->setStartValue(0.2);
         flashBack->setEndValue(1.0);
         glitchAnim->addAnimation(flashBack);
@@ -230,7 +182,7 @@ void HotReloadContainer::hideLoadingScreen()
     
     // Final fade
     auto* fadeOut = new QPropertyAnimation(m_loadingEffect, "opacity", this);
-    fadeOut->setDuration(200);
+    fadeOut->setDuration(100);
     fadeOut->setStartValue(1.0);
     fadeOut->setEndValue(0.0);
     glitchAnim->addAnimation(fadeOut);
@@ -432,7 +384,7 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
             if (m_isReloading && widget == m_nextWidget.get()) {
                 // Widget is already shown but transparent
                 // Small delay to ensure rendering is complete
-                QTimer::singleShot(100, this, &HotReloadContainer::hideLoadingScreen);
+                QTimer::singleShot(50, this, &HotReloadContainer::hideLoadingScreen);
             }
             break;
             
