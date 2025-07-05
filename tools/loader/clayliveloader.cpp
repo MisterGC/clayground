@@ -8,8 +8,6 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QLibrary>
-#include <QQmlContext>
-#include <QQmlComponent>
 #include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -27,15 +25,6 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
     connect(&fileObserver_, &Cfo::fileChanged, this, &Cll::onFileChanged);
     connect(&fileObserver_, &Cfo::fileAdded, this, &Cll::onFileAdded);
     connect(&fileObserver_, &Cfo::fileRemoved, this, &Cll::onFileRemoved);
-    connect(&engine_, &QQmlEngine::warnings, this, &Cll::onEngineWarnings);
-
-    // Create and install URL interceptor
-    urlInterceptor_ = new ClayUrlInterceptor();
-    engine_.addUrlInterceptor(urlInterceptor_);
-
-    engine_.rootContext()->setContextProperty("ClayLiveLoader", this);
-    engine_.addImportPath("qml");
-    engine_.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     reload_.setSingleShot(true);
     connect(&reload_, &QTimer::timeout, this, &Cll::onTimeToRestart);
@@ -45,7 +34,6 @@ ClayLiveLoader::ClayLiveLoader(QObject *parent)
 
 ClayLiveLoader::~ClayLiveLoader()
 {
-    delete urlInterceptor_;
 }
 
 bool ClayLiveLoader::isQmlPlugin(const QString& path) const
@@ -53,40 +41,22 @@ bool ClayLiveLoader::isQmlPlugin(const QString& path) const
     return QLibrary::isLibrary(path);
 }
 
-void ClayLiveLoader::storeValue(const QString &key, const QString &value)
+QStringList ClayLiveLoader::sandboxes() const
 {
-   if (!statsDb_.isOpen()) {
-       statsDb_.setDatabaseName(engine_.offlineStorageDatabaseFilePath("clayrtdb") + ".sqlite");
-       if (!statsDb_.open()) qFatal("Cannot access offline storage!");
-   }
-
-   QSqlQuery query;
-   query.prepare("INSERT OR REPLACE INTO keyvalue (key, value) VALUES (:k, :v)");
-   query.bindValue(":k", key);
-   query.bindValue(":v", value);
-   if (!query.exec())
-       qCritical("Failed to update value in database: %s",
-                 qUtf8Printable(query.lastError().text()));
+    QStringList sbxs;
+    for (auto const& url: allSbxs_)
+    {
+        sbxs << url.toLocalFile();
+    }
+    return sbxs;
 }
 
-void ClayLiveLoader::storeErrors(const QString &errors)
+void ClayLiveLoader::addDynImportDirs(const QStringList &dirs)
 {
-   storeValue("lastErrorMsg", errors);
-}
-
-void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
-{
-    storeValue("command", QString("restart %1").arg(sbxIdx));
-}
-
-int ClayLiveLoader::numRestarts() const
-{
-    return numRestarts_;
-}
-
-void ClayLiveLoader::postMessage(const QString &message)
-{
-   emit messagePosted(message);
+    for (auto const& dir: dirs)
+    {
+        addDynImportDir(dir);
+    }
 }
 
 QString ClayLiveLoader::altMessage() const
@@ -96,30 +66,63 @@ QString ClayLiveLoader::altMessage() const
 
 void ClayLiveLoader::setAltMessage(const QString &altMessage)
 {
-    if (altMessage != altMessage_) {
-        altMessage_ = altMessage;
-        emit altMessageChanged();
-    }
+    altMessage_ = altMessage;
+    emit altMessageChanged();
 }
 
-void ClayLiveLoader::addDynImportDirs(const QStringList& dirs)
+int ClayLiveLoader::numRestarts() const
 {
-    for (auto const& dir: dirs) {
-        if (QDir(dir).exists()) addDynImportDir(dir);
-        else
-        {
-            qCritical() << "Tried to add import dir '" << dir
-                        << "' but this directory doesn't exist.";
+    return numRestarts_;
+}
+
+void ClayLiveLoader::postMessage(const QString &message)
+{
+    emit messagePosted(message);
+}
+
+void ClayLiveLoader::restartSandbox(uint8_t sbxIdx)
+{
+    setSbxIndex(sbxIdx);
+}
+
+void ClayLiveLoader::storeValue(const QString &key, const QString &value)
+{
+    if (!statsDb_.isOpen())
+    {
+        auto const theDbName = "/tmp/claystats.db";
+        statsDb_.setDatabaseName(theDbName);
+        if (!statsDb_.open()) {
+            qCritical() << statsDb_.lastError() << "Cannot open database:" << theDbName;
+            return;
         }
+        QSqlQuery crtTable("CREATE TABLE IF NOT EXISTS items (k string primary key, v string)", statsDb_);
+        if (crtTable.lastError().text().size()>1) qCritical() << crtTable.lastError();
     }
+    QSqlQuery insItem(statsDb_);
+    insItem.prepare("INSERT OR REPLACE INTO items VALUES(:k,:v)");
+    insItem.bindValue(":k", key);
+    insItem.bindValue(":v", value);
+    insItem.exec();
+    if (insItem.lastError().text().size()>1) qCritical() << insItem.lastError();
+}
+
+void ClayLiveLoader::storeErrors(const QString& errors)
+{
+    storeValue("errors", errors);
 }
 
 void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 {
-    auto const cnt = allSbxs_.size();
-    for (auto const& sbx: sbxFiles) {
+    for (auto const& sbx: sbxFiles)
+    {
         QFileInfo sbxTest(sbx);
-        if (sbxTest.exists()) {
+        if (!sbxTest.exists())
+        {
+            qInfo() << "\n\nSandbox file" << sbx << "doesn't exist.\n";
+            continue;
+        }
+        else
+        {
             qInfo() << "\n\nAdd Sandbox: " << sbx;
             auto const dir = sbxTest.absoluteDir().absolutePath();
             fileObserver_.observeDir(dir);
@@ -131,40 +134,19 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
             allSbxs_ << url;
             qInfo() << "\n";
         }
-        else
-            qCritical() << "File " << sbx << " doesn't exist -> don't add sbx.";
     }
-
-    if (allSbxs_.size() != cnt) emit sandboxesChanged();
-    if (allSbxs_.isEmpty())
-        qFatal("No sandbox specified or available -> cannot use any.'");
+    emit sandboxesChanged();
 }
-
-QStringList ClayLiveLoader::sandboxes() const
-{
-   QStringList lst;
-   for (auto const& sbx: allSbxs_) lst << sbx.toString();
-   return lst;
-}
-
 
 void ClayLiveLoader::addDynImportDir(const QString &path)
 {
-    if (!engine_.importPathList().contains(path)){
-        engine_.addImportPath(path);
-        fileObserver_.observeDir(path);
-    }
+    fileObserver_.observeDir(path);
 }
 
 void ClayLiveLoader::addDynPluginDir(const QString &path)
 {
-    if (!engine_.importPathList().contains(path))
-        engine_.addImportPath(path);
-}
-
-void ClayLiveLoader::show()
-{
-    engine_.load(QUrl("qrc:/clayground/main.qml"));
+    // Just observe the directory for changes
+    fileObserver_.observeDir(path);
 }
 
 void ClayLiveLoader::onTimeToRestart()
@@ -177,7 +159,7 @@ void ClayLiveLoader::onTimeToRestart()
     // Increment restart counter
     numRestarts_++;
     
-    // Simply emit the restarted signal - the QML side will handle the reload
+    // Simply emit the restarted signal
     emit restarted();
     
     qInfo() << "Sandbox reloaded, total restarts:" << numRestarts_;
@@ -232,67 +214,23 @@ void ClayLiveLoader::onFileChanged(const QString &path)
 
 void ClayLiveLoader::onFileAdded(const QString &path)
 {
-    onFileChanged(path);
+    qInfo() << "++ FILE ADDED" << path;
+    if (isQmlPlugin(path)) QGuiApplication::quit();
 }
 
 void ClayLiveLoader::onFileRemoved(const QString &path)
 {
-    onFileChanged(path);
+    qInfo() << "-- FILE REMOVED" << path;
+    if (isQmlPlugin(path)) QGuiApplication::quit();
 }
 
-void ClayLiveLoader::onEngineWarnings(const QList<QQmlError> &warnings)
-{
-   QString errors = "";
-   for (auto const& w: warnings)
-       errors += (w.toString() + "\n");
-   storeErrors(errors);
-}
 
 void ClayLiveLoader::clearCache()
 {
-    // Force garbage collection first
-    engine_.collectGarbage();
-    
-    // Clear all caches
-    engine_.trimComponentCache();
-    engine_.clearComponentCache();
-    
-    // Clear type registrations for the sandbox directory
-    // This forces Qt to re-evaluate all QML files
-    if (sbxIdx_ >= 0 && sbxIdx_ < allSbxs_.size()) {
-        QString dir = QFileInfo(allSbxs_[sbxIdx_].toLocalFile()).absolutePath();
-        // Force re-scan of the directory by re-adding it
-        auto importPaths = engine_.importPathList();
-        if (importPaths.contains(dir)) {
-            // Qt doesn't have removeImportPath, so we clear all and re-add
-            for (const auto& path : importPaths) {
-                if (path != dir) {
-                    engine_.addImportPath(path);
-                }
-            }
-            engine_.addImportPath(dir);
-        }
-    }
-    
-    // Reset URL interceptor cache
-    urlInterceptor_->resetCache();
-    
-    // Force re-evaluation of all bindings
-    engine_.retranslate();
-    
+    // In the new architecture, cache clearing is handled by HotReloadContainer
+    // This method is kept for compatibility but does minimal work
     storeErrors("");
 }
-
-int ClayLiveLoader::getRevisionNumber(const QUrl& url)
-{
-    if (revisionTable_.contains(url)) {
-        revisionTable_[url] = revisionTable_[url] + 1;
-    } else {
-        revisionTable_[url] = 0;
-    }
-    return revisionTable_[url];
-}
-
 
 QUrl ClayLiveLoader::sandboxUrl() const
 {

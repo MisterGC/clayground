@@ -3,9 +3,7 @@
 
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
-#include "clayurlinterceptor.h"
 #include <QObject>
-#include <QQmlApplicationEngine>
 #include <QSqlDatabase>
 #include <QTimer>
 #include <QUrl>
@@ -30,7 +28,6 @@ public:
     QStringList sandboxes() const;
     void addDynImportDirs(const QStringList &dirs);
     void addDynPluginDir(const QString& path);
-    void show();
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);
     int numRestarts() const;
@@ -51,7 +48,6 @@ private slots:
     void onFileChanged(const QString& path);
     void onFileAdded(const QString& path);
     void onFileRemoved(const QString& path);
-    void onEngineWarnings(const QList<QQmlError>& warnings);
     void onTimeToRestart();
 
 private:
@@ -62,17 +58,13 @@ private:
     void storeValue(const QString& key, const QString& value);
     void storeErrors(const QString& errors);
     bool restartIfDifferentSbx(const QString &path);
-    int getRevisionNumber(const QUrl& url);
 
 private:
-    QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
-    ClayUrlInterceptor* urlInterceptor_;
     QVector<QUrl> allSbxs_;
     int sbxIdx_ = USE_NONE_SBX_IDX;
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
     int numRestarts_ = 0;
-    QHash<QUrl, int> revisionTable_;
 };

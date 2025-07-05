@@ -11,8 +11,10 @@ add_executable(${PROJECT_NAME}
     qmlres.qrc
     clayliveloader.cpp
     clayliveloader.h
-    clayurlinterceptor.cpp
-    clayurlinterceptor.h
+    hotreloadcontainer.cpp
+    hotreloadcontainer.h
+    mainwindow.cpp
+    mainwindow.h
     main.qml
 )
 
