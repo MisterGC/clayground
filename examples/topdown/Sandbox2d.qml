@@ -18,9 +18,7 @@ ClayWorld2d {
     debugRendering: false
     anchors.fill: parent
 
-    Component.onCompleted: {
-        scene = "map.svg"
-    }
+    Component.onCompleted: scene = "map.svg"
 
     // Set this property to true if you want to run the app
     // on multiple computers within one LAN
@@ -54,7 +52,7 @@ ClayWorld2d {
     GameController {id: theGameCtrl; anchors.fill: parent; Component.onCompleted: selectTouchscreenGamepad();}
 
     onMapEntityCreated: (obj, groupId, cfg) => {
-        if (cfg === "Player") {
+        if (obj instanceof Player2d) {
             player = obj;
             player.color = "#d45500";
             if (multiplayer) {
