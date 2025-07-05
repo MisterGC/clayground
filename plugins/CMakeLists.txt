@@ -7,6 +7,7 @@ add_subdirectory (clay_common)
 add_subdirectory (clay_text)
 
 add_subdirectory (clay_canvas)
+add_subdirectory (clay_canvas3d)
 add_subdirectory (clay_gamecontroller)
 add_subdirectory (clay_storage)
 add_subdirectory (clay_svg)
