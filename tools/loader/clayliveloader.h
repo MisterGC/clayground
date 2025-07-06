@@ -4,7 +4,6 @@
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
 #include <QObject>
-#include <QQmlApplicationEngine>
 #include <QSqlDatabase>
 #include <QTimer>
 #include <QUrl>
@@ -20,6 +19,7 @@ class ClayLiveLoader: public QObject
 
 public:
     explicit ClayLiveLoader(QObject *parent = nullptr);
+    ~ClayLiveLoader();
 
     QUrl sandboxUrl() const;
     QString sandboxDir() const;
@@ -28,7 +28,6 @@ public:
     QStringList sandboxes() const;
     void addDynImportDirs(const QStringList &dirs);
     void addDynPluginDir(const QString& path);
-    void show();
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);
     int numRestarts() const;
@@ -49,7 +48,6 @@ private slots:
     void onFileChanged(const QString& path);
     void onFileAdded(const QString& path);
     void onFileRemoved(const QString& path);
-    void onEngineWarnings(const QList<QQmlError>& warnings);
     void onTimeToRestart();
 
 private:
@@ -62,7 +60,6 @@ private:
     bool restartIfDifferentSbx(const QString &path);
 
 private:
-    QQmlApplicationEngine engine_;
     ClayFileSysObserver fileObserver_;
     QVector<QUrl> allSbxs_;
     int sbxIdx_ = USE_NONE_SBX_IDX;

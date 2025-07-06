@@ -14,6 +14,9 @@ public:
 
     // Observes directory recursively
     void observeDir(const QString& path);
+    
+    // Observes a single file
+    void observeFile(const QString& path);
 
 signals:
     void fileChanged(const QString& path);

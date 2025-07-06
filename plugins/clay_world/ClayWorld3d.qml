@@ -19,13 +19,14 @@ ClayWorldBase {
 
     // Camera properties
     property alias observedObject: _cameraRoot.parent
+    property vector3d observationOffset: Qt.vector3d(0,100,0)
     property alias camera: _camera
     // If true the camera can be moved around with WASD keys
     readonly property bool freeCamera: observedObject == _freeCamEnabled
     onObservedObjectChanged: {
         if (observedObject != _freeCamEnabled)
         {
-           camera.position = Qt.vector3d(0,1200,0)
+           camera.position = Qt.binding(function() { return _clayWorld3d.observationOffset; })
         }
     }
 

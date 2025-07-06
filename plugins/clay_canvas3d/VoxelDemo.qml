@@ -333,58 +333,166 @@ View3D {
         }
     }
 
-
     Component {
-        id: textDemo
+        id: instancingDemo
 
         Node {
             x: -100
-            z: 250
+            z: -100
 
+            // Ground plane
+            Model {
+                source: "#Rectangle"
+                scale: Qt.vector3d(20, 20, 1)
+                eulerRotation.x: -90
+                y: -1
+                materials: PrincipledMaterial {
+                    baseColor: "#1a1a1a"
+                    roughness: 1.0
+                }
+            }
+
+            // Forest of trees using StaticVoxelMap with TRUE GPU instancing
             StaticVoxelMap {
-                width: 50
-                height: 20
-                depth: 10
-                voxelSize: 4
-                spacing: 0.5
+                id: forestMap
+                width: 7
+                height: 12
+                depth: 7
+                voxelSize: 3
                 showEdges: true
+                edgeColorFactor: 0.7
                 useToonShading: toonControls.useToonShading
 
-                Component.onCompleted: {
-                    // Create "3D" text using voxels
-                    var pattern = [
-                        "  333  DDD  ",
-                        "    3  D  D ",
-                        "  333  D  D ",
-                        "    3  D  D ",
-                        "  333  DDD  "
-                    ]
+                // TRUE Qt Quick 3D GPU instancing with InstanceList
+                instancing: InstanceList {
+                    id: forestInstances
+                    instances: generateForestInstances()
+                    
+                    function generateForestInstances() {
+                        var result = []
+                        var numInstances = toonControls.numTrees
+                        var gridSize = Math.ceil(Math.sqrt(numInstances))
+                        var spacing = Math.max(40, 3000 / gridSize) // Adjust spacing based on grid size
+                        var centerOffset = (gridSize - 1) * spacing * 0.5
+                        
+                        for (var i = 0; i < numInstances; i++) {
+                            var gridX = i % gridSize
+                            var gridZ = Math.floor(i / gridSize)
+                            
+                            // Base grid position
+                            var baseX = gridX * spacing - centerOffset
+                            var baseZ = gridZ * spacing - centerOffset
+                            
+                            // Add random offset for organic look (up to 30% of spacing)
+                            var randomSeed = i * 1.234
+                            var offsetRange = spacing * 0.3
+                            var offsetX = (randomSeed % 1) * offsetRange - offsetRange * 0.5
+                            var offsetZ = ((randomSeed * 2.7) % 1) * offsetRange - offsetRange * 0.5
+                            
+                            var finalX = baseX + offsetX
+                            var finalZ = baseZ + offsetZ
+                            
+                            result.push(
+                                Qt.createQmlObject(`
+                                    import QtQuick3D
+                                    InstanceListEntry {
+                                        position: Qt.vector3d(${finalX}, 0, ${finalZ})
+                                        scale: Qt.vector3d(${0.8 + (randomSeed % 0.4)}, 
+                                                          ${0.9 + ((randomSeed * 2.3) % 0.3)}, 
+                                                          ${0.8 + ((randomSeed * 1.7) % 0.4)})
+                                        eulerRotation: Qt.vector3d(0, ${randomSeed * 137.5 % 360}, 0)
+                                    }
+                                `, forestMap, "instance" + i)
+                            )
+                        }
+                        return result
+                    }
+                }
 
-                    // Draw the text pattern
-                    for (var row = 0; row < pattern.length; row++) {
-                        for (var col = 0; col < pattern[row].length; col++) {
-                            if (pattern[row][col] !== " ") {
-                                var color = pattern[row][col] === "3" ? "#e74c3c" : "#3498db"
-                                // Create 3D depth for each character
-                                for (var z = 0; z < 6; z++) {
-                                    // X position based on column
-                                    var x = col * 3 + 5
-                                    // Y position based on inverted row (top to bottom)
-                                    var y = (pattern.length - 1 - row) * 3 + 5
-                                    set(x, y, z, color)
-                                    set(x + 1, y, z, color)  // Make chars 2 voxels wide
-                                    set(x, y + 1, z, color)  // Make chars 2 voxels tall
-                                    set(x + 1, y + 1, z, color)
-                                }
+                Component.onCompleted: {
+                    // Create a single tree shape that will be GPU-instanced 25 times
+                    fill([
+                        // Trunk (brown cylinder)
+                        {
+                            cylinder: {
+                                pos: Qt.vector3d(3, 0, 3),
+                                radius: 1,
+                                height: 6,
+                                colors: [{ color: "#8B4513", weight: 1.0 }]
+                            }
+                        },
+                        // Leaves (green sphere with slight color variation)
+                        {
+                            sphere: {
+                                pos: Qt.vector3d(3, 8, 3),
+                                radius: 3,
+                                colors: [
+                                    { color: "#228B22", weight: 0.7 },
+                                    { color: "#32CD32", weight: 0.3 }
+                                ]
                             }
                         }
-                    }
-
+                    ])
                     model.commit()
+                    console.log("StaticVoxelMap with TRUE GPU instancing - tree geometry ready for instancing!")
+                }
+            }
+
+            // Info panel explaining instancing
+            Rectangle {
+                x: -200
+                y: -250
+                z: 200
+                width: 400
+                height: 100
+                color: "#2c3e50"
+                border.color: "#34495e"
+                border.width: 2
+                radius: 5
+                opacity: 0.9
+                
+                transform: [
+                    Rotation { axis: Qt.vector3d(1, 0, 0); angle: -45 }
+                ]
+                
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 5
+                    
+                    Text {
+                        text: "Forest of " + toonControls.numTrees + " Trees using GPU Instancing"
+                        color: "white"
+                        font.pixelSize: 16
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    
+                    Text {
+                        text: "Single StaticVoxelMap + InstanceList = " + toonControls.numTrees + " trees from 1 geometry"
+                        color: "#ecf0f1"
+                        font.pixelSize: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    
+                    Text {
+                        text: "✅ StaticVoxelMap supports Qt Quick 3D's instancing property!"
+                        color: "#27ae60"
+                        font.pixelSize: 11
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    
+                    Text {
+                        text: "❌ DynamicVoxelMap uses VoxelMapInstancing internally, can't be instanced"
+                        color: "#e74c3c"
+                        font.pixelSize: 11
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
                 }
             }
         }
     }
+
+
 
     // Demo loader - only loads the active demo
     Loader3D {
@@ -396,7 +504,7 @@ View3D {
             terrainDemo,
             waveDemo,
             shapesDemo,
-            textDemo
+            instancingDemo
         ]
 
         sourceComponent: demoComponents[currentDemoIndex]
@@ -457,6 +565,9 @@ View3D {
             property int terrainWidth: 20
             property int terrainHeight: 20
             property int terrainDepth: 20
+            
+            // Forest controls
+            property int numTrees: 25
 
             Column {
                 id: controlColumn
@@ -481,10 +592,10 @@ View3D {
 
                     Repeater {
                         model: [
-                            "Realistic Terrain",
+                            "Terrain",
                             "Dynamic Wave", 
                             "Shape Filling",
-                            "Voxel Text"
+                            "GPU Instancing"
                         ]
 
                         Rectangle {
@@ -702,6 +813,82 @@ View3D {
                         horizontalAlignment: Text.AlignHCenter
                     }
                 }
+                
+                // ========== FOREST CONTROLS (only visible for instancing demo) ==========
+                Column {
+                    width: parent.width
+                    spacing: 10
+                    visible: demoLoader.currentDemoIndex === 3  // Instancing demo
+                    
+                    // Separator
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: "#34495e"
+                    }
+                    
+                    Text {
+                        text: "Forest Generation"
+                        color: "white"
+                        font.bold: true
+                        font.pixelSize: 14
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    
+                    // Tree count control
+                    Column {
+                        width: parent.width
+                        spacing: 5
+                        
+                        Text {
+                            text: "Number of Trees: " + toonControls.numTrees
+                            color: "white"
+                            font.pixelSize: 11
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                        
+                        Slider {
+                            id: treeCountSlider
+                            width: parent.width - 20
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            from: 1
+                            to: 10000
+                            value: toonControls.numTrees
+                            stepSize: 1
+                            onValueChanged: {
+                                toonControls.numTrees = Math.round(value)
+                                // Regenerate instances when slider changes
+                                Qt.callLater(function() {
+                                    if (typeof forestInstances !== "undefined") {
+                                        forestInstances.instances = forestInstances.generateForestInstances()
+                                    }
+                                })
+                            }
+                        }
+                    }
+                    
+                    // Forest info
+                    Text {
+                        width: parent.width
+                        text: "GPU instances: " + toonControls.numTrees.toLocaleString() + 
+                              "\nSingle geometry with random positions and scales"
+                        color: "#ecf0f1"
+                        font.pixelSize: 9
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    
+                    // Performance info
+                    Text {
+                        width: parent.width
+                        visible: toonControls.numTrees > 5000
+                        text: toonControls.numTrees > 8000 ? "🔥 Stress testing GPU instancing!" : "⚡ Testing GPU instancing performance"
+                        color: toonControls.numTrees > 8000 ? "#e74c3c" : "#f39c12"
+                        font.pixelSize: 9
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
             }
         }
 
@@ -719,13 +906,39 @@ View3D {
             }
 
             Text {
-                text: "Realistic Terrain: Procedural generation with water, grass, rock layers"
+                text: {
+                    switch(demoLoader.currentDemoIndex) {
+                    case 0:
+                        return "Terrain: Demonstrates DynamicVoxelMap with procedural generation and per-voxel coloring"
+                    case 1:
+                        return "Dynamic Wave: Shows real-time voxel updates and smooth animations using DynamicVoxelMap"
+                    case 2:
+                        return "Shape Filling: Demonstrates StaticVoxelMap's fill() API with sphere, box, and cylinder primitives"
+                    case 3:
+                        return "GPU Instancing: Demonstrates StaticVoxelMap with Qt Quick 3D's instancing property"
+                    default:
+                        return ""
+                    }
+                }
                 color: "#95a5a6"
                 font.pixelSize: 12
             }
 
             Text {
-                text: "Scalable up to 200x100x200 voxels • Supports toon shading"
+                text: {
+                    switch(demoLoader.currentDemoIndex) {
+                    case 0:
+                        return "Features multi-layered terrain with water, grass, rock, sand, and snow • Scalable up to 200x100x200"
+                    case 1:
+                        return "Updates 30x15x30 voxels at 33 FPS • Shows depth-based coloring and wave physics"
+                    case 2:
+                        return "Uses batch filling for efficient static geometry • Supports edge rendering and toon shading"
+                    case 3:
+                        return "Single geometry instanced up to 10k times by GPU • Use slider to test performance"
+                    default:
+                        return ""
+                    }
+                }
                 color: "#95a5a6"
                 font.pixelSize: 12
             }

@@ -23,8 +23,8 @@ SceneLoaderBase
                             {
                                 "position.x": x,
                                 "position.z": z,
-                                "dimensions.x": width,
-                                "dimensions.z": height,
+                                "width": width,
+                                "depth": height,
                             });
                         onIncubationInitiated(inc, _currentGroupId(), cfg);
                         return;
