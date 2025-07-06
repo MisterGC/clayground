@@ -11,6 +11,12 @@ Model {
     property real width: 1.0
     property real height: width
     property real depth:  width
+    
+    // Origin point: The box's origin (0,0,0) is at the bottom center.
+    // - X axis: centered (extends from -width/2 to +width/2)
+    // - Y axis: bottom-aligned (extends from 0 to height)
+    // - Z axis: centered (extends from -depth/2 to +depth/2)
+    // This means when y=0, the bottom face of the box sits on the ground plane.
 
     // Modifyable dimension of the top rectangle
     property alias scaledFace: _geometry.scaledFace
