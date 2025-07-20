@@ -1,7 +1,16 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+// Import Strategy:
+// - Subdirectories use relative imports (e.g., 'import ".."' to access root)
+// - This enables hot-reloading in sandbox development
+// - Example files use module imports to demonstrate proper usage
+// - Internal components use relative imports for cross-directory access
+
 import QtQuick
 import Clayground.Canvas3D
 import Clayground.Storage
+import "bodyparts"
+import "animation"
 
 pragma ComponentBehavior: Bound
 

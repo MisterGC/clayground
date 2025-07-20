@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers
 
-// Import the Character component if it's in the same directory or adjust path
-import "."
+// Import the Character component from parent directory
+import ".."
 
 PerspectiveCamera {
     id: rootCamera

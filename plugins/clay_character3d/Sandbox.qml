@@ -1,11 +1,11 @@
-// (c) serein.pfeiffer@gmail.com - zlib license, see "LICENSE" file
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
-import Clayground.Character3D
 import Clayground.GameController
+import "control"
 
 Item {
     id: root

@@ -6,34 +6,32 @@ clay_plugin( Character3D
 
     QML_FILES
         Sandbox.qml
+
         # Core Components
         Character.qml
         RatioBasedCharacter.qml
-        CharacterCamera.qml
-        CharacterController.qml
+        ThoughtBubble.qml
+        
         # Body System
-        BodyPart.qml
-        BodyPartsGroup.qml
-        Head.qml
-        Arm.qml
-        Leg.qml
-        Hand.qml
-        Foot.qml
+        bodyparts/BodyPart.qml
+        bodyparts/BodyPartsGroup.qml
+        bodyparts/Head.qml
+        bodyparts/Arm.qml
+        bodyparts/Leg.qml
+        bodyparts/Hand.qml
+        bodyparts/Foot.qml
+        
         # Animation System
-        ProceduralAnim.qml
-        WalkAnim.qml
-        IdleAnim.qml
-        PosAnim.qml
-        EulerAnim.qml
-        PosAndEulerAnim.qml
-        # Configuration UI
-        #CharacterConfigGui.qml
-        #ColorControl.qml
-        #ThoughtBubble.qml
-        # Examples
-        #BasicCharacterExample.qml
-        #AnimationShowcase.qml
-        #CharacterCustomization.qml
+        animation/ProceduralAnim.qml
+        animation/WalkAnim.qml
+        animation/IdleAnim.qml
+        animation/PosAnim.qml
+        animation/EulerAnim.qml
+        animation/PosAndEulerAnim.qml
+        
+        # Control System
+        control/CharacterCamera.qml
+        control/CharacterController.qml
 
     LINK_LIBS
         Qt::Core
