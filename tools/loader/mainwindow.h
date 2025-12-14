@@ -38,11 +38,11 @@ private:
     void showAltMessage();
     
 private:
-    ClayLiveLoader* m_liveLoader;
-    HotReloadContainer* m_container;
-    QQuickWidget* m_logOverlay;
-    QQuickWidget* m_guideOverlay;
-    
-    bool m_logVisible;
-    bool m_guideVisible;
+    ClayLiveLoader* m_liveLoader = nullptr;
+    HotReloadContainer* m_container = nullptr;
+    QQuickWidget* m_logOverlay = nullptr;
+    QQuickWidget* m_guideOverlay = nullptr;
+
+    bool m_logVisible = false;
+    bool m_guideVisible = false;
 };

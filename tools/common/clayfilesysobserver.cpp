@@ -20,8 +20,12 @@ ClayFileSysObserver::ClayFileSysObserver(QObject *parent) :
 void ClayFileSysObserver::observeDir(const QString &path)
 {
     if (!QDir(path).exists()) {
-        auto msg = QString("Dir %1 doesn't exist.").arg(path).toStdString();
-        qFatal("%s", msg.c_str());
+        qCWarning(logCat_) << "Directory" << path << "doesn't exist";
+        return;
+    }
+    // Skip if already watching this directory (avoid duplicate sync)
+    if (fileObserver_.directories().contains(path)) {
+        return;
     }
     syncWithDir(path, true);
 }
@@ -29,54 +33,62 @@ void ClayFileSysObserver::observeDir(const QString &path)
 void ClayFileSysObserver::observeFile(const QString &path)
 {
     QFileInfo fileInfo(path);
-    if (fileInfo.exists()) {
-        // Watch both the symlink and the actual file
-        if (!fileObserver_.addPath(path)) {
-            qCritical("File %s couldn't be added for observation!", qUtf8Printable(path));
-        } else {
-            qCInfo(logCat_).noquote() << "Now watching file:" << path;
-        }
-        
-        // If it's a symlink, also watch the target
-        if (fileInfo.isSymLink()) {
-            QString targetPath = fileInfo.canonicalFilePath();
-            if (!targetPath.isEmpty() && QFileInfo::exists(targetPath)) {
-                if (!fileObserver_.addPath(targetPath)) {
-                    qCritical("Symlink target %s couldn't be added for observation!", qUtf8Printable(targetPath));
-                } else {
-                    qCInfo(logCat_).noquote() << "Also watching symlink target:" << targetPath;
-                }
+    if (!fileInfo.exists()) {
+        qCWarning(logCat_) << "File" << path << "doesn't exist";
+        return;
+    }
+
+    // Skip if already watching this file
+    if (fileObserver_.files().contains(path)) {
+        return;
+    }
+
+    if (fileObserver_.addPath(path)) {
+        qCInfo(logCat_).noquote() << "Now watching file:" << path;
+    } else {
+        qCWarning(logCat_) << "File" << path << "couldn't be added for observation";
+    }
+
+    // If it's a symlink, also watch the target
+    if (fileInfo.isSymLink()) {
+        QString targetPath = fileInfo.canonicalFilePath();
+        if (!targetPath.isEmpty() && QFileInfo::exists(targetPath) &&
+            !fileObserver_.files().contains(targetPath)) {
+            if (fileObserver_.addPath(targetPath)) {
+                qCInfo(logCat_).noquote() << "Also watching symlink target:" << targetPath;
+            } else {
+                qCWarning(logCat_) << "Symlink target" << targetPath << "couldn't be added for observation";
             }
         }
-    } else {
-        qCritical("File %s doesn't exist!", qUtf8Printable(path));
     }
 }
 
 void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
 {
     auto& fo = fileObserver_;
-    if (QDir(path).exists())
-    {
-        const auto allFiles = fo.files();
-        QDirIterator it(path, QDir::NoDot|QDir::NoDotDot|QDir::Files|QDir::Dirs,
-                        QDirIterator::Subdirectories);
-        qCInfo(logCat_).noquote() << "Observed directory:" << path;
-        qCInfo(logCat_).noquote() << "Files:";
-        while (it.hasNext()) {
-            it.next();
-            auto fp = it.filePath();
-            if (allFiles.contains(fp)) continue;
-            if (!fo.addPath(fp))
-                qCritical("Path %s couldn't be added for observation!",
-                          qUtf8Printable(fp));
-            auto relativePath = QDir(path).relativeFilePath(fp);
-            qCInfo(logCat_).noquote() << "- " << relativePath;
-            if (!initial) emit fileAdded(fp);
-        }
-    }
-    else
+    if (!QDir(path).exists()) {
         fo.removePath(path);
+        return;
+    }
+
+    const auto allFiles = fo.files();
+    const auto allDirs = fo.directories();
+    QDirIterator it(path, QDir::NoDot|QDir::NoDotDot|QDir::Files|QDir::Dirs,
+                    QDirIterator::Subdirectories);
+    qCInfo(logCat_).noquote() << "Observed directory:" << path;
+    qCInfo(logCat_).noquote() << "Files:";
+    while (it.hasNext()) {
+        it.next();
+        auto fp = it.filePath();
+        // Skip if already being watched
+        if (allFiles.contains(fp) || allDirs.contains(fp)) continue;
+        if (!fo.addPath(fp)) {
+            qCWarning(logCat_) << "Path" << fp << "couldn't be added for observation";
+        }
+        auto relativePath = QDir(path).relativeFilePath(fp);
+        qCInfo(logCat_).noquote() << "- " << relativePath;
+        if (!initial) emit fileAdded(fp);
+    }
 }
 
 void ClayFileSysObserver::onDirChanged(const QString &path)
