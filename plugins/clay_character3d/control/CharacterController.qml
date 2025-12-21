@@ -16,6 +16,9 @@ Item {
     required property real axisX        // Turn left/right (-1 to 1)
     required property real axisY        // Move forward/backward (-1 to 1)
 
+    // Sprint/run input (bind to shift key or other input)
+    property bool sprinting: false
+
     // Enable/disable controller
     property bool enabled: true
 
@@ -59,9 +62,9 @@ Item {
                 const fwdX = Math.sin(yawRad);
                 const fwdZ = Math.cos(yawRad);
 
-                // Convert character's walk speed from units/second to units/frame
+                // Use currentSpeed which is derived from animation (walk or run)
                 const frameTime = root.updateInterval / 1000.0;  // Convert ms to seconds
-                const speedPerFrame = root.character.walkSpeed * frameTime;
+                const speedPerFrame = root.character.currentSpeed * frameTime;
 
                 // Scale by input and speed
                 const deltaX = fwdX * root.processedAxisY * speedPerFrame;
@@ -74,9 +77,9 @@ Item {
                 root.moved(deltaX, deltaZ);
             }
 
-            // Update character activity state
+            // Update character activity state based on movement and sprint
             if (root.processedAxisY) {
-                root.character.activity = Character.Walking;
+                root.character.activity = root.sprinting ? Character.Running : Character.Walking;
             } else {
                 root.character.activity = Character.Idle;
             }

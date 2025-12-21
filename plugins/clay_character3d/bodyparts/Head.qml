@@ -10,6 +10,7 @@ BodyPartsGroup {
 
     property color skinColor: "#d38d5f"
     property color hairColor: "#734120"
+    property color eyeColor: "#4a3728"
 
     // Don't set these properties directly as they
     // are derived from the head parts
@@ -27,6 +28,12 @@ BodyPartsGroup {
     property alias lowerHeadHeight: _lowerHead.height
     property alias lowerHeadDepth: _lowerHead.depth
     property alias chinPointiness: _lowerHead.chinPointiness
+
+    // Feature size multipliers (0.5 = small, 1.0 = normal, 1.5 = large)
+    property real eyeSize: 1.0
+    property real noseSize: 1.0
+    property real mouthSize: 1.0
+    property real hairVolume: 1.0
 
     property int toEmotionDuration: 1000
     property int talkDuration: 200
@@ -71,8 +78,9 @@ BodyPartsGroup {
 
         BodyPart {
             id: _topHair
+            visible: _head.hairVolume > 0.1
             width: _upperHead.width * 1.1
-            height: _upperHead.height * 0.5
+            height: _upperHead.height * 0.5 * _head.hairVolume
             depth: _upperHead.depth * 1.1
             color: _head.hairColor
             basePos: Qt.vector3d(0,
@@ -82,9 +90,10 @@ BodyPartsGroup {
 
         BodyPart {
             id: _backHair
+            visible: _head.hairVolume > 0.1
             width: _upperHead.width * 1.1
-            height: _upperHead.height * 1.5
-            depth: _upperHead.depth * 0.3
+            height: _upperHead.height * 1.5 * _head.hairVolume
+            depth: _upperHead.depth * 0.3 * _head.hairVolume
             color: _head.hairColor
             basePos: Qt.vector3d(0,
                                  _upperHead.height - height,
@@ -93,8 +102,9 @@ BodyPartsGroup {
 
         BodyPart {
             id: _leftHair
-            width: _upperHead.width * 0.2
-            height: _upperHead.height * 1.3
+            visible: _head.hairVolume > 0.1
+            width: _upperHead.width * 0.2 * _head.hairVolume
+            height: _upperHead.height * 1.3 * _head.hairVolume
             depth: _upperHead.depth * 1.1
             color: _head.hairColor
             basePos: Qt.vector3d(-_upperHead.width * 0.5,
@@ -104,8 +114,9 @@ BodyPartsGroup {
 
         BodyPart {
             id: _rightHair
-            width: _upperHead.width * 0.2
-            height: _upperHead.height * 1.3
+            visible: _head.hairVolume > 0.1
+            width: _upperHead.width * 0.2 * _head.hairVolume
+            height: _upperHead.height * 1.3 * _head.hairVolume
             depth: _upperHead.depth * 1.1
             color: _head.hairColor
             basePos: Qt.vector3d(_upperHead.width * 0.5,
@@ -116,9 +127,9 @@ BodyPartsGroup {
         BodyPart {
             id: _nose
             color: _head.skinColor.darker(1.1)
-            width: _upperHead.width * .15
-            height: _upperHead.height * .2
-            depth: _upperHead.depth * .2
+            width: _upperHead.width * .15 * _head.noseSize
+            height: _upperHead.height * .2 * _head.noseSize
+            depth: _upperHead.depth * .2 * _head.noseSize
             basePos: Qt.vector3d(0,
                                  _leftEye.basePos.y - height * 1.1,
                                  _upperHead.depth * .5)
@@ -144,11 +155,11 @@ BodyPartsGroup {
         component Eye: BodyPart {
             id: _eye
             color: "white"
-            width: _upperHead.width * .22
+            width: _upperHead.width * .22 * _head.eyeSize
             property BodyPart brow: _brow
             property alias browEuler: _brow.eulerRotation
             BodyPart {
-                color: "black"
+                color: _head.eyeColor
                 width: 0.33 * _eye.width
                 basePos: Qt.vector3d(0, 0.2 * _eye.height, _eye.depth * .5)
             }
@@ -200,7 +211,7 @@ BodyPartsGroup {
 
             color: "black"
             basePos: Qt.vector3d(0, 0.6*_lowerHead.height, _lowerHead.depth * .5)
-            width: _lowerHead.width * .22; height: .3 * width; depth: 0.1
+            width: _lowerHead.width * .22 * _head.mouthSize; height: .3 * width; depth: 0.1
 
             BodyPart {
                 id: _mouthLeft
@@ -217,7 +228,7 @@ BodyPartsGroup {
             BodyPart {
                 id: _mouthLower
                 color: "black"
-                width: _lowerHead.width * .23; height: .3 * width; depth: 0.1
+                width: _lowerHead.width * .23 * _head.mouthSize; height: .3 * width; depth: 0.1
             }
         }
     }

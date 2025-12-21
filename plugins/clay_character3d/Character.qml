@@ -8,7 +8,6 @@
 
 import QtQuick
 import Clayground.Canvas3D
-import Clayground.Storage
 import "bodyparts"
 import "animation"
 
@@ -17,48 +16,48 @@ pragma ComponentBehavior: Bound
 BodyPartsGroup {
     id: _character
 
-    // TODO: Describe what this nodes positions means
+    // Character origin is at ground level, center of body
+    // Y=0 is at the bottom of the feet
 
     property string name: "unknown"
 
-    // Movement properties
-    property real walkSpeed: 5.0  // World units per second
-    property real strideLength: 3.0  // Distance covered per walk cycle
-    
+    // Movement properties - speeds derived from animation geometry
+    // This ensures feet movement exactly matches character movement
+    readonly property real walkSpeed: _walkAnim.derivedWalkSpeed
+    readonly property real runSpeed: _runAnim.derivedRunSpeed
+
     // Idle animation configuration
     property alias idleCycleDuration: _idleAnim.duration
 
-    // TODO: Adapt on demand
+    // Bounding box dimensions (derived from body parts)
     width: Math.max(shoulderWidth, waistWidth, hipWidth)
-    height: 10.667 // Default total height (will be recalculated if parts change)
-    depth: 10
-
-    Box3D {
-        visible: false
-        height: _character.height
-        width: _character.width
-        depth: _character.depth
-        color: "orange"
-        opacity: 0.3
-    }
+    height: footHeight + legHeight + hipHeight + torsoHeight + neckHeight + headHeight
+    depth: Math.max(torsoDepth, hipDepth)
 
     // ============================================================================
     // ACTIVITY & BEHAVIOR PROPERTIES
     // ============================================================================
     enum Activity {
+        Idle,
         Walking,
-        Idle
+        Running
     }
     property int activity: Character.Activity.Idle
+
+    // Current movement speed based on activity (derived from animation)
+    readonly property real currentSpeed: {
+        if (activity === Character.Activity.Running) return _runAnim.derivedRunSpeed;
+        if (activity === Character.Activity.Walking) return _walkAnim.derivedWalkSpeed;
+        return 0;
+    }
     property alias faceActivity: _head.activity
-    //property alias thoughts: _head.thoughts
 
     // ============================================================================
     // HEAD PROPERTIES
     // ============================================================================
     // Absolute dimensions
-    property real neckHeight: 0.333 // Default based on headHeight, neckHeightToHeadHeight 0.25
-    readonly property real headHeight: upperHeadHeight + lowerHeadHeight // Head height ~1.333 Default based on bodyHeight ≈10, headsTall ≈7.5
+    property real neckHeight: 0.333
+    readonly property real headHeight: upperHeadHeight + lowerHeadHeight
 
     // Dimension aliases
     property alias upperHeadWidth: _head.upperHeadWidth
@@ -69,9 +68,16 @@ BodyPartsGroup {
     property alias lowerHeadDepth: _head.lowerHeadDepth
     property alias chinPointiness: _head.chinPointiness
 
+    // Feature size multipliers
+    property alias eyeSize: _head.eyeSize
+    property alias noseSize: _head.noseSize
+    property alias mouthSize: _head.mouthSize
+    property alias hairVolume: _head.hairVolume
+
     // Colors
-    property alias headSkinColor: _head.skinColor
-    property alias headHairColor: _head.hairColor
+    property alias skinColor: _head.skinColor
+    property alias hairColor: _head.hairColor
+    property alias eyeColor: _head.eyeColor
 
     // ============================================================================
     // TORSO PROPERTIES
@@ -104,12 +110,17 @@ BodyPartsGroup {
     property alias armHeight: _rightArm.height
     property alias armDepth: _rightArm.depth
 
+    // Proportion controls
+    property alias armUpperRatio: _rightArm.upperRatio
+    property alias armLowerTaper: _rightArm.lowerTaper
+
     // Hand dimension aliases (accessed through arm)
     property alias handWidth: _rightArm.handWidth
     property alias handHeight: _rightArm.handHeight
     property alias handDepth: _rightArm.handDepth
 
     // Colors
+    property alias armColor: _rightArm.color
     property alias handColor: _rightArm.handColor
 
     // ============================================================================
@@ -120,14 +131,18 @@ BodyPartsGroup {
     property alias legHeight: _rightLeg.height
     property alias legDepth: _rightLeg.depth
 
+    // Proportion controls
+    property alias legUpperRatio: _rightLeg.upperRatio
+    property alias legLowerTaper: _rightLeg.lowerTaper
+
     // Foot dimension aliases (accessed through leg)
     property alias footWidth: _rightLeg.footWidth
     property alias footHeight: _rightLeg.footHeight
     property alias footDepth: _rightLeg.footDepth
 
     // Colors
+    property alias legColor: _rightLeg.color
     property alias footColor: _rightLeg.footColor
-    //property alias thoughts: _head.thoughts
 
     // ============================================================================
     // BODY PART REFERENCES (for animating them)
@@ -149,7 +164,8 @@ BodyPartsGroup {
 
         scaledFace: Box3DGeometry.BottomFace
         faceScale: Qt.vector2d(waistWidth/width, 1.0)
-        basePos: Qt.vector3d(0, 5.333, 0)
+        // Position torso above legs, feet, and hip
+        basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height, 0)
 
         Head {
             id: _head
@@ -157,25 +173,33 @@ BodyPartsGroup {
         }
 
         // Arms (containing hands)
+        // Position at shoulder level (top of torso), arms extend downward
         Arm {
             id: _rightArm
-            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, 0, 0)
+            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _torso.height, 0)
         }
 
         Arm {
             id: _leftArm
-            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, 0, 0)
+            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _torso.height, 0)
 
             // Mirror right arm dimensions
             width: _rightArm.width
             height: _rightArm.height
             depth: _rightArm.depth
 
-            // Mirror hand dimensions and color
+            // Mirror proportion controls
+            upperRatio: _rightArm.upperRatio
+            lowerTaper: _rightArm.lowerTaper
+
+            // Mirror colors
+            color: _rightArm.color
+            handColor: _rightArm.handColor
+
+            // Mirror hand dimensions
             handWidth: _rightArm.handWidth
             handHeight: _rightArm.handHeight
             handDepth: _rightArm.handDepth
-            handColor: _rightArm.handColor
         }
 
         // Hip (containing legs)
@@ -188,25 +212,35 @@ BodyPartsGroup {
 
             scaledFace: Box3DGeometry.TopFace
             faceScale: Qt.vector2d(_torso.waistWidth/width, 1.0)
-            basePos: Qt.vector3d(0, -_torso.height, 0)
+            basePos: Qt.vector3d(0, -_hip.height, 0)
 
             // Legs (containing feet)
+            // Hip joint aligns with hip bottom (legs extend downward from there)
             Leg {
                 id: _rightLeg
-                basePos: Qt.vector3d(_hip.width * 0.4, -_hip.height, 0)
+                basePos: Qt.vector3d(_hip.width * 0.4, 0, 0)
             }
             Leg {
                 id: _leftLeg
-                basePos: Qt.vector3d(-_hip.width * 0.4, -_hip.height, 0)
+                basePos: Qt.vector3d(-_hip.width * 0.4, 0, 0)
+
                 // Mirror right leg dimensions
                 width: _rightLeg.width
                 height: _rightLeg.height
                 depth: _rightLeg.depth
-                // Mirror foot dimensions and color
+
+                // Mirror proportion controls
+                upperRatio: _rightLeg.upperRatio
+                lowerTaper: _rightLeg.lowerTaper
+
+                // Mirror colors
+                color: _rightLeg.color
+                footColor: _rightLeg.footColor
+
+                // Mirror foot dimensions
                 footWidth: _rightLeg.footWidth
                 footHeight: _rightLeg.footHeight
                 footDepth: _rightLeg.footDepth
-                footColor: _rightLeg.footColor
             }
         }
     }
@@ -214,8 +248,16 @@ BodyPartsGroup {
     WalkAnim {
         id: _walkAnim
         entity: _character
-        duration: _character.walkSpeed > 0 ? (_character.strideLength / _character.walkSpeed) * 1000 : 1000
-        running: _character.activity == Character.Activity.Walking
+        // Duration is calculated internally from leg geometry
+        running: _character.activity === Character.Activity.Walking
+        loops: Animation.Infinite
+    }
+
+    RunAnim {
+        id: _runAnim
+        entity: _character
+        // Duration is calculated internally from leg geometry
+        running: _character.activity === Character.Activity.Running
         loops: Animation.Infinite
     }
 
@@ -227,95 +269,4 @@ BodyPartsGroup {
         loops: 1
     }
 
-    KeyValueStore {
-        id: _keyValueStore
-        name: "CharacterConfigStore"
-    }
-
-    // Save the current character configuration to the key-value store
-    // function saveConfig() {
-    //     // Generate a key based on character name to allow multiple character configs
-    //     const configKey = "character_config_" + name;
-
-    //     // Collect all character properties
-    //     let config = {
-    //         // Head properties
-    //         upperHeadHeight: upperHeadHeight,
-    //         upperHeadWidth: upperHeadWidth,
-    //         upperHeadDepth: upperHeadDepth,
-    //         lowerHeadHeight: lowerHeadHeight,
-    //         lowerHeadWidth: lowerHeadWidth,
-    //         lowerHeadDepth: lowerHeadDepth,
-    //         chinPointiness: chinPointiness,
-    //         neckHeight: neckHeight,
-    //         headSkinColor: headSkinColor,
-    //         headHairColor: headHairColor,
-
-    //         // Torso properties
-    //         shoulderWidth: shoulderWidth,
-    //         waistWidth: waistWidth,
-    //         hipWidth: hipWidth,
-    //         torsoHeight: torsoHeight,
-    //         torsoDepth: torsoDepth,
-    //         torsoColor: torsoColor,
-
-    //         // Limb properties (keep legacy for compatibility)
-    //         handLength: handLength,
-    //         footLength: footLength,
-    //         handColor: handColor,
-    //         footColor: footColor,
-
-    //         // New dimension properties
-    //         armWidth: armWidth,
-    //         armHeight: armHeight,
-    //         armDepth: armDepth,
-    //         handWidth: handWidth,
-    //         handHeight: handHeight,
-    //         handDepth: handDepth,
-    //         legWidth: legWidth,
-    //         legHeight: legHeight,
-    //         legDepth: legDepth,
-    //         footWidth: footWidth,
-    //         footHeight: footHeight,
-    //         footDepth: footDepth
-    //     };
-
-    //     // Convert to JSON string and save to store
-    //     const configJson = JSON.stringify(config);
-    //     _keyValueStore.set(configKey, configJson);
-
-    //     console.log("Character configuration saved for: " + name);
-    //     return true;
-    // }
-
-    // // Load and apply a saved configuration from the key-value store
-    // function loadConfig() {
-    //     // Generate the key based on character name
-    //     const configKey = "character_config_" + name;
-
-    //     // Check if configuration exists
-    //     if (_keyValueStore.has(configKey)) {
-    //         try {
-    //             // Get the saved JSON string
-    //             const configJson = _keyValueStore.get(configKey);
-    //             const config = JSON.parse(configJson);
-
-    //             // Apply all properties to the character
-    //             for (let prop in config) {
-    //                 if (_character.hasOwnProperty(prop)) {
-    //                     _character[prop] = config[prop];
-    //                 }
-    //             }
-
-    //             console.log("Character configuration loaded for: " + name);
-    //             return true;
-    //         } catch (e) {
-    //             console.error("Error loading character configuration: " + e);
-    //             return false;
-    //         }
-    //     } else {
-    //         console.log("No saved configuration found for character: " + name);
-    //         return false;
-    //     }
-    // }
 }

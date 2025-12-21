@@ -9,6 +9,7 @@ clay_plugin( Character3D
 
         # Core Components
         Character.qml
+        ParametricCharacter.qml
         RatioBasedCharacter.qml
         ThoughtBubble.qml
         
@@ -24,6 +25,7 @@ clay_plugin( Character3D
         # Animation System
         animation/ProceduralAnim.qml
         animation/WalkAnim.qml
+        animation/RunAnim.qml
         animation/IdleAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
