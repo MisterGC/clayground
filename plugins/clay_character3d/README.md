@@ -484,6 +484,306 @@ The animation system uses:
 - **Networking**: Character state can be synchronized via clay_network
 - **World Integration**: Works with SceneLoader3D for level-based games
 
+## Analysis and Next Steps
+
+### Current State Analysis
+
+The Character3D plugin provides a foundation for box-based humanoid characters with:
+- **Box3D body parts** with face scaling capabilities
+- **Basic animations** (walk, idle) with realistic motion
+- **Simple facial expressions** (5 moods)
+- **Extensive property exposure** for dimensions and colors
+
+However, the system lacks the expressiveness needed for iconic, comic-inspired characters.
+
+### Key Limitations for Iconic Characters
+
+1. **Limited Actions**: Only walk and idle - missing run, jump, crouch
+2. **No Personality Variations**: All characters move identically
+3. **Basic Expressions**: Simple face changes without eye movement
+4. **Missing Classic Poses**: No victory pose, damage reaction, or item interactions
+
+### Vision: NES/SNES-Inspired Simplicity
+
+Our goal is to create instantly recognizable characters through clear, minimal animations inspired by classic games, where personality comes from subtle timing and proportion differences:
+
+```qml
+// Example of future API
+Character {
+    moveStyle: "heavy"     // Subtle timing variations
+    jumpHeight: 1.2        // Character-specific abilities
+    
+    // Like Mario vs Luigi in SMB2:
+    // - Heavy: slightly slower acceleration
+    // - Light: higher jump, more air control
+    // - Standard: balanced movement
+}
+```
+
+### Proposed Enhancements for Iconic Recognition
+
+#### 1. Essential Action States
+Add the fundamental actions from classic games:
+- **Run**: Faster walk with slight forward lean (3 frame cycle)
+- **Jump**: Simple up/down with minimal air pose
+- **Crouch**: Lower stance for ducking
+- **Climb**: Hand-over-hand ladder movement
+- **Victory**: Arms up celebration pose
+
+```qml
+Character {
+    activity: Character.ActivityRunning
+    
+    // Simple changes from walk:
+    // - 1.5x animation speed
+    // - 5° forward torso lean
+    // - Slightly longer stride
+    // No flailing or exaggeration
+}
+```
+
+#### 2. Character Differentiation
+Subtle personality through movement properties:
+- **Move Styles**: standard, heavy, light, quick
+- **Jump Properties**: height, air control, landing lag
+- **Walk Rhythm**: even steps vs slight bounce
+- **Idle Behavior**: frequency of looking around
+
+```qml
+// Like classic game characters
+Character {
+    moveStyle: "heavy"      // Like DK or Bowser
+    jumpHeight: 0.8         // Lower jump
+    landingLag: 200         // ms before can move
+    
+    // Affects all animations subtly:
+    // - Walk has more weight shift
+    // - Jump has harder landing
+    // - Turn is slightly slower
+}
+```
+
+#### 3. Action System
+Simple, recognizable actions for combat and activities:
+
+**Combat Actions** (2-3 frame sequences):
+- **Punch**: Arm extend, hold, return
+- **Kick**: Leg out, hold, return  
+- **Block**: Arms up defensive stance
+- **Dodge**: Quick lean back/side
+
+**Work Activities** (looping animations):
+- **Hammer**: Raise arm, swing down, repeat
+- **Dig**: Shovel motion with torso rotation
+- **Carry**: Arms forward, slight forward lean
+- **Push/Pull**: Leaning stance with arm cycles
+
+```qml
+Character {
+    // Combat action
+    action: Character.ActionPunch
+    actionSide: "right"     // Which arm/leg
+    actionSpeed: 0.2        // Seconds per action
+    
+    // Work activity  
+    activity: Character.ActivityHammering
+    toolInHand: "hammer"    // Visual prop
+    
+    // Both use same simple approach:
+    // - Clear key poses
+    // - Minimal in-between frames
+    // - No complex physics
+}
+```
+
+#### 4. Iconic Pose System
+Clear, readable positions for game states:
+- **Victory**: Classic arms-raised pose
+- **Defeat**: Slumped shoulders, head down
+- **Ready**: Combat stance or tool-ready position
+- **Interact**: Reaching forward to grab/use
+- **Damage**: Brief knockback pose
+
+```qml
+Character {
+    // Static poses for game moments
+    pose: Character.PoseVictory
+    
+    // Or activity-specific ready poses
+    readyPose: "boxing"  // Fists up guard position
+}
+```
+
+#### 5. Simple Face States
+Limited but effective expressions:
+- **Eyes**: Open, closed, looking left/right
+- **Mouth**: Neutral, smile, frown, open
+- **Combinations**: Happy (smile + open eyes), hurt (frown + closed eyes)
+
+```qml
+Character {
+    // Simple face states like classic sprites
+    faceState: "determined"  // Furrowed brow + firm mouth
+    
+    // Or individual controls
+    eyeState: "looking-up"
+    mouthState: "open"  // For surprise or yelling
+}
+```
+
+#### 6. Movement Modifiers
+Small adjustments that add character:
+- **Run Lean**: 0-10° forward tilt
+- **Jump Crouch**: How much to compress before jumping
+- **Turn Speed**: How quickly character faces new direction
+- **Arm Swing**: Range of arm movement while walking
+
+```qml
+Character {
+    // Subtle modifiers
+    runLean: 5          // degrees
+    jumpCrouch: 0.9     // 90% of normal height
+    armSwingRange: 25   // degrees
+    
+    // Creates personality without exaggeration
+}
+```
+
+### Implementation Roadmap
+
+#### Phase 1: Core Actions
+1. Add run animation (faster walk with slight lean)
+2. Implement jump/land states with simple poses
+3. Add basic combat actions (punch, kick, block)
+
+#### Phase 2: Combat System
+1. Create action system for attacks (2-3 frame sequences)
+2. Add combat stances and ready poses
+3. Implement dodge/evade movements
+4. Add hit reactions and damage poses
+
+#### Phase 3: Work Activities
+1. Implement looping work animations (hammer, dig, carry)
+2. Add tool/prop attachment system
+3. Create activity-specific stances
+4. Add push/pull mechanics
+
+#### Phase 4: Movement Styles
+1. Add moveStyle property affecting all animations
+2. Implement combat styles (boxing, martial arts, brawler)
+3. Add character archetypes (warrior, worker, rogue)
+
+#### Phase 5: Polish & RPG Integration
+1. Add combo system for chaining actions
+2. Create skill/special move animations
+3. Implement item use animations (potion, magic)
+4. Add interaction animations (chest open, door push)
+
+### Example: Creating Classic Characters (Future API)
+
+```qml
+// Street Fighter-style Boxer
+Character {
+    moveStyle: "standard"
+    readyPose: "boxing"
+    
+    // Athletic proportions
+    torsoWidth: 40
+    leftArmUpperArmWidth: 14
+    
+    // Throwing a punch
+    action: Character.ActionPunch
+    actionSide: "right"
+    actionSpeed: 0.15  // Quick jab
+}
+
+// Construction Worker
+Character {
+    activity: Character.ActivityHammering
+    toolInHand: "hammer"
+    
+    // Work clothes colors
+    torsoColor: "#ff8c00"      // Safety orange
+    headAccessory: "hardhat"
+    
+    // Sturdy build
+    moveStyle: "heavy"
+}
+
+// Martial Artist
+Character {
+    moveStyle: "quick"
+    
+    // Multiple combat moves
+    action: Character.ActionKick
+    actionSide: "right"
+    actionHeight: "high"  // Head-level kick
+    
+    // Fighting stance when idle
+    idleStance: "martial-arts"
+}
+
+// Gardener
+Character {
+    activity: Character.ActivityDigging  
+    toolInHand: "shovel"
+    
+    // Casual work pace
+    activitySpeed: 0.5  // Relaxed digging
+    
+    // Gardening attire
+    torsoColor: "#228b22"  // Green shirt
+    headAccessory: "sun-hat"
+}
+
+// Mario-style Hero (Platforming)
+Character {
+    moveStyle: "standard"
+    jumpHeight: 1.0
+    
+    // Currently jumping
+    activity: Character.ActivityJumping
+    // Simple air pose - arms out
+}
+
+// Multi-Activity Character
+Character {
+    // Can switch between different activities
+    activities: {
+        primary: Character.ActivityWalking,
+        onInteract: Character.ActivityHammering,
+        onCombat: Character.ActionPunch
+    }
+    
+    // Context-aware animations
+    contextAnimation: true
+}
+```
+
+### Design Principles
+
+1. **Clarity First**: Every pose must read instantly as a silhouette
+2. **Subtle Differences**: Personality through small timing/proportion changes  
+3. **Classic Actions**: Focus on timeless game movements
+4. **Minimal Frames**: Each animation uses few, clear positions
+5. **Game Feel**: Responsive controls over elaborate animations
+
+### Technical Approach
+
+Using only Box3D components, we achieve classic game feel through:
+- **Simple rotations** for lean and direction
+- **Position-based states** for jump, crouch, climb
+- **Timing variations** for personality
+- **Clear silhouettes** for instant recognition
+- **Minimal deformation** (only slight crouch for jumps)
+
+### Backwards Compatibility
+
+All enhancements will be additive:
+- Existing Character API remains unchanged
+- Default moveStyle is "standard" (current behavior)
+- New actions are opt-in through activity property
+
 ## Future Enhancements
 
 This plugin is under active development. Planned features include:
