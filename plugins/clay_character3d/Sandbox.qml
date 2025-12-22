@@ -134,7 +134,7 @@ Item {
             tonemapMode: SceneEnvironment.TonemapModeNone
         }
 
-        // Lighting setup - high ambient with soft shadows
+        // Lighting setup - high ambient with visible shadows
         // Main key light (primary shadow caster)
         DirectionalLight {
             id: mainLight
@@ -142,10 +142,12 @@ Item {
             eulerRotation.y: -45
 
             castsShadow: true
-            shadowFactor: 25
-            shadowMapQuality: Light.ShadowMapQualityHigh
-            pcfFactor: 12
-            shadowBias: 10
+            shadowFactor: 90
+            shadowMapQuality: Light.ShadowMapQualityVeryHigh
+            pcfFactor: 2
+            shadowBias: 5
+            softShadowQuality: Light.PCF16
+            shadowMapFar: 200
 
             brightness: 0.5
             ambientColor: Qt.rgba(0.55, 0.55, 0.6, 1.0)
@@ -288,114 +290,134 @@ Item {
             activity: Character.Idle
         }
 
-        // Showcase row: different character archetypes
-        Node {
-            id: showcase
-            z: -30  // Behind the player
+        // Showcase: different character archetypes with patrol behavior
+        // Thin Thinker
+        ParametricCharacter {
+            id: npcThinker
+            position: Qt.vector3d(-25, 0, -30)
+            name: "Thinker"
+            bodyHeight: 9.0
+            realism: 0.6
+            maturity: 0.7
+            femininity: 0.5
+            mass: 0.2
+            muscle: 0.2
+            faceShape: 0.7
+            eyes: 1.3
+            hair: 0.3
+            skin: "#e8beac"
+            hairTone: "#3d3d3d"
+            topClothing: "#5d4e37"
+            bottomClothing: "#3d3d3d"
+        }
+        PatrolController {
+            character: npcThinker
+            minX: -80; maxX: 80
+            minZ: -80; maxZ: 80
+        }
 
-            // Thin Thinker
-            ParametricCharacter {
-                x: -25
-                name: "Thinker"
-                bodyHeight: 9.0
-                realism: 0.6
-                maturity: 0.7
-                femininity: 0.5
-                mass: 0.2
-                muscle: 0.2
-                faceShape: 0.7
-                eyes: 1.3
-                hair: 0.3
-                skin: "#e8beac"
-                hairTone: "#3d3d3d"
-                topClothing: "#5d4e37"
-                bottomClothing: "#3d3d3d"
-                activity: Character.Idle
-            }
+        // Big Eater
+        ParametricCharacter {
+            id: npcEater
+            position: Qt.vector3d(-12, 0, -30)
+            name: "Eater"
+            bodyHeight: 10.0
+            realism: 0.2
+            maturity: 0.5
+            femininity: 0.4
+            mass: 0.9
+            muscle: 0.2
+            faceShape: 0.2
+            chinForm: 0.3
+            eyes: 1.0
+            hair: 0.5
+            skin: "#fdbcb4"
+            hairTone: "#8b4513"
+            topClothing: "#e74c3c"
+            bottomClothing: "#8b4513"
+        }
+        PatrolController {
+            character: npcEater
+            minX: -80; maxX: 80
+            minZ: -80; maxZ: 80
+        }
 
-            // Big Eater
-            ParametricCharacter {
-                x: -12
-                name: "Eater"
-                bodyHeight: 10.0
-                realism: 0.2
-                maturity: 0.5
-                femininity: 0.4
-                mass: 0.9
-                muscle: 0.2
-                faceShape: 0.2
-                chinForm: 0.3
-                eyes: 1.0
-                hair: 0.5
-                skin: "#fdbcb4"
-                hairTone: "#8b4513"
-                topClothing: "#e74c3c"
-                bottomClothing: "#8b4513"
-                activity: Character.Idle
-            }
+        // Athletic Hero
+        ParametricCharacter {
+            id: npcHero
+            position: Qt.vector3d(0, 0, -30)
+            name: "Hero"
+            bodyHeight: 11.0
+            realism: 0.3
+            maturity: 0.5
+            femininity: 0.2
+            mass: 0.4
+            muscle: 0.9
+            faceShape: 0.6
+            chinForm: 0.7
+            eyes: 0.9
+            hair: 0.6
+            skin: "#d4a574"
+            hairTone: "#1a1a1a"
+            topClothing: "#3498db"
+            bottomClothing: "#2c3e50"
+        }
+        PatrolController {
+            character: npcHero
+            minX: -80; maxX: 80
+            minZ: -80; maxZ: 80
+        }
 
-            // Athletic Hero
-            ParametricCharacter {
-                x: 0
-                name: "Hero"
-                bodyHeight: 11.0
-                realism: 0.3
-                maturity: 0.5
-                femininity: 0.2
-                mass: 0.4
-                muscle: 0.9
-                faceShape: 0.6
-                chinForm: 0.7
-                eyes: 0.9
-                hair: 0.6
-                skin: "#d4a574"
-                hairTone: "#1a1a1a"
-                topClothing: "#3498db"
-                bottomClothing: "#2c3e50"
-                activity: Character.Walking
-            }
+        // Cartoon Child
+        ParametricCharacter {
+            id: npcChild
+            position: Qt.vector3d(12, 0, -30)
+            name: "Child"
+            bodyHeight: 6.0
+            realism: 0.0
+            maturity: 0.0
+            femininity: 0.5
+            mass: 0.5
+            muscle: 0.3
+            faceShape: 0.2
+            eyes: 1.5
+            hair: 1.0
+            skin: "#ffe0bd"
+            hairTone: "#ff6b35"
+            topClothing: "#9b59b6"
+            bottomClothing: "#3498db"
+        }
+        PatrolController {
+            character: npcChild
+            minX: -80; maxX: 80
+            minZ: -80; maxZ: 80
+        }
 
-            // Cartoon Child
-            ParametricCharacter {
-                x: 12
-                name: "Child"
-                bodyHeight: 6.0
-                realism: 0.0
-                maturity: 0.0
-                femininity: 0.5
-                mass: 0.5
-                muscle: 0.3
-                faceShape: 0.2
-                eyes: 1.5
-                hair: 1.0
-                skin: "#ffe0bd"
-                hairTone: "#ff6b35"
-                topClothing: "#9b59b6"
-                bottomClothing: "#3498db"
-                activity: Character.Idle
-            }
-
-            // Stylized Woman
-            ParametricCharacter {
-                x: 25
-                name: "Stylized"
-                bodyHeight: 9.5
-                realism: 0.5
-                maturity: 0.5
-                femininity: 0.85
-                mass: 0.35
-                muscle: 0.4
-                faceShape: 0.4
-                chinForm: 0.6
-                eyes: 1.2
-                nose: 0.8
-                hair: 1.2
-                skin: "#e8beac"
-                hairTone: "#2c1810"
-                topClothing: "#e91e63"
-                bottomClothing: "#37474f"
-                activity: Character.Idle
-            }
+        // Stylized Woman
+        ParametricCharacter {
+            id: npcStylized
+            position: Qt.vector3d(25, 0, -30)
+            name: "Stylized"
+            bodyHeight: 9.5
+            realism: 0.5
+            maturity: 0.5
+            femininity: 0.85
+            mass: 0.35
+            muscle: 0.4
+            faceShape: 0.4
+            chinForm: 0.6
+            eyes: 1.2
+            nose: 0.8
+            hair: 1.2
+            skin: "#e8beac"
+            hairTone: "#2c1810"
+            topClothing: "#e91e63"
+            bottomClothing: "#37474f"
+        }
+        PatrolController {
+            character: npcStylized
+            minX: -80; maxX: 80
+            minZ: -80; maxZ: 80
         }
         
         // Character controller

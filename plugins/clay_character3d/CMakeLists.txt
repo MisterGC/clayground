@@ -34,6 +34,7 @@ clay_plugin( Character3D
         # Control System
         control/CharacterCamera.qml
         control/CharacterController.qml
+        control/PatrolController.qml
 
     LINK_LIBS
         Qt::Core
