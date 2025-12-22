@@ -3,11 +3,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
 import Clayground.GameController
+import Clayground.Storage
 import "control"
+import "bodyparts"
 
 Item {
     id: root
@@ -20,6 +23,71 @@ Item {
     property real cameraDistance: 30
     property bool isDragging: false
     property point lastMousePos: Qt.point(0, 0)
+
+    // Persistent storage for character settings
+    KeyValueStore {
+        id: characterStore
+        name: "Character3DSandbox"
+    }
+
+    function saveCharacterSettings() {
+        let settings = {
+            bodyHeight: character.bodyHeight,
+            realism: character.realism,
+            maturity: character.maturity,
+            femininity: character.femininity,
+            mass: character.mass,
+            muscle: character.muscle,
+            faceShape: character.faceShape,
+            chinForm: character.chinForm,
+            eyes: character.eyes,
+            nose: character.nose,
+            mouth: character.mouth,
+            hair: character.hair,
+            skin: character.skin.toString(),
+            hairTone: character.hairTone.toString(),
+            topClothing: character.topClothing.toString(),
+            bottomClothing: character.bottomClothing.toString()
+        };
+        characterStore.set("playerSettings", JSON.stringify(settings));
+        console.log("Character settings saved");
+    }
+
+    function loadCharacterSettings() {
+        if (characterStore.has("playerSettings")) {
+            let settings = JSON.parse(characterStore.get("playerSettings", "{}"));
+            if (settings.bodyHeight !== undefined) character.bodyHeight = settings.bodyHeight;
+            if (settings.realism !== undefined) character.realism = settings.realism;
+            if (settings.maturity !== undefined) character.maturity = settings.maturity;
+            if (settings.femininity !== undefined) character.femininity = settings.femininity;
+            if (settings.mass !== undefined) character.mass = settings.mass;
+            if (settings.muscle !== undefined) character.muscle = settings.muscle;
+            if (settings.faceShape !== undefined) character.faceShape = settings.faceShape;
+            if (settings.chinForm !== undefined) character.chinForm = settings.chinForm;
+            if (settings.eyes !== undefined) character.eyes = settings.eyes;
+            if (settings.nose !== undefined) character.nose = settings.nose;
+            if (settings.mouth !== undefined) character.mouth = settings.mouth;
+            if (settings.hair !== undefined) character.hair = settings.hair;
+            if (settings.skin) character.skin = settings.skin;
+            if (settings.hairTone) character.hairTone = settings.hairTone;
+            if (settings.topClothing) character.topClothing = settings.topClothing;
+            if (settings.bottomClothing) character.bottomClothing = settings.bottomClothing;
+            console.log("Character settings loaded");
+        }
+    }
+
+    Component.onCompleted: loadCharacterSettings()
+
+    // Auto-save timer (debounced to avoid saving on every tiny change)
+    Timer {
+        id: saveTimer
+        interval: 500
+        onTriggered: saveCharacterSettings()
+    }
+
+    function scheduleAutoSave() {
+        saveTimer.restart()
+    }
 
     // Forward keys to game controller for WASD movement
     Keys.forwardTo: [gameController]
@@ -396,7 +464,7 @@ Item {
             value: parent.value
             stepSize: parent.stepSize
             Layout.fillWidth: true
-            onMoved: parent.value = value
+            onMoved: { parent.value = value; root.scheduleAutoSave(); }
         }
         Text {
             text: parent.value.toFixed(2)
@@ -408,13 +476,23 @@ Item {
 
     // Color picker component
     component ColorPicker: RowLayout {
+        id: colorPickerRow
         property string label: ""
         property color colorValue: "white"
         spacing: 5
         Layout.fillWidth: true
 
+        ColorDialog {
+            id: colorDialog
+            selectedColor: colorPickerRow.colorValue
+            onAccepted: {
+                colorPickerRow.colorValue = selectedColor
+                root.scheduleAutoSave()
+            }
+        }
+
         Text {
-            text: label
+            text: colorPickerRow.label
             font.pixelSize: 11
             Layout.preferredWidth: 70
             color: "#333"
@@ -422,16 +500,22 @@ Item {
         Rectangle {
             width: 24
             height: 24
-            color: parent.colorValue
+            color: colorPickerRow.colorValue
             border.color: "#999"
             border.width: 1
             radius: 3
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: colorDialog.open()
+            }
         }
         TextField {
             Layout.fillWidth: true
-            text: parent.colorValue
+            text: colorPickerRow.colorValue
             font.pixelSize: 10
-            onEditingFinished: parent.colorValue = text
+            onEditingFinished: { colorPickerRow.colorValue = text; root.scheduleAutoSave(); }
         }
     }
 
@@ -439,10 +523,10 @@ Item {
     Rectangle {
         id: controlPanel
         anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.right: parent.right
         anchors.margins: 10
         width: 280
-        height: controlColumn.height + 20
         color: "#f8f8f8"
         opacity: 0.95
         radius: 8
@@ -450,13 +534,15 @@ Item {
         border.width: 1
 
         ScrollView {
+            id: scrollView
             anchors.fill: parent
             anchors.margins: 10
             clip: true
+            contentWidth: availableWidth
 
             ColumnLayout {
                 id: controlColumn
-                width: 260
+                width: scrollView.availableWidth
                 spacing: 8
 
                 // Header
@@ -594,8 +680,52 @@ Item {
                     }
                 }
 
+                // Facial expressions
+                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
+                Text { text: "Face"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Button {
+                        text: "Idle"
+                        font.pixelSize: 10
+                        highlighted: character.faceActivity === Head.Activity.Idle
+                        onClicked: character.faceActivity = Head.Activity.Idle
+                    }
+                    Button {
+                        text: "Joy"
+                        font.pixelSize: 10
+                        highlighted: character.faceActivity === Head.Activity.ShowJoy
+                        onClicked: character.faceActivity = Head.Activity.ShowJoy
+                    }
+                    Button {
+                        text: "Anger"
+                        font.pixelSize: 10
+                        highlighted: character.faceActivity === Head.Activity.ShowAnger
+                        onClicked: character.faceActivity = Head.Activity.ShowAnger
+                    }
+                    Button {
+                        text: "Sad"
+                        font.pixelSize: 10
+                        highlighted: character.faceActivity === Head.Activity.ShowSadness
+                        onClicked: character.faceActivity = Head.Activity.ShowSadness
+                    }
+                    Button {
+                        text: "Talk"
+                        font.pixelSize: 10
+                        highlighted: character.faceActivity === Head.Activity.Talk
+                        onClicked: character.faceActivity = Head.Activity.Talk
+                    }
+                }
+
                 // Info
                 Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
+                Text {
+                    text: "Settings auto-save and restore"
+                    font.pixelSize: 9
+                    color: "#888"
+                    Layout.alignment: Qt.AlignHCenter
+                }
                 Text {
                     text: "Showcase behind: Thinker, Eater, Hero, Child, Stylized"
                     font.pixelSize: 9
