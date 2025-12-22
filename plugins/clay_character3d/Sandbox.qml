@@ -3,12 +3,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Dialogs
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
 import Clayground.GameController
-import Clayground.Storage
 import "control"
 import "bodyparts"
 
@@ -24,70 +22,8 @@ Item {
     property bool isDragging: false
     property point lastMousePos: Qt.point(0, 0)
 
-    // Persistent storage for character settings
-    KeyValueStore {
-        id: characterStore
-        name: "Character3DSandbox"
-    }
-
-    function saveCharacterSettings() {
-        let settings = {
-            bodyHeight: character.bodyHeight,
-            realism: character.realism,
-            maturity: character.maturity,
-            femininity: character.femininity,
-            mass: character.mass,
-            muscle: character.muscle,
-            faceShape: character.faceShape,
-            chinForm: character.chinForm,
-            eyes: character.eyes,
-            nose: character.nose,
-            mouth: character.mouth,
-            hair: character.hair,
-            skin: character.skin.toString(),
-            hairTone: character.hairTone.toString(),
-            topClothing: character.topClothing.toString(),
-            bottomClothing: character.bottomClothing.toString()
-        };
-        characterStore.set("playerSettings", JSON.stringify(settings));
-        console.log("Character settings saved");
-    }
-
-    function loadCharacterSettings() {
-        if (characterStore.has("playerSettings")) {
-            let settings = JSON.parse(characterStore.get("playerSettings", "{}"));
-            if (settings.bodyHeight !== undefined) character.bodyHeight = settings.bodyHeight;
-            if (settings.realism !== undefined) character.realism = settings.realism;
-            if (settings.maturity !== undefined) character.maturity = settings.maturity;
-            if (settings.femininity !== undefined) character.femininity = settings.femininity;
-            if (settings.mass !== undefined) character.mass = settings.mass;
-            if (settings.muscle !== undefined) character.muscle = settings.muscle;
-            if (settings.faceShape !== undefined) character.faceShape = settings.faceShape;
-            if (settings.chinForm !== undefined) character.chinForm = settings.chinForm;
-            if (settings.eyes !== undefined) character.eyes = settings.eyes;
-            if (settings.nose !== undefined) character.nose = settings.nose;
-            if (settings.mouth !== undefined) character.mouth = settings.mouth;
-            if (settings.hair !== undefined) character.hair = settings.hair;
-            if (settings.skin) character.skin = settings.skin;
-            if (settings.hairTone) character.hairTone = settings.hairTone;
-            if (settings.topClothing) character.topClothing = settings.topClothing;
-            if (settings.bottomClothing) character.bottomClothing = settings.bottomClothing;
-            console.log("Character settings loaded");
-        }
-    }
-
-    Component.onCompleted: loadCharacterSettings()
-
-    // Auto-save timer (debounced to avoid saving on every tiny change)
-    Timer {
-        id: saveTimer
-        interval: 500
-        onTriggered: saveCharacterSettings()
-    }
-
-    function scheduleAutoSave() {
-        saveTimer.restart()
-    }
+    // All characters for editor
+    readonly property var allCharacters: [character, npcThinker, npcEater, npcHero, npcChild, npcStylized]
 
     // Forward keys to game controller for WASD movement
     Keys.forwardTo: [gameController]
@@ -192,10 +128,10 @@ Item {
             brightness: 0.3
         }
         
-        // Character camera that follows the character
+        // Character camera that follows the editor's target (or player when nothing selected)
         CharacterCamera {
             id: charCamera
-            character: character
+            character: charEditor.editTarget ?? character
             orbitDistance: root.cameraDistance
             orbitPitch: root.cameraPitch
             orbitYawOffset: root.cameraYaw
@@ -312,6 +248,7 @@ Item {
         }
         PatrolController {
             character: npcThinker
+            enabled: charEditor.selectedCharacter !== npcThinker
             minX: -80; maxX: 80
             minZ: -80; maxZ: 80
         }
@@ -338,6 +275,7 @@ Item {
         }
         PatrolController {
             character: npcEater
+            enabled: charEditor.selectedCharacter !== npcEater
             minX: -80; maxX: 80
             minZ: -80; maxZ: 80
         }
@@ -364,6 +302,7 @@ Item {
         }
         PatrolController {
             character: npcHero
+            enabled: charEditor.selectedCharacter !== npcHero
             minX: -80; maxX: 80
             minZ: -80; maxZ: 80
         }
@@ -389,6 +328,7 @@ Item {
         }
         PatrolController {
             character: npcChild
+            enabled: charEditor.selectedCharacter !== npcChild
             minX: -80; maxX: 80
             minZ: -80; maxZ: 80
         }
@@ -416,19 +356,20 @@ Item {
         }
         PatrolController {
             character: npcStylized
+            enabled: charEditor.selectedCharacter !== npcStylized
             minX: -80; maxX: 80
             minZ: -80; maxZ: 80
         }
-        
-        // Character controller
+
+        // Character controller - disabled when editor takes over
         CharacterController {
             id: charController
             character: character
-            enabled: true
+            enabled: !charEditor.hasSelection
             turnSpeed: 3.0
             axisX: gameController.axisX
             axisY: gameController.axisY
-            sprinting: gameController.buttonAPressed  // Shift key (via buttonBKey) for running
+            sprinting: gameController.buttonAPressed
         }
         
         // Add some objects for reference
@@ -463,299 +404,14 @@ Item {
         }
     }
 
-    // Parameter slider component
-    component ParamSlider: RowLayout {
-        property string label: ""
-        property real value: 0.5
-        property real from: 0.0
-        property real to: 1.0
-        property real stepSize: 0.05
-        spacing: 5
-        Layout.fillWidth: true
-
-        Text {
-            text: label
-            font.pixelSize: 11
-            Layout.preferredWidth: 70
-            color: "#333"
-        }
-        Slider {
-            id: slider
-            from: parent.from
-            to: parent.to
-            value: parent.value
-            stepSize: parent.stepSize
-            Layout.fillWidth: true
-            onMoved: { parent.value = value; root.scheduleAutoSave(); }
-        }
-        Text {
-            text: parent.value.toFixed(2)
-            font.pixelSize: 10
-            Layout.preferredWidth: 35
-            color: "#666"
-        }
-    }
-
-    // Color picker component
-    component ColorPicker: RowLayout {
-        id: colorPickerRow
-        property string label: ""
-        property color colorValue: "white"
-        spacing: 5
-        Layout.fillWidth: true
-
-        ColorDialog {
-            id: colorDialog
-            selectedColor: colorPickerRow.colorValue
-            onAccepted: {
-                colorPickerRow.colorValue = selectedColor
-                root.scheduleAutoSave()
-            }
-        }
-
-        Text {
-            text: colorPickerRow.label
-            font.pixelSize: 11
-            Layout.preferredWidth: 70
-            color: "#333"
-        }
-        Rectangle {
-            width: 24
-            height: 24
-            color: colorPickerRow.colorValue
-            border.color: "#999"
-            border.width: 1
-            radius: 3
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: colorDialog.open()
-            }
-        }
-        TextField {
-            Layout.fillWidth: true
-            text: colorPickerRow.colorValue
-            font.pixelSize: 10
-            onEditingFinished: { colorPickerRow.colorValue = text; root.scheduleAutoSave(); }
-        }
-    }
-
-    // Control panel with sliders
-    Rectangle {
-        id: controlPanel
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.margins: 10
-        width: 280
-        color: "#f8f8f8"
-        opacity: 0.95
-        radius: 8
-        border.color: "#ddd"
-        border.width: 1
-
-        ScrollView {
-            id: scrollView
-            anchors.fill: parent
-            anchors.margins: 10
-            clip: true
-            contentWidth: availableWidth
-
-            ColumnLayout {
-                id: controlColumn
-                width: scrollView.availableWidth
-                spacing: 8
-
-                // Header
-                Text {
-                    text: "Character Parameters"
-                    font.pixelSize: 14
-                    font.bold: true
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                Text {
-                    text: "WASD: move | Shift: run | Q/E: rotate cam"
-                    font.pixelSize: 9
-                    color: "#888"
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Text {
-                    text: "R/F: pitch | T/G: zoom | Right-drag: orbit"
-                    font.pixelSize: 9
-                    color: "#888"
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                // Body section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Body"; font.pixelSize: 12; font.bold: true; color: "#555" }
-
-                ParamSlider {
-                    label: "Height"
-                    value: character.bodyHeight
-                    from: 4.0; to: 14.0; stepSize: 0.5
-                    onValueChanged: character.bodyHeight = value
-                }
-                ParamSlider {
-                    label: "Realism"
-                    value: character.realism
-                    onValueChanged: character.realism = value
-                }
-                ParamSlider {
-                    label: "Maturity"
-                    value: character.maturity
-                    onValueChanged: character.maturity = value
-                }
-                ParamSlider {
-                    label: "Femininity"
-                    value: character.femininity
-                    onValueChanged: character.femininity = value
-                }
-                ParamSlider {
-                    label: "Mass"
-                    value: character.mass
-                    onValueChanged: character.mass = value
-                }
-                ParamSlider {
-                    label: "Muscle"
-                    value: character.muscle
-                    onValueChanged: character.muscle = value
-                }
-
-                // Face section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Face"; font.pixelSize: 12; font.bold: true; color: "#555" }
-
-                ParamSlider {
-                    label: "Face Shape"
-                    value: character.faceShape
-                    onValueChanged: character.faceShape = value
-                }
-                ParamSlider {
-                    label: "Chin Form"
-                    value: character.chinForm
-                    onValueChanged: character.chinForm = value
-                }
-                ParamSlider {
-                    label: "Eyes"
-                    value: character.eyes
-                    from: 0.5; to: 1.5
-                    onValueChanged: character.eyes = value
-                }
-                ParamSlider {
-                    label: "Nose"
-                    value: character.nose
-                    from: 0.5; to: 1.5
-                    onValueChanged: character.nose = value
-                }
-                ParamSlider {
-                    label: "Mouth"
-                    value: character.mouth
-                    from: 0.5; to: 1.5
-                    onValueChanged: character.mouth = value
-                }
-                ParamSlider {
-                    label: "Hair"
-                    value: character.hair
-                    from: 0.0; to: 1.5
-                    onValueChanged: character.hair = value
-                }
-
-                // Colors section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Colors"; font.pixelSize: 12; font.bold: true; color: "#555" }
-
-                ColorPicker {
-                    label: "Skin"
-                    colorValue: character.skin
-                    onColorValueChanged: character.skin = colorValue
-                }
-                ColorPicker {
-                    label: "Hair"
-                    colorValue: character.hairTone
-                    onColorValueChanged: character.hairTone = colorValue
-                }
-                ColorPicker {
-                    label: "Top"
-                    colorValue: character.topClothing
-                    onColorValueChanged: character.topClothing = colorValue
-                }
-                ColorPicker {
-                    label: "Bottom"
-                    colorValue: character.bottomClothing
-                    onColorValueChanged: character.bottomClothing = colorValue
-                }
-
-                // Activity toggle
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text { text: "Activity:"; font.pixelSize: 11 }
-                    Button {
-                        text: character.activity === Character.Idle ? "Idle" : "Walking"
-                        onClicked: {
-                            character.activity = character.activity === Character.Idle
-                                ? Character.Walking : Character.Idle
-                        }
-                    }
-                }
-
-                // Facial expressions
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Face"; font.pixelSize: 12; font.bold: true; color: "#555" }
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Button {
-                        text: "Idle"
-                        font.pixelSize: 10
-                        highlighted: character.faceActivity === Head.Activity.Idle
-                        onClicked: character.faceActivity = Head.Activity.Idle
-                    }
-                    Button {
-                        text: "Joy"
-                        font.pixelSize: 10
-                        highlighted: character.faceActivity === Head.Activity.ShowJoy
-                        onClicked: character.faceActivity = Head.Activity.ShowJoy
-                    }
-                    Button {
-                        text: "Anger"
-                        font.pixelSize: 10
-                        highlighted: character.faceActivity === Head.Activity.ShowAnger
-                        onClicked: character.faceActivity = Head.Activity.ShowAnger
-                    }
-                    Button {
-                        text: "Sad"
-                        font.pixelSize: 10
-                        highlighted: character.faceActivity === Head.Activity.ShowSadness
-                        onClicked: character.faceActivity = Head.Activity.ShowSadness
-                    }
-                    Button {
-                        text: "Talk"
-                        font.pixelSize: 10
-                        highlighted: character.faceActivity === Head.Activity.Talk
-                        onClicked: character.faceActivity = Head.Activity.Talk
-                    }
-                }
-
-                // Info
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text {
-                    text: "Settings auto-save and restore"
-                    font.pixelSize: 9
-                    color: "#888"
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Text {
-                    text: "Showcase behind: Thinker, Eater, Hero, Child, Stylized"
-                    font.pixelSize: 9
-                    color: "#888"
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
-            }
-        }
+    // Character Editor - optional overlay for editing any character
+    // Can be removed entirely for zero overhead in game mode
+    CharacterEditor {
+        id: charEditor
+        anchors.fill: parent
+        enabled: true
+        characters: root.allCharacters
+        view3d: view3d
+        gameController: gameController
     }
 }

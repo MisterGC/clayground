@@ -9,6 +9,7 @@ clay_plugin( Character3D
 
         # Core Components
         Character.qml
+        CharacterEditor.qml
         ParametricCharacter.qml
         RatioBasedCharacter.qml
         ThoughtBubble.qml

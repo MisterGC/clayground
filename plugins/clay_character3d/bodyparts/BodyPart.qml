@@ -12,4 +12,5 @@ Box3D
     edgeThickness: 7
     edgeColorFactor: 0.4
     castsShadows: true
+    pickable: true
 }
