@@ -153,6 +153,7 @@ BodyPartsGroup {
     readonly property Leg leftLeg: _leftLeg
     readonly property Leg rightLeg: _rightLeg
     readonly property Head head: _head
+    readonly property BodyPart torso: _torso
 
     BodyPart {
         id: _torso

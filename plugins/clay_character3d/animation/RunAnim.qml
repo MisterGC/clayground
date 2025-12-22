@@ -11,9 +11,9 @@ ProceduralAnim {
     readonly property real upperLegHeight: entity.legHeight * 0.5
     readonly property real lowerLegHeight: entity.legHeight * 0.5
 
-    // Hip (upper leg) angles - larger than walk for running stride
-    readonly property real upperLegForwardAngle: 40   // Degrees forward swing (larger than walk)
-    readonly property real upperLegBackwardAngle: 30  // Degrees backward swing
+    // Hip (upper leg) angles - pronounced stride like classic animation
+    readonly property real upperLegForwardAngle: 55   // Degrees forward swing (extended reach)
+    readonly property real upperLegBackwardAngle: 45  // Degrees backward swing (full push-off)
 
     // Calculate visual stride from leg geometry
     readonly property real visualStridePerStep: totalLegHeight * (Math.sin(upperLegForwardAngle * Math.PI / 180) + Math.sin(upperLegBackwardAngle * Math.PI / 180))
@@ -26,23 +26,34 @@ ProceduralAnim {
     // Duration per phase (half the cycle)
     duration: animCycleDuration / 2
 
-    // Knee bend - more pronounced for running (higher knee lift)
+    // Knee bend - high lift like "pass position" in classic run cycle
     readonly property real swingIntensity: (upperLegForwardAngle + upperLegBackwardAngle) / 70
-    readonly property real kneeLiftAngle: 50 + swingIntensity * 30   // Higher lift for running
-    readonly property real kneeExtendAngle: 15 + swingIntensity * 10
+    readonly property real kneeLiftAngle: 70 + swingIntensity * 40   // High knee lift (~110°)
+    readonly property real kneeExtendAngle: 10 + swingIntensity * 5  // Nearly straight on contact
 
     // Foot angles - more aggressive for running
     readonly property real footDorsiflexion: 25
     readonly property real footPlantarflexion: 35
 
-    // Arm swing - more vigorous for running
-    readonly property real armSwingFactor: 0.8  // Higher than walk (0.6)
+    // Arm swing - vigorous pumping motion like classic animation
+    readonly property real armSwingFactor: 1.0  // Full swing matching leg motion
     readonly property real upperArmForwardAngle: upperLegForwardAngle * armSwingFactor
-    readonly property real upperArmBackwardAngle: upperLegForwardAngle * armSwingFactor * 0.85
-    readonly property real lowerArmBendAngle: 45  // Arms bent at elbow while running
+    readonly property real upperArmBackwardAngle: upperLegBackwardAngle * armSwingFactor
+    readonly property real lowerArmBendAngle: 70  // Pronounced elbow bend (~90° total)
+
+    // Torso lean - forward tilt for dynamic running posture
+    readonly property real torsoLeanAngle: 12  // Degrees forward lean
 
     // Phase 1: Right leg forward, left leg back
     ParallelAnimation {
+        // Torso lean forward
+        EulerAnim {
+            target: entity.torso
+            duration: _runCycle.duration
+            from: Qt.vector3d(torsoLeanAngle, 0, 0)
+            to: Qt.vector3d(torsoLeanAngle, 0, 0)
+        }
+
         // Right leg forward motion
         EulerAnim {
             target: entity.rightLeg.upperLeg
@@ -114,6 +125,14 @@ ProceduralAnim {
 
     // Phase 2: Left leg forward, right leg back
     ParallelAnimation {
+        // Torso lean forward
+        EulerAnim {
+            target: entity.torso
+            duration: _runCycle.duration
+            from: Qt.vector3d(torsoLeanAngle, 0, 0)
+            to: Qt.vector3d(torsoLeanAngle, 0, 0)
+        }
+
         // Left leg forward motion
         EulerAnim {
             target: entity.leftLeg.upperLeg

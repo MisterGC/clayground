@@ -46,6 +46,14 @@ ProceduralAnim {
     
     // Phase 1: Right leg forward, left leg back
     ParallelAnimation {
+        // Torso upright (reset from run lean)
+        EulerAnim {
+            target: entity.torso
+            duration: _walkCycle.duration
+            from: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, 0, 0)
+        }
+
         // Right leg forward motion
         EulerAnim {
             target: entity.rightLeg.upperLeg
@@ -117,6 +125,14 @@ ProceduralAnim {
     
     // Phase 2: Left leg forward, right leg back
     ParallelAnimation {
+        // Torso upright (reset from run lean)
+        EulerAnim {
+            target: entity.torso
+            duration: _walkCycle.duration
+            from: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, 0, 0)
+        }
+
         // Left leg forward motion
         EulerAnim {
             target: entity.leftLeg.upperLeg

@@ -4,6 +4,13 @@ ProceduralAnim {
     id: _idleAnim
 
     ParallelAnimation {
+        // Reset torso to upright
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.torso
+            to: Qt.vector3d(0, 0, 0)
+        }
+
         // Reset right arm joints
         EulerAnim {
             duration: _idleAnim.duration
