@@ -28,6 +28,7 @@ clay_plugin( Character3D
         animation/WalkAnim.qml
         animation/RunAnim.qml
         animation/IdleAnim.qml
+        animation/UseAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
         animation/PosAndEulerAnim.qml

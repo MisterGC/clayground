@@ -40,7 +40,8 @@ BodyPartsGroup {
     enum Activity {
         Idle,
         Walking,
-        Running
+        Running,
+        Using
     }
     property int activity: Character.Activity.Idle
 
@@ -154,6 +155,7 @@ BodyPartsGroup {
     readonly property Leg rightLeg: _rightLeg
     readonly property Head head: _head
     readonly property BodyPart torso: _torso
+    readonly property BodyPart hip: _hip
 
     BodyPart {
         id: _torso
@@ -268,6 +270,13 @@ BodyPartsGroup {
         duration: 200
         running: _character.activity == Character.Activity.Idle
         loops: 1
+    }
+
+    UseAnim {
+        id: _useAnim
+        entity: _character
+        running: _character.activity === Character.Activity.Using
+        loops: Animation.Infinite
     }
 
 }

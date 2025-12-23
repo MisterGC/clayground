@@ -421,18 +421,37 @@ Item {
 
                 // Activity toggle
                 Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                RowLayout {
+                Text { text: "Activity"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Flow {
                     Layout.fillWidth: true
-                    Text { text: "Activity:"; font.pixelSize: 11 }
+                    spacing: 4
                     Button {
-                        text: root.editTarget && root.editTarget.activity === Character.Idle ? "Idle" : "Walking"
+                        text: "Idle"
+                        font.pixelSize: 10
+                        highlighted: root.editTarget && root.editTarget.activity === Character.Idle
                         enabled: root.editTarget !== null
-                        onClicked: {
-                            if (root.editTarget) {
-                                root.editTarget.activity = root.editTarget.activity === Character.Idle
-                                    ? Character.Walking : Character.Idle
-                            }
-                        }
+                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Idle
+                    }
+                    Button {
+                        text: "Walk"
+                        font.pixelSize: 10
+                        highlighted: root.editTarget && root.editTarget.activity === Character.Walking
+                        enabled: root.editTarget !== null
+                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Walking
+                    }
+                    Button {
+                        text: "Run"
+                        font.pixelSize: 10
+                        highlighted: root.editTarget && root.editTarget.activity === Character.Running
+                        enabled: root.editTarget !== null
+                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Running
+                    }
+                    Button {
+                        text: "Using"
+                        font.pixelSize: 10
+                        highlighted: root.editTarget && root.editTarget.activity === Character.Using
+                        enabled: root.editTarget !== null
+                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Using
                     }
                 }
 
