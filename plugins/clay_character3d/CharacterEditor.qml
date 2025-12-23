@@ -453,6 +453,13 @@ Item {
                         enabled: root.editTarget !== null
                         onClicked: if (root.editTarget) root.editTarget.activity = Character.Using
                     }
+                    Button {
+                        text: "Fight"
+                        font.pixelSize: 10
+                        highlighted: root.editTarget && root.editTarget.activity === Character.Fighting
+                        enabled: root.editTarget !== null
+                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Fighting
+                    }
                 }
 
                 // Facial expressions

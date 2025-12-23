@@ -78,13 +78,14 @@ Item {
             }
 
             // Update character activity state based on movement and sprint
-            // Only override movement-based activities, preserve special activities like Using
+            // Only override movement-based activities, preserve special activities like Using/Fighting
             if (root.processedAxisY) {
                 root.character.activity = root.sprinting ? Character.Running : Character.Walking;
             } else if (root.character.activity === Character.Walking ||
                        root.character.activity === Character.Running) {
                 root.character.activity = Character.Idle;
             }
+            // Note: Using and Fighting activities are preserved until explicitly changed
         }
     }
 

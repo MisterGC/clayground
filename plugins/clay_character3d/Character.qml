@@ -41,7 +41,8 @@ BodyPartsGroup {
         Idle,
         Walking,
         Running,
-        Using
+        Using,
+        Fighting
     }
     property int activity: Character.Activity.Idle
 
@@ -276,6 +277,13 @@ BodyPartsGroup {
         id: _useAnim
         entity: _character
         running: _character.activity === Character.Activity.Using
+        loops: Animation.Infinite
+    }
+
+    FightAnim {
+        id: _fightAnim
+        entity: _character
+        running: _character.activity === Character.Activity.Fighting
         loops: Animation.Infinite
     }
 
