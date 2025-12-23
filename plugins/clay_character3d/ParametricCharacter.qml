@@ -49,7 +49,7 @@ Character {
 
     property color skin: "#d38d5f"
     property color hairTone: "#734120"
-    property color eyes_: "#4a3728"
+    property color eyeTone: "#4a3728"
     property color topClothing: "#4169e1"
     property color bottomClothing: "#708090"
 
@@ -152,7 +152,7 @@ Character {
     // Colors
     skinColor: skin
     hairColor: hairTone
-    eyeColor: eyes_
+    eyeColor: eyeTone
     torsoColor: topClothing
     armColor: topClothing
     hipColor: bottomClothing
