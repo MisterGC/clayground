@@ -336,10 +336,20 @@ void MainWindow::restoreWindowGeometry()
     int defaultHeight = defaultWidth;
     
     QSettings settings("Clayground", "LiveLoader");
-    move(settings.value("geometry/x", defaultX).toInt(),
-         settings.value("geometry/y", defaultY).toInt());
-    resize(settings.value("geometry/width", defaultWidth).toInt(),
-           settings.value("geometry/height", defaultHeight).toInt());
+    int savedX = settings.value("geometry/x", defaultX).toInt();
+    int savedY = settings.value("geometry/y", defaultY).toInt();
+    int savedWidth = settings.value("geometry/width", defaultWidth).toInt();
+    int savedHeight = settings.value("geometry/height", defaultHeight).toInt();
+
+    // Ensure window is within screen bounds
+    if (savedX < availableGeometry.left() || savedX > availableGeometry.right() - 100 ||
+        savedY < availableGeometry.top() || savedY > availableGeometry.bottom() - 100) {
+        savedX = defaultX;
+        savedY = defaultY;
+    }
+
+    move(savedX, savedY);
+    resize(savedWidth, savedHeight);
 }
 
 void MainWindow::showAltMessage()
