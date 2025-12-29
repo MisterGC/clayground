@@ -12,9 +12,9 @@ class VoxelMapGeometry : public QQuick3DGeometry
     Q_OBJECT
     QML_NAMED_ELEMENT(VoxelMapGeometry)
 
-    Q_PROPERTY(int width READ width WRITE setWidth NOTIFY widthChanged)
-    Q_PROPERTY(int height READ height WRITE setHeight NOTIFY heightChanged)
-    Q_PROPERTY(int depth READ depth WRITE setDepth NOTIFY depthChanged)
+    Q_PROPERTY(int voxelCountX READ voxelCountX WRITE setVoxelCountX NOTIFY voxelCountXChanged)
+    Q_PROPERTY(int voxelCountY READ voxelCountY WRITE setVoxelCountY NOTIFY voxelCountYChanged)
+    Q_PROPERTY(int voxelCountZ READ voxelCountZ WRITE setVoxelCountZ NOTIFY voxelCountZChanged)
     Q_PROPERTY(float voxelSize READ voxelSize WRITE setVoxelSize NOTIFY voxelSizeChanged)
     Q_PROPERTY(float spacing READ spacing WRITE setSpacing NOTIFY spacingChanged)
     Q_PROPERTY(int vertexCount READ vertexCount NOTIFY vertexCountChanged)
@@ -23,12 +23,12 @@ public:
     explicit VoxelMapGeometry();
 
     // Forward property getters/setters to m_data
-    int width() const;
-    int height() const;
-    int depth() const;
-    void setWidth(int w);
-    void setHeight(int h);
-    void setDepth(int d);
+    int voxelCountX() const;
+    int voxelCountY() const;
+    int voxelCountZ() const;
+    void setVoxelCountX(int count);
+    void setVoxelCountY(int count);
+    void setVoxelCountZ(int count);
     float voxelSize() const;
     void setVoxelSize(float size);
     float spacing() const;
@@ -46,9 +46,9 @@ public:
     Q_INVOKABLE void commit();
 
 signals:
-    void widthChanged();
-    void heightChanged();
-    void depthChanged();
+    void voxelCountXChanged();
+    void voxelCountYChanged();
+    void voxelCountZChanged();
     void voxelSizeChanged();
     void spacingChanged();
     void vertexCountChanged();

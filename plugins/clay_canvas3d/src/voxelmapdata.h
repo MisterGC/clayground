@@ -18,13 +18,13 @@ class VoxelMapData : public QObject
 public:
     explicit VoxelMapData(QObject *parent = nullptr);
 
-    // Dimensions
-    int width() const { return m_width; }
-    int height() const { return m_height; }
-    int depth() const { return m_depth; }
-    void setWidth(int w);
-    void setHeight(int h);
-    void setDepth(int d);
+    // Dimensions (in voxel counts, not world units)
+    int voxelCountX() const { return m_voxelCountX; }
+    int voxelCountY() const { return m_voxelCountY; }
+    int voxelCountZ() const { return m_voxelCountZ; }
+    void setVoxelCountX(int count);
+    void setVoxelCountY(int count);
+    void setVoxelCountZ(int count);
 
     // Voxel properties
     float voxelSize() const { return m_voxelSize; }
@@ -52,15 +52,15 @@ public:
     Q_INVOKABLE void commit();
 
 signals:
-    void widthChanged();
-    void heightChanged();
-    void depthChanged();
+    void voxelCountXChanged();
+    void voxelCountYChanged();
+    void voxelCountZChanged();
     void voxelSizeChanged();
     void spacingChanged();
     void autoCommitChanged();
 
 protected:
-    int indexOf(int x, int y, int z) const { return x + y*m_width + z*m_width*m_height; }
+    int indexOf(int x, int y, int z) const { return x + y*m_voxelCountX + z*m_voxelCountX*m_voxelCountY; }
     void notifyDataChanged();
 
 private:
@@ -68,9 +68,9 @@ private:
     static QColor getRandomColor(const QVector<ColorProb> &distribution);
     static float applyNoise(float value, float noiseFactor);
 
-    int m_width = 0;
-    int m_height = 0;
-    int m_depth = 0;
+    int m_voxelCountX = 0;
+    int m_voxelCountY = 0;
+    int m_voxelCountZ = 0;
     float m_voxelSize = 1.0f;
     float m_spacing = 0.0f;
     QVector<QColor> m_voxels;

@@ -91,9 +91,9 @@ View3D {
 
             DynamicVoxelMap {
                 id: terrainMap
-                width: toonControls.terrainWidth
-                height: toonControls.terrainHeight
-                depth: toonControls.terrainDepth
+                voxelCountX: toonControls.terrainWidth
+                voxelCountY: toonControls.terrainHeight
+                voxelCountZ: toonControls.terrainDepth
                 voxelSize: 5
                 showEdges: true  // Disable for better performance and visual quality
                 edgeColorFactor: 0.8
@@ -101,32 +101,32 @@ View3D {
                 useToonShading: toonControls.useToonShading
 
                 // Regenerate terrain when dimensions change
-                onWidthChanged: Qt.callLater(generateTerrain)
-                onHeightChanged: Qt.callLater(generateTerrain)
-                onDepthChanged: Qt.callLater(generateTerrain)
+                onVoxelCountXChanged: Qt.callLater(generateTerrain)
+                onVoxelCountYChanged: Qt.callLater(generateTerrain)
+                onVoxelCountZChanged: Qt.callLater(generateTerrain)
 
                 Component.onCompleted: generateTerrain()
 
                 function generateTerrain() {
                     // Clear existing terrain
-                    for (var x = 0; x < width; x++) {
-                        for (var y = 0; y < height; y++) {
-                            for (var z = 0; z < depth; z++) {
+                    for (var x = 0; x < voxelCountX; x++) {
+                        for (var y = 0; y < voxelCountY; y++) {
+                            for (var z = 0; z < voxelCountZ; z++) {
                                 set(x, y, z, "#00000000")  // Transparent
                             }
                         }
                     }
 
                     // Terrain generation parameters
-                    var waterLevel = Math.floor(height * 0.3)  // Water at 30% of terrain height
-                    var maxTerrainHeight = height - 2  // Leave room at top
+                    var waterLevel = Math.floor(voxelCountY * 0.3)  // Water at 30% of terrain height
+                    var maxTerrainHeight = voxelCountY - 2  // Leave room at top
                     var noiseScale1 = 0.1   // Large features
-                    var noiseScale2 = 0.05  // Medium features  
+                    var noiseScale2 = 0.05  // Medium features
                     var noiseScale3 = 0.25  // Small details
 
                     // Generate heightmap with multiple octaves of noise
-                    for (var x = 0; x < width; x++) {
-                        for (var z = 0; z < depth; z++) {
+                    for (var x = 0; x < voxelCountX; x++) {
+                        for (var z = 0; z < voxelCountZ; z++) {
                             // Multi-octave noise for realistic terrain
                             var noise1 = Math.sin(x * noiseScale1) * Math.cos(z * noiseScale1)
                             var noise2 = Math.sin(x * noiseScale2) * Math.cos(z * noiseScale2) * 0.5
@@ -183,13 +183,13 @@ View3D {
                     }
 
                     // Add some scattered rocks and details
-                    for (var i = 0; i < width * depth * 0.02; i++) {
-                        var rx = Math.floor(Math.random() * width)
-                        var rz = Math.floor(Math.random() * depth)
-                        
+                    for (var i = 0; i < voxelCountX * voxelCountZ * 0.02; i++) {
+                        var rx = Math.floor(Math.random() * voxelCountX)
+                        var rz = Math.floor(Math.random() * voxelCountZ)
+
                         // Find surface at this position
                         var surfaceY = -1
-                        for (var ry = height - 1; ry >= 0; ry--) {
+                        for (var ry = voxelCountY - 1; ry >= 0; ry--) {
                             if (get(rx, ry, rz) !== "#00000000") {
                                 surfaceY = ry
                                 break
@@ -197,13 +197,13 @@ View3D {
                         }
                         
                         // Add rock if on solid ground above water
-                        if (surfaceY > waterLevel && surfaceY < height - 1) {
+                        if (surfaceY > waterLevel && surfaceY < voxelCountY - 1) {
                             set(rx, surfaceY + 1, rz, "#696969")  // Dark gray rock
                         }
                     }
 
                     model.commit()
-                    console.log("Generated terrain:", width + "x" + height + "x" + depth)
+                    console.log("Generated terrain:", voxelCountX + "x" + voxelCountY + "x" + voxelCountZ)
                 }
             }
         }
@@ -218,9 +218,9 @@ View3D {
 
             DynamicVoxelMap {
                 id: waveMap
-                width: 30
-                height: 15
-                depth: 30
+                voxelCountX: 30
+                voxelCountY: 15
+                voxelCountZ: 30
                 voxelSize: 5
                 showEdges: false
                 useToonShading: toonControls.useToonShading
@@ -239,23 +239,23 @@ View3D {
 
                 function updateWave() {
                     // Clear all voxels first
-                    for (var x = 0; x < width; x++) {
-                        for (var y = 0; y < height; y++) {
-                            for (var z = 0; z < depth; z++) {
+                    for (var x = 0; x < voxelCountX; x++) {
+                        for (var y = 0; y < voxelCountY; y++) {
+                            for (var z = 0; z < voxelCountZ; z++) {
                                 set(x, y, z, "#00000000")
                             }
                         }
                     }
 
                     // Create smooth, calm water wave
-                    for (var x = 0; x < width; x++) {
-                        for (var z = 0; z < depth; z++) {
+                    for (var x = 0; x < voxelCountX; x++) {
+                        for (var z = 0; z < voxelCountZ; z++) {
                             // Single smooth wave moving diagonally across the surface
                             var waveHeight = Math.floor(
                                 7 + 3 * Math.sin((x + z) * 0.3 + time)
                             )
-                            
-                            for (var y = 0; y < waveHeight && y < height; y++) {
+
+                            for (var y = 0; y < waveHeight && y < voxelCountY; y++) {
                                 // Water-like blue color palette - consistent blues only
                                 var depthRatio = y / waveHeight
                                 var lightness = 0.4 + (1.0 - depthRatio) * 0.3  // Lighter at surface, darker at depth
@@ -281,9 +281,9 @@ View3D {
             z: 100
 
             StaticVoxelMap {
-                width: 50
-                height: 50
-                depth: 50
+                voxelCountX: 50
+                voxelCountY: 50
+                voxelCountZ: 50
                 voxelSize: 4
                 showEdges: true
                 edgeColorFactor: toonControls.useToonShading ? 1.8 : 1.3
@@ -355,9 +355,9 @@ View3D {
             // Forest of trees using StaticVoxelMap with TRUE GPU instancing
             StaticVoxelMap {
                 id: forestMap
-                width: 7
-                height: 12
-                depth: 7
+                voxelCountX: 7
+                voxelCountY: 12
+                voxelCountZ: 7
                 voxelSize: 3
                 showEdges: true
                 edgeColorFactor: 0.7

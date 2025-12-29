@@ -24,41 +24,41 @@ VoxelMapGeometry::VoxelMapGeometry()
     m_data.setOnDataChanged([this]() { updateGeometry(); });
 
     // Connect property change signals
-    connect(&m_data, &VoxelMapData::widthChanged, this, &VoxelMapGeometry::widthChanged);
-    connect(&m_data, &VoxelMapData::heightChanged, this, &VoxelMapGeometry::heightChanged);
-    connect(&m_data, &VoxelMapData::depthChanged, this, &VoxelMapGeometry::depthChanged);
+    connect(&m_data, &VoxelMapData::voxelCountXChanged, this, &VoxelMapGeometry::voxelCountXChanged);
+    connect(&m_data, &VoxelMapData::voxelCountYChanged, this, &VoxelMapGeometry::voxelCountYChanged);
+    connect(&m_data, &VoxelMapData::voxelCountZChanged, this, &VoxelMapGeometry::voxelCountZChanged);
     connect(&m_data, &VoxelMapData::voxelSizeChanged, this, &VoxelMapGeometry::voxelSizeChanged);
     connect(&m_data, &VoxelMapData::spacingChanged, this, &VoxelMapGeometry::spacingChanged);
 }
 
-int VoxelMapGeometry::width() const
+int VoxelMapGeometry::voxelCountX() const
 {
-    return m_data.width();
+    return m_data.voxelCountX();
 }
 
-void VoxelMapGeometry::setWidth(int w)
+void VoxelMapGeometry::setVoxelCountX(int count)
 {
-    m_data.setWidth(w);
+    m_data.setVoxelCountX(count);
 }
 
-int VoxelMapGeometry::height() const
+int VoxelMapGeometry::voxelCountY() const
 {
-    return m_data.height();
+    return m_data.voxelCountY();
 }
 
-void VoxelMapGeometry::setHeight(int h)
+void VoxelMapGeometry::setVoxelCountY(int count)
 {
-    m_data.setHeight(h);
+    m_data.setVoxelCountY(count);
 }
 
-int VoxelMapGeometry::depth() const
+int VoxelMapGeometry::voxelCountZ() const
 {
-    return m_data.depth();
+    return m_data.voxelCountZ();
 }
 
-void VoxelMapGeometry::setDepth(int d)
+void VoxelMapGeometry::setVoxelCountZ(int count)
 {
-    m_data.setDepth(d);
+    m_data.setVoxelCountZ(count);
 }
 
 float VoxelMapGeometry::voxelSize() const
@@ -128,7 +128,7 @@ bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
     }
 
     // If neighbor is outside bounds, face is visible
-    if (nx < 0 || nx >= m_data.width() || ny < 0 || ny >= m_data.height() || nz < 0 || nz >= m_data.depth())
+    if (nx < 0 || nx >= m_data.voxelCountX() || ny < 0 || ny >= m_data.voxelCountY() || nz < 0 || nz >= m_data.voxelCountZ())
         return true;
 
     // Face is visible if neighbor voxel is transparent
@@ -139,13 +139,13 @@ bool VoxelMapGeometry::isFaceVisible(int x, int y, int z, int faceIndex) const {
 void VoxelMapGeometry::updateGeometry()
 {
     clear();
-    if (m_data.width() <= 0 || m_data.height() <= 0 || m_data.depth() <= 0)
+    if (m_data.voxelCountX() <= 0 || m_data.voxelCountY() <= 0 || m_data.voxelCountZ() <= 0)
         return;
 
     // Calculate the total size including spacing
-    float totalWidth = m_data.width() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
-    float totalHeight = m_data.height() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
-    float totalDepth = m_data.depth() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalWidth = m_data.voxelCountX() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalHeight = m_data.voxelCountY() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalDepth = m_data.voxelCountZ() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
 
     // Update bounds calculation
     float halfWidth = totalWidth / 2.0f;
@@ -335,7 +335,7 @@ QVector<VoxelMapGeometry::GreedyQuad> VoxelMapGeometry::generateGreedyQuads()
                 break;
         }
         
-        int dim[3] = {m_data.width(), m_data.height(), m_data.depth()};
+        int dim[3] = {m_data.voxelCountX(), m_data.voxelCountY(), m_data.voxelCountZ()};
         
         // Process each slice perpendicular to this face
         for (int slice = 0; slice < dim[axis2]; ++slice) {

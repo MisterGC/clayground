@@ -8,16 +8,28 @@ Model {
 
     id: _voxelMap
 
-
     // Size of each voxel in world units
     property real voxelSize: 1.0
     property real spacing: 0.0  // Default to solid voxels (no gaps)
 
-    // TODO: The width/height/depth properties are in VOXEL COUNT, not world units.
-    // This is confusing because users expect dimensions in world units like other
-    // Qt Quick 3D components. Actual world size = dimension × voxelSize.
-    // Consider adding worldWidth/worldHeight/worldDepth properties, or renaming
-    // current properties to voxelCountX/Y/Z for clarity.
+    // World dimensions (read-only, computed from voxel counts)
+    // These account for both voxelSize and spacing between voxels.
+    // Formula: dimension * (voxelSize + spacing) - spacing
+    readonly property real width: _voxelMap.voxelCountX > 0
+        ? _voxelMap.voxelCountX * (_voxelMap.voxelSize + _voxelMap.spacing) - _voxelMap.spacing
+        : 0
+    readonly property real height: _voxelMap.voxelCountY > 0
+        ? _voxelMap.voxelCountY * (_voxelMap.voxelSize + _voxelMap.spacing) - _voxelMap.spacing
+        : 0
+    readonly property real depth: _voxelMap.voxelCountZ > 0
+        ? _voxelMap.voxelCountZ * (_voxelMap.voxelSize + _voxelMap.spacing) - _voxelMap.spacing
+        : 0
+
+    // Voxel counts - these must be set by subclasses (StaticVoxelMap, DynamicVoxelMap)
+    // Use these to define the grid dimensions in discrete voxel units
+    property int voxelCountX: 0
+    property int voxelCountY: 0
+    property int voxelCountZ: 0
 
     // Relative offset of the voxel edges in
     // relation to origin of the voxel map's local coord

@@ -187,7 +187,7 @@ View3D {
         id: _voxelMapInst
         castsShadows: true
         x: -200; y: 0; z: 300
-        width: 30; height: 30; depth: 30
+        voxelCountX: 30; voxelCountY: 30; voxelCountZ: 30
         voxelSize: 2.0; spacing: 0.0
 
         SequentialAnimation{
@@ -259,7 +259,7 @@ View3D {
                 }
             ]
         }
-        width: 30; height: 30; depth: 30
+        voxelCountX: 30; voxelCountY: 30; voxelCountZ: 30
         voxelSize: 5.0; spacing: 0.0
         Component.onCompleted: {
 
@@ -309,7 +309,7 @@ View3D {
         id: _roomMap
         castsShadows: true
         x: 50; y: 0; z: 300
-        width: 40; height: 20; depth: 40
+        voxelCountX: 40; voxelCountY: 20; voxelCountZ: 40
         voxelSize: 5.0; spacing: 0.0
         Component.onCompleted: {
             _roomMap.fill([

@@ -164,21 +164,21 @@ Item {
         }
         
         // Ground plane using VoxelMap for better toon shading
-        // Bottom-aligned: surface = y + (height * voxelSize) = -4 + (2 * 2.0) = 0
+        // Bottom-aligned: surface = y + (voxelCountY * voxelSize) = -4 + (2 * 2.0) = 0
         StaticVoxelMap {
             id: ground
             visible: true
             y: -4
-            width: 100
-            height: 2
-            depth: 100
+            voxelCountX: 100
+            voxelCountY: 2
+            voxelCountZ: 100
             voxelSize: 2.0  // Large voxels for ground
             spacing: 0.0
-            
+
             showEdges: true
             edgeColorFactor: 0.6
             edgeThickness: 0.02
-            
+
             Component.onCompleted: {
                 // Fill with a simple green ground
                 fill([{

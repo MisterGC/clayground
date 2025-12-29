@@ -24,36 +24,36 @@ VoxelMapData::VoxelMapData(QObject *parent)
 {
 }
 
-void VoxelMapData::setWidth(int w)
+void VoxelMapData::setVoxelCountX(int count)
 {
-    if (m_width == w)
+    if (m_voxelCountX == count)
         return;
-    m_width = w;
-    m_voxels.resize(m_width * m_height * m_depth);
+    m_voxelCountX = count;
+    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
     m_voxels.fill(Qt::transparent);
-    emit widthChanged();
+    emit voxelCountXChanged();
     notifyDataChanged();
 }
 
-void VoxelMapData::setHeight(int h)
+void VoxelMapData::setVoxelCountY(int count)
 {
-    if (m_height == h)
+    if (m_voxelCountY == count)
         return;
-    m_height = h;
-    m_voxels.resize(m_width * m_height * m_depth);
+    m_voxelCountY = count;
+    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
     m_voxels.fill(Qt::transparent);
-    emit heightChanged();
+    emit voxelCountYChanged();
     notifyDataChanged();
 }
 
-void VoxelMapData::setDepth(int d)
+void VoxelMapData::setVoxelCountZ(int count)
 {
-    if (m_depth == d)
+    if (m_voxelCountZ == count)
         return;
-    m_depth = d;
-    m_voxels.resize(m_width * m_height * m_depth);
+    m_voxelCountZ = count;
+    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
     m_voxels.fill(Qt::transparent);
-    emit depthChanged();
+    emit voxelCountZChanged();
     notifyDataChanged();
 }
 
@@ -77,14 +77,14 @@ void VoxelMapData::setSpacing(float spacing)
 
 QColor VoxelMapData::voxel(int x, int y, int z) const
 {
-    if (x < 0 || x >= m_width || y < 0 || y >= m_height || z < 0 || z >= m_depth)
+    if (x < 0 || x >= m_voxelCountX || y < 0 || y >= m_voxelCountY || z < 0 || z >= m_voxelCountZ)
         return Qt::transparent;
     return m_voxels[indexOf(x, y, z)];
 }
 
 void VoxelMapData::setVoxel(int x, int y, int z, const QColor &color)
 {
-    if (x < 0 || x >= m_width || y < 0 || y >= m_height || z < 0 || z >= m_depth)
+    if (x < 0 || x >= m_voxelCountX || y < 0 || y >= m_voxelCountY || z < 0 || z >= m_voxelCountZ)
         return;
     int idx = indexOf(x, y, z);
     if (m_voxels[idx] == color)
@@ -156,7 +156,7 @@ void VoxelMapData::fillSphere(int cx, int cy, int cz, int r, const QVariantList 
     // Validate inputs
     if (r <= 0.0f || colorDistribution.isEmpty()) return;
     if (cx < -r || cy < -r || cz < -r) return;
-    if (cx >= width() + r || cy >= height() + r || cz >= depth() + r) return;
+    if (cx >= voxelCountX() + r || cy >= voxelCountY() + r || cz >= voxelCountZ() + r) return;
 
     auto distribution = prepareColorDistribution(colorDistribution);
     if (distribution.isEmpty()) return;
@@ -164,12 +164,12 @@ void VoxelMapData::fillSphere(int cx, int cy, int cz, int r, const QVariantList 
     float maxRadius = r * (1.0f + noiseFactor);
     float baseR2 = (r - 0.5f) * (r - 0.5f);
 
-    int minX = qBound(0, int(cx - maxRadius), width() - 1);
-    int maxX = qBound(0, int(cx + maxRadius), width() - 1);
-    int minY = qBound(0, int(cy - maxRadius), height() - 1);
-    int maxY = qBound(0, int(cy + maxRadius), height() - 1);
-    int minZ = qBound(0, int(cz - maxRadius), depth() - 1);
-    int maxZ = qBound(0, int(cz + maxRadius), depth() - 1);
+    int minX = qBound(0, int(cx - maxRadius), voxelCountX() - 1);
+    int maxX = qBound(0, int(cx + maxRadius), voxelCountX() - 1);
+    int minY = qBound(0, int(cy - maxRadius), voxelCountY() - 1);
+    int maxY = qBound(0, int(cy + maxRadius), voxelCountY() - 1);
+    int minZ = qBound(0, int(cz - maxRadius), voxelCountZ() - 1);
+    int maxZ = qBound(0, int(cz + maxRadius), voxelCountZ() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
@@ -194,7 +194,7 @@ void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const
     // Validate inputs
     if (r <= 0.0f || height <= 0 || colorDistribution.isEmpty()) return;
     if (cx < -r || cy < 0 || cz < -r) return;
-    if (cx >= width() + r || cy >= this->height() + height || cz >= depth() + r) return;
+    if (cx >= voxelCountX() + r || cy >= voxelCountY() + height || cz >= voxelCountZ() + r) return;
 
     auto distribution = prepareColorDistribution(colorDistribution);
     if (distribution.isEmpty()) return;
@@ -202,12 +202,12 @@ void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const
     float maxRadius = r * (1.0f + noiseFactor);
     float baseR2 = (r - 0.5f) * (r - 0.5f);
 
-    int minX = qBound(0, int(cx - maxRadius), width() - 1);
-    int maxX = qBound(0, int(cx + maxRadius), width() - 1);
-    int minY = qBound(0, int(cy), this->height() - 1);
-    int maxY = qBound(0, int(cy + height), this->height() - 1);
-    int minZ = qBound(0, int(cz - maxRadius), depth() - 1);
-    int maxZ = qBound(0, int(cz + maxRadius), depth() - 1);
+    int minX = qBound(0, int(cx - maxRadius), voxelCountX() - 1);
+    int maxX = qBound(0, int(cx + maxRadius), voxelCountX() - 1);
+    int minY = qBound(0, int(cy), voxelCountY() - 1);
+    int maxY = qBound(0, int(cy + height), voxelCountY() - 1);
+    int minZ = qBound(0, int(cz - maxRadius), voxelCountZ() - 1);
+    int maxZ = qBound(0, int(cz + maxRadius), voxelCountZ() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
@@ -234,12 +234,12 @@ void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHe
     if (distribution.isEmpty()) return;
 
     // Calculate bounds directly from min position
-    int maxX = qBound(0, minX + boxWidth - 1, width() - 1);
-    int maxY = qBound(0, minY + boxHeight - 1, height() - 1);
-    int maxZ = qBound(0, minZ + boxDepth - 1, depth() - 1);
-    minX = qBound(0, minX, width() - 1);
-    minY = qBound(0, minY, height() - 1);
-    minZ = qBound(0, minZ, depth() - 1);
+    int maxX = qBound(0, minX + boxWidth - 1, voxelCountX() - 1);
+    int maxY = qBound(0, minY + boxHeight - 1, voxelCountY() - 1);
+    int maxZ = qBound(0, minZ + boxDepth - 1, voxelCountZ() - 1);
+    minX = qBound(0, minX, voxelCountX() - 1);
+    minY = qBound(0, minY, voxelCountY() - 1);
+    minZ = qBound(0, minZ, voxelCountZ() - 1);
 
     if (minX > maxX || minY > maxY || minZ > maxZ) return;
 
@@ -279,23 +279,23 @@ bool VoxelMapData::saveToFile(const QString &path)
     out << "# One line per voxel\n";
     out << "# X Y Z RRGGBB\n";
     out << "# Note: In this format, Y is depth and Z is height\n";
-    out << "# Dimensions: " << m_width << " " << m_depth << " " << m_height << "\n";
+    out << "# Dimensions: " << m_voxelCountX << " " << m_voxelCountZ << " " << m_voxelCountY << "\n";
     out << "# VoxelSize: " << m_voxelSize << "\n";
     out << "# Spacing: " << m_spacing << "\n";
 
     // Write voxel data - one line per voxel
     // In text format: X=width, Y=depth, Z=height
-    // In our data: X=width, Y=height, Z=depth
-    for (int z = 0; z < m_depth; z++) {
-        for (int y = 0; y < m_height; y++) {
-            for (int x = 0; x < m_width; x++) {
+    // In our data: X=voxelCountX, Y=voxelCountY, Z=voxelCountZ
+    for (int z = 0; z < m_voxelCountZ; z++) {
+        for (int y = 0; y < m_voxelCountY; y++) {
+            for (int x = 0; x < m_voxelCountX; x++) {
                 QColor color = m_voxels[indexOf(x, y, z)];
 
                 // Only write non-transparent voxels
                 if (color.alpha() > 0) {
                     // Write as "X Y Z RRGGBB" format
                     // Map our (x,y,z) to text format (x,z,y)
-                    out << x << " " << (m_depth - z) << " " << y << " "
+                    out << x << " " << (m_voxelCountZ - z) << " " << y << " "
                         << QString("%1%2%3")
                            .arg(color.red(), 2, 16, QChar('0'))
                            .arg(color.green(), 2, 16, QChar('0'))
@@ -321,9 +321,9 @@ bool VoxelMapData::loadFromFile(const QString &path)
     QTextStream in(&file);
 
     // Default dimensions in case they're not in the file
-    int newWidth = m_width;
-    int newHeight = m_height;
-    int newDepth = m_depth;
+    int newVoxelCountX = m_voxelCountX;
+    int newVoxelCountY = m_voxelCountY;
+    int newVoxelCountZ = m_voxelCountZ;
     float newVoxelSize = m_voxelSize;
     float newSpacing = m_spacing;
 
@@ -340,10 +340,10 @@ bool VoxelMapData::loadFromFile(const QString &path)
             if (line.contains("Dimensions:")) {
                 QStringList parts = line.split(" ");
                 if (parts.size() >= 5) {
-                    newWidth = parts[2].toInt();
+                    newVoxelCountX = parts[2].toInt();
                     // Note: In the file, Y is depth and Z is height
-                    newDepth = parts[3].toInt();
-                    newHeight = parts[4].toInt();
+                    newVoxelCountZ = parts[3].toInt();
+                    newVoxelCountY = parts[4].toInt();
                 }
             } else if (line.contains("VoxelSize:")) {
                 QStringList parts = line.split(" ");
@@ -368,20 +368,20 @@ bool VoxelMapData::loadFromFile(const QString &path)
             int y = parts[2].toInt(); // This is height in our system
 
             // Update dimensions based on voxel coordinates
-            newWidth = qMax(newWidth, x + 1);
-            newHeight = qMax(newHeight, y + 1);
-            newDepth = qMax(newDepth, z + 1);
+            newVoxelCountX = qMax(newVoxelCountX, x + 1);
+            newVoxelCountY = qMax(newVoxelCountY, y + 1);
+            newVoxelCountZ = qMax(newVoxelCountZ, z + 1);
         }
     }
 
     // Update dimensions and reset voxel array
-    m_width = newWidth;
-    m_height = newHeight;
-    m_depth = newDepth;
+    m_voxelCountX = newVoxelCountX;
+    m_voxelCountY = newVoxelCountY;
+    m_voxelCountZ = newVoxelCountZ;
     m_voxelSize = newVoxelSize;
     m_spacing = newSpacing;
 
-    m_voxels.resize(m_width * m_height * m_depth);
+    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
     m_voxels.fill(Qt::transparent);
 
     // Second pass: read voxel data
@@ -396,11 +396,11 @@ bool VoxelMapData::loadFromFile(const QString &path)
         if (parts.size() >= 4) {
             int x = parts[0].toInt();
             // In text format: Y is depth, Z is height
-            int z = newDepth-parts[1].toInt(); // This is depth in our system
+            int z = newVoxelCountZ-parts[1].toInt(); // This is depth in our system
             int y = parts[2].toInt(); // This is height in our system
 
             // Check if coordinates are within bounds
-            if (x >= 0 && x < m_width && y >= 0 && y < m_height && z >= 0 && z < m_depth) {
+            if (x >= 0 && x < m_voxelCountX && y >= 0 && y < m_voxelCountY && z >= 0 && z < m_voxelCountZ) {
                 // Parse color (RRGGBB format)
                 QString colorStr = parts[3];
                 bool ok;
@@ -434,9 +434,9 @@ bool VoxelMapData::loadFromFile(const QString &path)
 
     file.close();
 
-    emit widthChanged();
-    emit heightChanged();
-    emit depthChanged();
+    emit voxelCountXChanged();
+    emit voxelCountYChanged();
+    emit voxelCountZChanged();
     emit voxelSizeChanged();
     notifyDataChanged();
     return true;

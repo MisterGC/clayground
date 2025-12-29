@@ -7,18 +7,19 @@ VoxelMap {
     id: _voxelMap
     model: _voxelMesh
 
-    // Dimensions of the voxel map
-    property alias width: _voxelMesh.width
-    property alias height: _voxelMesh.height
-    property alias depth: _voxelMesh.depth
+    // Dimensions of the voxel map (in voxel counts)
+    // Aliased to the underlying geometry for direct access
+    property alias voxelCountX: _voxelMesh.voxelCountX
+    property alias voxelCountY: _voxelMesh.voxelCountY
+    property alias voxelCountZ: _voxelMesh.voxelCountZ
 
     // For StaticVoxelMaps the entire map is generated as one static mesh
     // which has its origin in the bottom center - depending if the number
     // of voxels along a dim is even or odd we may have to apply an offset
     voxelOffset: Qt.vector3d(
-                     (_voxelMap.width % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
+                     (_voxelMap.voxelCountX % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
                      0,
-                     (_voxelMap.depth % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
+                     (_voxelMap.voxelCountZ % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5)
                      )
 
     function load(path) {_voxelMesh.loadFromFile(path);}
@@ -26,9 +27,6 @@ VoxelMap {
 
     geometry: VoxelMapGeometry {
         id: _voxelMesh
-        width: _voxelMap.width
-        height: _voxelMap.height
-        depth: _voxelMap.depth
         voxelSize: _voxelMap.voxelSize
         spacing: _voxelMap.spacing
     }

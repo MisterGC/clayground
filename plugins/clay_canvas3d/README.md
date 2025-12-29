@@ -131,13 +131,19 @@ Voxel maps create 3D structures composed of cubic voxels with support for both d
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| width/height/depth | int | 100 | Voxel map dimensions |
-| voxelSize | real | 1.0 | Size of each voxel |
+| voxelCountX/Y/Z | int | 0 | Voxel grid dimensions (number of voxels per axis) |
+| width/height/depth | real | (readonly) | World dimensions, computed as: `voxelCount * (voxelSize + spacing) - spacing` |
+| voxelSize | real | 1.0 | Size of each voxel in world units |
+| spacing | real | 0.0 | Gap between voxels in world units |
 | voxelOffset | vector3d | (0,0,0) | World offset for the entire map |
 | showEdges | bool | true | Whether to render voxel grid lines |
 | edgeThickness | real | 0.05 | Thickness of grid edges |
 | edgeColorFactor | real | 1.0 | Darkening factor for edges |
 | useToonShading | bool | false | Enable cartoon-style lighting |
+
+**Note:** The `voxelCountX/Y/Z` properties define the discrete grid size (number of voxels), while
+`width/height/depth` are read-only properties that give you the actual world dimensions accounting
+for both `voxelSize` and `spacing`. This makes it easy to position other objects relative to the voxel map.
 
 #### DynamicVoxelMap
 Best for voxel maps that change frequently. Each voxel is rendered as a separate instance.
@@ -204,9 +210,24 @@ Canvas3D uses Qt Quick 3D's coordinate system:
 
 ### Voxel Coordinates
 
-Voxel coordinates (0,0,0) start at the origin:
+Voxel coordinates (0,0,0) start at the origin. The relationship between voxel coordinates and world positions:
 ```
-worldPosition = voxelCoordinate * voxelSize + voxelOffset
+worldPosition = voxelCoordinate * (voxelSize + spacing) + voxelOffset
+```
+
+The read-only `width`, `height`, and `depth` properties give you the total world dimensions:
+```qml
+StaticVoxelMap {
+    voxelCountX: 10
+    voxelCountY: 5
+    voxelCountZ: 10
+    voxelSize: 2.0
+    spacing: 0.5
+
+    // width = 10 * (2.0 + 0.5) - 0.5 = 24.5
+    // height = 5 * (2.0 + 0.5) - 0.5 = 12.0
+    // depth = 10 * (2.0 + 0.5) - 0.5 = 24.5
+}
 ```
 
 ## Edge Rendering
@@ -229,6 +250,9 @@ When using StaticVoxelMap with `fill()` operations (spheres, cylinders), disable
 
 ```qml
 StaticVoxelMap {
+    voxelCountX: 50
+    voxelCountY: 50
+    voxelCountZ: 50
     showEdges: false  // Prevents grid artifacts with meshed geometry
 
     Component.onCompleted: {
@@ -284,18 +308,21 @@ View3D {
     }
 
     StaticVoxelMap {
-        width: 80; height: 30; depth: 80
+        id: terrain
+        voxelCountX: 80
+        voxelCountY: 30
+        voxelCountZ: 80
         voxelSize: 5
         useToonShading: true
         showEdges: false  // Avoid artifacts with terrain
 
         Component.onCompleted: {
             // Create layered terrain
-            for (let x = 0; x < width; x++) {
-                for (let z = 0; z < depth; z++) {
-                    let height = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 8 + 15
+            for (let x = 0; x < voxelCountX; x++) {
+                for (let z = 0; z < voxelCountZ; z++) {
+                    let h = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 8 + 15
 
-                    for (let y = 0; y < height; y++) {
+                    for (let y = 0; y < h; y++) {
                         let color = y < 5 ? "#8B4513" :   // Dirt
                                    y < 12 ? "#228B22" :   // Grass
                                            "#708090"       // Stone

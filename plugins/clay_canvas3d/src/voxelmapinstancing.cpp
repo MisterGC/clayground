@@ -18,9 +18,9 @@ VoxelMapInstancing::VoxelMapInstancing(QQuick3DObject *parent)
     });
 
     // Connect property change signals from m_data.
-    connect(&m_data, &VoxelMapData::widthChanged, this, &VoxelMapInstancing::widthChanged);
-    connect(&m_data, &VoxelMapData::heightChanged, this, &VoxelMapInstancing::heightChanged);
-    connect(&m_data, &VoxelMapData::depthChanged, this, &VoxelMapInstancing::depthChanged);
+    connect(&m_data, &VoxelMapData::voxelCountXChanged, this, &VoxelMapInstancing::voxelCountXChanged);
+    connect(&m_data, &VoxelMapData::voxelCountYChanged, this, &VoxelMapInstancing::voxelCountYChanged);
+    connect(&m_data, &VoxelMapData::voxelCountZChanged, this, &VoxelMapInstancing::voxelCountZChanged);
     connect(&m_data, &VoxelMapData::voxelSizeChanged, this, &VoxelMapInstancing::voxelSizeChanged);
     connect(&m_data, &VoxelMapData::spacingChanged, this, &VoxelMapInstancing::spacingChanged);
 }
@@ -28,28 +28,28 @@ VoxelMapInstancing::VoxelMapInstancing(QQuick3DObject *parent)
 // ==========================================
 // Delegated Methods (for properties)
 // ==========================================
-int VoxelMapInstancing::width() const {
-    return m_data.width();
+int VoxelMapInstancing::voxelCountX() const {
+    return m_data.voxelCountX();
 }
 
-int VoxelMapInstancing::height() const {
-    return m_data.height();
+int VoxelMapInstancing::voxelCountY() const {
+    return m_data.voxelCountY();
 }
 
-int VoxelMapInstancing::depth() const {
-    return m_data.depth();
+int VoxelMapInstancing::voxelCountZ() const {
+    return m_data.voxelCountZ();
 }
 
-void VoxelMapInstancing::setWidth(int w) {
-    m_data.setWidth(w);
+void VoxelMapInstancing::setVoxelCountX(int count) {
+    m_data.setVoxelCountX(count);
 }
 
-void VoxelMapInstancing::setHeight(int h) {
-    m_data.setHeight(h);
+void VoxelMapInstancing::setVoxelCountY(int count) {
+    m_data.setVoxelCountY(count);
 }
 
-void VoxelMapInstancing::setDepth(int d) {
-    m_data.setDepth(d);
+void VoxelMapInstancing::setVoxelCountZ(int count) {
+    m_data.setVoxelCountZ(count);
 }
 
 float VoxelMapInstancing::voxelSize() const {
@@ -111,9 +111,9 @@ QByteArray VoxelMapInstancing::getInstanceBuffer(int *instanceCount)
 
     // Count non-transparent voxels from m_data.
     int count = 0;
-    for (int z = 0; z < m_data.depth(); ++z) {
-        for (int y = 0; y < m_data.height(); ++y) {
-            for (int x = 0; x < m_data.width(); ++x) {
+    for (int z = 0; z < m_data.voxelCountZ(); ++z) {
+        for (int y = 0; y < m_data.voxelCountY(); ++y) {
+            for (int x = 0; x < m_data.voxelCountX(); ++x) {
                 if (m_data.voxel(x, y, z).alpha() != 0)
                     ++count;
             }
@@ -128,9 +128,9 @@ void VoxelMapInstancing::updateInstanceData()
     m_instanceData.clear();
 
     // Calculate overall grid dimensions based on m_data properties.
-    float totalWidth  = m_data.width()  * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
-    float totalHeight = m_data.height() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
-    float totalDepth  = m_data.depth()  * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalWidth  = m_data.voxelCountX()  * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalHeight = m_data.voxelCountY() * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
+    float totalDepth  = m_data.voxelCountZ()  * (m_data.voxelSize() + m_data.spacing()) - m_data.spacing();
 
     // Center the grid horizontally; keep the bottom at y = 0.
     float offsetX = -totalWidth / 2.0f;
@@ -138,9 +138,9 @@ void VoxelMapInstancing::updateInstanceData()
     float offsetZ = -totalDepth / 2.0f;
 
     // For each non-transparent voxel, generate its instance (for transformation and color).
-    for (int z = 0; z < m_data.depth(); ++z) {
-        for (int y = 0; y < m_data.height(); ++y) {
-            for (int x = 0; x < m_data.width(); ++x) {
+    for (int z = 0; z < m_data.voxelCountZ(); ++z) {
+        for (int y = 0; y < m_data.voxelCountY(); ++y) {
+            for (int x = 0; x < m_data.voxelCountX(); ++x) {
                 QColor c = m_data.voxel(x, y, z);
                 if (c.alpha() == 0)
                     continue;
