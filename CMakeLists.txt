@@ -4,11 +4,10 @@
 # PROJECT BASICS
 # ===============
 
-# Initializes global context that Clayground relies on
-include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
-
-include(claycommon)
-include(clayplugin)
+# Policy must be set before project() to allow VERSION in project()
+if(POLICY CMP0048)
+    cmake_policy(SET CMP0048 NEW)
+endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
 string(STRIP "${VERSION_CONTENT}" CLAYGROUND_VERSION)
@@ -18,6 +17,13 @@ project (Clayground
          DESCRIPTION "Qt-based set of tools, plugins and libs for rapid app development."
          HOMEPAGE_URL "https://github.com/MisterGC/clayground"
          LANGUAGES CXX)
+
+# Initializes global context that Clayground relies on
+# Must be after project() so platform detection (EMSCRIPTEN, etc.) works
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
+
+include(claycommon)
+include(clayplugin)
 
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}" CACHE INTERNAL "")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}" CACHE INTERNAL "")
@@ -71,7 +77,7 @@ add_subdirectory (thirdparty/csv-parser)
 add_subdirectory (plugins)
 
 if(CLAYGROUND_WITH_TOOLS)
-    if(NOT (ANDROID OR IOS))
+    if(NOT (ANDROID OR IOS OR EMSCRIPTEN))
         add_subdirectory (tools)
     endif()
 endif()

@@ -3,10 +3,15 @@ project (examples)
 
 add_subdirectory (gui)
 add_subdirectory (platformer)
-add_subdirectory (topdown)
 add_subdirectory (visualfx)
 add_subdirectory (void)
 
-if (NOT (ANDROID OR IOS))
+# topdown uses clay_network which is not available in WASM
+if (NOT EMSCRIPTEN)
+    add_subdirectory (topdown)
+endif()
+
+# pluginlive requires desktop features
+if (NOT (ANDROID OR IOS OR EMSCRIPTEN))
     add_subdirectory (pluginlive)
 endif()
