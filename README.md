@@ -27,6 +27,45 @@ Goals/Basic Design Decisions:
 - Don't provide (graphical) tools: Go for approaches that allow usage of freely available, popular tools like Qt Creator, Git and Inkscape
 - Qt as Foundation: Don't write everything from scratch, but think how to re-combine Qt's capabilities
 
+## Architecture
+
+Clayground follows a layered plugin architecture where each layer builds upon the previous:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        YOUR APPLICATION                         │
+│                   (Examples: platformer, topdown)               │
+├─────────────────────────────────────────────────────────────────┤
+│                           DOJO                                  │
+│              Live-reloading sandbox environment                 │
+├─────────────────────────────────────────────────────────────────┤
+│                       GAME SYSTEMS                              │
+│  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌──────────────────┐  │
+│  │  World  │  │ Physics │  │ Behavior │  │ GameController   │  │
+│  │  2D/3D  │  │ Box2D   │  │ Movement │  │ Keyboard/Gamepad │  │
+│  └─────────┘  └─────────┘  └──────────┘  └──────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                        RENDERING                                │
+│         ┌──────────────┐         ┌──────────────┐              │
+│         │    Canvas    │         │   Canvas3D   │              │
+│         │   2D world   │         │  3D/Voxels   │              │
+│         └──────────────┘         └──────────────┘              │
+├─────────────────────────────────────────────────────────────────┤
+│                        FOUNDATION                               │
+│  ┌────────┐  ┌─────────┐  ┌──────┐  ┌─────┐  ┌─────────────┐  │
+│  │ Common │  │ Storage │  │ Text │  │ SVG │  │   Network   │  │
+│  └────────┘  └─────────┘  └──────┘  └─────┘  └─────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                     Qt 6 / QML / C++17                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key principles:**
+- **Pick what you need**: Plugins are independent - use any subset for your project
+- **QML-first**: Write game logic in QML/JavaScript, drop to C++ only when needed
+- **Live reload**: Edit code while running - changes apply instantly via Dojo
+- **Leverage Qt**: Don't reinvent - combine Qt's capabilities in game-friendly ways
+
 Main components:
 
 - **Dojo**: Sandbox environment which is designed to be used for rapid dev, it is typically put next to a code editor/IDE, code changes are automatically applied
@@ -106,6 +145,41 @@ allows to build a standalone app. So you can just use one as a template to build
 
 - OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can
 - IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim and VS Code for various text processing tasks
+
+### Testing
+
+Clayground uses a layered testing approach:
+
+```
+              ┌───────────────────────┐
+             ╱  Integration Tests     ╲   Examples run as smoke tests
+            ╱   (all examples in CI)   ╲  ensuring basic functionality
+           ├───────────────────────────┤
+          ╱     Plugin Tests            ╲  Each plugin's Sandbox.qml
+         ╱      (Sandbox validation)     ╲ validates its components
+        ├─────────────────────────────────┤
+       ╱         Unit Tests               ╲  QML TestCase for
+      ╱          (per component)           ╲ individual components
+     └─────────────────────────────────────┘
+```
+
+**Running tests:**
+```bash
+cmake -B build && cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+**Test infrastructure:**
+- `clay_app()` automatically registers apps as integration tests
+- `clay_add_qml_test()` macro for QML unit tests using Qt's qmltestrunner
+- Tests run headless (`QT_QPA_PLATFORM=minimal`) in CI on Linux and Windows
+
+**Adding plugin tests:**
+```cmake
+clay_add_qml_test(MyPlugin
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+```
 
 ### Plugin Development
 
