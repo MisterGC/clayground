@@ -14,6 +14,8 @@ concurrency:
 
 env:
   QT_VERSION: '6.10.*'
+  # WASM requires exact version (wildcards not supported by aqtinstall for wasm target)
+  QT_VERSION_WASM: '6.10.1'
   QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
   AQT_VERSION: '>=3.2.0'
@@ -54,7 +56,7 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: ${{ env.QT_VERSION }}
+        version: ${{ matrix.qt-target == 'wasm' && env.QT_VERSION_WASM || env.QT_VERSION }}
         host: ${{ matrix.qt-host }}
         target: ${{ matrix.qt-target }}
         arch: ${{ matrix.qt-arch }}

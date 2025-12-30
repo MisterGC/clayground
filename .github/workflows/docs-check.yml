@@ -26,7 +26,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QT_VERSION: '6.10.*'
+  # WASM requires exact version (wildcards not supported by aqtinstall for wasm target)
+  QT_VERSION_WASM: '6.10.1'
   # Note: qtquick3dphysics excluded - crashes browser in WASM (not yet supported)
   QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
   EMSDK_VERSION: '4.0.7'
@@ -48,7 +49,7 @@ jobs:
       - name: Install Qt (WASM)
         uses: jurplel/install-qt-action@v4
         with:
-          version: ${{ env.QT_VERSION }}
+          version: ${{ env.QT_VERSION_WASM }}
           host: all_os
           target: wasm
           arch: wasm_multithread
