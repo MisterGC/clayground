@@ -92,15 +92,7 @@ jobs:
     - name: Configure CMake (WASM)
       if: matrix.qt-target == 'wasm'
       run: |
-        echo "Qt6_DIR: $Qt6_DIR"
-        QT_CMAKE="$Qt6_DIR/../../../bin/qt-cmake"
-        if [ ! -f "$QT_CMAKE" ]; then
-          echo "qt-cmake not found at $QT_CMAKE"
-          echo "Searching for qt-cmake..."
-          find "${Qt6_DIR}/../../.." -name "qt-cmake" -type f 2>/dev/null || true
-          exit 1
-        fi
-        "$QT_CMAKE" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} .
+        "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} .
 
     - name: Build (Desktop)
       if: matrix.qt-target == 'desktop'
