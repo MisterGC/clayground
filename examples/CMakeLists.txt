@@ -5,6 +5,7 @@ add_subdirectory (gui)
 add_subdirectory (platformer)
 add_subdirectory (visualfx)
 add_subdirectory (void)
+add_subdirectory (voxelworld)
 
 # topdown uses clay_network which is not available in WASM
 if (NOT EMSCRIPTEN)
