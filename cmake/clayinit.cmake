@@ -1,30 +1,27 @@
 # Set the plugin linking type based on the platform
+# WASM (Emscripten), Android and iOS require static linking
 set(CLAYPLUGIN_LINKING SHARED CACHE INTERNAL "")
-if (ANDROID OR IOS)
+if (ANDROID OR IOS OR EMSCRIPTEN)
     set(CLAYPLUGIN_LINKING STATIC CACHE INTERNAL "")
 endif()
 
-# Set the policy CMP0048 to NEW to allow the use of VERSION
-# in the cmake project() command
-if(POLICY CMP0048)
-  cmake_policy(SET CMP0048 NEW)
-endif()
-
 # Set output directories
-if (NOT (ANDROID OR IOS)) # Desktop, TODO What about WASM?
+if (NOT (ANDROID OR IOS OR EMSCRIPTEN))
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-else()
-    if (ANDROID)
-        # In some environments Qt (Creator) produces a gradle properties
-        # file with an invalid androidBuildToolsVersion value - the following
-        # option allows to workaround this bug by allowing to provide the version
-        # explicitly. (See https://bugreports.qt.io/browse/QTBUG-94956)
-        set(CLAY_ANDROID_BUILD_TOOLS_VERSION
-            "DO_NOT_USE" CACHE STRING
-            "Set to the used version, if you need to workaround QTBUG-94956")
-    endif()
+elseif (EMSCRIPTEN)
+    # WASM outputs go to bin for easy deployment
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+elseif (ANDROID)
+    # In some environments Qt (Creator) produces a gradle properties
+    # file with an invalid androidBuildToolsVersion value - the following
+    # option allows to workaround this bug by allowing to provide the version
+    # explicitly. (See https://bugreports.qt.io/browse/QTBUG-94956)
+    set(CLAY_ANDROID_BUILD_TOOLS_VERSION
+        "DO_NOT_USE" CACHE STRING
+        "Set to the used version, if you need to workaround QTBUG-94956")
 endif()
 
 # Set the QML import path

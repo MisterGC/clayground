@@ -3,9 +3,8 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QDebug>
+#include <clayground_app_cfg.h>
 ${CLAY_APP_STYLE_INCLUDE}
-
-${CLAYGROUND_IMPORT_PLUGINS}
 
 int main(int argc, char *argv[])
 {

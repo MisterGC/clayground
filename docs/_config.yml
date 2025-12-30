@@ -16,10 +16,8 @@ minima:
   skin: dark
   date_format: "%b %-d, %Y"
 
-# Navigation header pages
-header_pages:
-  - plugins.md
-  - getting-started.md
+# Navigation handled by custom _includes/header.html
+# header_pages not used
 
 # Ensure trailing slashes
 permalink: pretty

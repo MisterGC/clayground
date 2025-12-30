@@ -1,4 +1,4 @@
-name: Deploy Documentation
+name: Documentation
 
 on:
   push:
@@ -6,6 +6,16 @@ on:
     paths:
       - 'plugins/*/README.md'
       - 'docs/**'
+      - 'examples/voxelworld/**'
+      - 'cmake/claywebsite.cmake'
+      - '.github/workflows/docs-check.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'plugins/*/README.md'
+      - 'docs/**'
+      - 'examples/voxelworld/**'
+      - 'cmake/claywebsite.cmake'
       - '.github/workflows/docs-check.yml'
 
 permissions:
@@ -14,8 +24,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
+
+env:
+  # WASM requires exact version (wildcards not supported by aqtinstall for wasm target)
+  QT_VERSION_WASM: '6.10.1'
+  # Note: qtquick3dphysics excluded - crashes browser in WASM (not yet supported)
+  QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
+  EMSDK_VERSION: '4.0.7'
 
 jobs:
   build:
@@ -23,67 +40,66 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Install Qt (WASM)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION_WASM }}
+          host: all_os
+          target: wasm
+          arch: wasm_multithread
+          modules: ${{ env.QT_MODULES }}
+          aqtversion: '>=3.2.0'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
           working-directory: ./docs
-          
-      - name: Sync plugin documentation
+
+      - name: Configure CMake
         run: |
-          echo "Syncing plugin documentation..."
-          cd docs
-          chmod +x sync-plugin-docs.sh
-          ./sync-plugin-docs.sh
-          
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-        
-      - name: Build with Jekyll
+          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON .
+
+      - name: Build Website
+        run: cmake --build build --target website
+
+      - name: List website structure
         run: |
-          cd docs
-          bundle exec jekyll build --baseurl "/clayground"
-        env:
-          JEKYLL_ENV: production
-          
-      - name: Validate Jekyll configuration
-        run: |
-          if [ ! -f "docs/_config.yml" ]; then
-            echo "❌ Missing docs/_config.yml"
-            exit 1
-          fi
-          echo "✅ Jekyll configuration exists"
-          
-      - name: Check for orphaned plugin READMEs
-        run: |
-          echo "Checking for plugin READMEs without docs..."
-          
-          # Find all plugin READMEs
-          for readme in plugins/clay_*/README.md; do
-            if [ -f "$readme" ]; then
-              plugin_name=$(basename $(dirname "$readme") | sed 's/clay_//')
-              doc_file="docs/plugins/${plugin_name}.md"
-              
-              if [ ! -f "$doc_file" ]; then
-                echo "⚠️  Plugin README without generated doc: $readme"
-                echo "   Run: cd docs && ./sync-plugin-docs.sh"
-              fi
-            fi
-          done
-          
-      - name: List documentation structure
-        run: |
-          echo "Documentation structure:"
-          tree docs/ -I '_site|.jekyll-cache' || find docs -type f -name "*.md" -o -name "*.yml" | sort
-          
-      - name: Upload artifact
+          echo "Website structure:"
+          find docs/_site -type f | head -50
+
+      # Upload as regular artifact for PR preview/testing
+      - name: Upload site preview (PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site-preview
+          path: ./docs/_site
+          retention-days: 7
+
+      # Upload as pages artifact for deployment (main only)
+      - name: Upload pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs/_site
 
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

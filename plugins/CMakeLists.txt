@@ -12,11 +12,17 @@ add_subdirectory (clay_character3d)
 add_subdirectory (clay_gamecontroller)
 add_subdirectory (clay_storage)
 add_subdirectory (clay_svg)
-add_subdirectory (clay_network)
+
+# clay_network uses TCP sockets which are not available in WASM
+if (NOT EMSCRIPTEN)
+    add_subdirectory (clay_network)
+endif()
 
 add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)
 
-# Platform Plugins
-add_subdirectory (clay_ios)
+# Platform-specific plugins
+if (IOS)
+    add_subdirectory (clay_ios)
+endif()

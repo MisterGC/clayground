@@ -12,6 +12,7 @@ include(CMakeParseArguments)
 # Options (to be passed with ARGN):
 #   VERSION     - Specify the version of the application.
 #   SOURCES     - List of source files for the application.
+#   CUSTOM_MAIN - Path to custom main.cpp (if not provided, one is generated).
 #   LINK_LIBS   - List of libraries to link agains, if Qt depedencies
 #                 are listed no corresponding find_package is need
 #                 the macro takes care about it.
@@ -44,7 +45,7 @@ macro(clay_app CLAY_APP_NAME)
     cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
     # Argument Parsing
-    set (oneValueArgs STYLE VERSION)
+    set (oneValueArgs STYLE VERSION CUSTOM_MAIN)
     set (multiValueArgs
             SOURCES
             LINK_LIBS
@@ -86,27 +87,40 @@ macro(clay_app CLAY_APP_NAME)
 
     set(CLAY_APP_TEMPLATE_DIR ${CLAY_CMAKE_SCRIPT_DIR}/clay_app)
     set(CLAYGROUND_IMPORT_PLUGINS $CACHE{CLAYGROUND_IMPORT_PLUGINS})
-    if(${CLAYGROUND_IMPORT_PLUGINS})
-        string(REPLACE " " "\n" CLAYGROUND_IMPORT_PLUGINS ${CLAYGROUND_IMPORT_PLUGINS})
-    endif()
+    string(REPLACE " Q_IMPORT" "\nQ_IMPORT" CLAYGROUND_IMPORT_PLUGINS "${CLAYGROUND_IMPORT_PLUGINS}")
 
+    # Generate the app configuration header (contains static plugin imports, etc.)
+    set(CLAY_APP_CFG_DIR ${CMAKE_CURRENT_BINARY_DIR}/clayground)
+    file(MAKE_DIRECTORY ${CLAY_APP_CFG_DIR})
+    configure_file(${CLAY_APP_TEMPLATE_DIR}/clayground_app_cfg.h.in
+                   ${CLAY_APP_CFG_DIR}/clayground_app_cfg.h)
 
-    # Generate the main.cpp
-    if(CLAY_APP_STYLE)
-        if(NOT "QuickControls2" IN_LIST CLAY_APP_QT_LIBS)
-            message(FATAL_ERROR "App ${CLAY_APP_NAME} uses custom style -> Qt::QuickControls2 is needed as dependency")
-        endif()
-        set(CLAY_APP_STYLE_INCLUDE "#include <QQuickStyle>")
-        set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "QQuickStyle::setStyle(\"${CLAY_APP_STYLE}\");")
+    # Determine main.cpp source (custom or generated)
+    if(CLAY_APP_CUSTOM_MAIN)
+        set(CLAY_APP_MAIN_CPP ${CLAY_APP_CUSTOM_MAIN})
     else()
-        set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "// Uses auto-mode -> chose style based on target platform.")
+        # Generate main.cpp from template
+        if(CLAY_APP_STYLE)
+            if(NOT "QuickControls2" IN_LIST CLAY_APP_QT_LIBS)
+                message(FATAL_ERROR "App ${CLAY_APP_NAME} uses custom style -> Qt::QuickControls2 is needed as dependency")
+            endif()
+            set(CLAY_APP_STYLE_INCLUDE "#include <QQuickStyle>")
+            set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "QQuickStyle::setStyle(\"${CLAY_APP_STYLE}\");")
+        else()
+            set(CLAY_APP_SET_STYLE_IF_NOT_AUTO "// Uses auto-mode -> chose style based on target platform.")
+        endif()
+        set(CLAY_APP_NAME ${CLAY_APP_NAME})
+        configure_file(${CLAY_APP_TEMPLATE_DIR}/main.cpp.in main.cpp)
+        set(CLAY_APP_MAIN_CPP ${CMAKE_CURRENT_BINARY_DIR}/main.cpp)
     endif()
-    set(CLAY_APP_NAME ${CLAY_APP_NAME})
-    configure_file(${CLAY_APP_TEMPLATE_DIR}/main.cpp.in main.cpp)
 
     qt_add_executable(${PROJECT_NAME} WIN32
-        ${CMAKE_CURRENT_BINARY_DIR}/main.cpp
+        ${CLAY_APP_MAIN_CPP}
+        ${CLAY_APP_TEMPLATE_DIR}/clayground_verify.cpp
         ${CLAY_APP_SOURCES} )
+
+    # Add include path for generated clayground_app_cfg.h
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CLAY_APP_CFG_DIR})
 
     if(APPLE)
         # Adds FFMPEG dylibs to the app package, this
@@ -211,7 +225,23 @@ macro(clay_app CLAY_APP_NAME)
         set_target_properties(${PROJECT_NAME} PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/android)
 
-    else() # Desktop targets (and WASM!?)
+    elseif(EMSCRIPTEN)
+
+        message(STATUS "clay_app: Target platform WebAssembly (Emscripten)")
+
+        # WASM-specific target properties
+        # Initial memory allocation (can be overridden per-app)
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            QT_WASM_INITIAL_MEMORY "64MB"
+        )
+
+        # Optimization for release builds
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${PROJECT_NAME} PRIVATE -Os)
+            target_link_options(${PROJECT_NAME} PRIVATE -Os)
+        endif()
+
+    else() # Desktop targets
 
         # Integrate the QML plugins in the package
         if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

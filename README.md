@@ -17,6 +17,8 @@ learning and allowing more focused and faster development by reducing typical bu
 Before distributing a Clayground-based app, please read the LICENSE file for important information
 about the Qt dependency and related licensing considerations.
 
+📖 **[Documentation](https://mistergc.github.io/clayground/)** - Getting started guides, plugin docs, and more.
+
 ![Platformer Screenshot](docs/assets/images/screenshot_platformer.png)
 
 Goals/Basic Design Decisions:
@@ -145,6 +147,12 @@ allows to build a standalone app. So you can just use one as a template to build
 
 - OS: Linux (fastest and easy to use) - I have also used it on macOS and Windows 10, still good but use Linux if you can
 - IDE/Editor: Qt Creator as it also allows you to easily debug and profile resulting apps - additionally I use Vim and VS Code for various text processing tasks
+
+### What platforms are supported for deployment?
+
+- **Desktop**: Linux, macOS, Windows
+- **Mobile**: iOS, Android
+- **Web**: WebAssembly (Emscripten) - see [Getting Started](https://mistergc.github.io/clayground/getting-started/#building-for-webassembly) for build instructions
 
 ### Testing
 
