@@ -13,10 +13,11 @@ concurrency:
 
 
 env:
-  QT_VERSION: '6.8.*'
+  QT_VERSION: '6.10.*'
   QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
-  AQT_VERSION: '==3.1.21'
+  AQT_VERSION: '>=3.2.0'
+  EMSDK_VERSION: '4.0.7'
 
 jobs:
   build:
@@ -25,10 +26,16 @@ jobs:
         include:
           - os: ubuntu-latest
             qt-host: linux
+            qt-target: desktop
             qt-arch: linux_gcc_64
           - os: windows-2022
             qt-host: windows
+            qt-target: desktop
             qt-arch: win64_msvc2022_64
+          - os: ubuntu-latest
+            qt-host: all_os
+            qt-target: wasm
+            qt-arch: wasm_multithread
 
     runs-on: ${{ matrix.os }}
 
@@ -38,40 +45,85 @@ jobs:
       with:
         submodules: 'recursive'
 
+    - name: Setup Emscripten
+      if: matrix.qt-target == 'wasm'
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: ${{ env.EMSDK_VERSION }}
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
         version: ${{ env.QT_VERSION }}
         host: ${{ matrix.qt-host }}
-        target: 'desktop'
+        target: ${{ matrix.qt-target }}
         arch: ${{ matrix.qt-arch }}
         modules: ${{ env.QT_MODULES }}
         aqtversion: ${{ env.AQT_VERSION }}
 
     - name: Install Linux Dependencies
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && matrix.qt-target == 'desktop'
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
 
+    - name: Install Linux Dependencies (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
     - name: Install Windows Dependencies
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
       run: choco install ninja -y
       shell: cmd
 
     - name: Setup MSVC
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Configure CMake
+    - name: Configure CMake (Desktop)
+      if: matrix.qt-target == 'desktop'
       run: |
         cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} .
 
-    - name: Build
+    - name: Configure CMake (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        echo "Qt6_DIR: $Qt6_DIR"
+        QT_CMAKE="$Qt6_DIR/../../../bin/qt-cmake"
+        if [ ! -f "$QT_CMAKE" ]; then
+          echo "qt-cmake not found at $QT_CMAKE"
+          echo "Searching for qt-cmake..."
+          find "${Qt6_DIR}/../../.." -name "qt-cmake" -type f 2>/dev/null || true
+          exit 1
+        fi
+        "$QT_CMAKE" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} .
+
+    - name: Build (Desktop)
+      if: matrix.qt-target == 'desktop'
       run: cmake --build build
       env:
-        CL: /MP  # Enable parallel compilation on Windows
+        CL: /MP
+
+    - name: Build (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: cmake --build build --target voxelworld
 
     - name: Test
+      if: matrix.qt-target == 'desktop'
       working-directory: build
       run: ctest --output-on-failure
+
+    # Upload WASM artifacts for PRs (testing) and main (docs-check.yml does its own build for deployment)
+    - name: Upload WASM Artifacts
+      if: matrix.qt-target == 'wasm'
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-voxelworld
+        path: |
+          build/bin/voxelworld.html
+          build/bin/voxelworld.js
+          build/bin/voxelworld.wasm
+          build/bin/qtloader.js
+        retention-days: 7

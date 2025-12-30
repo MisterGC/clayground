@@ -18,6 +18,7 @@ minima:
 
 # Navigation header pages
 header_pages:
+  - demo.md
   - plugins.md
   - getting-started.md
 
