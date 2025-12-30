@@ -42,6 +42,14 @@ init_static_plugin_cfg()
 
 option(CLAYGROUND_WITH_TOOLS "Include Clayground tools e.g. dojo" ON)
 option(CLAYGROUND_WITH_EXAMPLES "Include Clayground examples" ON)
+option(CLAY_BUILD_WEBSITE "Build website with WASM demos (requires WASM target)" OFF)
+
+# Include website module early so clay_website_register_demo() is available
+# Prerequisites are checked and target is created at the end
+if(CLAY_BUILD_WEBSITE)
+    include(claywebsite)
+    clay_website_check_prerequisites()
+endif()
 
 
 # ===================
@@ -84,4 +92,14 @@ endif()
 
 if(CLAYGROUND_WITH_EXAMPLES)
     add_subdirectory (examples)
+endif()
+
+
+# ================
+# WEBSITE BUILD
+# ================
+
+# Create website target after all demos are registered
+if(CLAY_BUILD_WEBSITE)
+    clay_website_create_target()
 endif()

@@ -15,3 +15,7 @@ clay_app( voxelworld
         Main.qml
         Sandbox.qml
 )
+
+if(CLAY_BUILD_WEBSITE)
+    clay_website_register_demo(voxelworld)
+endif()
