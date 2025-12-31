@@ -5,11 +5,16 @@ title: Clayground - Flow, Form, Create
 
 <script src="{{ site.baseurl }}/coi-serviceworker.js"></script>
 
-# Rapid Game Development with Live-Reloading
+<div class="hero-title">
+  <h1 class="pixel-title">Clayground</h1>
+  <p class="hero-tagline">Flow, Form, Create</p>
+</div>
+
+Clayground is a personal project I've been developing for over 5 years to keep up with Qt's evolution while building small simulation and game apps. It's a [Qt](https://www.qt.io)-based toolset that combines C++, JavaScript, and [QML](https://doc.qt.io/qt-6/qtqml-index.html) in a sandbox environment with live-reloading.
+
+Qt already provides a solid foundation for cross-platform development. Clayground adds specialized tools, components, and APIs that make building small interactive apps even easier - though it's not designed to compete with full-featured game engines like Godot or Unity. The trade-off is intentional: optimized for rapid prototyping and small to medium projects on desktop, iOS, and web (via WebAssembly), not for large-scale game production.
 
 ![Platformer Screenshot](assets/images/screenshot_platformer.png)
-
-Clayground is a [Qt](https://www.qt.io)-based toolset for rapid game development. Combine C++, JavaScript, and [QML](https://doc.qt.io/qt-6/qtqml-index.html) in a sandbox environment with instant live-reloading. Change code, see results immediately.
 
 <div class="hero-cta">
   <a href="{{ site.baseurl }}/getting-started/" class="btn btn-primary">Get Started</a>

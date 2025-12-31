@@ -346,6 +346,60 @@ table {
   }
 }
 
+// Hero title section
+.hero-title {
+  text-align: center;
+  margin: 3rem 0 2rem 0;
+  padding: 3rem 2rem;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('images/title_background.png');
+    background-size: cover;
+    background-position: center;
+    opacity: 0.25;
+    z-index: 0;
+  }
+
+  .pixel-title, .hero-tagline {
+    position: relative;
+    z-index: 1;
+  }
+
+  .pixel-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 2.5rem;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 1rem 0;
+    text-shadow: 0 0 30px rgba(0, 217, 255, 0.5);
+
+    @media screen and (max-width: 600px) {
+      font-size: 1.5rem;
+    }
+  }
+
+  .hero-tagline {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--accent-highlight);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin: 0;
+    text-shadow: 0 0 20px rgba(255, 217, 61, 0.4);
+  }
+}
+
 // Hero CTA section
 .hero-cta {
   margin: 2rem 0 3rem 0;
@@ -429,9 +483,9 @@ ul, ol {
 
 // Home page specific styles
 .home {
-  h1 {
-    text-align: center;
-    margin: 2rem 0;
+  // Hide the auto-generated title from layout (we have custom hero)
+  > h1:first-of-type {
+    display: none;
   }
 
   h2 {
