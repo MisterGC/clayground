@@ -3,8 +3,6 @@ layout: home
 title: Clayground - Flow, Form, Create
 ---
 
-<script src="{{ site.baseurl }}/coi-serviceworker.js"></script>
-
 <div class="hero-title">
   <h1 class="pixel-title">Clayground</h1>
   <p class="hero-tagline">Flow, Form, Create</p>
@@ -19,13 +17,6 @@ Qt already provides a solid foundation for cross-platform development. Claygroun
 <div class="hero-cta">
   <a href="{{ site.baseurl }}/getting-started/" class="btn btn-primary">Get Started</a>
   <a href="{{ site.baseurl }}/demo/" class="btn btn-secondary">Try Live Demo →</a>
-</div>
-
-<div class="demo-preview" id="demo-preview">
-  <iframe src="{{ site.baseurl }}/demo/voxelworld/voxelworld.html" loading="lazy"></iframe>
-  <div class="demo-overlay" onclick="this.parentElement.classList.add('active'); this.style.display='none';">
-    <span>▶ Click to interact</span>
-  </div>
 </div>
 
 ## Why Clayground?
