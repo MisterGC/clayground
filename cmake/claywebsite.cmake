@@ -4,12 +4,13 @@
 #
 # Usage:
 #   ~/Qt/6.x.x/wasm_multithread/bin/qt-cmake -B build -DCLAY_BUILD_WEBSITE=ON .
-#   cmake --build build --target website
+#   cmake --build build --target website      # Production build (baseurl: /clayground)
+#   cmake --build build --target website-dev  # Local dev build (baseurl: empty)
 #
 # Provides:
 #   - clay_website_check_prerequisites() - Verify all requirements at configure time
 #   - clay_website_register_demo(name) - Register a WASM demo for website inclusion
-#   - clay_website_create_target() - Create the 'website' build target
+#   - clay_website_create_target() - Create the 'website' and 'website-dev' build targets
 
 set(CLAY_WEBSITE_DEMOS "" CACHE INTERNAL "List of WASM demos to include in website")
 
@@ -77,17 +78,28 @@ function(clay_website_create_target)
         COMMENT "Syncing plugin documentation..."
     )
 
-    # Jekyll build (depends on sync-docs)
+    # Jekyll build for production (with /clayground baseurl for GitHub Pages)
     add_custom_target(website-jekyll
         COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build --baseurl "/clayground"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         DEPENDS website-sync-docs
-        COMMENT "Building Jekyll site..."
+        COMMENT "Building Jekyll site (production)..."
+    )
+
+    # Jekyll build for local development (no baseurl prefix)
+    # Use a helper script to properly pass empty baseurl
+    add_custom_target(website-jekyll-dev
+        COMMAND ${CMAKE_SOURCE_DIR}/docs/build-dev.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
+        DEPENDS website-sync-docs
+        COMMENT "Building Jekyll site (local dev)..."
     )
 
     # Copy WASM artifacts for each registered demo (separate target per demo)
     set(COPY_TARGETS "")
+    set(COPY_TARGETS_DEV "")
     foreach(DEMO IN LISTS CLAY_WEBSITE_DEMOS)
+        # Production copy target
         set(COPY_TARGET website-copy-${DEMO})
         add_custom_target(${COPY_TARGET}
             COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -102,11 +114,33 @@ function(clay_website_create_target)
             COMMENT "Copying ${DEMO} WASM artifacts to website..."
         )
         list(APPEND COPY_TARGETS ${COPY_TARGET})
+
+        # Dev copy target
+        set(COPY_TARGET_DEV website-copy-${DEMO}-dev)
+        add_custom_target(${COPY_TARGET_DEV}
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/bin/${DEMO}.html
+                ${CMAKE_BINARY_DIR}/bin/${DEMO}.js
+                ${CMAKE_BINARY_DIR}/bin/${DEMO}.wasm
+                ${CMAKE_BINARY_DIR}/bin/qtloader.js
+                ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
+            DEPENDS ${DEMO} website-jekyll-dev
+            COMMENT "Copying ${DEMO} WASM artifacts to website (dev)..."
+        )
+        list(APPEND COPY_TARGETS_DEV ${COPY_TARGET_DEV})
     endforeach()
 
-    # Main target: depends on all copy targets (which depend on demos + jekyll)
+    # Production target: depends on all copy targets (which depend on demos + jekyll)
     add_custom_target(website
         DEPENDS ${COPY_TARGETS}
         COMMENT "Website build complete: docs/_site/"
+    )
+
+    # Dev target: for local testing with empty baseurl
+    add_custom_target(website-dev
+        DEPENDS ${COPY_TARGETS_DEV}
+        COMMENT "Website dev build complete: docs/_site/ (serve with: python3 -m http.server 8080)"
     )
 endfunction()
