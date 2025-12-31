@@ -115,7 +115,7 @@ A bunch of example application allow you to try it out easily:
 
 ### How to work with a sandbox?
 
-1. Clone this repo and build it using CMake (Qt 6.3.0+, Qt Creator 7.0.0+). Make sure to pull the submodules `git submodule update --recursive --init`
+1. Clone this repo and build it using CMake (Qt 6.10.0+). Make sure to pull the submodules `git submodule update --recursive --init`
 2. Start the dojo app `claydojo --sbx <clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the created windows to a location that allows you to keep them visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically

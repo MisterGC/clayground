@@ -10,7 +10,7 @@ Welcome! This guide will get you up and running with Clayground in minutes.
 
 ## Prerequisites
 
-- **Qt 6.3.0+** (6.8.1+ recommended)
+- **Qt 6.10.0+**
 - **CMake 3.20+**
 - **C++17 compiler**
 - **Git** (for cloning the repository)
