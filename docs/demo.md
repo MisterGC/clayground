@@ -21,7 +21,7 @@ A showcase of Clayground's 3D rendering capabilities using the **Canvas3D** plug
 <div id="demo-container-voxel" class="demo-container">
   <iframe
     id="demo-iframe-voxel"
-    src="{{ site.baseurl }}/demo/voxelworld/voxelworld.html"
+    data-src="{{ site.baseurl }}/demo/voxelworld/voxelworld.html"
     allowfullscreen>
   </iframe>
   <div class="demo-overlay" id="overlay-voxel" onclick="playDemo('demo-container-voxel')">
@@ -50,7 +50,7 @@ A side-scrolling platformer demonstrating the **World**, **Physics**, and **Game
 <div id="demo-container-platformer" class="demo-container">
   <iframe
     id="demo-iframe-platformer"
-    src="{{ site.baseurl }}/demo/platformer/platformer.html"
+    data-src="{{ site.baseurl }}/demo/platformer/platformer.html"
     allowfullscreen>
   </iframe>
   <div class="demo-overlay" id="overlay-platformer" onclick="playDemo('demo-container-platformer')">
@@ -170,9 +170,9 @@ function playDemo(containerId) {
     container.webkitRequestFullscreen();
   }
 
-  // Hide overlay and reload iframe for fresh focus
+  // Hide overlay and load/reload iframe
   overlay.style.display = 'none';
-  const src = iframe.src;
+  const src = iframe.dataset.src || iframe.src;
   iframe.src = '';
   setTimeout(() => {
     iframe.src = src;
