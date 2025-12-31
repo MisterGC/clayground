@@ -9,6 +9,9 @@ import Clayground.Canvas3D
 
 Item {
     anchors.fill: parent
+    focus: true
+
+    Component.onCompleted: forceActiveFocus()
 
     View3D {
         id: view
