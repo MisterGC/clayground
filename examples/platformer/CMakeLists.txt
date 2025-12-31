@@ -24,3 +24,7 @@ clay_app( platformer
         map.svg
         visuals.svg
 )
+
+if(CLAY_BUILD_WEBSITE)
+    clay_website_register_demo(platformer)
+endif()
