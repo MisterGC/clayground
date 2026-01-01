@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+<!-- Clayground.qml -->
+  <meta name="description" content="Global singleton providing utility functions and environment detection.">
+  <title>Clayground QML Type | Clayground 2025.2</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="header-nav"><a href="../index.html">Clayground</a> | <a href="index.html">API Reference</a></div>
+<li>index.html</li>
+<li><a href="qml-clayground.html" translate="no">Clayground</a></li>
+<li>Clayground</li>
+<li id="buildversion"><a href="qml-clayground.html" translate="no">Clayground 2025.2</a></li>
+<div class="sidebar">
+<div class="toc">
+<h3 id="toc">Contents</h3>
+<ul>
+<li class="level1"><a href="#properties">Properties</a></li>
+<li class="level1"><a href="#methods">Methods</a></li>
+<li class="level1"><a href="#details">Detailed Description</a></li>
+</ul>
+</div>
+<div class="sidebar-content" id="sidebar-content"></div></div>
+<h1 class="title" translate="no">Clayground QML Type</h1>
+<!-- $$$Clayground-brief -->
+<p>Global singleton providing utility functions and environment detection. <a href="#details">More...</a></p>
+<!-- @@@Clayground -->
+<ul>
+<li><a href="qml-clayground-members.html">List of all members, including inherited members</a></li>
+</ul>
+<h2 id="properties">Properties</h2>
+<ul>
+<li class="fn" translate="no"><b><a href="qml-clayground.html#runsInSandbox-prop" translate="no">runsInSandbox</a></b> : bool</li>
+<li class="fn" translate="no"><b><a href="qml-clayground.html#watchView-prop" translate="no">watchView</a></b> : var</li>
+</ul>
+<h2 id="methods">Methods</h2>
+<ul>
+<li class="fn" translate="no">string <b><a href="qml-clayground.html#resource-method" translate="no">resource</a></b>(string <i>path</i>)</li>
+<li class="fn" translate="no">string <b><a href="qml-clayground.html#typeName-method" translate="no">typeName</a></b>(object <i>obj</i>)</li>
+<li class="fn" translate="no">void <b><a href="qml-clayground.html#watch-method" translate="no">watch</a></b>(object <i>obj</i>, string <i>prop</i>, bool <i>logPropChange</i>)</li>
+</ul>
+<!-- $$$Clayground-description -->
+<h2 id="details">Detailed Description</h2>
+<p>The Clayground singleton provides essential utilities for resource loading and debugging. It automatically detects whether the application is running inside the ClayLiveLoader sandbox environment.</p>
+<p>Example usage:</p>
+<pre class="qml" translate="no">import Clayground.Common
+
+Image {
+    source: Clayground.resource(&quot;assets/player.png&quot;)
+}
+
+Component.onCompleted: {
+    if (Clayground.runsInSandbox) {
+        console.log(&quot;Running in development mode&quot;)
+    }
+}</pre>
+<!-- @@@Clayground -->
+<h2>Property Documentation</h2>
+<!-- $$$runsInSandbox -->
+<div class="qmlitem"><div class="qmlproto" translate="no">
+<div class="table"><table class="qmlname">
+<tr valign="top" class="odd" id="runsInSandbox-prop">
+<td class="tblQmlPropNode"><p>
+<span class="name">runsInSandbox</span> : <span class="type">bool</span> <code class="details extra" translate="no">[read-only]</code></p></td></tr>
+</table></div></div>
+<div class="qmldoc"><p>True when running inside ClayLiveLoader sandbox environment.</p>
+<p>Use this property to detect whether your application is running in development mode (via Dojo/LiveLoader) or as a standalone app.</p>
+</div></div><!-- @@@runsInSandbox -->
+<br/>
+<!-- $$$watchView -->
+<div class="qmlitem"><div class="qmlproto" translate="no">
+<div class="table"><table class="qmlname">
+<tr valign="top" class="odd" id="watchView-prop">
+<td class="tblQmlPropNode"><p>
+<span class="name">watchView</span> : <span class="type">var</span></p></td></tr>
+</table></div></div>
+<div class="qmldoc"><p>Reference to the watch view for property debugging.</p>
+<p>This property is set by the framework when running in sandbox mode. It enables the <a href="qml-clayground.html#watch-method" translate="no">watch</a>() function to display property values in the logging overlay.</p>
+</div></div><!-- @@@watchView -->
+<br/>
+<h2>Method Documentation</h2>
+<!-- $$$resource[overload1]$$$resourcestring -->
+<div class="qmlitem"><div class="qmlproto" translate="no">
+<div class="table"><table class="qmlname">
+<tr valign="top" class="odd" id="resource-method">
+<td class="tblQmlFuncNode"><p>
+<span class="type">string</span> <span class="name">resource</span>(<span class="type">string</span> <i>path</i>)</p></td></tr>
+</table></div></div>
+<div class="qmldoc"><p>Returns the correct resource path for the current environment.</p>
+<p>In standalone mode, returns a qrc:/ path. In sandbox mode, returns the file system path relative to the sandbox directory.</p>
+<p><i translate="no">path</i> The relative path to the resource.</p>
+<p>Example:</p>
+<pre class="qml" translate="no"><span class="type">Image</span> {
+    <span class="name">source</span>: <span class="name">Clayground</span>.<span class="name">resource</span>(<span class="string">&quot;images/logo.png&quot;</span>)
+}</pre>
+</div></div><!-- @@@resource -->
+<br/>
+<!-- $$$typeName[overload1]$$$typeNameobject -->
+<div class="qmlitem"><div class="qmlproto" translate="no">
+<div class="table"><table class="qmlname">
+<tr valign="top" class="odd" id="typeName-method">
+<td class="tblQmlFuncNode"><p>
+<span class="type">string</span> <span class="name">typeName</span>(<span class="type">object</span> <i>obj</i>)</p></td></tr>
+</table></div></div>
+<div class="qmldoc"><p>Extracts the type name from a QML object.</p>
+<p>Parses the object's string representation to extract its type name. Useful for debugging and logging.</p>
+<p><i translate="no">obj</i> The object to get the type name from.</p>
+<p>Returns the type name, or &quot;n/a&quot; if parsing fails.</p>
+<p>Example:</p>
+<pre class="qml" translate="no"><span class="type">Rectangle</span> {
+    <span class="name">id</span>: <span class="name">rect</span>
+    <span class="name">Component</span>.onCompleted: {
+        <span class="name">console</span>.<span class="name">log</span>(<span class="name">Clayground</span>.<span class="name">typeName</span>(<span class="name">rect</span>)) <span class="comment">// &quot;Rectangle&quot;</span>
+    }
+}</pre>
+</div></div><!-- @@@typeName -->
+<br/>
+<!-- $$$watch[overload1]$$$watchobjectstringbool -->
+<div class="qmlitem"><div class="qmlproto" translate="no">
+<div class="table"><table class="qmlname">
+<tr valign="top" class="odd" id="watch-method">
+<td class="tblQmlFuncNode"><p>
+<span class="type">void</span> <span class="name">watch</span>(<span class="type">object</span> <i>obj</i>, <span class="type">string</span> <i>prop</i>, <span class="type">bool</span> <i>logPropChange</i>)</p></td></tr>
+</table></div></div>
+<div class="qmldoc"><p>Watches a property for debugging in the logging overlay.</p>
+<p>When running in sandbox mode with the logging overlay enabled (Ctrl+L), this function displays the property value in real-time.</p>
+<p><i translate="no">obj</i> The object containing the property. <i translate="no">prop</i> The name of the property to watch. <i translate="no">logPropChange</i> If true, also logs property changes to the console.</p>
+<p>Example:</p>
+<pre class="qml" translate="no">Component.onCompleted: {
+    Clayground.watch(player, &quot;x&quot;, false)
+    Clayground.watch(player, &quot;health&quot;, true)
+}</pre>
+</div></div><!-- @@@watch -->
+<br/>
+</body>
+</html>

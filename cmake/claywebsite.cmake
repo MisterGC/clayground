@@ -82,7 +82,7 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll
         COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build --baseurl "/clayground"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs
+        DEPENDS website-sync-docs docs
         COMMENT "Building Jekyll site (production)..."
     )
 
@@ -91,13 +91,30 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll-dev
         COMMAND ${CMAKE_SOURCE_DIR}/docs/build-dev.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs
+        DEPENDS website-sync-docs docs
         COMMENT "Building Jekyll site (local dev)..."
     )
 
+    # Copy API documentation to _site
+    add_custom_target(website-copy-api
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/docs/api
+            ${CMAKE_SOURCE_DIR}/docs/_site/api
+        DEPENDS website-jekyll
+        COMMENT "Copying API documentation to website..."
+    )
+
+    add_custom_target(website-copy-api-dev
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/docs/api
+            ${CMAKE_SOURCE_DIR}/docs/_site/api
+        DEPENDS website-jekyll-dev
+        COMMENT "Copying API documentation to website (dev)..."
+    )
+
     # Copy WASM artifacts for each registered demo (separate target per demo)
-    set(COPY_TARGETS "")
-    set(COPY_TARGETS_DEV "")
+    set(COPY_TARGETS "website-copy-api")
+    set(COPY_TARGETS_DEV "website-copy-api-dev")
     foreach(DEMO IN LISTS CLAY_WEBSITE_DEMOS)
         # Production copy target
         set(COPY_TARGET website-copy-${DEMO})

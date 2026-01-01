@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>API Reference | Clayground</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div class="header-nav">
+        <a href="../index.html">Clayground</a> |
+        <a href="index.html">API Reference</a>
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+    </div>
+
+    <div class="api-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="api-sidebar" id="api-sidebar">
+            <div class="search-box">
+                <input type="text" id="api-search" placeholder="Search types..." autocomplete="off">
+            </div>
+            <nav id="api-nav">
+                <div class="nav-loading">Loading API index...</div>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="api-content" id="api-content">
+            <!-- Breadcrumb (shown when viewing a type) -->
+            <div id="breadcrumb" class="breadcrumb hidden"></div>
+
+            <!-- Welcome content (shown by default) -->
+            <div id="welcome-content">
+                <h1>Clayground API Reference</h1>
+
+                <p>
+                    Welcome to the Clayground API documentation. Use the navigation tree
+                    on the left to browse all available types, or search by name.
+                </p>
+
+                <section class="quick-start">
+                    <h2>Quick Start</h2>
+                    <p>Import a module in your QML file:</p>
+                    <pre><code>import Clayground.Common</code></pre>
+                </section>
+
+                <section id="module-overview">
+                    <h2>Modules</h2>
+                    <div id="modules-list">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </section>
+
+                <section>
+                    <h2>About This Documentation</h2>
+                    <p>
+                        This API reference is generated from source code documentation comments.
+                        Each type includes its properties, methods, signals, and usage examples.
+                    </p>
+                </section>
+            </div>
+
+            <!-- Iframe for loading type documentation -->
+            <iframe id="doc-frame" class="doc-frame hidden"></iframe>
+        </main>
+    </div>
+
+    <script>
+    // API Navigation Builder
+    (function() {
+        const nav = document.getElementById('api-nav');
+        const search = document.getElementById('api-search');
+        const modulesList = document.getElementById('modules-list');
+        const welcomeContent = document.getElementById('welcome-content');
+        const docFrame = document.getElementById('doc-frame');
+        const sidebar = document.getElementById('api-sidebar');
+        const breadcrumb = document.getElementById('breadcrumb');
+        let apiData = null;
+        let VERSION = 'dev';
+
+        // Toggle sidebar visibility
+        window.toggleSidebar = function() {
+            sidebar.classList.toggle('collapsed');
+        };
+
+        // Update breadcrumb display
+        function updateBreadcrumb(typeName, moduleName) {
+            if (!typeName) {
+                breadcrumb.classList.add('hidden');
+                return;
+            }
+            breadcrumb.classList.remove('hidden');
+            breadcrumb.innerHTML = `
+                <span>Clayground ${VERSION}</span>
+                <span class="separator">›</span>
+                <span>${moduleName || 'Common'}</span>
+                <span class="separator">›</span>
+                <span class="current">${typeName}</span>
+            `;
+        }
+
+        // Load content in iframe
+        window.loadInFrame = function(href, event, typeName) {
+            if (event) event.preventDefault();
+            welcomeContent.classList.add('hidden');
+            docFrame.classList.remove('hidden');
+            docFrame.src = href;
+
+            // Update active state in navigation
+            document.querySelectorAll('.nav-type-link, .nav-member a').forEach(a => {
+                a.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.closest('a').classList.add('active');
+            }
+
+            // Update URL hash for bookmarking
+            const hashName = href.replace('.html', '').replace('qml-', '');
+            history.pushState(null, '', '#' + hashName);
+
+            // Update breadcrumb - extract type name from href if not provided
+            if (!typeName) {
+                typeName = hashName.split('#')[0];
+                // Capitalize first letter of each word
+                typeName = typeName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+            }
+            updateBreadcrumb(typeName, 'Clayground.Common');
+        };
+
+        // Show welcome content
+        window.showWelcome = function() {
+            welcomeContent.classList.remove('hidden');
+            docFrame.classList.add('hidden');
+            docFrame.src = '';
+            updateBreadcrumb(null);
+            document.querySelectorAll('.nav-type-link, .nav-member a').forEach(a => {
+                a.classList.remove('active');
+            });
+            history.pushState(null, '', window.location.pathname);
+        };
+
+        // Fetch and parse the QDoc index
+        async function loadIndex() {
+            try {
+                // Load version from version.json
+                try {
+                    const versionResponse = await fetch('version.json');
+                    const versionData = await versionResponse.json();
+                    VERSION = versionData.version || 'dev';
+                } catch (e) {
+                    console.warn('Could not load version.json, using default');
+                }
+
+                const response = await fetch('clayground.index');
+                const text = await response.text();
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(text, 'text/xml');
+                apiData = parseIndex(xml);
+                renderNavigation(apiData);
+                renderModulesOverview(apiData);
+
+                // Check if URL has a hash to load
+                if (window.location.hash) {
+                    const hashName = window.location.hash.substring(1).split('#')[0];
+                    const href = 'qml-' + hashName + '.html';
+                    // Find proper type name from apiData
+                    const type = apiData.types.find(t => t.name.toLowerCase() === hashName.toLowerCase());
+                    loadInFrame(href, null, type ? type.name : null);
+                }
+            } catch (error) {
+                nav.innerHTML = '<div class="nav-error">Failed to load API index</div>';
+                console.error('Error loading API index:', error);
+            }
+        }
+
+        // Parse QDoc XML index into structured data
+        function parseIndex(xml) {
+            const modules = {};
+            const types = [];
+
+            // Find all QML classes
+            const qmlClasses = xml.querySelectorAll('qmlclass');
+            qmlClasses.forEach(cls => {
+                const type = {
+                    name: cls.getAttribute('name'),
+                    href: cls.getAttribute('href'),
+                    brief: cls.getAttribute('brief') || '',
+                    properties: [],
+                    methods: [],
+                    signals: []
+                };
+
+                // Parse properties
+                cls.querySelectorAll('qmlproperty').forEach(prop => {
+                    type.properties.push({
+                        name: prop.getAttribute('name'),
+                        href: prop.getAttribute('href'),
+                        type: prop.getAttribute('type'),
+                        brief: prop.getAttribute('brief') || ''
+                    });
+                });
+
+                // Parse methods and signals
+                cls.querySelectorAll('function').forEach(fn => {
+                    const meta = fn.getAttribute('meta');
+                    const item = {
+                        name: fn.getAttribute('name'),
+                        href: fn.getAttribute('href'),
+                        type: fn.getAttribute('type'),
+                        brief: fn.getAttribute('brief') || ''
+                    };
+                    if (meta === 'qmlsignal') {
+                        type.signals.push(item);
+                    } else if (meta === 'qmlmethod') {
+                        type.methods.push(item);
+                    }
+                });
+
+                types.push(type);
+            });
+
+            // Find modules
+            const qmlModules = xml.querySelectorAll('qmlmodule');
+            qmlModules.forEach(mod => {
+                const name = mod.getAttribute('name');
+                if (name) {
+                    modules[name] = { name, types: [] };
+                }
+            });
+
+            // Group types by module (for now, all go to Clayground.Common)
+            if (!modules['Clayground.Common']) {
+                modules['Clayground.Common'] = { name: 'Clayground.Common', types: [] };
+            }
+            types.forEach(type => {
+                modules['Clayground.Common'].types.push(type);
+            });
+
+            return { modules, types };
+        }
+
+        // Render the navigation tree
+        function renderNavigation(data) {
+            let html = '<div class="nav-home"><a href="#" onclick="showWelcome(); return false;">⌂ Overview</a></div>';
+
+            Object.values(data.modules).forEach(module => {
+                html += `
+                    <div class="nav-module" data-module="${module.name}">
+                        <div class="nav-module-header" onclick="toggleModule(this)">
+                            <span class="nav-toggle">▼</span>
+                            <span class="nav-module-name">${module.name}</span>
+                        </div>
+                        <ul class="nav-types">
+                `;
+
+                module.types.forEach(type => {
+                    html += `
+                        <li class="nav-type" data-name="${type.name.toLowerCase()}">
+                            <a href="${type.href}" class="nav-type-link" onclick="loadInFrame('${type.href}', event, '${type.name}')">
+                                <span class="nav-type-name">${type.name}</span>
+                            </a>
+                            <ul class="nav-members">
+                    `;
+
+                    if (type.properties.length > 0) {
+                        html += `<li class="nav-category">Properties</li>`;
+                        type.properties.forEach(prop => {
+                            html += `<li class="nav-member nav-property" data-name="${prop.name.toLowerCase()}">
+                                <a href="${prop.href}" onclick="loadInFrame('${prop.href}', event, '${type.name}')">${prop.name}</a>
+                            </li>`;
+                        });
+                    }
+
+                    if (type.methods.length > 0) {
+                        html += `<li class="nav-category">Methods</li>`;
+                        type.methods.forEach(method => {
+                            html += `<li class="nav-member nav-method" data-name="${method.name.toLowerCase()}">
+                                <a href="${method.href}" onclick="loadInFrame('${method.href}', event, '${type.name}')">${method.name}()</a>
+                            </li>`;
+                        });
+                    }
+
+                    if (type.signals.length > 0) {
+                        html += `<li class="nav-category">Signals</li>`;
+                        type.signals.forEach(signal => {
+                            html += `<li class="nav-member nav-signal" data-name="${signal.name.toLowerCase()}">
+                                <a href="${signal.href}" onclick="loadInFrame('${signal.href}', event, '${type.name}')">${signal.name}</a>
+                            </li>`;
+                        });
+                    }
+
+                    html += `</ul></li>`;
+                });
+
+                html += `</ul></div>`;
+            });
+
+            nav.innerHTML = html;
+        }
+
+        // Render modules overview in main content
+        function renderModulesOverview(data) {
+            let html = '';
+
+            Object.values(data.modules).forEach(module => {
+                html += `<div class="module-card">
+                    <h3>${module.name}</h3>
+                    <ul class="type-list">`;
+
+                module.types.forEach(type => {
+                    html += `<li>
+                        <a href="${type.href}" onclick="loadInFrame('${type.href}', event, '${type.name}')"><strong>${type.name}</strong></a>
+                        <span class="type-brief"> - ${type.brief}</span>
+                    </li>`;
+                });
+
+                html += `</ul></div>`;
+            });
+
+            modulesList.innerHTML = html;
+        }
+
+        // Toggle module expansion
+        window.toggleModule = function(header) {
+            const module = header.parentElement;
+            module.classList.toggle('collapsed');
+            const toggle = header.querySelector('.nav-toggle');
+            toggle.textContent = module.classList.contains('collapsed') ? '▶' : '▼';
+        };
+
+        // Search/filter functionality
+        search.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+
+            if (!query) {
+                // Show all
+                document.querySelectorAll('.nav-module').forEach(m => m.classList.remove('collapsed', 'hidden'));
+                document.querySelectorAll('.nav-type, .nav-member').forEach(el => el.classList.remove('hidden'));
+                document.querySelectorAll('.nav-toggle').forEach(t => t.textContent = '▼');
+                return;
+            }
+
+            // Filter types and members
+            document.querySelectorAll('.nav-type').forEach(typeEl => {
+                const typeName = typeEl.dataset.name;
+                const typeMatches = typeName.includes(query);
+
+                // Check if any members match
+                const members = typeEl.querySelectorAll('.nav-member');
+                let anyMemberMatches = false;
+                members.forEach(member => {
+                    const memberName = member.dataset.name;
+                    const memberMatches = memberName.includes(query);
+                    member.classList.toggle('hidden', !memberMatches && !typeMatches);
+                    if (memberMatches) anyMemberMatches = true;
+                });
+
+                typeEl.classList.toggle('hidden', !typeMatches && !anyMemberMatches);
+            });
+
+            // Show/hide modules based on visible types
+            document.querySelectorAll('.nav-module').forEach(module => {
+                const visibleTypes = module.querySelectorAll('.nav-type:not(.hidden)');
+                module.classList.toggle('hidden', visibleTypes.length === 0);
+                module.classList.remove('collapsed');
+                module.querySelector('.nav-toggle').textContent = '▼';
+            });
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', function() {
+            if (window.location.hash) {
+                const hashName = window.location.hash.substring(1).split('#')[0];
+                const href = 'qml-' + hashName + '.html';
+                const type = apiData ? apiData.types.find(t => t.name.toLowerCase() === hashName.toLowerCase()) : null;
+                loadInFrame(href, null, type ? type.name : null);
+            } else {
+                showWelcome();
+            }
+        });
+
+        // Load on page ready
+        loadIndex();
+    })();
+    </script>
+</body>
+</html>

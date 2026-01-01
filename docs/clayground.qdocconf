@@ -1,0 +1,48 @@
+# Clayground QDoc Configuration
+# Generates API reference documentation for Clayground plugins
+
+project = Clayground
+description = Clayground Game Development Framework
+version = 2025.2
+url = https://mistergc.github.io/clayground
+
+# Source directories (starting with clay_common as pilot)
+sourcedirs = ../plugins/clay_common
+headerdirs = ../plugins/clay_common
+
+# Include paths for Clang parser (needed for C++ types with QML_ELEMENT)
+# Note: Paths are passed via command line -I flags in CMake for portability
+
+# File extensions to process
+sources.fileextensions = "*.cpp *.h *.qml *.qdoc"
+headers.fileextensions = "*.h"
+
+# Output configuration
+outputdir = api
+outputformats = HTML
+
+# Qt module dependencies for linking
+depends = qtcore qtquick qtqml
+
+# QML module info
+qhp.Clayground.namespace = io.github.mistergc.clayground
+qhp.Clayground.virtualFolder = clayground
+qhp.Clayground.indexTitle = Clayground API Reference
+
+# Navigation structure
+navigation.homepage = index.html
+navigation.landingpage = Clayground
+buildversion = Clayground $version
+
+# HTML customization
+HTML.stylesheets = api/style.css
+HTML.headerstyles = "<link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" />\n"
+HTML.postheader = "<div class=\"header-nav\"><a href=\"../index.html\">Clayground</a> | <a href=\"index.html\">API Reference</a></div>\n"
+
+# Don't generate Qt-specific extras we don't need
+generateindex = true
+naturallanguage = en
+
+# Exclude private/internal items
+excludedirs = ../plugins/clay_common/tests
+excludefiles = ../plugins/clay_common/*_p.h

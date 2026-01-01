@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE QDOCINDEX>
+<INDEX url="https://mistergc.github.io/clayground" title="Clayground Game Development Framework" version="2025.2" project="Clayground" indexTitle="Clayground">
+    <namespace name="" status="active" access="public" module="clayground">
+        <qmlclass name="ClayStopWatch" href="qml-claystopwatch.html" status="active" access="public" documented="true" title="ClayStopWatch" fulltitle="ClayStopWatch" subtitle="" brief="A simple stopwatch for measuring elapsed time">
+            <function name="elapsedChanged" fullname="ClayStopWatch::elapsedChanged" href="qml-claystopwatch.html#elapsedChanged-signal" status="active" access="public" documented="true" meta="qmlsignal" type="void"/>
+            <function name="runningChanged" fullname="ClayStopWatch::runningChanged" href="qml-claystopwatch.html#runningChanged-signal" status="active" access="public" documented="true" meta="qmlsignal" type="void"/>
+            <function name="start" fullname="ClayStopWatch::start" href="qml-claystopwatch.html#start-method" status="active" access="public" documented="true" meta="qmlmethod" type="void"/>
+            <function name="stop" fullname="ClayStopWatch::stop" href="qml-claystopwatch.html#stop-method" status="active" access="public" documented="true" meta="qmlmethod" type="void"/>
+            <qmlproperty name="elapsed" fullname="ClayStopWatch::elapsed" href="qml-claystopwatch.html#elapsed-prop" status="active" access="public" documented="true" type="int" attached="false" writable="true" brief="Time in milliseconds since the last start()"/>
+            <qmlproperty name="running" fullname="ClayStopWatch::running" href="qml-claystopwatch.html#running-prop" status="active" access="public" documented="true" type="bool" attached="false" writable="true" brief="Whether the stopwatch is currently running"/>
+        </qmlclass>
+        <qmlclass name="Clayground" href="qml-clayground.html" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="5" documented="true" title="Clayground" fulltitle="Clayground" subtitle="" brief="Global singleton providing utility functions and environment detection">
+            <function name="resource" fullname="Clayground::resource" href="qml-clayground.html#resource-method" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="55" documented="true" meta="qmlmethod" type="string">
+                <parameter type="string" name="path" default=""/>
+            </function>
+            <function name="typeName" fullname="Clayground::typeName" href="qml-clayground.html#typeName-method" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="99" documented="true" meta="qmlmethod" type="string">
+                <parameter type="object" name="obj" default=""/>
+            </function>
+            <function name="watch" fullname="Clayground::watch" href="qml-clayground.html#watch-method" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="73" documented="true" meta="qmlmethod" type="void">
+                <parameter type="object" name="obj" default=""/>
+                <parameter type="string" name="prop" default=""/>
+                <parameter type="bool" name="logPropChange" default=""/>
+            </function>
+            <qmlproperty name="runsInSandbox" fullname="Clayground::runsInSandbox" href="qml-clayground.html#runsInSandbox-prop" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="32" documented="true" type="bool" attached="false" writable="false" brief="True when running inside ClayLiveLoader sandbox environment"/>
+            <qmlproperty name="watchView" fullname="Clayground::watchView" href="qml-clayground.html#watchView-prop" status="active" access="public" location="Clayground.qml" filepath="/Users/mistergc/dev/gamedev/clayground/plugins/clay_common/Clayground.qml" lineno="45" documented="true" type="var" attached="false" writable="true" brief="Reference to the watch view for property debugging"/>
+        </qmlclass>
+        <qmlmodule name="Clayground.Common" href="clayground-common-qmlmodule.html" status="internal" seen="false" title=""/>
+    </namespace>
+</INDEX>

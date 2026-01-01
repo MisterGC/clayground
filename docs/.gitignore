@@ -1,0 +1,15 @@
+# Jekyll
+_site/
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata
+vendor
+
+# Generated plugin documentation
+plugins/*.md
+
+# Generated API docs files
+api/version.json
+
+# Bundle
+.bundle/
