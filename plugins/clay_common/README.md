@@ -4,16 +4,6 @@ The Clay Common plugin provides essential utilities and helper components that
 are used across the Clayground framework. It includes singleton utilities for
 resource management, debugging support, and timing functionality.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [Clayground Singleton](#clayground-singleton)
-  - [ClayStopWatch](#claystopwatch)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Common plugin in your QML files:
@@ -24,42 +14,8 @@ import Clayground.Common
 
 ## Core Components
 
-### Clayground Singleton
-
-The `Clayground` singleton provides utilities for resource management and debugging across your application.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `runsInSandbox` | bool (readonly) | Indicates whether the application is running in the Clayground sandbox environment |
-| `watchView` | var | Reference to the watch view for debugging (set externally) |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `resource(path)` | path: string | Returns the correct resource path based on the runtime environment |
-| `watch(obj, prop, logPropChange)` | obj: object, prop: string, logPropChange: bool | Watches property changes for debugging purposes |
-| `typeName(obj)` | obj: object | Returns the type name of a QML object |
-
-### ClayStopWatch
-
-A QML-exposed stopwatch component for measuring elapsed time.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `elapsed` | int | The elapsed time in milliseconds |
-| `running` | bool | Whether the stopwatch is currently running |
-
-#### Methods
-
-| Method | Description |
-|--------|-------------|
-| `start()` | Starts the stopwatch |
-| `stop()` | Stops the stopwatch and updates the elapsed time |
+- **Clayground** - Global singleton providing utility functions for resource loading and environment detection.
+- **ClayStopWatch** - A simple stopwatch for measuring elapsed time with millisecond precision.
 
 ## Usage Examples
 

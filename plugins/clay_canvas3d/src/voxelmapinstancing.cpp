@@ -8,6 +8,123 @@
 #include <QVariantList>
 #include <QQuaternion>
 
+/*!
+    \qmltype VoxelMapInstancing
+    \nativetype VoxelMapInstancing
+    \inqmlmodule Clayground.Canvas3D
+    \brief GPU instancing for dynamic voxel maps with per-voxel colors.
+
+    VoxelMapInstancing provides efficient rendering of voxel maps using
+    GPU instancing. Each non-transparent voxel is rendered as an instance
+    of a base geometry, with per-instance color and position data.
+
+    This is ideal for voxel maps that change frequently, as updating
+    individual voxels doesn't require regenerating the entire mesh.
+
+    This instancing is used internally by DynamicVoxelMap.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: Box3DGeometry { size: Qt.vector3d(1, 1, 1) }
+        instancing: VoxelMapInstancing {
+            voxelCountX: 10
+            voxelCountY: 10
+            voxelCountZ: 10
+            voxelSize: 1.0
+        }
+        materials: CustomMaterial { }
+    }
+    \endqml
+
+    \sa DynamicVoxelMap, VoxelMapGeometry
+*/
+
+/*!
+    \qmlproperty int VoxelMapInstancing::voxelCountX
+    \brief Number of voxels along the X axis.
+*/
+
+/*!
+    \qmlproperty int VoxelMapInstancing::voxelCountY
+    \brief Number of voxels along the Y axis (height).
+*/
+
+/*!
+    \qmlproperty int VoxelMapInstancing::voxelCountZ
+    \brief Number of voxels along the Z axis.
+*/
+
+/*!
+    \qmlproperty real VoxelMapInstancing::voxelSize
+    \brief Size of each voxel cube in world units.
+
+    Defaults to 1.0.
+*/
+
+/*!
+    \qmlproperty real VoxelMapInstancing::spacing
+    \brief Gap between adjacent voxels in world units.
+
+    Defaults to 0.0 for solid voxel structures.
+*/
+
+/*!
+    \qmlmethod color VoxelMapInstancing::voxel(int x, int y, int z)
+    \brief Returns the color of the voxel at the specified coordinates.
+
+    Returns transparent if the coordinates are out of bounds or the
+    voxel is empty.
+*/
+
+/*!
+    \qmlmethod void VoxelMapInstancing::setVoxel(int x, int y, int z, color color)
+    \brief Sets the color of the voxel at the specified coordinates.
+
+    Setting a voxel to transparent removes it from the map.
+*/
+
+/*!
+    \qmlmethod void VoxelMapInstancing::fillSphere(int cx, int cy, int cz, int r, list colorDistribution, real noiseFactor)
+    \brief Fills a spherical region with voxels.
+
+    Creates a sphere centered at (cx, cy, cz) with radius r.
+*/
+
+/*!
+    \qmlmethod void VoxelMapInstancing::fillCylinder(int cx, int cy, int cz, int r, int height, list colorDistribution, real noiseFactor)
+    \brief Fills a cylindrical region with voxels.
+*/
+
+/*!
+    \qmlmethod void VoxelMapInstancing::fillBox(int cx, int cy, int cz, int width, int height, int depth, list colorDistribution, real noiseFactor)
+    \brief Fills a box-shaped region with voxels.
+*/
+
+/*!
+    \qmlmethod bool VoxelMapInstancing::saveToFile(string path)
+    \brief Saves the voxel map to a text file.
+
+    Returns true if the save was successful.
+*/
+
+/*!
+    \qmlmethod bool VoxelMapInstancing::loadFromFile(string path)
+    \brief Loads a voxel map from a text file.
+
+    Returns true if the load was successful.
+*/
+
+/*!
+    \qmlmethod void VoxelMapInstancing::commit()
+    \brief Triggers instance buffer update after batch voxel operations.
+
+    Call this once after multiple setVoxel or fill operations.
+*/
+
 VoxelMapInstancing::VoxelMapInstancing(QQuick3DObject *parent)
     : QQuick3DInstancing(parent)
 {

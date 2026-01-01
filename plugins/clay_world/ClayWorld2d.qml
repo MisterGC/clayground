@@ -1,5 +1,87 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ClayWorld2d
+    \inqmlmodule Clayground.World
+    \inherits ClayWorldBase
+    \brief Complete 2D game world with physics, rendering, and scene loading.
+
+    ClayWorld2d integrates ClayCanvas for rendering, Box2D for physics, and
+    SVG-based scene loading into a single component. Physics bodies added as
+    children are automatically parented to the room and configured.
+
+    Example usage:
+    \qml
+    import Clayground.World
+    import Clayground.Physics
+
+    ClayWorld2d {
+        anchors.fill: parent
+        xWuMax: 100; yWuMax: 50
+        gravity: Qt.point(0, 10)
+        observedItem: player
+
+        RectBoxBody {
+            id: player
+            xWu: 10; yWu: 10
+            widthWu: 2; heightWu: 2
+            bodyType: Body.Dynamic
+        }
+    }
+    \endqml
+
+    \qmlproperty ClayCanvas ClayWorld2d::canvas
+    \readonly
+    \brief The rendering canvas.
+
+    \qmlproperty Item ClayWorld2d::room
+    \brief Container for all world entities.
+
+    \qmlproperty bool ClayWorld2d::running
+    \brief Whether physics simulation is running.
+
+    \qmlproperty real ClayWorld2d::xWuMin
+    \brief Minimum X coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::xWuMax
+    \brief Maximum X coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::yWuMin
+    \brief Minimum Y coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::yWuMax
+    \brief Maximum Y coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::pixelPerUnit
+    \brief Pixels per world unit for rendering.
+
+    \qmlproperty real ClayWorld2d::viewPortCenterWuX
+    \brief Viewport center X in world units.
+
+    \qmlproperty real ClayWorld2d::viewPortCenterWuY
+    \brief Viewport center Y in world units.
+
+    \qmlproperty var ClayWorld2d::observedItem
+    \brief Item the camera follows.
+
+    \qmlproperty World ClayWorld2d::physics
+    \brief The Box2D physics world.
+
+    \qmlproperty point ClayWorld2d::gravity
+    \brief Gravity vector for physics.
+
+    \qmlproperty real ClayWorld2d::timeStep
+    \brief Physics simulation timestep.
+
+    \qmlproperty bool ClayWorld2d::physicsEnabled
+    \brief Whether physics is enabled.
+
+    \qmlproperty real ClayWorld2d::baseZCoord
+    \brief Base Z coordinate for loaded entities.
+
+    \qmlproperty real ClayWorld2d::lastZCoord
+    \brief Last used Z coordinate.
+*/
 import QtQuick
 import Box2D
 import Clayground.Canvas

@@ -5,19 +5,6 @@ supports multiple input sources including keyboard, physical gamepads, and
 touchscreen controls. It's designed with simplicity in mind, offering NES-style
 controller functionality with directional controls and two action buttons.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [GameController](#gamecontroller)
-  - [GameControllerDV](#gamecontrollerdv)
-  - [KeyboardGamepad](#keyboardgamepad)
-  - [TouchscreenGamepad](#touchscreengamepad)
-  - [GamepadWrapper](#gamepadwrapper)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay GameController plugin in your QML files:
@@ -28,75 +15,11 @@ import Clayground.GameController
 
 ## Core Components
 
-### GameController
-
-The main controller component that unifies input from different sources.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `axisX` | real | Horizontal axis value (-1 to 1) |
-| `axisY` | real | Vertical axis value (-1 to 1) |
-| `buttonAPressed` | bool | State of button A |
-| `buttonBPressed` | bool | State of button B |
-| `showDebugOverlay` | bool | Show visual debug overlay |
-
-#### Read-only Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `gamepadSelected` | bool | True if a physical gamepad is active |
-| `vGamepadSelected` | bool | True if touchscreen gamepad is active |
-| `keyboardSelected` | bool | True if keyboard input is active |
-| `gamepad` | var | Reference to connected gamepad (if any) |
-| `gamepadDeviceId` | int | ID of connected gamepad (-1 if none) |
-| `numConnectedGamepads` | int | Number of connected physical gamepads |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `selectGamepad(gamePadIdx, useAnalogAxis)` | gamePadIdx: int, useAnalogAxis: bool | Select a physical gamepad |
-| `selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey)` | Qt.Key values | Configure keyboard input |
-| `selectTouchscreenGamepad()` | none | Enable touchscreen controls |
-
-### GameControllerDV
-
-Debug visualization component that shows the current state of a GameController.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `observed` | GameController | The controller to visualize |
-
-### KeyboardGamepad
-
-Internal component that handles keyboard input mapping.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `enabled` | bool | Whether keyboard input is active |
-| `gameController` | GameController | Parent controller reference |
-
-### TouchscreenGamepad
-
-Virtual on-screen gamepad for touch devices.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `enabled` | bool | Whether touch input is active |
-| `visible` | bool | Visibility of touch controls |
-| `gameController` | GameController | Parent controller reference |
-
-### GamepadWrapper
-
-Wrapper for Qt's Gamepad API (currently disabled in Qt6).
+- **GameController** - Main unified input component with axis and button states
+- **GameControllerDV** - Debug visualization showing current controller state
+- **KeyboardGamepad** - Internal keyboard-to-controller mapping
+- **TouchscreenGamepad** - Virtual on-screen gamepad for touch devices
+- **GamepadWrapper** - Qt Gamepad API wrapper (currently disabled in Qt6)
 
 ## Usage Examples
 
@@ -109,10 +32,10 @@ import Clayground.GameController
 Item {
     GameController {
         id: controller
-        
+
         // Enable debug visualization
         showDebugOverlay: true
-        
+
         Component.onCompleted: {
             // Try gamepad first, fallback to keyboard
             if (numConnectedGamepads > 0)
@@ -139,18 +62,18 @@ Rectangle {
     width: 50
     height: 50
     color: "blue"
-    
+
     GameController {
         id: controller
         anchors.fill: parent
     }
-    
+
     // Move player based on controller input
     x: x + controller.axisX * 5
     y: y - controller.axisY * 5  // Invert Y for screen coordinates
-    
+
     // Change color when buttons pressed
-    color: controller.buttonAPressed ? "red" : 
+    color: controller.buttonAPressed ? "red" :
            controller.buttonBPressed ? "green" : "blue"
 }
 ```
@@ -166,13 +89,13 @@ Row {
                 selectGamepad(0, false)  // Use D-pad
             else
                 selectKeyboard(
-                    Qt.Key_Up, Qt.Key_Down, 
+                    Qt.Key_Up, Qt.Key_Down,
                     Qt.Key_Left, Qt.Key_Right,
                     Qt.Key_M, Qt.Key_N
                 )
         }
     }
-    
+
     GameController {
         id: player2Controller
         Component.onCompleted: {
@@ -191,7 +114,7 @@ Row {
 GameController {
     id: mobileController
     anchors.fill: parent
-    
+
     Component.onCompleted: {
         // Auto-select input based on platform
         if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
@@ -212,15 +135,15 @@ GameController {
 ```qml
 GameController {
     id: controller
-    
+
     // React to input changes
     onAxisXChanged: {
-        if (axisX > 0.5) 
+        if (axisX > 0.5)
             console.log("Moving right")
-        else if (axisX < -0.5) 
+        else if (axisX < -0.5)
             console.log("Moving left")
     }
-    
+
     onButtonAPressedChanged: {
         if (buttonAPressed)
             console.log("Jump!")

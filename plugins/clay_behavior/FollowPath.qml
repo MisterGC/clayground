@@ -1,5 +1,63 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype FollowPath
+    \inqmlmodule Clayground.Behavior
+    \brief Makes an entity follow a predefined path of waypoints.
+
+    FollowPath moves an actor through a sequence of waypoints using
+    physics-based movement. It supports looping paths and provides
+    debug visualization for development.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    RectBoxBody {
+        id: guard
+
+        FollowPath {
+            world: theWorld
+            wpsWu: [
+                Qt.point(5, 5),
+                Qt.point(10, 5),
+                Qt.point(10, 10),
+                Qt.point(5, 10)
+            ]
+            repeat: true
+            running: true
+            debug: true
+        }
+    }
+    \endqml
+
+    \qmlproperty ClayWorld2d FollowPath::world
+    \brief The world context (required).
+
+    \qmlproperty var FollowPath::actor
+    \brief The entity to move (defaults to parent).
+
+    \qmlproperty var FollowPath::wpsWu
+    \brief Array of waypoints in world units.
+
+    Each waypoint should be a Qt.point(x, y) object.
+
+    \qmlproperty bool FollowPath::running
+    \brief Whether path following is active.
+
+    \qmlproperty bool FollowPath::repeat
+    \brief Loop back to the first waypoint when path completes.
+
+    \qmlproperty bool FollowPath::debug
+    \brief Show debug visualization of waypoints and path.
+
+    \qmlproperty color FollowPath::debugColor
+    \brief Color for debug visualization.
+
+    \qmlsignal FollowPath::arrived()
+    \brief Emitted when the actor completes the path (when repeat is false).
+*/
+
 import QtQuick
 import Clayground.World
 import Clayground.Canvas as Canv

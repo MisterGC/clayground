@@ -1,5 +1,27 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype GameControllerDV
+    \inqmlmodule Clayground.GameController
+    \brief Debug visualization component showing GameController state.
+
+    GameControllerDV displays a visual representation of a GameController's
+    current state including axis positions, button states, and active input source.
+    Useful for debugging input handling during development.
+
+    Example usage:
+    \qml
+    import Clayground.GameController
+
+    GameControllerDV {
+        observed: myController
+        anchors.centerIn: parent
+    }
+    \endqml
+
+    \qmlproperty GameController GameControllerDV::observed
+    \brief The GameController instance to visualize.
+*/
 import QtQuick
 
 Rectangle {

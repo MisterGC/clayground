@@ -1,5 +1,216 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype Character
+    \inqmlmodule Clayground.Character3D
+    \brief A fully animated 3D humanoid character with modular body parts.
+
+    Character is the main component for creating 3D characters with procedural
+    animations. It provides extensive customization through body part dimensions,
+    colors, and automatic walk/run/idle animations.
+
+    The character's origin is at ground level (Y=0 at bottom of feet), centered
+    horizontally. Movement speeds are derived from animation geometry to ensure
+    foot movement matches character movement.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    Character {
+        name: "hero"
+        activity: Character.Activity.Walking
+        skinColor: "#d38d5f"
+        torsoColor: "#4169e1"
+    }
+    \endqml
+
+    \qmlproperty string Character::name
+    \brief Character identifier name.
+
+    \qmlproperty int Character::activity
+    \brief Current activity state. Use Character.Activity enum values:
+    Idle, Walking, Running, Using, Fighting.
+
+    \qmlproperty real Character::walkSpeed
+    \readonly
+    \brief Walking speed derived from animation geometry.
+
+    \qmlproperty real Character::runSpeed
+    \readonly
+    \brief Running speed derived from animation geometry.
+
+    \qmlproperty real Character::currentSpeed
+    \readonly
+    \brief Current movement speed based on activity.
+
+    \qmlproperty int Character::idleCycleDuration
+    \brief Duration of the idle animation cycle in milliseconds.
+
+    \qmlproperty int Character::faceActivity
+    \brief Current facial expression activity.
+
+    \qmlproperty real Character::neckHeight
+    \brief Height of the neck section.
+
+    \qmlproperty real Character::upperHeadWidth
+    \brief Width of the upper head.
+
+    \qmlproperty real Character::upperHeadHeight
+    \brief Height of the upper head.
+
+    \qmlproperty real Character::upperHeadDepth
+    \brief Depth of the upper head.
+
+    \qmlproperty real Character::lowerHeadWidth
+    \brief Width of the lower head/jaw.
+
+    \qmlproperty real Character::lowerHeadHeight
+    \brief Height of the lower head/jaw.
+
+    \qmlproperty real Character::lowerHeadDepth
+    \brief Depth of the lower head/jaw.
+
+    \qmlproperty real Character::chinPointiness
+    \brief How pointed the chin is (0-1).
+
+    \qmlproperty real Character::eyeSize
+    \brief Eye size multiplier.
+
+    \qmlproperty real Character::noseSize
+    \brief Nose size multiplier.
+
+    \qmlproperty real Character::mouthSize
+    \brief Mouth size multiplier.
+
+    \qmlproperty real Character::hairVolume
+    \brief Hair volume multiplier.
+
+    \qmlproperty color Character::skinColor
+    \brief Skin color for head, hands, and feet.
+
+    \qmlproperty color Character::hairColor
+    \brief Hair color.
+
+    \qmlproperty color Character::eyeColor
+    \brief Eye color.
+
+    \qmlproperty real Character::shoulderWidth
+    \brief Width at the shoulders.
+
+    \qmlproperty real Character::torsoHeight
+    \brief Height of the torso.
+
+    \qmlproperty real Character::torsoDepth
+    \brief Depth of the torso.
+
+    \qmlproperty real Character::waistWidth
+    \brief Width at the waist.
+
+    \qmlproperty color Character::torsoColor
+    \brief Torso/shirt color.
+
+    \qmlproperty real Character::hipWidth
+    \brief Width of the hips.
+
+    \qmlproperty real Character::hipHeight
+    \brief Height of the hip section.
+
+    \qmlproperty real Character::hipDepth
+    \brief Depth of the hip section.
+
+    \qmlproperty color Character::hipColor
+    \brief Hip/pants color.
+
+    \qmlproperty real Character::armWidth
+    \brief Width of the arms.
+
+    \qmlproperty real Character::armHeight
+    \brief Total arm length.
+
+    \qmlproperty real Character::armDepth
+    \brief Depth of the arms.
+
+    \qmlproperty real Character::armUpperRatio
+    \brief Upper arm proportion of total arm.
+
+    \qmlproperty real Character::armLowerTaper
+    \brief How much the forearm tapers.
+
+    \qmlproperty real Character::handWidth
+    \brief Width of the hands.
+
+    \qmlproperty real Character::handHeight
+    \brief Height of the hands.
+
+    \qmlproperty real Character::handDepth
+    \brief Depth of the hands.
+
+    \qmlproperty color Character::armColor
+    \brief Arm/sleeve color.
+
+    \qmlproperty color Character::handColor
+    \brief Hand color.
+
+    \qmlproperty real Character::legWidth
+    \brief Width of the legs.
+
+    \qmlproperty real Character::legHeight
+    \brief Total leg length.
+
+    \qmlproperty real Character::legDepth
+    \brief Depth of the legs.
+
+    \qmlproperty real Character::legUpperRatio
+    \brief Upper leg proportion of total leg.
+
+    \qmlproperty real Character::legLowerTaper
+    \brief How much the lower leg tapers.
+
+    \qmlproperty real Character::footWidth
+    \brief Width of the feet.
+
+    \qmlproperty real Character::footHeight
+    \brief Height of the feet.
+
+    \qmlproperty real Character::footDepth
+    \brief Depth of the feet.
+
+    \qmlproperty color Character::legColor
+    \brief Leg/pants color.
+
+    \qmlproperty color Character::footColor
+    \brief Foot/shoe color.
+
+    \qmlproperty Arm Character::leftArm
+    \readonly
+    \brief Reference to the left arm for animation.
+
+    \qmlproperty Arm Character::rightArm
+    \readonly
+    \brief Reference to the right arm for animation.
+
+    \qmlproperty Leg Character::leftLeg
+    \readonly
+    \brief Reference to the left leg for animation.
+
+    \qmlproperty Leg Character::rightLeg
+    \readonly
+    \brief Reference to the right leg for animation.
+
+    \qmlproperty Head Character::head
+    \readonly
+    \brief Reference to the head for animation.
+
+    \qmlproperty BodyPart Character::torso
+    \readonly
+    \brief Reference to the torso.
+
+    \qmlproperty BodyPart Character::hip
+    \readonly
+    \brief Reference to the hip.
+*/
+
 // Import Strategy:
 // - Subdirectories use relative imports (e.g., 'import ".."' to access root)
 // - This enables hot-reloading in sandbox development

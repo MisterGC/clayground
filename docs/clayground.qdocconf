@@ -6,9 +6,24 @@ description = Clayground Game Development Framework
 version = 2025.2
 url = https://mistergc.github.io/clayground
 
-# Source directories (starting with clay_common as pilot)
-sourcedirs = ../plugins/clay_common
-headerdirs = ../plugins/clay_common
+# Source directories - all plugins
+sourcedirs = ../plugins/clay_common \
+             ../plugins/clay_storage \
+             ../plugins/clay_svg \
+             ../plugins/clay_text \
+             ../plugins/clay_behavior \
+             ../plugins/clay_network \
+             ../plugins/clay_canvas \
+             ../plugins/clay_gamecontroller \
+             ../plugins/clay_physics \
+             ../plugins/clay_character3d \
+             ../plugins/clay_world \
+             ../plugins/clay_canvas3d \
+             ../plugins/clay_ios
+
+headerdirs = ../plugins/clay_common \
+             ../plugins/clay_canvas3d \
+             ../plugins/clay_ios
 
 # Include paths for Clang parser (needed for C++ types with QML_ELEMENT)
 # Note: Paths are passed via command line -I flags in CMake for portability

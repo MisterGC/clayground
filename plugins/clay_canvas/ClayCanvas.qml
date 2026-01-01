@@ -1,5 +1,107 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ClayCanvas
+    \inqmlmodule Clayground.Canvas
+    \brief A 2D canvas with world coordinate mapping and camera controls.
+
+    ClayCanvas provides a complete 2D rendering system with world unit coordinates,
+    viewport management, camera following, and debug visualization. It transforms
+    between screen pixels and world units automatically.
+
+    The coordinate system uses Y-up orientation (like standard math coordinates).
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.ClayCanvas {
+        id: canvas
+        anchors.fill: parent
+        worldXMin: -10; worldXMax: 10
+        worldYMin: -10; worldYMax: 10
+        pixelPerUnit: 50
+        observedItem: player
+    }
+    \endqml
+
+    \qmlproperty real ClayCanvas::deviceScalingFactor
+    \brief Automatic scaling factor based on device height (height / 1080).
+
+    \qmlproperty real ClayCanvas::zoomFactor
+    \brief Zoom level multiplier. Default is 1.0.
+
+    \qmlproperty real ClayCanvas::pixelPerUnit
+    \brief Number of screen pixels per world unit. Computed from deviceScalingFactor and zoomFactor.
+
+    \qmlproperty bool ClayCanvas::interactive
+    \brief Whether the canvas viewport can be panned interactively.
+
+    \qmlproperty real ClayCanvas::worldXMin
+    \brief Minimum X coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldXMax
+    \brief Maximum X coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldYMin
+    \brief Minimum Y coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldYMax
+    \brief Maximum Y coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::xInWU
+    \readonly
+    \brief Current viewport left edge position in world units.
+
+    \qmlproperty real ClayCanvas::yInWU
+    \readonly
+    \brief Current viewport top edge position in world units.
+
+    \qmlproperty real ClayCanvas::sWidthInWU
+    \readonly
+    \brief Viewport width in world units.
+
+    \qmlproperty real ClayCanvas::sHeightInWU
+    \readonly
+    \brief Viewport height in world units.
+
+    \qmlproperty real ClayCanvas::viewPortCenterWuX
+    \brief X coordinate of viewport center in world units.
+
+    \qmlproperty real ClayCanvas::viewPortCenterWuY
+    \brief Y coordinate of viewport center in world units.
+
+    \qmlproperty bool ClayCanvas::showDebugInfo
+    \brief Whether to show the debug overlay with coordinate grid. Toggle with Space key.
+
+    \qmlproperty bool ClayCanvas::keyBoardNavigationEnabled
+    \brief Enable keyboard navigation (IJKL for pan, E/D for zoom).
+
+    \qmlproperty Item ClayCanvas::coordSys
+    \readonly
+    \brief The coordinate system container. Child items should be parented to this.
+
+    \qmlproperty var ClayCanvas::observedItem
+    \brief Item that the camera follows automatically. Set to null to disable following.
+
+    \qmlsignal ClayCanvas::keyPressed(var event)
+    \brief Emitted when a key is pressed while the canvas has focus.
+
+    \qmlsignal ClayCanvas::keyReleased(var event)
+    \brief Emitted when a key is released while the canvas has focus.
+
+    \qmlmethod real ClayCanvas::xToScreen(real xCart)
+    \brief Converts a world X coordinate to screen X coordinate.
+
+    \qmlmethod real ClayCanvas::screenXToWorld(real xScr)
+    \brief Converts a screen X coordinate to world X coordinate.
+
+    \qmlmethod real ClayCanvas::yToScreen(real yCart)
+    \brief Converts a world Y coordinate to screen Y coordinate.
+
+    \qmlmethod real ClayCanvas::screenYToWorld(real yScr)
+    \brief Converts a screen Y coordinate to world Y coordinate.
+*/
 import QtQuick
 
 Item {

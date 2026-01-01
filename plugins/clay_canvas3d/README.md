@@ -2,24 +2,10 @@
 
 ## Overview
 
-The Canvas3D plugin provides a comprehensive set of components for creating 3D
-visualizations in Clayground applications. It offers primitives for 3D boxes,
-lines, and voxel-based structures with support for custom edge rendering, toon
-shading, and efficient batch rendering.
-
-## Table of Contents
-
-1. [Getting Started](#getting-started)
-2. [Core Components](#core-components)
-   - [Box3D](#box3d)
-   - [Lines](#lines)
-   - [Voxel Maps](#voxel-maps)
-3. [Toon Shading](#toon-shading)
-4. [Coordinate System](#coordinate-system)
-5. [Edge Rendering](#edge-rendering)
-6. [Performance Considerations](#performance-considerations)
-7. [Examples](#examples)
-8. [Best Practices](#best-practices)
+The Canvas3D plugin provides components for creating 3D visualizations in
+Clayground applications. It offers primitives for 3D boxes, lines, and
+voxel-based structures with support for custom edge rendering, toon shading,
+and efficient batch rendering.
 
 ## Getting Started
 
@@ -67,35 +53,8 @@ View3D {
 
 ### Box3D
 
-The `Box3D` component creates a 3D box with customizable dimensions, edge rendering, and cartoon-style shading.
-
-#### Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| width | real | 1.0 | Width of the box |
-| height | real | 1.0 | Height of the box |
-| depth | real | 1.0 | Depth of the box |
-| color | color | "red" | Main color of the box |
-| showEdges | bool | true | Whether to render edge lines |
-| edgeThickness | real | 8 | Thickness of edges in pixels |
-| edgeColorFactor | real | 0.4 | Darkening factor for edges (0-1) |
-| edgeMask | int | AllEdges | Bitmask controlling which edges are visible |
-| useToonShading | bool | false | Enable cartoon-style lighting |
-| scaledFace | int | None | Which face to scale (TopFace, BottomFace, etc.) |
-| faceScale | vector2d | (1,1) | Scale factor for the selected face |
-
-#### Edge Mask Constants
-
-Use the exposed constants for precise edge control:
-- `allEdges`, `topEdges`, `bottomEdges`
-- `frontEdges`, `backEdges`, `leftEdges`, `rightEdges`
-
-```qml
-Box3D {
-    edgeMask: topEdges | bottomEdges  // Only horizontal edges
-}
-```
+The `Box3D` component creates a 3D box with customizable dimensions, edge
+rendering, and cartoon-style shading.
 
 #### Creating Non-Uniform Shapes
 
@@ -110,64 +69,36 @@ Box3D {
 }
 ```
 
+#### Edge Mask Usage
+
+Control which edges are visible:
+
+```qml
+Box3D {
+    edgeMask: topEdges | bottomEdges  // Only horizontal edges
+}
+```
+
 ### Lines
 
 Canvas3D provides three components for drawing lines in 3D space:
 
-#### Line3D
-Simple wrapper for drawing a single line.
-
-#### MultiLine3D
-Efficient component for drawing multiple lines in a single draw call.
-
-#### BoxLine3D
-Creates a line using connected box segments for thicker, more visible lines.
+- **Line3D**: Simple wrapper for drawing a single line
+- **MultiLine3D**: Efficient component for drawing multiple lines in a single draw call
+- **BoxLine3D**: Creates a line using connected box segments for thicker, more visible lines
 
 ### Voxel Maps
 
-Voxel maps create 3D structures composed of cubic voxels with support for both dynamic updates and static optimization.
+Voxel maps create 3D structures composed of cubic voxels with support for both
+dynamic updates and static optimization.
 
-#### Common Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| voxelCountX/Y/Z | int | 0 | Voxel grid dimensions (number of voxels per axis) |
-| width/height/depth | real | (readonly) | World dimensions, computed as: `voxelCount * (voxelSize + spacing) - spacing` |
-| voxelSize | real | 1.0 | Size of each voxel in world units |
-| spacing | real | 0.0 | Gap between voxels in world units |
-| voxelOffset | vector3d | (0,0,0) | World offset for the entire map |
-| showEdges | bool | true | Whether to render voxel grid lines |
-| edgeThickness | real | 0.05 | Thickness of grid edges |
-| edgeColorFactor | real | 1.0 | Darkening factor for edges |
-| useToonShading | bool | false | Enable cartoon-style lighting |
-
-**Note:** The `voxelCountX/Y/Z` properties define the discrete grid size (number of voxels), while
-`width/height/depth` are read-only properties that give you the actual world dimensions accounting
-for both `voxelSize` and `spacing`. This makes it easy to position other objects relative to the voxel map.
-
-#### DynamicVoxelMap
-Best for voxel maps that change frequently. Each voxel is rendered as a separate instance.
-
-#### StaticVoxelMap
-Optimized for large, static voxel structures. Uses greedy meshing to reduce vertex count by combining adjacent voxels of the same color.
-
-**Implementation Detail**: See `VoxelMapGeometry::generateGreedyMesh()` for the meshing algorithm.
+- **DynamicVoxelMap**: Best for voxel maps that change frequently
+- **StaticVoxelMap**: Optimized for large, static voxel structures using greedy meshing
 
 ## Toon Shading
 
 Canvas3D implements cartoon-style rendering using a half-lambert lighting
 model, providing flat, stylized lighting with distinct shadow boundaries.
-
-### Technical Implementation
-
-The toon shading system uses custom fragment shader functions that override Qt's default lighting:
-
-- **Half-Lambert Formula**: `(dot(normal, lightDir) + 1) * 0.5` ensures surfaces facing away from light still receive 50% illumination
-- **Disabled Components**: Specular highlights and IBL are disabled for flat cartoon aesthetics
-- **Material Properties**: Automatically sets METALNESS=0, ROUGHNESS=1 for matte surfaces
-- **Dual Mode**: Toggleable between toon and standard PBR lighting
-
-**Code Reference**: Study `box3d.frag` and `voxel_map.frag` for the complete shader implementation.
 
 ### Optimal Lighting Setup
 
@@ -199,8 +130,6 @@ StaticVoxelMap {
 }
 ```
 
-**Demo Reference**: See `Box3DDemo.qml` and `VoxelDemo.qml` for complete toon shading implementations with UI controls.
-
 ## Coordinate System
 
 Canvas3D uses Qt Quick 3D's coordinate system:
@@ -210,12 +139,12 @@ Canvas3D uses Qt Quick 3D's coordinate system:
 
 ### Voxel Coordinates
 
-Voxel coordinates (0,0,0) start at the origin. The relationship between voxel coordinates and world positions:
+The relationship between voxel coordinates and world positions:
 ```
 worldPosition = voxelCoordinate * (voxelSize + spacing) + voxelOffset
 ```
 
-The read-only `width`, `height`, and `depth` properties give you the total world dimensions:
+Example dimensions calculation:
 ```qml
 StaticVoxelMap {
     voxelCountX: 10
@@ -232,21 +161,10 @@ StaticVoxelMap {
 
 ## Edge Rendering
 
-Two distinct edge rendering systems provide visual depth:
-
-### Screen-Space Edges (Box3D)
-Uses UV coordinates and `fwidth()` for pixel-accurate, distance-independent edge thickness. Supports selective edge rendering via bitmasks.
-
-**Implementation**: See `shouldShowEdge()` function in `box3d.frag` for the complete bit masking system.
-
-### World-Space Grid Edges (VoxelMap)
-Draws grid lines at voxel boundaries using fractional position calculations. Adapts thickness based on camera distance.
-
-**Implementation**: See grid line calculation in `voxel_map.frag`.
-
 ### Edge Artifacts with Greedy Meshing
 
-When using StaticVoxelMap with `fill()` operations (spheres, cylinders), disable edges to avoid visual artifacts:
+When using StaticVoxelMap with `fill()` operations (spheres, cylinders),
+disable edges to avoid visual artifacts:
 
 ```qml
 StaticVoxelMap {
@@ -261,20 +179,17 @@ StaticVoxelMap {
 }
 ```
 
-**Technical Note**: Greedy meshing combines adjacent voxels while the edge shader still draws grid lines at original voxel boundaries.
-
 ## Performance Considerations
 
 ### Choosing Voxel Map Types
 
-**DynamicVoxelMap**: Frequent updates, smaller maps (< 50³ voxels)
-**StaticVoxelMap**: Static content, large maps, performance-critical applications
+- **DynamicVoxelMap**: Frequent updates, smaller maps (< 50^3 voxels)
+- **StaticVoxelMap**: Static content, large maps, performance-critical applications
 
-### Optimization
+### Optimization Tips
 
 - **Batch Operations**: Call `model.commit()` once after multiple voxel changes
 - **Edge Control**: Disable `showEdges` for large voxel maps
-- **Toon Shading**: No performance penalty when disabled
 - **Shadow Quality**: Balance shadow settings with performance needs
 
 ## Examples
@@ -391,4 +306,3 @@ For developers wanting to understand or extend the system:
 - **Edge Rendering**: `shouldShowEdge()` function, grid line calculations
 - **Greedy Meshing**: `VoxelMapGeometry::generateGreedyMesh()`
 - **Demo Implementation**: `Box3DDemo.qml`, `VoxelDemo.qml` - complete working examples
-- **Lighting Setup**: DirectionalLight configurations in demo files

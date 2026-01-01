@@ -1,5 +1,42 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype DoorBuilder
+    \inqmlmodule Clayground.Behavior
+    \brief Creates automated doors with switches from map data.
+
+    DoorBuilder is a specialized factory that constructs door systems from
+    SVG map groups. It automatically creates Door and DoorOpener components
+    and connects them based on group naming conventions.
+
+    Map groups starting with "door" are processed. Each group should contain:
+    \list
+    \li A Door component (the moving door entity)
+    \li One or more DoorOpener components (trigger switches)
+    \li A polyline defining the door's movement path
+    \endlist
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+    import Clayground.World
+
+    ClayWorld2d {
+        id: theWorld
+
+        DoorBuilder {
+            world: theWorld
+        }
+    }
+    \endqml
+
+    \qmlproperty ClayWorld2d DoorBuilder::world
+    \brief The world context for door creation (required).
+
+    The DoorBuilder registers Door and DoorOpener components with this
+    world and listens for map loading events.
+*/
+
 import QtQuick
 import Clayground.Physics
 import Clayground.World

@@ -1,11 +1,42 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype SceneLoaderBase
+    \inqmlmodule Clayground.World
+    \inherits Clayground.Svg::SvgReader
+    \brief Base scene loader for parsing SVG files into game entities.
+
+    SceneLoaderBase reads SVG files and creates game entities based on registered
+    components. It supports async loading and emits signals for unhandled shapes.
+
+    \qmlproperty bool SceneLoaderBase::active
+    \brief Whether the loader is active.
+
+    \qmlproperty string SceneLoaderBase::sceneSource
+    \brief Path to the SVG file to load.
+
+    \qmlproperty bool SceneLoaderBase::loadEntitiesAsync
+    \brief If true, entities are created asynchronously.
+
+    \qmlproperty var SceneLoaderBase::entities
+    \brief Array of created entities.
+
+    \qmlproperty var SceneLoaderBase::world
+    \brief The world to populate with entities.
+
+    \qmlproperty var SceneLoaderBase::components
+    \brief Map of component names to QML Components.
+
+    \qmlproperty bool SceneLoaderBase::loadingFinished
+    \readonly
+    \brief True when all entities have been created.
+
+    \qmlsignal SceneLoaderBase::loaded()
+    \brief Emitted when scene loading is complete.
+*/
 import QtQuick
 import Clayground.Svg
 
-/**
- * Covers base common functionality for 2d and 3d scenes.
- */
 SvgReader
 {
     property bool active: true

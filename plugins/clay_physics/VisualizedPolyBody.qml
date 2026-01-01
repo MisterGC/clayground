@@ -1,14 +1,107 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype VisualizedPolyBody
+    \inqmlmodule Clayground.Physics
+    \inherits Clayground.Canvas::Poly
+    \brief Polygon-shaped physics body with Canvas visualization.
+
+    VisualizedPolyBody combines a visual Poly shape with a Box2D polygon fixture.
+    The physics shape automatically synchronizes with the visual vertices.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    VisualizedPolyBody {
+        canvas: myCanvas
+        vertices: [
+            {x: 0, y: 0},
+            {x: 2, y: 0},
+            {x: 1, y: 2}
+        ]
+        fillColor: "green"
+        bodyType: Body.Dynamic
+        density: 2
+    }
+    \endqml
+
+    \qmlproperty Body VisualizedPolyBody::body
+    \brief The Box2D body instance.
+
+    \qmlproperty Fixture VisualizedPolyBody::fixture
+    \brief The Box2D polygon fixture.
+
+    \qmlproperty World VisualizedPolyBody::world
+    \brief Physics world reference.
+
+    \qmlproperty real VisualizedPolyBody::linearDamping
+    \brief Linear motion damping coefficient.
+
+    \qmlproperty real VisualizedPolyBody::angularDamping
+    \brief Angular motion damping coefficient.
+
+    \qmlproperty Body.BodyType VisualizedPolyBody::bodyType
+    \brief Body type: Body.Static, Body.Kinematic, or Body.Dynamic.
+
+    \qmlproperty bool VisualizedPolyBody::bullet
+    \brief Enable continuous collision detection.
+
+    \qmlproperty bool VisualizedPolyBody::sleepingAllowed
+    \brief Whether the body can sleep.
+
+    \qmlproperty bool VisualizedPolyBody::fixedRotation
+    \brief Prevent the body from rotating.
+
+    \qmlproperty bool VisualizedPolyBody::active
+    \brief Whether the body is active.
+
+    \qmlproperty bool VisualizedPolyBody::awake
+    \brief Whether the body is awake.
+
+    \qmlproperty point VisualizedPolyBody::linearVelocity
+    \brief Linear velocity vector.
+
+    \qmlproperty real VisualizedPolyBody::angularVelocity
+    \brief Angular velocity.
+
+    \qmlproperty list VisualizedPolyBody::fixtures
+    \brief List of fixtures.
+
+    \qmlproperty real VisualizedPolyBody::gravityScale
+    \brief Gravity effect multiplier.
+
+    \qmlproperty real VisualizedPolyBody::density
+    \brief Fixture density.
+
+    \qmlproperty real VisualizedPolyBody::friction
+    \brief Friction coefficient.
+
+    \qmlproperty real VisualizedPolyBody::restitution
+    \brief Bounciness coefficient.
+
+    \qmlproperty bool VisualizedPolyBody::sensor
+    \brief If true, detects collisions without physical response.
+
+    \qmlproperty int VisualizedPolyBody::categories
+    \brief Collision category bits.
+
+    \qmlproperty int VisualizedPolyBody::collidesWith
+    \brief Collision mask bits.
+
+    \qmlproperty int VisualizedPolyBody::groupIndex
+    \brief Collision group index.
+
+    \qmlmethod void VisualizedPolyBody::refresh()
+    \brief Refreshes visual and physics geometry from vertices.
+*/
 import QtQuick
 import Box2D
 import Clayground.Canvas
 
 Poly {
     id: thePoly
-
-    // TODO Fix coord syncing x,y -> canvas world coord if item is physics controlled
-    // see https://github.com/MisterGC/clayground/issues/68
 
     onVerticesChanged: refresh();
     onWidthChanged: refresh();

@@ -1,5 +1,107 @@
 #include "box3dgeometry.h"
 
+/*!
+    \qmltype Box3DGeometry
+    \nativetype Box3dGeometry
+    \inqmlmodule Clayground.Canvas3D
+    \brief Custom geometry for 3D boxes with edge rendering support.
+
+    Box3DGeometry provides the geometry data for rendering 3D boxes with
+    customizable dimensions, face scaling, and edge rendering. It is typically
+    used internally by the Box3D QML component.
+
+    The geometry is centered on the X and Z axes, with the origin at the
+    bottom center (Y=0 is the floor).
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: Box3DGeometry {
+            size: Qt.vector3d(2, 3, 2)
+            showEdges: true
+            edgeThickness: 0.05
+        }
+        materials: DefaultMaterial { diffuseColor: "red" }
+    }
+    \endqml
+
+    \sa Box3D
+*/
+
+/*!
+    \qmlproperty vector3d Box3DGeometry::size
+    \brief The dimensions of the box as a 3D vector (width, height, depth).
+
+    Defaults to (1, 1, 1).
+*/
+
+/*!
+    \qmlproperty vector2d Box3DGeometry::faceScale
+    \brief Scale factor applied to the selected face.
+
+    When scaledFace is set to a specific face, this vector determines how
+    much that face is scaled in its local X and Y dimensions. Useful for
+    creating pyramids, trapezoids, and other non-uniform shapes.
+
+    Defaults to (1, 1).
+*/
+
+/*!
+    \qmlproperty enumeration Box3DGeometry::scaledFace
+    \brief Which face of the box should be scaled.
+
+    \value Box3DGeometry.NoFace No face scaling (default)
+    \value Box3DGeometry.TopFace Scale the top face
+    \value Box3DGeometry.BottomFace Scale the bottom face
+    \value Box3DGeometry.FrontFace Scale the front face
+    \value Box3DGeometry.BackFace Scale the back face
+    \value Box3DGeometry.LeftFace Scale the left face
+    \value Box3DGeometry.RightFace Scale the right face
+*/
+
+/*!
+    \qmlproperty bool Box3DGeometry::showEdges
+    \brief Whether to render edge lines on the box.
+
+    When true, dark lines are drawn along the edges of the box for a
+    cartoon-style appearance. Defaults to true.
+*/
+
+/*!
+    \qmlproperty real Box3DGeometry::edgeThickness
+    \brief The thickness of edge lines in normalized units.
+
+    Controls how thick the edge lines appear. Defaults to 0.03.
+*/
+
+/*!
+    \qmlproperty real Box3DGeometry::edgeColorFactor
+    \brief Darkening factor for edge colors.
+
+    A value between 0 and 1 that determines how dark the edges appear
+    relative to the base color. Lower values create darker edges.
+    Defaults to 0.4.
+*/
+
+/*!
+    \qmlproperty int Box3DGeometry::edgeMask
+    \brief Bitmask controlling which edges are visible.
+
+    Use the EdgeFlags enum values combined with bitwise OR to select
+    specific edges. Defaults to AllEdges.
+
+    \value Box3DGeometry.AllEdges Show all edges (0xFF)
+    \value Box3DGeometry.TopEdges Show only top face edges
+    \value Box3DGeometry.BottomEdges Show only bottom face edges
+    \value Box3DGeometry.FrontEdges Show only front face edges
+    \value Box3DGeometry.BackEdges Show only back face edges
+    \value Box3DGeometry.LeftEdges Show only left face edges
+    \value Box3DGeometry.RightEdges Show only right face edges
+*/
+
 Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace),
     m_showEdges(true), m_edgeThickness(0.03f), m_edgeColorFactor(0.4f), m_edgeMask(AllEdges)
 {

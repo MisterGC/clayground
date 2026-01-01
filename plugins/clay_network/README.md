@@ -6,18 +6,6 @@ HTTP client functionality for web API integration. It offers both local network
 discovery and direct messaging capabilities, as well as a flexible HTTP client
 with authentication support.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [ClayNetworkNode](#claynetworknode)
-  - [ClayNetworkUser](#claynetworkuser)
-  - [ClayHttpClient](#clayhttpclient)
-  - [ClayWebAccess](#claywebaccess)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Network plugin in your QML files:
@@ -28,82 +16,10 @@ import Clayground.Network
 
 ## Core Components
 
-### ClayNetworkNode
-
-Low-level networking component for peer-to-peer communication.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `userId` | string (readonly) | Unique identifier for this network node |
-| `_appData` | string | Application-specific data shared with peers |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `sendDirectMessage(userId, message)` | userId: string, message: string | Send message to specific user |
-| `broadcastMessage(message)` | message: string | Send message to all connected peers |
-
-#### Signals
-
-| Signal | Parameters | Description |
-|--------|-----------|-------------|
-| `newMessage(from, message)` | from: string, message: string | Received a message |
-| `appDataUpdate(user, data)` | user: string, data: string | User's app data updated |
-| `newParticipant(user)` | user: string | New user joined network |
-| `participantLeft(user)` | user: string | User left network |
-
-### ClayNetworkUser
-
-Higher-level component built on ClayNetworkNode that adds group management functionality.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | string | User's display name |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `joinGroup(groupId)` | groupId: string | Join a communication group |
-| `leaveGroup(groupId)` | groupId: string | Leave a communication group |
-| `sendGroupMessage(groupId, message)` | groupId: string, message: string | Send message to all group members |
-| `nameForId(userId)` | userId: string | Get display name for user ID |
-
-### ClayHttpClient
-
-Configurable HTTP client with automatic API method generation.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `baseUrl` | string | Base URL for all API requests |
-| `endpoints` | var | Object defining API endpoints |
-| `bearerToken` | string | Bearer token for authentication |
-| `api` | var (readonly) | Generated API methods object |
-
-#### Signals
-
-| Signal | Parameters | Description |
-|--------|-----------|-------------|
-| `reply(requestId, returnCode, text)` | requestId: int, returnCode: int, text: string | Successful response |
-| `error(requestId, returnCode, text)` | requestId: int, returnCode: int, text: string | Error response |
-
-### ClayWebAccess
-
-Low-level HTTP request handler used by ClayHttpClient.
-
-#### Methods
-
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `get(url, auth)` | url: string, auth: string | int | Perform GET request |
-| `post(url, json, auth)` | url: string, json: string, auth: string | int | Perform POST request |
+- **ClayNetworkNode** - Low-level P2P networking component for direct messaging and broadcast communication.
+- **ClayNetworkUser** - Higher-level component extending ClayNetworkNode with user identity and group messaging.
+- **ClayHttpClient** - Configurable HTTP client that generates API methods from endpoint definitions.
+- **ClayWebAccess** - Low-level HTTP request handler supporting GET and POST with authentication.
 
 ## Usage Examples
 

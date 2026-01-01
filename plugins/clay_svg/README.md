@@ -6,17 +6,6 @@ game objects, writing SVG files programmatically, and using SVG elements as
 image sources. This makes it perfect for level design, vector graphics assets,
 and data-driven game content.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [SvgReader](#svgreader)
-  - [SvgWriter](#svgwriter)
-  - [SvgImageSource](#svgimagesource)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay SVG plugin in your QML files:
@@ -27,73 +16,9 @@ import Clayground.Svg
 
 ## Core Components
 
-### SvgReader
-
-Reads and parses SVG files, emitting signals for each shape found.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `source` | string | Path to the SVG file to read |
-
-#### Signals
-
-| Signal | Parameters | Description |
-|--------|-----------|-------------|
-| `begin(widthWu, heightWu)` | widthWu: float, heightWu: float | Document start with dimensions |
-| `end()` | none | Document parsing complete |
-| `beginGroup(id, description)` | id: string, description: string | Group element start |
-| `endGroup()` | none | Group element end |
-| `rectangle(id, x, y, width, height, fillColor, strokeColor, description)` | Various | Rectangle found |
-| `circle(id, x, y, radius, fillColor, strokeColor, description)` | Various | Circle found |
-| `polygon(id, points, fillColor, strokeColor, description)` | points: QVariantList | Polygon found |
-| `polyline(id, points, fillColor, strokeColor, description)` | points: QVariantList | Polyline found |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `setSource(pathToSvg)` | pathToSvg: string | Set the SVG file to read |
-
-### SvgWriter
-
-Creates SVG files programmatically.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `path` | string | Output file path |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `begin(widthWu, heightWu)` | widthWu: float, heightWu: float | Start document with dimensions |
-| `rectangle(x, y, width, height, description)` | Various | Add rectangle |
-| `circle(x, y, radius, description)` | Various | Add circle |
-| `polygon(points, description)` | points: QVariantList | Add polygon |
-| `polyline(points, description)` | points: QVariantList | Add polyline |
-| `end()` | none | Finalize and save document |
-
-### SvgImageSource
-
-Provides access to individual SVG elements as image sources.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `svgPath` | string | Path to the SVG file |
-| `annotationRRGGBB` | string | Color to ignore (for annotations) |
-
-#### Methods
-
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `has(elementId)` | elementId: string | bool | Check if element exists |
-| `source(elementId)` | elementId: string | string | Get image URL for element |
+- **SvgReader** - Reads and parses SVG files, emitting signals for each shape found (rectangles, circles, polygons, polylines).
+- **SvgWriter** - Creates SVG files programmatically with support for basic shapes and metadata.
+- **SvgImageSource** - Provides access to individual SVG elements as image sources for use in QML Image components.
 
 ## Usage Examples
 

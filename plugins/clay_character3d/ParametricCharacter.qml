@@ -1,5 +1,84 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ParametricCharacter
+    \inqmlmodule Clayground.Character3D
+    \inherits Character
+    \brief Character with high-level parameters for easy customization.
+
+    ParametricCharacter extends Character with intuitive parameters like bodyHeight,
+    realism, maturity, femininity, and mass that automatically calculate all body
+    part dimensions. This makes it easy to create diverse characters without
+    manually setting individual dimensions.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    ParametricCharacter {
+        name: "hero"
+        bodyHeight: 10.0
+        realism: 0.3       // More cartoon-like
+        maturity: 0.7      // Adult
+        femininity: 0.3    // More masculine
+        mass: 0.5          // Average build
+        muscle: 0.7        // Athletic
+        skin: "#d38d5f"
+        topClothing: "#4169e1"
+    }
+    \endqml
+
+    \qmlproperty real ParametricCharacter::bodyHeight
+    \brief Total character height in world units. Default: 10.0.
+
+    \qmlproperty real ParametricCharacter::realism
+    \brief Style from cartoon (0) to realistic (1). Affects head-to-body ratio.
+
+    \qmlproperty real ParametricCharacter::maturity
+    \brief Age from child (0) to elderly (1). Affects proportions.
+
+    \qmlproperty real ParametricCharacter::femininity
+    \brief Build from masculine (0) to feminine (1). Affects shoulder/hip ratio.
+
+    \qmlproperty real ParametricCharacter::mass
+    \brief Body mass from thin (0) to heavy (1).
+
+    \qmlproperty real ParametricCharacter::muscle
+    \brief Muscularity from soft (0) to athletic (1).
+
+    \qmlproperty real ParametricCharacter::faceShape
+    \brief Face shape from round (0) to long/angular (1).
+
+    \qmlproperty real ParametricCharacter::chinForm
+    \brief Chin from round (0) to pointed (1).
+
+    \qmlproperty real ParametricCharacter::eyes
+    \brief Eye size multiplier (0.5-1.5).
+
+    \qmlproperty real ParametricCharacter::nose
+    \brief Nose size multiplier (0.5-1.5).
+
+    \qmlproperty real ParametricCharacter::mouth
+    \brief Mouth size multiplier (0.5-1.5).
+
+    \qmlproperty real ParametricCharacter::hair
+    \brief Hair volume (0 = bald, 1 = full).
+
+    \qmlproperty color ParametricCharacter::skin
+    \brief Skin color.
+
+    \qmlproperty color ParametricCharacter::hairTone
+    \brief Hair color.
+
+    \qmlproperty color ParametricCharacter::eyeTone
+    \brief Eye color.
+
+    \qmlproperty color ParametricCharacter::topClothing
+    \brief Color for torso and arms.
+
+    \qmlproperty color ParametricCharacter::bottomClothing
+    \brief Color for hips and legs.
+*/
 import QtQuick
 
 pragma ComponentBehavior: Bound

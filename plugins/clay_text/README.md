@@ -6,20 +6,6 @@ regular expressions, and JSON data transformation using JSONata query language.
 It's ideal for data-driven games, configuration management, and text-based game
 features.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [CsvModel](#csvmodel)
-  - [CsvReader](#csvreader)
-  - [CsvWriter](#csvwriter)
-  - [HighlightedText](#highlightedtext)
-  - [TextHighlighter](#texthighlighter)
-  - [JsonataTransform](#jsonatatransform)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Text plugin in your QML files:
@@ -30,109 +16,12 @@ import Clayground.Text
 
 ## Core Components
 
-### CsvModel
-
-High-level component that combines CSV reading and writing with a TableModel for UI display.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `source` | string | CSV data or file path to read |
-| `sourceDelimiter` | string | Delimiter for reading (default: ",") |
-| `destination` | string | File path for saving |
-| `destinationDelimiter` | string | Delimiter for writing (default: ",") |
-| `tableModel` | TableModel | Generated table model for UI |
-| `colNames` | array | Column names from CSV |
-
-#### Functions
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `colFilter` | function | Filter columns: `(colName) => bool` |
-| `rowFilter` | function | Filter rows: `(rowVals) => bool` |
-| `rowTransform` | function | Transform row data: `(rowVals) => array` |
-
-#### Methods
-
-| Method | Description |
-|--------|-------------|
-| `load()` | Load CSV data from source |
-| `save()` | Save table model to destination |
-
-### CsvReader
-
-Low-level CSV file reader.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `source` | string | CSV file path or data |
-| `delimiter` | string | Field delimiter (default: ",") |
-| `quote` | string | Quote character (default: '"') |
-
-#### Signals
-
-| Signal | Parameters | Description |
-|--------|-----------|-------------|
-| `columnNames(names)` | names: QStringList | Column headers found |
-| `row(values)` | values: QStringList | Row data |
-| `theEnd()` | none | Parsing complete |
-
-### CsvWriter
-
-Low-level CSV file writer.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `destination` | string | Output file path |
-| `delimiter` | string | Field delimiter (default: ",") |
-
-#### Methods
-
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| `begin(header)` | header: QStringList | Start with column headers |
-| `appendRow(row)` | row: QStringList | Add a data row |
-| `finish()` | none | Complete and save file |
-
-### HighlightedText
-
-TextArea with regular expression highlighting support.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `searchRegEx` | string | Regular expression to highlight |
-
-Inherits all TextArea properties.
-
-### TextHighlighter
-
-Low-level syntax highlighter for QML text documents.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `search` | string | Search pattern |
-| `document` | QQuickTextDocument | Document to highlight |
-
-### JsonataTransform
-
-JSONata query processor for JSON data transformation.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `inputObject` | var | Input JSON data |
-| `jsonataString` | string | JSONata query expression |
-| `jsonOutput` | var | Query result (readonly) |
+- **CsvModel** - High-level component combining CSV reading/writing with a TableModel for UI display and data binding.
+- **CsvReader** - Low-level CSV file reader that emits signals for column headers and each row.
+- **CsvWriter** - Low-level CSV file writer for creating CSV files programmatically.
+- **HighlightedText** - TextArea with regular expression highlighting support for search and emphasis.
+- **TextHighlighter** - Low-level syntax highlighter for QML text documents.
+- **JsonataTransform** - JSONata query processor for powerful JSON data transformation and querying.
 
 ## Usage Examples
 

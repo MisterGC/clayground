@@ -1,4 +1,57 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype RatioBasedCharacter
+    \inqmlmodule Clayground.Character3D
+    \inherits Character
+    \brief Character with dimension ratios for style customization.
+
+    RatioBasedCharacter extends Character by calculating dimensions from ratio
+    properties. This provides fine control over proportions like head-to-body
+    ratios for creating different character styles (comic, realistic, etc.).
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    RatioBasedCharacter {
+        name: "toon"
+        headsTall: 4.7           // Cartoon proportions
+        headWidthToHeight: 0.9
+        shoulderWidthToHeadWidth: 1.8
+    }
+    \endqml
+
+    \qmlproperty real RatioBasedCharacter::headsTall
+    \brief How many head heights fit in the body. Lower = more cartoon-like.
+
+    \qmlproperty real RatioBasedCharacter::headWidthToHeight
+    \brief Head width as ratio of head height.
+
+    \qmlproperty real RatioBasedCharacter::headDepthToHeadWidth
+    \brief Head depth as ratio of head width.
+
+    \qmlproperty real RatioBasedCharacter::neckHeightToHeadHeight
+    \brief Neck height as ratio of head height.
+
+    \qmlproperty real RatioBasedCharacter::shoulderWidthToHeadWidth
+    \brief Shoulder width as ratio of head width.
+
+    \qmlproperty real RatioBasedCharacter::torsoHeightToHeadHeight
+    \brief Torso height as ratio of head height.
+
+    \qmlproperty real RatioBasedCharacter::shoulderWidthToTorsoDepth
+    \brief Torso depth as ratio of shoulder width.
+
+    \qmlproperty real RatioBasedCharacter::armHeightToTorsoHeight
+    \brief Arm length as ratio of torso height.
+
+    \qmlproperty real RatioBasedCharacter::armHeightToHandLength
+    \brief Arm length divided by hand length.
+
+    \qmlproperty real RatioBasedCharacter::footLengthToBodyHeight
+    \brief Foot length as ratio of body height.
+*/
 import QtQuick
 import "." // Import Character from the same directory
 

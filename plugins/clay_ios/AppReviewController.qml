@@ -4,38 +4,80 @@ import QtQuick.Controls
 import Clayground.Storage
 import Clayground.Ios
 
-/*
- * Ensure review prompt is shown to engaged users only:
- *
- * Active Time Tracking: Uses a timer to track time spent in the app and
- * checks if active time thresholds are met, considering a cooldown period.
- *
- * Display: Shows feedback dialog if conditions are met; asks user if they
- * want to review and updates state on user response. Limits the maximum
- * number of review requests.
- *
- * Usage: Automatically starts time tracking when created, so it is a
- * good idea to couple the lifetime of this component to the
- * lifetime of the application. Call showFeedbackPromptOnDemand()
- * when it is generally a good time to show the dialog, but this
- * still check if configured conditions are met.
- *
- */
+/*!
+    \qmltype AppReviewController
+    \inqmlmodule Clayground.Ios
+    \brief Smart App Store review prompt controller for engaged users.
+
+    AppReviewController ensures review prompts are shown only to engaged
+    users by tracking active time and enforcing cooldown periods. This
+    helps maximize positive reviews while respecting Apple's guidelines.
+
+    Features:
+    \list
+    \li Active time tracking (pauses when app is backgrounded)
+    \li Configurable cooldown between prompts
+    \li Maximum prompt count limit
+    \li Persistent state across app launches
+    \endlist
+
+    Example usage:
+    \qml
+    import Clayground.Ios
+    import Clayground.Storage
+
+    ApplicationWindow {
+        KeyValueStore { id: appStorage }
+
+        AppReviewController {
+            id: reviewController
+            storage: appStorage
+            maxPromptCount: 3
+            cooldownDays: 14
+            activeMinutesBtwnPrompts: 30
+        }
+
+        // Call at natural break points (level complete, etc.)
+        onLevelCompleted: reviewController.showReviewPromptOnDemand()
+    }
+    \endqml
+
+    \sa ClayIos
+*/
 Item {
 
-    // Configure the following Values
+    /*!
+        \qmlproperty KeyValueStore AppReviewController::storage
+        \brief Storage backend for persisting review prompt state.
 
-    // Storage for persitency of prompt state
+        This property is required and must be set to a valid KeyValueStore.
+    */
     required property KeyValueStore storage
 
-    // Maximum number of review prompts
+    /*!
+        \qmlproperty int AppReviewController::maxPromptCount
+        \brief Maximum number of review prompts to show.
+
+        Defaults to 3, matching Apple's yearly limit.
+    */
     property int maxPromptCount: 3
 
-    // Cooldown in days between two review prompts
+    /*!
+        \qmlproperty int AppReviewController::cooldownDays
+        \brief Minimum days between review prompts.
+
+        Defaults to 14 days.
+    */
     property int cooldownDays: 14
 
-    // Minimum active time the user has to spend before the
-    // first request/between requests
+    /*!
+        \qmlproperty int AppReviewController::activeMinutesBtwnPrompts
+        \brief Minimum active minutes required before showing prompts.
+
+        The user must spend this many active minutes before the first
+        prompt, and additional time for subsequent prompts.
+        Defaults to 30 minutes.
+    */
     property int activeMinutesBtwnPrompts: 30
 
 
@@ -46,9 +88,17 @@ Item {
     property int _totalActiveTime: storage.get("totalActiveTime", 0) // Time in milliseconds
     property var _sessionStartTime: new Date().getTime()
 
+    /*!
+        \qmlmethod bool AppReviewController::reviewPromptConditionsMet()
+        \brief Checks if conditions for showing a review prompt are met.
 
-    // Checks if the conditions for showing
-    // the review prompt are met
+        Returns true if:
+        \list
+        \li Maximum prompt count not reached
+        \li Required active time has been accumulated
+        \li Cooldown period has passed since last prompt
+        \endlist
+    */
     function reviewPromptConditionsMet() {
         if (_reviewPromptCount < maxPromptCount) {
             const activeMs = activeMinutesBtwnPrompts * 60 * 1000;
@@ -65,8 +115,14 @@ Item {
         return false;
     }
 
-    // Shows the review prompt dialog if the
-    // conditions are met
+    /*!
+        \qmlmethod void AppReviewController::showReviewPromptOnDemand()
+        \brief Shows the review prompt if conditions are met.
+
+        Call this at natural break points in your app (level complete,
+        successful action, etc.). The prompt will only appear if
+        reviewPromptConditionsMet() returns true.
+    */
     function showReviewPromptOnDemand() {
         if (reviewPromptConditionsMet()) {
             _requestReview();

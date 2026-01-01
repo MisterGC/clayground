@@ -1,5 +1,60 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype MoveTo
+    \inqmlmodule Clayground.Behavior
+    \brief Moves an actor entity to a specified destination using physics.
+
+    MoveTo provides physics-based movement of an entity toward a target
+    position. It uses velocity adjustments to smoothly move the actor
+    and detects arrival using collision sensors.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    RectBoxBody {
+        id: enemy
+
+        MoveTo {
+            world: theWorld
+            destXWu: player.xWu
+            destYWu: player.yWu
+            running: true
+            desiredSpeed: 3
+            onArrived: console.log("Reached target!")
+        }
+    }
+    \endqml
+
+    \qmlproperty ClayWorld2d MoveTo::world
+    \brief The world context (required).
+
+    \qmlproperty var MoveTo::actor
+    \brief The entity to move (defaults to parent).
+
+    \qmlproperty bool MoveTo::running
+    \brief Whether movement is active.
+
+    \qmlproperty real MoveTo::destXWu
+    \brief Destination X coordinate in world units.
+
+    \qmlproperty real MoveTo::destYWu
+    \brief Destination Y coordinate in world units.
+
+    \qmlproperty real MoveTo::desiredSpeed
+    \brief Movement speed in world units per second (default: 2).
+
+    \qmlproperty bool MoveTo::debug
+    \brief Show debug visualization of destination.
+
+    \qmlproperty color MoveTo::debugColor
+    \brief Color for debug visualization (default: "lightblue").
+
+    \qmlsignal MoveTo::arrived()
+    \brief Emitted when the actor reaches the destination.
+*/
+
 import QtQuick
 import QtQuick.Shapes
 import QtQuick.Controls

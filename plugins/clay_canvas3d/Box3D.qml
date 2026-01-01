@@ -4,42 +4,131 @@ import QtQuick.Window // For Screen
 
 import Clayground.Canvas3D
 
+/*!
+    \qmltype Box3D
+    \inqmlmodule Clayground.Canvas3D
+    \brief A 3D box with customizable dimensions, edge rendering, and toon shading.
+
+    Box3D provides a convenient way to create 3D boxes with cartoon-style
+    edge rendering and optional toon shading. The box origin is at the
+    bottom center, making it easy to place objects on ground planes.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Box3D {
+        width: 100
+        height: 150
+        depth: 100
+        color: "red"
+        useToonShading: true
+        showEdges: true
+        edgeColorFactor: 0.4
+    }
+    \endqml
+
+    \sa Box3DGeometry
+*/
 Model {
+    /*!
+        \qmlproperty color Box3D::color
+        \brief The base color of the box.
+
+        Defaults to red.
+    */
     property alias color: _material.baseColor
 
-    // Dimensions, cube by default
-    property real width: 1.0
-    property real height: width
-    property real depth:  width
-    
-    // Origin point: The box's origin (0,0,0) is at the bottom center.
-    // - X axis: centered (extends from -width/2 to +width/2)
-    // - Y axis: bottom-aligned (extends from 0 to height)
-    // - Z axis: centered (extends from -depth/2 to +depth/2)
-    // This means when y=0, the bottom face of the box sits on the ground plane.
+    /*!
+        \qmlproperty real Box3D::width
+        \brief Width of the box along the X axis.
 
-    // Modifyable dimension of the top rectangle
+        Defaults to 1.0.
+    */
+    property real width: 1.0
+
+    /*!
+        \qmlproperty real Box3D::height
+        \brief Height of the box along the Y axis.
+
+        Defaults to width (creating a cube by default).
+    */
+    property real height: width
+
+    /*!
+        \qmlproperty real Box3D::depth
+        \brief Depth of the box along the Z axis.
+
+        Defaults to width (creating a cube by default).
+    */
+    property real depth:  width
+
+    /*!
+        \qmlproperty enumeration Box3D::scaledFace
+        \brief Which face of the box should be scaled.
+
+        Use with faceScale to create pyramids, trapezoids, etc.
+        \sa Box3DGeometry::scaledFace
+    */
     property alias scaledFace: _geometry.scaledFace
+
+    /*!
+        \qmlproperty vector2d Box3D::faceScale
+        \brief Scale factor for the selected face.
+
+        \sa Box3DGeometry::faceScale
+    */
     property alias faceScale: _geometry.faceScale
 
-    // Edge rendering properties (matching VoxelMap)
+    /*!
+        \qmlproperty bool Box3D::showEdges
+        \brief Whether to render dark edge lines.
+
+        Defaults to true.
+    */
     property alias showEdges: _geometry.showEdges
+
+    /*!
+        \qmlproperty real Box3D::edgeThickness
+        \brief Thickness of edge lines.
+    */
     property alias edgeThickness: _geometry.edgeThickness
+
+    /*!
+        \qmlproperty real Box3D::edgeColorFactor
+        \brief Darkening factor for edges (0-1).
+
+        Lower values create darker edges.
+    */
     property alias edgeColorFactor: _geometry.edgeColorFactor
+
+    /*!
+        \qmlproperty int Box3D::edgeMask
+        \brief Bitmask controlling which edges are visible.
+
+        Use allEdges, topEdges, bottomEdges, etc.
+    */
     property alias edgeMask: _geometry.edgeMask
 
-    // Material properties
     property bool cullMode: false
     property alias lighting: _material.lighting
-    
-    // Toon shading property - enables cartoon-style rendering
-    // When enabled:
-    // - Uses half-lambert lighting for softer shadows
-    // - Disables specular highlights and IBL
-    // - Works best with strong directional light shadows
+
+    /*!
+        \qmlproperty bool Box3D::useToonShading
+        \brief Enables cartoon-style rendering.
+
+        When enabled, uses half-lambert lighting for softer shadows,
+        disables specular highlights and IBL. Works best with strong
+        directional light shadows.
+    */
     property alias useToonShading: _material.useToonShading
 
-    // Edge mask enums exposed for easier QML usage
+    /*!
+        \qmlproperty int Box3D::allEdges
+        \readonly
+        \brief Convenience constant for showing all edges.
+    */
     readonly property int allEdges: Box3DGeometry.AllEdges
     readonly property int topEdges: Box3DGeometry.TopEdges
     readonly property int bottomEdges: Box3DGeometry.BottomEdges

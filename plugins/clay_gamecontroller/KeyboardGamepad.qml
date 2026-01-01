@@ -1,5 +1,41 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype KeyboardGamepad
+    \inqmlmodule Clayground.GameController
+    \brief Internal component that maps keyboard input to GameController.
+
+    KeyboardGamepad translates keyboard key presses into GameController axis
+    and button states. It is used internally by GameController when keyboard
+    input is selected.
+
+    \qmlproperty bool KeyboardGamepad::enabled
+    \brief Whether keyboard input handling is active.
+
+    \qmlproperty var KeyboardGamepad::upKey
+    \brief Qt.Key value for up direction.
+
+    \qmlproperty var KeyboardGamepad::downKey
+    \brief Qt.Key value for down direction.
+
+    \qmlproperty var KeyboardGamepad::leftKey
+    \brief Qt.Key value for left direction.
+
+    \qmlproperty var KeyboardGamepad::rightKey
+    \brief Qt.Key value for right direction.
+
+    \qmlproperty var KeyboardGamepad::buttonAKey
+    \brief Qt.Key value for button A.
+
+    \qmlproperty var KeyboardGamepad::buttonBKey
+    \brief Qt.Key value for button B.
+
+    \qmlproperty GameController KeyboardGamepad::gameController
+    \brief Reference to the parent GameController.
+
+    \qmlmethod void KeyboardGamepad::configure(var uk, var dk, var lk, var rk, var bA, var bB)
+    \brief Configures all key mappings at once.
+*/
 import QtQuick
 
 Item
