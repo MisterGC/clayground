@@ -42,18 +42,25 @@ Model {
     /*!
         \qmlproperty color MultiLine3D::color
         \brief The color of all lines.
+
+        This is a convenience alias for \c{material.lineColor}.
     */
     property alias color: _lineMat.lineColor
 
     /*!
         \qmlproperty real MultiLine3D::width
         \brief The width of all lines in screen pixels.
+
+        This is a convenience alias for \c{material.lineWidth}.
     */
     property alias width: _lineMat.lineWidth
 
     /*!
         \qmlproperty CustomMaterial MultiLine3D::material
         \brief The material used for rendering the lines.
+
+        The material provides \c{lineColor} and \c{lineWidth} properties
+        which are also exposed via the \l color and \l width aliases for convenience.
     */
     property CustomMaterial material: _lineMat
 
