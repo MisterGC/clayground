@@ -10,7 +10,7 @@ permalink: /demo/
 
 Experience Clayground running directly in your browser via WebAssembly.
 
-Click **"Play"** to enter fullscreen mode with keyboard controls enabled.
+Click **"Load Demo"** to start interactive demos. Use **"Fullscreen"** for keyboard controls.
 
 ---
 
@@ -19,16 +19,13 @@ Click **"Play"** to enter fullscreen mode with keyboard controls enabled.
 A showcase of Clayground's 3D rendering capabilities using the **Canvas3D** plugin. This demo demonstrates procedural voxel generation, various line rendering techniques, and Qt Quick 3D integration.
 
 <div id="demo-container-voxel" class="demo-container">
-  <iframe
-    id="demo-iframe-voxel"
-    data-src="{{ site.baseurl }}/demo/voxelworld/voxelworld.html"
-    allowfullscreen>
-  </iframe>
-  <div class="demo-overlay" id="overlay-voxel" onclick="playDemo('demo-container-voxel')">
-    <span class="play-icon">▶</span>
-    <span class="play-text">Play</span>
-    <p class="overlay-hint">Fullscreen mode for keyboard controls</p>
+  <!-- TODO: Replace with actual screenshot -->
+  <div class="demo-preview"></div>
+  <iframe id="demo-iframe-voxel" data-src="{{ site.baseurl }}/demo/voxelworld/voxelworld.html" allowfullscreen></iframe>
+  <div class="demo-overlay" id="overlay-voxel">
+    <button class="load-btn" onclick="loadDemo('demo-container-voxel')">▶ Load Demo</button>
   </div>
+  <button class="fullscreen-btn" onclick="fullscreenDemo('demo-container-voxel')">⛶ Fullscreen</button>
 </div>
 
 ### Controls
@@ -48,16 +45,13 @@ A showcase of Clayground's 3D rendering capabilities using the **Canvas3D** plug
 A side-scrolling platformer demonstrating the **World**, **Physics**, and **GameController** plugins. Uses SVG-based level design and sprite animation.
 
 <div id="demo-container-platformer" class="demo-container">
-  <iframe
-    id="demo-iframe-platformer"
-    data-src="{{ site.baseurl }}/demo/platformer/platformer.html"
-    allowfullscreen>
-  </iframe>
-  <div class="demo-overlay" id="overlay-platformer" onclick="playDemo('demo-container-platformer')">
-    <span class="play-icon">▶</span>
-    <span class="play-text">Play</span>
-    <p class="overlay-hint">Fullscreen mode for keyboard controls</p>
+  <!-- TODO: Replace with actual screenshot -->
+  <div class="demo-preview"></div>
+  <iframe id="demo-iframe-platformer" data-src="{{ site.baseurl }}/demo/platformer/platformer.html" allowfullscreen></iframe>
+  <div class="demo-overlay" id="overlay-platformer">
+    <button class="load-btn" onclick="loadDemo('demo-container-platformer')">▶ Load Demo</button>
   </div>
+  <button class="fullscreen-btn" onclick="fullscreenDemo('demo-container-platformer')">⛶ Fullscreen</button>
 </div>
 
 ### Controls
@@ -103,6 +97,21 @@ JavaScript is required to run these demos.
   width: 100%;
   height: 100%;
   border: none;
+  display: none;
+}
+.demo-container.active iframe {
+  display: block;
+}
+.demo-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d4a 100%);
+}
+.demo-container.active .demo-preview {
+  display: none;
 }
 .demo-overlay {
   position: absolute;
@@ -110,35 +119,49 @@ JavaScript is required to run these demos.
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(13, 17, 23, 0.85);
+  background: rgba(13, 17, 23, 0.6);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   z-index: 10;
-  transition: background 0.2s;
 }
-.demo-overlay:hover {
-  background: rgba(13, 17, 23, 0.75);
+.demo-container.active .demo-overlay {
+  display: none;
 }
-.demo-overlay .play-icon {
-  font-size: 3rem;
-  color: var(--accent-primary, #00D9FF);
-  margin-bottom: 0.5rem;
-}
-.demo-overlay .play-text {
-  font-size: 1.5rem;
+.load-btn {
+  padding: 1rem 2rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  color: var(--accent-primary, #00D9FF);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  color: #fff;
+  background: var(--accent-primary, #00D9FF);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
 }
-.demo-overlay .overlay-hint {
-  margin-top: 1rem;
+.load-btn:hover {
+  background: #00b8d9;
+  transform: scale(1.05);
+}
+.fullscreen-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  color: var(--text-secondary, #8892A0);
-  opacity: 0.8;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 20;
+  display: none;
+}
+.demo-container.active .fullscreen-btn {
+  display: block;
+}
+.fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
 }
 .demo-container:fullscreen,
 .demo-container:-webkit-full-screen {
@@ -151,45 +174,38 @@ JavaScript is required to run these demos.
   width: 100vw;
   height: 100vh;
 }
-.demo-container:fullscreen .demo-overlay,
-.demo-container:-webkit-full-screen .demo-overlay {
+.demo-container:fullscreen .fullscreen-btn,
+.demo-container:-webkit-full-screen .fullscreen-btn {
   display: none;
 }
 </style>
 
 <script>
-function playDemo(containerId) {
+function loadDemo(containerId) {
   const container = document.getElementById(containerId);
   const iframe = container.querySelector('iframe');
-  const overlay = container.querySelector('.demo-overlay');
 
-  // Enter fullscreen
+  // Mark as active and load iframe
+  container.classList.add('active');
+  iframe.src = iframe.dataset.src;
+}
+
+function fullscreenDemo(containerId) {
+  const container = document.getElementById(containerId);
+  const iframe = container.querySelector('iframe');
+
   if (container.requestFullscreen) {
     container.requestFullscreen();
   } else if (container.webkitRequestFullscreen) {
     container.webkitRequestFullscreen();
   }
 
-  // Hide overlay and load/reload iframe
-  overlay.style.display = 'none';
-  const src = iframe.dataset.src || iframe.src;
+  // Reload and focus for keyboard input
+  const src = iframe.src;
   iframe.src = '';
   setTimeout(() => {
     iframe.src = src;
     iframe.focus();
   }, 100);
-}
-
-// Show overlay again when exiting fullscreen
-document.addEventListener('fullscreenchange', handleFullscreenChange);
-document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-function handleFullscreenChange() {
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    document.querySelectorAll('.demo-overlay').forEach(overlay => {
-      overlay.style.display = 'flex';
-      overlay.querySelector('.play-text').textContent = 'Resume';
-    });
-  }
 }
 </script>

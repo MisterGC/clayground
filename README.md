@@ -189,6 +189,39 @@ clay_add_qml_test(MyPlugin
 )
 ```
 
+### Building the Website Locally
+
+The documentation website includes live WASM demos and API reference. To build and test locally:
+
+**Prerequisites:**
+- Qt 6.10+ (desktop and wasm_multithread kits)
+- Emscripten SDK (`~/dev/emsdk` or set `EMSDK` env var)
+- Ruby with Bundler (for Jekyll)
+
+**Build steps:**
+
+```bash
+# 1. Activate Emscripten
+source ~/dev/emsdk/emsdk_env.sh
+
+# 2. Build WASM demos (multithread required for Qt Quick 3D)
+~/Qt/6.10.1/wasm_multithread/bin/qt-cmake -B build-wasm
+cmake --build build-wasm --target website-dev
+
+# 3. Build API documentation (requires desktop Qt)
+cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.10.1/macos
+cmake --build build --target docs
+
+# 4. Start Jekyll server
+cd docs
+bundle install
+bundle exec jekyll serve --baseurl ""
+```
+
+Then open http://localhost:4000 in your browser.
+
+**Note:** The `website-dev` target copies WASM builds to `docs/wasm/`. The `docs` target generates API reference HTML in `docs/api/`.
+
 ### Plugin Development
 
 ClayDojo and ClayLiveLoader support dynamic plugin development using the `--dynplugin` command-line argument. This feature allows you to specify source and binary directories for plugins, enabling hot-reloading during development.
