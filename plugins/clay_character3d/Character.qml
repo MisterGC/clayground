@@ -1,8 +1,22 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+// Import Strategy:
+// - Subdirectories use relative imports (e.g., 'import ".."' to access root)
+// - This enables hot-reloading in sandbox development
+// - Example files use module imports to demonstrate proper usage
+// - Internal components use relative imports for cross-directory access
+
+import QtQuick
+import Clayground.Canvas3D
+import "bodyparts"
+import "animation"
+
+pragma ComponentBehavior: Bound
+
 /*!
     \qmltype Character
     \inqmlmodule Clayground.Character3D
+    \inherits BodyPartsGroup
     \brief A fully animated 3D humanoid character with modular body parts.
 
     Character is the main component for creating 3D characters with procedural
@@ -25,219 +39,36 @@
     }
     \endqml
 
-    \qmlproperty string Character::name
-    \brief Character identifier name.
-
-    \qmlproperty int Character::activity
-    \brief Current activity state. Use Character.Activity enum values:
-    Idle, Walking, Running, Using, Fighting.
-
-    \qmlproperty real Character::walkSpeed
-    \readonly
-    \brief Walking speed derived from animation geometry.
-
-    \qmlproperty real Character::runSpeed
-    \readonly
-    \brief Running speed derived from animation geometry.
-
-    \qmlproperty real Character::currentSpeed
-    \readonly
-    \brief Current movement speed based on activity.
-
-    \qmlproperty int Character::idleCycleDuration
-    \brief Duration of the idle animation cycle in milliseconds.
-
-    \qmlproperty int Character::faceActivity
-    \brief Current facial expression activity.
-
-    \qmlproperty real Character::neckHeight
-    \brief Height of the neck section.
-
-    \qmlproperty real Character::upperHeadWidth
-    \brief Width of the upper head.
-
-    \qmlproperty real Character::upperHeadHeight
-    \brief Height of the upper head.
-
-    \qmlproperty real Character::upperHeadDepth
-    \brief Depth of the upper head.
-
-    \qmlproperty real Character::lowerHeadWidth
-    \brief Width of the lower head/jaw.
-
-    \qmlproperty real Character::lowerHeadHeight
-    \brief Height of the lower head/jaw.
-
-    \qmlproperty real Character::lowerHeadDepth
-    \brief Depth of the lower head/jaw.
-
-    \qmlproperty real Character::chinPointiness
-    \brief How pointed the chin is (0-1).
-
-    \qmlproperty real Character::eyeSize
-    \brief Eye size multiplier.
-
-    \qmlproperty real Character::noseSize
-    \brief Nose size multiplier.
-
-    \qmlproperty real Character::mouthSize
-    \brief Mouth size multiplier.
-
-    \qmlproperty real Character::hairVolume
-    \brief Hair volume multiplier.
-
-    \qmlproperty color Character::skinColor
-    \brief Skin color for head, hands, and feet.
-
-    \qmlproperty color Character::hairColor
-    \brief Hair color.
-
-    \qmlproperty color Character::eyeColor
-    \brief Eye color.
-
-    \qmlproperty real Character::shoulderWidth
-    \brief Width at the shoulders.
-
-    \qmlproperty real Character::torsoHeight
-    \brief Height of the torso.
-
-    \qmlproperty real Character::torsoDepth
-    \brief Depth of the torso.
-
-    \qmlproperty real Character::waistWidth
-    \brief Width at the waist.
-
-    \qmlproperty color Character::torsoColor
-    \brief Torso/shirt color.
-
-    \qmlproperty real Character::hipWidth
-    \brief Width of the hips.
-
-    \qmlproperty real Character::hipHeight
-    \brief Height of the hip section.
-
-    \qmlproperty real Character::hipDepth
-    \brief Depth of the hip section.
-
-    \qmlproperty color Character::hipColor
-    \brief Hip/pants color.
-
-    \qmlproperty real Character::armWidth
-    \brief Width of the arms.
-
-    \qmlproperty real Character::armHeight
-    \brief Total arm length.
-
-    \qmlproperty real Character::armDepth
-    \brief Depth of the arms.
-
-    \qmlproperty real Character::armUpperRatio
-    \brief Upper arm proportion of total arm.
-
-    \qmlproperty real Character::armLowerTaper
-    \brief How much the forearm tapers.
-
-    \qmlproperty real Character::handWidth
-    \brief Width of the hands.
-
-    \qmlproperty real Character::handHeight
-    \brief Height of the hands.
-
-    \qmlproperty real Character::handDepth
-    \brief Depth of the hands.
-
-    \qmlproperty color Character::armColor
-    \brief Arm/sleeve color.
-
-    \qmlproperty color Character::handColor
-    \brief Hand color.
-
-    \qmlproperty real Character::legWidth
-    \brief Width of the legs.
-
-    \qmlproperty real Character::legHeight
-    \brief Total leg length.
-
-    \qmlproperty real Character::legDepth
-    \brief Depth of the legs.
-
-    \qmlproperty real Character::legUpperRatio
-    \brief Upper leg proportion of total leg.
-
-    \qmlproperty real Character::legLowerTaper
-    \brief How much the lower leg tapers.
-
-    \qmlproperty real Character::footWidth
-    \brief Width of the feet.
-
-    \qmlproperty real Character::footHeight
-    \brief Height of the feet.
-
-    \qmlproperty real Character::footDepth
-    \brief Depth of the feet.
-
-    \qmlproperty color Character::legColor
-    \brief Leg/pants color.
-
-    \qmlproperty color Character::footColor
-    \brief Foot/shoe color.
-
-    \qmlproperty Arm Character::leftArm
-    \readonly
-    \brief Reference to the left arm for animation.
-
-    \qmlproperty Arm Character::rightArm
-    \readonly
-    \brief Reference to the right arm for animation.
-
-    \qmlproperty Leg Character::leftLeg
-    \readonly
-    \brief Reference to the left leg for animation.
-
-    \qmlproperty Leg Character::rightLeg
-    \readonly
-    \brief Reference to the right leg for animation.
-
-    \qmlproperty Head Character::head
-    \readonly
-    \brief Reference to the head for animation.
-
-    \qmlproperty BodyPart Character::torso
-    \readonly
-    \brief Reference to the torso.
-
-    \qmlproperty BodyPart Character::hip
-    \readonly
-    \brief Reference to the hip.
+    \sa BodyPartsGroup, ParametricCharacter
 */
-
-// Import Strategy:
-// - Subdirectories use relative imports (e.g., 'import ".."' to access root)
-// - This enables hot-reloading in sandbox development
-// - Example files use module imports to demonstrate proper usage
-// - Internal components use relative imports for cross-directory access
-
-import QtQuick
-import Clayground.Canvas3D
-import "bodyparts"
-import "animation"
-
-pragma ComponentBehavior: Bound
-
 BodyPartsGroup {
     id: _character
 
     // Character origin is at ground level, center of body
     // Y=0 is at the bottom of the feet
 
+    /*!
+        \qmlproperty string Character::name
+        \brief Character identifier name.
+    */
     property string name: "unknown"
 
-    // Movement properties - speeds derived from animation geometry
-    // This ensures feet movement exactly matches character movement
+    /*!
+        \qmlproperty real Character::walkSpeed
+        \brief Walking speed derived from animation geometry.
+    */
     readonly property real walkSpeed: _walkAnim.derivedWalkSpeed
+
+    /*!
+        \qmlproperty real Character::runSpeed
+        \brief Running speed derived from animation geometry.
+    */
     readonly property real runSpeed: _runAnim.derivedRunSpeed
 
-    // Idle animation configuration
+    /*!
+        \qmlproperty int Character::idleCycleDuration
+        \brief Duration of the idle animation cycle in milliseconds.
+    */
     property alias idleCycleDuration: _idleAnim.duration
 
     // Bounding box dimensions (derived from body parts)
@@ -255,118 +86,155 @@ BodyPartsGroup {
         Using,
         Fighting
     }
+    /*! Current activity state. Use Character.Activity enum: Idle, Walking, Running, Using, Fighting. */
     property int activity: Character.Activity.Idle
 
-    // Current movement speed based on activity (derived from animation)
+    /*! Current movement speed based on activity. */
     readonly property real currentSpeed: {
         if (activity === Character.Activity.Running) return _runAnim.derivedRunSpeed;
         if (activity === Character.Activity.Walking) return _walkAnim.derivedWalkSpeed;
         return 0;
     }
+    /*! Current facial expression activity. */
     property alias faceActivity: _head.activity
 
     // ============================================================================
     // HEAD PROPERTIES
     // ============================================================================
-    // Absolute dimensions
+    /*! Height of the neck section. */
     property real neckHeight: 0.333
+    /*! Total head height (upper + lower). */
     readonly property real headHeight: upperHeadHeight + lowerHeadHeight
 
-    // Dimension aliases
+    /*! Width of the upper head. */
     property alias upperHeadWidth: _head.upperHeadWidth
+    /*! Height of the upper head. */
     property alias upperHeadHeight: _head.upperHeadHeight
+    /*! Depth of the upper head. */
     property alias upperHeadDepth: _head.upperHeadDepth
+    /*! Width of the lower head/jaw. */
     property alias lowerHeadWidth: _head.lowerHeadWidth
+    /*! Height of the lower head/jaw. */
     property alias lowerHeadHeight: _head.lowerHeadHeight
+    /*! Depth of the lower head/jaw. */
     property alias lowerHeadDepth: _head.lowerHeadDepth
+    /*! How pointed the chin is (0-1). */
     property alias chinPointiness: _head.chinPointiness
 
-    // Feature size multipliers
+    /*! Eye size multiplier. */
     property alias eyeSize: _head.eyeSize
+    /*! Nose size multiplier. */
     property alias noseSize: _head.noseSize
+    /*! Mouth size multiplier. */
     property alias mouthSize: _head.mouthSize
+    /*! Hair volume multiplier. */
     property alias hairVolume: _head.hairVolume
 
-    // Colors
+    /*! Skin color for head, hands, and feet. */
     property alias skinColor: _head.skinColor
+    /*! Hair color. */
     property alias hairColor: _head.hairColor
+    /*! Eye color. */
     property alias eyeColor: _head.eyeColor
 
     // ============================================================================
     // TORSO PROPERTIES
     // ============================================================================
-    // Dimension aliases
+    /*! Width at the shoulders. */
     property alias shoulderWidth: _torso.width
+    /*! Height of the torso. */
     property alias torsoHeight: _torso.height
+    /*! Depth of the torso. */
     property alias torsoDepth: _torso.depth
+    /*! Width at the waist. */
     property alias waistWidth: _torso.waistWidth
 
-    // Colors
+    /*! Torso/shirt color. */
     property alias torsoColor: _torso.color
 
     // ============================================================================
     // HIP PROPERTIES
     // ============================================================================
-    // Dimension aliases
+    /*! Width of the hips. */
     property alias hipWidth: _hip.width
+    /*! Height of the hip section. */
     property alias hipHeight: _hip.height
+    /*! Depth of the hip section. */
     property alias hipDepth: _hip.depth
 
-    // Colors
+    /*! Hip/pants color. */
     property alias hipColor: _hip.color
 
     // ============================================================================
     // ARM PROPERTIES (symmetric - right arm drives both)
     // ============================================================================
-    // Dimension aliases
+    /*! Width of the arms. */
     property alias armWidth: _rightArm.width
+    /*! Total arm length. */
     property alias armHeight: _rightArm.height
+    /*! Depth of the arms. */
     property alias armDepth: _rightArm.depth
 
-    // Proportion controls
+    /*! Upper arm proportion of total arm. */
     property alias armUpperRatio: _rightArm.upperRatio
+    /*! How much the forearm tapers. */
     property alias armLowerTaper: _rightArm.lowerTaper
 
-    // Hand dimension aliases (accessed through arm)
+    /*! Width of the hands. */
     property alias handWidth: _rightArm.handWidth
+    /*! Height of the hands. */
     property alias handHeight: _rightArm.handHeight
+    /*! Depth of the hands. */
     property alias handDepth: _rightArm.handDepth
 
-    // Colors
+    /*! Arm/sleeve color. */
     property alias armColor: _rightArm.color
+    /*! Hand color. */
     property alias handColor: _rightArm.handColor
 
     // ============================================================================
     // LEG PROPERTIES (symmetric)
     // ============================================================================
-    // Dimension aliases
+    /*! Width of the legs. */
     property alias legWidth: _rightLeg.width
+    /*! Total leg length. */
     property alias legHeight: _rightLeg.height
+    /*! Depth of the legs. */
     property alias legDepth: _rightLeg.depth
 
-    // Proportion controls
+    /*! Upper leg proportion of total leg. */
     property alias legUpperRatio: _rightLeg.upperRatio
+    /*! How much the lower leg tapers. */
     property alias legLowerTaper: _rightLeg.lowerTaper
 
-    // Foot dimension aliases (accessed through leg)
+    /*! Width of the feet. */
     property alias footWidth: _rightLeg.footWidth
+    /*! Height of the feet. */
     property alias footHeight: _rightLeg.footHeight
+    /*! Depth of the feet. */
     property alias footDepth: _rightLeg.footDepth
 
-    // Colors
+    /*! Leg/pants color. */
     property alias legColor: _rightLeg.color
+    /*! Foot/shoe color. */
     property alias footColor: _rightLeg.footColor
 
     // ============================================================================
     // BODY PART REFERENCES (for animating them)
     // ============================================================================
-    // and their base (relative) positions
+    /*! Reference to the left arm for animation. */
     readonly property Arm leftArm: _leftArm
+    /*! Reference to the right arm for animation. */
     readonly property Arm rightArm: _rightArm
+    /*! Reference to the left leg for animation. */
     readonly property Leg leftLeg: _leftLeg
+    /*! Reference to the right leg for animation. */
     readonly property Leg rightLeg: _rightLeg
+    /*! Reference to the head for animation. */
     readonly property Head head: _head
+    /*! Reference to the torso. */
     readonly property BodyPart torso: _torso
+    /*! Reference to the hip. */
     readonly property BodyPart hip: _hip
 
     BodyPart {

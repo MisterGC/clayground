@@ -16,9 +16,6 @@
         text: "Hello!"
     }
     \endqml
-
-    \qmlproperty string ThoughtBubble::text
-    \brief The text to display in the bubble.
 */
 import QtQuick
 
@@ -28,6 +25,7 @@ Rectangle {
     color: "lightgrey"
     border.color: "black"
     border.width: 1
+    /*! The text to display in the bubble. */
     property alias text: _text.text
 
     Text {

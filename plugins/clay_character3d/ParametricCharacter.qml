@@ -27,57 +27,6 @@
         topClothing: "#4169e1"
     }
     \endqml
-
-    \qmlproperty real ParametricCharacter::bodyHeight
-    \brief Total character height in world units. Default: 10.0.
-
-    \qmlproperty real ParametricCharacter::realism
-    \brief Style from cartoon (0) to realistic (1). Affects head-to-body ratio.
-
-    \qmlproperty real ParametricCharacter::maturity
-    \brief Age from child (0) to elderly (1). Affects proportions.
-
-    \qmlproperty real ParametricCharacter::femininity
-    \brief Build from masculine (0) to feminine (1). Affects shoulder/hip ratio.
-
-    \qmlproperty real ParametricCharacter::mass
-    \brief Body mass from thin (0) to heavy (1).
-
-    \qmlproperty real ParametricCharacter::muscle
-    \brief Muscularity from soft (0) to athletic (1).
-
-    \qmlproperty real ParametricCharacter::faceShape
-    \brief Face shape from round (0) to long/angular (1).
-
-    \qmlproperty real ParametricCharacter::chinForm
-    \brief Chin from round (0) to pointed (1).
-
-    \qmlproperty real ParametricCharacter::eyes
-    \brief Eye size multiplier (0.5-1.5).
-
-    \qmlproperty real ParametricCharacter::nose
-    \brief Nose size multiplier (0.5-1.5).
-
-    \qmlproperty real ParametricCharacter::mouth
-    \brief Mouth size multiplier (0.5-1.5).
-
-    \qmlproperty real ParametricCharacter::hair
-    \brief Hair volume (0 = bald, 1 = full).
-
-    \qmlproperty color ParametricCharacter::skin
-    \brief Skin color.
-
-    \qmlproperty color ParametricCharacter::hairTone
-    \brief Hair color.
-
-    \qmlproperty color ParametricCharacter::eyeTone
-    \brief Eye color.
-
-    \qmlproperty color ParametricCharacter::topClothing
-    \brief Color for torso and arms.
-
-    \qmlproperty color ParametricCharacter::bottomClothing
-    \brief Color for hips and legs.
 */
 import QtQuick
 
@@ -90,46 +39,55 @@ Character {
     // HIGH-LEVEL BODY PARAMETERS
     // ============================================================================
 
-    // Overall scale in world units
+    /*! Total character height in world units. */
     property real bodyHeight: 10.0
 
-    // Style: cartoon vs realistic (affects head-to-body ratio, feature sizes)
-    property real realism: 0.0        // 0.0 = cartoon, 1.0 = realistic
+    /*! Style from cartoon (0) to realistic (1). Affects head-to-body ratio. */
+    property real realism: 0.0
 
-    // Age: affects proportions (head size, limb length, torso)
-    property real maturity: 0.5       // 0.0 = child, 0.5 = young adult, 1.0 = elderly
+    /*! Age from child (0) to elderly (1). Affects proportions. */
+    property real maturity: 0.5
 
-    // Build: shoulder/hip ratio, waist definition
-    property real femininity: 0.5     // 0.0 = masculine, 0.5 = neutral, 1.0 = feminine
+    /*! Build from masculine (0) to feminine (1). Affects shoulder/hip ratio. */
+    property real femininity: 0.5
 
-    // Body mass: affects width/thickness of all parts
-    property real mass: 0.5           // 0.0 = thin, 0.5 = average, 1.0 = heavy
+    /*! Body mass from thin (0) to heavy (1). */
+    property real mass: 0.5
 
-    // Muscularity: V-shape, shoulder breadth, limb definition
-    property real muscle: 0.5         // 0.0 = soft, 0.5 = average, 1.0 = athletic
+    /*! Muscularity from soft (0) to athletic (1). */
+    property real muscle: 0.5
 
     // ============================================================================
     // HIGH-LEVEL FACE PARAMETERS
     // ============================================================================
 
-    // Face shape
-    property real faceShape: 0.5      // 0.0 = round, 1.0 = long/angular
-    property real chinForm: 0.5       // 0.0 = round, 1.0 = pointed
+    /*! Face shape from round (0) to long/angular (1). */
+    property real faceShape: 0.5
+    /*! Chin from round (0) to pointed (1). */
+    property real chinForm: 0.5
 
-    // Feature sizes (multipliers)
-    property real eyes: 1.0           // 0.5 = small, 1.5 = large
-    property real nose: 1.0           // 0.5 = small, 1.5 = prominent
-    property real mouth: 1.0          // 0.5 = small, 1.5 = wide
-    property real hair: 1.0           // 0.0 = bald, 1.0 = full
+    /*! Eye size multiplier (0.5-1.5). */
+    property real eyes: 1.0
+    /*! Nose size multiplier (0.5-1.5). */
+    property real nose: 1.0
+    /*! Mouth size multiplier (0.5-1.5). */
+    property real mouth: 1.0
+    /*! Hair volume (0 = bald, 1 = full). */
+    property real hair: 1.0
 
     // ============================================================================
     // COLOR PALETTE
     // ============================================================================
 
+    /*! Skin color. */
     property color skin: "#d38d5f"
+    /*! Hair color. */
     property color hairTone: "#734120"
+    /*! Eye color. */
     property color eyeTone: "#4a3728"
+    /*! Color for torso and arms. */
     property color topClothing: "#4169e1"
+    /*! Color for hips and legs. */
     property color bottomClothing: "#708090"
 
     // ============================================================================

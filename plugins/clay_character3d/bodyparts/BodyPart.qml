@@ -1,6 +1,14 @@
 import QtQuick
 import Clayground.Canvas3D
 
+/*!
+    \qmltype BodyPart
+    \inqmlmodule Clayground.Character3D
+    \brief Base component for character body parts.
+
+    BodyPart provides the foundation for all character body part components,
+    extending Box3D with default styling and positioning properties.
+*/
 Box3D
 {
     property vector3d basePos: Qt.vector3d(0,0,0)
