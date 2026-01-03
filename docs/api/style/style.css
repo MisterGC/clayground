@@ -29,7 +29,22 @@ body {
     font-size: 16px;
     line-height: 1.6;
     margin: 0;
-    padding: 0;
+    padding: 1.5rem;
+}
+
+/* Hide duplicate header in iframe-loaded pages */
+body > .header-nav {
+    display: none;
+}
+
+/* Hide all QDoc breadcrumb items - we build our own in the wrapper */
+body > li {
+    display: none;
+}
+
+/* Hide QDoc's built-in sidebar (we use our own navigation) */
+body > .sidebar {
+    display: none;
 }
 
 /* Typography */
@@ -261,7 +276,351 @@ tr:nth-child(even) {
     box-shadow: var(--glow-primary);
 }
 
+/* Breadcrumb navigation */
+.breadcrumb {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.breadcrumb a {
+    color: var(--text-secondary);
+}
+
+.breadcrumb a:hover {
+    color: var(--accent-primary);
+}
+
+.breadcrumb .separator {
+    margin: 0 0.5rem;
+    color: var(--text-secondary);
+}
+
+.breadcrumb .current {
+    color: var(--text-primary);
+}
+
+/* API Layout - Sidebar + Content */
+.api-layout {
+    display: flex;
+    min-height: calc(100vh - 50px);
+}
+
+.api-sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: 1rem;
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 50px);
+}
+
+.api-content {
+    flex: 1;
+    padding: 0;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+}
+
+#welcome-content {
+    padding: 2rem;
+    max-width: 900px;
+}
+
+/* Iframe for documentation content */
+.doc-frame {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: var(--bg-dark);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Sidebar toggle button */
+.sidebar-toggle {
+    float: right;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.sidebar-toggle:hover {
+    background: var(--accent-primary);
+    color: var(--bg-dark);
+}
+
+.api-sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Navigation home link */
+.nav-home {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-home a {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.nav-home a:hover {
+    color: var(--accent-primary);
+}
+
+/* Active link state */
+.nav-type-link.active,
+.nav-member a.active {
+    background: var(--bg-tertiary);
+    color: var(--accent-highlight);
+}
+
+/* Navigation Tree */
+.nav-loading, .nav-error {
+    color: var(--text-secondary);
+    padding: 1rem;
+    text-align: center;
+}
+
+.nav-error {
+    color: var(--accent-secondary);
+}
+
+.nav-module {
+    margin-bottom: 0.5rem;
+}
+
+.nav-module.hidden {
+    display: none;
+}
+
+.nav-module-header {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.nav-toggle {
+    width: 1.2rem;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.nav-toggle:hover {
+    color: var(--accent-primary);
+}
+
+.nav-module-link {
+    color: var(--accent-highlight);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.nav-module-link:hover {
+    color: var(--accent-primary);
+    text-decoration: underline;
+}
+
+.nav-types {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    padding-left: 0.5rem;
+}
+
+.nav-module.collapsed .nav-types {
+    display: none;
+}
+
+.nav-type {
+    margin: 0.25rem 0;
+}
+
+.nav-type.hidden {
+    display: none;
+}
+
+.nav-type-link {
+    display: block;
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.nav-type-link:hover {
+    background: var(--bg-tertiary);
+    text-decoration: none;
+}
+
+.nav-type-name {
+    color: var(--accent-primary);
+}
+
+.nav-type-header {
+    display: flex;
+    align-items: center;
+}
+
+.nav-type-toggle {
+    width: 1rem;
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.2rem;
+}
+
+.nav-type-toggle:hover {
+    color: var(--accent-primary);
+}
+
+.nav-type.collapsed .nav-members {
+    display: none;
+}
+
+.nav-members {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    padding-left: 1rem;
+    font-size: 0.85rem;
+}
+
+.nav-category {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.5rem 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.nav-member {
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+}
+
+.nav-member.hidden {
+    display: none;
+}
+
+.nav-member:hover {
+    background: var(--bg-tertiary);
+}
+
+.nav-member a {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.nav-property a::before {
+    content: "●";
+    color: var(--accent-primary);
+    margin-right: 0.4rem;
+    font-size: 0.6rem;
+}
+
+.nav-method a::before {
+    content: "▸";
+    color: var(--accent-highlight);
+    margin-right: 0.4rem;
+}
+
+.nav-signal a::before {
+    content: "◆";
+    color: var(--accent-secondary);
+    margin-right: 0.4rem;
+    font-size: 0.6rem;
+}
+
+/* Module Cards in main content */
+.module-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.module-card h3 {
+    margin-top: 0;
+    color: var(--accent-highlight);
+}
+
+.type-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.type-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.type-list li:last-child {
+    border-bottom: none;
+}
+
+.type-brief {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Quick start section */
+.quick-start {
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--accent-primary);
+    padding: 1rem 1.5rem;
+    border-radius: 0 8px 8px 0;
+    margin: 1.5rem 0;
+}
+
+.quick-start h2 {
+    margin-top: 0;
+    border-bottom: none;
+    font-size: 1.1rem;
+}
+
 /* Responsive */
+@media (max-width: 900px) {
+    .api-layout {
+        flex-direction: column;
+    }
+
+    .api-sidebar {
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        position: relative;
+        max-height: 300px;
+    }
+
+    .api-content {
+        padding: 1rem;
+    }
+}
+
 @media (max-width: 768px) {
     .content {
         padding: 1rem;
