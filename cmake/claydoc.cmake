@@ -62,6 +62,9 @@ function(clay_docs)
     # Add documentation target
     # QDoc requires empty output directory, so we use a temp dir and copy results
     set(TEMP_OUTPUT_DIR "${CMAKE_BINARY_DIR}/qdoc-temp")
+    set(README_OUTPUT_DIR "${OUTPUT_DIR}/readme")
+    set(PLUGINS_DIR "${CMAKE_SOURCE_DIR}/plugins")
+
     add_custom_target(docs
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${TEMP_OUTPUT_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${TEMP_OUTPUT_DIR}"
@@ -71,17 +74,14 @@ function(clay_docs)
             -I${QT_HOST_INCLUDE}/QtQml
             --outputdir "${TEMP_OUTPUT_DIR}"
             "${QDOCCONF_FILE}"
+        # Copy all generated files (index + all HTML files)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${TEMP_OUTPUT_DIR}/clayground.index"
             "${OUTPUT_DIR}/clayground.index"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TEMP_OUTPUT_DIR}/qml-clayground.html"
-            "${OUTPUT_DIR}/qml-clayground.html"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TEMP_OUTPUT_DIR}/qml-clayground-members.html"
-            "${OUTPUT_DIR}/qml-clayground-members.html"
-        COMMAND sh -c "test -f '${TEMP_OUTPUT_DIR}/qml-claystopwatch.html' && cp '${TEMP_OUTPUT_DIR}/qml-claystopwatch.html' '${OUTPUT_DIR}/' || true"
-        COMMAND sh -c "test -f '${TEMP_OUTPUT_DIR}/qml-claystopwatch-members.html' && cp '${TEMP_OUTPUT_DIR}/qml-claystopwatch-members.html' '${OUTPUT_DIR}/' || true"
+        COMMAND sh -c "cp '${TEMP_OUTPUT_DIR}'/qml-*.html '${OUTPUT_DIR}/' 2>/dev/null || true"
+        # Generate README HTML files for each plugin using external script
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${README_OUTPUT_DIR}"
+        COMMAND bash "${OUTPUT_DIR}/readme/convert-readmes.sh"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/docs"
         COMMENT "Generating API documentation with QDoc..."
         VERBATIM

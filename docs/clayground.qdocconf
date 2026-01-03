@@ -6,8 +6,9 @@ description = Clayground Game Development Framework
 version = 2025.2
 url = https://mistergc.github.io/clayground
 
-# Source directories - all plugins
-sourcedirs = ../plugins/clay_common \
+# Source directories - all plugins + docs for module declarations
+sourcedirs = . \
+             ../plugins/clay_common \
              ../plugins/clay_storage \
              ../plugins/clay_svg \
              ../plugins/clay_text \
@@ -17,6 +18,8 @@ sourcedirs = ../plugins/clay_common \
              ../plugins/clay_gamecontroller \
              ../plugins/clay_physics \
              ../plugins/clay_character3d \
+             ../plugins/clay_character3d/bodyparts \
+             ../plugins/clay_character3d/animation \
              ../plugins/clay_world \
              ../plugins/clay_canvas3d \
              ../plugins/clay_ios
