@@ -84,26 +84,41 @@
         };
 
         // Update breadcrumb display
-        function updateBreadcrumb(typeName, moduleName) {
-            if (!typeName) {
+        // Options: { type: 'TypeName', module: 'ModuleName' } or { module: 'ModuleName' } for module-only
+        function updateBreadcrumb(options) {
+            if (!options || (!options.type && !options.module)) {
                 breadcrumb.classList.add('hidden');
                 return;
             }
             breadcrumb.classList.remove('hidden');
-            breadcrumb.innerHTML = `
-                <span>Clayground ${VERSION}</span>
-                <span class="separator">›</span>
-                <span>${moduleName || 'Common'}</span>
-                <span class="separator">›</span>
-                <span class="current">${typeName}</span>
-            `;
+
+            if (options.type && options.module) {
+                // Type within module: Clayground VERSION > Module > Type
+                const displayModule = options.module.replace('Clayground.', '');
+                breadcrumb.innerHTML = `
+                    <span>Clayground ${VERSION}</span>
+                    <span class="separator">›</span>
+                    <span>${displayModule}</span>
+                    <span class="separator">›</span>
+                    <span class="current">${options.type}</span>
+                `;
+            } else if (options.module) {
+                // Module only: Clayground VERSION > Module
+                const displayModule = options.module.replace('Clayground.', '');
+                breadcrumb.innerHTML = `
+                    <span>Clayground ${VERSION}</span>
+                    <span class="separator">›</span>
+                    <span class="current">${displayModule}</span>
+                `;
+            }
         }
 
         // Load content in iframe
-        window.loadInFrame = function(href, event, typeName) {
+        window.loadInFrame = function(href, event, typeName, moduleName) {
             if (event) event.preventDefault();
             welcomeContent.classList.add('hidden');
             docFrame.classList.remove('hidden');
+            docFrame.removeAttribute('srcdoc');
             docFrame.src = href;
 
             // Update active state in navigation
@@ -124,15 +139,16 @@
                 // Capitalize first letter of each word
                 typeName = typeName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
             }
-            updateBreadcrumb(typeName, 'Clayground.Common');
+            updateBreadcrumb({ type: typeName, module: moduleName || 'Clayground.Common' });
         };
 
         // Show welcome content
         window.showWelcome = function() {
             welcomeContent.classList.remove('hidden');
             docFrame.classList.add('hidden');
+            docFrame.removeAttribute('srcdoc');
             docFrame.src = '';
-            updateBreadcrumb(null);
+            updateBreadcrumb(null);  // Hides breadcrumb
             document.querySelectorAll('.nav-type-link, .nav-member a').forEach(a => {
                 a.classList.remove('active');
             });
@@ -142,16 +158,19 @@
         // Fetch and parse the QDoc index
         async function loadIndex() {
             try {
+                // Cache-busting for development
+                const cacheBust = '?v=' + Date.now();
+
                 // Load version from version.json
                 try {
-                    const versionResponse = await fetch('version.json');
+                    const versionResponse = await fetch('version.json' + cacheBust);
                     const versionData = await versionResponse.json();
                     VERSION = versionData.version || 'dev';
                 } catch (e) {
                     console.warn('Could not load version.json, using default');
                 }
 
-                const response = await fetch('clayground.index');
+                const response = await fetch('clayground.index' + cacheBust);
                 const text = await response.text();
                 const parser = new DOMParser();
                 const xml = parser.parseFromString(text, 'text/xml');
@@ -178,13 +197,56 @@
             const modules = {};
             const types = [];
 
+            // First, parse qmlmodule elements to get module briefs
+            const qmlModules = xml.querySelectorAll('qmlmodule');
+            qmlModules.forEach(mod => {
+                const name = mod.getAttribute('name');
+                const brief = mod.getAttribute('brief') || '';
+                modules[name] = { name: name, brief: brief, types: [] };
+            });
+
+            // Fallback mapping for C++ types without filepath
+            const cppTypeModules = {
+                'Box3DGeometry': 'Clayground.Canvas3D',
+                'CustomLineGeometry': 'Clayground.Canvas3D',
+                'Line3dGeometry': 'Clayground.Canvas3D',
+                'LineInstancing': 'Clayground.Canvas3D',
+                'VoxelMapGeometry': 'Clayground.Canvas3D',
+                'VoxelMapInstancing': 'Clayground.Canvas3D',
+                'ClayIos': 'Clayground.Ios',
+                'ClayStopWatch': 'Clayground.Common'
+            };
+
+            // Extract module name from filepath (e.g., plugins/clay_ios/ -> Clayground.Ios)
+            function getModuleFromPath(filepath, typeName) {
+                // Check C++ type mapping first
+                if (cppTypeModules[typeName]) {
+                    return cppTypeModules[typeName];
+                }
+                if (!filepath) return 'Clayground.Common';
+                const match = filepath.match(/plugins\/clay_(\w+)\//);
+                if (match) {
+                    const name = match[1];
+                    // Convert snake_case to PascalCase: canvas3d -> Canvas3D, ios -> Ios
+                    const pascalName = name.replace(/(?:^|_)(\w)/g, (_, c) => c.toUpperCase())
+                                          .replace(/3d$/i, '3D'); // Fix 3D suffix
+                    return 'Clayground.' + pascalName;
+                }
+                return 'Clayground.Common';
+            }
+
             // Find all QML classes
             const qmlClasses = xml.querySelectorAll('qmlclass');
             qmlClasses.forEach(cls => {
+                const filepath = cls.getAttribute('filepath') || '';
+                const typeName = cls.getAttribute('name');
+                const moduleName = getModuleFromPath(filepath, typeName);
+
                 const type = {
                     name: cls.getAttribute('name'),
                     href: cls.getAttribute('href'),
                     brief: cls.getAttribute('brief') || '',
+                    module: moduleName,
                     properties: [],
                     methods: [],
                     signals: []
@@ -217,23 +279,12 @@
                 });
 
                 types.push(type);
-            });
 
-            // Find modules
-            const qmlModules = xml.querySelectorAll('qmlmodule');
-            qmlModules.forEach(mod => {
-                const name = mod.getAttribute('name');
-                if (name) {
-                    modules[name] = { name, types: [] };
+                // Add to module (preserve existing brief if module was pre-created)
+                if (!modules[moduleName]) {
+                    modules[moduleName] = { name: moduleName, brief: '', types: [] };
                 }
-            });
-
-            // Group types by module (for now, all go to Clayground.Common)
-            if (!modules['Clayground.Common']) {
-                modules['Clayground.Common'] = { name: 'Clayground.Common', types: [] };
-            }
-            types.forEach(type => {
-                modules['Clayground.Common'].types.push(type);
+                modules[moduleName].types.push(type);
             });
 
             return { modules, types };
@@ -243,30 +294,39 @@
         function renderNavigation(data) {
             let html = '<div class="nav-home"><a href="#" onclick="showWelcome(); return false;">⌂ Overview</a></div>';
 
-            Object.values(data.modules).forEach(module => {
+            // Sort modules alphabetically
+            const sortedModules = Object.values(data.modules).sort((a, b) => a.name.localeCompare(b.name));
+
+            sortedModules.forEach(module => {
+                const displayName = module.name.replace('Clayground.', '');
+                const briefHtml = module.brief ? `<li class="nav-module-brief">${module.brief}</li>` : '';
                 html += `
                     <div class="nav-module" data-module="${module.name}">
-                        <div class="nav-module-header" onclick="toggleModule(this)">
-                            <span class="nav-toggle">▼</span>
-                            <span class="nav-module-name">${module.name}</span>
+                        <div class="nav-module-header">
+                            <span class="nav-toggle" onclick="toggleModule(this)">▼</span>
+                            <a href="#" class="nav-module-link" onclick="loadModuleReadme('${displayName}', event)">${displayName}</a>
                         </div>
                         <ul class="nav-types">
+                            ${briefHtml}
                 `;
 
                 module.types.forEach(type => {
-                    html += `
-                        <li class="nav-type" data-name="${type.name.toLowerCase()}">
-                            <a href="${type.href}" class="nav-type-link" onclick="loadInFrame('${type.href}', event, '${type.name}')">
-                                <span class="nav-type-name">${type.name}</span>
-                            </a>
-                            <ul class="nav-members">
-                    `;
+                    const hasMembers = type.properties.length > 0 || type.methods.length > 0 || type.signals.length > 0;
+                    html += `<li class="nav-type${hasMembers ? ' collapsed' : ''}" data-name="${type.name.toLowerCase()}">`;
+                    html += `<div class="nav-type-header">`;
+                    if (hasMembers) {
+                        html += `<span class="nav-type-toggle" onclick="toggleTypeMembers(this)">▶</span>`;
+                    }
+                    html += `<a href="${type.href}" class="nav-type-link" onclick="loadInFrame('${type.href}', event, '${type.name}', '${module.name}')">`;
+                    html += `<span class="nav-type-name">${type.name}</span>`;
+                    html += `</a></div>`;
+                    html += `<ul class="nav-members">`;
 
                     if (type.properties.length > 0) {
                         html += `<li class="nav-category">Properties</li>`;
                         type.properties.forEach(prop => {
                             html += `<li class="nav-member nav-property" data-name="${prop.name.toLowerCase()}">
-                                <a href="${prop.href}" onclick="loadInFrame('${prop.href}', event, '${type.name}')">${prop.name}</a>
+                                <a href="${prop.href}" onclick="loadInFrame('${prop.href}', event, '${type.name}', '${module.name}')">${prop.name}</a>
                             </li>`;
                         });
                     }
@@ -275,7 +335,7 @@
                         html += `<li class="nav-category">Methods</li>`;
                         type.methods.forEach(method => {
                             html += `<li class="nav-member nav-method" data-name="${method.name.toLowerCase()}">
-                                <a href="${method.href}" onclick="loadInFrame('${method.href}', event, '${type.name}')">${method.name}()</a>
+                                <a href="${method.href}" onclick="loadInFrame('${method.href}', event, '${type.name}', '${module.name}')">${method.name}()</a>
                             </li>`;
                         });
                     }
@@ -284,7 +344,7 @@
                         html += `<li class="nav-category">Signals</li>`;
                         type.signals.forEach(signal => {
                             html += `<li class="nav-member nav-signal" data-name="${signal.name.toLowerCase()}">
-                                <a href="${signal.href}" onclick="loadInFrame('${signal.href}', event, '${type.name}')">${signal.name}</a>
+                                <a href="${signal.href}" onclick="loadInFrame('${signal.href}', event, '${type.name}', '${module.name}')">${signal.name}</a>
                             </li>`;
                         });
                     }
@@ -302,14 +362,18 @@
         function renderModulesOverview(data) {
             let html = '';
 
-            Object.values(data.modules).forEach(module => {
+            // Sort modules alphabetically
+            const sortedModules = Object.values(data.modules).sort((a, b) => a.name.localeCompare(b.name));
+
+            sortedModules.forEach(module => {
+                const displayName = module.name.replace('Clayground.', '');
                 html += `<div class="module-card">
-                    <h3>${module.name}</h3>
+                    <h3>${displayName}</h3>
                     <ul class="type-list">`;
 
                 module.types.forEach(type => {
                     html += `<li>
-                        <a href="${type.href}" onclick="loadInFrame('${type.href}', event, '${type.name}')"><strong>${type.name}</strong></a>
+                        <a href="${type.href}" onclick="loadInFrame('${type.href}', event, '${type.name}', '${module.name}')"><strong>${type.name}</strong></a>
                         <span class="type-brief"> - ${type.brief}</span>
                     </li>`;
                 });
@@ -321,11 +385,29 @@
         }
 
         // Toggle module expansion
-        window.toggleModule = function(header) {
-            const module = header.parentElement;
+        window.toggleModule = function(toggle) {
+            const module = toggle.closest('.nav-module');
             module.classList.toggle('collapsed');
-            const toggle = header.querySelector('.nav-toggle');
             toggle.textContent = module.classList.contains('collapsed') ? '▶' : '▼';
+        };
+
+        // Load module README content
+        window.loadModuleReadme = function(moduleName, event) {
+            event.preventDefault();
+            const readmePath = `readme/${moduleName.toLowerCase()}.html`;
+            welcomeContent.classList.add('hidden');
+            docFrame.classList.remove('hidden');
+            docFrame.removeAttribute('srcdoc');
+            docFrame.src = readmePath;
+            updateBreadcrumb({ module: 'Clayground.' + moduleName });
+            history.pushState(null, '', '#module-' + moduleName.toLowerCase());
+        };
+
+        // Toggle type members expansion
+        window.toggleTypeMembers = function(toggle) {
+            const type = toggle.closest('.nav-type');
+            type.classList.toggle('collapsed');
+            toggle.textContent = type.classList.contains('collapsed') ? '▶' : '▼';
         };
 
         // Search/filter functionality
@@ -333,9 +415,18 @@
             const query = this.value.toLowerCase().trim();
 
             if (!query) {
-                // Show all
+                // Show all and reset to collapsed state
                 document.querySelectorAll('.nav-module').forEach(m => m.classList.remove('collapsed', 'hidden'));
-                document.querySelectorAll('.nav-type, .nav-member').forEach(el => el.classList.remove('hidden'));
+                document.querySelectorAll('.nav-type').forEach(el => {
+                    el.classList.remove('hidden');
+                    // Reset types to collapsed if they have members
+                    const toggle = el.querySelector('.nav-type-toggle');
+                    if (toggle) {
+                        el.classList.add('collapsed');
+                        toggle.textContent = '▶';
+                    }
+                });
+                document.querySelectorAll('.nav-member').forEach(el => el.classList.remove('hidden'));
                 document.querySelectorAll('.nav-toggle').forEach(t => t.textContent = '▼');
                 return;
             }
@@ -356,6 +447,13 @@
                 });
 
                 typeEl.classList.toggle('hidden', !typeMatches && !anyMemberMatches);
+
+                // Auto-expand types when members match
+                const typeToggle = typeEl.querySelector('.nav-type-toggle');
+                if (typeToggle && (anyMemberMatches || typeMatches)) {
+                    typeEl.classList.remove('collapsed');
+                    typeToggle.textContent = '▼';
+                }
             });
 
             // Show/hide modules based on visible types
@@ -376,6 +474,38 @@
                 loadInFrame(href, null, type ? type.name : null);
             } else {
                 showWelcome();
+            }
+        });
+
+        // Handle iframe navigation (for "see also" links within docs)
+        docFrame.addEventListener('load', function() {
+            if (!docFrame.src || docFrame.src === 'about:blank') return;
+
+            try {
+                // Get the loaded URL path
+                const url = new URL(docFrame.src, window.location.origin);
+                const filename = url.pathname.split('/').pop();
+
+                // Skip README pages (they're handled by loadModuleReadme)
+                if (filename.endsWith('.html') && !url.pathname.includes('/readme/')) {
+                    // Parse type info from filename: qml-clayground-canvas3d-box3d.html
+                    const match = filename.match(/^qml-(.+?)\.html$/);
+                    if (match && apiData) {
+                        const pathParts = match[1].split('-');
+                        // Find matching type in apiData
+                        for (const type of apiData.types) {
+                            const typeHref = type.href.replace('.html', '').replace('qml-', '');
+                            if (typeHref === match[1] || typeHref.split('#')[0] === match[1]) {
+                                updateBreadcrumb({ type: type.name, module: type.module });
+                                // Update URL hash
+                                history.replaceState(null, '', '#' + match[1]);
+                                return;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignore cross-origin or parsing errors
             }
         });
 
