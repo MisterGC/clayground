@@ -16,7 +16,15 @@ This folder contains the Jekyll-based documentation site for Clayground, designe
    export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
    ```
 
-### Running Locally
+3. Qt 6.x with QDoc (for API documentation):
+   ```bash
+   # QDoc is included with Qt desktop installation
+   # Verify: ~/Qt/6.x.x/macos/bin/qdoc --version
+   ```
+
+### Running Locally (Jekyll Only)
+
+For quick iteration on Jekyll content (without API docs rebuild):
 
 1. Install dependencies:
    ```bash
@@ -36,6 +44,46 @@ This folder contains the Jekyll-based documentation site for Clayground, designe
    ```
 
 3. Visit http://localhost:4000/clayground/
+
+### Building Complete Website (with API Docs)
+
+For full website including API documentation:
+
+1. Build API documentation:
+   ```bash
+   # From project root (requires desktop Qt)
+   cmake -B build
+   cmake --build build --target docs
+   ```
+
+2. Build Jekyll site + copy API docs:
+   ```bash
+   cd docs
+   ./sync-plugin-docs.sh
+   bundle exec jekyll build
+   cp -r api _site/
+   ```
+
+3. Serve locally:
+   ```bash
+   cd _site && python3 -m http.server 8000
+   # Visit http://localhost:8000/
+   ```
+
+### Full Website Build (WASM + API + Jekyll)
+
+For complete production-like build with WASM demos:
+
+```bash
+# Configure with WASM Qt
+~/Qt/6.x.x/wasm_multithread/bin/qt-cmake -B build -DCLAY_BUILD_WEBSITE=ON .
+
+# Build everything (requires desktop Qt for QDoc)
+cmake --build build --target website-dev
+
+# Serve
+cd docs/_site && python3 -m http.server 8000
+```
 
 ## Structure
 
@@ -82,3 +130,28 @@ The site uses a custom retro gaming theme built on top of Jekyll's minima theme.
 - Monospace headers
 - Terminal-style code blocks
 - Subtle scanline effects
+
+## QML Documentation Guidelines
+
+For properties, methods, and signals to appear in the API navigation sidebar, they must be documented **inline** before each declaration.
+
+**Correct (inline before property):**
+```qml
+/*!
+    \qmlproperty string MyType::name
+    \brief The name of the item.
+*/
+property string name: ""
+```
+
+**Wrong (in header block - won't appear in navigation):**
+```qml
+/*!
+    \qmltype MyType
+    \qmlproperty string MyType::name
+    \brief The name of the item.
+*/
+Item { ... }
+```
+
+See `CLAUDE.md` for complete documentation recipe and `plugins/clay_canvas3d/Box3D.qml` as reference.
