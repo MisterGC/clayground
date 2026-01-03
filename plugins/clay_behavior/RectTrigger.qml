@@ -1,5 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import Box2D
+import Clayground.Physics
+
 /*!
     \qmltype RectTrigger
     \inqmlmodule Clayground.Behavior
@@ -28,23 +32,19 @@
         }
     }
     \endqml
-
-    \qmlsignal RectTrigger::entered(var entity)
-    \brief Emitted when a physics entity enters the trigger area.
-
-    \a entity The physics body that entered the trigger.
 */
-
-import QtQuick
-import Box2D
-import Clayground.Physics
-
 RectBoxBody
 {
     bodyType: Body.Dynamic
     sensor: true
     visible: false
 
+    /*!
+        \qmlsignal RectTrigger::entered(var entity)
+        \brief Emitted when a physics entity enters the trigger area.
+
+        \a entity The physics body that entered the trigger.
+    */
     signal entered(var entity)
 
     Component.onCompleted: PhysicsUtils.connectOnEntered(fixtures[0], _onEntered)

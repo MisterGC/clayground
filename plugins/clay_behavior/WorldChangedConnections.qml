@@ -1,5 +1,8 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import Clayground.World
+
 /*!
     \qmltype WorldChangedConnections
     \inqmlmodule Clayground.Behavior
@@ -27,22 +30,21 @@
         }
     }
     \endqml
-
-    \qmlproperty ClayWorld2d WorldChangedConnections::world
-    \brief The world to monitor for changes (required).
-
-    \qmlproperty var WorldChangedConnections::callback
-    \brief Function to call when world properties change (required).
-
-    The callback is invoked when pixelPerUnit or world bounds
-    (xWuMin, xWuMax, yWuMin, yWuMax) change.
 */
-
-import QtQuick
-import Clayground.World
-
 Connections{
+    /*!
+        \qmlproperty var WorldChangedConnections::callback
+        \brief Function to call when world properties change (required).
+
+        The callback is invoked when pixelPerUnit or world bounds
+        (xWuMin, xWuMax, yWuMin, yWuMax) change.
+    */
     required property var callback
+
+    /*!
+        \qmlproperty ClayWorld2d WorldChangedConnections::world
+        \brief The world to monitor for changes (required).
+    */
     required property ClayWorld2d world
     target: world
     function onPixelPerUnitChanged(){callback()}

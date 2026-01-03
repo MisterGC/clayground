@@ -1,5 +1,13 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import QtQuick.Shapes
+import QtQuick.Controls
+import Box2D
+import Clayground.Physics
+import Clayground.Canvas as Canv
+import Clayground.World
+
 /*!
     \qmltype MoveTo
     \inqmlmodule Clayground.Behavior
@@ -26,43 +34,7 @@
         }
     }
     \endqml
-
-    \qmlproperty ClayWorld2d MoveTo::world
-    \brief The world context (required).
-
-    \qmlproperty var MoveTo::actor
-    \brief The entity to move (defaults to parent).
-
-    \qmlproperty bool MoveTo::running
-    \brief Whether movement is active.
-
-    \qmlproperty real MoveTo::destXWu
-    \brief Destination X coordinate in world units.
-
-    \qmlproperty real MoveTo::destYWu
-    \brief Destination Y coordinate in world units.
-
-    \qmlproperty real MoveTo::desiredSpeed
-    \brief Movement speed in world units per second (default: 2).
-
-    \qmlproperty bool MoveTo::debug
-    \brief Show debug visualization of destination.
-
-    \qmlproperty color MoveTo::debugColor
-    \brief Color for debug visualization (default: "lightblue").
-
-    \qmlsignal MoveTo::arrived()
-    \brief Emitted when the actor reaches the destination.
 */
-
-import QtQuick
-import QtQuick.Shapes
-import QtQuick.Controls
-import Box2D
-import Clayground.Physics
-import Clayground.Canvas as Canv
-import Clayground.World
-
 Rectangle {
     id: behavior
 
@@ -71,14 +43,41 @@ Rectangle {
     height: width
     visible: debug
 
+    /*!
+        \qmlproperty ClayWorld2d MoveTo::world
+        \brief The world context (required).
+    */
     required property ClayWorld2d world
+
+    /*!
+        \qmlproperty var MoveTo::actor
+        \brief The entity to move (defaults to parent).
+    */
     property var actor: parent
+
+    /*!
+        \qmlproperty bool MoveTo::running
+        \brief Whether movement is active.
+    */
     property alias running: _veloAdaptor.running
     onRunningChanged: _adaptVelocity()
 
+    /*!
+        \qmlproperty real MoveTo::destXWu
+        \brief Destination X coordinate in world units.
+    */
     property real destXWu: 0
+
+    /*!
+        \qmlproperty real MoveTo::destYWu
+        \brief Destination Y coordinate in world units.
+    */
     property real destYWu: 0
 
+    /*!
+        \qmlproperty real MoveTo::desiredSpeed
+        \brief Movement speed in world units per second (default: 2).
+    */
     property real desiredSpeed: 2
     property var _destWp: null
     property var _detector: null
@@ -86,6 +85,10 @@ Rectangle {
     readonly property int _collCatWpDetect: Box.Category15
     readonly property int _collCatWp: Box.Category16
 
+    /*!
+        \qmlsignal MoveTo::arrived()
+        \brief Emitted when the actor reaches the destination.
+    */
     signal arrived();
 
     WorldChangedConnections { world: behavior.world; callback: behavior._adaptConfiguration}
@@ -94,7 +97,16 @@ Rectangle {
     onDestYWuChanged: _adaptConfiguration()
     onActorChanged: { if (!actor) return; _adaptConfiguration(); }
 
+    /*!
+        \qmlproperty bool MoveTo::debug
+        \brief Show debug visualization of destination.
+    */
     property bool debug: false
+
+    /*!
+        \qmlproperty color MoveTo::debugColor
+        \brief Color for debug visualization (default: "lightblue").
+    */
     property color debugColor: "lightblue"
     Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .8;  color: behavior.debugColor; strokeWidth: 5}}
     Loader {sourceComponent: debug ? connector : null}

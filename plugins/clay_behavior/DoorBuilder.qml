@@ -1,8 +1,14 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import Clayground.Physics
+import Clayground.World
+import Box2D
+
 /*!
     \qmltype DoorBuilder
     \inqmlmodule Clayground.Behavior
+    \internal
     \brief Creates automated doors with switches from map data.
 
     DoorBuilder is a specialized factory that constructs door systems from
@@ -29,23 +35,18 @@
         }
     }
     \endqml
-
-    \qmlproperty ClayWorld2d DoorBuilder::world
-    \brief The world context for door creation (required).
-
-    The DoorBuilder registers Door and DoorOpener components with this
-    world and listens for map loading events.
 */
-
-import QtQuick
-import Clayground.Physics
-import Clayground.World
-import Box2D
-
 Item
 {
     id: builder
 
+    /*!
+        \qmlproperty ClayWorld2d DoorBuilder::world
+        \brief The world context for door creation (required).
+
+        The DoorBuilder registers Door and DoorOpener components with this
+        world and listens for map loading events.
+    */
     required property ClayWorld2d world
 
     // Build a more complex object (automated door) based on groups in the map

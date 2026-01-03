@@ -1,5 +1,10 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+import QtQuick
+import Clayground.World
+import Clayground.Canvas as Canv
+import QtQuick.Shapes
+
 /*!
     \qmltype FollowPath
     \inqmlmodule Clayground.Behavior
@@ -31,54 +36,64 @@
     }
     \endqml
 
-    \qmlproperty ClayWorld2d FollowPath::world
-    \brief The world context (required).
-
-    \qmlproperty var FollowPath::actor
-    \brief The entity to move (defaults to parent).
-
-    \qmlproperty var FollowPath::wpsWu
-    \brief Array of waypoints in world units.
-
-    Each waypoint should be a Qt.point(x, y) object.
-
-    \qmlproperty bool FollowPath::running
-    \brief Whether path following is active.
-
-    \qmlproperty bool FollowPath::repeat
-    \brief Loop back to the first waypoint when path completes.
-
-    \qmlproperty bool FollowPath::debug
-    \brief Show debug visualization of waypoints and path.
-
-    \qmlproperty color FollowPath::debugColor
-    \brief Color for debug visualization.
-
-    \qmlsignal FollowPath::arrived()
-    \brief Emitted when the actor completes the path (when repeat is false).
+    \sa MoveTo
 */
-
-import QtQuick
-import Clayground.World
-import Clayground.Canvas as Canv
-import QtQuick.Shapes
-
 Item
 {
     id: behavior
 
+    /*!
+        \qmlproperty ClayWorld2d FollowPath::world
+        \brief The world context (required).
+    */
     required property ClayWorld2d world
+
+    /*!
+        \qmlproperty var FollowPath::actor
+        \brief The entity to move (defaults to parent).
+    */
     property var actor: parent
+
+    /*!
+        \qmlproperty list FollowPath::wpsWu
+        \brief Array of waypoints in world units.
+
+        Each waypoint should be a Qt.point(x, y) object.
+    */
     property var wpsWu: []
+
     property int _currentWpIndex: -1
+
+    /*!
+        \qmlproperty bool FollowPath::running
+        \brief Whether path following is active.
+    */
     property alias running: _moveto.running
+
+    /*!
+        \qmlproperty bool FollowPath::repeat
+        \brief Loop back to the first waypoint when path completes.
+    */
     property bool repeat: false
 
+    /*!
+        \qmlsignal FollowPath::arrived()
+        \brief Emitted when the actor completes the path (when repeat is false).
+    */
     signal arrived()
 
     onWpsWuChanged: _currentWpIndex = wpsWu.length > 0 ? 0 : -1
 
+    /*!
+        \qmlproperty bool FollowPath::debug
+        \brief Show debug visualization of waypoints and path.
+    */
     property alias debug: _moveto.debug
+
+    /*!
+        \qmlproperty color FollowPath::debugColor
+        \brief Color for debug visualization.
+    */
     property alias debugColor: _moveto.debugColor
 
     Component {
