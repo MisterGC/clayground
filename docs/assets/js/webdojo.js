@@ -163,6 +163,7 @@ let editor = null;
 let webDojoModule = null;
 let autoReloadEnabled = true;
 let reloadDebounceTimer = null;
+let vimMode = null;
 
 // Initialize Monaco Editor
 async function initEditor() {
@@ -172,39 +173,58 @@ async function initEditor() {
         });
 
         require(['vs/editor/editor.main'], function() {
-            // Register QML language (from qml-language.js)
-            if (window.registerQmlLanguage) {
-                window.registerQmlLanguage(monaco);
-            }
-            if (window.createQmlTheme) {
-                window.createQmlTheme(monaco);
-            }
+            // Load monaco-vim after Monaco is ready
+            // Temporarily hide AMD to force global export (UMD pattern)
+            const savedDefine = window.define;
+            window.define = undefined;
 
-            editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: examples['voxelworld'],
-                language: 'qml',
-                theme: 'clayground-dark',
-                fontSize: 14,
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                minimap: { enabled: false },
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                tabSize: 4,
-                insertSpaces: true,
-                wordWrap: 'on'
-            });
-
-            // Auto-reload on change
-            editor.onDidChangeModelContent(() => {
-                if (!autoReloadEnabled) return;
-                clearTimeout(reloadDebounceTimer);
-                reloadDebounceTimer = setTimeout(runQml, 500);
-            });
-
-            resolve();
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/monaco-vim@0.4.2/dist/monaco-vim.min.js';
+            script.onload = () => {
+                window.define = savedDefine; // Restore AMD
+                initEditorWithVim(resolve);
+            };
+            script.onerror = () => {
+                window.define = savedDefine; // Restore AMD
+                initEditorWithVim(resolve); // Continue without vim
+            };
+            document.head.appendChild(script);
         });
     });
+}
+
+function initEditorWithVim(resolve) {
+    // Register QML language (from qml-language.js)
+    if (window.registerQmlLanguage) {
+        window.registerQmlLanguage(monaco);
+    }
+    if (window.createQmlTheme) {
+        window.createQmlTheme(monaco);
+    }
+
+    editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: examples['voxelworld'],
+        language: 'qml',
+        theme: 'clayground-dark',
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        minimap: { enabled: false },
+        lineNumbers: 'on',
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 4,
+        insertSpaces: true,
+        wordWrap: 'on'
+    });
+
+    // Auto-reload on change
+    editor.onDidChangeModelContent(() => {
+        if (!autoReloadEnabled) return;
+        clearTimeout(reloadDebounceTimer);
+        reloadDebounceTimer = setTimeout(runQml, 500);
+    });
+
+    resolve();
 }
 
 // Initialize WebDojo WASM module using Qt's qtloader
@@ -309,6 +329,38 @@ function setupEventHandlers() {
         autoReloadCheckbox.addEventListener('change', (e) => {
             autoReloadEnabled = e.target.checked;
         });
+    }
+
+    // Vim mode toggle
+    const vimModeCheckbox = document.getElementById('vim-mode');
+    const vimStatusBar = document.getElementById('vim-status-bar');
+    if (vimModeCheckbox && vimStatusBar) {
+        vimModeCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (typeof MonacoVim !== 'undefined' && editor) {
+                    vimMode = MonacoVim.initVimMode(editor, vimStatusBar);
+                }
+            } else {
+                if (vimMode) {
+                    vimMode.dispose();
+                    vimMode = null;
+                }
+                vimStatusBar.textContent = '';
+            }
+            localStorage.setItem('webdojo-vim-mode', e.target.checked);
+        });
+
+        // Restore saved preference
+        const savedVimMode = localStorage.getItem('webdojo-vim-mode') === 'true';
+        if (savedVimMode) {
+            vimModeCheckbox.checked = true;
+            // Defer vim init until editor is ready
+            setTimeout(() => {
+                if (typeof MonacoVim !== 'undefined' && editor) {
+                    vimMode = MonacoVim.initVimMode(editor, vimStatusBar);
+                }
+            }, 100);
+        }
     }
 
     // Run button

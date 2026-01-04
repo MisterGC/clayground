@@ -111,7 +111,14 @@
     border-top: 1px solid var(--border-color);
 }
 
-.auto-reload-label {
+.editor-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.auto-reload-label,
+.vim-mode-label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -120,11 +127,19 @@
     cursor: pointer;
 }
 
-.auto-reload-label input[type="checkbox"] {
+.auto-reload-label input[type="checkbox"],
+.vim-mode-label input[type="checkbox"] {
     width: 1rem;
     height: 1rem;
     accent-color: var(--accent-highlight);
     cursor: pointer;
+}
+
+.vim-status-bar {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-primary);
+    min-width: 80px;
 }
 
 .run-button {

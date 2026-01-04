@@ -26,10 +26,17 @@ permalink: /webdojo/
     <div id="editor-pane" class="editor-pane">
         <div id="editor-container"></div>
         <div class="editor-controls">
-            <label class="auto-reload-label">
-                <input type="checkbox" id="auto-reload" checked>
-                Auto-reload
-            </label>
+            <div class="editor-controls-left">
+                <label class="auto-reload-label">
+                    <input type="checkbox" id="auto-reload" checked>
+                    Auto-reload
+                </label>
+                <label class="vim-mode-label">
+                    <input type="checkbox" id="vim-mode">
+                    Vim
+                </label>
+                <span id="vim-status-bar" class="vim-status-bar"></span>
+            </div>
             <button id="run-button" class="run-button">▶ Run</button>
         </div>
     </div>
