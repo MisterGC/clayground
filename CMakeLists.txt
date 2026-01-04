@@ -107,6 +107,12 @@ endif()
 # WEBSITE BUILD
 # ================
 
+# WebDojo is only built for WASM website builds
+# (tools/ is excluded from WASM, so we add webdojo separately)
+if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
+    add_subdirectory(tools/webdojo)
+endif()
+
 # Create website target after all demos are registered
 if(CLAY_BUILD_WEBSITE)
     clay_website_create_target()
