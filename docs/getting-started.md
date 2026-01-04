@@ -234,7 +234,7 @@ Start with these essential plugins:
 
 ## Getting Help
 
-- Check the [plugin documentation]({{ site.baseurl }}/plugins/)
+- Check the [Features documentation]({{ site.baseurl }}/features/)
 - Look at example implementations
 - File issues on [GitHub](https://github.com/mistergc/clayground/issues)
 - Join the community discussions
