@@ -1,7 +1,40 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
-// Clayground Playground - Monaco editor + WebDojo WASM integration
+// Clayground Web Dojo - Monaco editor + WebDojo WASM integration
 //
+
+// Intercept console to forward Qt/QML messages to HTML console
+const originalConsole = {
+    log: console.log.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console)
+};
+
+console.log = function(...args) {
+    originalConsole.log.apply(console, args);
+    const msg = args.join(' ');
+    // Forward Qt messages (qml: prefix) and user console.log
+    if (msg.includes('qml:') || msg.includes('js:')) {
+        logToConsole(msg.replace(/^qml:\s*/, '').replace(/^js:\s*/, ''), 'log');
+    }
+};
+
+console.warn = function(...args) {
+    originalConsole.warn.apply(console, args);
+    const msg = args.join(' ');
+    if (msg.includes('qml:') || msg.includes('js:')) {
+        logToConsole(msg.replace(/^qml:\s*/, '').replace(/^js:\s*/, ''), 'warning');
+    }
+};
+
+console.error = function(...args) {
+    originalConsole.error.apply(console, args);
+    const msg = args.join(' ');
+    // Forward all errors and Qt messages
+    if (msg.includes('qml:') || msg.includes('js:') || msg.includes('Error')) {
+        logToConsole(msg.replace(/^qml:\s*/, '').replace(/^js:\s*/, ''), 'error');
+    }
+};
 
 // Example QML templates
 const examples = {
@@ -241,6 +274,7 @@ function runQml() {
     } catch (error) {
         logToConsole(`Error: ${error}`, 'error');
     }
+    editor.focus();
 }
 
 // Console logging

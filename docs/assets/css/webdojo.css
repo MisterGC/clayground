@@ -1,63 +1,93 @@
 /* (c) Clayground Contributors - MIT License, see "LICENSE" file */
-/* Clayground Playground styles */
+/* Clayground Web Dojo styles */
 
-.playground-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.playground-header h1 {
-    color: var(--accent-primary);
-    margin-bottom: 0.5rem;
-}
-
-.playground-header p {
-    color: var(--text-secondary);
+/* Fullscreen layout - fill viewport */
+.fullscreen-layout {
     margin: 0;
+    padding: 0;
+    background: var(--bg-dark, #0d1117);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-.playground-controls-top {
+.fullscreen-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Header bar with logo and controls */
+.webdojo-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    margin-bottom: 0;
-    padding: 1rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px 8px 0 0;
-}
-
-.playground-controls-top label {
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.playground-controls-top select {
-    flex: 1;
-    max-width: 300px;
+    justify-content: space-between;
     padding: 0.5rem 1rem;
-    background: var(--bg-dark);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background: var(--bg-secondary, #161b22);
+    border-bottom: 1px solid var(--border-color, #30363d);
+    flex-shrink: 0;
+}
+
+.webdojo-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text-primary, #e6edf3);
+}
+
+.webdojo-brand:hover {
+    opacity: 0.9;
+}
+
+.webdojo-logo {
+    height: 28px;
+    width: auto;
+}
+
+.webdojo-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-primary, #00d9ff);
+}
+
+.webdojo-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.webdojo-controls label {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.85rem;
+}
+
+.webdojo-controls select {
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
 }
 
-.playground-controls-top select:focus {
+.webdojo-controls select:focus {
     outline: none;
-    border-color: var(--accent-primary);
+    border-color: var(--accent-primary, #00d9ff);
 }
 
+/* Main container - fills remaining viewport */
 .playground-container {
     display: flex;
-    height: 550px;
-    border: 1px solid var(--border-color);
-    border-top: none;
-    border-radius: 0 0 8px 8px;
+    flex: 1;
+    min-height: 0;
+    border: none;
     overflow: hidden;
-    background: var(--bg-card);
+    background: var(--bg-card, #161b22);
 }
 
 .editor-pane {
@@ -199,37 +229,29 @@
     border-color: var(--accent-primary);
 }
 
-/* Console */
+/* Console - integrated below main container */
 .console-container {
-    margin-top: 1rem;
-    background: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    background: var(--bg-dark, #0d1117);
+    border-top: 1px solid var(--border-color, #30363d);
     overflow: hidden;
+    flex-shrink: 0;
 }
 
-.console-header {
+.console-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
+    justify-content: flex-end;
+    padding: 0.25rem 0.5rem;
     background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.console-header span {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 500;
 }
 
 .clear-console {
-    padding: 0.25rem 0.75rem;
+    padding: 0.15rem 0.5rem;
     background: transparent;
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 0.75rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -240,12 +262,12 @@
 }
 
 #console-output {
-    height: 120px;
+    height: 100px;
     overflow-y: auto;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    line-height: 1.5;
+    font-size: 0.75rem;
+    line-height: 1.4;
 }
 
 .console-line {
@@ -254,6 +276,10 @@
 
 .console-line.error {
     color: var(--accent-secondary);
+}
+
+.console-line.warning {
+    color: #f0ad4e;
 }
 
 .console-line.success {
@@ -343,24 +369,31 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .webdojo-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+
+    .webdojo-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
     .playground-container {
         flex-direction: column;
-        height: auto;
     }
 
     .editor-pane,
     .canvas-pane {
         min-width: 100%;
-        height: 350px;
+        flex: 1;
+        min-height: 250px;
     }
 
     .divider {
         width: 100%;
         height: 4px;
         cursor: row-resize;
-    }
-
-    .playground-controls-top {
-        flex-wrap: wrap;
     }
 }
