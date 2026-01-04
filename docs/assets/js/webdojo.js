@@ -397,10 +397,20 @@ function setupResizableDivider() {
     const divider = document.getElementById('divider');
     const container = document.getElementById('playground-container');
     const editorPane = document.getElementById('editor-pane');
+    const canvasContainer = document.getElementById('webdojo-container');
 
     if (!divider || !container || !editorPane) return;
 
     let isResizing = false;
+
+    // Notify Qt WASM of size changes via ResizeObserver
+    if (canvasContainer && typeof ResizeObserver !== 'undefined') {
+        const resizeObserver = new ResizeObserver(() => {
+            // Dispatch resize event to trigger Qt's resize handling
+            window.dispatchEvent(new Event('resize'));
+        });
+        resizeObserver.observe(canvasContainer);
+    }
 
     divider.addEventListener('mousedown', (e) => {
         isResizing = true;
