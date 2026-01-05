@@ -67,6 +67,7 @@ jobs:
           arch: linux_gcc_64
           set-env: false
           cache: true
+          dir: ${{ runner.temp }}/qt-desktop
 
       - name: Install Qt (WASM)
         uses: jurplel/install-qt-action@v4
@@ -93,7 +94,7 @@ jobs:
       - name: Configure CMake
         run: |
           # QT_HOST_PATH points to desktop Qt for host tools like QDoc
-          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON -DQT_HOST_PATH="${{ runner.temp }}/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
+          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
 
       - name: Build Website
         run: cmake --build build --target website
