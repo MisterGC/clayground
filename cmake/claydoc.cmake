@@ -81,7 +81,7 @@ function(clay_docs)
         COMMAND sh -c "cp '${TEMP_OUTPUT_DIR}'/qml-*.html '${OUTPUT_DIR}/' 2>/dev/null || true"
         # Generate README HTML files for each plugin using external script
         COMMAND ${CMAKE_COMMAND} -E make_directory "${README_OUTPUT_DIR}"
-        COMMAND bash "${OUTPUT_DIR}/readme/convert-readmes.sh"
+        COMMAND bash "${CMAKE_SOURCE_DIR}/docs/convert-readmes.sh"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/docs"
         COMMENT "Generating API documentation with QDoc..."
         VERBATIM
