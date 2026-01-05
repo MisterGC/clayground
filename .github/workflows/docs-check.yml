@@ -57,7 +57,7 @@ jobs:
         with:
           version: ${{ env.EMSDK_VERSION }}
 
-      - name: Install Qt (Desktop - for QDoc)
+      - name: Install Qt (Desktop - for QDoc and host tools)
         id: qt-desktop
         uses: jurplel/install-qt-action@v4
         with:
@@ -65,6 +65,7 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
+          modules: ${{ env.QT_MODULES }}
           set-env: false
           cache: true
           dir: ${{ runner.temp }}/qt-desktop
