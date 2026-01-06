@@ -54,6 +54,8 @@ permalink: /webdojo/
     </div>
 </div>
 
+<div class="divider-horizontal" id="divider-console"></div>
+
 <div id="console-container" class="console-container">
     <div class="console-bar">
         <button id="clear-console" class="clear-console">Clear</button>

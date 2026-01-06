@@ -253,6 +253,22 @@ async function initWebDojo() {
                         loadingOverlay.classList.add('hidden');
                     }
                     logToConsole('WebDojo initialized successfully', 'success');
+
+                    // Fix Qt WASM keyboard focus (QTBUG-91095)
+                    // Refocus the hidden input element after pointer interactions
+                    setTimeout(() => {
+                        // Find the Qt div (has shadowRoot), not the loading overlay
+                        const qtDiv = Array.from(container.querySelectorAll('div')).find(div => div.shadowRoot);
+                        if (!qtDiv) {
+                            console.warn('Qt WASM focus fix: Could not find Qt div with shadowRoot');
+                            return;
+                        }
+                        const qtInput = qtDiv.shadowRoot.querySelector('input.qt-window-input-element');
+                        if (qtInput) {
+                            container.addEventListener('pointerup', () => qtInput.focus(), true);
+                        }
+                    }, 100);
+
                     // Load initial example after Qt is ready
                     setTimeout(runQml, 100);
                 },
@@ -279,6 +295,10 @@ async function initWebDojo() {
 function runQml() {
     if (!webDojoModule || !editor) return;
 
+    // Save focus state BEFORE loadQml (it may change focus)
+    const editorContainer = document.getElementById('editor-container');
+    const editorHadFocus = editorContainer?.contains(document.activeElement);
+
     const code = editor.getValue();
     try {
         // Try embind first, then ccall, then global function
@@ -294,7 +314,10 @@ function runQml() {
     } catch (error) {
         logToConsole(`Error: ${error}`, 'error');
     }
-    editor.focus();
+    // Restore editor focus if it had focus before reload
+    if (editorHadFocus) {
+        editor.focus();
+    }
 }
 
 // Console logging
@@ -384,13 +407,19 @@ function setupEventHandlers() {
         fullscreenBtn.addEventListener('click', () => {
             const container = document.getElementById('webdojo-container');
             if (container && container.requestFullscreen) {
-                container.requestFullscreen();
+                container.requestFullscreen().then(() => {
+                    // Focus Qt's input element after entering fullscreen (QTBUG-91095)
+                    const qtDiv = container.querySelector('div');
+                    const qtInput = qtDiv?.shadowRoot?.querySelector('input.qt-window-input-element');
+                    if (qtInput) qtInput.focus();
+                });
             }
         });
     }
 
-    // Resizable divider
+    // Resizable dividers
     setupResizableDivider();
+    setupConsoleDivider();
 }
 
 function setupResizableDivider() {
@@ -402,15 +431,7 @@ function setupResizableDivider() {
     if (!divider || !container || !editorPane) return;
 
     let isResizing = false;
-
-    // Notify Qt WASM of size changes via ResizeObserver
-    if (canvasContainer && typeof ResizeObserver !== 'undefined') {
-        const resizeObserver = new ResizeObserver(() => {
-            // Dispatch resize event to trigger Qt's resize handling
-            window.dispatchEvent(new Event('resize'));
-        });
-        resizeObserver.observe(canvasContainer);
-    }
+    let pendingWidth = null;
 
     divider.addEventListener('mousedown', (e) => {
         isResizing = true;
@@ -426,14 +447,71 @@ function setupResizableDivider() {
         const maxWidth = containerRect.width - 300;
 
         if (newWidth >= minWidth && newWidth <= maxWidth) {
+            pendingWidth = newWidth;
+            // Visual feedback during drag (no Qt resize yet)
             editorPane.style.flex = 'none';
             editorPane.style.width = `${newWidth}px`;
         }
     });
 
     document.addEventListener('mouseup', () => {
-        isResizing = false;
-        document.body.style.cursor = '';
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            // Trigger Qt resize only on release
+            if (pendingWidth !== null) {
+                window.dispatchEvent(new Event('resize'));
+                pendingWidth = null;
+            }
+        }
+    });
+}
+
+function setupConsoleDivider() {
+    const divider = document.getElementById('divider-console');
+    const playgroundContainer = document.getElementById('playground-container');
+    const consoleContainer = document.getElementById('console-container');
+
+    if (!divider || !playgroundContainer || !consoleContainer) return;
+
+    let isResizing = false;
+    let pendingHeight = null;
+
+    divider.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'row-resize';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const windowHeight = window.innerHeight;
+        const headerHeight = document.querySelector('.webdojo-header')?.offsetHeight || 0;
+
+        // Calculate new console height based on mouse position
+        const newConsoleHeight = windowHeight - e.clientY;
+        const minConsoleHeight = 50;
+        const maxConsoleHeight = windowHeight - headerHeight - 200;
+
+        if (newConsoleHeight >= minConsoleHeight && newConsoleHeight <= maxConsoleHeight) {
+            pendingHeight = newConsoleHeight;
+            // Visual feedback during drag (no Qt resize yet)
+            consoleContainer.style.height = `${newConsoleHeight}px`;
+            playgroundContainer.style.flex = 'none';
+            playgroundContainer.style.height = `calc(100vh - ${headerHeight}px - ${newConsoleHeight}px - 4px)`;
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            // Trigger Qt resize only on release
+            if (pendingHeight !== null) {
+                window.dispatchEvent(new Event('resize'));
+                pendingHeight = null;
+            }
+        }
     });
 }
 

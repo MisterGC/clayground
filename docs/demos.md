@@ -5,6 +5,7 @@ permalink: /demos/
 ---
 
 <script src="{{ site.baseurl }}/coi-serviceworker.js"></script>
+<script src="{{ site.baseurl }}/assets/js/wasm-focus.js"></script>
 <link rel="stylesheet" href="{{ site.baseurl }}/assets/css/webdojo.css">
 
 Pre-built demos showcasing Clayground's capabilities. These require multiple files or assets and run directly in your browser.
@@ -48,11 +49,8 @@ JavaScript is required to run these demos.
 </noscript>
 
 <script>
+// Use reusable wasm-focus.js module
 function loadShowcase(containerId) {
-    const container = document.getElementById(containerId);
-    const iframe = container.querySelector('iframe');
-
-    container.classList.add('active');
-    iframe.src = iframe.dataset.src;
+    initWasmShowcase(containerId);
 }
 </script>

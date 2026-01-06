@@ -175,6 +175,18 @@
     background: var(--accent-primary);
 }
 
+.divider-horizontal {
+    height: 4px;
+    background: var(--border-color);
+    cursor: row-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.divider-horizontal:hover {
+    background: var(--accent-primary);
+}
+
 .canvas-pane {
     flex: 1;
     position: relative;
