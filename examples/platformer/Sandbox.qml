@@ -16,8 +16,21 @@ ClayWorld2d
     gravity: Qt.point(0, 15*9.81)
     timeStep: 1/60.0
     anchors.fill: parent
+    focus: true
 
-    Component.onCompleted: scene = "map.svg"
+    Component.onCompleted: {
+        forceActiveFocus()
+        scene = "map.svg"
+    }
+
+    // Restore focus when clicked (for WASM embedding)
+    MouseArea {
+        anchors.fill: parent
+        onPressed: (mouse) => {
+            theWorld.forceActiveFocus()
+            mouse.accepted = false
+        }
+    }
 
     components: new Map([
                          ['Player', c1],

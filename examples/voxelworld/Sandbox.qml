@@ -8,10 +8,20 @@ import QtQuick3D.Helpers
 import Clayground.Canvas3D
 
 Item {
+    id: root
     anchors.fill: parent
     focus: true
 
     Component.onCompleted: forceActiveFocus()
+
+    // Restore focus when clicked (for WASM embedding)
+    MouseArea {
+        anchors.fill: parent
+        onPressed: (mouse) => {
+            root.forceActiveFocus()
+            mouse.accepted = false
+        }
+    }
 
     View3D {
         id: view
