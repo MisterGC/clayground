@@ -85,6 +85,48 @@ cmake --build build --target website-dev
 cd docs/_site && python3 -m http.server 8000
 ```
 
+## WASM Demo Keyboard Focus Fix
+
+Qt WASM has a known issue ([QTBUG-91095](https://bugreports.qt.io/browse/QTBUG-91095)) where keyboard input stops working after mouse clicks. This happens because Qt uses a hidden `<input>` element inside a shadow DOM to capture keyboard events, and mouse clicks move browser focus away from it.
+
+**Key insight:** `mouseup` events are captured by Qt WASM before reaching JavaScript, but `pointerup` events work!
+
+### Solution
+
+After Qt loads, find the hidden input and refocus it on every pointer interaction:
+
+```javascript
+onLoaded: () => {
+    showUi(screen);
+    // Fix Qt WASM keyboard focus (QTBUG-91095)
+    setTimeout(() => {
+        // Find the Qt div (has shadowRoot), not other divs like loading overlays
+        const qtDiv = Array.from(screen.querySelectorAll('div')).find(div => div.shadowRoot);
+        if (!qtDiv?.shadowRoot) return;
+        const qtInput = qtDiv.shadowRoot.querySelector('input.qt-window-input-element');
+        if (!qtInput) return;
+        screen.addEventListener('pointerup', () => qtInput.focus(), true);
+    }, 100);
+},
+```
+
+### Reusable Module
+
+For convenience, use `assets/js/wasm-focus.js`:
+
+```javascript
+// Direct embedding
+onLoaded: () => {
+    showUi(screen);
+    applyQtWasmFocusFix(screen);
+},
+
+// Iframe embedding
+iframe.addEventListener('load', () => {
+    applyQtWasmIframeFocusFix(iframe, container);
+});
+```
+
 ## Structure
 
 - `index.md` - Homepage
