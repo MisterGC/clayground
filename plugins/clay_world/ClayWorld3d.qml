@@ -1,5 +1,70 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ClayWorld3d
+    \inqmlmodule Clayground.World
+    \inherits ClayWorldBase
+    \brief Complete 3D game world with physics, camera, and scene loading.
+
+    ClayWorld3d provides a 3D game world with Qt Quick 3D physics, automatic
+    camera following or free WASD camera control, and SVG-based scene loading
+    where rectangles become 3D objects.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    ClayWorld3d {
+        anchors.fill: parent
+        xWuMax: 200; zWuMax: 200
+        observedObject: player
+
+        Box3DBody {
+            id: player
+            position: Qt.vector3d(50, 10, 50)
+            width: 20; height: 20; depth: 20
+        }
+    }
+    \endqml
+
+    \qmlproperty Node ClayWorld3d::root
+    \readonly
+    \brief Root 3D scene node for adding entities.
+
+    \qmlproperty PhysicsWorld ClayWorld3d::physics
+    \readonly
+    \brief The Qt Quick 3D physics world.
+
+    \qmlproperty Node ClayWorld3d::observedObject
+    \brief Object the camera follows. Set to null for free camera.
+
+    \qmlproperty vector3d ClayWorld3d::observationOffset
+    \brief Camera offset from observed object.
+
+    \qmlproperty PerspectiveCamera ClayWorld3d::camera
+    \brief The main camera.
+
+    \qmlproperty bool ClayWorld3d::freeCamera
+    \readonly
+    \brief True when WASD camera control is active.
+
+    \qmlproperty real ClayWorld3d::xWuMin
+    \readonly
+    \brief Minimum X coordinate (always 0).
+
+    \qmlproperty real ClayWorld3d::xWuMax
+    \brief Maximum X world size.
+
+    \qmlproperty real ClayWorld3d::zWuMin
+    \readonly
+    \brief Minimum Z coordinate (always 0).
+
+    \qmlproperty real ClayWorld3d::zWuMax
+    \brief Maximum Z world size.
+
+    \qmlproperty StaticRigidBody ClayWorld3d::floor
+    \brief The ground plane physics body.
+*/
 import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers

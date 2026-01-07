@@ -1,5 +1,55 @@
 #include "customlinegeometry.h"
 
+/*!
+    \qmltype CustomLineGeometry
+    \nativetype CustomLineGeometry
+    \inqmlmodule Clayground.Canvas3D
+    \brief Custom geometry for rendering multiple 3D lines with shader-based width.
+
+    CustomLineGeometry provides efficient rendering of multiple line paths
+    in a single draw call. It uses a custom vertex format that encodes line
+    segment information for shader-based line width calculation, allowing
+    lines to maintain consistent screen-space width regardless of distance.
+
+    This geometry is used internally by the MultiLine3D component.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: CustomLineGeometry {
+            lines: [
+                [Qt.vector3d(0, 0, 0), Qt.vector3d(100, 0, 0)],
+                [Qt.vector3d(0, 50, 0), Qt.vector3d(100, 50, 0)]
+            ]
+        }
+        materials: CustomMaterial {
+            // Uses custom_line.vert and custom_line.frag shaders
+        }
+    }
+    \endqml
+
+    \sa MultiLine3D
+*/
+
+/*!
+    \qmlproperty list<list<vector3d>> CustomLineGeometry::lines
+    \brief Array of line paths, where each path is an array of 3D points.
+
+    Each inner array defines a connected line path. Multiple independent
+    lines can be rendered efficiently in a single geometry.
+
+    Example:
+    \qml
+    lines: [
+        [Qt.vector3d(0, 0, 0), Qt.vector3d(10, 10, 0), Qt.vector3d(20, 0, 0)],
+        [Qt.vector3d(0, 5, 0), Qt.vector3d(20, 5, 0)]
+    ]
+    \endqml
+*/
+
 CustomLineGeometry::CustomLineGeometry()
 {
 }

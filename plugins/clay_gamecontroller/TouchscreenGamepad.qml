@@ -1,5 +1,32 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype TouchscreenGamepad
+    \inqmlmodule Clayground.GameController
+    \brief Virtual on-screen gamepad for touch devices.
+
+    TouchscreenGamepad provides a touch-based controller interface with a virtual
+    joystick that appears where the user touches and two action buttons. It fills
+    its parent and is used internally by GameController when touchscreen input is selected.
+
+    The virtual joystick appears at the touch point and provides normalized axis
+    values based on finger movement relative to the initial touch position.
+
+    \qmlproperty bool TouchscreenGamepad::enabled
+    \brief Whether touchscreen input handling is active.
+
+    \qmlproperty GameController TouchscreenGamepad::gameController
+    \brief Reference to the parent GameController.
+
+    \qmlproperty real TouchscreenGamepad::normX
+    \brief Normalized X axis value from touch input.
+
+    \qmlproperty real TouchscreenGamepad::normY
+    \brief Normalized Y axis value from touch input.
+
+    \qmlmethod void TouchscreenGamepad::configure()
+    \brief Configures axis bindings for the touchscreen gamepad.
+*/
 import QtQuick
 
 Item {

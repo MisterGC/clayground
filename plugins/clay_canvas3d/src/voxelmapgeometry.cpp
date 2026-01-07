@@ -6,6 +6,140 @@
 #include <random>
 #include <chrono>
 
+/*!
+    \qmltype VoxelMapGeometry
+    \nativetype VoxelMapGeometry
+    \inqmlmodule Clayground.Canvas3D
+    \brief Optimized geometry for static voxel maps using greedy meshing.
+
+    VoxelMapGeometry generates efficient mesh geometry for voxel-based
+    3D structures. It uses a greedy meshing algorithm to combine adjacent
+    voxels of the same color into larger quads, significantly reducing
+    vertex count for large voxel maps.
+
+    This geometry is used internally by StaticVoxelMap and is ideal for
+    voxel structures that don't change frequently.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: VoxelMapGeometry {
+            voxelCountX: 10
+            voxelCountY: 10
+            voxelCountZ: 10
+            voxelSize: 1.0
+        }
+        materials: CustomMaterial { }
+    }
+    \endqml
+
+    \sa StaticVoxelMap, VoxelMapInstancing
+*/
+
+/*!
+    \qmlproperty int VoxelMapGeometry::voxelCountX
+    \brief Number of voxels along the X axis.
+*/
+
+/*!
+    \qmlproperty int VoxelMapGeometry::voxelCountY
+    \brief Number of voxels along the Y axis (height).
+*/
+
+/*!
+    \qmlproperty int VoxelMapGeometry::voxelCountZ
+    \brief Number of voxels along the Z axis.
+*/
+
+/*!
+    \qmlproperty real VoxelMapGeometry::voxelSize
+    \brief Size of each voxel cube in world units.
+
+    Defaults to 1.0.
+*/
+
+/*!
+    \qmlproperty real VoxelMapGeometry::spacing
+    \brief Gap between adjacent voxels in world units.
+
+    Defaults to 0.0 for solid voxel structures.
+*/
+
+/*!
+    \qmlproperty int VoxelMapGeometry::vertexCount
+    \readonly
+    \brief The current number of vertices in the generated geometry.
+
+    Useful for monitoring mesh complexity after greedy meshing optimization.
+*/
+
+/*!
+    \qmlmethod color VoxelMapGeometry::voxel(int x, int y, int z)
+    \brief Returns the color of the voxel at the specified coordinates.
+
+    Returns transparent if the coordinates are out of bounds or the
+    voxel is empty.
+*/
+
+/*!
+    \qmlmethod void VoxelMapGeometry::setVoxel(int x, int y, int z, color color)
+    \brief Sets the color of the voxel at the specified coordinates.
+
+    Setting a voxel to transparent removes it from the map.
+*/
+
+/*!
+    \qmlmethod void VoxelMapGeometry::fillSphere(int cx, int cy, int cz, int r, list colorDistribution, real noiseFactor)
+    \brief Fills a spherical region with voxels.
+
+    Creates a sphere centered at (cx, cy, cz) with radius r. The
+    colorDistribution parameter specifies colors and their weights.
+    The noiseFactor adds randomness to the sphere surface.
+*/
+
+/*!
+    \qmlmethod void VoxelMapGeometry::fillCylinder(int cx, int cy, int cz, int r, int height, list colorDistribution, real noiseFactor)
+    \brief Fills a cylindrical region with voxels.
+
+    Creates a cylinder with center base at (cx, cy, cz), radius r,
+    and specified height. Colors are distributed according to
+    colorDistribution weights.
+*/
+
+/*!
+    \qmlmethod void VoxelMapGeometry::fillBox(int cx, int cy, int cz, int width, int height, int depth, list colorDistribution, real noiseFactor)
+    \brief Fills a box-shaped region with voxels.
+
+    Creates a rectangular region starting at (cx, cy, cz) with the
+    specified dimensions. Colors are distributed according to
+    colorDistribution weights.
+*/
+
+/*!
+    \qmlmethod bool VoxelMapGeometry::saveToFile(string path)
+    \brief Saves the voxel map to a text file.
+
+    Returns true if the save was successful.
+*/
+
+/*!
+    \qmlmethod bool VoxelMapGeometry::loadFromFile(string path)
+    \brief Loads a voxel map from a text file.
+
+    Returns true if the load was successful.
+*/
+
+/*!
+    \qmlmethod void VoxelMapGeometry::commit()
+    \brief Triggers geometry regeneration after batch voxel operations.
+
+    Call this once after multiple setVoxel or fill operations to
+    update the mesh efficiently.
+*/
+
 // Optional: for a simple YAML-like approach. Real projects may use a full YAML library.
 static QString colorToString(const QColor &c)
 {

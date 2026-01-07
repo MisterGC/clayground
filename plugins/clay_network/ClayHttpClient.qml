@@ -1,45 +1,93 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ClayHttpClient
+    \inqmlmodule Clayground.Network
+    \brief Configurable HTTP client with automatic API method generation.
+
+    ClayHttpClient provides a declarative way to define REST API endpoints
+    and generates callable methods automatically. It supports Bearer token
+    authentication and handles both GET and POST requests.
+
+    Example usage:
+    \qml
+    import Clayground.Network
+
+    ClayHttpClient {
+        id: apiClient
+        baseUrl: "https://api.example.com"
+        endpoints: {
+            "getUser": "GET users/{userId}",
+            "createPost": "POST posts {postData}"
+        }
+        bearerToken: "your-api-token"
+
+        onReply: (requestId, code, response) => {
+            console.log("Success:", JSON.parse(response))
+        }
+        onError: (requestId, code, error) => {
+            console.error("Error:", error)
+        }
+
+        Component.onCompleted: {
+            api.getUser(123)
+            api.createPost({title: "Hello", content: "World"})
+        }
+    }
+    \endqml
+
+    \qmlproperty string ClayHttpClient::baseUrl
+    \brief Base URL for all API requests.
+
+    All endpoint URLs are relative to this base URL.
+    Example: "https://api.example.com"
+
+    \qmlproperty var ClayHttpClient::endpoints
+    \brief Object defining API endpoints.
+
+    Each entry has the format: "{HTTP_METHOD} {urlWithParams} [{bodyName}]"
+    Path parameters use {paramName} syntax.
+    Example: {"getUser": "GET users/{id}", "createUser": "POST users {userData}"}
+
+    \qmlproperty var ClayHttpClient::api
+    \readonly
+    \brief Generated API methods object.
+
+    Methods are generated from the endpoints definition. Call them with
+    path parameters followed by the optional body parameter.
+
+    \qmlproperty string ClayHttpClient::bearerToken
+    \brief Bearer token for authentication.
+
+    If set, requests include an Authorization header with this token.
+
+    \qmlsignal ClayHttpClient::reply(int requestId, int returnCode, string text)
+    \brief Emitted when a request completes successfully.
+
+    \a requestId The unique request identifier.
+    \a returnCode The HTTP status code.
+    \a text The response body text.
+
+    \qmlsignal ClayHttpClient::error(int requestId, int returnCode, string text)
+    \brief Emitted when a request fails.
+
+    \a requestId The unique request identifier.
+    \a returnCode The HTTP status code.
+    \a text The error message or response body.
+*/
+
 import QtQuick
 import Clayground.Network
 
-// Component that generates an easy to use API based on provided
-// endpoint and authorization configuration.
 Item {
     id: _clayHttpClient
 
-    // END POINT CONFIGURATION
-
-    // There is only one base URL per client
-    // this allows keeping the (relative) URLs in the endpoints short
-    // Example: https://acme.com/products
     property string baseUrl: ""
-
-    // Endpoints, each entry with the following structure:
-    // {HTTP_METHOD} {urlWithPathAndQueryParams} [{nameOfJsonBody}]
-    // Example: GET flyingObjects/{type} {aerodynamicRequirements}
-    // This will generate a method with client.api.flyingObjects("ufo", "{friction: low}"}
     property var endpoints: ({})
-
-    // Object which contains all the methods based on the baseUrl and
-    // end point configuration.
     property alias api: _apiConstructor.api
-
-
-    // AUTHENTICATION/AUTHORIZATION
-    // TODO Add support for basic auth and API keys
-
-    // When using Bearer Authentication
-    // Syntax: {token}
     property string bearerToken: ""
 
-
-    // RESULT REPORTING
-
-    // method has been executed successfully
     signal reply(int requestId, int returnCode, string text);
-
-    // an error happened during execution
     signal error(int requestId, int returnCode, string text);
 
     onBaseUrlChanged: _apiConstructor.updateServiceAccess()

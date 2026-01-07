@@ -54,7 +54,7 @@ Qt already provides a solid foundation for cross-platform development. Claygroun
   </div>
 </div>
 
-[Explore all features →]({{ site.baseurl }}/plugins/)
+[Explore all features →]({{ site.baseurl }}/features/)
 
 ## Quick Start
 

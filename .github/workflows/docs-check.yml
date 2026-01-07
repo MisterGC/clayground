@@ -5,17 +5,25 @@ on:
     branches: [ main ]
     paths:
       - 'plugins/*/README.md'
+      - 'plugins/**/*.qml'
       - 'docs/**'
       - 'examples/voxelworld/**'
+      - 'examples/platformer/**'
+      - 'tools/webdojo/**'
       - 'cmake/claywebsite.cmake'
+      - 'cmake/claydoc.cmake'
       - '.github/workflows/docs-check.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'plugins/*/README.md'
+      - 'plugins/**/*.qml'
       - 'docs/**'
       - 'examples/voxelworld/**'
+      - 'examples/platformer/**'
+      - 'tools/webdojo/**'
       - 'cmake/claywebsite.cmake'
+      - 'cmake/claydoc.cmake'
       - '.github/workflows/docs-check.yml'
 
 permissions:
@@ -30,6 +38,7 @@ concurrency:
 env:
   # WASM requires exact version (wildcards not supported by aqtinstall for wasm target)
   QT_VERSION_WASM: '6.10.1'
+  QT_VERSION_HOST: '6.10.1'
   # Note: qtquick3dphysics excluded - crashes browser in WASM (not yet supported)
   QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
   EMSDK_VERSION: '4.0.7'
@@ -47,6 +56,19 @@ jobs:
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: ${{ env.EMSDK_VERSION }}
+
+      - name: Install Qt (Desktop - for QDoc and host tools)
+        id: qt-desktop
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION_HOST }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: ${{ env.QT_MODULES }}
+          set-env: false
+          cache: true
+          dir: ${{ runner.temp }}/qt-desktop
 
       - name: Install Qt (WASM)
         uses: jurplel/install-qt-action@v4
@@ -72,7 +94,8 @@ jobs:
 
       - name: Configure CMake
         run: |
-          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON .
+          # QT_HOST_PATH points to desktop Qt for host tools like QDoc
+          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
 
       - name: Build Website
         run: cmake --build build --target website

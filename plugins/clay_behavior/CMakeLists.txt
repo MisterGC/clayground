@@ -6,7 +6,6 @@ clay_plugin( Behavior
 
     QML_FILES
         FollowPath.qml
-        Move.qml
         MoveTo.qml
         RectTrigger.qml
         WorldChangedConnections.qml

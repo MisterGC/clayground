@@ -5,20 +5,6 @@ entities, including movement patterns, path following, triggers, and complex
 object builders. It integrates with the Clay World and Physics plugins to
 create dynamic, interactive game behaviors.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [Move](#move)
-  - [MoveTo](#moveto)
-  - [FollowPath](#followpath)
-  - [RectTrigger](#recttrigger)
-  - [WorldChangedConnections](#worldchangedconnections)
-  - [DoorBuilder](#doorbuilder)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Behavior plugin in your QML files:
@@ -29,93 +15,12 @@ import Clayground.Behavior
 
 ## Core Components
 
-### Move
-
-A placeholder component for future movement behavior implementation.
-
-### MoveTo
-
-Moves an actor entity to a specified destination using physics-based movement.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `world` | ClayWorld2d | The world context (required) |
-| `actor` | var | The entity to move (defaults to parent) |
-| `running` | bool | Whether the movement is active |
-| `destXWu` | real | Destination X coordinate in world units |
-| `destYWu` | real | Destination Y coordinate in world units |
-| `desiredSpeed` | real | Movement speed (default: 2) |
-| `debug` | bool | Show debug visualization |
-| `debugColor` | color | Color for debug visualization |
-
-#### Signals
-
-| Signal | Description |
-|--------|-------------|
-| `arrived()` | Emitted when the actor reaches the destination |
-
-### FollowPath
-
-Makes an entity follow a predefined path of waypoints.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `world` | ClayWorld2d | The world context (required) |
-| `actor` | var | The entity to move (defaults to parent) |
-| `wpsWu` | var | Array of waypoints in world units |
-| `running` | bool | Whether the path following is active |
-| `repeat` | bool | Loop the path when completed |
-| `debug` | bool | Show debug visualization |
-| `debugColor` | color | Color for debug visualization |
-
-#### Signals
-
-| Signal | Description |
-|--------|-------------|
-| `arrived()` | Emitted when the actor completes the path |
-
-### RectTrigger
-
-A rectangular trigger area that detects when entities enter it.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `bodyType` | Body.BodyType | Set to Body.Dynamic |
-| `sensor` | bool | Always true (doesn't cause collisions) |
-| `visible` | bool | Whether the trigger is visible |
-
-#### Signals
-
-| Signal | Parameters | Description |
-|--------|-----------|-------------|
-| `entered(entity)` | entity: var | Emitted when an entity enters the trigger |
-
-### WorldChangedConnections
-
-Utility component that connects to world dimension changes.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `world` | ClayWorld2d | The world to monitor (required) |
-| `callback` | var | Function to call on world changes (required) |
-
-### DoorBuilder
-
-A specialized builder that creates automated doors with switches from map data.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `world` | ClayWorld2d | The world context (required) |
+- **Move** - Placeholder for future movement behavior implementation.
+- **MoveTo** - Moves an actor entity to a specified destination using physics-based velocity control.
+- **FollowPath** - Makes an entity follow a predefined path of waypoints with optional looping.
+- **RectTrigger** - A rectangular sensor area that detects when physics entities enter it.
+- **WorldChangedConnections** - Utility that monitors world dimension changes and invokes a callback.
+- **DoorBuilder** - Factory component that creates automated doors with switches from SVG map data.
 
 ## Usage Examples
 

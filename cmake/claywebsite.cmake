@@ -82,7 +82,7 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll
         COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build --baseurl "/clayground"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs
+        DEPENDS website-sync-docs docs
         COMMENT "Building Jekyll site (production)..."
     )
 
@@ -91,24 +91,46 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll-dev
         COMMAND ${CMAKE_SOURCE_DIR}/docs/build-dev.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs
+        DEPENDS website-sync-docs docs
         COMMENT "Building Jekyll site (local dev)..."
     )
 
+    # Copy API documentation to _site
+    add_custom_target(website-copy-api
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/docs/api
+            ${CMAKE_SOURCE_DIR}/docs/_site/api
+        DEPENDS website-jekyll
+        COMMENT "Copying API documentation to website..."
+    )
+
+    add_custom_target(website-copy-api-dev
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/docs/api
+            ${CMAKE_SOURCE_DIR}/docs/_site/api
+        DEPENDS website-jekyll-dev
+        COMMENT "Copying API documentation to website (dev)..."
+    )
+
     # Copy WASM artifacts for each registered demo (separate target per demo)
-    set(COPY_TARGETS "")
-    set(COPY_TARGETS_DEV "")
+    # Uses custom HTML from docs/demo/{demo}/ instead of Qt-generated HTML
+    set(COPY_TARGETS "website-copy-api")
+    set(COPY_TARGETS_DEV "website-copy-api-dev")
     foreach(DEMO IN LISTS CLAY_WEBSITE_DEMOS)
         # Production copy target
         set(COPY_TARGET website-copy-${DEMO})
         add_custom_target(${COPY_TARGET}
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}
+            # Copy WASM artifacts (js, wasm, qtloader) from build
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.html
                 ${CMAKE_BINARY_DIR}/bin/${DEMO}.js
                 ${CMAKE_BINARY_DIR}/bin/${DEMO}.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
+                ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
+            # Copy custom HTML from docs/demo (not Qt-generated)
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/docs/demo/${DEMO}/${DEMO}.html
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             DEPENDS ${DEMO} website-jekyll
             COMMENT "Copying ${DEMO} WASM artifacts to website..."
@@ -120,11 +142,15 @@ function(clay_website_create_target)
         add_custom_target(${COPY_TARGET_DEV}
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}
+            # Copy WASM artifacts (js, wasm, qtloader) from build
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.html
                 ${CMAKE_BINARY_DIR}/bin/${DEMO}.js
                 ${CMAKE_BINARY_DIR}/bin/${DEMO}.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
+                ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
+            # Copy custom HTML from docs/demo (not Qt-generated)
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/docs/demo/${DEMO}/${DEMO}.html
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             DEPENDS ${DEMO} website-jekyll-dev
             COMMENT "Copying ${DEMO} WASM artifacts to website (dev)..."

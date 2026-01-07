@@ -5,15 +5,6 @@ Clayground applications. It offers a simple key-value store interface built on
 top of Qt's LocalStorage module, making it easy to save and retrieve game data,
 settings, and player progress.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [KeyValueStore](#keyvaluestore)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Storage plugin in your QML files:
@@ -24,24 +15,7 @@ import Clayground.Storage
 
 ## Core Components
 
-### KeyValueStore
-
-A persistent key-value storage component using SQLite database.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | string | Database name (required, must be set before use) |
-
-#### Methods
-
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `set(key, value)` | key: string, value: string | bool | Store a key-value pair |
-| `get(key, defVal)` | key: string, defVal: string | string | Retrieve value for key, or default if not found |
-| `has(key)` | key: string | bool | Check if key exists |
-| `remove(key)` | key: string | bool | Remove a key-value pair |
+- **KeyValueStore** - A persistent key-value storage component using SQLite database for saving game data, settings, and player progress.
 
 ## Usage Examples
 

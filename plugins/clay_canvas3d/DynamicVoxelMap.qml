@@ -2,18 +2,68 @@ import QtQuick
 import QtQuick3D
 import QtQuick.Window
 
+/*!
+    \qmltype DynamicVoxelMap
+    \inqmlmodule Clayground.Canvas3D
+    \brief Voxel map optimized for frequent updates using GPU instancing.
+
+    DynamicVoxelMap renders each voxel as a separate GPU instance, making
+    it efficient to update individual voxels without regenerating the
+    entire mesh. This is ideal for voxel structures that change frequently,
+    such as destructible terrain or building systems.
+
+    For large, static voxel structures, use StaticVoxelMap instead for
+    better rendering performance.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas3D
+
+    DynamicVoxelMap {
+        id: voxels
+        voxelCountX: 20
+        voxelCountY: 20
+        voxelCountZ: 20
+        voxelSize: 1.0
+
+        Timer {
+            running: true
+            interval: 100
+            repeat: true
+            onTriggered: {
+                var x = Math.floor(Math.random() * 20)
+                var y = Math.floor(Math.random() * 20)
+                var z = Math.floor(Math.random() * 20)
+                voxels.set(x, y, z, Qt.rgba(Math.random(), Math.random(), Math.random(), 1))
+            }
+        }
+    }
+    \endqml
+
+    \sa StaticVoxelMap, VoxelMapInstancing
+*/
 VoxelMap {
     id: _voxelMap
     model: _voxelInstancing
 
-    // Dimensions of the voxel map (in voxel counts)
-    // Aliased to the underlying instancing for direct access
+    /*!
+        \qmlproperty int DynamicVoxelMap::voxelCountX
+        \brief Number of voxels along the X axis.
+    */
     property alias voxelCountX: _voxelInstancing.voxelCountX
+
+    /*!
+        \qmlproperty int DynamicVoxelMap::voxelCountY
+        \brief Number of voxels along the Y axis (height).
+    */
     property alias voxelCountY: _voxelInstancing.voxelCountY
+
+    /*!
+        \qmlproperty int DynamicVoxelMap::voxelCountZ
+        \brief Number of voxels along the Z axis.
+    */
     property alias voxelCountZ: _voxelInstancing.voxelCountZ
 
-    // Individual cubes + instancing are used, for each voxel, the offset
-    // is half its dimension, cause Box3DGeometry has its origin in the bottom face
     voxelOffset: Qt.vector3d(_voxelMap.voxelSize * 0.5, 0, _voxelMap.voxelSize * 0.5)
 
     instancing: VoxelMapInstancing {

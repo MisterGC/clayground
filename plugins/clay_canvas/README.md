@@ -5,20 +5,6 @@ mapping, camera controls, and visual elements positioned in world units. It
 offers a complete solution for creating 2D game worlds with proper coordinate
 transformations and viewport management.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Components](#core-components)
-  - [ClayCanvas](#claycanvas)
-  - [Rectangle](#rectangle)
-  - [Text](#text)
-  - [Image](#image)
-  - [Poly](#poly)
-  - [Connector](#connector)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Technical Implementation](#technical-implementation)
-
 ## Getting Started
 
 To use the Clay Canvas plugin in your QML files:
@@ -29,123 +15,12 @@ import Clayground.Canvas
 
 ## Core Components
 
-### ClayCanvas
-
-The main canvas component that manages the viewport, coordinate system, and camera.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `pixelPerUnit` | real | Number of pixels per world unit |
-| `zoomFactor` | real | Zoom level multiplier |
-| `deviceScalingFactor` | real | Automatic device scaling |
-| `worldXMin` | real | Minimum X coordinate in world units |
-| `worldXMax` | real | Maximum X coordinate in world units |
-| `worldYMin` | real | Minimum Y coordinate in world units |
-| `worldYMax` | real | Maximum Y coordinate in world units |
-| `observedItem` | var | Item that the camera follows automatically |
-| `interactive` | bool | Whether the canvas can be panned |
-| `showDebugInfo` | bool | Show debug overlay with coordinates |
-| `keyBoardNavigationEnabled` | bool | Enable keyboard navigation |
-
-#### Read-only Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `coordSys` | Item | The coordinate system container for child items |
-| `xInWU` | real | Current viewport X position in world units |
-| `yInWU` | real | Current viewport Y position in world units |
-| `sWidthInWU` | real | Viewport width in world units |
-| `sHeightInWU` | real | Viewport height in world units |
-
-#### Methods
-
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `xToScreen(xCart)` | xCart: real | real | Convert world X to screen X |
-| `yToScreen(yCart)` | yCart: real | real | Convert world Y to screen Y |
-| `screenXToWorld(xScr)` | xScr: real | real | Convert screen X to world X |
-| `screenYToWorld(yScr)` | yScr: real | real | Convert screen Y to world Y |
-
-### Rectangle
-
-A rectangle positioned and sized in world units.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `canvas` | ClayCanvas | The parent canvas (required) |
-| `xWu` | real | X position in world units |
-| `yWu` | real | Y position in world units |
-| `widthWu` | real | Width in world units |
-| `heightWu` | real | Height in world units |
-
-All standard QML Rectangle properties are also available.
-
-### Text
-
-Text element positioned in world units with size in world units.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `canvas` | ClayCanvas | The parent canvas (required) |
-| `xWu` | real | X position in world units |
-| `yWu` | real | Y position in world units |
-| `fontSizeWu` | real | Font size in world units |
-
-All standard QML Text properties are also available.
-
-### Image
-
-An image positioned and sized in world units.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `canvas` | ClayCanvas | The parent canvas (required) |
-| `xWu` | real | X position in world units |
-| `yWu` | real | Y position in world units |
-| `widthWu` | real | Width in world units |
-| `heightWu` | real | Height in world units |
-
-All standard QML Image properties are also available.
-
-### Poly
-
-A polygon or polyline shape defined by vertices in world units.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `canvas` | ClayCanvas | The parent canvas (required) |
-| `vertices` | var | Array of points {x, y} in world units |
-| `strokeWidth` | real | Line width in pixels |
-| `strokeColor` | color | Line color |
-| `fillColor` | color | Fill color (transparent for polyline) |
-| `strokeStyle` | ShapePath.StrokeStyle | Line style (solid, dash, etc.) |
-| `dashPattern` | var | Custom dash pattern array |
-| `closed` | bool | Whether the shape is closed |
-
-### Connector
-
-A visual connector line between two items.
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `from` | Item | Source item (required) |
-| `to` | Item | Target item (required) |
-| `strokeWidth` | real | Line width |
-| `color` | color | Line color |
-| `style` | ShapePath.StrokeStyle | Line style |
-| `dashPattern` | var | Custom dash pattern |
+- **ClayCanvas** - Main canvas managing viewport, coordinate system, and camera with Y-up orientation
+- **Rectangle** - Rectangle positioned and sized in world units
+- **Text** - Text element with world unit positioning and scalable font
+- **Image** - Image positioned and sized in world units
+- **Poly** - Polygon or polyline shape from vertex arrays in world units
+- **Connector** - Visual line connecting two items with automatic position tracking
 
 ## Usage Examples
 
@@ -158,16 +33,16 @@ import Clayground.Canvas as Canv
 Canv.ClayCanvas {
     id: canvas
     anchors.fill: parent
-    
+
     // Define world boundaries
     worldXMin: -10
     worldXMax: 10
     worldYMin: -10
     worldYMax: 10
-    
+
     // Set scale
     pixelPerUnit: 50
-    
+
     // Enable debug info (press Space to toggle)
     showDebugInfo: true
 }
@@ -239,7 +114,7 @@ Canv.Poly {
 ```qml
 Canv.ClayCanvas {
     id: canvas
-    
+
     Canv.Rectangle {
         id: player
         canvas: canvas
@@ -248,7 +123,7 @@ Canv.ClayCanvas {
         widthWu: 1
         heightWu: 1
         color: "orange"
-        
+
         // Animate position
         NumberAnimation on xWu {
             from: -5; to: 5
@@ -256,7 +131,7 @@ Canv.ClayCanvas {
             loops: Animation.Infinite
         }
     }
-    
+
     // Camera follows the player
     observedItem: player
 }

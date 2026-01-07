@@ -1,3 +1,44 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype Box3DBody
+    \inqmlmodule Clayground.World
+    \inherits QtQuick3D.Physics::DynamicRigidBody
+    \brief 3D physics-enabled box with visual representation.
+
+    Box3DBody combines a Canvas3D Box3D visual with a dynamic rigid body
+    physics shape. It provides a simple way to create physics-enabled 3D objects.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    Box3DBody {
+        position: Qt.vector3d(50, 10, 50)
+        width: 20; height: 20; depth: 20
+        color: "orange"
+        density: 10
+    }
+    \endqml
+
+    \qmlproperty real Box3DBody::width
+    \brief Box width in world units.
+
+    \qmlproperty real Box3DBody::height
+    \brief Box height in world units.
+
+    \qmlproperty real Box3DBody::depth
+    \brief Box depth in world units.
+
+    \qmlproperty color Box3DBody::color
+    \brief Box color.
+
+    \qmlproperty int Box3DBody::scaledFace
+    \brief Which face to scale (Box3DGeometry enum).
+
+    \qmlproperty vector2d Box3DBody::faceScale
+    \brief Scale factor for the scaled face.
+*/
 import QtQuick
 import QtQuick3D
 import QtQuick3D.Physics

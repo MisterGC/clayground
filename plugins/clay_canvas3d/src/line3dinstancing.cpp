@@ -2,6 +2,65 @@
 #include <QVector3D>
 #include <QMatrix4x4>
 
+/*!
+    \qmltype LineInstancing
+    \nativetype LineInstancing
+    \inqmlmodule Clayground.Canvas3D
+    \brief GPU instancing for rendering lines as connected box segments.
+
+    LineInstancing provides efficient rendering of lines by using GPU
+    instancing. Each line segment between consecutive positions is rendered
+    as an instance of a base geometry (typically a cube), automatically
+    transformed to connect the points.
+
+    This is used internally by the BoxLine3D component for rendering
+    thick, visible lines in 3D space.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        source: "#Cube"
+        instancing: LineInstancing {
+            positions: [
+                Qt.vector3d(0, 0, 0),
+                Qt.vector3d(100, 50, 0),
+                Qt.vector3d(200, 0, 0)
+            ]
+            width: 5.0
+            color: "red"
+        }
+        materials: DefaultMaterial { }
+    }
+    \endqml
+
+    \sa BoxLine3D
+*/
+
+/*!
+    \qmlproperty list<vector3d> LineInstancing::positions
+    \brief List of 3D positions defining the line path.
+
+    Each consecutive pair of positions defines a line segment. The
+    instancing system creates transformed instances to connect all points.
+*/
+
+/*!
+    \qmlproperty real LineInstancing::width
+    \brief The width of the line segments in world units.
+
+    Controls the thickness of each box-shaped line segment.
+    Defaults to 0.1.
+*/
+
+/*!
+    \qmlproperty color LineInstancing::color
+    \brief The color applied to all line segment instances.
+
+    Defaults to blue.
+*/
 
 LineInstancing::LineInstancing(QQuick3DObject *parent)
     : QQuick3DInstancing(parent)

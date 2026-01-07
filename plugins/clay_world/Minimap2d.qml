@@ -1,4 +1,39 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype Minimap2d
+    \inqmlmodule Clayground.World
+    \brief Miniature map view of a 2D world.
+
+    Minimap2d displays a scaled-down view of a ClayWorld2d, showing entities
+    as simple shapes based on type mapping. Useful for navigation and overview.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    Minimap2d {
+        world: gameWorld
+        width: 200; height: 150
+        anchors.right: parent.right
+        anchors.top: parent.top
+
+        typeMapping: new Map([
+            ["Player", playerDotComponent],
+            ["Enemy", enemyDotComponent]
+        ])
+
+        Component { id: playerDotComponent; Rectangle { color: "green" } }
+        Component { id: enemyDotComponent; Rectangle { color: "red" } }
+    }
+    \endqml
+
+    \qmlproperty ClayWorld2d Minimap2d::world
+    \brief The world to display. Required.
+
+    \qmlproperty var Minimap2d::typeMapping
+    \brief Map of entity type names to QML Components for rendering.
+*/
 import QtQuick
 import Clayground.Common
 

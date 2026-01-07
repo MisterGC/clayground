@@ -2,6 +2,64 @@
 #include <QVector3D>
 #include <QQuaternion>
 
+/*!
+    \qmltype Line3dGeometry
+    \nativetype Line3dGeometry
+    \inqmlmodule Clayground.Canvas3D
+    \brief Custom geometry for rendering 3D lines as box-shaped segments.
+
+    Line3dGeometry creates geometry for rendering lines in 3D space. Each
+    line segment is rendered as a box-shaped tube connecting consecutive
+    vertices, providing visible width in all viewing directions.
+
+    This geometry is typically used internally by the Line3D component.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: Line3dGeometry {
+            vertices: [
+                Qt.vector3d(0, 0, 0),
+                Qt.vector3d(100, 50, 0),
+                Qt.vector3d(200, 0, 0)
+            ]
+            width: 5.0
+            color: "blue"
+        }
+        materials: DefaultMaterial { diffuseColor: "blue" }
+    }
+    \endqml
+
+    \sa Line3D
+*/
+
+/*!
+    \qmlproperty list<vector3d> Line3dGeometry::vertices
+    \brief The list of 3D points defining the line path.
+
+    Each consecutive pair of vertices defines a line segment. The line
+    is rendered as connected box-shaped tubes through all vertices.
+*/
+
+/*!
+    \qmlproperty color Line3dGeometry::color
+    \brief The color of the line.
+
+    Defaults to white. Note that the actual rendered color depends on
+    the material applied to the model using this geometry.
+*/
+
+/*!
+    \qmlproperty real Line3dGeometry::width
+    \brief The width of the line in world units.
+
+    Controls the thickness of the box-shaped line segments.
+    Defaults to 1.0.
+*/
+
 Line3dGeometry::Line3dGeometry()
     : m_color(Qt::white), m_width(1.0f)
 {

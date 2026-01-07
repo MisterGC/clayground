@@ -43,12 +43,20 @@ init_static_plugin_cfg()
 option(CLAYGROUND_WITH_TOOLS "Include Clayground tools e.g. dojo" ON)
 option(CLAYGROUND_WITH_EXAMPLES "Include Clayground examples" ON)
 option(CLAY_BUILD_WEBSITE "Build website with WASM demos (requires WASM target)" OFF)
+option(CLAY_BUILD_DOCS "Build API documentation using QDoc" OFF)
 
 # Include website module early so clay_website_register_demo() is available
 # Prerequisites are checked and target is created at the end
 if(CLAY_BUILD_WEBSITE)
     include(claywebsite)
     clay_website_check_prerequisites()
+endif()
+
+# Include documentation module for API reference generation
+# Also included when building website (docs are auto-generated)
+if(CLAY_BUILD_DOCS OR CLAY_BUILD_WEBSITE)
+    include(claydoc)
+    clay_docs()
 endif()
 
 
@@ -98,6 +106,12 @@ endif()
 # ================
 # WEBSITE BUILD
 # ================
+
+# WebDojo is only built for WASM website builds
+# (tools/ is excluded from WASM, so we add webdojo separately)
+if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
+    add_subdirectory(tools/webdojo)
+endif()
 
 # Create website target after all demos are registered
 if(CLAY_BUILD_WEBSITE)

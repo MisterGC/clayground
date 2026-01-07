@@ -1,11 +1,62 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
+/*!
+    \qmltype ClayWorldBase
+    \inqmlmodule Clayground.World
+    \brief Common base functionality for 2D and 3D game worlds.
+
+    ClayWorldBase provides shared functionality for ClayWorld2d and ClayWorld3d
+    including scene loading from SVG, component registration, and entity
+    management signals.
+
+    \qmlproperty string ClayWorldBase::scene
+    \brief SVG file path for level data (relative to resources).
+
+    \qmlproperty var ClayWorldBase::components
+    \brief Map of component name to QML Component for scene loading.
+
+    \qmlproperty bool ClayWorldBase::loadMapAsync
+    \brief If true, entities are loaded asynchronously without blocking UI.
+
+    \qmlproperty bool ClayWorldBase::debugRendering
+    \brief Show debug visualization (axis helpers, etc.).
+
+    \qmlproperty bool ClayWorldBase::debugPhysics
+    \brief Show physics debug rendering.
+
+    \qmlsignal ClayWorldBase::mapAboutToBeLoaded()
+    \brief Emitted before scene loading begins.
+
+    \qmlsignal ClayWorldBase::mapLoaded()
+    \brief Emitted when scene loading is complete.
+
+    \qmlsignal ClayWorldBase::mapEntityAboutToBeCreated(var groupId, var compName)
+    \brief Emitted before an entity is created.
+
+    \qmlsignal ClayWorldBase::mapEntityCreated(var obj, var groupId, var compName)
+    \brief Emitted after an entity is created.
+
+    \qmlsignal ClayWorldBase::polylineLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    \brief Emitted for unregistered polylines in the scene.
+
+    \qmlsignal ClayWorldBase::polygonLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    \brief Emitted for unregistered polygons in the scene.
+
+    \qmlsignal ClayWorldBase::rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var fillColor, var strokeColor, var description)
+    \brief Emitted for unregistered rectangles in the scene.
+
+    \qmlsignal ClayWorldBase::circleLoaded(var id, var groupId, var x, var y, var radius, var fillColor, var strokeColor, var description)
+    \brief Emitted for unregistered circles in the scene.
+
+    \qmlsignal ClayWorldBase::groupAboutToBeLoaded(var id, var description)
+    \brief Emitted when entering an SVG group.
+
+    \qmlsignal ClayWorldBase::groupLoaded(var id)
+    \brief Emitted when an SVG group is fully loaded.
+*/
 import QtQuick
 import Clayground.Common
 
-/**
- * Common base functionality for both for 2D and 3D worlds
- */
 Item {
     id: _clayWorld
 

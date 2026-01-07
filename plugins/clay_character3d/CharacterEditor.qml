@@ -1,4 +1,52 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype CharacterEditor
+    \inqmlmodule Clayground.Character3D
+    \brief Visual editor overlay for character customization.
+
+    CharacterEditor provides a UI panel for editing ParametricCharacter properties
+    including body dimensions, facial features, and colors. It supports 3D picking
+    for character selection and auto-saves settings per character.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    CharacterEditor {
+        characters: [character1, character2]
+        view3d: myView3D
+        gameController: controller
+        enabled: editMode
+    }
+    \endqml
+
+    \qmlproperty var CharacterEditor::characters
+    \brief Array of ParametricCharacter instances to edit. Required.
+
+    \qmlproperty View3D CharacterEditor::view3d
+    \brief The View3D for 3D picking. Required.
+
+    \qmlproperty var CharacterEditor::gameController
+    \brief GameController for input when controlling selected character. Required.
+
+    \qmlproperty bool CharacterEditor::enabled
+    \brief Whether the editor is active and visible.
+
+    \qmlproperty int CharacterEditor::transitionDuration
+    \brief Animation duration for transitions in milliseconds.
+
+    \qmlproperty ParametricCharacter CharacterEditor::selectedCharacter
+    \brief Currently selected character, or null if none selected.
+
+    \qmlproperty ParametricCharacter CharacterEditor::editTarget
+    \readonly
+    \brief The character being edited (selected or first in array).
+
+    \qmlproperty bool CharacterEditor::hasSelection
+    \readonly
+    \brief True if a character is currently selected.
+*/
 // CharacterEditor.qml - Self-contained character editing overlay
 // Can be added to any scene for character customization, removed for zero overhead
 
