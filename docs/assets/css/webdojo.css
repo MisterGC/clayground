@@ -80,6 +80,38 @@
     border-color: var(--accent-primary, #00d9ff);
 }
 
+.share-button {
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.share-button:hover {
+    border-color: var(--accent-primary, #00d9ff);
+}
+
+.standalone-button {
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.standalone-button:hover {
+    border-color: var(--accent-primary, #00d9ff);
+}
+
 /* Main container - fills remaining viewport */
 .playground-container {
     display: flex;

@@ -165,6 +165,26 @@ let autoReloadEnabled = true;
 let reloadDebounceTimer = null;
 let vimMode = null;
 
+// Get code from URL hash (for shareable links)
+// Supports both #code= (edit mode) and #demo= (standalone view mode)
+function getCodeFromUrl() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#code=') || hash.startsWith('#demo=')) {
+        const compressed = hash.slice(6); // Remove '#code=' or '#demo='
+        try {
+            return LZString.decompressFromEncodedURIComponent(compressed);
+        } catch (e) {
+            console.warn('Failed to decompress code from URL:', e);
+        }
+    }
+    return null;
+}
+
+// Check if running in standalone (view-only) mode
+function isStandaloneMode() {
+    return window.location.hash.startsWith('#demo=');
+}
+
 // Initialize Monaco Editor
 async function initEditor() {
     return new Promise((resolve) => {
@@ -202,8 +222,24 @@ function initEditorWithVim(resolve) {
         window.createQmlTheme(monaco);
     }
 
+    // Check for code in URL hash first, otherwise use default example
+    const urlCode = getCodeFromUrl();
+    const initialCode = urlCode || examples['voxelworld'];
+
+    // If code came from URL, add "Shared" option to dropdown
+    if (urlCode) {
+        const selector = document.getElementById('example-selector');
+        if (selector) {
+            const sharedOption = document.createElement('option');
+            sharedOption.value = 'shared';
+            sharedOption.textContent = '✦ Shared code';
+            sharedOption.selected = true;
+            selector.insertBefore(sharedOption, selector.firstChild);
+        }
+    }
+
     editor = monaco.editor.create(document.getElementById('editor-container'), {
-        value: examples['voxelworld'],
+        value: initialCode,
         language: 'qml',
         theme: 'clayground-dark',
         fontSize: 14,
@@ -269,8 +305,13 @@ async function initWebDojo() {
                         }
                     }, 100);
 
-                    // Load initial example after Qt is ready
-                    setTimeout(runQml, 100);
+                    // Load initial code - standalone uses URL code, edit mode uses editor
+                    if (isStandaloneMode()) {
+                        const code = getCodeFromUrl();
+                        if (code) setTimeout(() => runQmlDirect(code), 100);
+                    } else {
+                        setTimeout(runQml, 100);
+                    }
                 },
                 onExit: (exitData) => {
                     let msg = 'WebDojo exited';
@@ -294,6 +335,10 @@ async function initWebDojo() {
 // Run QML code
 function runQml() {
     if (!webDojoModule || !editor) return;
+
+    // Clear console on each reload to avoid confusion from stale errors
+    const consoleOutput = document.getElementById('console-output');
+    if (consoleOutput) consoleOutput.innerHTML = '';
 
     // Save focus state BEFORE loadQml (it may change focus)
     const editorContainer = document.getElementById('editor-container');
@@ -338,7 +383,21 @@ function setupEventHandlers() {
     const exampleSelector = document.getElementById('example-selector');
     if (exampleSelector) {
         exampleSelector.addEventListener('change', (e) => {
-            const example = examples[e.target.value];
+            const value = e.target.value;
+            if (value === 'shared') return; // Already showing shared code
+
+            // Remove "Shared" option when user picks an example
+            const sharedOption = exampleSelector.querySelector('option[value="shared"]');
+            if (sharedOption) {
+                sharedOption.remove();
+            }
+
+            // Clear URL hash when switching away from shared
+            if (window.location.hash.startsWith('#code=')) {
+                history.replaceState(null, '', window.location.pathname);
+            }
+
+            const example = examples[value];
             if (example && editor) {
                 editor.setValue(example);
                 if (!autoReloadEnabled) runQml();
@@ -390,6 +449,51 @@ function setupEventHandlers() {
     const runButton = document.getElementById('run-button');
     if (runButton) {
         runButton.addEventListener('click', runQml);
+    }
+
+    // Share button - compress code and copy URL to clipboard
+    const shareBtn = document.getElementById('share-button');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', async () => {
+            if (!editor) return;
+
+            const code = editor.getValue();
+            const compressed = LZString.compressToEncodedURIComponent(code);
+            const url = `${window.location.origin}${window.location.pathname}#code=${compressed}`;
+
+            if (url.length > 8000) {
+                alert('Code too long to share via URL. Max ~6KB of code.');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(url);
+                shareBtn.textContent = '✓ Copied!';
+                setTimeout(() => shareBtn.textContent = '🔗 Share', 2000);
+            } catch (e) {
+                // Fallback for browsers without clipboard API
+                prompt('Copy this URL:', url);
+            }
+        });
+    }
+
+    // Standalone button - open view-only mode in new tab
+    const standaloneBtn = document.getElementById('standalone-button');
+    if (standaloneBtn) {
+        standaloneBtn.addEventListener('click', () => {
+            if (!editor) return;
+
+            const code = editor.getValue();
+            const compressed = LZString.compressToEncodedURIComponent(code);
+            const url = `${window.location.origin}${window.location.pathname}#demo=${compressed}`;
+
+            if (url.length > 8000) {
+                alert('Code too long for standalone URL. Max ~6KB.');
+                return;
+            }
+
+            window.open(url, '_blank');
+        });
     }
 
     // Clear console
@@ -515,8 +619,83 @@ function setupConsoleDivider() {
     });
 }
 
+// Load QML directly without editor (for standalone mode)
+function runQmlDirect(code) {
+    if (!webDojoModule) return;
+
+    try {
+        if (webDojoModule.loadQml) {
+            webDojoModule.loadQml(code);
+        } else if (webDojoModule.ccall) {
+            webDojoModule.ccall('webdojo_loadQml', null, ['string'], [code]);
+        } else if (typeof Module !== 'undefined' && Module.ccall) {
+            Module.ccall('webdojo_loadQml', null, ['string'], [code]);
+        }
+    } catch (error) {
+        logToConsole(`Error: ${error}`, 'error');
+    }
+}
+
 // Initialize everything
 async function init() {
+    // Standalone mode: hide editor, show fullscreen preview
+    if (isStandaloneMode()) {
+        document.getElementById('editor-pane')?.remove();
+        document.getElementById('divider')?.remove();
+        document.getElementById('divider-console')?.remove();
+        document.getElementById('console-container')?.remove();
+
+        // Simplify header: remove example selector and standalone button, keep share
+        const exampleSelector = document.getElementById('example-selector');
+        const exampleLabel = exampleSelector?.previousElementSibling;
+        exampleLabel?.remove();
+        exampleSelector?.remove();
+        document.getElementById('standalone-button')?.remove();
+
+        // Update share button for standalone mode (shares current URL)
+        const shareBtn = document.getElementById('share-button');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', async () => {
+                const url = window.location.href;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    const originalText = shareBtn.textContent;
+                    shareBtn.textContent = '✓ Copied!';
+                    setTimeout(() => shareBtn.textContent = originalText, 2000);
+                } catch (e) {
+                    prompt('Copy this URL:', url);
+                }
+            });
+        }
+
+        // Make preview fill the space
+        const canvasPane = document.getElementById('canvas-pane');
+        if (canvasPane) {
+            canvasPane.style.flex = '1';
+            canvasPane.style.minWidth = '100%';
+        }
+
+        // Setup fullscreen button for standalone mode
+        const fullscreenBtn = document.getElementById('fullscreen-button');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', () => {
+                const container = document.getElementById('webdojo-container');
+                if (container && container.requestFullscreen) {
+                    container.requestFullscreen().then(() => {
+                        const qtDiv = container.querySelector('div');
+                        const qtInput = qtDiv?.shadowRoot?.querySelector('input.qt-window-input-element');
+                        if (qtInput) qtInput.focus();
+                    });
+                }
+            });
+        }
+
+        // Initialize WASM - onLoaded callback will load the code
+        await initWebDojo();
+        return;
+    }
+
+    // Normal edit mode
     await initEditor();
     setupEventHandlers();
     await initWebDojo();

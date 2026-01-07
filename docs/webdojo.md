@@ -19,6 +19,8 @@ permalink: /webdojo/
             <option value="voxelworld" selected>Voxelworld - 3D graphics</option>
             <option value="empty">Empty - Start fresh</option>
         </select>
+        <button id="share-button" class="share-button">🔗 Share</button>
+        <button id="standalone-button" class="standalone-button">▶ Standalone</button>
     </div>
 </div>
 
@@ -68,6 +70,9 @@ permalink: /webdojo/
 JavaScript is required to run the Web Dojo.
 </p>
 </noscript>
+
+<!-- LZ-String for URL compression -->
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
 <!-- Monaco Editor -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
