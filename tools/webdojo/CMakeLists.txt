@@ -21,11 +21,14 @@ clay_app(webdojo
         Qt::Qml
         Qt::Quick
         Qt::QuickControls2
+        Qt::QuickLayouts
         Qt::Quick3D
         Qt::Quick3DHelpers
+        Qt::Sql
 
     QML_FILES
         Main.qml
+        QmlModules.qml
 )
 
 # Emscripten-specific settings for JS interop
