@@ -457,6 +457,14 @@ function setupEventHandlers() {
                 return;
             }
 
+            // Handle "Remote Resource Test" option - tests relative imports from remote URL
+            if (value === 'remote-test') {
+                const url = 'https://raw.githubusercontent.com/mistergc/clayground/website-full-dev-xp/docs/examples/remote-test/Sandbox.qml';
+                window.location.hash = `#url-source=${encodeURIComponent(url)}`;
+                window.location.reload();
+                return;
+            }
+
             // Remove dynamic options when user picks a built-in example
             exampleSelector.querySelector('option[value="shared"]')?.remove();
             exampleSelector.querySelector('option[value="loaded-url"]')?.remove();
