@@ -223,6 +223,16 @@
     gap: 1rem;
 }
 
+.readonly-badge {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-dark);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
 .auto-reload-label,
 .vim-mode-label {
     display: flex;

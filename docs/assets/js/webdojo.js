@@ -932,6 +932,15 @@ function setupUrlSourceMode() {
     document.getElementById('run-button')?.remove();
     document.getElementById('auto-reload')?.parentElement?.remove();
 
+    // Add read-only badge
+    const editorControlsLeft = document.querySelector('.editor-controls-left');
+    if (editorControlsLeft) {
+        const badge = document.createElement('span');
+        badge.className = 'readonly-badge';
+        badge.textContent = 'Read-only';
+        editorControlsLeft.insertBefore(badge, editorControlsLeft.firstChild);
+    }
+
     // Remove example selector (we're loading from URL)
     const exampleSelector = document.getElementById('example-selector');
     const exampleLabel = exampleSelector?.previousElementSibling;
@@ -961,6 +970,9 @@ function setupUrlSourceMode() {
 
             // Make editor editable
             editor.updateOptions({ readOnly: false });
+
+            // Remove readonly badge
+            document.querySelector('.readonly-badge')?.remove();
 
             // Show warning about relative imports
             logToConsole('Now editing a copy - relative imports will not work', 'warning');
