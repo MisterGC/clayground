@@ -1,7 +1,19 @@
+// Remote QML App Reference
+// -------------------------
+// Self-contained apps can be hosted in any repo and run via Web Dojo's #url-demo mode.
+//
+// Requirements for remote loading:
+// 1. qmldir file listing your types: "TypeName 1.0 path/to/File.qml"
+// 2. Import with "as" clause: import "." as Local (required for network transparency)
+// 3. Qualify types with namespace: Local.MyComponent { }
+// 4. Assets (images, sounds) resolve relatively - no qmldir entry needed
+//
+// Run via: https://mistergc.github.io/clayground/webdojo/#url-demo=<raw-github-url>
+
 import QtQuick
 import QtQuick.Controls
 import Clayground.Sound
-import "." as Local  // Network-transparent import requires "as" clause
+import "." as Local
 
 Rectangle {
     anchors.fill: parent
