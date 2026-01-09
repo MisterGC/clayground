@@ -5,6 +5,10 @@
 #include <QUrl>
 #include <qqmlregistration.h>
 
+#ifndef __EMSCRIPTEN__
+#include <QSoundEffect>
+#endif
+
 /*!
     \qmltype ClaySound
     \nativetype ClaySound
@@ -79,9 +83,12 @@ private:
     bool lazyLoading_ = false;
     bool loaded_ = false;
     Status status_ = Null;
-    int bufferId_ = -1;
 
-    // Instance pool tracking
+#ifdef __EMSCRIPTEN__
+    int bufferId_ = -1;
     QList<int> activeInstances_;
     static int nextBufferId_;
+#else
+    QSoundEffect* soundEffect_ = nullptr;
+#endif
 };

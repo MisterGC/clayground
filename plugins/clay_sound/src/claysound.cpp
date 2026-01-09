@@ -2,6 +2,8 @@
 
 #include "claysound.h"
 #include <QDebug>
+
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <map>
@@ -131,18 +133,36 @@ void clay_sound_playback_finished(int bufferId, int instanceId)
         }, Qt::QueuedConnection);
     }
 }
+#endif // __EMSCRIPTEN__
 
 ClaySound::ClaySound(QObject *parent)
     : QObject(parent)
 {
+#ifndef __EMSCRIPTEN__
+    soundEffect_ = new QSoundEffect(this);
+    connect(soundEffect_, &QSoundEffect::statusChanged, this, [this]() {
+        if (soundEffect_->status() == QSoundEffect::Ready) {
+            onLoadComplete(true);
+        } else if (soundEffect_->status() == QSoundEffect::Error) {
+            onLoadComplete(false);
+        }
+    });
+    connect(soundEffect_, &QSoundEffect::playingChanged, this, [this]() {
+        if (!soundEffect_->isPlaying()) {
+            emit finished();
+        }
+    });
+#endif
 }
 
 ClaySound::~ClaySound()
 {
+#ifdef __EMSCRIPTEN__
     if (bufferId_ >= 0) {
         js_stop_all_audio(bufferId_);
         g_soundRegistry.erase(bufferId_);
     }
+#endif
 }
 
 QUrl ClaySound::source() const
@@ -155,12 +175,14 @@ void ClaySound::setSource(const QUrl &url)
     if (source_ == url)
         return;
 
+#ifdef __EMSCRIPTEN__
     // Clean up previous buffer
     if (bufferId_ >= 0) {
         js_stop_all_audio(bufferId_);
         g_soundRegistry.erase(bufferId_);
         bufferId_ = -1;
     }
+#endif
 
     source_ = url;
     loaded_ = false;
@@ -188,6 +210,12 @@ void ClaySound::setVolume(qreal vol)
 
     volume_ = vol;
     emit volumeChanged();
+
+#ifndef __EMSCRIPTEN__
+    if (soundEffect_) {
+        soundEffect_->setVolume(static_cast<float>(volume_));
+    }
+#endif
 }
 
 bool ClaySound::lazyLoading() const
@@ -231,18 +259,30 @@ void ClaySound::play()
         return;
     }
 
+#ifdef __EMSCRIPTEN__
     int instanceId = js_play_audio(bufferId_, static_cast<float>(volume_), 0);
     if (instanceId >= 0) {
         activeInstances_.append(instanceId);
     }
+#else
+    if (soundEffect_) {
+        soundEffect_->play();
+    }
+#endif
 }
 
 void ClaySound::stop()
 {
+#ifdef __EMSCRIPTEN__
     if (bufferId_ >= 0) {
         js_stop_all_audio(bufferId_);
         activeInstances_.clear();
     }
+#else
+    if (soundEffect_) {
+        soundEffect_->stop();
+    }
+#endif
 }
 
 void ClaySound::load()
@@ -260,14 +300,21 @@ void ClaySound::doLoad()
     if (source_.isEmpty())
         return;
 
-    bufferId_ = nextBufferId_++;
-    g_soundRegistry[bufferId_] = this;
-
     status_ = Loading;
     emit statusChanged();
 
+#ifdef __EMSCRIPTEN__
+    bufferId_ = nextBufferId_++;
+    g_soundRegistry[bufferId_] = this;
+
     QByteArray urlBytes = source_.toString().toUtf8();
     js_load_audio(urlBytes.constData(), bufferId_);
+#else
+    if (soundEffect_) {
+        soundEffect_->setSource(source_);
+        soundEffect_->setVolume(static_cast<float>(volume_));
+    }
+#endif
 }
 
 void ClaySound::onLoadComplete(bool success)
@@ -286,6 +333,10 @@ void ClaySound::onLoadComplete(bool success)
 
 void ClaySound::onPlaybackFinished(int instanceId)
 {
+#ifdef __EMSCRIPTEN__
     activeInstances_.removeOne(instanceId);
+#else
+    Q_UNUSED(instanceId)
+#endif
     emit finished();
 }

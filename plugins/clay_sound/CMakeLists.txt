@@ -1,11 +1,11 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 #
 # Clay Sound Plugin - Audio playback for games
-# Currently WASM-only (uses Web Audio API via Emscripten)
+# WASM: Web Audio API via Emscripten
+# Desktop/Mobile: Qt Multimedia
 #
 if(NOT EMSCRIPTEN)
-    message(STATUS "clay_sound: Skipping (WASM build only for now)")
-    return()
+    find_package(Qt6 COMPONENTS Multimedia REQUIRED)
 endif()
 
 include(clayplugin)
@@ -28,6 +28,7 @@ clay_plugin(Sound
         Qt::Core
         Qt::Quick
         Qt::Qml
+        $<$<NOT:$<BOOL:${EMSCRIPTEN}>>:Qt::Multimedia>
 )
 
 # Add src directory to include paths for the generated code

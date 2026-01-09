@@ -5,6 +5,11 @@
 #include <QUrl>
 #include <qqmlregistration.h>
 
+#ifndef __EMSCRIPTEN__
+#include <QMediaPlayer>
+#include <QAudioOutput>
+#endif
+
 /*!
     \qmltype ClayMusic
     \nativetype ClayMusic
@@ -93,7 +98,6 @@ public:
 
 private:
     void doLoad();
-    void updatePosition();
 
     QUrl source_;
     qreal volume_ = 1.0;
@@ -105,10 +109,15 @@ private:
     int position_ = 0;
     int duration_ = 0;
     Status status_ = Null;
+
+#ifdef __EMSCRIPTEN__
     int bufferId_ = -1;
     int instanceId_ = -1;
     double startTime_ = 0;
     double pauseTime_ = 0;
-
     static int nextBufferId_;
+#else
+    QMediaPlayer* mediaPlayer_ = nullptr;
+    QAudioOutput* audioOutput_ = nullptr;
+#endif
 };

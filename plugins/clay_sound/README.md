@@ -75,11 +75,12 @@ onGameOver: bgMusic.stop()
 
 ## Platform Support
 
-- **WASM**: Full support via Web Audio API
-- **Desktop**: Not yet implemented (planned for future)
+- **WASM**: Full support via Web Audio API (Emscripten)
+- **Desktop/Mobile**: Full support via Qt Multimedia
 
 ## Technical Notes
 
 - Audio is fully preloaded before playback (no streaming)
-- Web Audio API requires user gesture to start AudioContext
-- Remote URLs must be CORS-enabled
+- **WASM**: Web Audio API requires user gesture to start AudioContext
+- **WASM**: Remote URLs must be CORS-enabled
+- **Desktop**: Uses `QSoundEffect` for Sound (low-latency) and `QMediaPlayer` for Music

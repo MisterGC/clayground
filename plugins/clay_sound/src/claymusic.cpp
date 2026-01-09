@@ -2,7 +2,8 @@
 
 #include "claymusic.h"
 #include <QDebug>
-#include <QTimer>
+
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <map>
@@ -160,18 +161,62 @@ void clay_music_playback_finished(int bufferId)
         }, Qt::QueuedConnection);
     }
 }
+#endif // __EMSCRIPTEN__
 
 ClayMusic::ClayMusic(QObject *parent)
     : QObject(parent)
 {
+#ifndef __EMSCRIPTEN__
+    mediaPlayer_ = new QMediaPlayer(this);
+    audioOutput_ = new QAudioOutput(this);
+    mediaPlayer_->setAudioOutput(audioOutput_);
+
+    connect(mediaPlayer_, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::LoadedMedia) {
+            onLoadComplete(true, static_cast<int>(mediaPlayer_->duration()));
+        } else if (status == QMediaPlayer::InvalidMedia) {
+            onLoadComplete(false, 0);
+        } else if (status == QMediaPlayer::EndOfMedia) {
+            onPlaybackFinished();
+        }
+    });
+
+    connect(mediaPlayer_, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
+        bool wasPlaying = playing_;
+        bool wasPaused = paused_;
+
+        playing_ = (state == QMediaPlayer::PlayingState);
+        paused_ = (state == QMediaPlayer::PausedState);
+
+        if (playing_ != wasPlaying) emit playingChanged();
+        if (paused_ != wasPaused) emit pausedChanged();
+    });
+
+    connect(mediaPlayer_, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
+        position_ = static_cast<int>(pos);
+        emit positionChanged();
+    });
+
+    connect(mediaPlayer_, &QMediaPlayer::durationChanged, this, [this](qint64 dur) {
+        duration_ = static_cast<int>(dur);
+        emit durationChanged();
+    });
+
+    connect(mediaPlayer_, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error error, const QString &errorString) {
+        Q_UNUSED(error)
+        emit errorOccurred(errorString);
+    });
+#endif
 }
 
 ClayMusic::~ClayMusic()
 {
+#ifdef __EMSCRIPTEN__
     if (bufferId_ >= 0) {
         js_music_stop(bufferId_);
         g_musicRegistry.erase(bufferId_);
     }
+#endif
 }
 
 QUrl ClayMusic::source() const
@@ -184,12 +229,18 @@ void ClayMusic::setSource(const QUrl &url)
     if (source_ == url)
         return;
 
+#ifdef __EMSCRIPTEN__
     // Stop and clean up previous
     if (bufferId_ >= 0) {
         js_music_stop(bufferId_);
         g_musicRegistry.erase(bufferId_);
         bufferId_ = -1;
     }
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->stop();
+    }
+#endif
 
     source_ = url;
     loaded_ = false;
@@ -226,10 +277,16 @@ void ClayMusic::setVolume(qreal vol)
     volume_ = vol;
     emit volumeChanged();
 
+#ifdef __EMSCRIPTEN__
     // Update playing instance volume
     if (playing_ && bufferId_ >= 0) {
         js_music_set_volume(bufferId_, static_cast<float>(volume_));
     }
+#else
+    if (audioOutput_) {
+        audioOutput_->setVolume(static_cast<float>(volume_));
+    }
+#endif
 }
 
 bool ClayMusic::lazyLoading() const
@@ -274,7 +331,12 @@ void ClayMusic::setLoop(bool loop)
     loop_ = loop;
     emit loopChanged();
 
-    // Note: Can't change loop on playing source in Web Audio,
+#ifndef __EMSCRIPTEN__
+    if (mediaPlayer_) {
+        mediaPlayer_->setLoops(loop_ ? QMediaPlayer::Infinite : 1);
+    }
+#endif
+    // Note: For WASM, can't change loop on playing source in Web Audio,
     // would need to restart. For simplicity, only applies on next play.
 }
 
@@ -308,6 +370,7 @@ void ClayMusic::play()
         return;
     }
 
+#ifdef __EMSCRIPTEN__
     double offsetSec = paused_ ? (pauseTime_ / 1000.0) : 0;
 
     instanceId_ = js_music_play(bufferId_, static_cast<float>(volume_), loop_ ? 1 : 0, offsetSec);
@@ -318,10 +381,16 @@ void ClayMusic::play()
         emit playingChanged();
         emit pausedChanged();
     }
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->play();
+    }
+#endif
 }
 
 void ClayMusic::pause()
 {
+#ifdef __EMSCRIPTEN__
     if (!playing_ || bufferId_ < 0)
         return;
 
@@ -335,10 +404,16 @@ void ClayMusic::pause()
         emit pausedChanged();
         emit positionChanged();
     }
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->pause();
+    }
+#endif
 }
 
 void ClayMusic::stop()
 {
+#ifdef __EMSCRIPTEN__
     if (bufferId_ >= 0) {
         js_music_stop(bufferId_);
     }
@@ -351,14 +426,23 @@ void ClayMusic::stop()
     emit playingChanged();
     emit pausedChanged();
     emit positionChanged();
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->stop();
+    }
+#endif
 }
 
 void ClayMusic::seek(int ms)
 {
-    if (!loaded_ || bufferId_ < 0)
+    if (!loaded_)
         return;
 
     ms = qBound(0, ms, duration_);
+
+#ifdef __EMSCRIPTEN__
+    if (bufferId_ < 0)
+        return;
 
     if (playing_) {
         // Stop and restart at new position
@@ -370,6 +454,11 @@ void ClayMusic::seek(int ms)
 
     position_ = ms;
     emit positionChanged();
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->setPosition(ms);
+    }
+#endif
 }
 
 void ClayMusic::load()
@@ -387,14 +476,24 @@ void ClayMusic::doLoad()
     if (source_.isEmpty())
         return;
 
-    bufferId_ = nextBufferId_++;
-    g_musicRegistry[bufferId_] = this;
-
     status_ = Loading;
     emit statusChanged();
 
+#ifdef __EMSCRIPTEN__
+    bufferId_ = nextBufferId_++;
+    g_musicRegistry[bufferId_] = this;
+
     QByteArray urlBytes = source_.toString().toUtf8();
     js_music_load(urlBytes.constData(), bufferId_);
+#else
+    if (mediaPlayer_) {
+        mediaPlayer_->setSource(source_);
+        mediaPlayer_->setLoops(loop_ ? QMediaPlayer::Infinite : 1);
+        if (audioOutput_) {
+            audioOutput_->setVolume(static_cast<float>(volume_));
+        }
+    }
+#endif
 }
 
 void ClayMusic::onLoadComplete(bool success, int durationMs)
