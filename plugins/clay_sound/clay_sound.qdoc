@@ -1,0 +1,221 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmlmodule Clayground.Sound
+    \title Clayground Sound Module
+    \brief Audio playback for games - sound effects and background music.
+
+    The Clayground.Sound module provides cross-platform audio playback for games:
+    \list
+    \li \l Sound - For short sound effects (fire-and-forget, overlapping)
+    \li \l Music - For background music (play/pause/stop/loop/seek)
+    \endlist
+
+    \section1 Platform Support
+
+    \table
+    \header
+        \li Platform
+        \li Backend
+    \row
+        \li WASM (Browser)
+        \li Web Audio API via Emscripten
+    \row
+        \li Desktop (Windows/macOS/Linux)
+        \li Qt Multimedia (QSoundEffect, QMediaPlayer)
+    \row
+        \li Mobile (iOS/Android)
+        \li Qt Multimedia
+    \endtable
+
+    \section1 Usage
+
+    Import the module:
+    \qml
+    import Clayground.Sound
+    \endqml
+
+    \section2 Sound Effects
+
+    Use \l Sound for short audio like jumps, clicks, or explosions:
+    \qml
+    Sound {
+        id: jumpSound
+        source: "sounds/jump.wav"
+        volume: 0.8
+    }
+
+    // Play sound (can overlap multiple times)
+    onPlayerJumped: jumpSound.play()
+    \endqml
+
+    \section2 Background Music
+
+    Use \l Music for longer tracks with playback controls:
+    \qml
+    Music {
+        id: bgMusic
+        source: "music/theme.mp3"
+        volume: 0.5
+        loop: true
+    }
+
+    onGameStarted: bgMusic.play()
+    onGamePaused: bgMusic.pause()
+    onGameOver: bgMusic.stop()
+    \endqml
+
+    \section1 Lazy Loading
+
+    By default, audio is preloaded when \c source is set. For memory optimization,
+    enable lazy loading to defer loading until first play:
+    \qml
+    Sound {
+        source: "sounds/rare_event.wav"
+        lazyLoading: true  // Only loads when play() is called
+    }
+    \endqml
+
+    \section1 Technical Notes
+
+    \list
+    \li Audio files are fully preloaded before playback (no streaming)
+    \li WASM: Browser autoplay policies require user interaction before audio plays
+    \li WASM: Remote URLs must have CORS headers enabled
+    \li Desktop: Uses low-latency QSoundEffect for Sound, full-featured QMediaPlayer for Music
+    \endlist
+
+    \sa Sound, Music
+*/
+
+/*!
+    \qmltype Sound
+    \inqmlmodule Clayground.Sound
+    \inherits ClaySound
+    \brief Play sound effects with support for overlapping playback.
+
+    Sound provides an easy-to-use interface for playing short sound effects
+    like jump sounds, clicks, explosions, etc. Multiple instances of the same
+    sound can play simultaneously (overlapping).
+
+    \section1 Properties
+
+    \qmlproperty url Sound::source
+    The audio file URL to load (local or remote).
+
+    \qmlproperty real Sound::volume
+    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
+
+    \qmlproperty bool Sound::lazyLoading
+    If true, audio loads on first play() call. If false (default), loads immediately.
+
+    \qmlproperty bool Sound::loaded
+    Read-only. True when audio data is fully loaded and ready to play.
+
+    \qmlproperty enumeration Sound::status
+    Read-only. Current loading status:
+    \list
+    \li Sound.Null - No source set
+    \li Sound.Loading - Currently loading
+    \li Sound.Ready - Loaded and ready
+    \li Sound.Error - Load failed
+    \endlist
+
+    \section1 Methods
+
+    \qmlmethod void Sound::play()
+    Plays the sound. Can be called multiple times for overlapping playback.
+    If not loaded, triggers lazy loading then plays.
+
+    \qmlmethod void Sound::stop()
+    Stops all currently playing instances of this sound.
+
+    \qmlmethod void Sound::load()
+    Explicitly preloads the audio (useful with lazyLoading enabled).
+
+    \section1 Signals
+
+    \qmlsignal Sound::finished()
+    Emitted when playback completes.
+
+    \qmlsignal Sound::errorOccurred(string message)
+    Emitted when loading or playback fails.
+
+    \sa Music
+*/
+
+/*!
+    \qmltype Music
+    \inqmlmodule Clayground.Sound
+    \inherits ClayMusic
+    \brief Play background music with play/pause/stop/loop controls.
+
+    Music provides an interface for playing longer audio tracks like
+    background music. Supports play, pause, stop, seek, and looping.
+
+    \section1 Properties
+
+    \qmlproperty url Music::source
+    The audio file URL to load (local or remote).
+
+    \qmlproperty real Music::volume
+    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
+
+    \qmlproperty bool Music::lazyLoading
+    If true, audio loads on first play() call. If false (default), loads immediately.
+
+    \qmlproperty bool Music::loaded
+    Read-only. True when audio data is fully loaded and ready to play.
+
+    \qmlproperty bool Music::playing
+    Read-only. True when audio is currently playing.
+
+    \qmlproperty bool Music::paused
+    Read-only. True when audio is paused.
+
+    \qmlproperty bool Music::loop
+    If true, audio loops continuously. Default: false
+
+    \qmlproperty int Music::position
+    Read-only. Current playback position in milliseconds.
+
+    \qmlproperty int Music::duration
+    Read-only. Total duration in milliseconds.
+
+    \qmlproperty enumeration Music::status
+    Read-only. Current loading status:
+    \list
+    \li Music.Null - No source set
+    \li Music.Loading - Currently loading
+    \li Music.Ready - Loaded and ready
+    \li Music.Error - Load failed
+    \endlist
+
+    \section1 Methods
+
+    \qmlmethod void Music::play()
+    Starts or resumes playback. If paused, resumes from paused position.
+    If not loaded, triggers lazy loading then plays.
+
+    \qmlmethod void Music::pause()
+    Pauses playback. Position is preserved for later resume.
+
+    \qmlmethod void Music::stop()
+    Stops playback and resets position to beginning.
+
+    \qmlmethod void Music::seek(int ms)
+    Seeks to the specified position in milliseconds.
+
+    \qmlmethod void Music::load()
+    Explicitly preloads the audio (useful with lazyLoading enabled).
+
+    \section1 Signals
+
+    \qmlsignal Music::finished()
+    Emitted when playback completes (not emitted when looping).
+
+    \qmlsignal Music::errorOccurred(string message)
+    Emitted when loading or playback fails.
+
+    \sa Sound
+*/

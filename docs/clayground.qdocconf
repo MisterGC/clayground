@@ -22,11 +22,13 @@ sourcedirs = . \
              ../plugins/clay_character3d/animation \
              ../plugins/clay_world \
              ../plugins/clay_canvas3d \
-             ../plugins/clay_ios
+             ../plugins/clay_ios \
+             ../plugins/clay_sound
 
 headerdirs = ../plugins/clay_common \
              ../plugins/clay_canvas3d \
-             ../plugins/clay_ios
+             ../plugins/clay_ios \
+             ../plugins/clay_sound/src
 
 # Include paths for Clang parser (needed for C++ types with QML_ELEMENT)
 # Note: Paths are passed via command line -I flags in CMake for portability
