@@ -112,6 +112,80 @@
     border-color: var(--accent-primary, #00d9ff);
 }
 
+/* URL input for demo mode */
+.url-input {
+    flex: 1;
+    max-width: 600px;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.url-input:focus {
+    outline: none;
+    border-color: var(--accent-primary, #00d9ff);
+}
+
+.url-input::placeholder {
+    color: var(--text-secondary, #8b949e);
+}
+
+/* Load URL button */
+.load-url-button {
+    padding: 0.35rem 0.75rem;
+    background: var(--accent-primary, #00d9ff);
+    color: var(--bg-dark, #0d1117);
+    border: none;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.load-url-button:hover {
+    box-shadow: var(--glow-primary);
+}
+
+/* View Source button */
+.view-source-button {
+    padding: 0.35rem 0.75rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-source-button:hover {
+    border-color: var(--accent-primary, #00d9ff);
+}
+
+/* Modify Copy button */
+.modify-copy-button {
+    padding: 0.35rem 0.75rem;
+    background: #6b5b00;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modify-copy-button:hover {
+    background: #7d6b00;
+}
+
 /* Main container - fills remaining viewport */
 .playground-container {
     display: flex;
