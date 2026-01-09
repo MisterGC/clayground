@@ -1,13 +1,14 @@
 import QtQuick
 import QtQuick.Controls
 import Clayground.Sound
+import "." as Local  // Network-transparent import requires "as" clause
 
 Rectangle {
     anchors.fill: parent
     color: "#1a1a2e"
 
-    // Test relative QML component import
-    ClaygroundLogo {
+    // Test relative QML component import (must use namespace for remote)
+    Local.ClaygroundLogo {
         id: logo
         anchors.centerIn: parent
         width: 200
