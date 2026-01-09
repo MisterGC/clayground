@@ -815,14 +815,24 @@ function setupUrlDemoMode() {
     // Remove standalone button (already in demo mode)
     document.getElementById('standalone-button')?.remove();
 
-    // Get controls container
+    // Adjust header to let URL input span full width
+    const header = document.querySelector('.webdojo-header');
+    if (header) {
+        header.style.justifyContent = 'flex-start';
+        header.style.gap = '1rem';
+    }
+
+    // Get controls container and expand it to fill header width
     const controls = document.querySelector('.webdojo-controls');
     if (controls) {
-        // Add URL input field
+        controls.style.flex = '1';
+
+        // Add URL input field (expanded to fill available space)
         const urlInput = document.createElement('input');
         urlInput.type = 'text';
         urlInput.id = 'url-input';
         urlInput.className = 'url-input';
+        urlInput.style.maxWidth = 'none';
         urlInput.placeholder = 'Enter QML URL...';
         urlInput.value = getUrlFromHash() || '';
         // Stop Qt WASM from intercepting clipboard events
