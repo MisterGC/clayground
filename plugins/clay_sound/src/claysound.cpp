@@ -307,7 +307,15 @@ void ClaySound::doLoad()
     bufferId_ = nextBufferId_++;
     g_soundRegistry[bufferId_] = this;
 
-    QByteArray urlBytes = source_.toString().toUtf8();
+    // Resolve relative URL against QML context base URL
+    QUrl resolvedUrl = source_;
+    if (source_.isRelative()) {
+        QQmlContext* context = QQmlEngine::contextForObject(this);
+        if (context) {
+            resolvedUrl = context->resolvedUrl(source_);
+        }
+    }
+    QByteArray urlBytes = resolvedUrl.toString().toUtf8();
     js_load_audio(urlBytes.constData(), bufferId_);
 #else
     if (soundEffect_) {

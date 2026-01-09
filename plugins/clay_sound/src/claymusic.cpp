@@ -483,7 +483,15 @@ void ClayMusic::doLoad()
     bufferId_ = nextBufferId_++;
     g_musicRegistry[bufferId_] = this;
 
-    QByteArray urlBytes = source_.toString().toUtf8();
+    // Resolve relative URL against QML context base URL
+    QUrl resolvedUrl = source_;
+    if (source_.isRelative()) {
+        QQmlContext* context = QQmlEngine::contextForObject(this);
+        if (context) {
+            resolvedUrl = context->resolvedUrl(source_);
+        }
+    }
+    QByteArray urlBytes = resolvedUrl.toString().toUtf8();
     js_music_load(urlBytes.constData(), bufferId_);
 #else
     if (mediaPlayer_) {

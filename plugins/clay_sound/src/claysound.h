@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QUrl>
+#include <QQmlContext>
+#include <QQmlEngine>
 #include <qqmlregistration.h>
 
 #ifndef __EMSCRIPTEN__
