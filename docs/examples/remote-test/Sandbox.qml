@@ -36,18 +36,25 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
         }
 
-        Text {
-            text: "QML Component: " + (logo.status === Image.Ready ? "✓ Loaded" : logo.status === Image.Error ? "✗ Error" : "Loading...")
-            color: logo.status === Image.Ready ? "#4ade80" : logo.status === Image.Error ? "#f87171" : "#fbbf24"
-            font.pixelSize: 14
+        // Test component from subdirectory (components/StatusBadge.qml)
+        Row {
             anchors.horizontalCenter: parent.horizontalCenter
-        }
+            spacing: 10
 
-        Text {
-            text: "Sound: " + (testSound.loaded ? "✓ Loaded" : testSound.status === Sound.Error ? "✗ Error" : "Loading...")
-            color: testSound.loaded ? "#4ade80" : testSound.status === Sound.Error ? "#f87171" : "#fbbf24"
-            font.pixelSize: 14
-            anchors.horizontalCenter: parent.horizontalCenter
+            Local.StatusBadge {
+                label: "QML Component"
+                success: logo.status === Image.Ready
+            }
+
+            Local.StatusBadge {
+                label: "Image (subdir)"
+                success: logo.status === Image.Ready
+            }
+
+            Local.StatusBadge {
+                label: "Sound"
+                success: testSound.loaded
+            }
         }
 
         Button {
