@@ -103,9 +103,80 @@ void loadQmlFromString(const std::string& qmlSource)
     }
 }
 
-// Emscripten bindings - expose to JavaScript as Module.loadQml
+// Helper to setup loaded QML object (shared by string and URL loading)
+static void setupLoadedObject(QObject* obj)
+{
+    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+        item->setParentItem(g_window->contentItem());
+        item->setSize(g_window->size());
+
+        QObject::connect(g_window, &QQuickWindow::widthChanged, item, [item]() {
+            item->setWidth(g_window->width());
+        });
+        QObject::connect(g_window, &QQuickWindow::heightChanged, item, [item]() {
+            item->setHeight(g_window->height());
+        });
+
+        emscripten_log(EM_LOG_CONSOLE, "QML loaded successfully");
+    } else {
+        emscripten_log(EM_LOG_WARN, "Root object is not a QQuickItem");
+    }
+}
+
+// Called from JavaScript to load QML from a remote URL
+// Supports Qt's network transparency - relative imports resolve from URL base
+void loadQmlFromUrl(const std::string& url)
+{
+    if (!g_engine || !g_window) {
+        emscripten_log(EM_LOG_ERROR, "WebDojo not initialized");
+        return;
+    }
+
+    // Clean up previous root object
+    if (g_rootObject) {
+        delete g_rootObject;
+        g_rootObject = nullptr;
+    }
+
+    emscripten_log(EM_LOG_CONSOLE, "Loading QML from URL: %s", url.c_str());
+
+    // Create component from URL - use Asynchronous mode for network loading
+    auto* component = new QQmlComponent(g_engine, QUrl(QString::fromStdString(url)),
+                                        QQmlComponent::Asynchronous);
+
+    auto finishLoad = [component]() {
+        if (component->isError()) {
+            for (const auto& error : component->errors()) {
+                emscripten_log(EM_LOG_ERROR, "QML Error: %s",
+                              error.toString().toUtf8().constData());
+            }
+            component->deleteLater();
+            return;
+        }
+
+        if (component->isReady()) {
+            g_rootObject = component->create();
+            if (!g_rootObject) {
+                emscripten_log(EM_LOG_ERROR, "Failed to create QML object from URL");
+                component->deleteLater();
+                return;
+            }
+            setupLoadedObject(g_rootObject);
+        }
+        component->deleteLater();
+    };
+
+    if (component->isLoading()) {
+        QObject::connect(component, &QQmlComponent::statusChanged, component, finishLoad);
+    } else {
+        finishLoad();
+    }
+}
+
+// Emscripten bindings - expose to JavaScript as Module.loadQml, Module.loadQmlFromUrl
 EMSCRIPTEN_BINDINGS(webdojo) {
     emscripten::function("loadQml", &loadQmlFromString);
+    emscripten::function("loadQmlFromUrl", &loadQmlFromUrl);
 }
 
 // Also expose as a global function for easy access from playground.js

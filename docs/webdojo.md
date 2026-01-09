@@ -18,6 +18,7 @@ permalink: /webdojo/
         <select id="example-selector" aria-label="Select example">
             <option value="voxelworld" selected>Voxelworld - 3D graphics</option>
             <option value="empty">Empty - Start fresh</option>
+            <option value="load-url">Load from URL...</option>
         </select>
         <button id="share-button" class="share-button">🔗 Share</button>
         <button id="standalone-button" class="standalone-button">▶ Standalone</button>
