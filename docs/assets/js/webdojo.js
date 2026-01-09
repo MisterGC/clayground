@@ -459,7 +459,7 @@ function setupEventHandlers() {
 
             // Handle "Remote Resource Test" option - tests relative imports from remote URL
             if (value === 'remote-test') {
-                const url = 'https://raw.githubusercontent.com/mistergc/clayground/website-full-dev-xp/docs/examples/remote-test/Sandbox.qml';
+                const url = 'https://raw.githubusercontent.com/mistergc/clayground/main/docs/examples/remote-test/Sandbox.qml';
                 window.location.hash = `#url-source=${encodeURIComponent(url)}`;
                 window.location.reload();
                 return;
