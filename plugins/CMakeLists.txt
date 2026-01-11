@@ -14,10 +14,8 @@ add_subdirectory (clay_sound)
 add_subdirectory (clay_storage)
 add_subdirectory (clay_svg)
 
-# clay_network uses TCP sockets which are not available in WASM
-if (NOT EMSCRIPTEN)
-    add_subdirectory (clay_network)
-endif()
+# clay_network: WebRTC/PeerJS on WASM, TCP/UDP on native
+add_subdirectory (clay_network)
 
 add_subdirectory (clay_physics)
 add_subdirectory (clay_world)

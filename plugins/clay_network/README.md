@@ -1,14 +1,8 @@
 # Clay Network Plugin
 
-The Clay Network plugin provides networking capabilities for Clayground
-applications, including peer-to-peer communication for multiplayer games and
-HTTP client functionality for web API integration. It offers both local network
-discovery and direct messaging capabilities, as well as a flexible HTTP client
-with authentication support.
+The Clay Network plugin provides networking capabilities for Clayground applications, including P2P multiplayer for games and HTTP client functionality for web API integration.
 
 ## Getting Started
-
-To use the Clay Network plugin in your QML files:
 
 ```qml
 import Clayground.Network
@@ -16,183 +10,263 @@ import Clayground.Network
 
 ## Core Components
 
-- **ClayNetworkNode** - Low-level P2P networking component for direct messaging and broadcast communication.
-- **ClayNetworkUser** - Higher-level component extending ClayNetworkNode with user identity and group messaging.
+### P2P Multiplayer
+
+- **ClayMultiplayer** (WASM) - WebRTC-based P2P multiplayer using PeerJS for signaling. No dedicated server required.
+- **ClayNetworkUser** (Desktop) - TCP/UDP-based local network P2P with automatic peer discovery.
+
+### HTTP Client
+
 - **ClayHttpClient** - Configurable HTTP client that generates API methods from endpoint definitions.
 - **ClayWebAccess** - Low-level HTTP request handler supporting GET and POST with authentication.
 
-## Usage Examples
+## ClayMultiplayer (WebAssembly)
 
-### Peer-to-Peer Messaging
+Browser-based P2P multiplayer using WebRTC Data Channels. One player hosts, others join via a simple room code.
+
+### Quick Start
 
 ```qml
 import Clayground.Network
 
-ClayNetworkUser {
-    id: player
-    name: "Player1"
-    
-    Component.onCompleted: {
-        // Join a game room
-        joinGroup("game-room-1")
+ClayMultiplayer {
+    id: network
+    maxPlayers: 4
+    topology: ClayMultiplayer.Star
+
+    onRoomCreated: (code) => {
+        // Share this code with friends
+        console.log("Room code:", code)
     }
-    
-    onNewMessage: (from, message) => {
-        console.log(`${nameForId(from)} says: ${message}`)
+
+    onPlayerJoined: (playerId) => {
+        console.log("Player joined:", playerId)
     }
-    
-    onNewParticipant: (userId) => {
-        console.log(`${nameForId(userId)} joined!`)
-        sendDirectMessage(userId, "Welcome!")
+
+    onMessageReceived: (from, data) => {
+        // Handle chat, game events, etc.
+        if (data.type === "chat")
+            chatLog.append(data.text)
     }
-    
-    // Send to everyone in the group
-    function broadcastMove(x, y) {
-        sendGroupMessage("game-room-1", JSON.stringify({
-            type: "move",
-            x: x,
-            y: y
-        }))
+
+    onStateReceived: (from, data) => {
+        // Handle position updates, etc.
+        entities[from].x = data.x
+        entities[from].y = data.y
     }
+}
+
+// Host a game
+Button {
+    text: "Host Game"
+    onClicked: network.createRoom()
+}
+
+// Join a game
+Button {
+    text: "Join"
+    onClicked: network.joinRoom(roomCodeInput.text)
 }
 ```
 
-### HTTP API Integration
+### Network Topologies
+
+| Topology | Description | Best For |
+|----------|-------------|----------|
+| **Star** | All players connect to host only. Host relays messages. | Competitive games, authoritative server logic |
+| **Mesh** | All players connect to each other directly. | Cooperative games, lower latency |
 
 ```qml
-ClayHttpClient {
-    id: apiClient
-    
-    baseUrl: "https://api.example.com"
-    endpoints: {
-        "getUser": "GET users/{userId}",
-        "updateUser": "POST users/{userId} {userData}",
-        "listPosts": "GET posts",
-        "createPost": "POST posts {postData}"
-    }
-    
-    bearerToken: "your-api-token-here"
-    
-    onReply: (requestId, code, response) => {
-        const data = JSON.parse(response)
-        console.log("Success:", data)
-    }
-    
-    onError: (requestId, code, error) => {
-        console.error("API Error:", error)
-    }
-    
-    Component.onCompleted: {
-        // Methods are automatically generated
-        api.getUser(123)
-        api.createPost({
-            title: "Hello World",
-            content: "My first post"
-        })
-    }
+ClayMultiplayer {
+    topology: ClayMultiplayer.Star  // or ClayMultiplayer.Mesh
 }
 ```
 
-### Multiplayer Game State
+### Message Types
+
+| Method | Signal | Delivery | Use Case |
+|--------|--------|----------|----------|
+| `broadcast(data)` | `messageReceived` | Reliable, ordered | Chat, game events, important state |
+| `broadcastState(data)` | `stateReceived` | Optimized for frequency | Entity positions, real-time stats |
+| `sendTo(playerId, data)` | `messageReceived` | Reliable, ordered | Direct player messages |
+
+### Multiplayer Game Example
 
 ```qml
 Item {
     property var players: ({})
-    
-    ClayNetworkUser {
-        id: networkNode
-        name: "Player" + Math.floor(Math.random() * 1000)
-        
-        Component.onCompleted: joinGroup("multiplayer-game")
-        
-        onNewMessage: (from, message) => {
-            const data = JSON.parse(message)
-            if (data.type === "position") {
+
+    ClayMultiplayer {
+        id: network
+        maxPlayers: 8
+
+        onPlayerJoined: (playerId) => {
+            players[playerId] = createPlayer(playerId)
+        }
+
+        onPlayerLeft: (playerId) => {
+            if (players[playerId]) {
+                players[playerId].destroy()
+                delete players[playerId]
+            }
+        }
+
+        onStateReceived: (from, data) => {
+            if (players[from]) {
                 players[from].x = data.x
                 players[from].y = data.y
             }
         }
-        
-        onNewParticipant: (userId) => {
-            players[userId] = playerComponent.createObject(gameArea, {
-                playerId: userId,
-                playerName: nameForId(userId)
-            })
-        }
-        
-        onParticipantLeft: (userId) => {
-            if (players[userId]) {
-                players[userId].destroy()
-                delete players[userId]
-            }
-        }
     }
-    
+
+    // Broadcast local player position
     Timer {
-        interval: 100
+        interval: 50
         repeat: true
-        running: true
+        running: network.connected
         onTriggered: {
-            networkNode.sendGroupMessage("multiplayer-game", JSON.stringify({
-                type: "position",
+            network.broadcastState({
                 x: localPlayer.x,
                 y: localPlayer.y
-            }))
+            })
         }
     }
 }
 ```
 
-### Dynamic API Configuration
+## ClayNetworkUser (Desktop/Native)
+
+Local network P2P using TCP/UDP with automatic peer discovery. Available on non-WASM platforms.
+
+```qml
+ClayNetworkUser {
+    id: player
+    name: "Player1"
+
+    Component.onCompleted: joinGroup("game-room-1")
+
+    onNewMessage: (from, message) => {
+        console.log(nameForId(from) + " says: " + message)
+    }
+
+    onNewParticipant: (userId) => {
+        sendDirectMessage(userId, "Welcome!")
+    }
+}
+```
+
+## ClayHttpClient
+
+Declarative HTTP API client with auto-generated methods.
 
 ```qml
 ClayHttpClient {
-    id: configurable
-    
-    property string environment: "development"
-    
-    baseUrl: environment === "production" 
-        ? "https://api.prod.example.com"
-        : "https://api.dev.example.com"
-    
-    endpoints: ({
-        weather: "GET weather/{city}",
-        forecast: "GET forecast/{city}/{days}"
-    })
-    
-    // Bearer token from file or environment variable
-    bearerToken: "file:///path/to/token.txt"
-    // or
-    // bearerToken: "env:API_TOKEN"
-    
-    function getWeatherForecast(city) {
-        api.weather(city)
-        api.forecast(city, 7)
+    id: api
+
+    baseUrl: "https://api.example.com"
+    endpoints: {
+        "getUser": "GET users/{userId}",
+        "createPost": "POST posts {postData}",
+        "updateUser": "POST users/{userId} {userData}"
     }
+
+    bearerToken: "your-api-token"
+
+    onReply: (requestId, code, response) => {
+        const data = JSON.parse(response)
+        console.log("Success:", data)
+    }
+
+    onError: (requestId, code, error) => {
+        console.error("API Error:", error)
+    }
+
+    Component.onCompleted: {
+        api.getUser(123)
+        api.createPost({ title: "Hello", content: "World" })
+    }
+}
+```
+
+### Authentication Options
+
+```qml
+// Direct token
+bearerToken: "your-token-here"
+
+// From environment variable
+bearerToken: "env:API_TOKEN"
+
+// From file
+bearerToken: "file:///path/to/token.txt"
+```
+
+## Platform Support
+
+| Platform | P2P Multiplayer | HTTP Client | Status |
+|----------|-----------------|-------------|--------|
+| WebAssembly (Browser) | ClayMultiplayer (WebRTC) | ClayHttpClient | **Supported** |
+| Desktop (Linux, macOS, Windows) | ClayNetworkUser (TCP/UDP) | ClayHttpClient | **Supported** |
+| Mobile (iOS, Android) | - | ClayHttpClient | Partial |
+
+## Future Roadmap
+
+### Desktop WebRTC Support (Planned)
+
+Use libdatachannel to enable the same ClayMultiplayer API on desktop platforms, allowing cross-platform play between browser and native apps.
+
+```
+Browser Player <--WebRTC--> Desktop Player
+```
+
+### Unified API Across Platforms (Planned)
+
+A single ClayMultiplayer API that automatically selects the best transport:
+
+| Platform | Internet Play | LAN Play |
+|----------|---------------|----------|
+| WASM | WebRTC + PeerJS | WebRTC + PeerJS |
+| Desktop | WebRTC + PeerJS | WebRTC + UDP discovery |
+| Mobile | WebRTC + PeerJS | BLE / Wi-Fi Direct |
+
+### Mobile Local Play (Planned)
+
+Support for local multiplayer on mobile devices without internet:
+
+- **Bluetooth Low Energy (BLE)** - Low power, works on iOS + Android
+- **Wi-Fi Direct** - Higher bandwidth for real-time games
+- **Nearby discovery** - Automatic room discovery for local games
+
+```qml
+ClayMultiplayer {
+    // Future API extension
+    function discoverNearby() { }
+    signal nearbyRoomFound(string roomId, string hostName)
 }
 ```
 
 ## Best Practices
 
-1. **Group Management**: Use groups to organize communication channels and reduce unnecessary messages.
+1. **Message Format**: Use JSON objects for structured data exchange.
 
-2. **Message Format**: Use JSON for structured data exchange between peers.
+2. **State Updates**: Use `broadcastState()` for high-frequency updates (positions) and `broadcast()` for important events.
 
-3. **Error Handling**: Always implement error handlers for network operations.
+3. **Error Handling**: Always implement `onErrorOccurred` to handle connection issues.
 
-4. **Authentication**: Store API tokens securely, preferably in files or environment variables.
+4. **Topology Choice**: Use Star for games needing authoritative host logic, Mesh for cooperative games with direct player interaction.
 
-5. **Network Discovery**: The peer-to-peer system uses automatic local network discovery - ensure your network allows UDP broadcast.
+5. **Room Codes**: Room codes are 6 alphanumeric characters, case-insensitive.
 
-## Technical Implementation
+## Technical Details
 
-The Clay Network plugin implements:
+### WASM Implementation
 
-- **Peer Discovery**: Automatic discovery of peers on local network using UDP broadcast
-- **TCP Communication**: Reliable message delivery between peers
-- **Group System**: Logical grouping for targeted messaging
-- **HTTP Client**: Flexible API client with automatic method generation
-- **Authentication**: Support for Bearer token authentication
-- **Request Management**: Tracking of pending requests with unique IDs
+- **Signaling**: PeerJS public cloud server (free, no setup required)
+- **Transport**: WebRTC Data Channels
+- **Reliability**: Supports both reliable (TCP-like) and unreliable (UDP-like) modes
 
-The peer-to-peer system automatically handles connection management, peer discovery, and message routing, making it easy to create multiplayer experiences on local networks.
+### Native Implementation
+
+- **Discovery**: UDP broadcast on local network
+- **Transport**: TCP for reliable messaging
+- **Groups**: Logical grouping for targeted messaging

@@ -141,6 +141,7 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
                                        reply->errorString());
             handleNetworkError(reply,errDetails);
         });
+#ifndef __EMSCRIPTEN__
         connect(reply, &QNetworkReply::sslErrors, this, [this](const QList<QSslError> &errors) {
             QStringList errorMessages;
             for (const auto &error : errors) {
@@ -149,6 +150,7 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
             handleNetworkError(qobject_cast<QNetworkReply*>(sender()),
                                errorMessages.join("\n"));
         });
+#endif
     }
 
     auto requestId = nextRequestId_++;
