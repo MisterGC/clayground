@@ -2,37 +2,121 @@
 import QtQuick
 import ".."
 
+/*!
+    \qmltype PatrolController
+    \inqmlmodule Clayground.Character3D
+    \brief AI controller for character patrol behavior.
+
+    PatrolController makes a character wander randomly within a defined
+    area. It picks random destinations, turns toward them, walks there,
+    pauses briefly, then picks a new destination.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    Character {
+        id: npc
+    }
+
+    PatrolController {
+        character: npc
+        minX: -50
+        maxX: 50
+        minZ: -50
+        maxZ: 50
+        minIdleTime: 2000
+        maxIdleTime: 5000
+    }
+    \endqml
+
+    \sa Character, CharacterController
+*/
 Item {
     id: root
 
-    // Required: The character to control
+    /*!
+        \qmlproperty QtObject PatrolController::character
+        \brief The character to control (required).
+    */
     required property QtObject character
 
-    // Patrol area bounds (world coordinates)
+    /*!
+        \qmlproperty real PatrolController::minX
+        \brief Minimum X coordinate of patrol area.
+    */
     property real minX: -40
+
+    /*!
+        \qmlproperty real PatrolController::maxX
+        \brief Maximum X coordinate of patrol area.
+    */
     property real maxX: 40
+
+    /*!
+        \qmlproperty real PatrolController::minZ
+        \brief Minimum Z coordinate of patrol area.
+    */
     property real minZ: -40
+
+    /*!
+        \qmlproperty real PatrolController::maxZ
+        \brief Maximum Z coordinate of patrol area.
+    */
     property real maxZ: 40
 
-    // Movement configuration
+    /*!
+        \qmlproperty real PatrolController::turnSpeed
+        \brief Turn speed in degrees per update.
+    */
     property real turnSpeed: 3.0
-    property real arrivalThreshold: 2.0  // Distance to consider "arrived"
 
-    // Idle pause between destinations
-    property int minIdleTime: 1000  // ms
-    property int maxIdleTime: 3000  // ms
+    /*!
+        \qmlproperty real PatrolController::arrivalThreshold
+        \brief Distance at which character is considered to have arrived.
+    */
+    property real arrivalThreshold: 2.0
 
-    // Enable/disable controller
+    /*!
+        \qmlproperty int PatrolController::minIdleTime
+        \brief Minimum idle pause duration in milliseconds.
+    */
+    property int minIdleTime: 1000
+
+    /*!
+        \qmlproperty int PatrolController::maxIdleTime
+        \brief Maximum idle pause duration in milliseconds.
+    */
+    property int maxIdleTime: 3000
+
+    /*!
+        \qmlproperty bool PatrolController::enabled
+        \brief Whether the controller is active.
+    */
     property bool enabled: true
 
-    // Update rate
-    property int updateInterval: 50  // milliseconds
+    /*!
+        \qmlproperty int PatrolController::updateInterval
+        \brief Update frequency in milliseconds.
+    */
+    property int updateInterval: 50
 
-    // Current destination
+    /*!
+        \qmlproperty real PatrolController::destX
+        \brief Current destination X coordinate.
+    */
     property real destX: 0
+
+    /*!
+        \qmlproperty real PatrolController::destZ
+        \brief Current destination Z coordinate.
+    */
     property real destZ: 0
 
-    // State
+    /*!
+        \qmlproperty bool PatrolController::isIdle
+        \brief True when character is pausing between destinations.
+    */
     property bool isIdle: true
 
     Component.onCompleted: {

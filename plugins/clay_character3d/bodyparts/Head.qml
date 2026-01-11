@@ -5,11 +5,54 @@ import "../animation"
 
 //pragma ComponentBehavior: Bound
 
+/*!
+    \qmltype Head
+    \inqmlmodule Clayground.Character3D
+    \inherits BodyPartsGroup
+    \brief A complete head with facial features and expressions.
+
+    Head is a complex body part group containing upper head, lower head (jaw),
+    hair, eyes, ears, nose, and mouth. It supports animated facial expressions
+    including joy, anger, sadness, and talking.
+
+    The head dimensions are derived from its component parts. The upper head
+    contains eyes, ears, and hair, while the lower head contains the mouth
+    and chin.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    Head {
+        skinColor: "#d38d5f"
+        hairColor: "#734120"
+        eyeColor: "#4a3728"
+        hairVolume: 1.2
+        activity: Head.Activity.ShowJoy
+    }
+    \endqml
+
+    \sa Character, BodyPartsGroup
+*/
 BodyPartsGroup {
     id: _head
 
+    /*!
+        \qmlproperty color Head::skinColor
+        \brief Color of the skin (face, ears, nose).
+    */
     property color skinColor: "#d38d5f"
+
+    /*!
+        \qmlproperty color Head::hairColor
+        \brief Color of the hair and eyebrows.
+    */
     property color hairColor: "#734120"
+
+    /*!
+        \qmlproperty color Head::eyeColor
+        \brief Color of the irises.
+    */
     property color eyeColor: "#4a3728"
 
     // Don't set these properties directly as they
@@ -18,26 +61,96 @@ BodyPartsGroup {
     height: upperHeadHeight + lowerHeadHeight
     depth: Math.max(upperHeadDepth, lowerHeadDepth)
 
-    // Upper Head Properties with defaults
+    /*!
+        \qmlproperty real Head::upperHeadWidth
+        \brief Width of the upper head (cranium).
+    */
     property alias upperHeadWidth: _upperHead.width
+
+    /*!
+        \qmlproperty real Head::upperHeadHeight
+        \brief Height of the upper head (cranium).
+    */
     property alias upperHeadHeight: _upperHead.height
+
+    /*!
+        \qmlproperty real Head::upperHeadDepth
+        \brief Depth of the upper head (cranium).
+    */
     property alias upperHeadDepth: _upperHead.depth
 
-    // Lower Head Properties with defaults
+    /*!
+        \qmlproperty real Head::lowerHeadWidth
+        \brief Width of the lower head (jaw).
+    */
     property alias lowerHeadWidth: _lowerHead.width
+
+    /*!
+        \qmlproperty real Head::lowerHeadHeight
+        \brief Height of the lower head (jaw).
+    */
     property alias lowerHeadHeight: _lowerHead.height
+
+    /*!
+        \qmlproperty real Head::lowerHeadDepth
+        \brief Depth of the lower head (jaw).
+    */
     property alias lowerHeadDepth: _lowerHead.depth
+
+    /*!
+        \qmlproperty real Head::chinPointiness
+        \brief How pointed the chin is (0-1).
+
+        Controls the bottom face scaling of the jaw.
+    */
     property alias chinPointiness: _lowerHead.chinPointiness
 
-    // Feature size multipliers (0.5 = small, 1.0 = normal, 1.5 = large)
+    /*!
+        \qmlproperty real Head::eyeSize
+        \brief Eye size multiplier (0.5 = small, 1.0 = normal, 1.5 = large).
+    */
     property real eyeSize: 1.0
+
+    /*!
+        \qmlproperty real Head::noseSize
+        \brief Nose size multiplier (0.5 = small, 1.0 = normal, 1.5 = large).
+    */
     property real noseSize: 1.0
+
+    /*!
+        \qmlproperty real Head::mouthSize
+        \brief Mouth size multiplier (0.5 = small, 1.0 = normal, 1.5 = large).
+    */
     property real mouthSize: 1.0
+
+    /*!
+        \qmlproperty real Head::hairVolume
+        \brief Hair volume multiplier (0 = bald, 1.0 = normal, 1.5 = voluminous).
+    */
     property real hairVolume: 1.0
 
+    /*!
+        \qmlproperty int Head::toEmotionDuration
+        \brief Duration of emotion transition animations in milliseconds.
+    */
     property int toEmotionDuration: 1000
+
+    /*!
+        \qmlproperty int Head::talkDuration
+        \brief Duration of mouth open/close cycle when talking in milliseconds.
+    */
     property int talkDuration: 200
 
+    /*!
+        \qmlproperty enumeration Head::Activity
+        \brief The current facial activity state.
+
+        \value Head.Activity.Idle Neutral expression
+        \value Head.Activity.ShowJoy Happy expression with smile
+        \value Head.Activity.ShowAnger Angry expression with frown
+        \value Head.Activity.ShowSadness Sad expression
+        \value Head.Activity.Talk Animated talking mouth
+    */
     enum Activity {
         ShowJoy,
         ShowAnger,
@@ -45,6 +158,13 @@ BodyPartsGroup {
         Talk,
         Idle
     }
+
+    /*!
+        \qmlproperty int Head::activity
+        \brief Current facial expression activity.
+
+        Use Head.Activity enum values.
+    */
     property int activity: Head.Activity.Idle
 
     // property alias thoughts: _thoughtBubble.text

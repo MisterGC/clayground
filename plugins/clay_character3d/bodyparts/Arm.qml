@@ -3,32 +3,120 @@ import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
 
+/*!
+    \qmltype Arm
+    \inqmlmodule Clayground.Character3D
+    \inherits BodyPartsGroup
+    \brief A complete arm with upper arm, lower arm, and hand.
+
+    Arm is a hierarchical body part group containing an upper arm, lower arm,
+    and hand connected by animatable joints (shoulder, elbow, wrist).
+
+    The arm uses a joint-based hierarchy for natural animation:
+    - Shoulder joint controls the entire arm
+    - Elbow joint controls lower arm and hand
+    - Wrist joint controls hand rotation
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    Arm {
+        width: 1.0
+        height: 4.0
+        upperRatio: 0.45
+        color: "#4169e1"
+        handColor: "#d38d5f"
+    }
+    \endqml
+
+    \sa Leg, Hand, Character
+*/
 BodyPartsGroup {
     id: _arm
+
+    /*!
+        \qmlproperty real Arm::width
+        \brief Width of the arm segments.
+    */
+
+    /*!
+        \qmlproperty real Arm::height
+        \brief Total arm length from shoulder to wrist.
+    */
+
+    /*!
+        \qmlproperty real Arm::depth
+        \brief Depth of the arm segments.
+    */
 
     // Total arm dimensions
     width: 0.917  // Default: 3.667 * 0.25
     height: 3.667 // Default arm length
     depth: 1.1    // Default: 3.667 * 0.3
 
-    // Proportion controls
-    property real upperRatio: 0.5     // Upper arm proportion (0.4-0.6)
-    property real lowerTaper: 0.9     // Lower arm taper (width/depth reduction)
+    /*!
+        \qmlproperty real Arm::upperRatio
+        \brief Proportion of total arm length for upper arm (0.4-0.6).
 
-    // Arm color (applies to upper and lower arm)
+        A value of 0.5 means upper and lower arm are equal length.
+    */
+    property real upperRatio: 0.5
+
+    /*!
+        \qmlproperty real Arm::lowerTaper
+        \brief Taper factor for lower arm width/depth (0-1).
+
+        Controls how much the forearm narrows compared to the upper arm.
+    */
+    property real lowerTaper: 0.9
+
+    /*!
+        \qmlproperty color Arm::color
+        \brief Color of the arm (upper and lower segments).
+    */
     property alias color: _upperArm.color
 
-    // Hand dimension aliases
+    /*!
+        \qmlproperty real Arm::handWidth
+        \brief Width of the hand.
+    */
     property alias handWidth: _hand.width
+
+    /*!
+        \qmlproperty real Arm::handHeight
+        \brief Height of the hand.
+    */
     property alias handHeight: _hand.height
+
+    /*!
+        \qmlproperty real Arm::handDepth
+        \brief Depth of the hand.
+    */
     property alias handDepth: _hand.depth
 
-    // Hand color alias
+    /*!
+        \qmlproperty color Arm::handColor
+        \brief Color of the hand (skin color).
+    */
     property alias handColor: _hand.color
 
-    // Expose arm parts for animation (animate the joints, not the geometry)
+    /*!
+        \qmlproperty Node Arm::upperArm
+        \brief Reference to the shoulder joint for animation.
+    */
     readonly property alias upperArm: _shoulderJoint
+
+    /*!
+        \qmlproperty Node Arm::lowerArm
+        \brief Reference to the elbow joint for animation.
+    */
     readonly property alias lowerArm: _elbowJoint
+
+    /*!
+        \qmlproperty Node Arm::hand
+        \brief Reference to the wrist joint for animation.
+    */
     readonly property alias hand: _wristJoint
 
     // Shoulder joint - rotation point for upper arm

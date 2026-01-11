@@ -39,55 +39,120 @@ Character {
     // HIGH-LEVEL BODY PARAMETERS
     // ============================================================================
 
-    /*! Total character height in world units. */
+    /*!
+        \qmlproperty real ParametricCharacter::bodyHeight
+        \brief Total character height in world units.
+    */
     property real bodyHeight: 10.0
 
-    /*! Style from cartoon (0) to realistic (1). Affects head-to-body ratio. */
+    /*!
+        \qmlproperty real ParametricCharacter::realism
+        \brief Style from cartoon (0) to realistic (1).
+
+        Affects head-to-body ratio and feature sizes.
+    */
     property real realism: 0.0
 
-    /*! Age from child (0) to elderly (1). Affects proportions. */
+    /*!
+        \qmlproperty real ParametricCharacter::maturity
+        \brief Age from child (0) to elderly (1).
+
+        Affects body proportions like leg length and head size.
+    */
     property real maturity: 0.5
 
-    /*! Build from masculine (0) to feminine (1). Affects shoulder/hip ratio. */
+    /*!
+        \qmlproperty real ParametricCharacter::femininity
+        \brief Build from masculine (0) to feminine (1).
+
+        Affects shoulder/hip ratio and waist definition.
+    */
     property real femininity: 0.5
 
-    /*! Body mass from thin (0) to heavy (1). */
+    /*!
+        \qmlproperty real ParametricCharacter::mass
+        \brief Body mass from thin (0) to heavy (1).
+    */
     property real mass: 0.5
 
-    /*! Muscularity from soft (0) to athletic (1). */
+    /*!
+        \qmlproperty real ParametricCharacter::muscle
+        \brief Muscularity from soft (0) to athletic (1).
+    */
     property real muscle: 0.5
 
     // ============================================================================
     // HIGH-LEVEL FACE PARAMETERS
     // ============================================================================
 
-    /*! Face shape from round (0) to long/angular (1). */
+    /*!
+        \qmlproperty real ParametricCharacter::faceShape
+        \brief Face shape from round (0) to long/angular (1).
+    */
     property real faceShape: 0.5
-    /*! Chin from round (0) to pointed (1). */
+
+    /*!
+        \qmlproperty real ParametricCharacter::chinForm
+        \brief Chin from round (0) to pointed (1).
+    */
     property real chinForm: 0.5
 
-    /*! Eye size multiplier (0.5-1.5). */
+    /*!
+        \qmlproperty real ParametricCharacter::eyes
+        \brief Eye size multiplier (0.5-1.5).
+    */
     property real eyes: 1.0
-    /*! Nose size multiplier (0.5-1.5). */
+
+    /*!
+        \qmlproperty real ParametricCharacter::nose
+        \brief Nose size multiplier (0.5-1.5).
+    */
     property real nose: 1.0
-    /*! Mouth size multiplier (0.5-1.5). */
+
+    /*!
+        \qmlproperty real ParametricCharacter::mouth
+        \brief Mouth size multiplier (0.5-1.5).
+    */
     property real mouth: 1.0
-    /*! Hair volume (0 = bald, 1 = full). */
+
+    /*!
+        \qmlproperty real ParametricCharacter::hair
+        \brief Hair volume (0 = bald, 1 = full).
+    */
     property real hair: 1.0
 
     // ============================================================================
     // COLOR PALETTE
     // ============================================================================
 
-    /*! Skin color. */
+    /*!
+        \qmlproperty color ParametricCharacter::skin
+        \brief Skin color.
+    */
     property color skin: "#d38d5f"
-    /*! Hair color. */
+
+    /*!
+        \qmlproperty color ParametricCharacter::hairTone
+        \brief Hair color.
+    */
     property color hairTone: "#734120"
-    /*! Eye color. */
+
+    /*!
+        \qmlproperty color ParametricCharacter::eyeTone
+        \brief Eye color.
+    */
     property color eyeTone: "#4a3728"
-    /*! Color for torso and arms. */
+
+    /*!
+        \qmlproperty color ParametricCharacter::topClothing
+        \brief Color for torso and arms.
+    */
     property color topClothing: "#4169e1"
-    /*! Color for hips and legs. */
+
+    /*!
+        \qmlproperty color ParametricCharacter::bottomClothing
+        \brief Color for hips and legs.
+    */
     property color bottomClothing: "#708090"
 
     // ============================================================================
