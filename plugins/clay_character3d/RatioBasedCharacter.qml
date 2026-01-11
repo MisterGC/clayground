@@ -60,22 +60,69 @@ pragma ComponentBehavior: Bound
 Character {
     id: ratioBasedCharacter
 
-    // Propertion Relations - tune for specific
-    // style e.g. comic, realistic  or male vs female
-    // Head
+    // Proportion Relations - tune for specific
+    // style e.g. comic, realistic or male vs female
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::headsTall
+        \brief How many head heights fit in the body.
+
+        Lower values create more cartoon-like proportions.
+    */
     property real headsTall: 4.7
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::headWidthToHeight
+        \brief Head width as ratio of head height.
+    */
     property real headWidthToHeight: 0.9
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::headDepthToHeadWidth
+        \brief Head depth as ratio of head width.
+    */
     property real headDepthToHeadWidth: 0.8
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::neckHeightToHeadHeight
+        \brief Neck height as ratio of head height.
+    */
     property real neckHeightToHeadHeight: 0.2
-    // Torso
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::shoulderWidthToHeadWidth
+        \brief Shoulder width as ratio of head width.
+    */
     property real shoulderWidthToHeadWidth: 1.8
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::torsoHeightToHeadHeight
+        \brief Torso height as ratio of head height.
+    */
     property real torsoHeightToHeadHeight: 2.0
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::shoulderWidthToTorsoDepth
+        \brief Torso depth as ratio of shoulder width.
+    */
     property real shoulderWidthToTorsoDepth: 0.3
-    // Arms and Hands
-    // Shoulder to beginning of hand
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::armHeightToTorsoHeight
+        \brief Arm length as ratio of torso height.
+    */
     property real armHeightToTorsoHeight: 1.0
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::armHeightToHandLength
+        \brief Arm length divided by hand length.
+    */
     property real armHeightToHandLength: 3
-    // Legs and Feet
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::footLengthToBodyHeight
+        \brief Foot length as ratio of body height.
+    */
     property real footLengthToBodyHeight: 0.15
 
     // Calculated dimensions based on ratios

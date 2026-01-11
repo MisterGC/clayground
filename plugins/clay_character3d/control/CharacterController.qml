@@ -2,39 +2,130 @@
 import QtQuick
 import ".."
 
+/*!
+    \qmltype CharacterController
+    \inqmlmodule Clayground.Character3D
+    \brief Player input controller for Character movement.
+
+    CharacterController translates input axis values into character movement
+    and rotation. Bind axisX and axisY to a GameController or other input
+    source to control a character.
+
+    The controller automatically sets the character's activity state based
+    on movement (Idle, Walking, Running).
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+    import Clayground.GameController
+
+    Character {
+        id: hero
+    }
+
+    GameController {
+        id: gamepad
+    }
+
+    CharacterController {
+        character: hero
+        axisX: gamepad.axisLeftX
+        axisY: gamepad.axisLeftY
+        sprinting: gamepad.buttonL1
+    }
+    \endqml
+
+    \sa Character, PatrolController
+*/
 Item {
     id: root
 
-    // Required: The character to control
+    /*!
+        \qmlproperty QtObject CharacterController::character
+        \brief The character to control (required).
+    */
     required property QtObject character
 
-    // Movement configuration
-    property real turnSpeed: 2.0        // degrees per frame per unit axis
+    /*!
+        \qmlproperty real CharacterController::turnSpeed
+        \brief Turn speed in degrees per frame per unit axis input.
+    */
+    property real turnSpeed: 2.0
 
-    // Input values (can be bound to GameController or other input sources)
-    property real inputDeadzone: 0.1    // axis deadzone
-    required property real axisX        // Turn left/right (-1 to 1)
-    required property real axisY        // Move forward/backward (-1 to 1)
+    /*!
+        \qmlproperty real CharacterController::inputDeadzone
+        \brief Axis values below this threshold are treated as zero.
+    */
+    property real inputDeadzone: 0.1
 
-    // Sprint/run input (bind to shift key or other input)
+    /*!
+        \qmlproperty real CharacterController::axisX
+        \brief Horizontal input axis for turning (-1 to 1, required).
+    */
+    required property real axisX
+
+    /*!
+        \qmlproperty real CharacterController::axisY
+        \brief Vertical input axis for forward/backward (-1 to 1, required).
+    */
+    required property real axisY
+
+    /*!
+        \qmlproperty bool CharacterController::sprinting
+        \brief When true, character runs instead of walks.
+    */
     property bool sprinting: false
 
-    // Enable/disable controller
+    /*!
+        \qmlproperty bool CharacterController::enabled
+        \brief Whether the controller is active.
+    */
     property bool enabled: true
 
-    // Update rate
-    property int updateInterval: 50     // milliseconds
+    /*!
+        \qmlproperty int CharacterController::updateInterval
+        \brief Update frequency in milliseconds.
+    */
+    property int updateInterval: 50
 
-    // Processed input values (applying deadzone)
+    /*!
+        \qmlproperty real CharacterController::processedAxisX
+        \readonly
+        \brief Horizontal axis value after deadzone is applied.
+    */
     readonly property real processedAxisX: Math.abs(axisX) > inputDeadzone ? axisX : 0
+
+    /*!
+        \qmlproperty real CharacterController::processedAxisY
+        \readonly
+        \brief Vertical axis value after deadzone is applied.
+    */
     readonly property real processedAxisY: Math.abs(axisY) > inputDeadzone ? axisY : 0
 
-    // Movement state
+    /*!
+        \qmlproperty bool CharacterController::isMoving
+        \readonly
+        \brief True when forward/backward input is active.
+    */
     readonly property bool isMoving: processedAxisY !== 0
+
+    /*!
+        \qmlproperty bool CharacterController::isTurning
+        \readonly
+        \brief True when turn input is active.
+    */
     readonly property bool isTurning: processedAxisX !== 0
 
-    // Signals for external actions
+    /*!
+        \qmlsignal CharacterController::moved(real deltaX, real deltaZ)
+        \brief Emitted when the character moves.
+    */
     signal moved(real deltaX, real deltaZ)
+
+    /*!
+        \qmlsignal CharacterController::turned(real deltaYaw)
+        \brief Emitted when the character turns.
+    */
     signal turned(real deltaYaw)
 
     Timer {
