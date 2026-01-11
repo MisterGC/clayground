@@ -36,128 +36,48 @@ console.error = function(...args) {
     }
 };
 
-// Example QML templates
-const examples = {
-    'empty': `import QtQuick
-
-Rectangle {
-    color: "#896b6b"
-    Text {
-        x: .02 * parent.width; width: parent.width * .95;
-        text: "Empty your cup, so that it may be filled ..."
-        color: "#e1d8d8"; font.bold: true
-    }
-}`,
-
-    'voxelworld': `// 3D Graphics Showcase - Box3D, Lines, VoxelMaps
-import QtQuick
-import QtQuick3D
-import Clayground.Canvas3D
-
-Item {
-    anchors.fill: parent
-    focus: true
-    Component.onCompleted: forceActiveFocus()
-
-    // Simple keyboard camera controls
-    property real cameraSpeed: 5
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_W) camera.z -= cameraSpeed
-        else if (event.key === Qt.Key_S) camera.z += cameraSpeed
-        else if (event.key === Qt.Key_A) camera.x -= cameraSpeed
-        else if (event.key === Qt.Key_D) camera.x += cameraSpeed
-        else if (event.key === Qt.Key_Q) camera.y -= cameraSpeed
-        else if (event.key === Qt.Key_E) camera.y += cameraSpeed
-    }
-
-    View3D {
-        id: view
-        anchors.fill: parent
-
-        environment: SceneEnvironment {
-            clearColor: "#1a1a2e"
-            backgroundMode: SceneEnvironment.Color
-        }
-
-        PerspectiveCamera {
-            id: camera
-            position: Qt.vector3d(-40, 120, 470)
-            eulerRotation: Qt.vector3d(-15, 0, 0)
-        }
-
-        DirectionalLight {
-            color: Qt.rgba(1, 0.98, 0.95, 1)
-            brightness: 0.7
-            eulerRotation: Qt.vector3d(-45, 0, 0)
-            ambientColor: Qt.rgba(0.5, 0.5, 0.5, 1)
-        }
-
-        // Ground plane
-        Model {
-            source: "#Rectangle"
-            scale: Qt.vector3d(20, 20, 1)
-            eulerRotation: Qt.vector3d(-90, 0, 0)
-            materials: DefaultMaterial { diffuseColor: "white" }
-        }
-
-        // Box3D demo
-        Box3D {
-            x: -100; y: 0; z: 50
-            width: 80
-        }
-
-        // MultiLine3D - batch of random lines
-        MultiLine3D {
-            coords: {
-                let lines = [];
-                for (let i = 0; i < 200; i++) {
-                    lines.push([
-                        Qt.vector3d(Math.random()*100, Math.random()*100, Math.random()*100),
-                        Qt.vector3d(Math.random()*100, Math.random()*100, Math.random()*100)
-                    ]);
-                }
-                return lines;
-            }
-            color: "blue"
-            width: 3
-        }
-
-        // DynamicVoxelMap with animation
-        DynamicVoxelMap {
-            id: voxelMap
-            x: 100; y: 0; z: 100
-            voxelCountX: 20; voxelCountY: 20; voxelCountZ: 20
-            voxelSize: 3.0; spacing: 0.0
-
-            SequentialAnimation {
-                loops: Animation.Infinite
-                running: true
-                NumberAnimation { target: voxelMap; property: "spacing"; to: 1.5; duration: 2000 }
-                NumberAnimation { target: voxelMap; property: "spacing"; to: 0; duration: 2000 }
-            }
-
-            Component.onCompleted: {
-                voxelMap.fill([
-                    { sphere: { pos: Qt.vector3d(10, 10, 10), radius: 8,
-                        colors: [
-                            { color: "#2D5A27", weight: 0.4 },
-                            { color: "#4C9A2A", weight: 0.4 },
-                            { color: "red", weight: 0.2 }
-                        ], noise: 0.3
-                    }}
-                ]);
-            }
-        }
-    }
-
-    Text {
-        anchors { top: parent.top; left: parent.left; margins: 10 }
-        color: "white"
-        text: "3D Demo - WASD/QE to move camera"
-        font.pixelSize: 14
-    }
-}`
+// Example files are loaded from webdojo-examples/ directory
+// This allows editing examples without rebuilding the site
+const exampleFiles = {
+    'empty': 'empty.qml',
+    'multiplayer': 'multiplayer.qml',
+    'voxelworld': 'voxelworld.qml'
 };
+
+// Cache for loaded examples
+const examplesCache = {};
+
+// Get base URL for examples (works in both dev and production)
+function getExamplesBaseUrl() {
+    const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
+    return `${baseUrl}/webdojo-examples/`;
+}
+
+// Fetch example QML code from file
+async function fetchExample(name) {
+    if (examplesCache[name]) {
+        return examplesCache[name];
+    }
+
+    const filename = exampleFiles[name];
+    if (!filename) {
+        console.warn(`Unknown example: ${name}`);
+        return null;
+    }
+
+    try {
+        const response = await fetch(getExamplesBaseUrl() + filename);
+        if (!response.ok) {
+            throw new Error(`Failed to load ${filename}: ${response.status}`);
+        }
+        const code = await response.text();
+        examplesCache[name] = code;
+        return code;
+    } catch (e) {
+        console.error(`Error loading example ${name}:`, e);
+        return null;
+    }
+}
 
 let editor = null;
 let webDojoModule = null;
@@ -240,7 +160,7 @@ async function initEditor() {
     });
 }
 
-function initEditorWithVim(resolve) {
+async function initEditorWithVim(resolve) {
     // Register QML language (from qml-language.js)
     if (window.registerQmlLanguage) {
         window.registerQmlLanguage(monaco);
@@ -249,9 +169,9 @@ function initEditorWithVim(resolve) {
         window.createQmlTheme(monaco);
     }
 
-    // Check for code in URL hash first, otherwise use default example
+    // Check for code in URL hash first, otherwise load default example
     const urlCode = getCodeFromUrl();
-    const initialCode = urlCode || examples['voxelworld'];
+    const initialCode = urlCode || await fetchExample('voxelworld') || '// Failed to load example';
 
     // If code came from URL, add "Shared" option to dropdown
     if (urlCode) {
@@ -474,10 +394,14 @@ function setupEventHandlers() {
                 history.replaceState(null, '', window.location.pathname);
             }
 
-            const example = examples[value];
-            if (example && editor) {
-                editor.setValue(example);
-                if (!autoReloadEnabled) runQml();
+            // Fetch example asynchronously
+            if (exampleFiles[value] && editor) {
+                fetchExample(value).then(example => {
+                    if (example) {
+                        editor.setValue(example);
+                        if (!autoReloadEnabled) runQml();
+                    }
+                });
             }
         });
     }
