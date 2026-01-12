@@ -3,7 +3,6 @@
 /*!
     \qmltype ClayWorld2d
     \inqmlmodule Clayground.World
-    \inherits ClayWorldBase
     \brief Complete 2D game world with physics, rendering, and scene loading.
 
     ClayWorld2d integrates ClayCanvas for rendering, Box2D for physics, and
@@ -30,57 +29,7 @@
     }
     \endqml
 
-    \qmlproperty ClayCanvas ClayWorld2d::canvas
-    \readonly
-    \brief The rendering canvas.
-
-    \qmlproperty Item ClayWorld2d::room
-    \brief Container for all world entities.
-
-    \qmlproperty bool ClayWorld2d::running
-    \brief Whether physics simulation is running.
-
-    \qmlproperty real ClayWorld2d::xWuMin
-    \brief Minimum X coordinate in world units.
-
-    \qmlproperty real ClayWorld2d::xWuMax
-    \brief Maximum X coordinate in world units.
-
-    \qmlproperty real ClayWorld2d::yWuMin
-    \brief Minimum Y coordinate in world units.
-
-    \qmlproperty real ClayWorld2d::yWuMax
-    \brief Maximum Y coordinate in world units.
-
-    \qmlproperty real ClayWorld2d::pixelPerUnit
-    \brief Pixels per world unit for rendering.
-
-    \qmlproperty real ClayWorld2d::viewPortCenterWuX
-    \brief Viewport center X in world units.
-
-    \qmlproperty real ClayWorld2d::viewPortCenterWuY
-    \brief Viewport center Y in world units.
-
-    \qmlproperty var ClayWorld2d::observedItem
-    \brief Item the camera follows.
-
-    \qmlproperty World ClayWorld2d::physics
-    \brief The Box2D physics world.
-
-    \qmlproperty point ClayWorld2d::gravity
-    \brief Gravity vector for physics.
-
-    \qmlproperty real ClayWorld2d::timeStep
-    \brief Physics simulation timestep.
-
-    \qmlproperty bool ClayWorld2d::physicsEnabled
-    \brief Whether physics is enabled.
-
-    \qmlproperty real ClayWorld2d::baseZCoord
-    \brief Base Z coordinate for loaded entities.
-
-    \qmlproperty real ClayWorld2d::lastZCoord
-    \brief Last used Z coordinate.
+    \sa ClayWorldBase, ClayWorld3d
 */
 import QtQuick
 import Box2D
@@ -88,43 +37,117 @@ import Clayground.Canvas
 import Clayground.Physics
 import Clayground.Common
 
-ClayWorldBase
-{
+ClayWorldBase {
     id: _world
 
-    // GENERAL PROPERTIES
+    /*!
+        \qmlproperty ClayCanvas ClayWorld2d::canvas
+        \readonly
+        \brief The rendering canvas.
+    */
     readonly property ClayCanvas canvas: _theCanvas
+
+    /*!
+        \qmlproperty Item ClayWorld2d::room
+        \brief Container for all world entities.
+    */
     property alias room: _theCanvas.coordSys
+
+    /*!
+        \qmlproperty bool ClayWorld2d::running
+        \brief Whether physics simulation is running.
+    */
     property alias running: _physicsWorld.running
+
+    /*!
+        \qmlproperty real ClayWorld2d::xWuMin
+        \brief Minimum X coordinate in world units.
+    */
     property alias xWuMin: _theCanvas.worldXMin
+
+    /*!
+        \qmlproperty real ClayWorld2d::xWuMax
+        \brief Maximum X coordinate in world units.
+    */
     property alias xWuMax: _theCanvas.worldXMax
+
+    /*!
+        \qmlproperty real ClayWorld2d::yWuMin
+        \brief Minimum Y coordinate in world units.
+    */
     property alias yWuMin: _theCanvas.worldYMin
+
+    /*!
+        \qmlproperty real ClayWorld2d::yWuMax
+        \brief Maximum Y coordinate in world units.
+    */
     property alias yWuMax: _theCanvas.worldYMax
 
+    /*!
+        \qmlproperty real ClayWorld2d::pixelPerUnit
+        \brief Pixels per world unit for rendering.
+    */
     property alias pixelPerUnit: _theCanvas.pixelPerUnit
+
+    /*!
+        \qmlproperty real ClayWorld2d::viewPortCenterWuX
+        \brief Viewport center X in world units.
+    */
     property alias viewPortCenterWuX: _theCanvas.viewPortCenterWuX
+
+    /*!
+        \qmlproperty real ClayWorld2d::viewPortCenterWuY
+        \brief Viewport center Y in world units.
+    */
     property alias viewPortCenterWuY: _theCanvas.viewPortCenterWuY
 
+    /*!
+        \qmlproperty var ClayWorld2d::observedItem
+        \brief Item the camera follows.
+    */
     property alias observedItem: _theCanvas.observedItem
-
 
     // MAP LOADING
     _sceneLoader: SceneLoader2d {
         id: _sceneLoader2d
         loadEntitiesAsync: _world.loadMapAsync
         world: _world
-     }
-    // true -> entities get loaded without block UI
-    // already in base
-    //property alias loadMapAsync: _sceneLoader2d.loadEntitiesAsync
-    // Base z-coord that is used when loading entities from the map
+    }
+
+    /*!
+        \qmlproperty real ClayWorld2d::baseZCoord
+        \brief Base Z coordinate for loaded entities.
+    */
     property alias baseZCoord: _sceneLoader2d.baseZCoord
+
+    /*!
+        \qmlproperty real ClayWorld2d::lastZCoord
+        \brief Last used Z coordinate.
+    */
     property alias lastZCoord: _sceneLoader2d.lastZCoord
 
-    // PHYSICS
+    /*!
+        \qmlproperty World ClayWorld2d::physics
+        \brief The Box2D physics world.
+    */
     property alias physics: _physicsWorld
+
+    /*!
+        \qmlproperty point ClayWorld2d::gravity
+        \brief Gravity vector for physics.
+    */
     property alias gravity: _physicsWorld.gravity
+
+    /*!
+        \qmlproperty real ClayWorld2d::timeStep
+        \brief Physics simulation timestep.
+    */
     property alias timeStep: _physicsWorld.timeStep
+
+    /*!
+        \qmlproperty bool ClayWorld2d::physicsEnabled
+        \brief Whether physics is enabled.
+    */
     property alias physicsEnabled: _physicsWorld.running
 
     ClayCanvas {

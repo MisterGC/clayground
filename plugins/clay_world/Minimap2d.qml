@@ -28,11 +28,7 @@
     }
     \endqml
 
-    \qmlproperty ClayWorld2d Minimap2d::world
-    \brief The world to display. Required.
-
-    \qmlproperty var Minimap2d::typeMapping
-    \brief Map of entity type names to QML Components for rendering.
+    \sa ClayWorld2d
 */
 import QtQuick
 import Clayground.Common
@@ -40,7 +36,16 @@ import Clayground.Common
 Rectangle {
     id: theMinimap
 
+    /*!
+        \qmlproperty ClayWorld2d Minimap2d::world
+        \brief The world to display. Required.
+    */
     required property ClayWorld2d world
+
+    /*!
+        \qmlproperty var Minimap2d::typeMapping
+        \brief Map of entity type names to QML Components for rendering.
+    */
     property var typeMapping: new Map()
 
     readonly property var _observed: world.room
