@@ -3,54 +3,56 @@
 /*!
     \qmltype SceneLoaderBase
     \inqmlmodule Clayground.World
-    \inherits Clayground.Svg::SvgReader
     \brief Base scene loader for parsing SVG files into game entities.
 
     SceneLoaderBase reads SVG files and creates game entities based on registered
     components. It supports async loading and emits signals for unhandled shapes.
 
-    \qmlproperty bool SceneLoaderBase::active
-    \brief Whether the loader is active.
-
-    \qmlproperty string SceneLoaderBase::sceneSource
-    \brief Path to the SVG file to load.
-
-    \qmlproperty bool SceneLoaderBase::loadEntitiesAsync
-    \brief If true, entities are created asynchronously.
-
-    \qmlproperty var SceneLoaderBase::entities
-    \brief Array of created entities.
-
-    \qmlproperty var SceneLoaderBase::world
-    \brief The world to populate with entities.
-
-    \qmlproperty var SceneLoaderBase::components
-    \brief Map of component names to QML Components.
-
-    \qmlproperty bool SceneLoaderBase::loadingFinished
-    \readonly
-    \brief True when all entities have been created.
-
-    \qmlsignal SceneLoaderBase::loaded()
-    \brief Emitted when scene loading is complete.
+    \sa SceneLoader2d, SceneLoader3d
 */
 import QtQuick
 import Clayground.Svg
 
-SvgReader
-{
+SvgReader {
+    /*!
+        \qmlproperty bool SceneLoaderBase::active
+        \brief Whether the loader is active.
+    */
     property bool active: true
+
+    /*!
+        \qmlproperty string SceneLoaderBase::sceneSource
+        \brief Path to the SVG file to load.
+    */
     property string sceneSource: ""
+
     onActiveChanged: if (active && sceneSource) setSource(sceneSource)
     onSceneSourceChanged: if (active && sceneSource) setSource(sceneSource)
 
+    /*!
+        \qmlproperty bool SceneLoaderBase::loadEntitiesAsync
+        \brief If true, entities are created asynchronously.
+    */
     property bool loadEntitiesAsync: false
+
+    /*!
+        \qmlproperty var SceneLoaderBase::entities
+        \brief Array of created entities.
+    */
     property var entities: []
+
     readonly property string componentPropKey: "component"
 
-    // 2D or 3D world the scene loader should fill
-    // with the scene content
+    /*!
+        \qmlproperty var SceneLoaderBase::world
+        \brief The world to populate with entities.
+    */
     property var world: null
+
+    /*!
+        \qmlproperty var SceneLoaderBase::components
+        \brief Map of component names to QML Components.
+    */
     property var components: []
 
     property var _groupIdStack: []
@@ -62,11 +64,21 @@ SvgReader
     property bool _sourceProcessed: false
     property int _numIncubators: 0
     property var _numIncubatorsPerGroup: new Map()
+
+    /*!
+        \qmlsignal SceneLoaderBase::loaded()
+        \brief Emitted when scene loading is complete.
+    */
     signal loaded()
     onLoaded: {
         world.mapLoaded()
     }
 
+    /*!
+        \qmlproperty bool SceneLoaderBase::loadingFinished
+        \readonly
+        \brief True when all entities have been created.
+    */
     property bool loadingFinished: _sourceProcessed && (_numIncubators === 0)
     onLoadingFinishedChanged: if (loadingFinished) loaded()
 

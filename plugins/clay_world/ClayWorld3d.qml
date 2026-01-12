@@ -3,7 +3,6 @@
 /*!
     \qmltype ClayWorld3d
     \inqmlmodule Clayground.World
-    \inherits ClayWorldBase
     \brief Complete 3D game world with physics, camera, and scene loading.
 
     ClayWorld3d provides a 3D game world with Qt Quick 3D physics, automatic
@@ -27,43 +26,7 @@
     }
     \endqml
 
-    \qmlproperty Node ClayWorld3d::root
-    \readonly
-    \brief Root 3D scene node for adding entities.
-
-    \qmlproperty PhysicsWorld ClayWorld3d::physics
-    \readonly
-    \brief The Qt Quick 3D physics world.
-
-    \qmlproperty Node ClayWorld3d::observedObject
-    \brief Object the camera follows. Set to null for free camera.
-
-    \qmlproperty vector3d ClayWorld3d::observationOffset
-    \brief Camera offset from observed object.
-
-    \qmlproperty PerspectiveCamera ClayWorld3d::camera
-    \brief The main camera.
-
-    \qmlproperty bool ClayWorld3d::freeCamera
-    \readonly
-    \brief True when WASD camera control is active.
-
-    \qmlproperty real ClayWorld3d::xWuMin
-    \readonly
-    \brief Minimum X coordinate (always 0).
-
-    \qmlproperty real ClayWorld3d::xWuMax
-    \brief Maximum X world size.
-
-    \qmlproperty real ClayWorld3d::zWuMin
-    \readonly
-    \brief Minimum Z coordinate (always 0).
-
-    \qmlproperty real ClayWorld3d::zWuMax
-    \brief Maximum Z world size.
-
-    \qmlproperty StaticRigidBody ClayWorld3d::floor
-    \brief The ground plane physics body.
+    \sa ClayWorldBase, ClayWorld2d
 */
 import QtQuick
 import QtQuick3D
@@ -77,17 +40,45 @@ import Clayground.Common
 ClayWorldBase {
     id: _clayWorld3d
 
+    /*!
+        \qmlproperty Node ClayWorld3d::root
+        \readonly
+        \brief Root 3D scene node for adding entities.
+    */
     readonly property Node root: _daScene
 
-    // Physics properties
+    /*!
+        \qmlproperty PhysicsWorld ClayWorld3d::physics
+        \readonly
+        \brief The Qt Quick 3D physics world.
+    */
     readonly property PhysicsWorld physics: _physicsWorld
 
-    // Camera properties
+    /*!
+        \qmlproperty Node ClayWorld3d::observedObject
+        \brief Object the camera follows. Set to null for free camera.
+    */
     property alias observedObject: _cameraRoot.parent
+
+    /*!
+        \qmlproperty vector3d ClayWorld3d::observationOffset
+        \brief Camera offset from observed object.
+    */
     property vector3d observationOffset: Qt.vector3d(0,100,0)
+
+    /*!
+        \qmlproperty PerspectiveCamera ClayWorld3d::camera
+        \brief The main camera.
+    */
     property alias camera: _camera
-    // If true the camera can be moved around with WASD keys
+
+    /*!
+        \qmlproperty bool ClayWorld3d::freeCamera
+        \readonly
+        \brief True when WASD camera control is active.
+    */
     readonly property bool freeCamera: observedObject == _freeCamEnabled
+
     onObservedObjectChanged: {
         if (observedObject != _freeCamEnabled)
         {
@@ -95,12 +86,36 @@ ClayWorldBase {
         }
     }
 
-    // Floor configuration
-    // Size of the quadratic floor in world units
+    /*!
+        \qmlproperty real ClayWorld3d::xWuMin
+        \readonly
+        \brief Minimum X coordinate (always 0).
+    */
     readonly property real xWuMin: 0
+
+    /*!
+        \qmlproperty real ClayWorld3d::xWuMax
+        \brief Maximum X world size.
+    */
     property real xWuMax: 100
+
+    /*!
+        \qmlproperty real ClayWorld3d::zWuMin
+        \readonly
+        \brief Minimum Z coordinate (always 0).
+    */
     readonly property real zWuMin: 0
+
+    /*!
+        \qmlproperty real ClayWorld3d::zWuMax
+        \brief Maximum Z world size.
+    */
     property real zWuMax: 100
+
+    /*!
+        \qmlproperty StaticRigidBody ClayWorld3d::floor
+        \brief The ground plane physics body.
+    */
     property alias floor: _floor
 
     _sceneLoader: SceneLoader3d {
