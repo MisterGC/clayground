@@ -1,4 +1,4 @@
-// P2P Multiplayer Demo - WebRTC via PeerJS
+// P2P Network Demo - WebRTC via PeerJS
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -7,31 +7,31 @@ import Clayground.Network
 Item {
     id: root
 
-    property string playerName: ""
+    property string nodeName: ""
     property var remoteNames: ({})
 
-    ClayMultiplayer {
+    Network {
         id: network
-        maxPlayers: 4
-        topology: ClayMultiplayer.Star
+        maxNodes: 4
+        topology: Network.Topology.Star
 
-        onRoomCreated: (roomId) => {
-            statusText.text = "Room: " + roomId + " (share this code!)"
-            addChatMessage("System", "Room created: " + roomId)
+        onNetworkCreated: (networkId) => {
+            statusText.text = "Network: " + networkId + " (share this code!)"
+            addChatMessage("System", "Network created: " + networkId)
         }
 
-        onPlayerJoined: (playerId) => {
-            addChatMessage("System", "A player is joining...")
-            updateRemotePlayer(playerId, 0.5, 0.5, "?")
+        onNodeJoined: (nodeId) => {
+            addChatMessage("System", "A node is joining...")
+            updateRemoteNode(nodeId, 0.5, 0.5, "?")
         }
 
-        onPlayerLeft: (playerId) => {
-            let name = remoteNames[playerId] || playerId.substring(0, 6)
+        onNodeLeft: (nodeId) => {
+            let name = remoteNames[nodeId] || nodeId.substring(0, 6)
             addChatMessage("System", name + " left")
-            if (remotePlayers[playerId]) {
-                remotePlayers[playerId].destroy()
-                delete remotePlayers[playerId]
-                delete remoteNames[playerId]
+            if (remoteNodes[nodeId]) {
+                remoteNodes[nodeId].destroy()
+                delete remoteNodes[nodeId]
+                delete remoteNames[nodeId]
             }
         }
 
@@ -50,7 +50,7 @@ Item {
                     if (oldName === undefined || oldName === "?")
                         addChatMessage("System", data.name + " joined")
                 }
-                updateRemotePlayer(from, data.x, data.y, data.name || "?")
+                updateRemoteNode(from, data.x, data.y, data.name || "?")
             }
         }
 
@@ -60,7 +60,7 @@ Item {
         }
     }
 
-    property var remotePlayers: ({})
+    property var remoteNodes: ({})
 
     ListModel { id: chatMessages }
 
@@ -69,13 +69,13 @@ Item {
         if (chatMessages.count > 50) chatMessages.remove(0)
     }
 
-    function updateRemotePlayer(playerId, x, y, name) {
-        if (!remotePlayers[playerId]) {
-            remotePlayers[playerId] = remoteComp.createObject(gameArea, { odId: playerId })
+    function updateRemoteNode(nodeId, x, y, name) {
+        if (!remoteNodes[nodeId]) {
+            remoteNodes[nodeId] = remoteComp.createObject(gameArea, { odId: nodeId })
         }
-        remotePlayers[playerId].targetX = x
-        remotePlayers[playerId].targetY = y
-        remotePlayers[playerId].playerName = name || "?"
+        remoteNodes[nodeId].targetX = x
+        remoteNodes[nodeId].targetY = y
+        remoteNodes[nodeId].nodeName = name || "?"
     }
 
     Timer {
@@ -85,7 +85,7 @@ Item {
         onTriggered: network.broadcastState({
             x: local.x / gameArea.width,
             y: local.y / gameArea.height,
-            name: playerName
+            name: nodeName
         })
     }
 
@@ -99,7 +99,7 @@ Item {
 
             Text {
                 id: statusText
-                text: network.connected ? "Connected (" + network.playerCount + " players)" : "Not connected"
+                text: network.connected ? "Connected (" + network.nodeCount + " nodes)" : "Not connected"
                 color: network.connected ? "#4CAF50" : "#999"
                 font.pixelSize: 16
                 font.bold: true
@@ -121,18 +121,18 @@ Item {
                 id: nameInput
                 placeholderText: "Your Name"
                 Layout.preferredWidth: 100
-                text: "Player"
+                text: "Node"
             }
 
             Button {
-                text: "Host Game"
+                text: "Host"
                 enabled: nameInput.text.length > 0
-                onClicked: { playerName = nameInput.text; network.createRoom() }
+                onClicked: { nodeName = nameInput.text; network.host() }
             }
 
             TextField {
                 id: codeInput
-                placeholderText: "Room Code"
+                placeholderText: "Network Code"
                 Layout.preferredWidth: 80
                 font.capitalization: Font.AllUppercase
             }
@@ -140,7 +140,7 @@ Item {
             Button {
                 text: "Join"
                 enabled: codeInput.text.length >= 4 && nameInput.text.length > 0
-                onClicked: { playerName = nameInput.text; network.joinRoom(codeInput.text) }
+                onClicked: { nodeName = nameInput.text; network.join(codeInput.text) }
             }
         }
 
@@ -150,7 +150,7 @@ Item {
 
             Button {
                 text: "Leave"
-                onClicked: { network.leave(); remotePlayers = {}; chatMessages.clear() }
+                onClicked: { network.leave(); remoteNodes = {}; chatMessages.clear() }
             }
 
             TextField {
@@ -184,7 +184,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     color: "#666"
-                    text: network.connected ? "Click to move. WASD keys work too." : "Host or Join a game"
+                    text: network.connected ? "Click to move. WASD keys work too." : "Host or Join a network"
                 }
 
                 Item {
@@ -202,7 +202,7 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: parent.top
                         anchors.bottomMargin: 2
-                        text: playerName
+                        text: nodeName
                         color: "#0d47a1"
                         font.pixelSize: 10
                         font.bold: true
@@ -231,7 +231,7 @@ Item {
                     id: remoteComp
                     Item {
                         property string odId: ""
-                        property string playerName: "?"
+                        property string nodeName: "?"
                         property real targetX: 0.5
                         property real targetY: 0.5
                         width: 30
@@ -246,7 +246,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.top
                             anchors.bottomMargin: 2
-                            text: playerName
+                            text: nodeName
                             color: "#bf360c"
                             font.pixelSize: 10
                             font.bold: true
@@ -307,7 +307,7 @@ Item {
         }
 
         Text {
-            text: "Open in two browser tabs to test multiplayer."
+            text: "Open in two browser tabs to test networking."
             color: "#999"
             font.pixelSize: 11
         }

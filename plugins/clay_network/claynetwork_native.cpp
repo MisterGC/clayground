@@ -1,0 +1,392 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+#include "claynetwork_native.h"
+#include "signaling_peerjs.h"
+#include <rtc/rtc.hpp>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QUuid>
+#include <QDebug>
+#include <QRandomGenerator>
+#include <cstring>
+
+ClayNetwork::ClayNetwork(QObject *parent)
+    : QObject(parent)
+    , signaling_(std::make_unique<PeerJSSignaling>(this))
+{
+    QObject::connect(signaling_.get(), &PeerJSSignaling::connected,
+                     this, &ClayNetwork::onSignalingConnected);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::offerReceived,
+                     this, &ClayNetwork::onSignalingOffer);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::answerReceived,
+                     this, &ClayNetwork::onSignalingAnswer);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::candidateReceived,
+                     this, &ClayNetwork::onSignalingCandidate);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::errorOccurred,
+                     this, &ClayNetwork::onSignalingError);
+}
+
+ClayNetwork::~ClayNetwork()
+{
+    leave();
+}
+
+QString ClayNetwork::networkId() const { return networkId_; }
+QString ClayNetwork::nodeId() const { return nodeId_; }
+bool ClayNetwork::isHost() const { return isHost_; }
+bool ClayNetwork::connected() const { return connected_; }
+int ClayNetwork::nodeCount() const { return nodes_.size() + 1; }
+QStringList ClayNetwork::nodes() const { return nodes_; }
+int ClayNetwork::maxNodes() const { return maxNodes_; }
+void ClayNetwork::setMaxNodes(int max) {
+    if (maxNodes_ != max) {
+        maxNodes_ = max;
+        emit maxNodesChanged();
+    }
+}
+ClayNetwork::Topology ClayNetwork::topology() const { return topology_; }
+void ClayNetwork::setTopology(Topology t) {
+    if (topology_ != t) {
+        topology_ = t;
+        emit topologyChanged();
+    }
+}
+ClayNetwork::Status ClayNetwork::status() const { return status_; }
+
+void ClayNetwork::createRoom()
+{
+    if (connected_) {
+        leave();
+    }
+
+    isHost_ = true;
+    status_ = Connecting;
+    emit statusChanged();
+    emit isHostChanged();
+
+    networkId_ = generateNetworkCode();
+    emit networkIdChanged();
+
+    // Connect to signaling server with networkId as peerId (host uses networkId)
+    signaling_->connect(networkId_);
+}
+
+void ClayNetwork::joinRoom(const QString &networkId)
+{
+    qDebug() << "ClayNetwork: joinRoom called with networkId:" << networkId;
+
+    if (networkId.isEmpty()) {
+        qWarning() << "ClayNetwork: Cannot join with empty networkId";
+        return;
+    }
+
+    if (connected_) {
+        qDebug() << "ClayNetwork: Already connected, leaving first";
+        leave();
+    }
+
+    isHost_ = false;
+    networkId_ = networkId;
+    status_ = Connecting;
+
+    emit statusChanged();
+    emit isHostChanged();
+    emit networkIdChanged();
+
+    qDebug() << "ClayNetwork: Connecting to signaling server as client...";
+    // Connect to signaling with unique peerId
+    signaling_->connect();
+}
+
+void ClayNetwork::leave()
+{
+    // Close all peer connections
+    for (const QString &peerId : peers_.keys()) {
+        cleanupPeer(peerId);
+    }
+    peers_.clear();
+    nodes_.clear();
+
+    signaling_->disconnect();
+
+    networkId_.clear();
+    nodeId_.clear();
+    isHost_ = false;
+    connected_ = false;
+    status_ = Disconnected;
+
+    emit networkIdChanged();
+    emit nodeIdChanged();
+    emit isHostChanged();
+    emit connectedChanged();
+    emit statusChanged();
+    emit nodeCountChanged();
+    emit nodesChanged();
+}
+
+void ClayNetwork::broadcast(const QVariant &data)
+{
+    QJsonObject msg;
+    msg["t"] = "m";  // message
+    msg["d"] = QJsonObject::fromVariantMap(data.toMap());
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+
+    for (const QString &peerId : peers_.keys()) {
+        sendToPeer(peerId, json);
+    }
+}
+
+void ClayNetwork::broadcastState(const QVariant &data)
+{
+    QJsonObject msg;
+    msg["t"] = "s";  // state
+    msg["d"] = QJsonObject::fromVariantMap(data.toMap());
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+
+    for (const QString &peerId : peers_.keys()) {
+        sendToPeer(peerId, json);
+    }
+}
+
+void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
+{
+    if (!peers_.contains(nodeId)) {
+        qWarning() << "ClayNetwork: Unknown peer" << nodeId;
+        return;
+    }
+
+    QJsonObject msg;
+    msg["t"] = "m";
+    msg["d"] = QJsonObject::fromVariantMap(data.toMap());
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+    sendToPeer(nodeId, json);
+}
+
+void ClayNetwork::onSignalingConnected(const QString &peerId)
+{
+    qDebug() << "ClayNetwork: Signaling connected, peerId:" << peerId << "isHost:" << isHost_;
+    nodeId_ = peerId;
+    emit nodeIdChanged();
+
+    if (isHost_) {
+        // Host is ready, announce network
+        connected_ = true;
+        status_ = Connected;
+        emit connectedChanged();
+        emit statusChanged();
+        emit roomCreated(networkId_);
+        qDebug() << "ClayNetwork: Hosting network" << networkId_;
+    } else {
+        // Client: initiate connection to host (networkId is host's peerId)
+        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << networkId_;
+        setupPeerConnection(networkId_, true);
+    }
+}
+
+void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp)
+{
+    qDebug() << "ClayNetwork: Received offer from" << fromId;
+
+    if (!isHost_) {
+        qWarning() << "ClayNetwork: Non-host received offer, ignoring";
+        return;
+    }
+
+    if (nodeCount() >= maxNodes_) {
+        qWarning() << "ClayNetwork: Max nodes reached, rejecting" << fromId;
+        return;
+    }
+
+    setupPeerConnection(fromId, false);
+
+    if (peers_.contains(fromId) && peers_[fromId].pc) {
+        peers_[fromId].pc->setRemoteDescription(rtc::Description(sdp.toStdString(), rtc::Description::Type::Offer));
+    }
+}
+
+void ClayNetwork::onSignalingAnswer(const QString &fromId, const QString &sdp)
+{
+    qDebug() << "ClayNetwork: Received answer from" << fromId;
+
+    if (peers_.contains(fromId) && peers_[fromId].pc) {
+        peers_[fromId].pc->setRemoteDescription(rtc::Description(sdp.toStdString(), rtc::Description::Type::Answer));
+    }
+}
+
+void ClayNetwork::onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid)
+{
+    if (peers_.contains(fromId) && peers_[fromId].pc) {
+        peers_[fromId].pc->addRemoteCandidate(rtc::Candidate(candidate.toStdString(), mid.toStdString()));
+    }
+}
+
+void ClayNetwork::onSignalingError(const QString &error)
+{
+    qWarning() << "ClayNetwork: Signaling error:" << error;
+    status_ = Error;
+    emit statusChanged();
+    emit errorOccurred(error);
+}
+
+void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
+{
+    qDebug() << "ClayNetwork: Setting up peer connection to" << peerId << (isOfferer ? "(offerer)" : "(answerer)");
+
+    rtc::Configuration config;
+    config.iceServers.emplace_back("stun:stun.l.google.com:19302");
+    qDebug() << "ClayNetwork: Creating PeerConnection with STUN server";
+
+    auto pc = std::make_shared<rtc::PeerConnection>(config);
+    qDebug() << "ClayNetwork: PeerConnection created";
+
+    PeerConnection &peer = peers_[peerId];
+    peer.pc = pc;
+    peer.ready = false;
+
+    pc->onStateChange([this, peerId](rtc::PeerConnection::State state) {
+        qDebug() << "ClayNetwork: Peer" << peerId << "state:" << static_cast<int>(state);
+        if (state == rtc::PeerConnection::State::Failed ||
+            state == rtc::PeerConnection::State::Disconnected ||
+            state == rtc::PeerConnection::State::Closed) {
+            QMetaObject::invokeMethod(this, [this, peerId]() {
+                if (peers_.contains(peerId) && peers_[peerId].ready) {
+                    cleanupPeer(peerId);
+                    nodes_.removeAll(peerId);
+                    emit nodeCountChanged();
+                    emit nodesChanged();
+                    emit playerLeft(peerId);
+                }
+            }, Qt::QueuedConnection);
+        }
+    });
+
+    pc->onLocalDescription([this, peerId, isOfferer](rtc::Description desc) {
+        QString sdp = QString::fromStdString(std::string(desc));
+        qDebug() << "ClayNetwork: Local description generated, type:" << (isOfferer ? "offer" : "answer") << "for peer:" << peerId;
+        if (isOfferer) {
+            qDebug() << "ClayNetwork: Sending offer to" << peerId;
+            signaling_->sendOffer(peerId, sdp);
+        } else {
+            qDebug() << "ClayNetwork: Sending answer to" << peerId;
+            signaling_->sendAnswer(peerId, sdp);
+        }
+    });
+
+    pc->onLocalCandidate([this, peerId](rtc::Candidate candidate) {
+        signaling_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
+                                  QString::fromStdString(candidate.mid()));
+    });
+
+    pc->onDataChannel([this, peerId](std::shared_ptr<rtc::DataChannel> dc) {
+        qDebug() << "ClayNetwork: Data channel received from" << peerId;
+        setupDataChannel(peerId, dc);
+    });
+
+    if (isOfferer) {
+        qDebug() << "ClayNetwork: Creating data channel as offerer";
+        auto dc = pc->createDataChannel("data");
+        setupDataChannel(peerId, dc);
+    }
+
+    qDebug() << "ClayNetwork: Peer connection setup complete for" << peerId;
+}
+
+void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc)
+{
+    peers_[peerId].dc = dc;
+
+    dc->onOpen([this, peerId]() {
+        QMetaObject::invokeMethod(this, [this, peerId]() {
+            qDebug() << "ClayNetwork: Data channel open with" << peerId;
+            if (peers_.contains(peerId)) {
+                peers_[peerId].ready = true;
+                nodes_.append(peerId);
+                emit nodeCountChanged();
+                emit nodesChanged();
+                emit playerJoined(peerId);
+
+                if (!isHost_ && !connected_) {
+                    connected_ = true;
+                    status_ = Connected;
+                    emit connectedChanged();
+                    emit statusChanged();
+                }
+            }
+        }, Qt::QueuedConnection);
+    });
+
+    dc->onMessage([this, peerId](auto message) {
+        if (std::holds_alternative<std::string>(message)) {
+            handleDataChannelMessage(peerId, std::get<std::string>(message));
+        } else if (std::holds_alternative<rtc::binary>(message)) {
+            // Handle binary messages (from PeerJS JSON mode)
+            const auto& bytes = std::get<rtc::binary>(message);
+            std::string str(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            handleDataChannelMessage(peerId, str);
+        }
+    });
+
+    dc->onClosed([this, peerId]() {
+        QMetaObject::invokeMethod(this, [this, peerId]() {
+            qDebug() << "ClayNetwork: Data channel closed with" << peerId;
+        }, Qt::QueuedConnection);
+    });
+}
+
+void ClayNetwork::sendToPeer(const QString &peerId, const QString &message)
+{
+    if (peers_.contains(peerId) && peers_[peerId].dc && peers_[peerId].dc->isOpen()) {
+        // Send as binary (bytes) for PeerJS JSON mode compatibility
+        QByteArray utf8 = message.toUtf8();
+        std::vector<std::byte> bytes(utf8.size());
+        std::memcpy(bytes.data(), utf8.constData(), utf8.size());
+        peers_[peerId].dc->send(bytes);
+    }
+}
+
+void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message)
+{
+    QMetaObject::invokeMethod(this, [this, fromId, message]() {
+        qDebug() << "ClayNetwork::handleDataChannelMessage - raw:" << QString::fromStdString(message);
+        QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
+        if (!doc.isObject()) {
+            qDebug() << "ClayNetwork::handleDataChannelMessage - not an object!";
+            return;
+        }
+
+        QJsonObject obj = doc.object();
+        QString type = obj["t"].toString();
+        QJsonObject dataObj = obj["d"].toObject();
+        qDebug() << "ClayNetwork::handleDataChannelMessage - type:" << type << "dataObj keys:" << dataObj.keys();
+        QVariant data = dataObj.toVariantMap();
+
+        if (type == "m") {
+            emit messageReceived(fromId, data);
+        } else if (type == "s") {
+            emit stateReceived(fromId, data);
+        }
+    }, Qt::QueuedConnection);
+}
+
+void ClayNetwork::cleanupPeer(const QString &peerId)
+{
+    if (peers_.contains(peerId)) {
+        if (peers_[peerId].dc) {
+            peers_[peerId].dc->close();
+        }
+        if (peers_[peerId].pc) {
+            peers_[peerId].pc->close();
+        }
+        peers_.remove(peerId);
+    }
+}
+
+QString ClayNetwork::generateNetworkCode() const
+{
+    const QString chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    QString code;
+    for (int i = 0; i < 6; ++i) {
+        code += chars[QRandomGenerator::global()->bounded(chars.length())];
+    }
+    return code;
+}
