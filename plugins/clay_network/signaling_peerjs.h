@@ -24,13 +24,13 @@ public:
     QString peerId() const;
 
     void sendOffer(const QString &targetId, const QString &sdp);
-    void sendAnswer(const QString &targetId, const QString &sdp);
+    void sendAnswer(const QString &targetId, const QString &sdp, const QString &connectionId);
     void sendCandidate(const QString &targetId, const QString &candidate, const QString &mid);
 
 signals:
     void connected(const QString &peerId);
     void disconnected();
-    void offerReceived(const QString &fromId, const QString &sdp);
+    void offerReceived(const QString &fromId, const QString &sdp, const QString &connectionId);
     void answerReceived(const QString &fromId, const QString &sdp);
     void candidateReceived(const QString &fromId, const QString &candidate, const QString &mid);
     void errorOccurred(const QString &error);

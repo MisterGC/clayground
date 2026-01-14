@@ -107,8 +107,25 @@ void PeerJSSignaling::onWsMessage(const std::string &message)
     else if (type == "OFFER") {
         QString fromId = obj["src"].toString();
         QJsonObject payload = obj["payload"].toObject();
+        QString connectionId = payload["connectionId"].toString();
+        qDebug() << "PeerJSSignaling: OFFER payload keys:" << payload.keys() << "connectionId:" << connectionId;
+
+        // Try nested format first (what we send): payload.sdp.sdp
         QString sdp = payload["sdp"].toObject()["sdp"].toString();
-        emit offerReceived(fromId, sdp);
+
+        // If empty, try direct format (what browser PeerJS might send): payload.sdp as string
+        if (sdp.isEmpty() && payload["sdp"].isString()) {
+            sdp = payload["sdp"].toString();
+            qDebug() << "PeerJSSignaling: Using direct SDP format";
+        }
+
+        // Also check if sdp is at payload.sdp.sdp vs payload.offer.sdp
+        if (sdp.isEmpty()) {
+            qDebug() << "PeerJSSignaling: SDP is empty! payload.sdp type:" << payload["sdp"].type();
+            qDebug() << "PeerJSSignaling: Full payload:" << QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)).left(500);
+        }
+
+        emit offerReceived(fromId, sdp, connectionId);
     }
     else if (type == "ANSWER") {
         QString fromId = obj["src"].toString();
@@ -188,7 +205,7 @@ void PeerJSSignaling::sendOffer(const QString &targetId, const QString &sdp)
     sendMessage("OFFER", targetId, payload);
 }
 
-void PeerJSSignaling::sendAnswer(const QString &targetId, const QString &sdp)
+void PeerJSSignaling::sendAnswer(const QString &targetId, const QString &sdp, const QString &connectionId)
 {
     QVariantMap payload;
     QVariantMap sdpObj;
@@ -196,7 +213,7 @@ void PeerJSSignaling::sendAnswer(const QString &targetId, const QString &sdp)
     sdpObj["sdp"] = sdp;
     payload["sdp"] = sdpObj;
     payload["type"] = "data";
-    payload["connectionId"] = targetId + "_" + peerId_;
+    payload["connectionId"] = connectionId;  // Use the original connectionId from OFFER
     payload["browser"] = "libdatachannel";
 
     sendMessage("ANSWER", targetId, payload);
