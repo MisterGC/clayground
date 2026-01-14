@@ -33,6 +33,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(int maxPlayers READ maxNodes WRITE setMaxNodes NOTIFY maxNodesChanged)
     Q_PROPERTY(Topology topology READ topology WRITE setTopology NOTIFY topologyChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
+    Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
 
 public:
     enum Topology {
@@ -63,6 +64,8 @@ public:
     Topology topology() const;
     void setTopology(Topology t);
     Status status() const;
+    bool autoRelay() const;
+    void setAutoRelay(bool relay);
 
 public slots:
     void createRoom();
@@ -89,6 +92,7 @@ signals:
     void maxNodesChanged();
     void topologyChanged();
     void statusChanged();
+    void autoRelayChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -111,6 +115,7 @@ private:
     int maxNodes_ = 8;
     Topology topology_ = Star;
     Status status_ = Disconnected;
+    bool autoRelay_ = true;
     QStringList nodes_;
 
     int instanceId_ = -1;

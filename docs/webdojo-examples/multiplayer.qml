@@ -1,14 +1,13 @@
-// P2P Network Demo - WebRTC via PeerJS
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Clayground.Network
 
-Item {
+Rectangle {
     id: root
-
-    property string nodeName: ""
-    property var remoteNames: ({})
+    color: "#f5f5f5"
 
     Network {
         id: network
@@ -16,77 +15,72 @@ Item {
         topology: Network.Topology.Star
 
         onNetworkCreated: (networkId) => {
-            statusText.text = "Network: " + networkId + " (share this code!)"
-            addChatMessage("System", "Network created: " + networkId)
+            statusText.text = "Network created: " + networkId
+            logMessage("Network created with code: " + networkId)
         }
 
         onNodeJoined: (nodeId) => {
-            addChatMessage("System", "A node is joining...")
-            updateRemoteNode(nodeId, 0.5, 0.5, "?")
+            logMessage("Node joined: " + nodeId.substring(0, 8) + "...")
         }
 
         onNodeLeft: (nodeId) => {
-            let name = remoteNames[nodeId] || nodeId.substring(0, 6)
-            addChatMessage("System", name + " left")
+            logMessage("Node left: " + nodeId.substring(0, 8) + "...")
             if (remoteNodes[nodeId]) {
                 remoteNodes[nodeId].destroy()
                 delete remoteNodes[nodeId]
-                delete remoteNames[nodeId]
             }
         }
 
-        onMessageReceived: (from, data) => {
+        onMessageReceived: (fromId, data) => {
             if (data.type === "chat") {
-                let name = remoteNames[from] || from.substring(0, 6)
-                addChatMessage(name, data.text)
+                logMessage("[" + fromId.substring(0, 6) + "] " + data.text)
             }
         }
 
-        onStateReceived: (from, data) => {
-            if (data && data.x !== undefined && data.y !== undefined) {
-                if (data.name && data.name !== remoteNames[from]) {
-                    let oldName = remoteNames[from]
-                    remoteNames[from] = data.name
-                    if (oldName === undefined || oldName === "?")
-                        addChatMessage("System", data.name + " joined")
-                }
-                updateRemoteNode(from, data.x, data.y, data.name || "?")
+        onStateReceived: (fromId, data) => {
+            if (data && typeof data.x === 'number' && typeof data.y === 'number') {
+                updateRemoteNode(fromId, data.x, data.y)
             }
         }
 
-        onErrorOccurred: (msg) => {
-            statusText.text = "Error: " + msg
-            addChatMessage("Error", msg)
+        onErrorOccurred: (message) => {
+            logMessage("Error: " + message)
+        }
+
+        onStatusChanged: {
+            let statusName = ["Disconnected", "Connecting", "Connected", "Error"][network.status]
+            logMessage("Status: " + statusName)
         }
     }
 
     property var remoteNodes: ({})
 
-    ListModel { id: chatMessages }
-
-    function addChatMessage(from, text) {
-        chatMessages.append({sender: from, message: text})
-        if (chatMessages.count > 50) chatMessages.remove(0)
-    }
-
-    function updateRemoteNode(nodeId, x, y, name) {
+    function updateRemoteNode(nodeId, x, y) {
         if (!remoteNodes[nodeId]) {
-            remoteNodes[nodeId] = remoteComp.createObject(gameArea, { odId: nodeId })
+            remoteNodes[nodeId] = remoteNodeComp.createObject(gameArea, {
+                odId: nodeId
+            })
         }
         remoteNodes[nodeId].targetX = x
         remoteNodes[nodeId].targetY = y
-        remoteNodes[nodeId].nodeName = name || "?"
     }
 
+    function logMessage(msg) {
+        logModel.append({ message: msg })
+        if (logModel.count > 50) logModel.remove(0)
+    }
+
+    // Broadcast local node position periodically
     Timer {
         interval: 50
         repeat: true
         running: network.connected
-        onTriggered: network.broadcastState({
-            x: local.x / gameArea.width,
-            y: local.y / gameArea.height,
-            name: nodeName
-        })
+        onTriggered: {
+            network.broadcastState({
+                x: localNode.x / gameArea.width,
+                y: localNode.y / gameArea.height
+            })
+        }
     }
 
     ColumnLayout {
@@ -94,79 +88,189 @@ Item {
         anchors.margins: 10
         spacing: 10
 
+        // Status bar
         RowLayout {
+            Layout.fillWidth: true
             spacing: 10
 
             Text {
-                id: statusText
-                text: network.connected ? "Connected (" + network.nodeCount + " nodes)" : "Not connected"
-                color: network.connected ? "#4CAF50" : "#999"
+                text: {
+                    switch (network.status) {
+                        case Network.Status.Disconnected: return "Not connected"
+                        case Network.Status.Connecting: return "Connecting..."
+                        case Network.Status.Connected:
+                            return network.isHost ? "Hosting:" : "Connected to:"
+                        case Network.Status.Error: return "Error"
+                        default: return "Unknown"
+                    }
+                }
                 font.pixelSize: 16
                 font.bold: true
-                Layout.fillWidth: true
+                color: {
+                    switch (network.status) {
+                        case Network.Status.Connected: return "#2e7d32"
+                        case Network.Status.Connecting: return "#1565c0"
+                        case Network.Status.Error: return "#c62828"
+                        default: return "#666"
+                    }
+                }
             }
 
-            Button {
-                text: chatPanel.visible ? "Hide Chat" : "Show Chat"
+            // Copyable network ID
+            TextField {
                 visible: network.connected
-                onClicked: chatPanel.visible = !chatPanel.visible
+                text: network.networkId
+                readOnly: true
+                selectByMouse: true
+                Layout.preferredWidth: 90
+                font.pixelSize: 16
+                font.bold: true
+                font.family: "monospace"
+                color: "#2e7d32"
+
+                background: Rectangle {
+                    color: "transparent"
+                    border.color: "transparent"
+                }
+
+                onActiveFocusChanged: if (activeFocus) selectAll()
+                Keys.onPressed: (event) => {
+                    if ((event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier) && event.key === Qt.Key_C) {
+                        selectAll(); copy()
+                        logMessage("Copied: " + network.networkId)
+                        event.accepted = true
+                    }
+                }
+                TapHandler {
+                    onDoubleTapped: { parent.selectAll(); parent.copy(); logMessage("Copied: " + network.networkId) }
+                }
+            }
+
+            // Status indicator
+            Rectangle {
+                width: 12
+                height: 12
+                radius: 6
+                color: {
+                    switch (network.status) {
+                        case Network.Status.Connected: return "#4caf50"
+                        case Network.Status.Connecting: return "#2196f3"
+                        case Network.Status.Error: return "#f44336"
+                        default: return "#9e9e9e"
+                    }
+                }
+                visible: network.status !== Network.Status.Disconnected
+
+                SequentialAnimation on opacity {
+                    running: network.status === Network.Status.Connecting
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: 500 }
+                    NumberAnimation { to: 1.0; duration: 500 }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                visible: network.connected
+                text: "Nodes: " + network.nodeCount
+                font.pixelSize: 14
+                color: "#666"
             }
         }
 
+        // Connection controls
         RowLayout {
+            Layout.fillWidth: true
             spacing: 10
             visible: !network.connected
 
-            TextField {
-                id: nameInput
-                placeholderText: "Your Name"
-                Layout.preferredWidth: 100
-                text: "Node"
-            }
-
             Button {
                 text: "Host"
-                enabled: nameInput.text.length > 0
-                onClicked: { nodeName = nameInput.text; network.host() }
+                onClicked: {
+                    logMessage("Creating network...")
+                    network.host()
+                }
             }
 
             TextField {
-                id: codeInput
+                id: networkCodeInput
                 placeholderText: "Network Code"
-                Layout.preferredWidth: 80
+                Layout.preferredWidth: 120
                 font.capitalization: Font.AllUppercase
+                selectByMouse: true
+
+                // Enable standard keyboard shortcuts
+                Keys.onPressed: (event) => {
+                    if (event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier) {
+                        if (event.key === Qt.Key_V) {
+                            paste()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_C) {
+                            copy()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_A) {
+                            selectAll()
+                            event.accepted = true
+                        }
+                    }
+                }
             }
 
             Button {
                 text: "Join"
-                enabled: codeInput.text.length >= 4 && nameInput.text.length > 0
-                onClicked: { nodeName = nameInput.text; network.join(codeInput.text) }
+                enabled: networkCodeInput.text.length >= 4
+                onClicked: {
+                    logMessage("Joining network: " + networkCodeInput.text.toUpperCase())
+                    network.join(networkCodeInput.text)
+                }
             }
         }
 
+        // Leave button and chat
         RowLayout {
-            spacing: 10
+            Layout.fillWidth: true
             visible: network.connected
 
             Button {
                 text: "Leave"
-                onClicked: { network.leave(); remoteNodes = {}; chatMessages.clear() }
+                onClicked: {
+                    network.leave()
+                    for (let id in remoteNodes) {
+                        if (remoteNodes[id]) remoteNodes[id].destroy()
+                    }
+                    remoteNodes = {}
+                }
             }
+
+            Item { Layout.fillWidth: true }
 
             TextField {
                 id: chatInput
-                placeholderText: "Type message, press Enter..."
-                Layout.fillWidth: true
+                placeholderText: "Type message..."
+                Layout.preferredWidth: 200
                 onAccepted: {
-                    if (text) {
-                        network.broadcast({type: "chat", text: text})
-                        addChatMessage("You", text)
+                    if (text.trim()) {
+                        network.broadcast({ type: "chat", text: text })
+                        logMessage("[You] " + text)
                         text = ""
+                    }
+                }
+            }
+
+            Button {
+                text: "Send"
+                onClicked: {
+                    if (chatInput.text.trim()) {
+                        network.broadcast({ type: "chat", text: chatInput.text })
+                        logMessage("[You] " + chatInput.text)
+                        chatInput.text = ""
                     }
                 }
             }
         }
 
+        // Game area and log side by side
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -183,143 +287,149 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
+                    text: network.connected
+                          ? "Click to move. WASD keys work too."
+                          : "Host or Join a network to start"
                     color: "#666"
-                    text: network.connected ? "Click to move. WASD keys work too." : "Host or Join a network"
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: !network.connected || network.nodeCount < 2
                 }
 
-                Item {
-                    id: local
+                Rectangle {
+                    id: localNode
                     width: 30
                     height: 30
+                    radius: 15
+                    color: "#1976d2"
+                    border.color: "#0d47a1"
+                    border.width: 2
                     visible: network.connected
-                    x: parent.width/2 - 15
-                    y: parent.height/2 - 15
+                    x: parent.width / 2 - width / 2
+                    y: parent.height / 2 - height / 2
 
-                    Behavior on x { NumberAnimation { duration: 50 } }
-                    Behavior on y { NumberAnimation { duration: 50 } }
+                    Behavior on x { NumberAnimation { duration: 100 } }
+                    Behavior on y { NumberAnimation { duration: 100 } }
 
                     Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.top
-                        anchors.bottomMargin: 2
-                        text: nodeName
-                        color: "#0d47a1"
-                        font.pixelSize: 10
+                        anchors.centerIn: parent
+                        text: "You"
+                        color: "white"
+                        font.pixelSize: 8
                         font.bold: true
-                    }
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 15
-                        color: "#1976d2"
-                        border.color: "#0d47a1"
-                        border.width: 2
                     }
                 }
 
                 MouseArea {
                     anchors.fill: parent
                     enabled: network.connected
-                    onClicked: (m) => {
+                    onClicked: (mouse) => {
                         root.forceActiveFocus()
-                        local.x = m.x - 15
-                        local.y = m.y - 15
+                        localNode.x = mouse.x - localNode.width / 2
+                        localNode.y = mouse.y - localNode.height / 2
                     }
                 }
 
                 Component {
-                    id: remoteComp
-                    Item {
+                    id: remoteNodeComp
+
+                    Rectangle {
+                        id: remoteNode
                         property string odId: ""
-                        property string nodeName: "?"
                         property real targetX: 0.5
                         property real targetY: 0.5
+
                         width: 30
                         height: 30
-                        x: targetX * parent.width - 15
-                        y: targetY * parent.height - 15
+                        radius: 15
+                        color: "#e65100"
+                        border.color: "#bf360c"
+                        border.width: 2
+
+                        x: targetX * parent.width - width / 2
+                        y: targetY * parent.height - height / 2
 
                         Behavior on x { NumberAnimation { duration: 80 } }
                         Behavior on y { NumberAnimation { duration: 80 } }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.bottom: parent.top
-                            anchors.bottomMargin: 2
-                            text: nodeName
-                            color: "#bf360c"
-                            font.pixelSize: 10
+                            anchors.centerIn: parent
+                            text: odId.substring(0, 2)
+                            color: "white"
+                            font.pixelSize: 8
                             font.bold: true
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 15
-                            color: "#e65100"
-                            border.color: "#bf360c"
-                            border.width: 2
                         }
                     }
                 }
             }
 
             Rectangle {
-                id: chatPanel
-                visible: false
-                Layout.preferredWidth: 200
+                Layout.preferredWidth: 250
                 Layout.fillHeight: true
-                color: "#f5f5f5"
-                border.color: "#ddd"
+                color: "#fafafa"
+                border.color: "#e0e0e0"
+                border.width: 1
                 radius: 4
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 4
+                    anchors.margins: 5
+                    spacing: 5
 
                     Text {
-                        text: "Chat Log"
+                        text: "Log"
                         font.bold: true
-                        color: "#333"
+                        font.pixelSize: 12
+                        color: "#666"
                     }
 
                     ListView {
-                        id: chatList
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        model: chatMessages
                         clip: true
-                        spacing: 2
-
+                        model: ListModel { id: logModel }
                         delegate: Text {
-                            width: chatList.width
+                            width: parent ? parent.width : 0
+                            text: message
                             wrapMode: Text.Wrap
                             font.pixelSize: 11
-                            color: sender === "System" ? "#666" : (sender === "Error" ? "#c00" : "#333")
-                            text: "<b>" + sender + ":</b> " + message
-                            textFormat: Text.StyledText
+                            color: "#333"
                         }
-
-                        onCountChanged: Qt.callLater(() => positionViewAtEnd())
+                        onCountChanged: positionViewAtEnd()
                     }
                 }
             }
         }
 
         Text {
-            text: "Open in two browser tabs to test networking."
-            color: "#999"
+            Layout.fillWidth: true
+            text: "Press 'L' to toggle Clayground log overlay"
             font.pixelSize: 11
+            color: "#999"
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
     focus: true
-    Keys.onPressed: (e) => {
+    Keys.onPressed: (event) => {
         if (!network.connected) return
-        let s = 10
-        if (e.key === Qt.Key_W || e.key === Qt.Key_Up) local.y = Math.max(0, local.y - s)
-        if (e.key === Qt.Key_S || e.key === Qt.Key_Down) local.y = Math.min(gameArea.height-30, local.y + s)
-        if (e.key === Qt.Key_A || e.key === Qt.Key_Left) local.x = Math.max(0, local.x - s)
-        if (e.key === Qt.Key_D || e.key === Qt.Key_Right) local.x = Math.min(gameArea.width-30, local.x + s)
+        let step = 10
+        switch (event.key) {
+            case Qt.Key_Left:
+            case Qt.Key_A:
+                localNode.x = Math.max(0, localNode.x - step)
+                break
+            case Qt.Key_Right:
+            case Qt.Key_D:
+                localNode.x = Math.min(gameArea.width - localNode.width, localNode.x + step)
+                break
+            case Qt.Key_Up:
+            case Qt.Key_W:
+                localNode.y = Math.max(0, localNode.y - step)
+                break
+            case Qt.Key_Down:
+            case Qt.Key_S:
+                localNode.y = Math.min(gameArea.height - localNode.height, localNode.y + step)
+                break
+        }
     }
 }

@@ -42,6 +42,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(int maxPlayers READ maxNodes WRITE setMaxNodes NOTIFY maxNodesChanged)
     Q_PROPERTY(Topology topology READ topology WRITE setTopology NOTIFY topologyChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
+    Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
 
 public:
     enum Topology {
@@ -72,6 +73,8 @@ public:
     Topology topology() const;
     void setTopology(Topology t);
     Status status() const;
+    bool autoRelay() const;
+    void setAutoRelay(bool relay);
 
 public slots:
     void createRoom();
@@ -98,10 +101,11 @@ signals:
     void maxNodesChanged();
     void topologyChanged();
     void statusChanged();
+    void autoRelayChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
-    void onSignalingOffer(const QString &fromId, const QString &sdp);
+    void onSignalingOffer(const QString &fromId, const QString &sdp, const QString &connectionId);
     void onSignalingAnswer(const QString &fromId, const QString &sdp);
     void onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid);
     void onSignalingError(const QString &error);
@@ -110,6 +114,7 @@ private:
     struct PeerConnection {
         std::shared_ptr<rtc::PeerConnection> pc;
         std::shared_ptr<rtc::DataChannel> dc;
+        QString connectionId;  // PeerJS connection ID (for ANSWER matching)
         bool ready = false;
     };
 
@@ -130,5 +135,6 @@ private:
     int maxNodes_ = 8;
     Topology topology_ = Star;
     Status status_ = Disconnected;
+    bool autoRelay_ = true;
     QStringList nodes_;
 };

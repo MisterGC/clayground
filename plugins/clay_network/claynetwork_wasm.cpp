@@ -52,8 +52,17 @@ EM_JS(void, js_init_network, (int instanceId), {
         nodeId: null,
         isHost: false,
         topology: 0, // 0 = Star, 1 = Mesh
-        maxNodes: 8
+        maxNodes: 8,
+        autoRelay: true
     };
+});
+
+// JavaScript: Set autoRelay property
+EM_JS(void, js_set_auto_relay, (int instanceId, int autoRelay), {
+    const state = Module.clayNetwork[instanceId];
+    if (state) {
+        state.autoRelay = autoRelay !== 0;
+    }
 });
 
 // JavaScript: Create a network (become host)
@@ -119,6 +128,18 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 
                 // Handle system messages
                 if (parsed._clay_sys) return;
+
+                // Host in Star topology: relay to other peers if autoRelay is on
+                if (state.isHost && state.autoRelay && state.topology === 0) {
+                    // Add "from" field for receivers to know original sender
+                    parsed.from = conn.peer;
+                    const relayMsg = JSON.stringify(parsed);
+                    state.connections.forEach((c, peerId) => {
+                        if (peerId !== conn.peer && c.open) {
+                            c.send(parsed);
+                        }
+                    });
+                }
 
                 const isState = parsed._clay_state === true;
                 Module._clay_net_message(instanceId,
@@ -221,9 +242,11 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                     return;
                 }
 
+                // Use "from" field if present (relayed message), else use host ID
+                const actualFromId = parsed.from || networkId;
                 const isState = parsed._clay_state === true;
                 Module._clay_net_message(instanceId,
-                    stringToNewUTF8(networkId),
+                    stringToNewUTF8(actualFromId),
                     stringToNewUTF8(msg),
                     isState ? 1 : 0);
             });
@@ -266,9 +289,11 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             const parsed = JSON.parse(msg);
             if (parsed._clay_sys) return;
 
+            // Use "from" field if present (relayed), else use direct peer ID
+            const actualFromId = parsed.from || nodeId;
             const isState = parsed._clay_state === true;
             Module._clay_net_message(instanceId,
-                stringToNewUTF8(nodeId),
+                stringToNewUTF8(actualFromId),
                 stringToNewUTF8(msg),
                 isState ? 1 : 0);
         });
@@ -509,6 +534,21 @@ void ClayNetwork::setTopology(Topology t)
 ClayNetwork::Status ClayNetwork::status() const
 {
     return status_;
+}
+
+bool ClayNetwork::autoRelay() const
+{
+    return autoRelay_;
+}
+
+void ClayNetwork::setAutoRelay(bool relay)
+{
+    if (autoRelay_ == relay) return;
+    autoRelay_ = relay;
+#ifdef __EMSCRIPTEN__
+    js_set_auto_relay(instanceId_, relay ? 1 : 0);
+#endif
+    emit autoRelayChanged();
 }
 
 void ClayNetwork::createRoom()

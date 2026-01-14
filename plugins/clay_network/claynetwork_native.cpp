@@ -52,6 +52,13 @@ void ClayNetwork::setTopology(Topology t) {
     }
 }
 ClayNetwork::Status ClayNetwork::status() const { return status_; }
+bool ClayNetwork::autoRelay() const { return autoRelay_; }
+void ClayNetwork::setAutoRelay(bool relay) {
+    if (autoRelay_ != relay) {
+        autoRelay_ = relay;
+        emit autoRelayChanged();
+    }
+}
 
 void ClayNetwork::createRoom()
 {
@@ -183,9 +190,9 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
     }
 }
 
-void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp)
+void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp, const QString &connectionId)
 {
-    qDebug() << "ClayNetwork: Received offer from" << fromId;
+    qDebug() << "ClayNetwork: Received offer from" << fromId << "connectionId:" << connectionId;
 
     if (!isHost_) {
         qWarning() << "ClayNetwork: Non-host received offer, ignoring";
@@ -200,6 +207,8 @@ void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp)
     setupPeerConnection(fromId, false);
 
     if (peers_.contains(fromId) && peers_[fromId].pc) {
+        // Store the connectionId for use in ANSWER
+        peers_[fromId].connectionId = connectionId;
         peers_[fromId].pc->setRemoteDescription(rtc::Description(sdp.toStdString(), rtc::Description::Type::Offer));
     }
 }
@@ -267,8 +276,9 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
             qDebug() << "ClayNetwork: Sending offer to" << peerId;
             signaling_->sendOffer(peerId, sdp);
         } else {
-            qDebug() << "ClayNetwork: Sending answer to" << peerId;
-            signaling_->sendAnswer(peerId, sdp);
+            QString connectionId = peers_.contains(peerId) ? peers_[peerId].connectionId : QString();
+            qDebug() << "ClayNetwork: Sending answer to" << peerId << "with connectionId:" << connectionId;
+            signaling_->sendAnswer(peerId, sdp, connectionId);
         }
     });
 
@@ -347,23 +357,36 @@ void ClayNetwork::sendToPeer(const QString &peerId, const QString &message)
 void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message)
 {
     QMetaObject::invokeMethod(this, [this, fromId, message]() {
-        qDebug() << "ClayNetwork::handleDataChannelMessage - raw:" << QString::fromStdString(message);
         QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
         if (!doc.isObject()) {
-            qDebug() << "ClayNetwork::handleDataChannelMessage - not an object!";
             return;
         }
 
         QJsonObject obj = doc.object();
         QString type = obj["t"].toString();
         QJsonObject dataObj = obj["d"].toObject();
-        qDebug() << "ClayNetwork::handleDataChannelMessage - type:" << type << "dataObj keys:" << dataObj.keys();
         QVariant data = dataObj.toVariantMap();
 
+        // Determine actual sender: use "from" field if present (relayed), else connection peer
+        QString actualFromId = obj.contains("from") ? obj["from"].toString() : fromId;
+
+        // Host in Star topology: relay to other peers
+        if (isHost_ && autoRelay_ && topology_ == Star) {
+            // Add "from" field and relay to all OTHER peers
+            obj["from"] = fromId;
+            QString relayJson = QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+            for (const QString &peerId : peers_.keys()) {
+                if (peerId != fromId) {
+                    sendToPeer(peerId, relayJson);
+                }
+            }
+        }
+
+        // Emit signal to application
         if (type == "m") {
-            emit messageReceived(fromId, data);
+            emit messageReceived(actualFromId, data);
         } else if (type == "s") {
-            emit stateReceived(fromId, data);
+            emit stateReceived(actualFromId, data);
         }
     }, Qt::QueuedConnection);
 }

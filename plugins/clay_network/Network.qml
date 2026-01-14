@@ -118,6 +118,19 @@ Item {
     */
     property int maxNodes: 8
 
+    /*!
+        \qmlproperty bool Network::autoRelay
+        \brief Whether the host automatically relays messages between joiners in Star topology.
+
+        Default: true. When enabled, messages sent by one joiner are automatically
+        forwarded to all other joiners through the host.
+
+        Set to false if the host wants full control over message relay (e.g., for
+        server-authoritative validation, anti-cheat, or custom game logic).
+        When false, the host must manually forward messages using broadcast().
+    */
+    property bool autoRelay: true
+
     // ========== Read-only State ==========
 
     /*!
@@ -229,6 +242,7 @@ Item {
         if (_backend && !connected) {
             _backend.maxPlayers = root.maxNodes
             _backend.topology = root.topology
+            _backend.autoRelay = root.autoRelay
             _backend.createRoom()
         }
     }
@@ -243,6 +257,7 @@ Item {
     function join(networkId) {
         if (_backend && !connected && networkId && networkId.length > 0) {
             _backend.topology = root.topology
+            _backend.autoRelay = root.autoRelay
             _backend.joinRoom(networkId)
         }
     }
