@@ -3,7 +3,6 @@
 /*!
     \qmltype RectBoxBody
     \inqmlmodule Clayground.Physics
-    \inherits PhysicsItem
     \brief Rectangle-shaped physics body with visual representation.
 
     RectBoxBody combines a visual Rectangle with a Box2D box fixture,
@@ -25,38 +24,7 @@
     }
     \endqml
 
-    \qmlproperty Fixture RectBoxBody::fixture
-    \brief The Box2D box fixture.
-
-    \qmlproperty color RectBoxBody::color
-    \brief Fill color of the rectangle.
-
-    \qmlproperty real RectBoxBody::radius
-    \brief Corner radius of the rectangle.
-
-    \qmlproperty Border RectBoxBody::border
-    \brief Border properties of the rectangle.
-
-    \qmlproperty real RectBoxBody::density
-    \brief Fixture density affecting mass.
-
-    \qmlproperty real RectBoxBody::friction
-    \brief Friction coefficient (0-1).
-
-    \qmlproperty real RectBoxBody::restitution
-    \brief Bounciness coefficient (0-1).
-
-    \qmlproperty bool RectBoxBody::sensor
-    \brief If true, detects collisions without physical response.
-
-    \qmlproperty int RectBoxBody::categories
-    \brief Collision category bits.
-
-    \qmlproperty int RectBoxBody::collidesWith
-    \brief Collision mask bits.
-
-    \qmlproperty int RectBoxBody::groupIndex
-    \brief Collision group index.
+    \sa PhysicsItem, ImageBoxBody
 */
 import QtQuick
 import Box2D
@@ -64,18 +32,70 @@ import Box2D
 PhysicsItem {
     id: theItem
 
+    /*!
+        \qmlproperty Fixture RectBoxBody::fixture
+        \brief The Box2D box fixture.
+    */
     property alias fixture: box
+
+    /*!
+        \qmlproperty color RectBoxBody::color
+        \brief Fill color of the rectangle.
+    */
     property alias color: rect.color
+
+    /*!
+        \qmlproperty real RectBoxBody::radius
+        \brief Corner radius of the rectangle.
+    */
     property alias radius: rect.radius
+
+    /*!
+        \qmlproperty Border RectBoxBody::border
+        \brief Border properties of the rectangle.
+    */
     property alias border: rect.border
 
-    // Box properties
+    /*!
+        \qmlproperty real RectBoxBody::density
+        \brief Fixture density affecting mass.
+    */
     property alias density: box.density
+
+    /*!
+        \qmlproperty real RectBoxBody::friction
+        \brief Friction coefficient (0-1).
+    */
     property alias friction: box.friction
+
+    /*!
+        \qmlproperty real RectBoxBody::restitution
+        \brief Bounciness coefficient (0-1).
+    */
     property alias restitution: box.restitution
+
+    /*!
+        \qmlproperty bool RectBoxBody::sensor
+        \brief If true, detects collisions without physical response.
+    */
     property alias sensor: box.sensor
+
+    /*!
+        \qmlproperty int RectBoxBody::categories
+        \brief Collision category bits.
+    */
     property alias categories: box.categories
+
+    /*!
+        \qmlproperty int RectBoxBody::collidesWith
+        \brief Collision mask bits.
+    */
     property alias collidesWith: box.collidesWith
+
+    /*!
+        \qmlproperty int RectBoxBody::groupIndex
+        \brief Collision group index.
+    */
     property alias groupIndex: box.groupIndex
 
     Rectangle {id: rect; color: theItem.color; anchors.fill: parent }
