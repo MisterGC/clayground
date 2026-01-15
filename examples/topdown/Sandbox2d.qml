@@ -95,35 +95,38 @@ ClayWorld2d {
             }
 
             function sendPosition(){
-                networkUser.broadcastMessage(JSON.stringify({xWu: player.xWu, yWu: player.yWu}))
+                network.broadcastState({xWu: player.xWu, yWu: player.yWu})
             }
 
-            ClayNetworkUser {
-                id: networkUser
+            Network {
+                id: network
+                topology: Network.Topology.Star
 
                 property var otherPlayers: new Map()
-                onNewParticipant: (user) => {
+
+                Component.onCompleted: host()  // Auto-host for LAN play
+
+                onNodeJoined: (nodeId) => {
                     let obj = playerComp.createObject(theWorld, {
                                                           xWu: player.xWu, yWu: player.yWu,
                                                           bodyType: Body.Static, sensor: true,
                                                           widthWu: player.widthWu, heightWu: player.heightWu
                                                       });
-                    otherPlayers.set(user, obj);
+                    otherPlayers.set(nodeId, obj);
                     _networking.regulatedSendPosition();
                 }
-                onParticipantLeft: (user) => {
-                    if (otherPlayers.has(user)){
-                        let u = otherPlayers.get(user);
+                onNodeLeft: (nodeId) => {
+                    if (otherPlayers.has(nodeId)){
+                        let u = otherPlayers.get(nodeId);
                         u.destroy();
-                        otherPlayers.delete(user);
+                        otherPlayers.delete(nodeId);
                     }
                 }
-                onNewMessage: (from, message) => {
+                onStateReceived: (from, data) => {
                     if (otherPlayers.has(from)){
                         let p = otherPlayers.get(from);
-                        let update = JSON.parse(message);
-                        p.xWu = update.xWu;
-                        p.yWu = update.yWu;
+                        p.xWu = data.xWu;
+                        p.yWu = data.yWu;
                     }
                 }
             }
