@@ -13,6 +13,16 @@
 #   - clay_website_create_target() - Create the 'website' and 'website-dev' build targets
 
 set(CLAY_WEBSITE_DEMOS "" CACHE INTERNAL "List of WASM demos to include in website")
+set(CLAY_WEBDOJO_EXAMPLES "" CACHE INTERNAL "WebDojo example mappings (source:dest)")
+
+# Register a QML file as a webdojo example (copied at build time)
+# SOURCE_PATH: Relative path from project root (e.g., plugins/clay_network/Sandbox.qml)
+# DEST_NAME: Name in webdojo-examples (e.g., multiplayer.qml)
+function(clay_website_register_webdojo_example SOURCE_PATH DEST_NAME)
+    set(CLAY_WEBDOJO_EXAMPLES ${CLAY_WEBDOJO_EXAMPLES}
+        "${SOURCE_PATH}:${DEST_NAME}" CACHE INTERNAL "")
+    message(STATUS "WebDojo example: ${DEST_NAME} <- ${SOURCE_PATH}")
+endfunction()
 
 # Check all prerequisites at configure time (fail fast)
 function(clay_website_check_prerequisites)
@@ -78,11 +88,30 @@ function(clay_website_create_target)
         COMMENT "Syncing plugin documentation..."
     )
 
+    # Sync webdojo examples from source locations (plugin sandboxes, example sandboxes)
+    # This eliminates duplicate QML files - source of truth is in plugins/examples
+    set(WEBDOJO_COPY_COMMANDS "")
+    foreach(MAPPING IN LISTS CLAY_WEBDOJO_EXAMPLES)
+        string(REPLACE ":" ";" PARTS "${MAPPING}")
+        list(GET PARTS 0 SOURCE)
+        list(GET PARTS 1 DEST)
+        list(APPEND WEBDOJO_COPY_COMMANDS
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/${SOURCE}
+                ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST}
+        )
+    endforeach()
+
+    add_custom_target(website-sync-webdojo-examples
+        ${WEBDOJO_COPY_COMMANDS}
+        COMMENT "Syncing webdojo examples from source..."
+    )
+
     # Jekyll build for production (with /clayground baseurl for GitHub Pages)
     add_custom_target(website-jekyll
         COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build --baseurl "/clayground"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs docs
+        DEPENDS website-sync-docs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (production)..."
     )
 
@@ -91,7 +120,7 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll-dev
         COMMAND ${CMAKE_SOURCE_DIR}/docs/build-dev.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs docs
+        DEPENDS website-sync-docs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (local dev)..."
     )
 

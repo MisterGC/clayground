@@ -111,6 +111,11 @@ endif()
 # (tools/ is excluded from WASM, so we add webdojo separately)
 if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     add_subdirectory(tools/webdojo)
+
+    # Register webdojo examples - copied from source locations at build time
+    # This eliminates duplicate QML files in docs/webdojo-examples/
+    clay_website_register_webdojo_example(plugins/clay_network/Sandbox.qml multiplayer.qml)
+    clay_website_register_webdojo_example(examples/voxelworld/Sandbox.qml voxelworld.qml)
 endif()
 
 # Create website target after all demos are registered
