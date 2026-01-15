@@ -3,7 +3,6 @@
 /*!
     \qmltype Box3DBody
     \inqmlmodule Clayground.World
-    \inherits QtQuick3D.Physics::DynamicRigidBody
     \brief 3D physics-enabled box with visual representation.
 
     Box3DBody combines a Canvas3D Box3D visual with a dynamic rigid body
@@ -21,23 +20,7 @@
     }
     \endqml
 
-    \qmlproperty real Box3DBody::width
-    \brief Box width in world units.
-
-    \qmlproperty real Box3DBody::height
-    \brief Box height in world units.
-
-    \qmlproperty real Box3DBody::depth
-    \brief Box depth in world units.
-
-    \qmlproperty color Box3DBody::color
-    \brief Box color.
-
-    \qmlproperty int Box3DBody::scaledFace
-    \brief Which face to scale (Box3DGeometry enum).
-
-    \qmlproperty vector2d Box3DBody::faceScale
-    \brief Scale factor for the scaled face.
+    \sa ClayWorld3d, Box3D
 */
 import QtQuick
 import QtQuick3D
@@ -46,11 +29,40 @@ import Clayground.Canvas3D
 
 DynamicRigidBody {
 
+    /*!
+        \qmlproperty real Box3DBody::width
+        \brief Box width in world units.
+    */
     property alias width: _box.width
+
+    /*!
+        \qmlproperty real Box3DBody::height
+        \brief Box height in world units.
+    */
     property alias height: _box.height
+
+    /*!
+        \qmlproperty real Box3DBody::depth
+        \brief Box depth in world units.
+    */
     property alias depth: _box.depth
+
+    /*!
+        \qmlproperty color Box3DBody::color
+        \brief Box color.
+    */
     property alias color: _box.color
+
+    /*!
+        \qmlproperty int Box3DBody::scaledFace
+        \brief Which face to scale (Box3DGeometry enum).
+    */
     property alias scaledFace: _box.scaledFace
+
+    /*!
+        \qmlproperty vector2d Box3DBody::faceScale
+        \brief Scale factor for the scaled face.
+    */
     property alias faceScale: _box.faceScale
 
     massMode: DynamicRigidBody.CustomDensity

@@ -20,6 +20,7 @@ sourcedirs = . \
              ../plugins/clay_character3d \
              ../plugins/clay_character3d/bodyparts \
              ../plugins/clay_character3d/animation \
+             ../plugins/clay_character3d/control \
              ../plugins/clay_world \
              ../plugins/clay_canvas3d \
              ../plugins/clay_ios \

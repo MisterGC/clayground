@@ -3,12 +3,13 @@
 /*!
     \qmltype SceneLoader3d
     \inqmlmodule Clayground.World
-    \inherits SceneLoaderBase
     \brief Scene loader specialized for 3D worlds.
 
     SceneLoader3d extends SceneLoaderBase with 3D-specific handling that
     converts SVG rectangles to 3D objects for ClayWorld3d. The SVG Y coordinate
     maps to Z in 3D, and width/height become width/depth.
+
+    \sa SceneLoaderBase, ClayWorld3d
 */
 SceneLoaderBase
 {

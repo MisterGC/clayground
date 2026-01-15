@@ -5,26 +5,100 @@ import QtQuick3D.Helpers
 // Import the Character component from parent directory
 import ".."
 
+/*!
+    \qmltype CharacterCamera
+    \inqmlmodule Clayground.Character3D
+    \inherits PerspectiveCamera
+    \brief Third-person camera that follows a Character.
+
+    CharacterCamera provides an orbiting third-person camera that follows
+    a Character. It automatically positions itself behind and above the
+    character, looking at the character's head.
+
+    The camera orbit can be adjusted using orbitYawOffset, orbitPitch,
+    and orbitDistance properties.
+
+    Example usage:
+    \qml
+    import Clayground.Character3D
+
+    Character {
+        id: hero
+    }
+
+    CharacterCamera {
+        character: hero
+        orbitDistance: 30
+        orbitPitch: 25
+    }
+    \endqml
+
+    \sa Character, CharacterController
+*/
 PerspectiveCamera {
     id: rootCamera
 
-    // Expose the character as a property
+    /*!
+        \qmlproperty Character CharacterCamera::character
+        \brief The character to follow.
+    */
     property Character character: null
 
-    // Properties for controlling the camera orbit
-    property real orbitYawOffset: 180 // Relative to character rotation (degrees)
-    property real orbitPitch: 20     // Vertical angle (degrees)
-    property real orbitDistance: 40  // Distance from character
+    /*!
+        \qmlproperty real CharacterCamera::orbitYawOffset
+        \brief Horizontal offset from character's facing direction (degrees).
 
-    // Define limits for orbit parameters
+        180 means camera is behind the character.
+    */
+    property real orbitYawOffset: 180
+
+    /*!
+        \qmlproperty real CharacterCamera::orbitPitch
+        \brief Vertical angle above horizontal (degrees).
+    */
+    property real orbitPitch: 20
+
+    /*!
+        \qmlproperty real CharacterCamera::orbitDistance
+        \brief Distance from the character.
+    */
+    property real orbitDistance: 40
+
+    /*!
+        \qmlproperty real CharacterCamera::minOrbitDistance
+        \brief Minimum allowed orbit distance.
+    */
     property real minOrbitDistance: 5.0
-    property real maxOrbitDistance: 100.0
-    property real minOrbitPitch: -85.0 // Limit looking straight down
-    property real maxOrbitPitch: 85.0  // Limit looking straight up
 
-    // Default clip planes
+    /*!
+        \qmlproperty real CharacterCamera::maxOrbitDistance
+        \brief Maximum allowed orbit distance.
+    */
+    property real maxOrbitDistance: 100.0
+
+    /*!
+        \qmlproperty real CharacterCamera::minOrbitPitch
+        \brief Minimum pitch angle (looking down limit).
+    */
+    property real minOrbitPitch: -85.0
+
+    /*!
+        \qmlproperty real CharacterCamera::maxOrbitPitch
+        \brief Maximum pitch angle (looking up limit).
+    */
+    property real maxOrbitPitch: 85.0
+
+    /*!
+        \qmlproperty real CharacterCamera::clipNear
+        \brief Near clipping plane distance.
+    */
     property real clipNear: 1
-    property real clipFar: 5000 // Set a reasonable far clip plane
+
+    /*!
+        \qmlproperty real CharacterCamera::clipFar
+        \brief Far clipping plane distance.
+    */
+    property real clipFar: 5000
 
     // Internal helper function to calculate position based on orbit parameters
     function updatePosition() {

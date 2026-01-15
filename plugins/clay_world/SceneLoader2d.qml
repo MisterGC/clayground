@@ -3,25 +3,27 @@
 /*!
     \qmltype SceneLoader2d
     \inqmlmodule Clayground.World
-    \inherits SceneLoaderBase
     \brief Scene loader specialized for 2D worlds.
 
     SceneLoader2d extends SceneLoaderBase with 2D-specific handling for
     rectangles, polygons, and Z-coordinate management for ClayWorld2d.
 
-    \qmlproperty real SceneLoader2d::baseZCoord
-    \brief Base Z coordinate for loaded entities.
-
-    \qmlproperty real SceneLoader2d::lastZCoord
-    \brief Last used Z coordinate, incremented for each entity.
+    \sa SceneLoaderBase, ClayWorld2d
 */
 import QtQuick
 import Box2D
 
-SceneLoaderBase
-{
-    // Z coordinate properties
+SceneLoaderBase {
+    /*!
+        \qmlproperty real SceneLoader2d::baseZCoord
+        \brief Base Z coordinate for loaded entities.
+    */
     property real baseZCoord: 0
+
+    /*!
+        \qmlproperty real SceneLoader2d::lastZCoord
+        \brief Last used Z coordinate, incremented for each entity.
+    */
     property real lastZCoord: baseZCoord
 
     function _onBeginSpecifics(widthWu, heightWu) {

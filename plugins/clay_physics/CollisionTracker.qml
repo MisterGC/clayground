@@ -27,30 +27,32 @@
     }
     \endqml
 
-    \qmlproperty Fixture CollisionTracker::fixture
-    \brief The fixture to monitor for collisions.
-
-    \qmlproperty Set CollisionTracker::entities
-    \brief Set of entities currently in collision with the fixture.
-
-    \qmlproperty bool CollisionTracker::debug
-    \brief Shows debug visualization markers on colliding entities.
-
-    \qmlsignal CollisionTracker::beginContact(var entity)
-    \brief Emitted when an entity enters collision with the fixture.
-
-    \qmlsignal CollisionTracker::endContact(var entity)
-    \brief Emitted when an entity leaves collision with the fixture.
+    \sa PhysicsUtils
 */
 import QtQuick
 import Box2D
 
 Item {
     id: _collisionTracker
+
+    /*!
+        \qmlproperty Set CollisionTracker::entities
+        \brief Set of entities currently in collision with the fixture.
+    */
     property var entities: new Set()
+
+    /*!
+        \qmlproperty bool CollisionTracker::debug
+        \brief Shows debug visualization markers on colliding entities.
+    */
     property bool debug: false
+
     property var debugMarkers: debug ? new Map() : null
 
+    /*!
+        \qmlproperty Fixture CollisionTracker::fixture
+        \brief The fixture to monitor for collisions.
+    */
     property var fixture: null
     onFixtureChanged: {
         if (fixture) {
@@ -59,7 +61,16 @@ Item {
         }
     }
 
+    /*!
+        \qmlsignal CollisionTracker::beginContact(var entity)
+        \brief Emitted when an entity enters collision with the fixture.
+    */
     signal beginContact(entity: var)
+
+    /*!
+        \qmlsignal CollisionTracker::endContact(var entity)
+        \brief Emitted when an entity leaves collision with the fixture.
+    */
     signal endContact(entity: var)
 
     function _onDestruction(entity) {

@@ -3,7 +3,6 @@
 /*!
     \qmltype VisualizedPolyBody
     \inqmlmodule Clayground.Physics
-    \inherits Clayground.Canvas::Poly
     \brief Polygon-shaped physics body with Canvas visualization.
 
     VisualizedPolyBody combines a visual Poly shape with a Box2D polygon fixture.
@@ -27,74 +26,7 @@
     }
     \endqml
 
-    \qmlproperty Body VisualizedPolyBody::body
-    \brief The Box2D body instance.
-
-    \qmlproperty Fixture VisualizedPolyBody::fixture
-    \brief The Box2D polygon fixture.
-
-    \qmlproperty World VisualizedPolyBody::world
-    \brief Physics world reference.
-
-    \qmlproperty real VisualizedPolyBody::linearDamping
-    \brief Linear motion damping coefficient.
-
-    \qmlproperty real VisualizedPolyBody::angularDamping
-    \brief Angular motion damping coefficient.
-
-    \qmlproperty Body.BodyType VisualizedPolyBody::bodyType
-    \brief Body type: Body.Static, Body.Kinematic, or Body.Dynamic.
-
-    \qmlproperty bool VisualizedPolyBody::bullet
-    \brief Enable continuous collision detection.
-
-    \qmlproperty bool VisualizedPolyBody::sleepingAllowed
-    \brief Whether the body can sleep.
-
-    \qmlproperty bool VisualizedPolyBody::fixedRotation
-    \brief Prevent the body from rotating.
-
-    \qmlproperty bool VisualizedPolyBody::active
-    \brief Whether the body is active.
-
-    \qmlproperty bool VisualizedPolyBody::awake
-    \brief Whether the body is awake.
-
-    \qmlproperty point VisualizedPolyBody::linearVelocity
-    \brief Linear velocity vector.
-
-    \qmlproperty real VisualizedPolyBody::angularVelocity
-    \brief Angular velocity.
-
-    \qmlproperty list VisualizedPolyBody::fixtures
-    \brief List of fixtures.
-
-    \qmlproperty real VisualizedPolyBody::gravityScale
-    \brief Gravity effect multiplier.
-
-    \qmlproperty real VisualizedPolyBody::density
-    \brief Fixture density.
-
-    \qmlproperty real VisualizedPolyBody::friction
-    \brief Friction coefficient.
-
-    \qmlproperty real VisualizedPolyBody::restitution
-    \brief Bounciness coefficient.
-
-    \qmlproperty bool VisualizedPolyBody::sensor
-    \brief If true, detects collisions without physical response.
-
-    \qmlproperty int VisualizedPolyBody::categories
-    \brief Collision category bits.
-
-    \qmlproperty int VisualizedPolyBody::collidesWith
-    \brief Collision mask bits.
-
-    \qmlproperty int VisualizedPolyBody::groupIndex
-    \brief Collision group index.
-
-    \qmlmethod void VisualizedPolyBody::refresh()
-    \brief Refreshes visual and physics geometry from vertices.
+    \sa PhysicsItem, RectBoxBody
 */
 import QtQuick
 import Box2D
@@ -106,6 +38,11 @@ Poly {
     onVerticesChanged: refresh();
     onWidthChanged: refresh();
     Component.onCompleted: refresh();
+
+    /*!
+        \qmlmethod void VisualizedPolyBody::refresh()
+        \brief Refreshes visual and physics geometry from vertices.
+    */
     function refresh() {
         _syncVisu();
         _syncPhys();
@@ -120,31 +57,136 @@ Poly {
         theFixture.vertices = pVerts;
     }
 
+    /*!
+        \qmlproperty Body VisualizedPolyBody::body
+        \brief The Box2D body instance.
+    */
     property alias body: theBody
+
+    /*!
+        \qmlproperty Fixture VisualizedPolyBody::fixture
+        \brief The Box2D polygon fixture.
+    */
     property alias fixture: theFixture
 
-    // Body properties
+    /*!
+        \qmlproperty World VisualizedPolyBody::world
+        \brief Physics world reference.
+    */
     property alias world: theBody.world
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::linearDamping
+        \brief Linear motion damping coefficient.
+    */
     property alias linearDamping: theBody.linearDamping
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::angularDamping
+        \brief Angular motion damping coefficient.
+    */
     property alias angularDamping: theBody.angularDamping
+
+    /*!
+        \qmlproperty Body.BodyType VisualizedPolyBody::bodyType
+        \brief Body type: Body.Static, Body.Kinematic, or Body.Dynamic.
+    */
     property alias bodyType: theBody.bodyType
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::bullet
+        \brief Enable continuous collision detection.
+    */
     property alias bullet: theBody.bullet
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::sleepingAllowed
+        \brief Whether the body can sleep.
+    */
     property alias sleepingAllowed: theBody.sleepingAllowed
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::fixedRotation
+        \brief Prevent the body from rotating.
+    */
     property alias fixedRotation: theBody.fixedRotation
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::active
+        \brief Whether the body is active.
+    */
     property alias active: theBody.active
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::awake
+        \brief Whether the body is awake.
+    */
     property alias awake: theBody.awake
+
+    /*!
+        \qmlproperty point VisualizedPolyBody::linearVelocity
+        \brief Linear velocity vector.
+    */
     property alias linearVelocity: theBody.linearVelocity
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::angularVelocity
+        \brief Angular velocity.
+    */
     property alias angularVelocity: theBody.angularVelocity
+
+    /*!
+        \qmlproperty list VisualizedPolyBody::fixtures
+        \brief List of fixtures.
+    */
     property alias fixtures: theBody.fixtures
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::gravityScale
+        \brief Gravity effect multiplier.
+    */
     property alias gravityScale: theBody.gravityScale
 
-    // Fixture properties
+    /*!
+        \qmlproperty real VisualizedPolyBody::density
+        \brief Fixture density.
+    */
     property alias density: theFixture.density
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::friction
+        \brief Friction coefficient.
+    */
     property alias friction: theFixture.friction
+
+    /*!
+        \qmlproperty real VisualizedPolyBody::restitution
+        \brief Bounciness coefficient.
+    */
     property alias restitution: theFixture.restitution
+
+    /*!
+        \qmlproperty bool VisualizedPolyBody::sensor
+        \brief If true, detects collisions without physical response.
+    */
     property alias sensor: theFixture.sensor
+
+    /*!
+        \qmlproperty int VisualizedPolyBody::categories
+        \brief Collision category bits.
+    */
     property alias categories: theFixture.categories
+
+    /*!
+        \qmlproperty int VisualizedPolyBody::collidesWith
+        \brief Collision mask bits.
+    */
     property alias collidesWith: theFixture.collidesWith
+
+    /*!
+        \qmlproperty int VisualizedPolyBody::groupIndex
+        \brief Collision group index.
+    */
     property alias groupIndex: theFixture.groupIndex
 
     Body {

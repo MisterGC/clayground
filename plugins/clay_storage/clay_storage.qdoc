@@ -1,0 +1,76 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmlmodule Clayground.Storage
+    \title Clayground Storage Module
+    \brief Persistent key-value storage using SQLite.
+
+    The Storage module provides simple persistent storage for game settings,
+    player progress, and other data that needs to survive application restarts.
+
+    \section1 Usage
+
+    Import the module:
+    \qml
+    import Clayground.Storage
+    \endqml
+
+    \section2 Example
+
+    \qml
+    KeyValueStore {
+        id: settings
+        name: "MyGameSettings"
+    }
+
+    Component.onCompleted: {
+        settings.set("highScore", "1000")
+        let score = settings.get("highScore", "0")
+        console.log("High score:", score)
+    }
+    \endqml
+
+    \section1 Technical Notes
+
+    \list
+    \li Uses Qt's LocalStorage module backed by SQLite
+    \li Each unique name creates a separate database file
+    \li All values are stored as strings
+    \endlist
+
+    \sa KeyValueStore
+*/
+
+/*!
+    \qmltype KeyValueStore
+    \inqmlmodule Clayground.Storage
+    \brief A persistent key-value storage component using SQLite database.
+
+    KeyValueStore provides a simple interface for storing and retrieving
+    key-value pairs that persist across application sessions.
+
+    \section1 Properties
+
+    \qmlproperty string KeyValueStore::name
+    The database name used for storage. Must be set before using the store.
+    Each unique name creates a separate SQLite database file. Use descriptive
+    names to avoid conflicts (e.g., "GameSettings", "PlayerProgress").
+
+    \section1 Methods
+
+    \qmlmethod bool KeyValueStore::set(string key, string value)
+    Stores a key-value pair in the database. Inserts a new pair or replaces
+    an existing one. Returns true if the operation succeeded.
+
+    \qmlmethod string KeyValueStore::get(string key, string defVal)
+    Retrieves the value for a given key. Returns the stored value, or
+    \a defVal if the key does not exist.
+
+    \qmlmethod bool KeyValueStore::has(string key)
+    Checks if a key exists in the database. Returns true if the key exists.
+
+    \qmlmethod bool KeyValueStore::remove(string key)
+    Removes a key-value pair from the database. Returns true after completion.
+
+    \sa LocalStorage
+*/
