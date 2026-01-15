@@ -12,15 +12,15 @@ import Clayground.Network
     No dedicated server infrastructure required.
 
     Works across platforms: Browser (WASM), Desktop, and Mobile can all
-    connect to each other when using cloud signaling.
+    connect to each other when using Internet signaling mode.
 
     \section1 Signaling Modes
 
     \list
-    \li \b Cloud - Uses PeerJS signaling server. Requires internet.
+    \li \b Internet - Uses PeerJS signaling server for peer discovery. Requires internet.
         Enables Browser <-> Desktop <-> Mobile connectivity.
-    \li \b Local - Embedded signaling server with encoded IP codes.
-        Works on LAN without internet. Desktop/Mobile only.
+    \li \b LAN - Embedded signaling server with encoded IP codes.
+        Works on local network without internet. Desktop/Mobile only.
     \endlist
 
     \section1 Network Topologies
@@ -102,10 +102,13 @@ Item {
         \qmlproperty enumeration Network::signalingMode
         \brief How nodes discover and connect to each other.
 
-        \value Network.SignalingMode.Cloud Uses PeerJS cloud server (default). Requires internet.
+        Signaling is only used for initial peer discovery. Once connected,
+        all data flows directly peer-to-peer via WebRTC data channels.
+
+        \value Network.SignalingMode.Cloud Uses PeerJS server for peer discovery (default). Requires internet.
                Enables cross-platform Browser <-> Desktop <-> Mobile connectivity.
-        \value Network.SignalingMode.Local Embedded signaling with encoded IP. No internet needed.
-               Works on LAN only. Not available on WASM.
+        \value Network.SignalingMode.Local Host runs embedded signaling server. No internet needed.
+               Works on local network only. Not available on WASM (browser).
     */
     property int signalingMode: Network.SignalingMode.Cloud
 
@@ -243,6 +246,7 @@ Item {
             _backend.maxPlayers = root.maxNodes
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
+            _backend.signalingMode = root.signalingMode
             _backend.createRoom()
         }
     }

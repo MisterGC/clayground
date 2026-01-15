@@ -2,12 +2,14 @@
 
 #include "claynetwork_native.h"
 #include "signaling_peerjs.h"
+#include "signaling_local.h"
 #include <rtc/rtc.hpp>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUuid>
 #include <QDebug>
 #include <QRandomGenerator>
+#include <QNetworkInterface>
 #include <cstring>
 
 ClayNetwork::ClayNetwork(QObject *parent)
@@ -60,6 +62,14 @@ void ClayNetwork::setAutoRelay(bool relay) {
     }
 }
 
+ClayNetwork::SignalingMode ClayNetwork::signalingMode() const { return signalingMode_; }
+void ClayNetwork::setSignalingMode(SignalingMode mode) {
+    if (signalingMode_ != mode) {
+        signalingMode_ = mode;
+        emit signalingModeChanged();
+    }
+}
+
 void ClayNetwork::createRoom()
 {
     if (connected_) {
@@ -71,11 +81,31 @@ void ClayNetwork::createRoom()
     emit statusChanged();
     emit isHostChanged();
 
-    networkId_ = generateNetworkCode();
-    emit networkIdChanged();
+    if (signalingMode_ == Local) {
+        // Start local signaling server
+        localServer_ = std::make_unique<LocalSignalingServer>(this);
+        if (!localServer_->start(0)) {  // 0 = auto-select port
+            status_ = Error;
+            emit statusChanged();
+            emit errorOccurred("Failed to start local signaling server");
+            return;
+        }
 
-    // Connect to signaling server with networkId as peerId (host uses networkId)
-    signaling_->connect(networkId_);
+        // Generate LAN code from local IP and port
+        QString localIp = getLocalIpAddress();
+        networkId_ = encodeLanCode(localIp, localServer_->port());
+        emit networkIdChanged();
+
+        // Connect local client to own server for signaling
+        connectLocalSignaling();
+    } else {
+        // Cloud mode: use PeerJS signaling
+        networkId_ = generateNetworkCode();
+        emit networkIdChanged();
+
+        // Connect to signaling server with networkId as peerId (host uses networkId)
+        signaling_->connect(networkId_);
+    }
 }
 
 void ClayNetwork::joinRoom(const QString &networkId)
@@ -100,9 +130,22 @@ void ClayNetwork::joinRoom(const QString &networkId)
     emit isHostChanged();
     emit networkIdChanged();
 
-    qDebug() << "ClayNetwork: Connecting to signaling server as client...";
-    // Connect to signaling with unique peerId
-    signaling_->connect();
+    // Check if this is a LAN code
+    QString host;
+    uint16_t port;
+    if (decodeLanCode(networkId, host, port)) {
+        // Local mode: connect to local signaling server
+        qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
+        signalingMode_ = Local;
+        emit signalingModeChanged();
+        connectLocalSignaling();
+    } else {
+        // Cloud mode: use PeerJS signaling
+        qDebug() << "ClayNetwork: Connecting to signaling server as client...";
+        signalingMode_ = Cloud;
+        emit signalingModeChanged();
+        signaling_->connect();
+    }
 }
 
 void ClayNetwork::leave()
@@ -114,6 +157,15 @@ void ClayNetwork::leave()
     peers_.clear();
     nodes_.clear();
 
+    // Clean up signaling
+    if (localClient_) {
+        localClient_->disconnect();
+        localClient_.reset();
+    }
+    if (localServer_) {
+        localServer_->stop();
+        localServer_.reset();
+    }
     signaling_->disconnect();
 
     networkId_.clear();
@@ -184,9 +236,11 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
         emit roomCreated(networkId_);
         qDebug() << "ClayNetwork: Hosting network" << networkId_;
     } else {
-        // Client: initiate connection to host (networkId is host's peerId)
-        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << networkId_;
-        setupPeerConnection(networkId_, true);
+        // Client: initiate connection to host
+        // In Local mode, host uses "HOST" as peerId; in Cloud mode, host uses networkId
+        QString hostPeerId = (signalingMode_ == Local) ? "HOST" : networkId_;
+        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostPeerId;
+        setupPeerConnection(hostPeerId, true);
     }
 }
 
@@ -274,17 +328,30 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
         qDebug() << "ClayNetwork: Local description generated, type:" << (isOfferer ? "offer" : "answer") << "for peer:" << peerId;
         if (isOfferer) {
             qDebug() << "ClayNetwork: Sending offer to" << peerId;
-            signaling_->sendOffer(peerId, sdp);
+            if (signalingMode_ == Local && localClient_) {
+                localClient_->sendOffer(peerId, sdp);
+            } else {
+                signaling_->sendOffer(peerId, sdp);
+            }
         } else {
             QString connectionId = peers_.contains(peerId) ? peers_[peerId].connectionId : QString();
             qDebug() << "ClayNetwork: Sending answer to" << peerId << "with connectionId:" << connectionId;
-            signaling_->sendAnswer(peerId, sdp, connectionId);
+            if (signalingMode_ == Local && localClient_) {
+                localClient_->sendAnswer(peerId, sdp, connectionId);
+            } else {
+                signaling_->sendAnswer(peerId, sdp, connectionId);
+            }
         }
     });
 
     pc->onLocalCandidate([this, peerId](rtc::Candidate candidate) {
-        signaling_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
-                                  QString::fromStdString(candidate.mid()));
+        if (signalingMode_ == Local && localClient_) {
+            localClient_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
+                                        QString::fromStdString(candidate.mid()));
+        } else {
+            signaling_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
+                                      QString::fromStdString(candidate.mid()));
+        }
     });
 
     pc->onDataChannel([this, peerId](std::shared_ptr<rtc::DataChannel> dc) {
@@ -412,4 +479,151 @@ QString ClayNetwork::generateNetworkCode() const
         code += chars[QRandomGenerator::global()->bounded(chars.length())];
     }
     return code;
+}
+
+void ClayNetwork::connectLocalSignaling()
+{
+    QString host;
+    uint16_t port;
+
+    if (isHost_) {
+        // Host connects to its own local server
+        host = "127.0.0.1";
+        port = localServer_->port();
+    } else {
+        // Client decodes the LAN code
+        if (!decodeLanCode(networkId_, host, port)) {
+            status_ = Error;
+            emit statusChanged();
+            emit errorOccurred("Invalid LAN code");
+            return;
+        }
+    }
+
+    localClient_ = std::make_unique<LocalSignalingClient>(this);
+    setupLocalSignalingConnections();
+
+    // Host uses "HOST" as peerId so clients can find it; clients generate unique ID
+    QString peerId = isHost_ ? "HOST" : QString();
+    localClient_->connect(host, port, peerId);
+}
+
+void ClayNetwork::setupLocalSignalingConnections()
+{
+    QObject::connect(localClient_.get(), &LocalSignalingClient::connected,
+                     this, &ClayNetwork::onSignalingConnected);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::offerReceived,
+                     this, &ClayNetwork::onSignalingOffer);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::answerReceived,
+                     this, &ClayNetwork::onSignalingAnswer);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::candidateReceived,
+                     this, &ClayNetwork::onSignalingCandidate);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::errorOccurred,
+                     this, &ClayNetwork::onSignalingError);
+}
+
+QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port)
+{
+    // Encode IP:port as a LAN code with separator
+    // Format: "L" + base36(ip_as_uint32) + "-" + base36(port)
+    // Example: 192.168.1.42:9000 -> "L1HGF041-6Y4"
+
+    QStringList parts = host.split('.');
+    if (parts.size() != 4) {
+        return QString();
+    }
+
+    // Convert IP to uint32
+    uint32_t ip = 0;
+    for (int i = 0; i < 4; ++i) {
+        ip = (ip << 8) | (parts[i].toUInt() & 0xFF);
+    }
+
+    // Encode as base36
+    auto toBase36 = [](uint64_t num) -> QString {
+        const QString chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        if (num == 0) return "0";
+        QString result;
+        while (num > 0) {
+            result.prepend(chars[num % 36]);
+            num /= 36;
+        }
+        return result;
+    };
+
+    return QString("L%1-%2").arg(toBase36(ip)).arg(toBase36(port));
+}
+
+bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &port)
+{
+    // Check if it's a LAN code (starts with 'L' and contains separator)
+    if (!code.startsWith('L') || !code.contains('-')) {
+        return false;
+    }
+
+    auto fromBase36 = [](const QString &str) -> uint64_t {
+        uint64_t result = 0;
+        for (QChar c : str) {
+            result *= 36;
+            if (c >= '0' && c <= '9') {
+                result += c.unicode() - '0';
+            } else if (c >= 'A' && c <= 'Z') {
+                result += c.unicode() - 'A' + 10;
+            } else if (c >= 'a' && c <= 'z') {
+                result += c.unicode() - 'a' + 10;
+            }
+        }
+        return result;
+    };
+
+    // Split on separator: "LXXXXXX-YYY" -> ["LXXXXXX", "YYY"]
+    int sepIndex = code.indexOf('-');
+    QString ipPart = code.mid(1, sepIndex - 1);  // Skip 'L', up to separator
+    QString portPart = code.mid(sepIndex + 1);    // After separator
+
+    uint32_t ip = static_cast<uint32_t>(fromBase36(ipPart));
+    port = static_cast<uint16_t>(fromBase36(portPart));
+
+    // Convert uint32 to IP string
+    host = QString("%1.%2.%3.%4")
+        .arg((ip >> 24) & 0xFF)
+        .arg((ip >> 16) & 0xFF)
+        .arg((ip >> 8) & 0xFF)
+        .arg(ip & 0xFF);
+
+    return true;
+}
+
+QString ClayNetwork::getLocalIpAddress()
+{
+    // Check all RFC 1918 private IP ranges
+    auto isPrivateIP = [](const QString &ip) {
+        if (ip.startsWith("192.168.")) return true;
+        if (ip.startsWith("10.")) return true;
+        if (ip.startsWith("172.")) {
+            QStringList parts = ip.split('.');
+            if (parts.size() >= 2) {
+                int second = parts[1].toInt();
+                return second >= 16 && second <= 31;
+            }
+        }
+        return false;
+    };
+
+    // Get the first private IPv4 address (RFC 1918)
+    const QList<QHostAddress> addresses = QNetworkInterface::allAddresses();
+    for (const QHostAddress &address : addresses) {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol &&
+            !address.isLoopback() &&
+            isPrivateIP(address.toString())) {
+            return address.toString();
+        }
+    }
+    // Fallback: any non-loopback IPv4 (will pick up VPN/external, but better than nothing)
+    for (const QHostAddress &address : addresses) {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol && !address.isLoopback()) {
+            return address.toString();
+        }
+    }
+    return "127.0.0.1";
 }

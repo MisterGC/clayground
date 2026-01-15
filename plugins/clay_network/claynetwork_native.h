@@ -15,6 +15,8 @@ namespace rtc {
 }
 
 class PeerJSSignaling;
+class LocalSignalingServer;
+class LocalSignalingClient;
 
 /*!
     \qmltype ClayNetworkBackend
@@ -43,6 +45,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(Topology topology READ topology WRITE setTopology NOTIFY topologyChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
+    Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
 
 public:
     enum Topology {
@@ -58,6 +61,12 @@ public:
         Error
     };
     Q_ENUM(Status)
+
+    enum SignalingMode {
+        Cloud,  // Internet: Uses PeerJS server for peer discovery
+        Local   // LAN: Host runs embedded signaling server (no internet needed)
+    };
+    Q_ENUM(SignalingMode)
 
     explicit ClayNetwork(QObject *parent = nullptr);
     ~ClayNetwork() override;
@@ -75,6 +84,8 @@ public:
     Status status() const;
     bool autoRelay() const;
     void setAutoRelay(bool relay);
+    SignalingMode signalingMode() const;
+    void setSignalingMode(SignalingMode mode);
 
 public slots:
     void createRoom();
@@ -102,6 +113,7 @@ signals:
     void topologyChanged();
     void statusChanged();
     void autoRelayChanged();
+    void signalingModeChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -124,8 +136,15 @@ private:
     void handleDataChannelMessage(const QString &fromId, const std::string &message);
     void cleanupPeer(const QString &peerId);
     QString generateNetworkCode() const;
+    void connectLocalSignaling();
+    void setupLocalSignalingConnections();
+    static QString encodeLanCode(const QString &host, uint16_t port);
+    static bool decodeLanCode(const QString &code, QString &host, uint16_t &port);
+    static QString getLocalIpAddress();
 
     std::unique_ptr<PeerJSSignaling> signaling_;
+    std::unique_ptr<LocalSignalingServer> localServer_;
+    std::unique_ptr<LocalSignalingClient> localClient_;
     QHash<QString, PeerConnection> peers_;
 
     QString networkId_;
@@ -136,5 +155,6 @@ private:
     Topology topology_ = Star;
     Status status_ = Disconnected;
     bool autoRelay_ = true;
+    SignalingMode signalingMode_ = Cloud;
     QStringList nodes_;
 };

@@ -1,145 +1,342 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
+import QtQuick.Layouts
 import Clayground.Network
 
-Item
-{
-    id: networkDemo
+Rectangle {
+    id: root
+    color: "#f5f5f5"
 
-    // This demo demonstrates multiple aspects:
-    // Dynamically created set of users that communicate with each other
-    // Disconnects of dynamically created users after random time
-    readonly property bool demoDynamicUsers: true
-    // Creation of one group with fixed set of usfalse and group-internal conversations
-    readonly property bool demoGroupConcept: true
+    // Platform detection: LAN mode only available on native (not WASM)
+    readonly property bool isWasm: Qt.platform.os === "wasm"
+    property bool lanMode: false
 
-    // Change the following two values to check scalability and performance:
-    readonly property int nrOfDynamicUsers: 10
-    readonly property int chatInterval: 500
+    Network {
+        id: network
+        maxNodes: 4
+        topology: Network.Topology.Star
+        signalingMode: root.lanMode ? Network.SignalingMode.Local : Network.SignalingMode.Cloud
 
-    property var dynUsers: []
-
-    Component.onCompleted: {
-        if (!demoDynamicUsers) return;
-        for (let i=0; i<nrOfDynamicUsers; ++i)
-            dynUsers.push(dynUserComp.createObject(networkDemo, {nr:i}));
+        onNetworkCreated: (networkId) => logMessage("Created: " + networkId)
+        onNodeJoined: (nodeId) => logMessage("Joined: " + nodeId.substring(0, 8))
+        onNodeLeft: (nodeId) => {
+            logMessage("Left: " + nodeId.substring(0, 8))
+            if (remoteNodes[nodeId]) {
+                remoteNodes[nodeId].destroy()
+                delete remoteNodes[nodeId]
+            }
+        }
+        onMessageReceived: (fromId, data) => {
+            if (data.type === "chat")
+                logMessage("[" + fromId.substring(0, 4) + "] " + data.text)
+        }
+        onStateReceived: (fromId, data) => {
+            if (data && typeof data.x === 'number')
+                updateRemoteNode(fromId, data.x, data.y)
+        }
+        onErrorOccurred: (message) => logMessage("Error: " + message)
+        onStatusChanged: logMessage("Status: " + ["Disconnected", "Connecting", "Connected", "Error"][network.status])
     }
 
-    Component{
-        id: textMsgComp
-        Text{
-            id: textMsg
-            readonly property int ttl: 1000
-            Behavior on x {NumberAnimation{duration: ttl}}
-            Behavior on y {NumberAnimation{duration: ttl}}
-            Timer{
-                id: ttlTimer; interval: ttl; running: true;
-                onTriggered: textMsg.destroy();
+    property var remoteNodes: ({})
+
+    function updateRemoteNode(nodeId, x, y) {
+        if (!remoteNodes[nodeId]) {
+            remoteNodes[nodeId] = remoteNodeComp.createObject(gameArea, { odId: nodeId })
+        }
+        remoteNodes[nodeId].targetX = x
+        remoteNodes[nodeId].targetY = y
+    }
+
+    function logMessage(msg) {
+        logModel.append({ message: msg })
+        if (logModel.count > 50) logModel.remove(0)
+    }
+
+    Timer {
+        interval: 50
+        repeat: true
+        running: network.connected
+        onTriggered: network.broadcastState({ x: localNode.x / gameArea.width, y: localNode.y / gameArea.height })
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 10
+        spacing: 10
+
+        // Header with mode switch (LAN only available on native platforms)
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 15
+
+            Text {
+                text: root.lanMode ? "LAN" : "Internet"
+                font.pixelSize: 18
+                font.bold: true
+                color: root.lanMode ? "#388e3c" : "#1976d2"
             }
+
+            Switch {
+                id: modeSwitch
+                visible: !root.isWasm  // Hide on WASM - LAN not supported in browser
+                text: "LAN"
+                checked: root.lanMode
+                enabled: !network.connected
+                onCheckedChanged: root.lanMode = checked
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                visible: network.connected
+                text: network.nodeCount + " nodes"
+                font.pixelSize: 14
+                color: "#666"
+            }
+        }
+
+        // Status + Network ID
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Text {
+                text: {
+                    switch (network.status) {
+                        case Network.Status.Disconnected: return "Disconnected"
+                        case Network.Status.Connecting: return "Connecting..."
+                        case Network.Status.Connected: return network.isHost ? "Hosting:" : "Joined:"
+                        case Network.Status.Error: return "Error"
+                        default: return ""
+                    }
+                }
+                font.pixelSize: 14
+                color: network.status === Network.Status.Connected ? "#2e7d32" :
+                       network.status === Network.Status.Error ? "#c62828" : "#666"
+            }
+
+            TextField {
+                visible: network.connected
+                text: network.networkId
+                readOnly: true
+                selectByMouse: true
+                Layout.preferredWidth: 130
+                font.pixelSize: 14
+                font.family: "monospace"
+                font.bold: true
+                color: "#2e7d32"
+                background: Rectangle { color: "#e8f5e9"; radius: 3 }
+                onActiveFocusChanged: if (activeFocus) selectAll()
+                TapHandler { onDoubleTapped: { parent.selectAll(); parent.copy(); logMessage("Copied!") } }
+            }
+        }
+
+        // Controls (disconnected)
+        RowLayout {
+            Layout.fillWidth: true
+            visible: !network.connected
+            spacing: 10
+
+            Button {
+                text: "Host"
+                onClicked: {
+                    logMessage("Hosting" + (root.lanMode ? " (LAN)..." : "..."))
+                    network.host()
+                }
+            }
+
+            TextField {
+                id: codeInput
+                placeholderText: root.lanMode ? "LAN Code (L...)" : "Network Code"
+                Layout.preferredWidth: 160
+                font.capitalization: Font.AllUppercase
+                selectByMouse: true
+            }
+
+            Button {
+                text: "Join"
+                enabled: codeInput.text.length >= 4
+                onClicked: {
+                    logMessage("Joining " + codeInput.text)
+                    network.join(codeInput.text)
+                }
+            }
+        }
+
+        // Controls (connected)
+        RowLayout {
+            Layout.fillWidth: true
+            visible: network.connected
+            spacing: 10
+
+            Button {
+                text: "Leave"
+                onClicked: {
+                    network.leave()
+                    for (let id in remoteNodes) {
+                        if (remoteNodes[id]) remoteNodes[id].destroy()
+                    }
+                    remoteNodes = {}
+                }
+            }
+
+            TextField {
+                id: chatInput
+                placeholderText: "Message..."
+                Layout.fillWidth: true
+                onAccepted: if (text.trim()) {
+                    network.broadcast({ type: "chat", text: text })
+                    logMessage("[You] " + text)
+                    text = ""
+                }
+            }
+
+            Button {
+                text: "Send"
+                onClicked: if (chatInput.text.trim()) {
+                    network.broadcast({ type: "chat", text: chatInput.text })
+                    logMessage("[You] " + chatInput.text)
+                    chatInput.text = ""
+                }
+            }
+        }
+
+        // Game area and log
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 10
+
+            Rectangle {
+                id: gameArea
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: root.lanMode ? "#e8f5e9" : "#e3f2fd"
+                border.color: root.lanMode ? "#a5d6a7" : "#90caf9"
+                border.width: 2
+                radius: 4
+
+                Text {
+                    anchors.centerIn: parent
+                    text: network.connected ? "Click to move" : "Host or Join a network"
+                    color: "#888"
+                    visible: !network.connected || network.nodeCount < 2
+                }
+
+                Rectangle {
+                    id: localNode
+                    width: 30; height: 30; radius: 15
+                    color: root.lanMode ? "#388e3c" : "#1976d2"
+                    border.color: root.lanMode ? "#1b5e20" : "#0d47a1"
+                    border.width: 2
+                    visible: network.connected
+                    x: parent.width / 2 - width / 2
+                    y: parent.height / 2 - height / 2
+                    Behavior on x { NumberAnimation { duration: 100 } }
+                    Behavior on y { NumberAnimation { duration: 100 } }
+                    Text { anchors.centerIn: parent; text: "You"; color: "white"; font.pixelSize: 8; font.bold: true }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: network.connected
+                    onClicked: (mouse) => {
+                        root.forceActiveFocus()
+                        localNode.x = mouse.x - localNode.width / 2
+                        localNode.y = mouse.y - localNode.height / 2
+                    }
+                }
+
+                Component {
+                    id: remoteNodeComp
+                    Rectangle {
+                        property string odId: ""
+                        property real targetX: 0.5
+                        property real targetY: 0.5
+                        width: 30; height: 30; radius: 15
+                        color: "#e65100"
+                        border.color: "#bf360c"
+                        border.width: 2
+                        x: targetX * parent.width - width / 2
+                        y: targetY * parent.height - height / 2
+                        Behavior on x { NumberAnimation { duration: 80 } }
+                        Behavior on y { NumberAnimation { duration: 80 } }
+                        Text { anchors.centerIn: parent; text: odId.substring(0, 2); color: "white"; font.pixelSize: 8; font.bold: true }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 220
+                Layout.fillHeight: true
+                color: "#fafafa"
+                border.color: "#e0e0e0"
+                border.width: 1
+                radius: 4
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 5
+                    spacing: 5
+
+                    Text {
+                        text: "Log"
+                        font.bold: true
+                        font.pixelSize: 12
+                        color: "#666"
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        model: ListModel { id: logModel }
+                        delegate: Text {
+                            width: parent ? parent.width : 0
+                            text: message
+                            wrapMode: Text.Wrap
+                            font.pixelSize: 11
+                            color: "#333"
+                        }
+                        onCountChanged: positionViewAtEnd()
+                    }
+                }
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: "Press 'L' to toggle Clayground log overlay"
+            font.pixelSize: 11
+            color: "#999"
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
-    Component{
-        id: dynUserComp
-
-        Rectangle{
-            id: rect
-
-            Component.onDestruction: {
-                let i = networkDemo.dynUsers.findIndex((e) => e.userId === rect.userId);
-                if (i>-1) networkDemo.dynUsers.splice(i, 1);
-            }
-
-            color: Qt.hsla(.5, 1, .1 + (nrOfSentMsg/50) * .7, 1)
-            width: (parent.height*.6)/nrOfDynamicUsers; height: width;
-            radius: width * .1
-            property int nrOfSentMsg: 0
-
-            transformOrigin: Item.Center
-            property int circleRadius: parent.width * .3
-            x: parent.width * .5 + circleRadius * Math.sin(2*Math.PI/networkDemo.nrOfDynamicUsers*nr)
-            y: parent.height * .5 + circleRadius * Math.cos(2*Math.PI/networkDemo.nrOfDynamicUsers*nr)
-
-            property alias nr: dynUser.nr
-            property alias userId: dynUser.userId
-            function sendDirectMessage(user, msg) {dynUser.sendDirectMessage(user, msg)}
-            function sendDirectMessageVisu(user, msg) {
-                let obj = textMsgComp.createObject(networkDemo, {x: rect.x, y:rect.y, text: msg})
-                obj.x = user.x;
-                obj.y = user.y;
-                dynUser.sendDirectMessage(user.userId, msg)
-                nrOfSentMsg++;
-            }
-            Timer {interval: 5000 + Math.random()*10000; running: true
-            onTriggered: rect.destroy(); }
-
-            ClayNetworkUser{
-                id: dynUser
-                property int nr: 0
-                readonly property string myMsg: "Msg from user dynamic_" + nr + "!"
-                onNewMessage: (message) => console.log(nr + " received: "  + message)
-                onNewParticipant: (user) => {sendDirectMessage(user, "Hi from dynUser_" + nr + "!");}
-                onParticipantLeft: (user) => {console.log("Participant " + user + " left.");}
-            }
+    focus: true
+    Keys.onPressed: (event) => {
+        if (!network.connected) return
+        let step = 10
+        switch (event.key) {
+            case Qt.Key_Left:
+            case Qt.Key_A:
+                localNode.x = Math.max(0, localNode.x - step)
+                break
+            case Qt.Key_Right:
+            case Qt.Key_D:
+                localNode.x = Math.min(gameArea.width - localNode.width, localNode.x + step)
+                break
+            case Qt.Key_Up:
+            case Qt.Key_W:
+                localNode.y = Math.max(0, localNode.y - step)
+                break
+            case Qt.Key_Down:
+            case Qt.Key_S:
+                localNode.y = Math.min(gameArea.height - localNode.height, localNode.y + step)
+                break
         }
     }
-
-    // DEMO OF GROUP CONCEPT
-    readonly property string group1: "debating-society"
-    readonly property string group2: "anothergroup"
-
-    Timer{
-        id: conversationSim
-        interval: chatInterval; running: true; repeat: true;
-        onTriggered: {
-            let arr = networkDemo.dynUsers;
-            if (arr.length > 0) {
-                let idx1 = Math.round(Math.random() * (arr.length -1));
-                let idx2 = Math.round(Math.random() * (arr.length -1));
-                let sender = arr[idx1];
-                let receiver = arr[idx2];
-                if (!sender || !receiver) return;
-                sender.sendDirectMessageVisu(receiver, "data from " + sender.nr);
-            }
-            if (!demoGroupConcept) return;
-            alice.sendGroupMessage(group1, group1 + " rocks!");
-            anotherGuy.sendGroupMessage(group2, group2 + " is cool too!");
-        }
-    }
-
-    ClayNetworkUser{
-        id: alice
-        name: "alice"
-        Component.onCompleted: joinGroup(group1);
-        onNewMessage: (from, message) => console.log(name + " got a message from " +
-                                  nameForId(from) + ": " + message)
-    }
-
-    ClayNetworkUser{
-        id: bob
-        name: "bob"
-        Component.onCompleted: {joinGroup(group1); joinGroup(group2);}
-        onNewMessage: (from, message) => console.log(name + " got a message from " +
-                                  nameForId(from) + ": " + message)
-    }
-
-    ClayNetworkUser{
-        id: anotherGuy
-        name: "anotherGuy"
-        Component.onCompleted: joinGroup(group2)
-        onNewMessage: (from, message) => {
-                          console.log(name + " got a message from " +
-                                      nameForId(from) + ": " + message); }
-    }
-
-
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter;
-        anchors.top: parent.top; anchors.topMargin: height * .5
-        opacity: .8; font.pixelSize: parent.width * .03
-        text: "Please press 'L' to show networking log"
-    }
-
 }

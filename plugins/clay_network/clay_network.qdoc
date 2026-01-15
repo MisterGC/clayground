@@ -1,0 +1,124 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmlmodule Clayground.Network
+    \title Clayground Network Module
+    \brief P2P networking for games and distributed applications.
+
+    The Network module provides peer-to-peer connectivity using WebRTC,
+    enabling multiplayer games and distributed applications without
+    dedicated server infrastructure.
+
+    \section1 WebRTC Technology
+
+    WebRTC (Web Real-Time Communication) is a browser-native technology
+    that enables direct peer-to-peer connections. Clayground uses WebRTC
+    Data Channels for reliable and ordered message delivery between nodes.
+
+    On Desktop and Mobile, WebRTC is implemented via libdatachannel.
+    In browsers (WASM), the native WebRTC APIs are used directly.
+
+    \section1 P2P Architecture
+
+    All communication flows directly between peers after initial connection
+    setup. This approach is ideal for:
+
+    \list
+    \li Small-scale multiplayer games (2-8 players)
+    \li Real-time collaborative applications
+    \li Local network gaming (LAN parties)
+    \li Prototypes and indie games
+    \endlist
+
+    \section1 Scalability Considerations
+
+    \warning P2P networking is not suitable for large-scale applications.
+    Each node must maintain connections to other nodes, and message relay
+    overhead grows with the number of participants.
+
+    For games requiring more than 8 players or MMO-style architectures,
+    consider dedicated server solutions instead.
+
+    \section1 Signaling Modes
+
+    Signaling is only needed for initial peer discovery - once connected,
+    all data flows directly between peers.
+
+    \list
+    \li \b Internet - Uses PeerJS cloud server for peer discovery.
+        Works across platforms (Browser, Desktop, Mobile).
+        Requires internet connectivity.
+    \li \b LAN - Host runs an embedded signaling server.
+        Works on local network without internet.
+        Desktop and Mobile only (not available in browser).
+    \endlist
+
+    \section1 Components
+
+    \list
+    \li \l Network - Main P2P networking component
+    \li \l ClayHttpClient - HTTP client for REST APIs
+    \endlist
+*/
+
+/*!
+    \qmltype ClayHttpClient
+    \inqmlmodule Clayground.Network
+    \brief Configurable HTTP client with automatic API method generation.
+
+    ClayHttpClient provides a declarative way to define REST API endpoints
+    and generates callable methods automatically. It supports Bearer token
+    authentication and handles both GET and POST requests.
+
+    Example usage:
+    \qml
+    import Clayground.Network
+
+    ClayHttpClient {
+        id: apiClient
+        baseUrl: "https://api.example.com"
+        endpoints: {
+            "getUser": "GET users/{userId}",
+            "createPost": "POST posts {postData}"
+        }
+        bearerToken: "your-api-token"
+
+        onReply: (requestId, code, response) => {
+            console.log("Success:", JSON.parse(response))
+        }
+        onError: (requestId, code, error) => {
+            console.error("Error:", error)
+        }
+
+        Component.onCompleted: {
+            api.getUser(123)
+            api.createPost({title: "Hello", content: "World"})
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty string ClayHttpClient::baseUrl
+    Base URL for all API requests.
+
+    \qmlproperty var ClayHttpClient::endpoints
+    Object defining API endpoints.
+    Format: "{HTTP_METHOD} {urlWithParams} [{bodyName}]"
+
+    \qmlproperty var ClayHttpClient::api
+    \readonly
+    Generated API methods object.
+
+    \qmlproperty string ClayHttpClient::bearerToken
+    Bearer token for authentication.
+
+    \section1 Signals
+
+    \qmlsignal ClayHttpClient::reply(int requestId, int returnCode, string text)
+    Emitted when a request completes successfully.
+
+    \qmlsignal ClayHttpClient::error(int requestId, int returnCode, string text)
+    Emitted when a request fails.
+*/
+

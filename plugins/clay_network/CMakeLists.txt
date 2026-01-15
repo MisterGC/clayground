@@ -1,8 +1,9 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 #
 # Clay Network Plugin - P2P networking for games, apps, and distributed systems
-# WASM: WebRTC via browser + PeerJS signaling
-# Desktop/Mobile: WebRTC via libdatachannel + PeerJS signaling
+# Uses WebRTC for all platforms:
+#   WASM: WebRTC via browser APIs + PeerJS signaling
+#   Desktop/Mobile: WebRTC via libdatachannel + PeerJS signaling (cloud) or local signaling (LAN)
 #
 include(clayplugin)
 include(FetchContent)
@@ -19,61 +20,39 @@ set(COMMON_QML
     SandboxHttpClient.qml
 )
 
+set(PLATFORM_QML
+    Sandbox.qml
+)
+
 if(EMSCRIPTEN)
     # WASM: WebRTC via browser + PeerJS signaling
     set(PLATFORM_SOURCES
         claynetwork_wasm.cpp
         claynetwork_wasm.h
     )
-    set(PLATFORM_QML
-        SandboxNetwork.qml
-    )
-    set(WEBRTC_AVAILABLE ON)
 else()
     # Native: WebRTC via libdatachannel
-    option(CLAYGROUND_USE_WEBRTC "Enable WebRTC networking via libdatachannel" ON)
+    FetchContent_Declare(
+        libdatachannel
+        GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
+        GIT_TAG v0.21.2
+        GIT_SHALLOW TRUE
+    )
+    # Disable unneeded features
+    set(NO_MEDIA ON CACHE BOOL "" FORCE)
+    set(NO_WEBSOCKET OFF CACHE BOOL "" FORCE)  # We need WebSocket for signaling
+    set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
+    set(NO_TESTS ON CACHE BOOL "" FORCE)
 
-    if(CLAYGROUND_USE_WEBRTC)
-        FetchContent_Declare(
-            libdatachannel
-            GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
-            GIT_TAG v0.21.2
-            GIT_SHALLOW TRUE
-        )
-        # Disable unneeded features
-        set(NO_MEDIA ON CACHE BOOL "" FORCE)
-        set(NO_WEBSOCKET OFF CACHE BOOL "" FORCE)  # We need WebSocket for signaling
-        set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
-        set(NO_TESTS ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(libdatachannel)
 
-        FetchContent_MakeAvailable(libdatachannel)
-        set(WEBRTC_AVAILABLE ON)
-
-        set(PLATFORM_SOURCES
-            claynetwork_native.cpp
-            claynetwork_native.h
-            signaling_peerjs.cpp
-            signaling_peerjs.h
-        )
-    else()
-        set(WEBRTC_AVAILABLE OFF)
-        # Fallback to existing LAN-only networking
-        set(PLATFORM_SOURCES
-            claynetworknode.cpp
-            claynetworknode.h
-            connection.cpp
-            connection.h
-            peermanager.cpp
-            peermanager.h
-            server.cpp
-            server.h
-        )
-    endif()
-
-    set(PLATFORM_QML
-        ClayNetworkUser.qml
-        SandboxNetwork.qml
-        Sandbox.qml
+    set(PLATFORM_SOURCES
+        claynetwork_native.cpp
+        claynetwork_native.h
+        signaling_peerjs.cpp
+        signaling_peerjs.h
+        signaling_local.cpp
+        signaling_local.h
     )
 endif()
 
@@ -84,7 +63,7 @@ set(LINK_LIBRARIES
     Qt::Network
 )
 
-if(WEBRTC_AVAILABLE AND NOT EMSCRIPTEN)
+if(NOT EMSCRIPTEN)
     list(APPEND LINK_LIBRARIES LibDataChannel::LibDataChannel)
 endif()
 
