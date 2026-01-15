@@ -1,0 +1,124 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmlmodule Clayground.GameController
+    \title Clayground GameController Module
+    \brief Unified input system supporting keyboard, gamepad, and touch.
+
+    The GameController module provides a simple NES-style controller abstraction
+    with directional axis controls and two action buttons. It supports multiple
+    input sources that can be switched at runtime.
+
+    \section1 Usage
+
+    Import the module:
+    \qml
+    import Clayground.GameController
+    \endqml
+
+    \section2 Keyboard Input
+
+    \qml
+    GameController {
+        id: controller
+
+        Component.onCompleted: {
+            selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D,
+                          Qt.Key_Space, Qt.Key_Return)
+        }
+    }
+
+    Rectangle {
+        x: x + controller.axisX * 5
+        y: y - controller.axisY * 5
+        color: controller.buttonAPressed ? "red" : "blue"
+    }
+    \endqml
+
+    \section2 Touchscreen Gamepad
+
+    \qml
+    GameController {
+        id: controller
+        Component.onCompleted: selectTouchscreenGamepad()
+    }
+    \endqml
+
+    \section1 Input Sources
+
+    \list
+    \li \b Keyboard - Map any keys to directions and buttons
+    \li \b Gamepad - Physical game controllers (Xbox, PlayStation, etc.)
+    \li \b Touchscreen - Virtual on-screen gamepad overlay
+    \endlist
+
+    \sa GameController
+*/
+
+/*!
+    \qmltype GameController
+    \inqmlmodule Clayground.GameController
+    \brief A unified game input system supporting keyboard, gamepad, and touchscreen.
+
+    GameController provides a simple NES-style controller abstraction with
+    directional axis controls and two action buttons. It supports multiple
+    input sources that can be switched at runtime.
+
+    \section1 Properties
+
+    \qmlproperty real GameController::axisX
+    Horizontal directional axis value in range [-1, 1].
+    Negative values indicate left, positive values indicate right.
+
+    \qmlproperty real GameController::axisY
+    Vertical directional axis value in range [-1, 1].
+    Negative values indicate down, positive values indicate up.
+
+    \qmlproperty bool GameController::buttonAPressed
+    True when the primary action button (A) is pressed.
+
+    \qmlproperty bool GameController::buttonBPressed
+    True when the secondary action button (B) is pressed.
+
+    \qmlproperty bool GameController::showDebugOverlay
+    Shows a visual debug overlay displaying current controller state.
+    Useful during development to verify input is working correctly.
+
+    \qmlproperty bool GameController::gamepadSelected
+    \readonly
+    True if a physical gamepad is the active input source.
+
+    \qmlproperty bool GameController::vGamepadSelected
+    \readonly
+    True if the touchscreen virtual gamepad is the active input source.
+
+    \qmlproperty bool GameController::keyboardSelected
+    \readonly
+    True if keyboard is the active input source.
+
+    \qmlproperty var GameController::gamepad
+    \readonly
+    Reference to the connected physical gamepad object, or null if none.
+
+    \qmlproperty int GameController::gamepadDeviceId
+    \readonly
+    Device ID of the connected gamepad, or -1 if no gamepad is connected.
+
+    \qmlproperty int GameController::numConnectedGamepads
+    \readonly
+    Number of currently connected physical gamepads.
+
+    \section1 Methods
+
+    \qmlmethod void GameController::selectGamepad(int gamePadIdx, bool useAnalogAxis)
+    Selects a physical gamepad as the input source.
+    \a gamePadIdx is the index of the gamepad to select (0-based).
+    \a useAnalogAxis if true uses analog sticks for axis, otherwise uses D-pad.
+
+    \qmlmethod void GameController::selectKeyboard(var upKey, var downKey, var leftKey, var rightKey, var buttonAKey, var buttonBKey)
+    Configures keyboard as the input source with specified key mappings.
+    All parameters are Qt.Key values for the respective directions and buttons.
+
+    \qmlmethod void GameController::selectTouchscreenGamepad()
+    Enables the touchscreen virtual gamepad overlay for touch input.
+*/
