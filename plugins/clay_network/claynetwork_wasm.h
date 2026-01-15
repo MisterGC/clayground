@@ -34,6 +34,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(Topology topology READ topology WRITE setTopology NOTIFY topologyChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
+    Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
 
 public:
     enum Topology {
@@ -49,6 +50,12 @@ public:
         Error
     };
     Q_ENUM(Status)
+
+    enum SignalingMode {
+        Cloud,  // Internet: Uses PeerJS server (only mode supported in WASM)
+        Local   // LAN: Not supported in WASM
+    };
+    Q_ENUM(SignalingMode)
 
     explicit ClayNetwork(QObject *parent = nullptr);
     ~ClayNetwork() override;
@@ -66,6 +73,8 @@ public:
     Status status() const;
     bool autoRelay() const;
     void setAutoRelay(bool relay);
+    SignalingMode signalingMode() const;
+    void setSignalingMode(SignalingMode mode);
 
 public slots:
     void createRoom();
@@ -93,6 +102,7 @@ signals:
     void topologyChanged();
     void statusChanged();
     void autoRelayChanged();
+    void signalingModeChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -116,6 +126,7 @@ private:
     Topology topology_ = Star;
     Status status_ = Disconnected;
     bool autoRelay_ = true;
+    SignalingMode signalingMode_ = Cloud;  // WASM only supports Cloud
     QStringList nodes_;
 
     int instanceId_ = -1;

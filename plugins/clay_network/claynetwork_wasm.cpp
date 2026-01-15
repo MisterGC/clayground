@@ -551,6 +551,24 @@ void ClayNetwork::setAutoRelay(bool relay)
     emit autoRelayChanged();
 }
 
+ClayNetwork::SignalingMode ClayNetwork::signalingMode() const
+{
+    return signalingMode_;
+}
+
+void ClayNetwork::setSignalingMode(SignalingMode mode)
+{
+    // WASM only supports Cloud mode - ignore attempts to set Local
+    if (mode == Local) {
+        qWarning() << "[ClayNetwork] LAN mode not supported in browser, using Internet mode";
+        return;
+    }
+    if (signalingMode_ != mode) {
+        signalingMode_ = mode;
+        emit signalingModeChanged();
+    }
+}
+
 void ClayNetwork::createRoom()
 {
 #ifdef __EMSCRIPTEN__
