@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "models": {
+    "smollm2-1.7b": {
+      "name": "SmolLM2 1.7B Instruct",
+      "type": "llm",
+      "description": "Best quality small model for chat",
+      "files": [{
+        "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf",
+        "size": 1020000000,
+        "sha256": "",
+        "mirrors": []
+      }],
+      "platforms": ["desktop", "wasm-webgpu", "ios"],
+      "quantization": "Q4_K_M",
+      "memoryRequired": 2000000000
+    },
+    "smollm2-360m": {
+      "name": "SmolLM2 360M Instruct",
+      "type": "llm",
+      "description": "Lightweight model for browser WASM",
+      "files": [{
+        "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q8_0.gguf",
+        "size": 386000000,
+        "sha256": "",
+        "mirrors": []
+      }],
+      "platforms": ["desktop", "wasm", "ios", "android"],
+      "quantization": "Q8_0",
+      "memoryRequired": 500000000
+    },
+    "qwen2.5-1.5b": {
+      "name": "Qwen 2.5 1.5B Instruct",
+      "type": "llm",
+      "description": "Good reasoning and coding",
+      "files": [{
+        "url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "size": 986000000,
+        "sha256": "",
+        "mirrors": []
+      }],
+      "platforms": ["desktop", "wasm-webgpu", "ios"],
+      "quantization": "Q4_K_M",
+      "memoryRequired": 1800000000
+    },
+    "llama3.2-1b": {
+      "name": "Llama 3.2 1B Instruct",
+      "type": "llm",
+      "description": "Meta's efficient 1B model",
+      "files": [{
+        "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        "size": 776000000,
+        "sha256": "",
+        "mirrors": []
+      }],
+      "platforms": ["desktop", "wasm", "ios", "android"],
+      "quantization": "Q4_K_M",
+      "memoryRequired": 1500000000
+    }
+  }
+}

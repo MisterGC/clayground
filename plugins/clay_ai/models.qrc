@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/clayground/ai">
+        <file>models.json</file>
+    </qresource>
+</RCC>

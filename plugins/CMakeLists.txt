@@ -21,6 +21,9 @@ add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)
 
+# AI plugin: LLM, STT, TTS
+add_subdirectory (clay_ai)
+
 # Platform-specific plugins
 if (IOS)
     add_subdirectory (clay_ios)
