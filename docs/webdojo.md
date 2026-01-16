@@ -16,10 +16,7 @@ permalink: /webdojo/
     <div class="webdojo-controls">
         <label for="example-selector">Example:</label>
         <select id="example-selector" aria-label="Select example">
-            <option value="voxelworld" selected>Voxelworld - 3D graphics</option>
-            <option value="multiplayer">Multiplayer - P2P networking</option>
-            <option value="empty">Empty - Start fresh</option>
-            <option value="remote-test">Remote Resource Test</option>
+            <!-- Examples are populated dynamically from index.json (CMake-generated) -->
             <option value="load-url">Load from URL...</option>
         </select>
         <button id="share-button" class="share-button">🔗 Share</button>

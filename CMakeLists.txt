@@ -116,6 +116,7 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     # This eliminates duplicate QML files in docs/webdojo-examples/
     clay_website_register_webdojo_example(plugins/clay_network/Sandbox.qml multiplayer.qml)
     clay_website_register_webdojo_example(examples/voxelworld/Sandbox.qml voxelworld.qml)
+    clay_website_register_webdojo_example(plugins/clay_ai/Sandbox.qml ai_chat.qml)
 endif()
 
 # Create website target after all demos are registered

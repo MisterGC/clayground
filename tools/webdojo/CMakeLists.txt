@@ -34,9 +34,10 @@ clay_app(webdojo
 # Emscripten-specific settings for JS interop
 # Note: Qt's qtloader.js handles WASM loading, we add --bind for embind
 # and export ccall/cwrap for fallback access to exported C functions
+# Also export string helpers needed by clay_ai's EM_JS callbacks
 target_link_options(webdojo PRIVATE
     "SHELL:--bind"
-    "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+    "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','stringToUTF8','lengthBytesUTF8','stackAlloc']"
 )
 
 # Register for website build

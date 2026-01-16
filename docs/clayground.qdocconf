@@ -8,6 +8,7 @@ url = https://mistergc.github.io/clayground
 
 # Source directories - all plugins + docs for module declarations
 sourcedirs = . \
+             ../plugins/clay_ai \
              ../plugins/clay_common \
              ../plugins/clay_storage \
              ../plugins/clay_svg \
@@ -26,7 +27,8 @@ sourcedirs = . \
              ../plugins/clay_ios \
              ../plugins/clay_sound
 
-headerdirs = ../plugins/clay_common \
+headerdirs = ../plugins/clay_ai/src \
+             ../plugins/clay_common \
              ../plugins/clay_canvas3d \
              ../plugins/clay_ios \
              ../plugins/clay_sound/src

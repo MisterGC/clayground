@@ -88,6 +88,25 @@ function(clay_website_create_target)
         COMMENT "Syncing plugin documentation..."
     )
 
+    # Generate index.json for webdojo examples (at configure time)
+    # This allows the JS to dynamically discover available examples
+    set(EXAMPLES_JSON "{\n")
+    set(FIRST_ENTRY TRUE)
+    foreach(MAPPING IN LISTS CLAY_WEBDOJO_EXAMPLES)
+        string(REPLACE ":" ";" PARTS "${MAPPING}")
+        list(GET PARTS 1 DEST)
+        # Extract name without .qml extension for the key
+        string(REGEX REPLACE "\\.qml$" "" NAME "${DEST}")
+        if(NOT FIRST_ENTRY)
+            string(APPEND EXAMPLES_JSON ",\n")
+        endif()
+        set(FIRST_ENTRY FALSE)
+        string(APPEND EXAMPLES_JSON "  \"${NAME}\": \"${DEST}\"")
+    endforeach()
+    string(APPEND EXAMPLES_JSON "\n}")
+    file(WRITE ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/index.json "${EXAMPLES_JSON}")
+    message(STATUS "Generated webdojo-examples/index.json with ${CLAY_WEBDOJO_EXAMPLES}")
+
     # Sync webdojo examples from source locations (plugin sandboxes, example sandboxes)
     # This eliminates duplicate QML files - source of truth is in plugins/examples
     set(WEBDOJO_COPY_COMMANDS "")
@@ -104,6 +123,8 @@ function(clay_website_create_target)
 
     add_custom_target(website-sync-webdojo-examples
         ${WEBDOJO_COPY_COMMANDS}
+        # Ensure files are world-readable for web server
+        COMMAND chmod -R a+r ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/
         COMMENT "Syncing webdojo examples from source..."
     )
 

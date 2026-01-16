@@ -9,6 +9,7 @@ mkdir -p plugins
 
 # List of plugins
 plugins=(
+    "ai"
     "common"
     "storage"
     "text"
