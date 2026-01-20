@@ -14,7 +14,7 @@ import Clayground.Common
 
 ## Core Components
 
-- **Clayground** - Global singleton providing utility functions for resource loading and environment detection.
+- **Clayground** - Global singleton providing utility functions for resource loading, environment detection, and browser detection.
 - **ClayStopWatch** - A simple stopwatch for measuring elapsed time with millisecond precision.
 
 ## Usage Examples
@@ -86,6 +86,32 @@ Rectangle {
 }
 ```
 
+### Platform and Browser Detection
+
+```qml
+import QtQuick
+import Clayground.Common
+
+Item {
+    Component.onCompleted: {
+        console.log("Is WASM:", Clayground.isWasm)
+        console.log("Browser:", Clayground.browser)
+    }
+
+    // Show warning for Firefox clipboard limitations
+    Text {
+        visible: Clayground.isWasm && Clayground.browser === "firefox"
+        text: "Note: Clipboard paste requires Ctrl+V in Firefox"
+        color: "orange"
+    }
+}
+```
+
+**`Clayground.isWasm`**: `true` when running as WebAssembly in a browser.
+
+**`Clayground.browser`** values:
+`"none"` (native app), `"chrome"`, `"firefox"`, `"safari"`, `"edge"`, `"opera"`, `"other"`
+
 ## Best Practices
 
 1. **Resource Loading**: Always use `Clayground.resource()` for loading assets to ensure compatibility between sandbox and production environments.
@@ -100,9 +126,11 @@ Rectangle {
 
 The Clay Common plugin consists of:
 
-- **Clayground.qml**: A QML singleton that provides runtime environment detection and utility functions
+- **Clayground.qml**: A QML singleton that provides runtime environment detection, utility functions, and browser detection via JavaScript
 - **ClayStopWatch**: A C++ class exposed to QML that wraps Qt's QElapsedTimer for precise timing
 
 The plugin automatically detects whether it's running in the ClayLiveLoader sandbox environment and adjusts resource paths accordingly. This allows seamless development and deployment without changing resource references in your code.
+
+Browser detection uses JavaScript's `navigator.userAgent` when running in WebAssembly, providing compatibility with dynamically loaded QML content.
 
 The watch functionality integrates with the Clayground development tools to provide real-time property monitoring, making it easier to debug complex interactions and state changes in your application.

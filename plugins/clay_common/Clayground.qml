@@ -39,6 +39,83 @@ Item
     */
     readonly property bool runsInSandbox: typeof ClayLiveLoader != 'undefined'
 
+    /*!
+        \qmlproperty bool Clayground::isWasm
+        \readonly
+        \brief True when running as WebAssembly in a browser.
+    */
+    readonly property bool isWasm: Qt.platform.os === "wasm"
+
+    // Internal ClayPlatform instance for browser detection via C++/Emscripten
+    ClayPlatform { id: _platform }
+
+    /*!
+        \qmlproperty string Clayground::browser
+        \readonly
+        \brief The detected browser name when running in WebAssembly.
+
+        Returns one of: "chrome", "firefox", "safari", "edge", "opera", "other", or "none" (for native apps).
+    */
+    readonly property string browser: {
+        switch (_platform.browser) {
+            case ClayPlatform.Browser_Chrome: return "chrome";
+            case ClayPlatform.Browser_Firefox: return "firefox";
+            case ClayPlatform.Browser_Safari: return "safari";
+            case ClayPlatform.Browser_Edge: return "edge";
+            case ClayPlatform.Browser_Opera: return "opera";
+            case ClayPlatform.Browser_None: return "none";
+            default: return "other";
+        }
+    }
+
+    /*!
+        \qmlproperty var Clayground::capabilities
+        \readonly
+        \brief Platform capability information with status and user hints.
+
+        Provides structured information about platform-specific feature availability.
+        Each capability has a \c status and \c hint property.
+
+        Status values:
+        \list
+        \li \c "full" - Feature works without restrictions
+        \li \c "restricted" - Feature works with limitations (see hint)
+        \li \c "unavailable" - Feature is not available
+        \li \c "unknown" - Detection not implemented for this platform
+        \endlist
+
+        Available capabilities:
+        \list
+        \li \c clipboard - Clipboard paste functionality
+        \li \c sound - Audio playback
+        \li \c gpu - GPU compute (e.g., for AI inference)
+        \endlist
+
+        Example usage:
+        \qml
+        Text {
+            visible: Clayground.capabilities.clipboard.status !== "full"
+            text: Clayground.capabilities.clipboard.hint
+        }
+        \endqml
+    */
+    readonly property var capabilities: ({
+        clipboard: {
+            status: isWasm && browser === "firefox" ? "restricted" : "full",
+            hint: isWasm && browser === "firefox"
+                  ? qsTr("Paste may not work in Firefox. Please type manually or try a different browser.")
+                  : ""
+        },
+        sound: {
+            status: isWasm ? "restricted" : "full",
+            hint: isWasm ? qsTr("Tap or click to enable audio.") : ""
+        },
+        gpu: {
+            status: _platform.gpuStatus,
+            hint: _platform.gpuHint
+        }
+    })
+
     // Internal property for resource path prefix
     readonly property string _resPrefix: !runsInSandbox ? "qrc:/" : ClayLiveLoader.sandboxDir + "/"
 
