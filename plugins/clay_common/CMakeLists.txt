@@ -9,6 +9,8 @@ clay_plugin( Common
     VERSION 1.0
 
     SOURCES
+        clayplatform.cpp
+        clayplatform.h
         claystopwatch.cpp
         claystopwatch.h
 
