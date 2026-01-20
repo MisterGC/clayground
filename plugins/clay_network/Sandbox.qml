@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import Clayground.Common
 import Clayground.Network
 
 Rectangle {
@@ -245,14 +246,6 @@ Rectangle {
                     border.color: codeInput.focus ? root.accentColor : "transparent"
                     border.width: 1
                 }
-                // Explicit paste handling for reliability
-                Keys.onPressed: (event) => {
-                    if ((event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier) &&
-                        event.key === Qt.Key_V) {
-                        paste()
-                        event.accepted = true
-                    }
-                }
             }
 
             Button {
@@ -276,6 +269,16 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
             }
+        }
+
+        // Clipboard capability warning
+        Text {
+            Layout.fillWidth: true
+            visible: !network.connected && Clayground.capabilities.clipboard.status !== "full"
+            text: Clayground.capabilities.clipboard.hint
+            font.family: root.monoFont
+            font.pixelSize: 10
+            color: "#f59e0b"
         }
 
         // Controls (connected) - just Leave button, chat moved to log panel
