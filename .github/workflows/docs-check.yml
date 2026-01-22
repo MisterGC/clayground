@@ -3,28 +3,8 @@ name: Documentation
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'plugins/*/README.md'
-      - 'plugins/**/*.qml'
-      - 'docs/**'
-      - 'examples/voxelworld/**'
-      - 'examples/platformer/**'
-      - 'tools/webdojo/**'
-      - 'cmake/claywebsite.cmake'
-      - 'cmake/claydoc.cmake'
-      - '.github/workflows/docs-check.yml'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'plugins/*/README.md'
-      - 'plugins/**/*.qml'
-      - 'docs/**'
-      - 'examples/voxelworld/**'
-      - 'examples/platformer/**'
-      - 'tools/webdojo/**'
-      - 'cmake/claywebsite.cmake'
-      - 'cmake/claydoc.cmake'
-      - '.github/workflows/docs-check.yml'
 
 permissions:
   contents: read
