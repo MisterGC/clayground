@@ -12,6 +12,14 @@ Item {
     anchors.fill: parent
     focus: true
 
+    // Clayground branding colors
+    property color accentColor: "#0f9d9a"
+    property color surfaceColor: "#16213e"
+    property color textColor: "#eaeaea"
+    property color dimTextColor: "#8a8a8a"
+    property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
+                              Qt.platform.os === "windows" ? "Consolas" : "monospace"
+
     Component.onCompleted: forceActiveFocus()
 
     // Restore focus when clicked (for WASM embedding)
@@ -28,7 +36,7 @@ Item {
         anchors.fill: parent
 
         environment: SceneEnvironment {
-            clearColor: "#1a1a2e"
+            clearColor: "#0d0d1a"
             backgroundMode: SceneEnvironment.Color
         }
 
@@ -41,8 +49,11 @@ Item {
         DirectionalLight {
             color: Qt.rgba(1, 0.98, 0.95, 1)
             brightness: 0.7
-            eulerRotation: Qt.vector3d(-45, 0, 0)
+            eulerRotation: Qt.vector3d(-35, 180, 0)
             ambientColor: Qt.rgba(0.5, 0.5, 0.5, 1)
+            castsShadow: true
+            shadowFactor: 50
+            shadowMapQuality: Light.ShadowMapQualityHigh
         }
 
         PointLight {
@@ -56,7 +67,7 @@ Item {
             source: "#Rectangle"
             scale: Qt.vector3d(20, 20, 1)
             eulerRotation: Qt.vector3d(-90, 0, 0)
-            materials: DefaultMaterial { diffuseColor: "white" }
+            materials: DefaultMaterial { diffuseColor: "#3a3a55" }
         }
 
         // Helper functions for line generation
@@ -90,8 +101,14 @@ Item {
             Node {
                 x: 50; y: 50; z: 100.1
                 Label {
-                    color: "black"
-                    background: Rectangle { opacity: .75 }
+                    color: root.textColor
+                    font.family: root.monoFont
+                    font.pixelSize: 12
+                    padding: 4
+                    background: Rectangle {
+                        color: Qt.rgba(root.surfaceColor.r, root.surfaceColor.g, root.surfaceColor.b, 0.85)
+                        radius: 3
+                    }
                     text: "MultiLine3D"
                     anchors.centerIn: parent
                 }
@@ -111,8 +128,14 @@ Item {
             Node {
                 x: -60; y: 50; z: 100.1
                 Label {
-                    color: "black"
-                    background: Rectangle { opacity: .75 }
+                    color: root.textColor
+                    font.family: root.monoFont
+                    font.pixelSize: 12
+                    padding: 4
+                    background: Rectangle {
+                        color: Qt.rgba(root.surfaceColor.r, root.surfaceColor.g, root.surfaceColor.b, 0.85)
+                        radius: 3
+                    }
                     text: "Repeater3D(Line3D)"
                     anchors.centerIn: parent
                 }
@@ -126,8 +149,14 @@ Item {
             Node {
                 x: 0; y: 10; z: 50.1
                 Label {
-                    color: "black"
-                    background: Rectangle { opacity: .75 }
+                    color: root.textColor
+                    font.family: root.monoFont
+                    font.pixelSize: 12
+                    padding: 4
+                    background: Rectangle {
+                        color: Qt.rgba(root.surfaceColor.r, root.surfaceColor.g, root.surfaceColor.b, 0.85)
+                        radius: 3
+                    }
                     text: "Box3D"
                     anchors.centerIn: parent
                 }
@@ -201,8 +230,14 @@ Item {
         Node {
             x: -400; y: 10; z: 200
             Label {
-                color: "black"
-                background: Rectangle { opacity: .75 }
+                color: root.textColor
+                font.family: root.monoFont
+                font.pixelSize: 12
+                padding: 4
+                background: Rectangle {
+                    color: Qt.rgba(root.surfaceColor.r, root.surfaceColor.g, root.surfaceColor.b, 0.85)
+                    radius: 3
+                }
                 text: "VoxelMap + Instancing"
                 anchors.centerIn: parent
             }
@@ -235,12 +270,33 @@ Item {
         }
     }
 
-    Text {
+    Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.margins: 10
-        color: "white"
-        text: "Voxelworld - Qt Quick 3D WASM Showcase\nWASD to move camera"
-        font.pixelSize: 16
+        color: Qt.rgba(root.surfaceColor.r, root.surfaceColor.g, root.surfaceColor.b, 0.85)
+        radius: 4
+        width: overlayText.implicitWidth + 16
+        height: overlayText.implicitHeight + 12
+
+        Text {
+            id: overlayText
+            anchors.centerIn: parent
+            color: root.textColor
+            text: "Voxelworld - Qt Quick 3D WASM Showcase"
+            font.family: root.monoFont
+            font.pixelSize: 14
+            font.bold: true
+        }
+    }
+
+    Text {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.margins: 10
+        color: root.dimTextColor
+        text: "WASD to move camera"
+        font.family: root.monoFont
+        font.pixelSize: 12
     }
 }

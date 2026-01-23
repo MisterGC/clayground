@@ -177,8 +177,207 @@ Rectangle {
         }
 
         Text {
+            text: "URL Arguments (dojoArgs)"
+            font.family: root.monoFont
+            font.pixelSize: 18
+            font.bold: true
+            color: root.accentColor
+        }
+
+        Text {
             Layout.fillWidth: true
-            text: "This demo tests the Clayground singleton's platform and capability detection."
+            text: "Try adding &playerName=YourName&level=5 to the URL hash!"
+            font.family: root.monoFont
+            font.pixelSize: 12
+            color: root.dimTextColor
+            wrapMode: Text.Wrap
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: argsColumn.implicitHeight + 20
+            color: root.surfaceColor
+            radius: 6
+
+            ColumnLayout {
+                id: argsColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 10
+                spacing: 8
+
+                Text {
+                    text: "Current dojoArgs:"
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: root.dimTextColor
+                }
+
+                Text {
+                    id: argsDisplay
+                    Layout.fillWidth: true
+                    text: formatArgs(Clayground.dojoArgs)
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    color: root.textColor
+                    wrapMode: Text.Wrap
+
+                    function formatArgs(args) {
+                        let keys = Object.keys(args);
+                        if (keys.length === 0) return "(none)";
+                        return keys.map(k => k + " = \"" + args[k] + "\"").join("\n");
+                    }
+                }
+            }
+        }
+
+        RowLayout {
+            spacing: 10
+
+            Rectangle {
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 32
+                color: root.surfaceColor
+                radius: 4
+                border.color: keyInput.activeFocus ? root.accentColor : "transparent"
+                border.width: 2
+
+                TextInput {
+                    id: keyInput
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    color: root.textColor
+                    clip: true
+
+                    Text {
+                        anchors.fill: parent
+                        text: "key"
+                        font.family: root.monoFont
+                        font.pixelSize: 14
+                        color: root.dimTextColor
+                        visible: !parent.text && !parent.activeFocus
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 32
+                color: root.surfaceColor
+                radius: 4
+                border.color: valueInput.activeFocus ? root.accentColor : "transparent"
+                border.width: 2
+
+                TextInput {
+                    id: valueInput
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    color: root.textColor
+                    clip: true
+
+                    Text {
+                        anchors.fill: parent
+                        text: "value"
+                        font.family: root.monoFont
+                        font.pixelSize: 14
+                        color: root.dimTextColor
+                        visible: !parent.text && !parent.activeFocus
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 60
+                Layout.preferredHeight: 32
+                color: setBtn.pressed ? Qt.darker(root.accentColor, 1.2) : root.accentColor
+                radius: 4
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Set"
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: root.color
+                }
+
+                MouseArea {
+                    id: setBtn
+                    anchors.fill: parent
+                    onClicked: {
+                        if (keyInput.text) {
+                            let success = Clayground.setDojoArg(keyInput.text, valueInput.text);
+                            statusText.showStatus(success ? "Set '" + keyInput.text + "'" : "Failed (reserved key?)");
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 80
+                Layout.preferredHeight: 32
+                color: removeBtn.pressed ? Qt.darker("#ef4444", 1.2) : "#ef4444"
+                radius: 4
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Remove"
+                    font.family: root.monoFont
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: root.color
+                }
+
+                MouseArea {
+                    id: removeBtn
+                    anchors.fill: parent
+                    onClicked: {
+                        if (keyInput.text) {
+                            let success = Clayground.removeDojoArg(keyInput.text);
+                            statusText.showStatus(success ? "Removed '" + keyInput.text + "'" : "Failed");
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            id: statusText
+            font.family: root.monoFont
+            font.pixelSize: 12
+            color: root.dimTextColor
+            opacity: 0
+
+            function showStatus(msg) {
+                text = msg;
+                opacity = 1;
+                statusFade.restart();
+            }
+
+            NumberAnimation on opacity {
+                id: statusFade
+                running: false
+                to: 0
+                duration: 2000
+                easing.type: Easing.InQuad
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 2
+            color: root.surfaceColor
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: "This demo tests the Clayground singleton's platform detection, capabilities, and URL argument API."
             font.family: root.monoFont
             font.pixelSize: 12
             color: root.dimTextColor

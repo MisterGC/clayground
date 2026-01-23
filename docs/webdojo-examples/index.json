@@ -1,6 +1,6 @@
 {
-  "platform": "platform.qml",
   "multiplayer": "multiplayer.qml",
   "voxelworld": "voxelworld.qml",
-  "ai_chat": "ai_chat.qml"
+  "ai_chat": "ai_chat.qml",
+  "platform": "platform.qml"
 }
