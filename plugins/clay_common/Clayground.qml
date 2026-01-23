@@ -116,6 +116,67 @@ Item
         }
     })
 
+    /*!
+        \qmlproperty var Clayground::dojoArgs
+        \readonly
+        \brief User-defined URL hash arguments when running in WebDojo.
+
+        Returns an object containing key-value pairs from the URL hash,
+        excluding system keys (those starting with "clay-").
+
+        Only available in WebAssembly/WebDojo environment. Returns empty
+        object for native applications.
+
+        Example URL: \c{#clay-demo=...&playerName=Bob&level=5}
+        \qml
+        Component.onCompleted: {
+            let name = Clayground.dojoArgs["playerName"] || "Guest"
+            let level = Clayground.dojoArgs["level"] || "1"
+        }
+        \endqml
+
+        \sa setDojoArg, removeDojoArg
+    */
+    readonly property var dojoArgs: _platform.dojoArgs
+
+    /*!
+        \qmlmethod bool Clayground::setDojoArg(string key, string value)
+        \brief Sets a user-defined URL hash argument.
+
+        Changes are reflected in the browser URL for bookmarking/sharing.
+        Keys starting with "clay-" are reserved and will be rejected.
+
+        \a key The argument name (must not start with "clay-").
+        \a value The argument value.
+
+        \return true on success, false if the key is reserved or operation failed.
+
+        Example:
+        \qml
+        Clayground.setDojoArg("level", "BossStage")
+        Clayground.setDojoArg("score", "1500")
+        \endqml
+
+        \sa dojoArgs, removeDojoArg
+    */
+    function setDojoArg(key, value) {
+        return _platform.setDojoArg(key, String(value))
+    }
+
+    /*!
+        \qmlmethod bool Clayground::removeDojoArg(string key)
+        \brief Removes a user-defined URL hash argument.
+
+        \a key The argument name to remove.
+
+        \return true on success, false if the key is reserved or not found.
+
+        \sa dojoArgs, setDojoArg
+    */
+    function removeDojoArg(key) {
+        return _platform.removeDojoArg(key)
+    }
+
     // Internal property for resource path prefix
     readonly property string _resPrefix: !runsInSandbox ? "qrc:/" : ClayLiveLoader.sandboxDir + "/"
 

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QObject>
+#include <QVariantMap>
 #include <qqmlregistration.h>
 
 /*!
@@ -100,12 +101,51 @@ public:
     */
     Q_PROPERTY(QString gpuHint READ gpuHint CONSTANT)
 
+    /*!
+        \qmlproperty QVariantMap ClayPlatform::dojoArgs
+        \readonly
+        \brief User-defined URL hash arguments (excludes clay-* system keys).
+
+        Only available in WebAssembly/WebDojo environment. Returns empty map
+        for native applications. Updates automatically when URL hash changes
+        or when setDojoArg/removeDojoArg are called.
+
+        \sa setDojoArg, removeDojoArg
+    */
+    Q_PROPERTY(QVariantMap dojoArgs READ dojoArgs NOTIFY dojoArgsChanged)
+
     explicit ClayPlatform(QObject *parent = nullptr);
 
     OperatingSystem os() const { return os_; }
     Browser browser() const { return browser_; }
     QString gpuStatus() const;
     QString gpuHint() const;
+
+    QVariantMap dojoArgs() const;
+
+    /*!
+        \qmlmethod bool ClayPlatform::setDojoArg(string key, string value)
+        \brief Sets a user-defined URL hash argument.
+
+        The key must not start with "clay-" (reserved for system use).
+        Changes are reflected in the browser URL for bookmarking/sharing.
+
+        \return true on success, false if the key is reserved or operation failed.
+        \sa dojoArgs, removeDojoArg
+    */
+    Q_INVOKABLE bool setDojoArg(const QString &key, const QString &value);
+
+    /*!
+        \qmlmethod bool ClayPlatform::removeDojoArg(string key)
+        \brief Removes a user-defined URL hash argument.
+
+        \return true on success, false if the key is reserved or not found.
+        \sa dojoArgs, setDojoArg
+    */
+    Q_INVOKABLE bool removeDojoArg(const QString &key);
+
+signals:
+    void dojoArgsChanged();
 
 private:
     void detectPlatform();

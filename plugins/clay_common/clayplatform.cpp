@@ -1,14 +1,35 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "clayplatform.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
+
 #ifdef Q_OS_WASM
 #include <emscripten.h>
+#endif
+
+static ClayPlatform* s_instance = nullptr;
+
+#ifdef Q_OS_WASM
+extern "C" EMSCRIPTEN_KEEPALIVE void clayPlatformHashChanged() {
+    if (s_instance)
+        QMetaObject::invokeMethod(s_instance,
+            "dojoArgsChanged", Qt::QueuedConnection);
+}
 #endif
 
 ClayPlatform::ClayPlatform(QObject *parent)
     : QObject(parent)
 {
     detectPlatform();
+#ifdef Q_OS_WASM
+    s_instance = this;
+    EM_ASM({
+        window.addEventListener('hashchange', function() {
+            Module._clayPlatformHashChanged();
+        });
+    });
+#endif
 }
 
 void ClayPlatform::detectPlatform()
@@ -86,5 +107,72 @@ QString ClayPlatform::gpuHint() const
     return QString();
 #else
     return tr("GPU detection not yet implemented for this platform.");
+#endif
+}
+
+QVariantMap ClayPlatform::dojoArgs() const
+{
+#ifdef Q_OS_WASM
+    // Call JavaScript function to get user args (excludes clay-* system keys)
+    char *json = (char *)EM_ASM_PTR({
+        var result = window.getDojoUserArgs ? window.getDojoUserArgs() : "{}";
+        var len = lengthBytesUTF8(result) + 1;
+        var buf = _malloc(len);
+        stringToUTF8(result, buf, len);
+        return buf;
+    });
+
+    QVariantMap result;
+    if (json) {
+        QJsonDocument doc = QJsonDocument::fromJson(json);
+        if (doc.isObject()) {
+            result = doc.object().toVariantMap();
+        }
+        free(json);
+    }
+    return result;
+#else
+    // Native apps don't have URL hash params
+    return {};
+#endif
+}
+
+bool ClayPlatform::setDojoArg(const QString &key, const QString &value)
+{
+#ifdef Q_OS_WASM
+    QByteArray keyUtf8 = key.toUtf8();
+    QByteArray valueUtf8 = value.toUtf8();
+
+    int success = EM_ASM_INT({
+        if (!window.setDojoUserArg) return 0;
+        return window.setDojoUserArg(UTF8ToString($0), UTF8ToString($1)) ? 1 : 0;
+    }, keyUtf8.constData(), valueUtf8.constData());
+
+    if (success == 1)
+        emit dojoArgsChanged();
+    return success == 1;
+#else
+    Q_UNUSED(key)
+    Q_UNUSED(value)
+    return false;
+#endif
+}
+
+bool ClayPlatform::removeDojoArg(const QString &key)
+{
+#ifdef Q_OS_WASM
+    QByteArray keyUtf8 = key.toUtf8();
+
+    int success = EM_ASM_INT({
+        if (!window.removeDojoUserArg) return 0;
+        return window.removeDojoUserArg(UTF8ToString($0)) ? 1 : 0;
+    }, keyUtf8.constData());
+
+    if (success == 1)
+        emit dojoArgsChanged();
+    return success == 1;
+#else
+    Q_UNUSED(key)
+    return false;
 #endif
 }
