@@ -372,6 +372,25 @@
     border-color: var(--accent-primary);
 }
 
+/* Zen mode branding - small logo in bottom-left corner */
+.zen-branding {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 5;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.zen-branding:hover {
+    opacity: 1;
+}
+
+.zen-branding img {
+    height: 24px;
+    width: auto;
+}
+
 /* Console - integrated below main container */
 .console-container {
     background: var(--bg-dark, #0d1117);
