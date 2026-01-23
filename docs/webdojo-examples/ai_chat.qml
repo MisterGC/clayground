@@ -9,10 +9,7 @@ import Clayground.Ai
     \inqmlmodule Clayground.Ai
     \brief Test sandbox for AI plugin components.
 
-    The Sandbox provides a three-section interface for testing:
-    - Section 1: LLM chat (text input/output)
-    - Section 2: TTS (text-to-speech) - placeholder
-    - Section 3: STT (speech-to-text) - placeholder
+    The Sandbox provides an LLM chat interface for testing text inference.
 */
 Rectangle {
     id: root
@@ -58,69 +55,17 @@ Rectangle {
             }
         }
 
-        // Tab bar
-        TabBar {
-            id: tabBar
-            Layout.fillWidth: true
-            background: Rectangle { color: root.surfaceColor; radius: 4 }
-
-            TabButton {
-                text: "LLM Chat"
-                width: implicitWidth
-                contentItem: Text {
-                    text: parent.text
-                    font.family: root.monoFont
-                    color: parent.checked ? root.accentColor : root.dimTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? Qt.darker(root.surfaceColor, 1.2) : "transparent"
-                    radius: 4
-                }
-            }
-
-            TabButton {
-                text: "TTS"
-                width: implicitWidth
-                enabled: false
-                contentItem: Text {
-                    text: parent.text + " (soon)"
-                    font.family: root.monoFont
-                    color: root.dimTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                background: Rectangle { color: "transparent" }
-            }
-
-            TabButton {
-                text: "STT"
-                width: implicitWidth
-                enabled: false
-                contentItem: Text {
-                    text: parent.text + " (soon)"
-                    font.family: root.monoFont
-                    color: root.dimTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                background: Rectangle { color: "transparent" }
-            }
-        }
-
-        // Content
-        StackLayout {
+        // LLM Chat Section
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: tabBar.currentIndex
+            color: root.surfaceColor
+            radius: 8
 
-            // LLM Chat Section
-            Rectangle {
-                color: root.surfaceColor
-                radius: 8
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 12
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 12
 
                     // Model selection
                     RowLayout {
@@ -298,6 +243,7 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 8
                                 text: model.text
+                                textFormat: Text.MarkdownText
                                 font.family: root.monoFont
                                 color: root.textColor
                                 wrapMode: Text.Wrap
@@ -306,6 +252,52 @@ Rectangle {
 
                         onCountChanged: {
                             Qt.callLater(() => chatView.positionViewAtEnd())
+                        }
+                    }
+
+                    // Thinking indicator (before tokens arrive)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 40
+                        radius: 8
+                        color: Qt.darker(root.surfaceColor, 1.2)
+                        visible: llm.generating && llm.currentResponse.length === 0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 8
+
+                            // Pulsing dots
+                            Row {
+                                spacing: 4
+                                Repeater {
+                                    model: 3
+                                    Rectangle {
+                                        width: 8; height: 8; radius: 4
+                                        color: root.accentColor
+                                        opacity: 0.3
+
+                                        SequentialAnimation on opacity {
+                                            running: llm.generating && llm.currentResponse.length === 0
+                                            loops: Animation.Infinite
+                                            PauseAnimation { duration: index * 150 }
+                                            NumberAnimation { to: 1.0; duration: 300 }
+                                            NumberAnimation { to: 0.3; duration: 300 }
+                                            PauseAnimation { duration: (2 - index) * 150 }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "Thinking..."
+                                font.family: root.monoFont
+                                font.pixelSize: 12
+                                color: root.dimTextColor
+                            }
+
+                            Item { Layout.fillWidth: true }
                         }
                     }
 
@@ -321,7 +313,8 @@ Rectangle {
                             id: streamingText
                             anchors.fill: parent
                             anchors.margins: 8
-                            text: llm.currentResponse + "▌"
+                            text: llm.currentResponse + " ▌"
+                            textFormat: Text.MarkdownText
                             font.family: root.monoFont
                             color: root.textColor
                             wrapMode: Text.Wrap
@@ -413,35 +406,6 @@ Rectangle {
                             }
                         }
                     }
-                }
-            }
-
-            // TTS Placeholder
-            Rectangle {
-                color: root.surfaceColor
-                radius: 8
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Text-to-Speech\n(Coming in Phase 2)"
-                    font.family: root.monoFont
-                    color: root.dimTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                }
-            }
-
-            // STT Placeholder
-            Rectangle {
-                color: root.surfaceColor
-                radius: 8
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Speech-to-Text\n(Coming in Phase 3)"
-                    font.family: root.monoFont
-                    color: root.dimTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                }
             }
         }
     }

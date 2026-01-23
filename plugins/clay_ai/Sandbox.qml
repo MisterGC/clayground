@@ -243,6 +243,7 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 8
                                 text: model.text
+                                textFormat: Text.MarkdownText
                                 font.family: root.monoFont
                                 color: root.textColor
                                 wrapMode: Text.Wrap
@@ -251,6 +252,52 @@ Rectangle {
 
                         onCountChanged: {
                             Qt.callLater(() => chatView.positionViewAtEnd())
+                        }
+                    }
+
+                    // Thinking indicator (before tokens arrive)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 40
+                        radius: 8
+                        color: Qt.darker(root.surfaceColor, 1.2)
+                        visible: llm.generating && llm.currentResponse.length === 0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 8
+
+                            // Pulsing dots
+                            Row {
+                                spacing: 4
+                                Repeater {
+                                    model: 3
+                                    Rectangle {
+                                        width: 8; height: 8; radius: 4
+                                        color: root.accentColor
+                                        opacity: 0.3
+
+                                        SequentialAnimation on opacity {
+                                            running: llm.generating && llm.currentResponse.length === 0
+                                            loops: Animation.Infinite
+                                            PauseAnimation { duration: index * 150 }
+                                            NumberAnimation { to: 1.0; duration: 300 }
+                                            NumberAnimation { to: 0.3; duration: 300 }
+                                            PauseAnimation { duration: (2 - index) * 150 }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "Thinking..."
+                                font.family: root.monoFont
+                                font.pixelSize: 12
+                                color: root.dimTextColor
+                            }
+
+                            Item { Layout.fillWidth: true }
                         }
                     }
 
@@ -266,7 +313,8 @@ Rectangle {
                             id: streamingText
                             anchors.fill: parent
                             anchors.margins: 8
-                            text: llm.currentResponse + "▌"
+                            text: llm.currentResponse + " ▌"
+                            textFormat: Text.MarkdownText
                             font.family: root.monoFont
                             color: root.textColor
                             wrapMode: Text.Wrap
