@@ -1,4 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// @brief 2D shapes, images, connectors and polygons
+// @tags 2D, Canvas, Shapes
 
 import QtQuick
 import Clayground.Canvas as Canv

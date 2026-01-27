@@ -1,4 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// @brief Parametric 3D characters with animation and patrol
+// @tags 3D, Character, Animation
 
 import QtQuick
 import QtQuick.Controls

@@ -1,6 +1,17 @@
 {
-  "multiplayer": "multiplayer.qml",
-  "voxelworld": "voxelworld.qml",
-  "ai_chat": "ai_chat.qml",
-  "platform": "platform.qml"
+  "version": "0.12.0",
+  "examples": [
+    {"name": "Clayground.Canvas", "path": "canvas/Sandbox.qml", "brief": "2D shapes, images, connectors and polygons", "tags": ["2D", "Canvas", "Shapes"]},
+    {"name": "Clayground.Canvas3D", "path": "canvas3d/Sandbox.qml", "brief": "3D boxes, voxel maps and line rendering with toon shading", "tags": ["3D", "Canvas3D", "Voxels"]},
+    {"name": "Clayground.Text", "path": "text/Sandbox.qml", "brief": "CSV parsing, JSON transformation and text highlighting", "tags": ["Text", "CSV", "JSON"]},
+    {"name": "Clayground.Sound", "path": "sound/Sandbox.qml", "brief": "Sound effects and music playback", "tags": ["Audio", "Sound", "Music"]},
+    {"name": "Clayground.GameController", "path": "gamecontroller/Sandbox.qml", "brief": "Keyboard, touch and gamepad input handling", "tags": ["Input", "Gamepad", "Keyboard"]},
+    {"name": "Clayground.Network", "path": "network/Sandbox.qml", "brief": "P2P multiplayer and HTTP client networking", "tags": ["Network", "Multiplayer", "HTTP"]},
+    {"name": "Clayground.Ai", "path": "ai/Sandbox.qml", "brief": "AI chat integration with LLM providers", "tags": ["AI", "Chat", "LLM"]},
+    {"name": "Clayground.Character3D", "path": "character3d/Sandbox.qml", "brief": "Parametric 3D characters with animation and patrol", "tags": ["3D", "Character", "Animation"]},
+    {"name": "Voxel World", "path": "voxelworld/Sandbox.qml", "brief": "Interactive 3D voxel world with characters and navigation", "tags": ["3D", "Voxels", "World", "Showcase"]},
+    {"name": "Visual FX", "path": "visualfx/Sandbox.qml", "brief": "Particle-based explosion and absorption effects", "tags": ["2D", "Particles", "Effects"]},
+    {"name": "Platform Detection", "path": "platform/Sandbox.qml", "brief": "Detect desktop, mobile and WebAssembly platforms", "tags": ["Platform", "Detection", "Utility"]},
+    {"name": "empty", "path": "empty/Sandbox.qml", "brief": "Empty starter template", "tags": ["Template"]}
+  ]
 }

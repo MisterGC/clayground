@@ -1,3 +1,6 @@
+// @brief Empty starter template
+// @tags Template
+
 import QtQuick
 
 Rectangle {

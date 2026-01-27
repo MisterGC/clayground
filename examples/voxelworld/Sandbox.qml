@@ -1,5 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// Full 3D graphics showcase for WASM (no physics)
+// @brief Interactive 3D voxel world with characters and navigation
+// @tags 3D, Voxels, World, Showcase
 
 import QtQuick
 import QtQuick.Controls

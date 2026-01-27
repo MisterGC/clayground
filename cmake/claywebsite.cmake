@@ -103,22 +103,55 @@ function(clay_website_create_target)
         COMMENT "Syncing plugin documentation..."
     )
 
-    # Generate index.json for webdojo examples (at configure time)
-    # Maps display names to directory-based paths for URL loading
-    set(EXAMPLES_JSON "{\n")
+    # Generate enriched index.json for webdojo examples (at configure time)
+    # Parses @brief and @tags from entry QML files
+    set(EXAMPLES_JSON "{\n  \"version\": \"${PROJECT_VERSION}\",\n  \"examples\": [\n")
     set(FIRST_ENTRY TRUE)
     foreach(MAPPING IN LISTS CLAY_WEBDOJO_EXAMPLES)
         string(REPLACE ":" ";" PARTS "${MAPPING}")
+        list(GET PARTS 0 SOURCE)
         list(GET PARTS 1 DEST_DIR)
         list(GET PARTS 2 DISPLAY_NAME)
         list(GET PARTS 3 ENTRY_FILE)
+        list(GET PARTS 4 SOURCE_TYPE)
+
+        # Determine entry file path
+        if(SOURCE_TYPE STREQUAL "dir")
+            set(ENTRY_PATH "${CMAKE_SOURCE_DIR}/${SOURCE}/${ENTRY_FILE}")
+        else()
+            set(ENTRY_PATH "${CMAKE_SOURCE_DIR}/${SOURCE}")
+        endif()
+
+        # Parse @brief and @tags from QML file
+        set(BRIEF "")
+        set(TAGS_JSON "[]")
+        if(EXISTS "${ENTRY_PATH}")
+            file(STRINGS "${ENTRY_PATH}" QML_LINES)
+            foreach(LINE IN LISTS QML_LINES)
+                # Stop parsing after first non-comment line
+                string(STRIP "${LINE}" STRIPPED)
+                if(STRIPPED AND NOT STRIPPED MATCHES "^//")
+                    break()
+                endif()
+                if(LINE MATCHES "// @brief (.+)")
+                    set(BRIEF "${CMAKE_MATCH_1}")
+                endif()
+                if(LINE MATCHES "// @tags (.+)")
+                    set(TAGS_RAW "${CMAKE_MATCH_1}")
+                    # Convert comma-separated to JSON array
+                    string(REPLACE ", " "\", \"" TAGS_ITEMS "${TAGS_RAW}")
+                    set(TAGS_JSON "[\"${TAGS_ITEMS}\"]")
+                endif()
+            endforeach()
+        endif()
+
         if(NOT FIRST_ENTRY)
             string(APPEND EXAMPLES_JSON ",\n")
         endif()
         set(FIRST_ENTRY FALSE)
-        string(APPEND EXAMPLES_JSON "  \"${DISPLAY_NAME}\": \"${DEST_DIR}/${ENTRY_FILE}\"")
+        string(APPEND EXAMPLES_JSON "    {\"name\": \"${DISPLAY_NAME}\", \"path\": \"${DEST_DIR}/${ENTRY_FILE}\", \"brief\": \"${BRIEF}\", \"tags\": ${TAGS_JSON}}")
     endforeach()
-    string(APPEND EXAMPLES_JSON "\n}")
+    string(APPEND EXAMPLES_JSON "\n  ]\n}")
     file(WRITE ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/index.json "${EXAMPLES_JSON}")
     message(STATUS "Generated webdojo-examples/index.json")
 

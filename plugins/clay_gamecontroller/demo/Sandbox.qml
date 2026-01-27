@@ -1,4 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// @brief Keyboard, touch and gamepad input handling
+// @tags Input, Gamepad, Keyboard
 
 import QtQuick
 import Clayground.GameController

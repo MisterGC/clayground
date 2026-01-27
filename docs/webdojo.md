@@ -14,17 +14,24 @@ permalink: /webdojo/
         <span class="webdojo-title">Web Dojo</span>
     </a>
     <div class="webdojo-controls">
-        <label for="example-selector">Example:</label>
-        <select id="example-selector" aria-label="Select example">
-            <!-- Examples are populated dynamically from index.json (CMake-generated) -->
-            <option value="load-url">Load from URL...</option>
-        </select>
+        <button id="gallery-toggle" class="gallery-toggle" title="Toggle gallery">☰</button>
         <button id="share-button" class="share-button">🔗 Share</button>
         <button id="standalone-button" class="standalone-button">▶ Standalone</button>
     </div>
+    <span id="version-display" class="version-display"></span>
 </div>
 
 <div id="playground-container" class="playground-container">
+    <div id="gallery-pane" class="gallery-pane">
+        <div class="gallery-filter">
+            <input type="text" id="gallery-filter-input" placeholder="Filter examples..." aria-label="Filter examples">
+        </div>
+        <div id="gallery-list" class="gallery-list">
+            <!-- Populated dynamically from index.json -->
+        </div>
+        <button id="new-script-button" class="new-script-button">+ New Script</button>
+    </div>
+
     <div id="editor-pane" class="editor-pane">
         <div id="editor-container"></div>
         <div class="editor-controls">

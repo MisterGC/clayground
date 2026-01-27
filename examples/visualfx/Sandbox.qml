@@ -1,4 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// @brief Particle-based explosion and absorption effects
+// @tags 2D, Particles, Effects
 
 import QtQuick
 import QtQuick.Controls

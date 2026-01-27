@@ -64,20 +64,162 @@
     font-size: 0.85rem;
 }
 
-.webdojo-controls select {
+.gallery-toggle {
     padding: 0.35rem 0.75rem;
     background: var(--bg-dark, #0d1117);
     color: var(--text-primary, #e6edf3);
     border: 1px solid var(--border-color, #30363d);
     border-radius: 4px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.85rem;
+    font-size: 1rem;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.webdojo-controls select:focus {
+.gallery-toggle:hover {
+    border-color: var(--accent-primary, #00d9ff);
+}
+
+.gallery-toggle.active {
+    background: var(--accent-primary, #00d9ff);
+    color: var(--bg-dark, #0d1117);
+    border-color: var(--accent-primary, #00d9ff);
+}
+
+.version-display {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: auto;
+    padding-right: 0.5rem;
+}
+
+/* Gallery sidebar */
+.gallery-pane {
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary, #161b22);
+    border-right: 1px solid var(--border-color, #30363d);
+    overflow: hidden;
+    transition: width 0.2s, min-width 0.2s, max-width 0.2s, opacity 0.2s;
+}
+
+.gallery-pane.collapsed {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+    opacity: 0;
+    border-right: none;
+}
+
+.gallery-filter {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-color, #30363d);
+    flex-shrink: 0;
+}
+
+.gallery-filter input {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: 'Inter', sans-serif;
+    box-sizing: border-box;
+}
+
+.gallery-filter input:focus {
     outline: none;
     border-color: var(--accent-primary, #00d9ff);
+}
+
+.gallery-filter input::placeholder {
+    color: var(--text-secondary, #8b949e);
+}
+
+.gallery-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+}
+
+.gallery-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.gallery-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.gallery-item.active {
+    background: rgba(0, 217, 255, 0.08);
+    border-left-color: var(--accent-primary, #00d9ff);
+}
+
+.gallery-item-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+    margin-bottom: 0.2rem;
+}
+
+.gallery-item-brief {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #8b949e);
+    line-height: 1.3;
+    margin-bottom: 0.3rem;
+}
+
+.gallery-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.gallery-tag {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    background: rgba(0, 217, 255, 0.1);
+    color: var(--accent-primary, #00d9ff);
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.gallery-tag:hover {
+    background: rgba(0, 217, 255, 0.2);
+}
+
+.gallery-tag.active-filter {
+    background: var(--accent-primary, #00d9ff);
+    color: var(--bg-dark, #0d1117);
+}
+
+.new-script-button {
+    margin: 0.5rem;
+    padding: 0.5rem;
+    background: transparent;
+    color: var(--accent-primary, #00d9ff);
+    border: 1px dashed var(--border-color, #30363d);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.new-script-button:hover {
+    border-color: var(--accent-primary, #00d9ff);
+    background: rgba(0, 217, 255, 0.05);
 }
 
 .share-button {
@@ -544,6 +686,20 @@
 
     .playground-container {
         flex-direction: column;
+    }
+
+    .gallery-pane {
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color, #30363d);
+    }
+
+    .gallery-pane.collapsed {
+        max-height: 0;
+        min-width: 0;
     }
 
     .editor-pane,

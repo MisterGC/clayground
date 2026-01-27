@@ -313,13 +313,31 @@ console.error = function(...args) {
 // ============================================================================
 
 let exampleFiles = {};
+let examplesData = [];
+let claygroundVersion = '';
 const examplesCache = {};
+let activeTagFilter = null;
 
 async function loadExamplesIndex() {
     try {
         const response = await fetch(getExamplesBaseUrl() + 'index.json');
         if (response.ok) {
-            exampleFiles = await response.json();
+            const data = await response.json();
+            if (data.examples) {
+                // New enriched format
+                examplesData = data.examples;
+                claygroundVersion = data.version || '';
+                exampleFiles = {};
+                for (const ex of examplesData) {
+                    exampleFiles[ex.name] = ex.path;
+                }
+            } else {
+                // Legacy flat format
+                exampleFiles = data;
+                examplesData = Object.entries(data).map(([name, path]) => ({
+                    name, path, brief: '', tags: []
+                }));
+            }
         } else {
             console.warn('Failed to load examples index, using defaults');
             exampleFiles = { 'empty': 'empty.qml' };
@@ -330,28 +348,119 @@ async function loadExamplesIndex() {
     }
 }
 
-function populateExampleSelector() {
-    const selector = document.getElementById('example-selector');
-    if (!selector) return;
+function buildGallery() {
+    const list = document.getElementById('gallery-list');
+    if (!list) return;
 
-    const specialValues = ['shared', 'loaded-url', 'load-url', 'remote-test'];
-    Array.from(selector.options).forEach(opt => {
-        if (!specialValues.includes(opt.value)) {
-            opt.remove();
-        }
-    });
+    list.innerHTML = '';
 
-    Object.keys(exampleFiles).sort().forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        const loadUrlOption = selector.querySelector('option[value="load-url"]');
-        if (loadUrlOption) {
-            selector.insertBefore(option, loadUrlOption);
-        } else {
-            selector.appendChild(option);
+    const filterText = (document.getElementById('gallery-filter-input')?.value || '').toLowerCase();
+    const source = getContentSource();
+
+    for (const ex of examplesData) {
+        if (ex.name === 'empty') continue;
+
+        // Filter by text
+        if (filterText) {
+            const searchable = `${ex.name} ${ex.brief} ${(ex.tags || []).join(' ')}`.toLowerCase();
+            if (!searchable.includes(filterText)) continue;
         }
-    });
+
+        // Filter by tag
+        if (activeTagFilter && !(ex.tags || []).includes(activeTagFilter)) continue;
+
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        if (source.type === 'example' && source.name === ex.name) {
+            item.classList.add('active');
+        }
+        item.dataset.name = ex.name;
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'gallery-item-name';
+        nameEl.textContent = ex.name;
+        item.appendChild(nameEl);
+
+        if (ex.brief) {
+            const briefEl = document.createElement('div');
+            briefEl.className = 'gallery-item-brief';
+            briefEl.textContent = ex.brief;
+            item.appendChild(briefEl);
+        }
+
+        if (ex.tags && ex.tags.length > 0) {
+            const tagsEl = document.createElement('div');
+            tagsEl.className = 'gallery-item-tags';
+            for (const tag of ex.tags) {
+                const tagEl = document.createElement('span');
+                tagEl.className = 'gallery-tag';
+                if (tag === activeTagFilter) tagEl.classList.add('active-filter');
+                tagEl.textContent = tag;
+                tagEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (activeTagFilter === tag) {
+                        activeTagFilter = null;
+                    } else {
+                        activeTagFilter = tag;
+                    }
+                    buildGallery();
+                });
+                tagsEl.appendChild(tagEl);
+            }
+            item.appendChild(tagsEl);
+        }
+
+        item.addEventListener('click', () => {
+            updateHashParam('clay-src', `example:${ex.name}`);
+            loadContent({ type: 'example', name: ex.name });
+            // Update active state
+            list.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+        });
+
+        list.appendChild(item);
+    }
+
+    // Show version
+    const versionEl = document.getElementById('version-display');
+    if (versionEl && claygroundVersion) {
+        versionEl.textContent = `Clayground ${claygroundVersion}`;
+    }
+}
+
+function setupGallery() {
+    const filterInput = document.getElementById('gallery-filter-input');
+    if (filterInput) {
+        filterInput.addEventListener('input', () => buildGallery());
+    }
+
+    const toggleBtn = document.getElementById('gallery-toggle');
+    const galleryPane = document.getElementById('gallery-pane');
+    if (toggleBtn && galleryPane) {
+        toggleBtn.addEventListener('click', () => {
+            galleryPane.classList.toggle('collapsed');
+            toggleBtn.classList.toggle('active');
+        });
+    }
+
+    const newBtn = document.getElementById('new-script-button');
+    if (newBtn) {
+        newBtn.addEventListener('click', () => {
+            updateHashParam('clay-src', null);
+            loadContent({ type: 'empty' });
+            if (editor) {
+                fetchExample('empty').then(code => {
+                    if (code) editor.setValue(code);
+                    editor.updateOptions({ readOnly: false });
+                });
+                enableEditControls();
+            }
+            // Deselect gallery items
+            document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
+        });
+    }
+
+    buildGallery();
 }
 
 function getExamplesBaseUrl() {
@@ -434,7 +543,6 @@ async function initEditorWithVim(resolve, source) {
     }
 
     await loadExamplesIndex();
-    populateExampleSelector();
 
     // Determine initial code and editor state based on source
     let initialCode = EMPTY_TEMPLATE;
@@ -461,9 +569,6 @@ async function initEditorWithVim(resolve, source) {
             readOnly = true;
             break;
     }
-
-    // Update selector to reflect source
-    updateSelectorForSource(source);
 
     editor = monaco.editor.create(document.getElementById('editor-container'), {
         value: initialCode,
@@ -498,43 +603,6 @@ async function initEditorWithVim(resolve, source) {
     resolve();
 }
 
-function updateSelectorForSource(source) {
-    const selector = document.getElementById('example-selector');
-    if (!selector) return;
-
-    switch (source.type) {
-        case 'example':
-            if (exampleFiles[source.name]) {
-                selector.value = source.name;
-            }
-            break;
-        case 'code': {
-            const sharedOption = document.createElement('option');
-            sharedOption.value = 'shared';
-            sharedOption.textContent = '✦ Shared code';
-            sharedOption.selected = true;
-            selector.insertBefore(sharedOption, selector.firstChild);
-            break;
-        }
-        case 'url': {
-            const urlOption = document.createElement('option');
-            urlOption.value = 'loaded-url';
-            urlOption.textContent = '✦ Remote URL';
-            urlOption.selected = true;
-            selector.insertBefore(urlOption, selector.firstChild);
-            break;
-        }
-        case 'empty':
-        default: {
-            const newOption = document.createElement('option');
-            newOption.value = '';
-            newOption.textContent = '(new)';
-            newOption.selected = true;
-            selector.insertBefore(newOption, selector.firstChild);
-            break;
-        }
-    }
-}
 
 function setupUrlSourceEditor(source) {
     // Remove controls that don't apply for readonly
@@ -784,15 +852,20 @@ function logToConsole(message, type = 'log') {
 // ============================================================================
 
 function setupEventHandlers(source, visibility) {
-    // Example selector (only when editor is visible)
-    if (visibility.editor) {
-        setupExampleSelector(source);
+    // Gallery setup
+    const params = parseHashParams();
+    const galleryVisible = resolveBool(params['clay-gal'], visibility.editor ? 1 : 0);
+    const galleryPane = document.getElementById('gallery-pane');
+    const galleryToggle = document.getElementById('gallery-toggle');
+
+    if (!galleryVisible && galleryPane) {
+        galleryPane.classList.add('collapsed');
+    }
+    if (!visibility.editor && !visibility.header) {
+        galleryPane?.remove();
+        galleryToggle?.remove();
     } else {
-        // Remove selector when no editor
-        const exampleSelector = document.getElementById('example-selector');
-        const exampleLabel = exampleSelector?.previousElementSibling;
-        exampleLabel?.remove();
-        exampleSelector?.remove();
+        setupGallery();
     }
 
     // Auto-reload toggle
@@ -856,60 +929,6 @@ function setupEventHandlers(source, visibility) {
     }
 }
 
-function setupExampleSelector(source) {
-    const exampleSelector = document.getElementById('example-selector');
-    if (!exampleSelector) return;
-
-    // Hide selector for URL sources with editor (show readonly badge instead)
-    if (source.type === 'url') {
-        const exampleLabel = exampleSelector.previousElementSibling;
-        exampleLabel?.remove();
-        exampleSelector.remove();
-        return;
-    }
-
-    exampleSelector.addEventListener('change', async (e) => {
-        const value = e.target.value;
-        if (value === 'shared' || value === 'loaded-url') return;
-
-        if (value === 'load-url') {
-            const url = prompt('Enter QML file URL (e.g., GitHub raw URL):');
-            if (url) {
-                updateHashParam('clay-src', url);
-                updateHashParam('clay-ed', '1');
-                window.location.reload();
-            } else {
-                // Revert to previous selection
-                const prevSource = getContentSource();
-                if (prevSource.type === 'example') {
-                    exampleSelector.value = prevSource.name;
-                }
-            }
-            return;
-        }
-
-        if (value === 'remote-test') {
-            const url = 'https://raw.githubusercontent.com/mistergc/clayground/main/docs/examples/remote-test/Sandbox.qml';
-            updateHashParam('clay-src', url);
-            updateHashParam('clay-ed', '1');
-            window.location.reload();
-            return;
-        }
-
-        // Remove dynamic options
-        exampleSelector.querySelector('option[value="shared"]')?.remove();
-        exampleSelector.querySelector('option[value="loaded-url"]')?.remove();
-        exampleSelector.querySelector('option[value=""]')?.remove();
-
-        // Update URL to reflect selected example
-        updateHashParam('clay-src', `example:${value}`);
-
-        // Load example via URL for relative import support
-        if (exampleFiles[value]) {
-            loadContent({ type: 'example', name: value });
-        }
-    });
-}
 
 function setupShareButton(source, visibility) {
     const shareBtn = document.getElementById('share-button');
@@ -979,12 +998,6 @@ function setupStandaloneButton(source, visibility) {
 function setupUrlInputControls(source) {
     const header = document.querySelector('.webdojo-header');
     if (!header) return;
-
-    // Remove example selector (not needed for URL mode)
-    const exampleSelector = document.getElementById('example-selector');
-    const exampleLabel = exampleSelector?.previousElementSibling;
-    exampleLabel?.remove();
-    exampleSelector?.remove();
 
     // Remove standalone button
     document.getElementById('standalone-button')?.remove();
@@ -1216,18 +1229,18 @@ async function init() {
     // 3. Apply UI visibility (remove hidden elements)
     applyUIVisibility(currentVisibility);
 
-    // 4. Initialize editor if visible
+    // 4. Load examples index (needed for gallery and content loading)
+    await loadExamplesIndex();
+
+    // 5. Initialize editor if visible
     if (currentVisibility.editor) {
         await initEditor(currentSource);
-    } else if (currentSource.type === 'example' || currentSource.type === 'empty') {
-        // Need examples index for direct code loading even without editor
-        await loadExamplesIndex();
     }
 
-    // 5. Setup event handlers
+    // 6. Setup event handlers
     setupEventHandlers(currentSource, currentVisibility);
 
-    // 6. Initialize WASM (content loaded in onLoaded callback)
+    // 7. Initialize WASM (content loaded in onLoaded callback)
     await initWebDojo();
 }
 

@@ -1,4 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// @brief CSV parsing, JSON transformation and text highlighting
+// @tags Text, CSV, JSON
 
 import QtQuick
 import QtQuick.Controls
