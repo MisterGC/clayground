@@ -11,7 +11,6 @@ clay_plugin( Canvas
         Poly.qml
         Rectangle.qml
         Text.qml
-        Sandbox.qml
 
     LINK_LIBS
         Qt::Core

@@ -8,9 +8,17 @@ import QtQuick3D.Helpers
 import Clayground.Canvas3D
 import Clayground.Storage
 
-Item {
+Rectangle {
     id: root
     anchors.fill: parent
+    color: "#1a1a2e"
+
+    property color accentColor: "#0f9d9a"
+    property color surfaceColor: "#16213e"
+    property color textColor: "#eaeaea"
+    property color dimTextColor: "#8a8a8a"
+    property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
+                              Qt.platform.os === "windows" ? "Consolas" : "monospace"
 
     // Store camera position between sessions
     KeyValueStore {
@@ -25,9 +33,9 @@ Item {
 
         // Left sidebar menu
         Rectangle {
-            Layout.preferredWidth: 250
+            Layout.preferredWidth: 220
             Layout.fillHeight: true
-            color: "#2c3e50"
+            color: root.surfaceColor
 
             Column {
                 width: parent.width
@@ -36,10 +44,11 @@ Item {
 
                 // Title
                 Text {
-                    text: "Canvas3D Demos"
-                    font.pixelSize: 20
+                    text: "Clayground.Canvas3D"
+                    font.family: root.monoFont
+                    font.pixelSize: 16
                     font.bold: true
-                    color: "white"
+                    color: root.accentColor
                     padding: 10
                 }
 
@@ -53,17 +62,19 @@ Item {
 
                     Rectangle {
                         width: parent.width - 20
-                        height: 40
-                        color: demoLoader.currentDemo === modelData.component ? "#3498db" : 
-                               menuItemArea.containsMouse ? "#34495e" : "transparent"
-                        radius: 5
+                        height: 36
+                        color: demoLoader.currentDemo === modelData.component ? root.accentColor :
+                               menuItemArea.containsMouse ? Qt.darker(root.surfaceColor, 1.3) : "transparent"
+                        radius: 4
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
                             anchors.leftMargin: 10
                             text: modelData.name
-                            color: "white"
+                            font.family: root.monoFont
+                            font.pixelSize: 12
+                            color: demoLoader.currentDemo === modelData.component ? "white" : root.textColor
                         }
 
                         MouseArea {
@@ -81,28 +92,29 @@ Item {
                 Rectangle {
                     width: parent.width - 20
                     height: 1
-                    color: "#34495e"
+                    color: Qt.darker(root.surfaceColor, 1.3)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.topMargin: 20
                 }
 
                 // Info section
                 Text {
                     text: "Controls"
-                    font.pixelSize: 16
+                    font.family: root.monoFont
+                    font.pixelSize: 13
                     font.bold: true
-                    color: "white"
+                    color: root.textColor
                     padding: 10
                     topPadding: 20
                 }
 
                 Text {
-                    text: "• Left click + drag: Rotate camera\n" +
-                          "• Right click + drag: Pan camera\n" + 
-                          "• Scroll: Zoom in/out\n" +
-                          "• F: Focus on origin"
-                    color: "#ecf0f1"
-                    font.pixelSize: 12
+                    text: "Left drag: Rotate\n" +
+                          "Right drag: Pan\n" +
+                          "Scroll: Zoom\n" +
+                          "F: Focus on origin"
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
                     leftPadding: 10
                     width: parent.width - 20
                     wrapMode: Text.WordWrap
@@ -114,12 +126,13 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#1a1a1a"
+            color: "#1a1a2e"
 
             Loader {
                 id: demoLoader
                 anchors.fill: parent
                 property string currentDemo: "Box3DDemo.qml"
+                // Relative path - works with URL-based loading in webdojo
                 source: currentDemo
 
                 // Pass common properties to loaded demos

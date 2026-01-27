@@ -27,7 +27,6 @@ clay_plugin( Text
         CsvModel.qml
         HighlightedText.qml
         JsonataTransform.qml
-        Sandbox.qml
 
     LINK_LIBS
         Qt::Core

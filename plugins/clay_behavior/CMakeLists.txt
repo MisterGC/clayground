@@ -9,7 +9,6 @@ clay_plugin( Behavior
         MoveTo.qml
         RectTrigger.qml
         WorldChangedConnections.qml
-        Sandbox.qml
         DoorBuilder.qml
 
     LINK_LIBS

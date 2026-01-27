@@ -17,11 +17,6 @@ set(COMMON_SOURCES
 set(COMMON_QML
     Network.qml
     ClayHttpClient.qml
-    SandboxHttpClient.qml
-)
-
-set(PLATFORM_QML
-    Sandbox.qml
 )
 
 if(EMSCRIPTEN)
@@ -76,7 +71,6 @@ clay_plugin(Network
 
     QML_FILES
         ${COMMON_QML}
-        ${PLATFORM_QML}
 
     LINK_LIBS
         ${LINK_LIBRARIES}

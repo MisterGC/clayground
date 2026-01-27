@@ -5,7 +5,6 @@ clay_plugin( GameController
     VERSION 1.0
 
     QML_FILES
-            Sandbox.qml
             GameController.qml
             GameControllerDV.qml
             GamepadWrapper.qml

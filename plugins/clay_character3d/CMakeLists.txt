@@ -5,8 +5,6 @@ clay_plugin( Character3D
     VERSION 1.0
 
     QML_FILES
-        Sandbox.qml
-
         # Core Components
         Character.qml
         CharacterEditor.qml

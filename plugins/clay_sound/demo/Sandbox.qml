@@ -9,6 +9,13 @@ Rectangle {
     anchors.fill: parent
     color: "#1a1a2e"
 
+    property color accentColor: "#0f9d9a"
+    property color surfaceColor: "#16213e"
+    property color textColor: "#eaeaea"
+    property color dimTextColor: "#8a8a8a"
+    property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
+                              Qt.platform.os === "windows" ? "Consolas" : "monospace"
+
     // Test sound effect
     Sound {
         id: clickSound
@@ -34,9 +41,10 @@ Rectangle {
         width: parent.width * 0.8
 
         Text {
-            text: "Clayground Sound Plugin Test"
-            color: "#00d9ff"
-            font.pixelSize: 24
+            text: "Clayground.Sound"
+            color: root.accentColor
+            font.family: root.monoFont
+            font.pixelSize: 20
             font.bold: true
             anchors.horizontalCenter: parent.horizontalCenter
         }
@@ -48,7 +56,8 @@ Rectangle {
 
             Text {
                 text: "Volume:"
-                color: "white"
+                color: root.textColor
+                font.family: root.monoFont
                 anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -62,7 +71,8 @@ Rectangle {
 
             Text {
                 text: Math.round(volumeSlider.value * 100) + "%"
-                color: "white"
+                color: root.textColor
+                font.family: root.monoFont
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -71,7 +81,7 @@ Rectangle {
         Rectangle {
             width: parent.width
             height: soundColumn.height + 30
-            color: "#2d2d4a"
+            color: root.surfaceColor
             radius: 8
 
             Column {
@@ -81,8 +91,9 @@ Rectangle {
 
                 Text {
                     text: "Sound Effects"
-                    color: "#00d9ff"
-                    font.pixelSize: 18
+                    color: root.accentColor
+                    font.family: root.monoFont
+                    font.pixelSize: 16
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
@@ -112,8 +123,9 @@ Rectangle {
 
                 Text {
                     text: "Loaded: " + clickSound.loaded + " | Status: " + clickSound.status
-                    color: "#8b949e"
-                    font.pixelSize: 12
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -123,7 +135,7 @@ Rectangle {
         Rectangle {
             width: parent.width
             height: musicColumn.height + 30
-            color: "#2d2d4a"
+            color: root.surfaceColor
             radius: 8
 
             Column {
@@ -133,8 +145,9 @@ Rectangle {
 
                 Text {
                     text: "Background Music"
-                    color: "#00d9ff"
-                    font.pixelSize: 18
+                    color: root.accentColor
+                    font.family: root.monoFont
+                    font.pixelSize: 16
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
@@ -171,7 +184,8 @@ Rectangle {
 
                         contentItem: Text {
                             text: loopCheckbox.text
-                            color: "white"
+                            color: root.textColor
+                            font.family: root.monoFont
                             leftPadding: loopCheckbox.indicator.width + 5
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -182,8 +196,9 @@ Rectangle {
                     text: "Playing: " + bgMusic.playing +
                           " | Paused: " + bgMusic.paused +
                           " | Duration: " + bgMusic.duration + "ms"
-                    color: "#8b949e"
-                    font.pixelSize: 12
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -193,8 +208,9 @@ Rectangle {
         Text {
             id: statusText
             text: "Ready"
-            color: "#7EE787"
-            font.pixelSize: 14
+            color: "#4ade80"
+            font.family: root.monoFont
+            font.pixelSize: 12
             anchors.horizontalCenter: parent.horizontalCenter
         }
     }

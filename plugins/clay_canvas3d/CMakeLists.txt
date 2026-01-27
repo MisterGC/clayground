@@ -29,7 +29,6 @@ clay_plugin( Canvas3D
         box3d.vert
 
     QML_FILES
-        Sandbox.qml
         Box3D.qml
         BoxLine3D.qml
         Line3D.qml
@@ -37,10 +36,6 @@ clay_plugin( Canvas3D
         VoxelMap.qml
         DynamicVoxelMap.qml
         StaticVoxelMap.qml
-        Box3D_Example.qml
-        Box3DDemo.qml
-        LineDemo.qml
-        VoxelDemo.qml
 
     LINK_LIBS
         Qt::Core

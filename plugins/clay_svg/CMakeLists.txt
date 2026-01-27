@@ -14,7 +14,7 @@ qt_add_qml_module( ClaySvg
     ${CLAYPLUGIN_LINKING}
     OUTPUT_DIRECTORY  "${CLAY_PLUGIN_BASE_DIR}/Svg"
     SOURCES imageprovider.cpp svgplugin.cpp svgreader.cpp svgwriter.cpp
-    QML_FILES Sandbox.qml SvgImageSource.qml
+    QML_FILES SvgImageSource.qml
 
     # TODO: There is not yet a clean way to support for image providers, just
     # following the workaround described in  https://www.qt.io/blog/qml-modules-in-qt-6.2

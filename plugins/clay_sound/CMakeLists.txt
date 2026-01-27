@@ -22,7 +22,6 @@ clay_plugin(Sound
     QML_FILES
         Sound.qml
         Music.qml
-        Sandbox.qml
 
     LINK_LIBS
         Qt::Core

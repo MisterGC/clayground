@@ -18,7 +18,6 @@ set(COMMON_SOURCES
 set(COMMON_QML
     TextInference.qml
     AiModelManager.qml
-    Sandbox.qml
 )
 
 # Resources

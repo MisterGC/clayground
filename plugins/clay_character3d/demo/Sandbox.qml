@@ -6,9 +6,8 @@ import QtQuick.Layouts
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
+import Clayground.Character3D
 import Clayground.GameController
-import "control"
-import "bodyparts"
 
 Item {
     id: root

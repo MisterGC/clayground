@@ -10,9 +10,6 @@ clay_plugin( World
         ClayWorld3d.qml
         ClayWorldBase.qml
         Minimap2d.qml
-        Sandbox.qml
-        Sandbox2d.qml
-        Sandbox3d.qml
         SceneLoader2d.qml
         SceneLoader3d.qml
         SceneLoaderBase.qml
