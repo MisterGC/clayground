@@ -113,11 +113,25 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     add_subdirectory(tools/webdojo)
 
     # Register webdojo examples - copied from source locations at build time
-    # This eliminates duplicate QML files in docs/webdojo-examples/
-    clay_website_register_webdojo_example(plugins/clay_network/Sandbox.qml multiplayer.qml)
-    clay_website_register_webdojo_example(examples/voxelworld/Sandbox.qml voxelworld.qml)
-    clay_website_register_webdojo_example(plugins/clay_ai/Sandbox.qml ai_chat.qml)
-    clay_website_register_webdojo_example(docs/webdojo-examples/platform.qml platform.qml)
+    # Auto-detects file vs directory, enabling multi-file examples with relative imports
+
+    # Plugin demos (from demo/ subdirectories)
+    clay_website_register_webdojo_example(plugins/clay_canvas/demo canvas "Clayground.Canvas")
+    clay_website_register_webdojo_example(plugins/clay_canvas3d/demo canvas3d "Clayground.Canvas3D")
+    clay_website_register_webdojo_example(plugins/clay_text/demo text "Clayground.Text")
+    clay_website_register_webdojo_example(plugins/clay_sound/demo sound "Clayground.Sound")
+    clay_website_register_webdojo_example(plugins/clay_gamecontroller/demo gamecontroller "Clayground.GameController")
+    clay_website_register_webdojo_example(plugins/clay_network/demo network "Clayground.Network")
+    clay_website_register_webdojo_example(plugins/clay_ai/demo ai "Clayground.Ai")
+    clay_website_register_webdojo_example(plugins/clay_character3d/demo character3d "Clayground.Character3D")
+
+    # Full examples (entire directories copied for relative imports)
+    clay_website_register_webdojo_example(examples/voxelworld voxelworld "Voxel World")
+    clay_website_register_webdojo_example(examples/visualfx visualfx "Visual FX")
+
+    # Source files in webdojo-examples (not copied, just registered)
+    clay_website_register_webdojo_example(docs/webdojo-examples/platform platform "Platform Detection")
+    clay_website_register_webdojo_example(docs/webdojo-examples/empty empty "empty")
 endif()
 
 # Create website target after all demos are registered

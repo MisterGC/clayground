@@ -75,3 +75,15 @@ Thumbs.db
 
 build*
 .qmlls.ini
+
+# WASM build artifacts (built by CI)
+docs/demo/**/*.wasm
+docs/demo/**/*.js
+!docs/demo/**/*.html
+
+# WebDojo examples (copied from source by CMake at build time)
+# Keep source directories (empty/, platform/), ignore generated ones
+docs/webdojo-examples/*/
+!docs/webdojo-examples/empty/
+!docs/webdojo-examples/platform/
+docs/webdojo-examples/index.json

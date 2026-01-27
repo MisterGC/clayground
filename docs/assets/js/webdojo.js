@@ -356,7 +356,7 @@ function populateExampleSelector() {
 
 function getExamplesBaseUrl() {
     const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
-    return `${baseUrl}/webdojo-examples/`;
+    return `${window.location.origin}${baseUrl}/webdojo-examples/`;
 }
 
 async function fetchExample(name) {
@@ -445,7 +445,9 @@ async function initEditorWithVim(resolve, source) {
             initialCode = await fetchExample('empty') || EMPTY_TEMPLATE;
             break;
         case 'example':
-            initialCode = await fetchExample(source.name) || EMPTY_TEMPLATE;
+            // Examples now load via URL for relative import support
+            initialCode = '// Loading example...';
+            readOnly = true;
             break;
         case 'code':
             try {
@@ -488,8 +490,8 @@ async function initEditorWithVim(resolve, source) {
         });
     }
 
-    // URL source: add readonly badge and modify-copy button
-    if (source.type === 'url') {
+    // URL and example sources: add readonly badge and modify-copy button
+    if (source.type === 'url' || source.type === 'example') {
         setupUrlSourceEditor(source);
     }
 
@@ -577,8 +579,11 @@ function setupUrlSourceEditor(source) {
         });
     }
 
-    // Fetch and display the remote source
-    fetchAndDisplayQml(source.url);
+    // Fetch and display the source
+    const sourceUrl = source.type === 'url'
+        ? source.url
+        : getExamplesBaseUrl() + exampleFiles[source.name];
+    fetchAndDisplayQml(sourceUrl);
 }
 
 async function initWebDojo() {
@@ -646,8 +651,17 @@ function loadContent(source) {
             // URL sources use C++ loader for relative import support
             if (source.url) loadQmlFromUrlDirect(source.url);
             break;
+        case 'example':
+            // Examples now use URL loading for relative import support
+            if (exampleFiles[source.name]) {
+                const url = getExamplesBaseUrl() + exampleFiles[source.name];
+                loadQmlFromUrlDirect(url);
+                // Also fetch source for editor display
+                fetchAndDisplayQml(url);
+            }
+            break;
         default:
-            // All other types load from editor (if available) or directly
+            // All other types (empty, code) load from editor or directly
             if (editor) {
                 runQml();
             } else {
@@ -726,6 +740,11 @@ function runQmlDirect(code) {
 
 function loadQmlFromUrlDirect(url) {
     if (!webDojoModule) return;
+
+    // Ensure absolute URL so Qt WASM resolves via HTTP, not file://
+    if (url && !url.startsWith('http')) {
+        url = window.location.origin + (url.startsWith('/') ? '' : '/') + url;
+    }
 
     try {
         if (webDojoModule.loadQmlFromUrl) {
@@ -885,13 +904,9 @@ function setupExampleSelector(source) {
         // Update URL to reflect selected example
         updateHashParam('clay-src', `example:${value}`);
 
-        // Fetch and load
-        if (exampleFiles[value] && editor) {
-            const example = await fetchExample(value);
-            if (example) {
-                editor.setValue(example);
-                if (!autoReloadEnabled) runQml();
-            }
+        // Load example via URL for relative import support
+        if (exampleFiles[value]) {
+            loadContent({ type: 'example', name: value });
         }
     });
 }

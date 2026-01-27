@@ -21,6 +21,7 @@ clay_app(webdojo
         Qt::Qml
         Qt::Quick
         Qt::QuickControls2
+        Qt::QuickDialogs2
         Qt::QuickLayouts
         Qt::Quick3D
         Qt::Quick3DHelpers

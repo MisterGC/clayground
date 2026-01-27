@@ -13,15 +13,30 @@
 #   - clay_website_create_target() - Create the 'website' and 'website-dev' build targets
 
 set(CLAY_WEBSITE_DEMOS "" CACHE INTERNAL "List of WASM demos to include in website")
-set(CLAY_WEBDOJO_EXAMPLES "" CACHE INTERNAL "WebDojo example mappings (source:dest)")
+set(CLAY_WEBDOJO_EXAMPLES "" CACHE INTERNAL "WebDojo example registrations")
 
-# Register a QML file as a webdojo example (copied at build time)
-# SOURCE_PATH: Relative path from project root (e.g., plugins/clay_network/Sandbox.qml)
-# DEST_NAME: Name in webdojo-examples (e.g., multiplayer.qml)
-function(clay_website_register_webdojo_example SOURCE_PATH DEST_NAME)
+# Register a webdojo example - auto-detects file vs directory
+# SOURCE: Path to file or directory (e.g., plugins/clay_canvas3d/demo)
+# DEST_DIR: Directory name in webdojo-examples (e.g., canvas3d)
+# DISPLAY_NAME: Human-readable name for the example selector
+# ENTRY_FILE: (optional) Entry point filename, defaults to Sandbox.qml
+function(clay_website_register_webdojo_example SOURCE DEST_DIR DISPLAY_NAME)
+    if(ARGC GREATER 3)
+        set(ENTRY_FILE "${ARGV3}")
+    else()
+        set(ENTRY_FILE "Sandbox.qml")
+    endif()
+
+    # Detect if source is file or directory
+    if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/${SOURCE})
+        set(SOURCE_TYPE "dir")
+    else()
+        set(SOURCE_TYPE "file")
+    endif()
+
     set(CLAY_WEBDOJO_EXAMPLES ${CLAY_WEBDOJO_EXAMPLES}
-        "${SOURCE_PATH}:${DEST_NAME}" CACHE INTERNAL "")
-    message(STATUS "WebDojo example: ${DEST_NAME} <- ${SOURCE_PATH}")
+        "${SOURCE}:${DEST_DIR}:${DISPLAY_NAME}:${ENTRY_FILE}:${SOURCE_TYPE}" CACHE INTERNAL "")
+    message(STATUS "WebDojo example: ${DISPLAY_NAME} (${SOURCE_TYPE}) <- ${SOURCE}")
 endfunction()
 
 # Check all prerequisites at configure time (fail fast)
@@ -89,36 +104,49 @@ function(clay_website_create_target)
     )
 
     # Generate index.json for webdojo examples (at configure time)
-    # This allows the JS to dynamically discover available examples
+    # Maps display names to directory-based paths for URL loading
     set(EXAMPLES_JSON "{\n")
     set(FIRST_ENTRY TRUE)
     foreach(MAPPING IN LISTS CLAY_WEBDOJO_EXAMPLES)
         string(REPLACE ":" ";" PARTS "${MAPPING}")
-        list(GET PARTS 1 DEST)
-        # Extract name without .qml extension for the key
-        string(REGEX REPLACE "\\.qml$" "" NAME "${DEST}")
+        list(GET PARTS 1 DEST_DIR)
+        list(GET PARTS 2 DISPLAY_NAME)
+        list(GET PARTS 3 ENTRY_FILE)
         if(NOT FIRST_ENTRY)
             string(APPEND EXAMPLES_JSON ",\n")
         endif()
         set(FIRST_ENTRY FALSE)
-        string(APPEND EXAMPLES_JSON "  \"${NAME}\": \"${DEST}\"")
+        string(APPEND EXAMPLES_JSON "  \"${DISPLAY_NAME}\": \"${DEST_DIR}/${ENTRY_FILE}\"")
     endforeach()
     string(APPEND EXAMPLES_JSON "\n}")
     file(WRITE ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/index.json "${EXAMPLES_JSON}")
-    message(STATUS "Generated webdojo-examples/index.json with ${CLAY_WEBDOJO_EXAMPLES}")
+    message(STATUS "Generated webdojo-examples/index.json")
 
-    # Sync webdojo examples from source locations (plugin sandboxes, example sandboxes)
-    # This eliminates duplicate QML files - source of truth is in plugins/examples
+    # Sync webdojo examples - auto-detect file vs directory
     set(WEBDOJO_COPY_COMMANDS "")
     foreach(MAPPING IN LISTS CLAY_WEBDOJO_EXAMPLES)
         string(REPLACE ":" ";" PARTS "${MAPPING}")
         list(GET PARTS 0 SOURCE)
-        list(GET PARTS 1 DEST)
-        list(APPEND WEBDOJO_COPY_COMMANDS
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_SOURCE_DIR}/${SOURCE}
-                ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST}
-        )
+        list(GET PARTS 1 DEST_DIR)
+        list(GET PARTS 4 SOURCE_TYPE)
+
+        if(SOURCE_TYPE STREQUAL "dir")
+            # Copy entire directory
+            list(APPEND WEBDOJO_COPY_COMMANDS
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/${SOURCE}
+                    ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}
+            )
+        else()
+            # Copy single file into directory as Sandbox.qml
+            list(APPEND WEBDOJO_COPY_COMMANDS
+                COMMAND ${CMAKE_COMMAND} -E make_directory
+                    ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_SOURCE_DIR}/${SOURCE}
+                    ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}/Sandbox.qml
+            )
+        endif()
     endforeach()
 
     add_custom_target(website-sync-webdojo-examples
