@@ -199,7 +199,7 @@ function migrateLegacyHash() {
 
 function applyUIVisibility(visibility) {
     if (!visibility.editor) {
-        document.getElementById('editor-pane')?.remove();
+        document.getElementById('left-section')?.remove();
         document.getElementById('divider')?.remove();
         const canvasPane = document.getElementById('canvas-pane');
         if (canvasPane) {
@@ -428,22 +428,45 @@ function buildGallery() {
     }
 }
 
+function switchToView(view) {
+    const galleryPane = document.getElementById('gallery-pane');
+    const editorPane = document.getElementById('editor-pane');
+    const galleryBtn = document.getElementById('sidebar-gallery');
+    const editorBtn = document.getElementById('sidebar-editor');
+
+    if (view === 'gallery') {
+        galleryPane?.classList.remove('hidden');
+        editorPane?.classList.add('hidden');
+        galleryBtn?.classList.add('active');
+        editorBtn?.classList.remove('active');
+    } else {
+        galleryPane?.classList.add('hidden');
+        editorPane?.classList.remove('hidden');
+        galleryBtn?.classList.remove('active');
+        editorBtn?.classList.add('active');
+        if (editor) {
+            setTimeout(() => editor.layout(), 50);
+        }
+    }
+}
+
 function setupGallery() {
     const filterInput = document.getElementById('gallery-filter-input');
     if (filterInput) {
         filterInput.addEventListener('input', () => buildGallery());
     }
 
-    const toggleBtn = document.getElementById('gallery-toggle');
-    const galleryPane = document.getElementById('gallery-pane');
-    if (toggleBtn && galleryPane) {
-        toggleBtn.addEventListener('click', () => {
-            galleryPane.classList.toggle('collapsed');
-            toggleBtn.classList.toggle('active');
-        });
-    }
+    // Sidebar icon buttons
+    const galleryBtn = document.getElementById('sidebar-gallery');
+    const editorBtn = document.getElementById('sidebar-editor');
+    const newBtn = document.getElementById('sidebar-new');
 
-    const newBtn = document.getElementById('new-script-button');
+    if (galleryBtn) {
+        galleryBtn.addEventListener('click', () => switchToView('gallery'));
+    }
+    if (editorBtn) {
+        editorBtn.addEventListener('click', () => switchToView('editor'));
+    }
     if (newBtn) {
         newBtn.addEventListener('click', () => {
             updateHashParam('clay-src', null);
@@ -455,8 +478,8 @@ function setupGallery() {
                 });
                 enableEditControls();
             }
-            // Deselect gallery items
             document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
+            switchToView('editor');
         });
     }
 
@@ -852,20 +875,15 @@ function logToConsole(message, type = 'log') {
 // ============================================================================
 
 function setupEventHandlers(source, visibility) {
-    // Gallery setup
-    const params = parseHashParams();
-    const galleryVisible = resolveBool(params['clay-gal'], visibility.editor ? 1 : 0);
-    const galleryPane = document.getElementById('gallery-pane');
-    const galleryToggle = document.getElementById('gallery-toggle');
-
-    if (!galleryVisible && galleryPane) {
-        galleryPane.classList.add('collapsed');
-    }
+    // Gallery/sidebar setup
     if (!visibility.editor && !visibility.header) {
-        galleryPane?.remove();
-        galleryToggle?.remove();
+        document.getElementById('left-section')?.remove();
     } else {
         setupGallery();
+        // Start on gallery view unless source is code/url (editing context)
+        if (source.type === 'code') {
+            switchToView('editor');
+        }
     }
 
     // Auto-reload toggle
@@ -1130,9 +1148,9 @@ function enableEditControls() {
 function setupResizableDivider() {
     const divider = document.getElementById('divider');
     const container = document.getElementById('playground-container');
-    const editorPane = document.getElementById('editor-pane');
+    const leftSection = document.getElementById('left-section');
 
-    if (!divider || !container || !editorPane) return;
+    if (!divider || !container || !leftSection) return;
 
     let isResizing = false;
     let pendingWidth = null;
@@ -1152,8 +1170,8 @@ function setupResizableDivider() {
 
         if (newWidth >= minWidth && newWidth <= maxWidth) {
             pendingWidth = newWidth;
-            editorPane.style.flex = 'none';
-            editorPane.style.width = `${newWidth}px`;
+            leftSection.style.flex = 'none';
+            leftSection.style.width = `${newWidth}px`;
         }
     });
 

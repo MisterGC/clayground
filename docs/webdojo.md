@@ -14,7 +14,6 @@ permalink: /webdojo/
         <span class="webdojo-title">Web Dojo</span>
     </a>
     <div class="webdojo-controls">
-        <button id="gallery-toggle" class="gallery-toggle" title="Toggle gallery">☰</button>
         <button id="share-button" class="share-button">🔗 Share</button>
         <button id="standalone-button" class="standalone-button">▶ Standalone</button>
     </div>
@@ -22,17 +21,30 @@ permalink: /webdojo/
 </div>
 
 <div id="playground-container" class="playground-container">
-    <div id="gallery-pane" class="gallery-pane">
-        <div class="gallery-filter">
-            <input type="text" id="gallery-filter-input" placeholder="Filter examples..." aria-label="Filter examples">
-        </div>
-        <div id="gallery-list" class="gallery-list">
-            <!-- Populated dynamically from index.json -->
-        </div>
-        <button id="new-script-button" class="new-script-button">+ New Script</button>
+    <div id="left-section" class="left-section">
+    <div id="sidebar-icons" class="sidebar-icons">
+        <button id="sidebar-gallery" class="sidebar-icon active" title="Gallery">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect x="1" y="1" width="8" height="8" rx="1"/><rect x="11" y="1" width="8" height="8" rx="1"/><rect x="1" y="11" width="8" height="8" rx="1"/><rect x="11" y="11" width="8" height="8" rx="1"/></svg>
+        </button>
+        <button id="sidebar-editor" class="sidebar-icon" title="Editor">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3h16v1H2zm0 3h12v1H2zm0 3h14v1H2zm0 3h10v1H2zm0 3h16v1H2z"/></svg>
+        </button>
+        <button id="sidebar-new" class="sidebar-icon" title="New Script">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M9 3v6H3v2h6v6h2v-6h6V9h-6V3z"/></svg>
+        </button>
     </div>
 
-    <div id="editor-pane" class="editor-pane">
+    <div id="left-pane" class="left-pane">
+        <div id="gallery-pane" class="gallery-pane">
+            <div class="gallery-filter">
+                <input type="text" id="gallery-filter-input" placeholder="Filter examples..." aria-label="Filter examples">
+            </div>
+            <div id="gallery-list" class="gallery-list">
+                <!-- Populated dynamically from index.json -->
+            </div>
+        </div>
+
+        <div id="editor-pane" class="editor-pane hidden">
         <div id="editor-container"></div>
         <div class="editor-controls">
             <div class="editor-controls-left">
@@ -48,6 +60,8 @@ permalink: /webdojo/
             </div>
             <button id="run-button" class="run-button">▶ Run</button>
         </div>
+    </div>
+    </div>
     </div>
 
     <div class="divider" id="divider"></div>

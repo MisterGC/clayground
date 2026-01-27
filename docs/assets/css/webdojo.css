@@ -64,27 +64,6 @@
     font-size: 0.85rem;
 }
 
-.gallery-toggle {
-    padding: 0.35rem 0.75rem;
-    background: var(--bg-dark, #0d1117);
-    color: var(--text-primary, #e6edf3);
-    border: 1px solid var(--border-color, #30363d);
-    border-radius: 4px;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.gallery-toggle:hover {
-    border-color: var(--accent-primary, #00d9ff);
-}
-
-.gallery-toggle.active {
-    background: var(--accent-primary, #00d9ff);
-    color: var(--bg-dark, #0d1117);
-    border-color: var(--accent-primary, #00d9ff);
-}
-
 .version-display {
     color: var(--text-secondary, #8b949e);
     font-size: 0.75rem;
@@ -93,25 +72,86 @@
     padding-right: 0.5rem;
 }
 
-/* Gallery sidebar */
+/* Sidebar icon bar */
+.sidebar-icons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.25rem;
+    background: var(--bg-secondary, #161b22);
+    border-right: 1px solid var(--border-color, #30363d);
+    flex-shrink: 0;
+}
+
+.sidebar-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.sidebar-icon:hover {
+    color: var(--text-primary, #e6edf3);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-icon.active {
+    color: var(--accent-primary, #00d9ff);
+    background: rgba(0, 217, 255, 0.1);
+}
+
+.sidebar-icon.active::before {
+    content: '';
+    position: absolute;
+    left: -0.25rem;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    background: var(--accent-primary, #00d9ff);
+    border-radius: 2px;
+}
+
+/* Left pane - contains gallery OR editor */
+.left-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    overflow: hidden;
+}
+
+/* Left section wrapper (sidebar-icons + left-pane) for splitter targeting */
+.left-section {
+    display: flex;
+    flex: 1;
+    min-width: 300px;
+    overflow: hidden;
+}
+
+/* Gallery view */
 .gallery-pane {
-    width: 280px;
-    min-width: 280px;
-    max-width: 280px;
+    flex: 1;
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary, #161b22);
-    border-right: 1px solid var(--border-color, #30363d);
     overflow: hidden;
-    transition: width 0.2s, min-width 0.2s, max-width 0.2s, opacity 0.2s;
 }
 
-.gallery-pane.collapsed {
-    width: 0;
-    min-width: 0;
-    max-width: 0;
-    opacity: 0;
-    border-right: none;
+.gallery-pane.hidden {
+    display: none;
+}
+
+.hidden {
+    display: none !important;
 }
 
 .gallery-filter {
@@ -204,23 +244,6 @@
     color: var(--bg-dark, #0d1117);
 }
 
-.new-script-button {
-    margin: 0.5rem;
-    padding: 0.5rem;
-    background: transparent;
-    color: var(--accent-primary, #00d9ff);
-    border: 1px dashed var(--border-color, #30363d);
-    border-radius: 4px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-}
-
-.new-script-button:hover {
-    border-color: var(--accent-primary, #00d9ff);
-    background: rgba(0, 217, 255, 0.05);
-}
 
 .share-button {
     padding: 0.35rem 0.75rem;
@@ -342,7 +365,6 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-width: 300px;
 }
 
 #editor-container {
@@ -446,7 +468,7 @@
 }
 
 .canvas-pane {
-    flex: 1;
+    flex: 2;
     position: relative;
     min-width: 300px;
     min-height: 400px;
@@ -688,18 +710,23 @@
         flex-direction: column;
     }
 
-    .gallery-pane {
-        width: 100%;
-        min-width: 100%;
-        max-width: 100%;
-        max-height: 200px;
+    .sidebar-icons {
+        flex-direction: row;
         border-right: none;
         border-bottom: 1px solid var(--border-color, #30363d);
     }
 
-    .gallery-pane.collapsed {
-        max-height: 0;
-        min-width: 0;
+    .sidebar-icon.active::before {
+        left: 6px;
+        right: 6px;
+        top: auto;
+        bottom: -0.25rem;
+        width: auto;
+        height: 3px;
+    }
+
+    .left-pane {
+        min-width: 100%;
     }
 
     .editor-pane,
