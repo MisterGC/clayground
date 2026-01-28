@@ -8,6 +8,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick3D.Helpers
 import QtQuick.LocalStorage
+import QtQuick.Particles
 import QtMultimedia
 import Clayground.Sound
 
