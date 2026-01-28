@@ -6,7 +6,8 @@
     margin: 0;
     padding: 0;
     background: var(--bg-dark, #0d1117);
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -471,7 +472,6 @@
     flex: 2;
     position: relative;
     min-width: 300px;
-    min-height: 400px;
     background: #1a1a2e;
 }
 
