@@ -58,6 +58,97 @@ function updateHashParam(key, value) {
 }
 
 // ============================================================================
+// Version Resolution (clay-version parameter)
+// ============================================================================
+
+const GITHUB_REPO = 'mistergc/clayground';
+const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/download`;
+const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases`;
+
+let resolvedVersion = null;  // Cache resolved version
+
+function getClayVersion() {
+    const params = parseHashParams();
+    return params['clay-version'] || null;
+}
+
+async function resolveVersion(version) {
+    // Default to 'dev' if not specified
+    if (!version) {
+        version = 'dev';
+        updateHashParam('clay-version', 'dev');
+    }
+
+    if (version === 'dev') {
+        return { version: 'dev', isLocal: true };
+    }
+
+    if (version === 'latest') {
+        try {
+            const resp = await fetch(`${GITHUB_API_URL}/latest`);
+            if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+            const data = await resp.json();
+            const tag = data.tag_name;  // e.g., "v2026.1.0"
+            return { version: tag, isLocal: false, tag };
+        } catch (e) {
+            console.warn('Failed to fetch latest release, falling back to dev:', e);
+            logToConsole('Failed to fetch latest release, using dev version', 'warning');
+            return { version: 'dev', isLocal: true };
+        }
+    }
+
+    // Specific version (e.g., "2026.1.0" or "v2026.1.0")
+    const tag = version.startsWith('v') ? version : `v${version}`;
+
+    // Verify the release exists before trying to load from it
+    try {
+        const resp = await fetch(`${GITHUB_API_URL}/tags/${tag}`);
+        if (!resp.ok) {
+            console.warn(`Release ${tag} not found, falling back to dev`);
+            logToConsole(`Version ${version} not found, using dev`, 'warning');
+            updateHashParam('clay-version', 'dev');
+            return { version: 'dev', isLocal: true };
+        }
+        return { version: version, isLocal: false, tag };
+    } catch (e) {
+        console.warn(`Failed to verify release ${tag}, falling back to dev:`, e);
+        logToConsole(`Could not verify version ${version}, using dev`, 'warning');
+        updateHashParam('clay-version', 'dev');
+        return { version: 'dev', isLocal: true };
+    }
+}
+
+function getWasmBasePath(versionInfo) {
+    const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
+
+    if (versionInfo.isLocal) {
+        // Local dev version from GitHub Pages
+        return `${baseUrl}/demo/webdojo/`;
+    }
+
+    // Release version from GitHub Release assets
+    return `${GITHUB_RELEASES_URL}/${versionInfo.tag}/`;
+}
+
+async function fetchAvailableVersions() {
+    try {
+        const resp = await fetch(GITHUB_API_URL);
+        if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+        const releases = await resp.json();
+        return releases
+            .filter(r => !r.draft && !r.prerelease)
+            .map(r => ({
+                tag: r.tag_name,
+                name: r.name || r.tag_name,
+                date: r.published_at
+            }));
+    } catch (e) {
+        console.warn('Failed to fetch releases:', e);
+        return [];
+    }
+}
+
+// ============================================================================
 // Content Source & UI Visibility
 // ============================================================================
 
@@ -421,10 +512,15 @@ function buildGallery() {
         list.appendChild(item);
     }
 
-    // Show version
+    // Show version (WASM version takes precedence if resolved)
     const versionEl = document.getElementById('version-display');
-    if (versionEl && claygroundVersion) {
-        versionEl.textContent = `Clayground ${claygroundVersion}`;
+    if (versionEl) {
+        if (resolvedVersion) {
+            const wasmVer = resolvedVersion.isLocal ? 'dev' : resolvedVersion.tag;
+            versionEl.textContent = `WebDojo ${wasmVer}`;
+        } else if (claygroundVersion) {
+            versionEl.textContent = `Clayground ${claygroundVersion}`;
+        }
     }
 }
 
@@ -686,8 +782,15 @@ async function initWebDojo() {
             throw new Error('Qt loader not found. Make sure qtloader.js is included.');
         }
 
-        const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
-        const wasmPath = `${baseUrl}/demo/webdojo/`;
+        // Resolve version and get WASM path
+        const requestedVersion = getClayVersion();
+        resolvedVersion = await resolveVersion(requestedVersion);
+        const wasmPath = getWasmBasePath(resolvedVersion);
+
+        const versionLabel = resolvedVersion.isLocal ? 'dev' : resolvedVersion.tag;
+        if (loadingOverlay) {
+            loadingOverlay.querySelector('span').textContent = `Loading WebDojo (${versionLabel})...`;
+        }
 
         webDojoModule = await qtLoad({
             locateFile: (path, scriptDir) => wasmPath + path,
@@ -696,7 +799,8 @@ async function initWebDojo() {
                     if (loadingOverlay) {
                         loadingOverlay.classList.add('hidden');
                     }
-                    logToConsole('WebDojo initialized successfully', 'success');
+                    const versionMsg = resolvedVersion.isLocal ? 'dev' : resolvedVersion.tag;
+                    logToConsole(`WebDojo initialized (${versionMsg})`, 'success');
 
                     // Fix Qt WASM keyboard focus (QTBUG-91095)
                     setTimeout(() => {
