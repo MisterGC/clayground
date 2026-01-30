@@ -1,0 +1,343 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype ClayWorldBase
+    \inqmlmodule Clayground.World
+    \brief Common base functionality for 2D and 3D game worlds.
+
+    ClayWorldBase provides shared functionality for ClayWorld2d and ClayWorld3d
+    including scene loading from SVG, component registration, and entity
+    management signals.
+
+    \section1 Properties
+
+    \qmlproperty string ClayWorldBase::scene
+    SVG file path for level data (relative to resources).
+
+    \qmlproperty var ClayWorldBase::components
+    Map of component name to QML Component for scene loading.
+
+    \qmlproperty bool ClayWorldBase::loadMapAsync
+    If true, entities are loaded asynchronously without blocking UI.
+
+    \qmlproperty bool ClayWorldBase::debugRendering
+    Show debug visualization (axis helpers, etc.).
+
+    \qmlproperty bool ClayWorldBase::debugPhysics
+    Show physics debug rendering.
+
+    \section1 Signals
+
+    \qmlsignal ClayWorldBase::mapAboutToBeLoaded()
+    Emitted before scene loading begins.
+
+    \qmlsignal ClayWorldBase::mapLoaded()
+    Emitted when scene loading is complete.
+
+    \qmlsignal ClayWorldBase::mapEntityAboutToBeCreated(var groupId, var compName)
+    Emitted before an entity is created.
+
+    \qmlsignal ClayWorldBase::mapEntityCreated(var obj, var groupId, var compName)
+    Emitted after an entity is created.
+
+    \qmlsignal ClayWorldBase::polylineLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    Emitted for unregistered polylines in the scene.
+
+    \qmlsignal ClayWorldBase::polygonLoaded(var id, var groupId, var points, var fillColor, var strokeColor, var description)
+    Emitted for unregistered polygons in the scene.
+
+    \qmlsignal ClayWorldBase::rectangleLoaded(var id, var groupId, var x, var y, var width, var height, var fillColor, var strokeColor, var description)
+    Emitted for unregistered rectangles in the scene.
+
+    \qmlsignal ClayWorldBase::circleLoaded(var id, var groupId, var x, var y, var radius, var fillColor, var strokeColor, var description)
+    Emitted for unregistered circles in the scene.
+
+    \qmlsignal ClayWorldBase::groupAboutToBeLoaded(var id, var description)
+    Emitted when entering an SVG group.
+
+    \qmlsignal ClayWorldBase::groupLoaded(var id)
+    Emitted when an SVG group is fully loaded.
+*/
+
+/*!
+    \qmltype ClayWorld2d
+    \inqmlmodule Clayground.World
+    \brief Complete 2D game world with physics, rendering, and scene loading.
+
+    ClayWorld2d integrates ClayCanvas for rendering, Box2D for physics, and
+    SVG-based scene loading into a single component. Physics bodies added as
+    children are automatically parented to the room and configured.
+
+    Example usage:
+    \qml
+    import Clayground.World
+    import Clayground.Physics
+
+    ClayWorld2d {
+        anchors.fill: parent
+        xWuMax: 100; yWuMax: 50
+        gravity: Qt.point(0, 10)
+        observedItem: player
+
+        RectBoxBody {
+            id: player
+            xWu: 10; yWu: 10
+            widthWu: 2; heightWu: 2
+            bodyType: Body.Dynamic
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas ClayWorld2d::canvas
+    \readonly
+    The rendering canvas.
+
+    \qmlproperty Item ClayWorld2d::room
+    Container for all world entities.
+
+    \qmlproperty bool ClayWorld2d::running
+    Whether physics simulation is running.
+
+    \qmlproperty real ClayWorld2d::xWuMin
+    Minimum X coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::xWuMax
+    Maximum X coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::yWuMin
+    Minimum Y coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::yWuMax
+    Maximum Y coordinate in world units.
+
+    \qmlproperty real ClayWorld2d::pixelPerUnit
+    Pixels per world unit for rendering.
+
+    \qmlproperty real ClayWorld2d::viewPortCenterWuX
+    Viewport center X in world units.
+
+    \qmlproperty real ClayWorld2d::viewPortCenterWuY
+    Viewport center Y in world units.
+
+    \qmlproperty var ClayWorld2d::observedItem
+    Item the camera follows.
+
+    \qmlproperty World ClayWorld2d::physics
+    The Box2D physics world.
+
+    \qmlproperty point ClayWorld2d::gravity
+    Gravity vector for physics.
+
+    \qmlproperty real ClayWorld2d::timeStep
+    Physics simulation timestep.
+
+    \qmlproperty bool ClayWorld2d::physicsEnabled
+    Whether physics is enabled.
+
+    \qmlproperty real ClayWorld2d::baseZCoord
+    Base Z coordinate for loaded entities.
+
+    \qmlproperty real ClayWorld2d::lastZCoord
+    Last used Z coordinate.
+*/
+
+/*!
+    \qmltype ClayWorld3d
+    \inqmlmodule Clayground.World
+    \brief Complete 3D game world with physics, camera, and scene loading.
+
+    ClayWorld3d provides a 3D game world with Qt Quick 3D physics, automatic
+    camera following or free WASD camera control, and SVG-based scene loading.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    ClayWorld3d {
+        anchors.fill: parent
+        xWuMax: 200; zWuMax: 200
+        observedObject: player
+
+        Box3DBody {
+            id: player
+            position: Qt.vector3d(50, 10, 50)
+            width: 20; height: 20; depth: 20
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Node ClayWorld3d::root
+    \readonly
+    Root 3D scene node for adding entities.
+
+    \qmlproperty PhysicsWorld ClayWorld3d::physics
+    \readonly
+    The Qt Quick 3D physics world.
+
+    \qmlproperty Node ClayWorld3d::observedObject
+    Object the camera follows. Set to null for free camera.
+
+    \qmlproperty vector3d ClayWorld3d::observationOffset
+    Camera offset from observed object.
+
+    \qmlproperty PerspectiveCamera ClayWorld3d::camera
+    The main camera.
+
+    \qmlproperty bool ClayWorld3d::freeCamera
+    \readonly
+    True when WASD camera control is active.
+
+    \qmlproperty real ClayWorld3d::xWuMin
+    \readonly
+    Minimum X coordinate (always 0).
+
+    \qmlproperty real ClayWorld3d::xWuMax
+    Maximum X world size.
+
+    \qmlproperty real ClayWorld3d::zWuMin
+    \readonly
+    Minimum Z coordinate (always 0).
+
+    \qmlproperty real ClayWorld3d::zWuMax
+    Maximum Z world size.
+
+    \qmlproperty StaticRigidBody ClayWorld3d::floor
+    The ground plane physics body.
+*/
+
+/*!
+    \qmltype SceneLoaderBase
+    \inqmlmodule Clayground.World
+    \brief Base scene loader for parsing SVG files into game entities.
+
+    SceneLoaderBase reads SVG files and creates game entities based on registered
+    components. It supports async loading and emits signals for unhandled shapes.
+
+    \section1 Properties
+
+    \qmlproperty bool SceneLoaderBase::active
+    Whether the loader is active.
+
+    \qmlproperty string SceneLoaderBase::sceneSource
+    Path to the SVG file to load.
+
+    \qmlproperty bool SceneLoaderBase::loadEntitiesAsync
+    If true, entities are created asynchronously.
+
+    \qmlproperty var SceneLoaderBase::entities
+    Array of created entities.
+
+    \qmlproperty var SceneLoaderBase::world
+    The world to populate with entities.
+
+    \qmlproperty var SceneLoaderBase::components
+    Map of component names to QML Components.
+
+    \qmlproperty bool SceneLoaderBase::loadingFinished
+    \readonly
+    True when all entities have been created.
+
+    \section1 Signals
+
+    \qmlsignal SceneLoaderBase::loaded()
+    Emitted when scene loading is complete.
+*/
+
+/*!
+    \qmltype SceneLoader2d
+    \inqmlmodule Clayground.World
+    \brief Scene loader specialized for 2D worlds.
+
+    SceneLoader2d extends SceneLoaderBase with 2D-specific handling for
+    rectangles, polygons, and Z-coordinate management for ClayWorld2d.
+
+    \section1 Properties
+
+    \qmlproperty real SceneLoader2d::baseZCoord
+    Base Z coordinate for loaded entities.
+
+    \qmlproperty real SceneLoader2d::lastZCoord
+    Last used Z coordinate, incremented for each entity.
+*/
+
+/*!
+    \qmltype Minimap2d
+    \inqmlmodule Clayground.World
+    \brief Miniature map view of a 2D world.
+
+    Minimap2d displays a scaled-down view of a ClayWorld2d, showing entities
+    as simple shapes based on type mapping.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    Minimap2d {
+        world: gameWorld
+        width: 200; height: 150
+        anchors.right: parent.right
+        anchors.top: parent.top
+
+        typeMapping: new Map([
+            ["Player", playerDotComponent],
+            ["Enemy", enemyDotComponent]
+        ])
+
+        Component { id: playerDotComponent; Rectangle { color: "green" } }
+        Component { id: enemyDotComponent; Rectangle { color: "red" } }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayWorld2d Minimap2d::world
+    The world to display. Required.
+
+    \qmlproperty var Minimap2d::typeMapping
+    Map of entity type names to QML Components for rendering.
+*/
+
+/*!
+    \qmltype Box3DBody
+    \inqmlmodule Clayground.World
+    \brief 3D physics-enabled box with visual representation.
+
+    Box3DBody combines a Canvas3D Box3D visual with a dynamic rigid body
+    physics shape. It provides a simple way to create physics-enabled 3D objects.
+
+    Example usage:
+    \qml
+    import Clayground.World
+
+    Box3DBody {
+        position: Qt.vector3d(50, 10, 50)
+        width: 20; height: 20; depth: 20
+        color: "orange"
+        density: 10
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real Box3DBody::width
+    Box width in world units.
+
+    \qmlproperty real Box3DBody::height
+    Box height in world units.
+
+    \qmlproperty real Box3DBody::depth
+    Box depth in world units.
+
+    \qmlproperty color Box3DBody::color
+    Box color.
+
+    \qmlproperty int Box3DBody::scaledFace
+    Which face to scale (Box3DGeometry enum).
+
+    \qmlproperty vector2d Box3DBody::faceScale
+    Scale factor for the scaled face.
+*/

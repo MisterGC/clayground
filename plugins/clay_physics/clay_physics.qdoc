@@ -1,0 +1,345 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype PhysicsItem
+    \inqmlmodule Clayground.Physics
+    \brief Base component for physics-enabled items with world unit support.
+
+    PhysicsItem provides the foundation for all physics-enabled components,
+    handling bidirectional coordinate synchronization between world units and
+    screen pixels, and wrapping a Box2D Body.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    PhysicsItem {
+        xWu: 5; yWu: 10
+        widthWu: 2; heightWu: 1
+        pixelPerUnit: 50
+        bodyType: Body.Dynamic
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real PhysicsItem::pixelPerUnit
+    Conversion factor between pixels and world units.
+
+    \qmlproperty real PhysicsItem::xWu
+    X position in world units.
+
+    \qmlproperty real PhysicsItem::yWu
+    Y position in world units.
+
+    \qmlproperty real PhysicsItem::widthWu
+    Width in world units.
+
+    \qmlproperty real PhysicsItem::heightWu
+    Height in world units.
+
+    \qmlproperty Body PhysicsItem::body
+    The Box2D body instance.
+
+    \qmlproperty World PhysicsItem::world
+    Physics world reference. Auto-detected if physicsWorld exists in context.
+
+    \qmlproperty real PhysicsItem::linearDamping
+    Linear motion damping coefficient.
+
+    \qmlproperty real PhysicsItem::angularDamping
+    Angular motion damping coefficient.
+
+    \qmlproperty Body.BodyType PhysicsItem::bodyType
+    Body type: Body.Static, Body.Kinematic, or Body.Dynamic.
+
+    \qmlproperty bool PhysicsItem::bullet
+    Enable continuous collision detection for fast-moving objects.
+
+    \qmlproperty bool PhysicsItem::sleepingAllowed
+    Whether the body can sleep when inactive.
+
+    \qmlproperty bool PhysicsItem::fixedRotation
+    Prevent the body from rotating.
+
+    \qmlproperty bool PhysicsItem::active
+    Whether the body is active in the physics simulation.
+
+    \qmlproperty bool PhysicsItem::awake
+    Whether the body is awake (not sleeping).
+
+    \qmlproperty point PhysicsItem::linearVelocity
+    Linear velocity vector (x, y).
+
+    \qmlproperty real PhysicsItem::angularVelocity
+    Angular velocity in radians per second.
+
+    \qmlproperty list PhysicsItem::fixtures
+    List of fixtures attached to this body.
+
+    \qmlproperty real PhysicsItem::gravityScale
+    Gravity effect multiplier for this body.
+*/
+
+/*!
+    \qmltype RectBoxBody
+    \inqmlmodule Clayground.Physics
+    \brief Rectangle-shaped physics body with visual representation.
+
+    RectBoxBody combines a visual Rectangle with a Box2D box fixture,
+    providing an easy way to create rectangular physics objects.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    RectBoxBody {
+        xWu: 5; yWu: 10
+        widthWu: 2; heightWu: 1
+        color: "blue"
+        bodyType: Body.Dynamic
+        density: 1
+        friction: 0.3
+        restitution: 0.5
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Fixture RectBoxBody::fixture
+    The Box2D box fixture.
+
+    \qmlproperty color RectBoxBody::color
+    Fill color of the rectangle.
+
+    \qmlproperty real RectBoxBody::radius
+    Corner radius of the rectangle.
+
+    \qmlproperty Border RectBoxBody::border
+    Border properties of the rectangle.
+
+    \qmlproperty real RectBoxBody::density
+    Fixture density affecting mass.
+
+    \qmlproperty real RectBoxBody::friction
+    Friction coefficient (0-1).
+
+    \qmlproperty real RectBoxBody::restitution
+    Bounciness coefficient (0-1).
+
+    \qmlproperty bool RectBoxBody::sensor
+    If true, detects collisions without physical response.
+
+    \qmlproperty int RectBoxBody::categories
+    Collision category bits.
+
+    \qmlproperty int RectBoxBody::collidesWith
+    Collision mask bits.
+
+    \qmlproperty int RectBoxBody::groupIndex
+    Collision group index.
+*/
+
+/*!
+    \qmltype ImageBoxBody
+    \inqmlmodule Clayground.Physics
+    \brief Image-based physics body with Box2D box collision.
+
+    ImageBoxBody displays an image and provides a rectangular box fixture
+    for physics collision. Useful for sprites that need physics interaction.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    ImageBoxBody {
+        source: "coin.png"
+        xWu: 10; yWu: 5
+        widthWu: 0.5; heightWu: 0.5
+        bodyType: Body.Static
+        sensor: true
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Fixture ImageBoxBody::fixture
+    The Box2D box fixture.
+
+    \qmlproperty url ImageBoxBody::source
+    Image source URL.
+
+    \qmlproperty Image.FillMode ImageBoxBody::fillMode
+    How the image fills its area.
+
+    \qmlproperty bool ImageBoxBody::mirror
+    Mirror the image horizontally.
+
+    \qmlproperty real ImageBoxBody::tileWidthWu
+    Tile width for repeating images in world units.
+
+    \qmlproperty real ImageBoxBody::tileHeightWu
+    Tile height for repeating images in world units.
+
+    \qmlproperty real ImageBoxBody::density
+    Fixture density affecting mass.
+
+    \qmlproperty real ImageBoxBody::friction
+    Friction coefficient (0-1).
+
+    \qmlproperty real ImageBoxBody::restitution
+    Bounciness coefficient (0-1).
+
+    \qmlproperty bool ImageBoxBody::sensor
+    If true, detects collisions without physical response.
+
+    \qmlproperty int ImageBoxBody::categories
+    Collision category bits.
+
+    \qmlproperty int ImageBoxBody::collidesWith
+    Collision mask bits.
+
+    \qmlproperty int ImageBoxBody::groupIndex
+    Collision group index.
+*/
+
+/*!
+    \qmltype VisualizedPolyBody
+    \inqmlmodule Clayground.Physics
+    \brief Polygon-shaped physics body with Canvas visualization.
+
+    VisualizedPolyBody combines a visual Poly shape with a Box2D polygon fixture.
+    The physics shape automatically synchronizes with the visual vertices.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    VisualizedPolyBody {
+        canvas: myCanvas
+        vertices: [
+            {x: 0, y: 0},
+            {x: 2, y: 0},
+            {x: 1, y: 2}
+        ]
+        fillColor: "green"
+        bodyType: Body.Dynamic
+        density: 2
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Body VisualizedPolyBody::body
+    The Box2D body instance.
+
+    \qmlproperty Fixture VisualizedPolyBody::fixture
+    The Box2D polygon fixture.
+
+    \qmlproperty World VisualizedPolyBody::world
+    Physics world reference.
+
+    \qmlproperty real VisualizedPolyBody::density
+    Fixture density.
+
+    \qmlproperty real VisualizedPolyBody::friction
+    Friction coefficient.
+
+    \qmlproperty real VisualizedPolyBody::restitution
+    Bounciness coefficient.
+
+    \qmlproperty bool VisualizedPolyBody::sensor
+    If true, detects collisions without physical response.
+
+    \qmlproperty int VisualizedPolyBody::categories
+    Collision category bits.
+
+    \qmlproperty int VisualizedPolyBody::collidesWith
+    Collision mask bits.
+
+    \qmlproperty int VisualizedPolyBody::groupIndex
+    Collision group index.
+
+    \section1 Methods
+
+    \qmlmethod void VisualizedPolyBody::refresh()
+    Refreshes visual and physics geometry from vertices.
+*/
+
+/*!
+    \qmltype PhysicsUtils
+    \inqmlmodule Clayground.Physics
+    \brief Singleton utility providing physics collision connection helpers.
+
+    PhysicsUtils offers convenience functions for connecting to Box2D fixture
+    collision signals, automatically extracting the target item from contacted fixtures.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+
+    Component.onCompleted: {
+        PhysicsUtils.connectOnEntered(myFixture, (entity) => {
+            console.log("Collided with:", entity)
+        })
+    }
+    \endqml
+
+    \section1 Methods
+
+    \qmlmethod void PhysicsUtils::connectOnEntered(Fixture fixture, function method, function fixtureCheck)
+    Connects a callback to the fixture's beginContact signal.
+
+    \qmlmethod void PhysicsUtils::connectOnLeft(Fixture fixture, function method, function fixtureCheck)
+    Connects a callback to the fixture's endContact signal.
+*/
+
+/*!
+    \qmltype CollisionTracker
+    \inqmlmodule Clayground.Physics
+    \brief Tracks entities currently colliding with a fixture.
+
+    CollisionTracker maintains a set of entities currently in contact with a
+    monitored fixture and emits signals when contacts begin or end.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+
+    CollisionTracker {
+        fixture: player.fixture
+        debug: true
+        onBeginContact: (entity) => {
+            if (entity.objectName === "ground")
+                player.onGround = true
+        }
+        onEndContact: (entity) => {
+            if (entity.objectName === "ground")
+                player.onGround = false
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Fixture CollisionTracker::fixture
+    The fixture to monitor for collisions.
+
+    \qmlproperty Set CollisionTracker::entities
+    Set of entities currently in collision with the fixture.
+
+    \qmlproperty bool CollisionTracker::debug
+    Shows debug visualization markers on colliding entities.
+
+    \section1 Signals
+
+    \qmlsignal CollisionTracker::beginContact(var entity)
+    Emitted when an entity enters collision with the fixture.
+
+    \qmlsignal CollisionTracker::endContact(var entity)
+    Emitted when an entity leaves collision with the fixture.
+*/

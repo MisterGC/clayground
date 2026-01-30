@@ -1,0 +1,145 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype CsvModel
+    \inqmlmodule Clayground.Text
+    \brief High-level component combining CSV reading/writing with a TableModel.
+
+    CsvModel provides a convenient way to load CSV data into a Qt TableModel
+    for display in views, and to save modified data back to CSV format.
+    It supports filtering columns and rows, as well as transforming row data.
+
+    Example usage:
+    \qml
+    import Clayground.Text
+
+    CsvModel {
+        id: gameData
+        source: "enemies.csv"
+        colFilter: (name) => ["id", "type", "health"].includes(name)
+        rowFilter: (vals) => parseInt(vals[2]) > 50
+
+        Component.onCompleted: load()
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty string CsvModel::source
+    CSV file path or data to read.
+
+    \qmlproperty string CsvModel::sourceDelimiter
+    Delimiter character for reading CSV (default: ",").
+
+    \qmlproperty var CsvModel::colFilter
+    Function to filter columns: (colName) => bool.
+    Return true to include the column, false to exclude it.
+
+    \qmlproperty var CsvModel::rowFilter
+    Function to filter rows: (rowVals) => bool.
+    Return true to include the row, false to exclude it.
+
+    \qmlproperty var CsvModel::rowTransform
+    Function to transform row data: (rowVals) => array.
+    Modify and return the row values array.
+
+    \qmlproperty string CsvModel::destination
+    File path for saving CSV data.
+
+    \qmlproperty string CsvModel::destinationDelimiter
+    Delimiter character for writing CSV (default: ",").
+
+    \qmlproperty TableModel CsvModel::tableModel
+    The generated TableModel containing loaded data.
+    Use this property to bind to TableView or other model-based views.
+
+    \qmlproperty var CsvModel::colNames
+    \readonly
+    Array of column names from the CSV header.
+
+    \section1 Methods
+
+    \qmlmethod void CsvModel::load()
+    Loads CSV data from the source into the tableModel.
+
+    \qmlmethod void CsvModel::save()
+    Saves the current tableModel data to the destination file.
+*/
+
+/*!
+    \qmltype HighlightedText
+    \inqmlmodule Clayground.Text
+    \brief A TextArea with regular expression highlighting support.
+
+    HighlightedText extends TextArea to provide real-time text highlighting
+    based on a regular expression pattern. Useful for search functionality,
+    quest logs, or any text that needs visual emphasis on matching patterns.
+
+    Example usage:
+    \qml
+    import Clayground.Text
+
+    HighlightedText {
+        width: 300
+        height: 200
+        text: "Find the sword and defeat the dragon."
+        searchRegEx: "\\b(sword|dragon)\\b"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty string HighlightedText::searchRegEx
+    Regular expression pattern for text to highlight.
+    Set this to a regex pattern string. All matching text will be
+    visually highlighted. The highlighting updates automatically
+    when the pattern or text changes.
+*/
+
+/*!
+    \qmltype JsonataTransform
+    \inqmlmodule Clayground.Text
+    \brief JSONata query processor for JSON data transformation.
+
+    JsonataTransform provides a way to query and transform JSON data using
+    the JSONata query language. It automatically evaluates the query whenever
+    the input data or query string changes.
+
+    JSONata is a lightweight query and transformation language for JSON data.
+    See https://jsonata.org for the full language specification.
+
+    Example usage:
+    \qml
+    import Clayground.Text
+
+    JsonataTransform {
+        id: stats
+        inputObject: {
+            "inventory": [
+                {"item": "sword", "value": 100},
+                {"item": "potion", "value": 20}
+            ]
+        }
+        jsonataString: "$sum(inventory.value)"
+    }
+
+    Text {
+        text: "Total value: " + stats.jsonOutput
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty var JsonataTransform::inputObject
+    The input JSON object to query.
+    Can be any JavaScript object or array.
+
+    \qmlproperty string JsonataTransform::jsonataString
+    The JSONata query expression to evaluate.
+    Examples: "$sum(items.price)", "orders[status='pending']".
+
+    \qmlproperty var JsonataTransform::jsonOutput
+    \readonly
+    The result of evaluating the JSONata query.
+    Updates automatically when inputObject or jsonataString changes.
+*/

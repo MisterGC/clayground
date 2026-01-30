@@ -79,7 +79,16 @@ build*
 # WASM build artifacts (built by CI)
 docs/demo/**/*.wasm
 docs/demo/**/*.js
+docs/demo/**/qtloader.js
 !docs/demo/**/*.html
+
+# Generated API documentation (QDoc output - built by CI)
+docs/api/clayground.index
+docs/api/qml-*.html
+docs/api/*-members.html
+docs/api/*-qmlmodule.html
+docs/api/readme/
+docs/api/version.json
 
 # WebDojo examples (copied from source by CMake at build time)
 # Keep source directories (empty/, platform/), ignore generated ones

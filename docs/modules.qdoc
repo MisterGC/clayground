@@ -1,0 +1,80 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+// QDoc module declarations for all Clayground plugins
+
+/*!
+    \qmlmodule Clayground.Common
+    \title Clayground Common Module
+    \brief Core utilities and timing tools used across the framework.
+*/
+
+/*!
+    \qmlmodule Clayground.Storage
+    \title Clayground Storage Module
+    \brief Persistent key-value storage for game data and settings.
+*/
+
+/*!
+    \qmlmodule Clayground.Text
+    \title Clayground Text Module
+    \brief CSV parsing, JSON transformations, and text highlighting.
+*/
+
+/*!
+    \qmlmodule Clayground.Svg
+    \title Clayground SVG Module
+    \brief Read/write SVG files and use them as image sources.
+*/
+
+/*!
+    \qmlmodule Clayground.Canvas
+    \title Clayground Canvas Module
+    \brief 2D world coordinate system with camera and viewport management.
+*/
+
+/*!
+    \qmlmodule Clayground.Canvas3D
+    \title Clayground Canvas3D Module
+    \brief 3D primitives including boxes, lines, and voxel maps with toon shading.
+*/
+
+/*!
+    \qmlmodule Clayground.Physics
+    \title Clayground Physics Module
+    \brief Box2D-based 2D physics with world unit integration.
+*/
+
+/*!
+    \qmlmodule Clayground.Behavior
+    \title Clayground Behavior Module
+    \brief Reusable entity behaviors like movement, path following, and triggers.
+*/
+
+/*!
+    \qmlmodule Clayground.World
+    \title Clayground World Module
+    \brief Complete game world management for both 2D and 3D games.
+*/
+
+/*!
+    \qmlmodule Clayground.GameController
+    \title Clayground GameController Module
+    \brief Unified input system supporting keyboard, gamepad, and touch.
+*/
+
+/*!
+    \qmlmodule Clayground.Network
+    \title Clayground Network Module
+    \brief Peer-to-peer networking and HTTP client for multiplayer and web APIs.
+*/
+
+/*!
+    \qmlmodule Clayground.Character3D
+    \title Clayground Character3D Module
+    \brief 3D character components with body parts and animations.
+*/
+
+/*!
+    \qmlmodule Clayground.Ios
+    \title Clayground iOS Module
+    \brief iOS-specific functionality including App Store reviews.
+*/

@@ -54,7 +54,7 @@
 
 import QtQuick
 import Clayground.Text
-import "qrc:/Clayground/Text/jsonata.js" as Jsonata
+import "qrc:/qt/qml/Clayground/Text/jsonata.js" as Jsonata
 
 Item {
     property var inputObject: {example: [{value: 4}, {value: 7}, {value: 13}]}

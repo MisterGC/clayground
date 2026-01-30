@@ -1,0 +1,322 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype ClayCanvas
+    \inqmlmodule Clayground.Canvas
+    \brief A 2D canvas with world coordinate mapping and camera controls.
+
+    ClayCanvas provides a complete 2D rendering system with world unit coordinates,
+    viewport management, camera following, and debug visualization. It transforms
+    between screen pixels and world units automatically.
+
+    The coordinate system uses Y-up orientation (like standard math coordinates).
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.ClayCanvas {
+        id: canvas
+        anchors.fill: parent
+        worldXMin: -10; worldXMax: 10
+        worldYMin: -10; worldYMax: 10
+        pixelPerUnit: 50
+        observedItem: player
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real ClayCanvas::deviceScalingFactor
+    Automatic scaling factor based on device height (height / 1080).
+
+    \qmlproperty real ClayCanvas::zoomFactor
+    Zoom level multiplier. Default is 1.0.
+
+    \qmlproperty real ClayCanvas::pixelPerUnit
+    Number of screen pixels per world unit.
+
+    \qmlproperty bool ClayCanvas::interactive
+    Whether the canvas viewport can be panned interactively.
+
+    \qmlproperty real ClayCanvas::worldXMin
+    Minimum X coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldXMax
+    Maximum X coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldYMin
+    Minimum Y coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::worldYMax
+    Maximum Y coordinate boundary in world units.
+
+    \qmlproperty real ClayCanvas::xInWU
+    \readonly
+    Current viewport left edge position in world units.
+
+    \qmlproperty real ClayCanvas::yInWU
+    \readonly
+    Current viewport top edge position in world units.
+
+    \qmlproperty real ClayCanvas::sWidthInWU
+    \readonly
+    Viewport width in world units.
+
+    \qmlproperty real ClayCanvas::sHeightInWU
+    \readonly
+    Viewport height in world units.
+
+    \qmlproperty real ClayCanvas::viewPortCenterWuX
+    X coordinate of viewport center in world units.
+
+    \qmlproperty real ClayCanvas::viewPortCenterWuY
+    Y coordinate of viewport center in world units.
+
+    \qmlproperty bool ClayCanvas::showDebugInfo
+    Whether to show the debug overlay with coordinate grid. Toggle with Space key.
+
+    \qmlproperty bool ClayCanvas::keyBoardNavigationEnabled
+    Enable keyboard navigation (IJKL for pan, E/D for zoom).
+
+    \qmlproperty Item ClayCanvas::coordSys
+    \readonly
+    The coordinate system container. Child items should be parented to this.
+
+    \qmlproperty var ClayCanvas::observedItem
+    Item that the camera follows automatically. Set to null to disable following.
+
+    \section1 Methods
+
+    \qmlmethod real ClayCanvas::xToScreen(real xCart)
+    Converts a world X coordinate to screen X coordinate.
+
+    \qmlmethod real ClayCanvas::screenXToWorld(real xScr)
+    Converts a screen X coordinate to world X coordinate.
+
+    \qmlmethod real ClayCanvas::yToScreen(real yCart)
+    Converts a world Y coordinate to screen Y coordinate.
+
+    \qmlmethod real ClayCanvas::screenYToWorld(real yScr)
+    Converts a screen Y coordinate to world Y coordinate.
+
+    \section1 Signals
+
+    \qmlsignal ClayCanvas::keyPressed(var event)
+    Emitted when a key is pressed while the canvas has focus.
+
+    \qmlsignal ClayCanvas::keyReleased(var event)
+    Emitted when a key is released while the canvas has focus.
+*/
+
+/*!
+    \qmltype Rectangle
+    \inqmlmodule Clayground.Canvas
+    \brief A rectangle positioned and sized in world units.
+
+    Rectangle extends Qt Quick's Rectangle to work with ClayCanvas world coordinates.
+    Position and size are specified in world units, automatically transformed to screen coordinates.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Rectangle {
+        canvas: myCanvas
+        xWu: 5; yWu: 3
+        widthWu: 2; heightWu: 1
+        color: "red"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas Rectangle::canvas
+    The parent canvas for coordinate transformation. Required.
+
+    \qmlproperty real Rectangle::xWu
+    X position in world units.
+
+    \qmlproperty real Rectangle::yWu
+    Y position in world units.
+
+    \qmlproperty real Rectangle::widthWu
+    Width in world units.
+
+    \qmlproperty real Rectangle::heightWu
+    Height in world units.
+*/
+
+/*!
+    \qmltype Image
+    \inqmlmodule Clayground.Canvas
+    \brief An image positioned and sized in world units.
+
+    Image extends Qt Quick's Image to work with ClayCanvas world coordinates.
+    Position and size are specified in world units, with the image scaled to fit.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Image {
+        canvas: myCanvas
+        xWu: -5; yWu: 5
+        widthWu: 3; heightWu: 3
+        source: "player.png"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas Image::canvas
+    The parent canvas for coordinate transformation. Required.
+
+    \qmlproperty real Image::xWu
+    X position in world units.
+
+    \qmlproperty real Image::yWu
+    Y position in world units.
+
+    \qmlproperty real Image::widthWu
+    Width in world units.
+
+    \qmlproperty real Image::heightWu
+    Height in world units.
+*/
+
+/*!
+    \qmltype Text
+    \inqmlmodule Clayground.Canvas
+    \brief Text element positioned in world units with scalable font size.
+
+    Text extends Qt Quick's Text to work with ClayCanvas world coordinates.
+    Position and font size are specified in world units.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Text {
+        canvas: myCanvas
+        xWu: 0; yWu: 2
+        fontSizeWu: 0.5
+        text: "Hello World!"
+        color: "blue"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas Text::canvas
+    The parent canvas for coordinate transformation. Required.
+
+    \qmlproperty real Text::xWu
+    X position in world units.
+
+    \qmlproperty real Text::yWu
+    Y position in world units.
+
+    \qmlproperty real Text::fontSizeWu
+    Font size in world units.
+*/
+
+/*!
+    \qmltype Poly
+    \inqmlmodule Clayground.Canvas
+    \brief A polygon or polyline shape defined by vertices in world units.
+
+    Poly renders a shape from an array of vertex points in world coordinates.
+    It can display as a closed polygon (with fill) or an open polyline.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Poly {
+        canvas: myCanvas
+        vertices: [
+            {x: 0, y: 0},
+            {x: 2, y: 0},
+            {x: 1, y: 2}
+        ]
+        fillColor: "green"
+        strokeColor: "darkgreen"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas Poly::canvas
+    The parent canvas for coordinate transformation. Required.
+
+    \qmlproperty var Poly::vertices
+    Array of vertex points {x, y} in world units.
+
+    \qmlproperty real Poly::strokeWidth
+    Width of the outline stroke in pixels.
+
+    \qmlproperty color Poly::strokeColor
+    Color of the outline stroke.
+
+    \qmlproperty color Poly::fillColor
+    Fill color. Use "transparent" for polyline (no fill).
+
+    \qmlproperty ShapePath.StrokeStyle Poly::strokeStyle
+    Style of the stroke (solid, dash, etc.).
+
+    \qmlproperty var Poly::dashPattern
+    Custom dash pattern as an array of dash/gap lengths.
+
+    \qmlproperty bool Poly::closed
+    \readonly
+    Whether the shape is closed. True when fillColor is not transparent.
+
+    \section1 Methods
+
+    \qmlmethod void Poly::refresh()
+    Refreshes the shape visualization after vertex changes.
+*/
+
+/*!
+    \qmltype Connector
+    \inqmlmodule Clayground.Canvas
+    \brief A visual line connecting two items with automatic position tracking.
+
+    Connector draws a line between the centers of two items and automatically
+    updates when either item moves. Useful for visualizing relationships or
+    connections in diagrams and games.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Connector {
+        from: nodeA
+        to: nodeB
+        color: "green"
+        strokeWidth: 3
+        style: ShapePath.DashLine
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty Item Connector::from
+    The source item to connect from. Required.
+
+    \qmlproperty Item Connector::to
+    The target item to connect to. Required.
+
+    \qmlproperty real Connector::strokeWidth
+    Width of the connector line.
+
+    \qmlproperty color Connector::color
+    Color of the connector line.
+
+    \qmlproperty ShapePath.StrokeStyle Connector::style
+    Style of the line (solid, dash, etc.).
+
+    \qmlproperty var Connector::dashPattern
+    Custom dash pattern as an array of dash/gap lengths.
+*/

@@ -1,0 +1,49 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype SvgImageSource
+    \inqmlmodule Clayground.Svg
+    \brief Provides access to individual SVG elements as image sources.
+
+    SvgImageSource allows you to extract and use individual elements from
+    an SVG file as image sources in QML. This is useful for sprite sheets,
+    game assets, and any SVG file where you want to use specific named
+    elements independently.
+
+    Example usage:
+    \qml
+    import Clayground.Svg
+
+    SvgImageSource {
+        id: sprites
+        svgPath: "assets/game_sprites.svg"
+        annotationRRGGBB: "FF00FF"
+    }
+
+    Image {
+        source: sprites.source("player_idle")
+        visible: sprites.has("player_idle")
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty string SvgImageSource::svgPath
+    Path to the SVG file to extract elements from.
+
+    \qmlproperty string SvgImageSource::annotationRRGGBB
+    Color to ignore when rendering elements (in RRGGBB hex format).
+    Use this to exclude annotation or guide colors from rendered output.
+    For example, "FF00FF" will ignore magenta-colored elements.
+
+    \section1 Methods
+
+    \qmlmethod bool SvgImageSource::has(string elementId)
+    Checks if an element with the given ID exists in the SVG.
+    Returns true if the element exists, false otherwise.
+
+    \qmlmethod string SvgImageSource::source(string elementId)
+    Returns a URL to use the specified element as an image source.
+    The returned URL can be used directly as the source property of an
+    Image element using the claysvg image provider scheme.
+*/

@@ -1,0 +1,228 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype Move
+    \inqmlmodule Clayground.Behavior
+    \brief Placeholder component for future movement behavior implementation.
+
+    Move is reserved for future movement behavior functionality.
+    Currently empty and not intended for use.
+*/
+
+/*!
+    \qmltype RectTrigger
+    \inqmlmodule Clayground.Behavior
+    \brief A rectangular trigger area that detects entity entry.
+
+    RectTrigger is an invisible physics sensor that emits a signal when
+    another physics entity enters its bounds. It uses Box2D sensor fixtures
+    for collision detection without physical response.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    RectTrigger {
+        xWu: 10
+        yWu: 5
+        widthWu: 2
+        heightWu: 2
+        visible: true
+        color: "yellow"
+        opacity: 0.5
+
+        onEntered: (entity) => {
+            console.log("Player entered trigger zone!")
+        }
+    }
+    \endqml
+
+    \section1 Signals
+
+    \qmlsignal RectTrigger::entered(var entity)
+    Emitted when a physics entity enters the trigger area.
+*/
+
+/*!
+    \qmltype DoorBuilder
+    \inqmlmodule Clayground.Behavior
+    \brief Creates automated doors with switches from map data.
+
+    DoorBuilder is a specialized factory that constructs door systems from
+    SVG map groups. It automatically creates Door and DoorOpener components
+    and connects them based on group naming conventions.
+
+    Map groups starting with "door" are processed. Each group should contain
+    a Door component, one or more DoorOpener components, and a polyline
+    defining the door's movement path.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+    import Clayground.World
+
+    ClayWorld2d {
+        id: theWorld
+
+        DoorBuilder {
+            world: theWorld
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayWorld2d DoorBuilder::world
+    The world context for door creation (required).
+*/
+
+/*!
+    \qmltype FollowPath
+    \inqmlmodule Clayground.Behavior
+    \brief Makes an entity follow a predefined path of waypoints.
+
+    FollowPath moves an actor through a sequence of waypoints using
+    physics-based movement. It supports looping paths and provides
+    debug visualization for development.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    RectBoxBody {
+        id: guard
+
+        FollowPath {
+            world: theWorld
+            wpsWu: [
+                Qt.point(5, 5),
+                Qt.point(10, 5),
+                Qt.point(10, 10),
+                Qt.point(5, 10)
+            ]
+            repeat: true
+            running: true
+            debug: true
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayWorld2d FollowPath::world
+    The world context (required).
+
+    \qmlproperty var FollowPath::actor
+    The entity to move (defaults to parent).
+
+    \qmlproperty var FollowPath::wpsWu
+    Array of waypoints in world units. Each waypoint should be a Qt.point(x, y).
+
+    \qmlproperty bool FollowPath::running
+    Whether path following is active.
+
+    \qmlproperty bool FollowPath::repeat
+    Loop back to the first waypoint when path completes.
+
+    \qmlproperty bool FollowPath::debug
+    Show debug visualization of waypoints and path.
+
+    \qmlproperty color FollowPath::debugColor
+    Color for debug visualization.
+
+    \section1 Signals
+
+    \qmlsignal FollowPath::arrived()
+    Emitted when the actor completes the path (when repeat is false).
+*/
+
+/*!
+    \qmltype MoveTo
+    \inqmlmodule Clayground.Behavior
+    \brief Moves an actor entity to a specified destination using physics.
+
+    MoveTo provides physics-based movement of an entity toward a target
+    position. It uses velocity adjustments to smoothly move the actor
+    and detects arrival using collision sensors.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    RectBoxBody {
+        id: enemy
+
+        MoveTo {
+            world: theWorld
+            destXWu: player.xWu
+            destYWu: player.yWu
+            running: true
+            desiredSpeed: 3
+            onArrived: console.log("Reached target!")
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayWorld2d MoveTo::world
+    The world context (required).
+
+    \qmlproperty var MoveTo::actor
+    The entity to move (defaults to parent).
+
+    \qmlproperty bool MoveTo::running
+    Whether movement is active.
+
+    \qmlproperty real MoveTo::destXWu
+    Destination X coordinate in world units.
+
+    \qmlproperty real MoveTo::destYWu
+    Destination Y coordinate in world units.
+
+    \qmlproperty real MoveTo::desiredSpeed
+    Movement speed in world units per second (default: 2).
+
+    \qmlproperty bool MoveTo::debug
+    Show debug visualization of destination.
+
+    \qmlproperty color MoveTo::debugColor
+    Color for debug visualization (default: "lightblue").
+
+    \section1 Signals
+
+    \qmlsignal MoveTo::arrived()
+    Emitted when the actor reaches the destination.
+*/
+
+/*!
+    \qmltype WorldChangedConnections
+    \inqmlmodule Clayground.Behavior
+    \brief Utility component that connects to world dimension changes.
+
+    WorldChangedConnections monitors a ClayWorld2d for changes to its
+    coordinate system and dimensions. When any world property changes
+    (pixelPerUnit, bounds), it calls the provided callback function.
+
+    Example usage:
+    \qml
+    import Clayground.Behavior
+
+    Item {
+        WorldChangedConnections {
+            world: theWorld
+            callback: function() {
+                updateEntityPositions()
+            }
+        }
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayWorld2d WorldChangedConnections::world
+    The world to monitor for changes (required).
+
+    \qmlproperty var WorldChangedConnections::callback
+    Function to call when world properties change (required).
+*/
