@@ -131,6 +131,7 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
 
     # Source files in webdojo-examples (not copied, just registered)
     clay_website_register_webdojo_example(docs/webdojo-examples/platform platform "Platform Detection")
+    clay_website_register_webdojo_example(docs/webdojo-examples/chipmood chipmood "ChipMood")
     clay_website_register_webdojo_example(docs/webdojo-examples/empty empty "empty")
 endif()
 

@@ -91,8 +91,9 @@ docs/api/readme/
 docs/api/version.json
 
 # WebDojo examples (copied from source by CMake at build time)
-# Keep source directories (empty/, platform/), ignore generated ones
+# Keep source directories, ignore generated ones
 docs/webdojo-examples/*/
 !docs/webdojo-examples/empty/
 !docs/webdojo-examples/platform/
+!docs/webdojo-examples/chipmood/
 docs/webdojo-examples/index.json
