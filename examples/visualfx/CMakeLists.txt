@@ -20,3 +20,8 @@ clay_app( sbx_visualfx
 
     RES_FILES explosion.png
 )
+
+# Skip test on Windows - QtQuick.Particles fails with software OpenGL in headless mode
+if(WIN32)
+    set_tests_properties(testsbx_visualfx PROPERTIES DISABLED TRUE)
+endif()
