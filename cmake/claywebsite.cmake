@@ -4,8 +4,8 @@
 #
 # Usage:
 #   ~/Qt/6.x.x/wasm_multithread/bin/qt-cmake -B build -DCLAY_BUILD_WEBSITE=ON .
-#   cmake --build build --target website      # Production build (baseurl: /clayground)
-#   cmake --build build --target website-dev  # Local dev build (baseurl: empty)
+#   cmake --build build --target website      # Production build (uses _config.yml baseurl)
+#   cmake --build build --target website-dev  # Local dev build (uses _config.yml baseurl)
 #
 # Provides:
 #   - clay_website_check_prerequisites() - Verify all requirements at configure time
@@ -189,9 +189,9 @@ function(clay_website_create_target)
         COMMENT "Syncing webdojo examples from source..."
     )
 
-    # Jekyll build for production (with /clayground baseurl for GitHub Pages)
+    # Jekyll build for production (uses baseurl from _config.yml)
     add_custom_target(website-jekyll
-        COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build --baseurl "/clayground"
+        COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         DEPENDS website-sync-docs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (production)..."
