@@ -316,7 +316,7 @@ function applyUIVisibility(visibility) {
         const canvasPane = document.getElementById('canvas-pane');
         if (canvasPane) {
             const branding = document.createElement('a');
-            branding.href = 'https://mistergc.github.io/clayground/';
+            branding.href = 'https://clayground.mistergc.dev/';
             branding.target = '_blank';
             branding.className = 'zen-branding';
             const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';

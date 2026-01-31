@@ -3,8 +3,8 @@ title: Clayground
 description: Flow, Form, Create - Rapid game development framework with Qt and live-reloading
 author: mgc
 email: 
-baseurl: "/clayground" # the subpath of your site, e.g. /blog
-url: "https://mistergc.github.io" # the base hostname & protocol for your site
+baseurl: "" # empty for custom domain (serves from root)
+url: "https://clayground.mistergc.dev" # the base hostname & protocol for your site
 
 # Build settings
 theme: minima

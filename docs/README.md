@@ -40,10 +40,10 @@ For quick iteration on Jekyll content (without API docs rebuild):
    Or manually:
    ```bash
    export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
-   bundle exec jekyll serve --baseurl /clayground
+   bundle exec jekyll serve
    ```
 
-3. Visit http://localhost:4000/clayground/
+3. Visit http://localhost:4000/
 
 ### Building Complete Website (with API Docs)
 
@@ -153,7 +153,7 @@ The site automatically deploys via GitHub Pages using GitHub Actions:
      - Deploys to GitHub Pages
    - No need to manually sync or commit generated files!
 
-The site will be available at: https://[username].github.io/clayground/
+The site will be available at: https://clayground.mistergc.dev/
 
 ## Plugin Documentation
 
