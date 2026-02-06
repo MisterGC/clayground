@@ -17,8 +17,9 @@ A [Qt](https://www.qt.io)-based sandbox for building 2D and 3D games with [QML](
 
 ## How It Works
 
+Edit QML in your editor, save the file, see the result — tweak colors, physics, or layout and watch the game update within milliseconds, without ever leaving your flow.
+
 ![Dojo Workflow](assets/images/dojo_workflow.png)
-*Edit QML in your editor, save the file, see the result — tweak colors, physics, or layout and watch the game update within milliseconds, without ever leaving your flow.*
 
 <div class="how-it-works">
   <div class="step">

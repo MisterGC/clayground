@@ -579,7 +579,8 @@ ul, ol {
 img[alt="Dojo Workflow"] {
   display: block;
   margin: 2rem auto;
-  max-width: 100%;
+  max-width: 800px;
+  width: 100%;
   border: 2px solid var(--accent-primary);
   border-radius: 8px;
   box-shadow: var(--glow-primary);
