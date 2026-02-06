@@ -8,64 +8,50 @@ title: Clayground - Flow, Form, Create
   <p class="hero-tagline">Flow, Form, Create</p>
 </div>
 
-Clayground is a personal project I've been developing for over 5 years to keep up with Qt's evolution while building small simulation and game apps. It's a [Qt](https://www.qt.io)-based toolset that combines C++, JavaScript, and [QML](https://doc.qt.io/qt-6/qtqml-index.html) in a sandbox environment with live-reloading.
-
-Qt already provides a solid foundation for cross-platform development. Clayground adds specialized tools, components, and APIs that make building small interactive apps even easier - though it's not designed to compete with full-featured game engines like Godot or Unity. The trade-off is intentional: optimized for rapid prototyping and small to medium projects on desktop, iOS, and web (via WebAssembly), not for large-scale game production.
-
-![Platformer Screenshot](assets/images/screenshot_platformer.png)
+A [Qt](https://www.qt.io)-based sandbox for building 2D and 3D games with [QML](https://doc.qt.io/qt-6/qtqml-index.html). Edit your code, save the file, see the result — no restart needed. Clayground provides the tools, components, and live-reloading workflow to go from idea to playable prototype fast.
 
 <div class="hero-cta">
-  <a href="{{ site.baseurl }}/getting-started/" class="btn btn-primary">Get Started</a>
-  <a href="{{ site.baseurl }}/demo/" class="btn btn-secondary">Try Live Demo →</a>
+  <a href="{{ site.baseurl }}/docs/getting-started/" class="btn btn-primary">Get Started</a>
+  <a href="{{ site.baseurl }}/webdojo/" class="btn btn-secondary">Try Web Dojo →</a>
 </div>
+
+## How It Works
+
+<div class="how-it-works">
+  <div class="step">
+    <div class="step-number">1</div>
+    <div class="step-content">
+      <h4>Write QML</h4>
+      <p>Build your game logic, visuals, and physics using QML and JavaScript. Pull in only the plugins you need — from 2D canvas to 3D voxels, physics, input, and networking.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-number">2</div>
+    <div class="step-content">
+      <h4>Dojo Watches</h4>
+      <p>The Dojo sandbox monitors your source files. When you save a change, it reloads automatically — no compile step, no manual restart. Use the logging overlay (<code>Ctrl+L</code>) to inspect values live.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-number">3</div>
+    <div class="step-content">
+      <h4>Ship Everywhere</h4>
+      <p>Deploy to Linux, macOS, Windows, iOS, or the web via WebAssembly. The same QML code runs on all platforms. Try it right now with the <a href="{{ site.baseurl }}/webdojo/">Web Dojo</a>.</p>
+    </div>
+  </div>
+</div>
+
+![Dojo Workflow](assets/images/dojo_workflow.png)
+*Edit QML in your editor on one side, watch the Dojo sandbox update on the other — tweak colors, physics, or layout and see the result within milliseconds, without ever leaving your flow.*
 
 ## Why Clayground?
 
-- **Instant Feedback** — See code changes applied immediately without restarting
-- **Modular Design** — Mix and match components to build your game
-- **Full Control** — Use high-level APIs or dive into C++/Qt when needed
-- **Cross-Platform** — Deploy to desktop, mobile, and web
+- **Live Reloading with Dojo** — Clayground's development tool watches your QML files and reloads them on every save. You stay in your editor, tweak a property, and see the result immediately in the running app. No build-run-test cycles for gameplay iteration.
 
-## Features
+- **Modular Plugin System** — Pick the plugins you need: 2D canvas with world coordinates, Box2D physics, 3D voxel rendering, SVG-based level design, unified input handling, P2P networking, or on-device AI. Each plugin is self-contained and they compose cleanly.
 
-<div class="plugin-grid">
-  <div class="plugin-card">
-    <h4>🎨 Graphics</h4>
-    <p>2D canvas and 3D rendering with world coordinates</p>
-    <a href="{{ site.baseurl }}/plugins/canvas/" class="card-link">Learn more →</a>
-  </div>
+- **Code-First, Full Control** — No visual editor, no black boxes. Your game is QML and JavaScript with optional C++ when you need raw performance. You always have direct access to Qt's full API underneath.
 
-  <div class="plugin-card">
-    <h4>⚡ Physics</h4>
-    <p>Box2D integration for realistic game physics</p>
-    <a href="{{ site.baseurl }}/plugins/physics/" class="card-link">Learn more →</a>
-  </div>
-
-  <div class="plugin-card">
-    <h4>🎮 Input</h4>
-    <p>Unified controls for keyboard, gamepad, and touch</p>
-    <a href="{{ site.baseurl }}/plugins/gamecontroller/" class="card-link">Learn more →</a>
-  </div>
-
-  <div class="plugin-card">
-    <h4>🌐 Networking</h4>
-    <p>P2P multiplayer and HTTP APIs for online games</p>
-    <a href="{{ site.baseurl }}/plugins/network/" class="card-link">Learn more →</a>
-  </div>
-</div>
+- **Desktop to Browser** — Build and test natively, then compile to WebAssembly and share a playable link. The Web Dojo lets others try your sandboxes without installing anything.
 
 [Explore all features →]({{ site.baseurl }}/features/)
-
-## Quick Start
-
-```bash
-# Clone and build
-git clone --recursive https://github.com/mistergc/clayground.git
-cd clayground
-cmake -B build && cmake --build build
-
-# Run the sandbox
-./build/bin/claydojo --sbx examples/void/Sandbox.qml
-```
-
-Press `Ctrl+G` in the app window to see available shortcuts.

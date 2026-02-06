@@ -207,8 +207,11 @@ table {
 .site-header {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
   z-index: 100;
 
   .header-wrapper {
@@ -479,6 +482,7 @@ ul, ol {
 .page-content {
   min-height: calc(100vh - 200px);
   padding-top: 2rem;
+  margin-top: 60px; // Account for fixed header
 }
 
 // Home page specific styles
@@ -510,6 +514,147 @@ ul, ol {
       }
     }
   }
+}
+
+// =============================================================================
+// How It Works steps (Home page)
+// =============================================================================
+
+.how-it-works {
+  margin: 2rem 0 2.5rem 0;
+
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: border-color 0.2s ease;
+
+    &:hover {
+      border-color: var(--accent-primary);
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .step-number {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1rem;
+    color: var(--bg-dark);
+    background: var(--accent-primary);
+    border-radius: 50%;
+  }
+
+  .step-content {
+    flex: 1;
+
+    h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.125rem;
+      color: var(--text-primary);
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+// Hero workflow image on Home page
+img[alt="Dojo Workflow"] {
+  display: block;
+  margin: 2rem auto;
+  max-width: 100%;
+  border: 2px solid var(--accent-primary);
+  border-radius: 8px;
+  box-shadow: var(--glow-primary);
+}
+
+// =============================================================================
+// Feature sections (Features page) - text + visual side by side
+// =============================================================================
+
+.feature-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+  margin: 1.5rem 0 1rem 0;
+
+  .feature-text {
+    min-width: 0;
+
+    p {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    ul {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 1.5rem;
+
+      li {
+        position: relative;
+        padding-left: 1.5rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+
+        &:before {
+          content: '→';
+          position: absolute;
+          left: 0;
+          color: var(--accent-primary);
+        }
+      }
+    }
+
+    .highlighter-rouge pre.highlight,
+    pre.highlight,
+    pre {
+      font-size: 0.85rem !important;
+    }
+  }
+
+  .feature-visual {
+    min-width: 0;
+
+    img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .feature-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Feature page plugin links below each section
+.page-content > .wrapper > p > a[href*="/docs/plugins/"],
+.page-content > .wrapper > p > a[href*="/docs/manual/"] {
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 // Syntax highlighting adjustments
@@ -691,4 +836,702 @@ ul, ol {
   &.active .demo-overlay {
     display: none;
   }
+}
+
+// =============================================================================
+// Documentation Layout with Sidebar (Godot-style, no header)
+// =============================================================================
+
+// Docs page without main header
+.docs-page.no-header {
+  .page-content {
+    padding-top: 0;
+    margin-top: 0;
+  }
+}
+
+// Centered wrapper for docs layout
+.docs-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.docs-layout {
+  min-height: 100vh;
+}
+
+.docs-sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  position: fixed;
+  top: 0;
+  // Calculate left position based on centered wrapper
+  left: max(0px, calc((100vw - 1400px) / 2));
+  width: 280px;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 0;
+
+  // Branding section at top of sidebar
+  .sidebar-branding {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: none;
+      }
+    }
+
+    .logo-img {
+      height: 28px;
+      width: auto;
+      filter: drop-shadow(0 0 8px rgba(0, 217, 255, 0.3));
+    }
+
+    .logo-text {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 0.7rem;
+      color: var(--accent-primary);
+      text-transform: uppercase;
+    }
+
+    .version-badge {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+  }
+
+  .sidebar-search {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
+    background: var(--bg-dark);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .sidebar-nav {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .nav-section {
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-section-title {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.75rem 0 0.5rem;
+    margin-top: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+
+    &:hover {
+      color: var(--accent-primary);
+    }
+
+    &.current {
+      color: var(--accent-primary);
+    }
+  }
+
+  .nav-children {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      margin: 0;
+    }
+
+    a {
+      display: block;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 0.375rem 0 0.375rem 1rem;
+      border-left: 2px solid transparent;
+      transition: all 0.15s ease;
+
+      &:hover {
+        color: var(--accent-primary);
+        border-left-color: var(--accent-primary);
+      }
+
+      &.current {
+        color: var(--accent-primary);
+        border-left-color: var(--accent-primary);
+        background: rgba(0, 217, 255, 0.05);
+      }
+    }
+  }
+
+  .nav-section.active .nav-section-title {
+    color: var(--accent-primary);
+  }
+
+  // Nav item with expandable types
+  .nav-item {
+    margin: 0;
+  }
+
+  .nav-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .nav-toggle {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.625rem;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s, color 0.15s;
+
+    &:hover {
+      opacity: 1;
+      color: var(--accent-primary);
+    }
+  }
+
+  .toggle-icon {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  // API type sub-navigation (collapsed by default)
+  .nav-api-types {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+
+    &.expanded {
+      max-height: 500px;
+      margin: 0.25rem 0 0.5rem 1.25rem;
+    }
+
+    li {
+      margin: 0;
+    }
+
+    a {
+      display: block;
+      padding: 0.2rem 0 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-left: 1px solid var(--border-color);
+      transition: color 0.15s, border-color 0.15s;
+
+      &:hover {
+        color: var(--accent-primary);
+        border-left-color: var(--accent-primary);
+      }
+    }
+  }
+}
+
+.docs-content {
+  margin-left: 280px;
+  padding: 2rem 3rem;
+  min-height: 100vh;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  > * {
+    width: 100%;
+    max-width: 900px;
+  }
+}
+
+.docs-article {
+  h1.docs-title {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  h2 {
+    margin-top: 2.5rem;
+  }
+
+  h3 {
+    margin-top: 2rem;
+  }
+}
+
+// Sidebar toggle button (mobile)
+.sidebar-toggle {
+  display: none;
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 48px;
+  height: 48px;
+  background: var(--accent-primary);
+  color: var(--bg-dark);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    background: var(--accent-secondary);
+  }
+
+  &.active {
+    background: var(--accent-secondary);
+  }
+}
+
+// Documentation cards grid
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.docs-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--accent-primary);
+  }
+
+  h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1.125rem;
+    color: var(--text-primary);
+  }
+
+  p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  a {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+}
+
+// On medium screens, revert to edge-pinned sidebar
+@media screen and (max-width: 1400px) {
+  .docs-sidebar {
+    left: 0;
+  }
+}
+
+// Mobile responsive styles for docs
+@media screen and (max-width: 768px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 150;
+    transition: left 0.3s ease;
+    box-shadow: none;
+
+    &.open {
+      left: 0;
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .sidebar-toggle {
+    display: flex;
+  }
+
+  .docs-content {
+    margin-left: 0;
+    padding: 1.5rem 1rem;
+  }
+}
+
+// =============================================================================
+// Pagefind Modular UI Theming
+// =============================================================================
+
+// CSS variables for modular UI
+.pagefind-modular-input-wrapper,
+.pagefind-modular-list {
+  --pagefind-ui-scale: 0.9;
+  --pagefind-ui-primary: var(--accent-primary);
+  --pagefind-ui-text: var(--text-primary);
+  --pagefind-ui-background: var(--bg-dark);
+  --pagefind-ui-border: var(--border-color);
+  --pagefind-ui-tag: var(--bg-card);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 6px;
+  --pagefind-ui-font: 'Inter', sans-serif;
+}
+
+// Search input in sidebar
+.pagefind-modular-input-wrapper {
+  width: 100%;
+
+  // Center the magnifying glass icon vertically
+  &::before {
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+// Clear button styling
+.pagefind-modular-input-clear {
+  height: auto !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1 !important;
+}
+
+.pagefind-modular-input {
+  width: 100%;
+  height: auto !important;
+  padding: 0.35rem 0.6rem 0.35rem 2.25rem !important;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem !important;
+  color: var(--text-primary);
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-secondary) !important;
+    box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+  }
+
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+}
+
+// Search results header (separate from container so Pagefind doesn't overwrite it)
+.search-results-header {
+  display: none;
+  margin-bottom: 1.5rem;
+
+  h2 {
+    color: var(--accent-primary);
+    margin: 0 0 0.5rem 0;
+    border: none;
+  }
+
+  .search-results-count {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+}
+
+// Search results in main content area
+.search-results-container {
+  display: none;
+  padding: 0;
+}
+
+// Override Pagefind's default styles with !important to ensure our theme applies
+.pagefind-modular-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.pagefind-modular-list-result {
+  padding: 1.25rem !important;
+  margin-bottom: 0.75rem !important;
+  border: none !important;
+  border-radius: 6px !important;
+  background: var(--bg-card) !important;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--bg-secondary) !important;
+  }
+}
+
+.pagefind-modular-list-title {
+  margin-bottom: 0.5rem !important;
+}
+
+.pagefind-modular-list-link {
+  color: var(--accent-secondary) !important;
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+
+  &:hover {
+    color: var(--accent-primary) !important;
+  }
+}
+
+.pagefind-modular-list-excerpt {
+  color: var(--text-secondary) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+  margin-top: 0.5rem !important;
+}
+
+.pagefind-modular-list-image {
+  display: none !important;
+}
+
+mark {
+  background: rgba(0, 217, 255, 0.2);
+  color: var(--accent-primary);
+  padding: 0.1em 0.2em;
+  border-radius: 2px;
+}
+
+// =============================================================================
+// API Breadcrumb Styling (for SPA-loaded API content)
+// =============================================================================
+
+.api-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.api-breadcrumb .bc-version {
+  color: var(--text-secondary);
+}
+
+.api-breadcrumb .bc-sep {
+  color: #666;
+  padding: 0 0.3rem;
+}
+
+.api-breadcrumb .bc-module {
+  color: var(--accent-primary);
+
+  &:hover {
+    color: var(--accent-secondary);
+    text-decoration: underline;
+  }
+}
+
+.api-breadcrumb .bc-current {
+  color: var(--text-primary);
+}
+
+// =============================================================================
+// API Reference Embedded in Plugin Pages
+// =============================================================================
+
+.api-reference {
+  margin-top: 3rem;
+
+  details.api-type {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+
+    summary {
+      padding: 1rem;
+      background: var(--bg-card);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &::before {
+        content: '\25B6';
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        transition: transform 0.2s ease;
+      }
+
+      .type-name {
+        font-weight: 600;
+        color: var(--accent-primary);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .type-brief {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &[open] summary {
+      border-bottom: 1px solid var(--border-color);
+
+      &::before {
+        transform: rotate(90deg);
+      }
+    }
+  }
+
+  .api-type-content {
+    padding: 1rem;
+  }
+
+  .api-link {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+
+    a {
+      color: var(--accent-primary);
+      &:hover {
+        color: var(--accent-secondary);
+      }
+    }
+  }
+
+  .api-section {
+    margin-bottom: 1.5rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    h4 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      color: var(--accent-highlight);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+  }
+
+  .api-table {
+    width: 100%;
+    font-size: 0.875rem;
+    border-collapse: collapse;
+
+    th {
+      text-align: left;
+      color: var(--text-secondary);
+      font-weight: 500;
+      padding: 0.5rem;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    td {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    code {
+      color: var(--accent-primary);
+      font-size: 0.8125rem;
+    }
+  }
+
+  .api-badge {
+    display: inline-block;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+
+    &.required {
+      background: rgba(255, 51, 102, 0.2);
+      color: var(--accent-secondary);
+    }
+
+    &.readonly {
+      background: rgba(255, 217, 61, 0.2);
+      color: var(--accent-highlight);
+    }
+  }
+}
+
+// Responsive API tables
+@media screen and (max-width: 768px) {
+  .api-reference {
+    .api-table {
+      font-size: 0.8125rem;
+
+      th:nth-child(3),
+      td:nth-child(3) {
+        display: none;
+      }
+    }
+
+    details.api-type summary {
+      flex-wrap: wrap;
+
+      .type-brief {
+        width: 100%;
+        margin-top: 0.5rem;
+        white-space: normal;
+      }
+    }
+  }
+}
+
+// Utility class for hiding elements
+.hidden {
+  display: none !important;
 }

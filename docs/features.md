@@ -4,168 +4,256 @@ title: Features
 permalink: /features/
 ---
 
-# Clayground Features
+# What You Can Build with Clayground
 
-Clayground combines modular plugins with powerful development tools for rapid game prototyping.
-
----
-
-## Plugins
-
-Each plugin provides specific functionality that you can mix and match to build your game.
-
-### Foundation Plugins
-
-Essential utilities and data management components.
-
-#### [Common]({{ site.baseurl }}/plugins/common/)
-Essential utilities and timing tools used across the framework. Includes the Clayground singleton for environment detection and ClayStopWatch for precise timing.
-
-#### [Storage]({{ site.baseurl }}/plugins/storage/)
-Persistent key-value storage for game data, settings, and player progress. Built on Qt's LocalStorage for cross-platform compatibility.
-
-#### [Text]({{ site.baseurl }}/plugins/text/)
-Advanced text processing including CSV parsing, JSON transformations with JSONata, and regex-based text highlighting.
-
-#### [SVG]({{ site.baseurl }}/plugins/svg/)
-Read and write SVG files, extract game objects from Inkscape drawings, and use SVG elements as image sources. Perfect for level design workflows.
-
-### Rendering Plugins
-
-Visual presentation systems for 2D and 3D games.
-
-#### [Canvas]({{ site.baseurl }}/plugins/canvas/)
-2D world coordinate system with camera controls, viewport management, and visual elements positioned in world units. Includes debug overlays and keyboard navigation.
-
-#### [Canvas3D]({{ site.baseurl }}/plugins/canvas3d/)
-3D primitives including boxes, lines, and voxel maps. Features toon shading support, edge rendering, and efficient batch rendering for complex 3D scenes.
-
-### Game System Plugins
-
-Core gameplay mechanics and world management.
-
-#### [Physics]({{ site.baseurl }}/plugins/physics/)
-Box2D-based 2D physics simulation with automatic world unit conversion. Provides easy-to-use components for rigid bodies and collision detection.
-
-#### [World]({{ site.baseurl }}/plugins/world/)
-Complete game world management for both 2D and 3D games. Integrates canvas, physics, and SVG scene loading with automatic entity creation.
-
-#### [Behavior]({{ site.baseurl }}/plugins/behavior/)
-Reusable entity behaviors including movement patterns, path following, triggers, and complex object builders. Works seamlessly with physics and world systems.
-
-### Input/Output Plugins
-
-User interaction and communication systems.
-
-#### [GameController]({{ site.baseurl }}/plugins/gamecontroller/)
-Unified input system supporting keyboard, physical gamepads, and touchscreen controls. Features NES-style simplicity with debug visualization.
-
-#### [Network]({{ site.baseurl }}/plugins/network/)
-Peer-to-peer networking for local multiplayer games and HTTP client for web API integration. Includes automatic peer discovery and group messaging.
-
-### Using Plugins
-
-```qml
-import Clayground.Common
-import Clayground.Canvas
-import Clayground.Physics
-```
-
-Some plugins build on others:
-- **World** requires Canvas (2D) or Canvas3D (3D) and Physics
-- **Behavior** works best with World and Physics
-- Most plugins use Common for utilities
+Clayground is a modular toolkit — pick the capabilities you need and compose them into your game. Each section below shows what's possible and how the code looks.
 
 ---
 
-## Development Tools
+## Live Development with Dojo
 
-Clayground ships with powerful development tools designed for rapid iteration.
+The Dojo sandbox watches your QML files and reloads on every save. No compile step, no restart — you edit code and see the result in milliseconds.
 
-### Dojo - Live Reloading Sandbox
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
 
-The primary development tool for Clayground projects. Dojo monitors your source files and automatically reloads the sandbox when changes are detected.
-
-#### Basic Usage
+- **Hot reload** — Save a file, see the change instantly
+- **Multiple sandboxes** — Switch between test scenarios with `Ctrl+1`–`5`
+- **Logging overlay** — Inspect property values live with `Ctrl+L`
+- **C++ plugin reloading** — Even compiled plugins reload when rebuilt
 
 ```bash
-# Run a single sandbox
-./build/bin/claydojo --sbx examples/platformer/Sandbox.qml
+# Run with live reloading
+claydojo --sbx MySandbox.qml
 
-# Run multiple sandboxes (switch with Ctrl+1-5)
-./build/bin/claydojo \
-    --sbx examples/platformer/Sandbox.qml \
-    --sbx examples/topdown/Sandbox.qml \
-    --sbx examples/visualfx/Sandbox.qml
+# Multiple sandboxes
+claydojo --sbx game.qml --sbx test.qml --sbx debug.qml
 ```
 
-#### Command-Line Options
+</div>
+<div class="feature-visual" markdown="1">
 
-| Option | Description |
-|--------|-------------|
-| `--sbx <path>` | QML sandbox file to load (can be used multiple times) |
-| `--sbxindex <n>` | Which sandbox to load initially (0-based) |
-| `--dynplugin <src,bin>` | Watch plugin source and binary directories |
-| `--import <dir>` | Add QML import directory |
-| `--guistyle <style>` | Set Qt Quick GUI style |
+![Dojo live reloading]({{ site.baseurl }}/assets/images/dojo_live.png)
 
-#### Keyboard Shortcuts
+</div>
+</div>
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+G` | Toggle guide overlay |
-| `Ctrl+L` | Toggle logging overlay |
-| `Ctrl+1` to `Ctrl+5` | Switch between loaded sandboxes |
+[Dojo documentation →]({{ site.baseurl }}/docs/manual/dojo/)
 
-### Live-Reloading
+---
 
-At the heart of Dojo is a sophisticated hot-reload system. When you save a QML file, changes appear within milliseconds.
+## 2D Game Development
 
-**How it works:**
-1. A recursive file watcher monitors your sandbox directory
-2. A fresh QML engine is created for each reload
-3. Changes fade in with a brief loading indicator
-4. Session statistics persist across reloads
+A world coordinate system with camera tracking, Box2D physics, and SVG-based level loading. Draw your levels in Inkscape, load them as game worlds.
 
-The 50ms debounce window catches rapid file changes from editor auto-saves.
-
-### Logging Overlay
-
-The logging overlay (`Ctrl+L`) provides real-time debugging:
-
-- **Console Output**: All `console.log()` messages appear here
-- **Property Watching**: Monitor values as they change
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
 
 ```qml
-Component.onCompleted: {
-    Clayground.watch("Player X", () => player.x)
-    Clayground.watch("Speed", () => player.body.linearVelocity.x)
+ClayWorld2d {
+    anchors.fill: parent
+    gravity: Qt.point(0, 10)
+    observedItem: player
+
+    RectBoxBody {
+        id: player
+        xWu: 10; yWu: 10
+        widthWu: 2; heightWu: 2
+        color: "blue"
+        bodyType: Body.Dynamic
+    }
 }
 ```
 
-### Dynamic Plugin Development
+Camera following, collision detection, and physics simulation — all declarative.
 
-Beyond QML hot-reloading, Dojo supports live development of C++ plugins:
+</div>
+<div class="feature-visual" markdown="1">
 
-```bash
-./build/bin/claydojo \
-    --sbx examples/pluginlive/Sandbox.qml \
-    --dynplugin examples/pluginlive/plugin,build/examples/pluginlive/plugin
+![2D game example]({{ site.baseurl }}/assets/images/2d_game.png)
+
+</div>
+</div>
+
+[Canvas]({{ site.baseurl }}/docs/plugins/canvas/) · [Physics]({{ site.baseurl }}/docs/plugins/physics/) · [World]({{ site.baseurl }}/docs/plugins/world/)
+
+---
+
+## 3D Worlds and Voxels
+
+3D primitives with toon shading, edge rendering, and voxel maps. Build low-poly 3D scenes with the same declarative approach.
+
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
+
+```qml
+View3D {
+    anchors.fill: parent
+
+    Box3D {
+        width: 100; height: 100; depth: 100
+        color: "red"
+        useToonShading: true
+    }
+
+    VoxelMap {
+        id: terrain
+        cellSize: 10
+        dynamicMode: true
+    }
+}
 ```
 
-The format is `--dynplugin <source_dir>,<binary_dir>`. Dojo detects when your plugin binary is rebuilt and automatically restarts with the updated code.
+Greedy meshing optimizes voxel rendering automatically. Toon shading and edge lines give a distinctive look.
 
-### Creating Your Own Plugin
+</div>
+<div class="feature-visual" markdown="1">
 
-```cmake
-clay_plugin(clay_myplugin
-    QML_SOURCES
-        MyComponent.qml
-        Sandbox.qml
-    SOURCES
-        src/myclass.cpp
-        src/myclass.h
-)
+![3D voxel world]({{ site.baseurl }}/assets/images/3d_voxel.png)
+
+</div>
+</div>
+
+[Canvas3D]({{ site.baseurl }}/docs/plugins/canvas3d/) · [World]({{ site.baseurl }}/docs/plugins/world/)
+
+---
+
+## SVG-Based Level Design
+
+Design your levels in Inkscape (or any SVG editor), then load them directly as game worlds. Named rectangles in the SVG become game entities with properties.
+
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
+
+```qml
+ClayWorld2d {
+    scene: "levels/level1.svg"
+
+    components: new Map([
+        ["Wall",   wallComponent],
+        ["Enemy",  enemyComponent],
+        ["Coin",   coinComponent]
+    ])
+}
 ```
 
-See the [Plugin Development Guide](https://github.com/mistergc/clayground#plugin-development) for details.
+Each named rectangle in the SVG spawns the matching component at that position and size. Change the SVG, reload, and the level updates.
+
+</div>
+<div class="feature-visual" markdown="1">
+
+![SVG level design]({{ site.baseurl }}/assets/images/svg_level.png)
+
+</div>
+</div>
+
+[SVG]({{ site.baseurl }}/docs/plugins/svg/) · [World]({{ site.baseurl }}/docs/plugins/world/)
+
+---
+
+## Input and Controls
+
+A unified input system inspired by NES-style simplicity. One API covers keyboard, physical gamepads, and on-screen touch controls — with debug visualization built in.
+
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
+
+```qml
+GameController {
+    id: ctrl
+    Component.onCompleted: {
+        selectKeyboard()
+    }
+}
+
+// Use anywhere
+if (ctrl.axisX > 0) player.moveRight()
+if (ctrl.buttonB)   player.jump()
+```
+
+Switch between keyboard, gamepad, and touchscreen without changing game logic.
+
+</div>
+<div class="feature-visual" markdown="1">
+
+![Input controls]({{ site.baseurl }}/assets/images/input_controls.png)
+
+</div>
+</div>
+
+[GameController]({{ site.baseurl }}/docs/plugins/gamecontroller/)
+
+---
+
+## Multiplayer Networking
+
+Peer-to-peer networking with automatic discovery on local networks. Join a group, send messages — no server setup required. Also includes an HTTP client for web APIs.
+
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
+
+```qml
+ClayPeer {
+    id: peer
+    groupId: "my-game"
+    onMessageReceived: (msg) => {
+        handleGameState(msg)
+    }
+
+    function broadcast(data) {
+        sendToAll(JSON.stringify(data))
+    }
+}
+```
+
+</div>
+<div class="feature-visual" markdown="1">
+
+![Networking]({{ site.baseurl }}/assets/images/networking.png)
+
+</div>
+</div>
+
+[Network]({{ site.baseurl }}/docs/plugins/network/)
+
+---
+
+## On-Device AI
+
+Run LLM inference directly on the user's device — no cloud API needed. Streaming text generation with automatic model management, built on llama.cpp.
+
+<div class="feature-section" markdown="1">
+<div class="feature-text" markdown="1">
+
+```qml
+ClayLLM {
+    id: llm
+    onResponseChanged: {
+        npcDialog.text = response
+    }
+}
+
+// Generate NPC dialog
+llm.generate("You are a village elder. Greet the player.")
+```
+
+</div>
+<div class="feature-visual" markdown="1">
+
+![AI integration]({{ site.baseurl }}/assets/images/ai_integration.png)
+
+</div>
+</div>
+
+[AI]({{ site.baseurl }}/docs/plugins/ai/)
+
+---
+
+## Run in the Browser
+
+Compile to WebAssembly and ship a playable link. The Web Dojo lets anyone try Clayground sandboxes without installing Qt or building from source.
+
+<div class="hero-cta">
+  <a href="{{ site.baseurl }}/webdojo/" class="btn btn-secondary">Try Web Dojo →</a>
+  <a href="{{ site.baseurl }}/docs/getting-started/" class="btn btn-primary">Get Started</a>
+</div>
