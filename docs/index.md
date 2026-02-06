@@ -17,6 +17,9 @@ A [Qt](https://www.qt.io)-based sandbox for building 2D and 3D games with [QML](
 
 ## How It Works
 
+![Dojo Workflow](assets/images/dojo_workflow.png)
+*Edit QML in your editor, save the file, see the result — tweak colors, physics, or layout and watch the game update within milliseconds, without ever leaving your flow.*
+
 <div class="how-it-works">
   <div class="step">
     <div class="step-number">1</div>
@@ -40,9 +43,6 @@ A [Qt](https://www.qt.io)-based sandbox for building 2D and 3D games with [QML](
     </div>
   </div>
 </div>
-
-![Dojo Workflow](assets/images/dojo_workflow.png)
-*Edit QML in your editor on one side, watch the Dojo sandbox update on the other — tweak colors, physics, or layout and see the result within milliseconds, without ever leaving your flow.*
 
 ## Why Clayground?
 
