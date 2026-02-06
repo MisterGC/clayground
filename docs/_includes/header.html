@@ -1,3 +1,7 @@
+<script type="module">
+  import * as Turbo from 'https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/dist/turbo.es2017-esm.min.js';
+</script>
+
 <header class="site-header">
   <div class="wrapper header-wrapper">
     <a class="site-title" rel="author" href="{{ "/" | relative_url }}">
@@ -7,10 +11,9 @@
 
     <nav class="site-nav">
       <div class="nav-links">
-        <a class="page-link" href="{{ site.baseurl }}/getting-started/">Getting Started</a>
+        <a class="page-link" href="{{ site.baseurl }}/">Home</a>
         <a class="page-link" href="{{ site.baseurl }}/features/">Features</a>
-        <a class="page-link" href="{{ site.baseurl }}/api/" target="_blank">API Reference</a>
-        <a class="page-link" href="{{ site.baseurl }}/demos/">Demos</a>
+        <a class="page-link" href="{{ site.baseurl }}/docs/" target="_blank">Docs</a>
         <a class="page-link" href="{{ site.baseurl }}/webdojo/" target="_blank">Web Dojo</a>
       </div>
       <a class="github-link" href="https://github.com/mistergc/clayground" title="View on GitHub">
