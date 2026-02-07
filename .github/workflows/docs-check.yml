@@ -84,7 +84,7 @@ jobs:
         run: npm install -g pagefind
 
       - name: Build Pagefind Index
-        run: pagefind --site docs/_site --config docs/pagefind.yml
+        run: cd docs && pagefind
 
       - name: List website structure
         run: |
