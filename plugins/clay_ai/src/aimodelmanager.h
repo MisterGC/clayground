@@ -23,15 +23,6 @@ struct DownloadInfo {
     bool cancelled = false;
 };
 
-/*!
-    \class AiModelManagerBackend
-    \inmodule Clayground.Ai
-    \brief Backend for downloading and managing AI models.
-
-    This class handles model downloads from HuggingFace or custom registries,
-    caching, and platform detection. It provides the C++ backend for the
-    AiModelManager QML component.
-*/
 class AiModelManagerBackend : public QObject
 {
     Q_OBJECT

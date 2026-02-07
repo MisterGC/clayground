@@ -1,3 +1,14 @@
+ai:
+  - name: "AiModelManager"
+    href: "qml-clayground-ai-aimodelmanager.html"
+  - name: "AiModelManagerBackend"
+    href: "qml-clayground-ai-aimodelmanagerbackend.html"
+  - name: "LlmEngineBackend"
+    href: "qml-clayground-ai-llmenginebackend.html"
+  - name: "Sandbox"
+    href: "qml-clayground-ai-sandbox.html"
+  - name: "TextInference"
+    href: "qml-clayground-ai-textinference.html"
 behavior:
   - name: "FollowPath"
     href: "qml-clayground-behavior-followpath.html"

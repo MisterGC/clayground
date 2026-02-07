@@ -6,7 +6,104 @@
 
 #include <llama.h>
 
-// LlmEngineLlama implementation
+/*!
+    \qmltype LlmEngineBackend
+    \nativetype LlmEngineLlama
+    \inqmlmodule Clayground.Ai
+    \brief C++ backend for local LLM inference using llama.cpp.
+
+    LlmEngineBackend loads GGUF models and runs text generation on a
+    background thread. It is typically used internally by the TextInference
+    QML component.
+
+    \sa TextInference
+*/
+
+/*!
+    \qmlproperty string LlmEngineBackend::modelPath
+    \brief Path to the GGUF model file.
+
+    Setting this property triggers model loading. Set to empty to unload.
+*/
+
+/*!
+    \qmlproperty string LlmEngineBackend::systemPrompt
+    \brief System prompt prepended to every conversation.
+*/
+
+/*!
+    \qmlproperty int LlmEngineBackend::maxTokens
+    \brief Maximum number of tokens to generate per response.
+
+    Defaults to 256.
+*/
+
+/*!
+    \qmlproperty real LlmEngineBackend::temperature
+    \brief Sampling temperature (0.0 to 2.0).
+
+    Lower values produce more deterministic output. Defaults to 0.7.
+*/
+
+/*!
+    \qmlproperty bool LlmEngineBackend::modelReady
+    \brief Whether the model is loaded and ready for inference.
+*/
+
+/*!
+    \qmlproperty bool LlmEngineBackend::modelLoading
+    \brief Whether the model is currently being loaded.
+*/
+
+/*!
+    \qmlproperty bool LlmEngineBackend::generating
+    \brief Whether text generation is in progress.
+*/
+
+/*!
+    \qmlproperty real LlmEngineBackend::loadProgress
+    \brief Model loading progress (0.0 to 1.0).
+*/
+
+/*!
+    \qmlproperty string LlmEngineBackend::currentResponse
+    \brief The response text accumulated so far during generation.
+*/
+
+/*!
+    \qmlmethod void LlmEngineBackend::send(string message)
+    \brief Send a message and start generating a response.
+*/
+
+/*!
+    \qmlmethod void LlmEngineBackend::stop()
+    \brief Stop the current generation.
+*/
+
+/*!
+    \qmlmethod void LlmEngineBackend::clear()
+    \brief Clear the conversation history.
+*/
+
+/*!
+    \qmlmethod void LlmEngineBackend::unload()
+    \brief Unload the model from memory.
+*/
+
+/*!
+    \qmlsignal LlmEngineBackend::token(string token)
+    \brief Emitted for each generated token (streaming).
+*/
+
+/*!
+    \qmlsignal LlmEngineBackend::response(string fullText)
+    \brief Emitted when generation completes with the full response.
+*/
+
+/*!
+    \qmlsignal LlmEngineBackend::error(string message)
+    \brief Emitted when an error occurs.
+*/
 
 LlmEngineLlama::LlmEngineLlama(QObject *parent)
     : QObject(parent)

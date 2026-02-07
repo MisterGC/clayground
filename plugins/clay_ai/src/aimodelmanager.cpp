@@ -13,6 +13,136 @@
 #include <emscripten.h>
 #endif
 
+/*!
+    \qmltype AiModelManagerBackend
+    \nativetype AiModelManagerBackend
+    \inqmlmodule Clayground.Ai
+    \brief C++ backend for downloading and managing AI models.
+
+    AiModelManagerBackend handles model downloads from HuggingFace or custom
+    registries, caching, and platform detection. It is typically used internally
+    by the AiModelManager QML component.
+
+    \sa AiModelManager
+*/
+
+/*!
+    \qmlproperty url AiModelManagerBackend::registryUrl
+    \brief Custom model registry URL.
+
+    When set, the manager fetches the model registry from this URL.
+    Leave empty to use the embedded registry.
+*/
+
+/*!
+    \qmlproperty bool AiModelManagerBackend::registryReady
+    \brief Whether the model registry has been loaded.
+*/
+
+/*!
+    \qmlproperty bool AiModelManagerBackend::hasWebGPU
+    \brief Whether WebGPU is available (browser only).
+*/
+
+/*!
+    \qmlproperty string AiModelManagerBackend::platform
+    \brief Current platform identifier.
+
+    Returns "desktop", "wasm", "ios", or "android".
+*/
+
+/*!
+    \qmlproperty list AiModelManagerBackend::activeDownloads
+    \brief List of currently active downloads.
+
+    Each item contains: modelId, progress, bytesDownloaded, totalBytes.
+*/
+
+/*!
+    \qmlmethod bool AiModelManagerBackend::isAvailable(string modelId)
+    \brief Returns true if the model is cached locally.
+*/
+
+/*!
+    \qmlmethod object AiModelManagerBackend::modelInfo(string modelId)
+    \brief Returns information about a model.
+
+    Returns an object with: name, type, description, size, platforms,
+    quantization, memoryRequired.
+*/
+
+/*!
+    \qmlmethod list AiModelManagerBackend::availableModels(string type)
+    \brief Returns model IDs for the given type.
+
+    \a type can be "llm", "stt", "tts", or empty for all models.
+*/
+
+/*!
+    \qmlmethod list AiModelManagerBackend::cachedModels()
+    \brief Returns list of locally cached model IDs.
+*/
+
+/*!
+    \qmlmethod bool AiModelManagerBackend::checkMemory(string modelId)
+    \brief Returns true if there is likely enough memory to load the model.
+*/
+
+/*!
+    \qmlmethod void AiModelManagerBackend::download(string modelId)
+    \brief Start downloading a model.
+*/
+
+/*!
+    \qmlmethod void AiModelManagerBackend::cancelDownload(string modelId)
+    \brief Cancel an in-progress download.
+*/
+
+/*!
+    \qmlmethod void AiModelManagerBackend::remove(string modelId)
+    \brief Remove a model from the local cache.
+*/
+
+/*!
+    \qmlmethod void AiModelManagerBackend::refreshRegistry()
+    \brief Refresh the model registry from registryUrl or embedded source.
+*/
+
+/*!
+    \qmlmethod string AiModelManagerBackend::modelPath(string modelId)
+    \brief Returns the local file path for a cached model.
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::downloadStarted(string modelId, int totalBytes)
+    \brief Emitted when a download begins.
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::downloadProgress(string modelId, real progress, int bytesDownloaded, int totalBytes)
+    \brief Emitted during download with progress (0.0 to 1.0).
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::downloadComplete(string modelId)
+    \brief Emitted when a download finishes successfully.
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::downloadError(string modelId, string message)
+    \brief Emitted when a download fails.
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::downloadCancelled(string modelId)
+    \brief Emitted when a download is cancelled.
+*/
+
+/*!
+    \qmlsignal AiModelManagerBackend::registryUpdated()
+    \brief Emitted when the model registry is refreshed.
+*/
+
 AiModelManagerBackend::AiModelManagerBackend(QObject *parent)
     : QObject(parent)
     , registry_(new AiModelRegistry(this))

@@ -68,4 +68,6 @@ naturallanguage = en
 
 # Exclude private/internal items
 excludedirs = ../plugins/clay_common/tests
-excludefiles = ../plugins/clay_common/*_p.h
+excludefiles = ../plugins/clay_common/*_p.h \
+               ../plugins/clay_ai/src/llmengine_wasm.h \
+               ../plugins/clay_ai/src/llmengine_wasm.cpp

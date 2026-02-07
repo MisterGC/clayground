@@ -1,1 +1,226 @@
-<!-- No API types found for this plugin -->
+<div class="api-reference">
+  <details class="api-type" id="aimodelmanager">
+    <summary>
+      <span class="type-name">AiModelManager</span>
+      <span class="type-brief">Manages AI model downloads, caching, and registry</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-ai-aimodelmanager.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>activeDownloads</code> <span class="api-badge readonly">readonly</span></td><td><code>list</code></td><td>List of currently active downloads</td></tr>
+            <tr><td><code>hasWebGPU</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether WebGPU is available (browser only)</td></tr>
+            <tr><td><code>platform</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>Current platform: &quot;desktop&quot;, &quot;wasm&quot;, &quot;ios&quot;, or &quot;android&quot;</td></tr>
+            <tr><td><code>registryReady</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether the model registry has been loaded</td></tr>
+            <tr><td><code>registryUrl</code></td><td><code>url</code></td><td>Custom model registry URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>availableModels(string type)</code></td><td><code>list</code></td><td></td></tr>
+            <tr><td><code>cachedModels()</code></td><td><code>list</code></td><td></td></tr>
+            <tr><td><code>cancelDownload(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>checkMemory(string modelId)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>download(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>isAvailable(string modelId)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>modelInfo(string modelId)</code></td><td><code>object</code></td><td></td></tr>
+            <tr><td><code>modelPath(string modelId)</code></td><td><code>string</code></td><td></td></tr>
+            <tr><td><code>refreshRegistry()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>remove(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>downloadCancelled(string modelId)</code></td><td></td></tr>
+            <tr><td><code>downloadComplete(string modelId)</code></td><td></td></tr>
+            <tr><td><code>downloadError(string modelId, string message)</code></td><td></td></tr>
+            <tr><td><code>downloadProgress(string modelId, real progress, int bytesDownloaded, int totalBytes)</code></td><td></td></tr>
+            <tr><td><code>downloadStarted(string modelId, int totalBytes)</code></td><td></td></tr>
+            <tr><td><code>registryUpdated()</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  <details class="api-type" id="aimodelmanagerbackend">
+    <summary>
+      <span class="type-name">AiModelManagerBackend</span>
+      <span class="type-brief">C++ backend for downloading and managing AI models</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-ai-aimodelmanagerbackend.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>activeDownloads</code></td><td><code>list</code></td><td>List of currently active downloads</td></tr>
+            <tr><td><code>hasWebGPU</code></td><td><code>bool</code></td><td>Whether WebGPU is available (browser only)</td></tr>
+            <tr><td><code>platform</code></td><td><code>string</code></td><td>Current platform identifier</td></tr>
+            <tr><td><code>registryReady</code></td><td><code>bool</code></td><td>Whether the model registry has been loaded</td></tr>
+            <tr><td><code>registryUrl</code></td><td><code>url</code></td><td>Custom model registry URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>availableModels(string type)</code></td><td><code>list</code></td><td></td></tr>
+            <tr><td><code>cachedModels()</code></td><td><code>list</code></td><td></td></tr>
+            <tr><td><code>cancelDownload(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>checkMemory(string modelId)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>download(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>isAvailable(string modelId)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>modelInfo(string modelId)</code></td><td><code>object</code></td><td></td></tr>
+            <tr><td><code>modelPath(string modelId)</code></td><td><code>string</code></td><td></td></tr>
+            <tr><td><code>refreshRegistry()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>remove(string modelId)</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>downloadCancelled(string modelId)</code></td><td></td></tr>
+            <tr><td><code>downloadComplete(string modelId)</code></td><td></td></tr>
+            <tr><td><code>downloadError(string modelId, string message)</code></td><td></td></tr>
+            <tr><td><code>downloadProgress(string modelId, real progress, int bytesDownloaded, int totalBytes)</code></td><td></td></tr>
+            <tr><td><code>downloadStarted(string modelId, int totalBytes)</code></td><td></td></tr>
+            <tr><td><code>registryUpdated()</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  <details class="api-type" id="llmenginebackend">
+    <summary>
+      <span class="type-name">LlmEngineBackend</span>
+      <span class="type-brief">C++ backend for local LLM inference using llama.cpp</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-ai-llmenginebackend.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>currentResponse</code></td><td><code>string</code></td><td>Response text accumulated so far during generation</td></tr>
+            <tr><td><code>generating</code></td><td><code>bool</code></td><td>Whether text generation is in progress</td></tr>
+            <tr><td><code>loadProgress</code></td><td><code>real</code></td><td>Model loading progress (0.0 to 1.0)</td></tr>
+            <tr><td><code>maxTokens</code></td><td><code>int</code></td><td>Maximum number of tokens to generate per response</td></tr>
+            <tr><td><code>modelLoading</code></td><td><code>bool</code></td><td>Whether the model is currently being loaded</td></tr>
+            <tr><td><code>modelPath</code></td><td><code>string</code></td><td>Path to the GGUF model file</td></tr>
+            <tr><td><code>modelReady</code></td><td><code>bool</code></td><td>Whether the model is loaded and ready for inference</td></tr>
+            <tr><td><code>systemPrompt</code></td><td><code>string</code></td><td>System prompt prepended to every conversation</td></tr>
+            <tr><td><code>temperature</code></td><td><code>real</code></td><td>Sampling temperature (0.0 to 2.0)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>clear()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>send(string message)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>stop()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>unload()</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>error(string message)</code></td><td></td></tr>
+            <tr><td><code>response(string fullText)</code></td><td></td></tr>
+            <tr><td><code>token(string token)</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  <details class="api-type" id="sandbox">
+    <summary>
+      <span class="type-name">Sandbox</span>
+      <span class="type-brief">Test sandbox for AI plugin components</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-ai-sandbox.html">View full documentation</a></p>
+    </div>
+  </details>
+  <details class="api-type" id="textinference">
+    <summary>
+      <span class="type-name">TextInference</span>
+      <span class="type-brief">Client-side LLM text generation</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-ai-textinference.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>currentResponse</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>Current response being generated</td></tr>
+            <tr><td><code>downloadProgress</code> <span class="api-badge readonly">readonly</span></td><td><code>real</code></td><td>Download progress (0.0 to 1.0)</td></tr>
+            <tr><td><code>downloadedBytes</code> <span class="api-badge readonly">readonly</span></td><td><code>int</code></td><td>Bytes downloaded so far</td></tr>
+            <tr><td><code>downloading</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether the model is being downloaded</td></tr>
+            <tr><td><code>generating</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether text generation is in progress</td></tr>
+            <tr><td><code>loadProgress</code> <span class="api-badge readonly">readonly</span></td><td><code>real</code></td><td>Model loading progress (0.0 to 1.0)</td></tr>
+            <tr><td><code>maxTokens</code></td><td><code>int</code></td><td>Maximum tokens to generate per response</td></tr>
+            <tr><td><code>modelId</code></td><td><code>string</code></td><td>Model to use for inference</td></tr>
+            <tr><td><code>modelLoading</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether the model is being loaded into memory</td></tr>
+            <tr><td><code>modelReady</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>Whether the model is loaded and ready for inference</td></tr>
+            <tr><td><code>noModel</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>Special value to cancel download/unload model</td></tr>
+            <tr><td><code>systemPrompt</code></td><td><code>string</code></td><td>System prompt for the conversation</td></tr>
+            <tr><td><code>temperature</code></td><td><code>real</code></td><td>Sampling temperature (0.0 to 2.0)</td></tr>
+            <tr><td><code>totalBytes</code> <span class="api-badge readonly">readonly</span></td><td><code>int</code></td><td>Total bytes to download</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>clear()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>send(string message)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>stop()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>unload()</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>downloadCancelled()</code></td><td></td></tr>
+            <tr><td><code>downloadStarted(int totalBytes)</code></td><td></td></tr>
+            <tr><td><code>error(string message)</code></td><td></td></tr>
+            <tr><td><code>modelDownloaded()</code></td><td></td></tr>
+            <tr><td><code>modelReadySignal()</code></td><td></td></tr>
+            <tr><td><code>response(string fullText)</code></td><td></td></tr>
+            <tr><td><code>token(string token)</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</div>

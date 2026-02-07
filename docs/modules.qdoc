@@ -74,6 +74,12 @@
 */
 
 /*!
+    \qmlmodule Clayground.Ai
+    \title Clayground AI Module
+    \brief Client-side AI inference for LLM, speech-to-text, and text-to-speech.
+*/
+
+/*!
     \qmlmodule Clayground.Ios
     \title Clayground iOS Module
     \brief iOS-specific functionality including App Store reviews.

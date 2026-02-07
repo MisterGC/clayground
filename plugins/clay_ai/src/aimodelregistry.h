@@ -30,15 +30,6 @@ struct AiModelInfo {
     static AiModelInfo fromJson(const QString &id, const QJsonObject &json);
 };
 
-/*!
-    \class AiModelRegistry
-    \inmodule Clayground.Ai
-    \brief Registry for AI model metadata and download URLs.
-
-    This class manages the list of available AI models, their download URLs,
-    sizes, and platform compatibility. It loads model definitions from an
-    embedded JSON registry or a remote URL.
-*/
 class AiModelRegistry : public QObject
 {
     Q_OBJECT

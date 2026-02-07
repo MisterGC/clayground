@@ -5,15 +5,6 @@
 #include <QString>
 #include <qqmlregistration.h>
 
-/*!
-    \class LlmEngineWasm
-    \inmodule Clayground.Ai
-    \brief WASM backend for LLM text inference using wllama.
-
-    This class provides the browser/WASM implementation of the LLM engine,
-    using wllama (llama.cpp compiled to WebAssembly) for client-side inference.
-    Models are loaded from URLs and cached in IndexedDB.
-*/
 class LlmEngineWasm : public QObject
 {
     Q_OBJECT
