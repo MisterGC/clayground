@@ -96,3 +96,15 @@ docs/webdojo-examples/*/
 !docs/webdojo-examples/empty/
 !docs/webdojo-examples/platform/
 docs/webdojo-examples/index.json
+
+# Temp/personal files
+aqtinstall.log
+test_simple.qml
+other_live_loader
+doc_feedback.md
+intro_clayground_ai.md
+intro_web_dojo.md
+web_dojo_feedback.md
+webdojo_issues.md
+docs/assets/images/graphics_source.svg
+docs/assets/images/*.svg.[0-9]*
