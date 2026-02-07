@@ -31,6 +31,7 @@ exclude:
   - vendor/cache/
   - vendor/gems/
   - vendor/ruby/
+  - scripts/
 
 # Markdown settings
 markdown: kramdown
@@ -44,15 +45,14 @@ kramdown:
 
 # Collections for organizing content
 collections:
-  plugins:
+  docs:
     output: true
-    permalink: /plugins/:name/
+    permalink: /:path/
 
-# Default layout for plugin pages
+# Default layouts for different content types
 defaults:
   - scope:
-      path: "plugins"
-      type: "pages"
+      path: "docs"
+      type: "docs"
     values:
-      layout: "default"
-      toc: true
+      layout: "docs"

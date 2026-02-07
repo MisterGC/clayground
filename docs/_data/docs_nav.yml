@@ -1,0 +1,57 @@
+- title: Getting Started
+  url: /docs/getting-started/
+  children:
+    - title: Introduction
+      url: /docs/getting-started/
+    - title: Web Dojo
+      url: /docs/getting-started/webdojo/
+    - title: Installation
+      url: /docs/getting-started/installation/
+    - title: First Sandbox
+      url: /docs/getting-started/first-sandbox/
+    - title: WASM Builds
+      url: /docs/getting-started/wasm-builds/
+
+- title: Manual
+  url: /docs/manual/
+  children:
+    - title: Dojo - Live Reloading
+      url: /docs/manual/dojo/
+    - title: Logging Overlay
+      url: /docs/manual/logging/
+    - title: Plugin Development
+      url: /docs/manual/plugin-development/
+
+- title: Plugin Reference
+  url: /docs/plugins/
+  children:
+    - title: Common
+      url: /docs/plugins/common/
+    - title: Storage
+      url: /docs/plugins/storage/
+    - title: Text
+      url: /docs/plugins/text/
+    - title: SVG
+      url: /docs/plugins/svg/
+    - title: Canvas
+      url: /docs/plugins/canvas/
+    - title: Canvas3D
+      url: /docs/plugins/canvas3d/
+    - title: Physics
+      url: /docs/plugins/physics/
+    - title: World
+      url: /docs/plugins/world/
+    - title: Behavior
+      url: /docs/plugins/behavior/
+    - title: GameController
+      url: /docs/plugins/gamecontroller/
+    - title: Network
+      url: /docs/plugins/network/
+    - title: AI
+      url: /docs/plugins/ai/
+
+- title: Development
+  url: /docs/development/website/
+  children:
+    - title: Website Architecture
+      url: /docs/development/website/

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: site.lang | default: 'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="baseurl" content="{{ site.baseurl }}">
+  {%- seo -%}
+  <link rel="stylesheet" href="{{ "/assets/main.css" | relative_url }}">
+  {%- feed_meta -%}
+  <script src="{{ "/assets/js/copy-code.js" | relative_url }}" defer></script>
+  <script src="{{ "/assets/js/docs-nav.js" | relative_url }}" defer></script>
+  <link href="{{ site.baseurl }}/_pagefind/pagefind-modular-ui.css" rel="stylesheet">
+  <script src="{{ site.baseurl }}/_pagefind/pagefind-modular-ui.js"></script>
+</head>
+<body class="docs-page no-header">
+  <!-- No header - Godot-style layout with branding in sidebar -->
+
+  <div class="docs-wrapper">
+    <div class="docs-layout">
+      {%- include docs_sidebar.html -%}
+
+      <main class="docs-content">
+      <div class="search-results-header" id="search-results-header">
+        <h2>Search Results</h2>
+        <p class="search-results-count" id="search-results-count"></p>
+      </div>
+      <div id="search-results" class="search-results-container"></div>
+      <article class="docs-article" id="docs-article">
+        {% if page.title %}
+        <h1 class="docs-title">{{ page.title }}</h1>
+        {% endif %}
+
+        {{ content }}
+      </article>
+    </main>
+    </div>
+  </div>
+</body>
+</html>

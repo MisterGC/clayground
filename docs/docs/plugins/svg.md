@@ -1,0 +1,189 @@
+---
+layout: docs
+title: SVG Plugin
+permalink: /docs/plugins/svg/
+---
+
+The Clay SVG plugin provides comprehensive SVG (Scalable Vector Graphics)
+support for Clayground applications. It enables reading SVG files to extract
+game objects, writing SVG files programmatically, and using SVG elements as
+image sources. This makes it perfect for level design, vector graphics assets,
+and data-driven game content.
+
+## Getting Started
+
+To use the Clay SVG plugin in your QML files:
+
+```qml
+import Clayground.Svg
+```
+
+## Core Components
+
+- **SvgReader** - Reads and parses SVG files, emitting signals for each shape found (rectangles, circles, polygons, polylines).
+- **SvgWriter** - Creates SVG files programmatically with support for basic shapes and metadata.
+- **SvgImageSource** - Provides access to individual SVG elements as image sources for use in QML Image components.
+
+## Usage Examples
+
+### Reading SVG for Level Data
+
+```qml
+import QtQuick
+import Clayground.Svg
+
+Item {
+    SvgReader {
+        id: levelReader
+        source: "levels/level1.svg"
+
+        onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
+            // Parse description for game object type
+            let data = JSON.parse(description)
+
+            if (data.type === "platform") {
+                createPlatform(x, y, width, height)
+            } else if (data.type === "enemy") {
+                createEnemy(x, y, width, height, data.enemyType)
+            }
+        }
+
+        onCircle: (id, x, y, radius, fillColor, strokeColor, description) => {
+            let data = JSON.parse(description)
+            if (data.type === "coin") {
+                createCoin(x, y, radius)
+            }
+        }
+
+        onPolyline: (id, points, fillColor, strokeColor, description) => {
+            let data = JSON.parse(description)
+            if (data.type === "patrol_path") {
+                createPatrolPath(id, points)
+            }
+        }
+    }
+}
+```
+
+### Writing Game Data to SVG
+
+```qml
+SvgWriter {
+    id: mapWriter
+    path: "output/game_map.svg"
+
+    function saveGameState(world) {
+        begin(world.width, world.height)
+
+        // Save platforms
+        for (let platform of world.platforms) {
+            rectangle(
+                platform.x,
+                platform.y,
+                platform.width,
+                platform.height,
+                JSON.stringify({
+                    type: "platform",
+                    material: platform.material
+                })
+            )
+        }
+
+        // Save collectibles
+        for (let coin of world.coins) {
+            circle(
+                coin.x,
+                coin.y,
+                coin.radius,
+                JSON.stringify({
+                    type: "coin",
+                    value: coin.value
+                })
+            )
+        }
+
+        end()
+    }
+}
+```
+
+### Using SVG Elements as Images
+
+```qml
+import Clayground.Svg
+
+Item {
+    SvgImageSource {
+        id: svgAssets
+        svgPath: "assets/game_sprites.svg"
+        annotationRRGGBB: "FF00FF"  // Ignore magenta annotations
+    }
+
+    Image {
+        source: svgAssets.source("player_idle")
+        width: 64
+        height: 64
+    }
+
+    Image {
+        source: svgAssets.source("enemy_sprite")
+        visible: svgAssets.has("enemy_sprite")
+    }
+}
+```
+
+### SVG-Based Animation Frames
+
+```qml
+SvgImageSource {
+    id: animationFrames
+    svgPath: "animations/character_walk.svg"
+}
+
+AnimatedImage {
+    property int frame: 0
+    source: animationFrames.source("walk_frame_" + frame)
+
+    Timer {
+        interval: 100
+        repeat: true
+        running: true
+        onTriggered: {
+            parent.frame = (parent.frame + 1) % 8
+        }
+    }
+}
+```
+
+## Best Practices
+
+1. **Structured Metadata**: Use JSON in description fields for structured game data.
+
+2. **Naming Conventions**: Use consistent ID naming for SVG elements (e.g., "platform_01", "enemy_goblin").
+
+3. **Coordinate Systems**: Ensure your SVG coordinate system matches your game world units.
+
+4. **Layer Organization**: Use SVG groups to organize different types of game objects.
+
+5. **Color Annotations**: Use a specific color (like magenta) for editor-only annotations.
+
+6. **File Watching**: The SvgReader automatically watches files for changes, useful during development.
+
+## Technical Implementation
+
+The Clay SVG plugin provides:
+
+- **Qt SVG Renderer**: Uses Qt's SVG rendering for image provider functionality
+- **Custom Parser**: Implements streaming XML parser for efficient shape extraction
+- **Simple SVG Writer**: Uses the simple-svg-writer library for SVG generation
+- **Image Provider**: Registered as "claysvg" for accessing individual SVG elements
+- **File Watching**: Automatic file change detection for live reloading
+- **Cache Management**: Efficient caching of rendered SVG elements
+
+The plugin supports standard SVG shapes (rectangles, circles, polygons, polylines) and preserves metadata through description attributes, making it ideal for level design workflows.
+
+---
+
+## API Reference
+
+{% include api/svg.html %}

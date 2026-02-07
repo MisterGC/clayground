@@ -53,6 +53,6 @@ Edit QML in your editor, save the file, see the result — tweak colors, physics
 
 - **Code-First, Full Control** — No visual editor, no black boxes. Your game is QML and JavaScript with optional C++ when you need raw performance. You always have direct access to Qt's full API underneath.
 
-- **Desktop to Browser** — Build and test natively, then compile to WebAssembly and share a playable link. The Web Dojo lets others try your sandboxes without installing anything.
+- **Desktop to Browser** — Build and test natively, then compile to WebAssembly and share a playable link. Or skip the local setup entirely: the [Web Dojo]({{ site.baseurl }}/webdojo/) lets you develop and share QML apps straight from the browser — no Qt install needed.
 
 [Explore all features →]({{ site.baseurl }}/features/)

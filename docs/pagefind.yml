@@ -1,0 +1,12 @@
+source: _site
+bundle_dir: _pagefind
+glob: "{docs,api}/**/*.html"
+exclude_selectors:
+  - ".docs-sidebar"
+  - ".api-sidebar"
+  - ".sidebar"
+  - "nav"
+  - "footer"
+  - ".site-header"
+  - ".header-nav"
+  - ".breadcrumb"

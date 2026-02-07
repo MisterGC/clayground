@@ -1,0 +1,67 @@
+<div class="api-reference">
+  <details class="api-type" id="clayhttpclient">
+    <summary>
+      <span class="type-name">ClayHttpClient</span>
+      <span class="type-brief">Configurable HTTP client with automatic API method generation</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-network-clayhttpclient.html">View full documentation</a></p>
+    </div>
+  </details>
+  <details class="api-type" id="network">
+    <summary>
+      <span class="type-name">Network</span>
+      <span class="type-brief">Unified P2P networking for games, apps, and distributed systems</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-network-network.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>autoRelay</code></td><td><code>bool</code></td><td>Whether the host automatically relays messages between joiners in Star topology</td></tr>
+            <tr><td><code>connected</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>True if connected to a network</td></tr>
+            <tr><td><code>isHost</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>True if this node is the network host</td></tr>
+            <tr><td><code>maxNodes</code></td><td><code>int</code></td><td>Maximum number of nodes allowed in the network</td></tr>
+            <tr><td><code>networkId</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>Current network code</td></tr>
+            <tr><td><code>nodeCount</code> <span class="api-badge readonly">readonly</span></td><td><code>int</code></td><td>Number of nodes currently in the network</td></tr>
+            <tr><td><code>nodeId</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>This node&#x27;s unique identifier</td></tr>
+            <tr><td><code>nodes</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>List of node IDs currently in the network</td></tr>
+            <tr><td><code>signalingMode</code></td><td><code>enumeration</code></td><td>How nodes discover and connect to each other</td></tr>
+            <tr><td><code>status</code> <span class="api-badge readonly">readonly</span></td><td><code>enumeration</code></td><td>Current connection status</td></tr>
+            <tr><td><code>topology</code></td><td><code>enumeration</code></td><td>Network topology to use</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>broadcast(var data)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>broadcastState(var data)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>host()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>join(string networkId)</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>leave()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>sendTo(string nodeId, var data)</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>errorOccurred(string message)</code></td><td></td></tr>
+            <tr><td><code>messageReceived(string fromId, var data)</code></td><td></td></tr>
+            <tr><td><code>networkCreated(string networkId)</code></td><td></td></tr>
+            <tr><td><code>nodeJoined(string nodeId)</code></td><td></td></tr>
+            <tr><td><code>nodeLeft(string nodeId)</code></td><td></td></tr>
+            <tr><td><code>stateReceived(string fromId, var data)</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</div>

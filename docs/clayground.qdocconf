@@ -60,7 +60,7 @@ buildversion = Clayground $version
 # HTML customization
 HTML.stylesheets = api/style.css
 HTML.headerstyles = "<link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" />\n"
-HTML.postheader = "<div class=\"header-nav\"><a href=\"../index.html\">Clayground</a> | <a href=\"index.html\">API Reference</a></div>\n"
+HTML.postheader = "<script>if(window.self!==window.top){document.body.classList.add('in-iframe');}document.addEventListener('DOMContentLoaded',function(){var inIframe=window.self!==window.top;var backLink=document.querySelector('.header-nav a');if(backLink&&inIframe){backLink.addEventListener('click',function(e){e.preventDefault();window.parent.postMessage('returnToDocs','*');});}if(inIframe){document.body.addEventListener('click',function(e){var link=e.target.closest('a');if(link&&link.href){var href=link.getAttribute('href');if(href&&(href.startsWith('qml-')||href.match(/^[a-z].*\\.html/))&&!href.startsWith('http')){e.preventDefault();window.parent.postMessage({type:'apiNavigate',href:href},'*');}}});}});</script>\n<div class=\"header-nav\"><a href=\"../docs/\">← Back to Docs</a> | <a href=\"index.html\">API Reference</a></div>\n"
 
 # Don't generate Qt-specific extras we don't need
 generateindex = true

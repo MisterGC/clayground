@@ -51,6 +51,10 @@ class DevHandler(SimpleHTTPRequestHandler):
     """HTTP handler that overlays docs/ on _site/ for development."""
 
     def translate_path(self, path):
+        # Strip query string before processing
+        if '?' in path:
+            path = path.split('?')[0]
+
         # Check if this path should be served from docs/ for rapid dev
         for dev_path in DEV_PATHS:
             if path.startswith(dev_path):

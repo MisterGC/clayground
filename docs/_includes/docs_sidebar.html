@@ -1,0 +1,61 @@
+<aside class="docs-sidebar" id="docs-sidebar" data-turbo-permanent>
+  <!-- Branding section (Godot-style) -->
+  <div class="sidebar-branding">
+    <a href="{{ site.baseurl }}/" class="sidebar-logo">
+      <img src="{{ site.baseurl }}/assets/images/clayground_logo.png" alt="Clayground" class="logo-img">
+      <span class="logo-text">CLAYGROUND</span>
+    </a>
+    <span class="version-badge">Docs</span>
+  </div>
+
+  <div class="sidebar-search">
+    <div id="search"></div>
+  </div>
+
+  <nav class="sidebar-nav">
+    {% for section in site.data.docs_nav %}
+    <div class="nav-section{% if page.url contains section.url %} active{% endif %}">
+      <a href="{{ site.baseurl }}{{ section.url }}" class="nav-section-title{% if page.url == section.url %} current{% endif %}">
+        {{ section.title }}
+      </a>
+      {% if section.children %}
+      <ul class="nav-children">
+        {% for child in section.children %}
+        <li class="nav-item">
+          {% assign plugin_slug = child.url | split: "/plugins/" | last | replace: "/", "" %}
+          {% assign plugin_types = site.data.plugin_types[plugin_slug] %}
+
+          <div class="nav-item-header">
+            {% if plugin_types %}
+            <button class="nav-toggle" data-plugin="{{ plugin_slug }}" aria-label="Toggle {{ child.title }} types">
+              <span class="toggle-icon">▶</span>
+            </button>
+            {% endif %}
+            <a href="{{ site.baseurl }}{{ child.url }}"{% if page.url == child.url %} class="current"{% endif %}>
+              {{ child.title }}
+            </a>
+          </div>
+
+          {% if plugin_types %}
+          <ul class="nav-api-types" data-plugin="{{ plugin_slug }}">
+            {% for type in plugin_types %}
+            <li>
+              <a href="{{ site.baseurl }}/api/{{ type.href }}">{{ type.name }}</a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </nav>
+</aside>
+
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M3 12h18M3 6h18M3 18h18"/>
+  </svg>
+</button>

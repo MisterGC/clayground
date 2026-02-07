@@ -10,12 +10,14 @@ Clayground is a modular toolkit — pick the capabilities you need and compose t
 
 ---
 
-## Live Development with Dojo
+## Development with Dojo
 
-The Dojo sandbox watches your QML files and reloads on every save. No compile step, no restart — you edit code and see the result in milliseconds.
+Dojo is the Clayground development environment — available as a desktop app with deep OS integration and as the browser-based Web Dojo for zero-install prototyping.
 
 <div class="feature-section" markdown="1">
 <div class="feature-text" markdown="1">
+
+### Desktop Dojo
 
 - **Hot reload** — Save a file, see the change instantly
 - **Multiple sandboxes** — Switch between test scenarios with `Ctrl+1`–`5`
@@ -23,11 +25,18 @@ The Dojo sandbox watches your QML files and reloads on every save. No compile st
 - **C++ plugin reloading** — Even compiled plugins reload when rebuilt
 
 ```bash
-# Run with live reloading
-claydojo --sbx MySandbox.qml
-
-# Multiple sandboxes
 claydojo --sbx game.qml --sbx test.qml --sbx debug.qml
+```
+
+### Web Dojo
+
+- **Zero-install prototyping** — Open the Web Dojo, pick an example, start editing
+- **Load your own code** — Serve QML locally and pass the URL as `clay-src`
+- **Load from GitHub** — Point directly at a raw GitHub URL to run any public QML file
+- **Share instantly** — Generate a link with your code baked in
+
+```
+https://clayground.mistergc.dev/webdojo/#clay-src=https://raw.githubusercontent.com/user/repo/main/Main.qml
 ```
 
 </div>
@@ -38,7 +47,7 @@ claydojo --sbx game.qml --sbx test.qml --sbx debug.qml
 </div>
 </div>
 
-[Dojo documentation →]({{ site.baseurl }}/docs/manual/dojo/)
+[Dojo documentation →]({{ site.baseurl }}/docs/manual/dojo/) · [Web Dojo guide →]({{ site.baseurl }}/docs/getting-started/webdojo/)
 
 ---
 
@@ -246,14 +255,3 @@ llm.generate("You are a village elder. Greet the player.")
 </div>
 
 [AI]({{ site.baseurl }}/docs/plugins/ai/)
-
----
-
-## Run in the Browser
-
-Compile to WebAssembly and ship a playable link. The Web Dojo lets anyone try Clayground sandboxes without installing Qt or building from source.
-
-<div class="hero-cta">
-  <a href="{{ site.baseurl }}/webdojo/" class="btn btn-secondary">Try Web Dojo →</a>
-  <a href="{{ site.baseurl }}/docs/getting-started/" class="btn btn-primary">Get Started</a>
-</div>

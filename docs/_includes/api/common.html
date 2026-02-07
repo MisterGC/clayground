@@ -1,0 +1,77 @@
+<div class="api-reference">
+  <details class="api-type" id="claystopwatch">
+    <summary>
+      <span class="type-name">ClayStopWatch</span>
+      <span class="type-brief">A simple stopwatch for measuring elapsed time</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-common-claystopwatch.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>elapsed</code></td><td><code>int</code></td><td>Time in milliseconds since the last start()</td></tr>
+            <tr><td><code>running</code></td><td><code>bool</code></td><td>Whether the stopwatch is currently running</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>start()</code></td><td><code>void</code></td><td></td></tr>
+            <tr><td><code>stop()</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Signals</h4>
+        <table class="api-table">
+          <thead><tr><th>Signal</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>elapsedChanged()</code></td><td></td></tr>
+            <tr><td><code>runningChanged()</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  <details class="api-type" id="clayground">
+    <summary>
+      <span class="type-name">Clayground</span>
+      <span class="type-brief">Global singleton providing utility functions and environment detection</span>
+    </summary>
+    <div class="api-type-content">
+      <p class="api-link"><a href="/docs/api-viewer/?type=qml-clayground-common-clayground.html">View full documentation</a></p>
+      <div class="api-section">
+        <h4>Properties</h4>
+        <table class="api-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>browser</code> <span class="api-badge readonly">readonly</span></td><td><code>string</code></td><td>Detected browser name when running in WebAssembly</td></tr>
+            <tr><td><code>capabilities</code> <span class="api-badge readonly">readonly</span></td><td><code>var</code></td><td>Platform capability information with status and user hints</td></tr>
+            <tr><td><code>dojoArgs</code> <span class="api-badge readonly">readonly</span></td><td><code>var</code></td><td>User-defined URL hash arguments when running in WebDojo</td></tr>
+            <tr><td><code>isWasm</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>True when running as WebAssembly in a browser</td></tr>
+            <tr><td><code>runsInSandbox</code> <span class="api-badge readonly">readonly</span></td><td><code>bool</code></td><td>True when running inside ClayLiveLoader sandbox environment</td></tr>
+            <tr><td><code>watchView</code></td><td><code>var</code></td><td>Reference to the watch view for property debugging</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="api-section">
+        <h4>Methods</h4>
+        <table class="api-table">
+          <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>removeDojoArg(string key)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>resource(string path)</code></td><td><code>string</code></td><td></td></tr>
+            <tr><td><code>setDojoArg(string key, string value)</code></td><td><code>bool</code></td><td></td></tr>
+            <tr><td><code>typeName(object obj)</code></td><td><code>string</code></td><td></td></tr>
+            <tr><td><code>watch(object obj, string prop, bool logPropChange)</code></td><td><code>void</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</div>
