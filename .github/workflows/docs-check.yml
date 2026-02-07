@@ -80,6 +80,12 @@ jobs:
       - name: Build Website
         run: cmake --build build --target website
 
+      - name: Install Pagefind
+        run: npm install -g pagefind
+
+      - name: Build Pagefind Index
+        run: pagefind --site docs/_site --config docs/pagefind.yml
+
       - name: List website structure
         run: |
           echo "Website structure:"

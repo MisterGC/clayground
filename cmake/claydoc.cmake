@@ -3,6 +3,9 @@
 # Provides the clay_docs() function to generate API documentation
 # from QDoc comments in Clayground plugins.
 
+# Find Python3 for post-processing scripts
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # Find QDoc executable
 find_program(QDOC_EXECUTABLE
     NAMES qdoc qdoc-qt6
@@ -82,6 +85,8 @@ function(clay_docs)
         # Generate README HTML files for each plugin using external script
         COMMAND ${CMAKE_COMMAND} -E make_directory "${README_OUTPUT_DIR}"
         COMMAND bash "${CMAKE_SOURCE_DIR}/docs/convert-readmes.sh"
+        # Generate API include files for plugin documentation
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/docs/scripts/generate_api_includes.py"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/docs"
         COMMENT "Generating API documentation with QDoc..."
         VERBATIM

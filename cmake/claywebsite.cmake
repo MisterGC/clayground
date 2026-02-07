@@ -79,6 +79,22 @@ function(clay_website_check_prerequisites)
             "Run: cd docs && bundle install")
     endif()
 
+    # Check for Pagefind (optional - use npx if not installed globally)
+    find_program(PAGEFIND_EXECUTABLE pagefind)
+    if(NOT PAGEFIND_EXECUTABLE)
+        find_program(NPX_EXECUTABLE npx)
+        if(NPX_EXECUTABLE)
+            set(PAGEFIND_COMMAND ${NPX_EXECUTABLE} pagefind CACHE INTERNAL "Pagefind command")
+            message(STATUS "Pagefind: using npx pagefind")
+        else()
+            message(WARNING "Pagefind not found. Search will be disabled.")
+            set(PAGEFIND_COMMAND "" CACHE INTERNAL "Pagefind command")
+        endif()
+    else()
+        set(PAGEFIND_COMMAND ${PAGEFIND_EXECUTABLE} CACHE INTERNAL "Pagefind command")
+        message(STATUS "Found Pagefind: ${PAGEFIND_EXECUTABLE}")
+    endif()
+
     message(STATUS "Website prerequisites: OK (using ${BUNDLER_EXECUTABLE})")
 endfunction()
 
@@ -206,12 +222,33 @@ function(clay_website_create_target)
         COMMENT "Building Jekyll site (local dev)..."
     )
 
+    # Run Pagefind to generate search index (if available)
+    if(PAGEFIND_COMMAND)
+        add_custom_target(website-pagefind
+            COMMAND ${PAGEFIND_COMMAND} --site _site --output-path _site/_pagefind
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
+            DEPENDS website-jekyll
+            COMMENT "Building Pagefind search index..."
+        )
+        add_custom_target(website-pagefind-dev
+            COMMAND ${PAGEFIND_COMMAND} --site _site --output-path _site/_pagefind
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
+            DEPENDS website-jekyll-dev
+            COMMENT "Building Pagefind search index (dev)..."
+        )
+        set(PAGEFIND_TARGET website-pagefind)
+        set(PAGEFIND_TARGET_DEV website-pagefind-dev)
+    else()
+        set(PAGEFIND_TARGET website-jekyll)
+        set(PAGEFIND_TARGET_DEV website-jekyll-dev)
+    endif()
+
     # Copy API documentation to _site
     add_custom_target(website-copy-api
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/docs/api
             ${CMAKE_SOURCE_DIR}/docs/_site/api
-        DEPENDS website-jekyll
+        DEPENDS ${PAGEFIND_TARGET}
         COMMENT "Copying API documentation to website..."
     )
 
@@ -219,7 +256,7 @@ function(clay_website_create_target)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/docs/api
             ${CMAKE_SOURCE_DIR}/docs/_site/api
-        DEPENDS website-jekyll-dev
+        DEPENDS ${PAGEFIND_TARGET_DEV}
         COMMENT "Copying API documentation to website (dev)..."
     )
 
