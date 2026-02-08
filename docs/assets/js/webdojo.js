@@ -157,7 +157,7 @@ function getContentSource() {
     const params = parseHashParams();
     const src = params['clay-src'];
 
-    if (src === undefined || src === true) return { type: 'empty' };
+    if (src === undefined || src === true) return { type: 'welcome' };
     if (src.startsWith('example:')) return { type: 'example', name: src.slice(8) };
     if (src.startsWith('code:')) return { type: 'code', compressed: src.slice(5) };
     if (src.startsWith('https://') || src.startsWith('http://'))
@@ -178,6 +178,7 @@ function resolveUIVisibility() {
     const source = getContentSource();
 
     const defaults = {
+        'welcome': { ed: 1, con: 0, hd: 1, fs: 1, br: 0 },
         'empty':   { ed: 1, con: 1, hd: 1, fs: 1, br: 0 },
         'example': { ed: 1, con: 1, hd: 1, fs: 1, br: 0 },
         'code':    { ed: 0, con: 0, hd: 1, fs: 1, br: 0 },
@@ -449,7 +450,7 @@ function buildGallery() {
     const source = getContentSource();
 
     for (const ex of examplesData) {
-        if (ex.name === 'empty') continue;
+        if (ex.name === 'empty' || ex.name === 'welcome') continue;
 
         // Filter by text
         if (filterText) {
@@ -668,6 +669,9 @@ async function initEditorWithVim(resolve, source) {
     let readOnly = false;
 
     switch (source.type) {
+        case 'welcome':
+            initialCode = EMPTY_TEMPLATE;
+            break;
         case 'empty':
             initialCode = await fetchExample('empty') || EMPTY_TEMPLATE;
             break;
@@ -842,6 +846,14 @@ function loadContent(source) {
     if (!source) return;
 
     switch (source.type) {
+        case 'welcome': {
+            const welcomePath = exampleFiles['welcome'];
+            if (welcomePath) {
+                const url = getExamplesBaseUrl() + welcomePath;
+                loadQmlFromUrlDirect(url);
+            }
+            break;
+        }
         case 'url':
             // URL sources use C++ loader for relative import support
             if (source.url) loadQmlFromUrlDirect(source.url);
@@ -987,6 +999,8 @@ function setupEventHandlers(source, visibility) {
         // Start on gallery view unless source is code/url (editing context)
         if (source.type === 'code') {
             switchToView('editor');
+        } else if (source.type === 'welcome') {
+            switchToView('gallery');
         }
     }
 
