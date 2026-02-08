@@ -24,7 +24,8 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
   <body onload="init()">
     <figure style="overflow:visible;" id="qtspinner">
       <center style="margin-top:1.5em; line-height:150%">
-        <strong>Loading WebDojo...</strong>
+        <img src="qtlogo.svg" width="320" height="200" style="display:block"></img>
+        <strong>Qt for WebAssembly: webdojo</strong>
         <div id="qtstatus"></div>
         <noscript>JavaScript is disabled. Please enable JavaScript to use this application.</noscript>
       </center>
@@ -51,18 +52,7 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
                 const instance = await qtLoad({
                     qt: {
-                        onLoaded: () => {
-                            showUi(screen);
-                            // Fix Qt WASM keyboard focus (QTBUG-91095)
-                            // Refocus the hidden input element after pointer interactions
-                            setTimeout(() => {
-                                const qtDiv = screen.querySelector('div');
-                                if (!qtDiv?.shadowRoot) return;
-                                const qtInput = qtDiv.shadowRoot.querySelector('input.qt-window-input-element');
-                                if (!qtInput) return;
-                                screen.addEventListener('pointerup', () => qtInput.focus(), true);
-                            }, 100);
-                        },
+                        onLoaded: () => showUi(screen),
                         onExit: exitData =>
                         {
                             status.innerHTML = 'Application exit';

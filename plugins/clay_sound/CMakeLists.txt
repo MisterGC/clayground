@@ -18,10 +18,13 @@ clay_plugin(Sound
         src/claysound.h
         src/claymusic.cpp
         src/claymusic.h
+        src/chipmood.cpp
+        src/chipmood.h
 
     QML_FILES
         Sound.qml
         Music.qml
+        MoodPlayer.qml
 
     LINK_LIBS
         Qt::Core
