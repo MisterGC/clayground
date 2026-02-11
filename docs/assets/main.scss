@@ -1332,6 +1332,93 @@ mark {
 }
 
 // =============================================================================
+// QDoc API content styling (for SPA-loaded API pages)
+// =============================================================================
+
+// Hide QDoc's own header-nav and breadcrumb items when loaded in SPA
+.docs-article {
+  > .header-nav {
+    display: none;
+  }
+
+  > li {
+    display: none;
+  }
+
+  .qmltype {
+    color: var(--accent-primary);
+    font-weight: bold;
+  }
+
+  .qmlproperty,
+  .property {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .qmlmethod,
+  .function {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent-highlight);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .qmlsignal,
+  .signal {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent-secondary);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .name {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
+
+  .type {
+    color: var(--accent-highlight);
+  }
+
+  .brief {
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-bottom: 0.5rem;
+  }
+
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+      border-bottom: none;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.5rem;
+    }
+
+    li {
+      margin: 0.3rem 0;
+    }
+  }
+}
+
+// =============================================================================
 // API Breadcrumb Styling (for SPA-loaded API content)
 // =============================================================================
 

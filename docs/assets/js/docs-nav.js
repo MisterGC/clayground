@@ -1,6 +1,5 @@
 /**
  * Docs navigation JS - handles sidebar, search, SPA content loading
- * Moved to external file to work reliably with Turbo navigation
  */
 (function() {
   var initialized = false;
@@ -142,7 +141,7 @@
     var results = document.getElementById('search-results');
     var searchHeader = document.getElementById('search-results-header');
 
-    function loadContentFromUrl(url, source) {
+    function loadContentFromUrl(url, source, skipPush) {
       fetch(url)
         .then(function(res) { return res.text(); })
         .then(function(html) {
@@ -165,7 +164,9 @@
 
           article.scrollIntoView({ behavior: 'instant' });
 
-          history.pushState({ url: url, source: source }, '', url);
+          if (!skipPush) {
+            history.pushState({ url: url, source: source }, '', url);
+          }
 
           // After loading API content, intercept internal links and transform breadcrumbs
           if (source === 'api' || source === 'search') {
@@ -342,7 +343,7 @@
           article.style.display = 'none';
         }
       } else if (e.state && e.state.url) {
-        loadContentFromUrl(e.state.url, e.state.source);
+        loadContentFromUrl(e.state.url, e.state.source, true);
       } else {
         location.reload();
       }
@@ -413,10 +414,4 @@
   } else {
     initDocsSidebar();
   }
-
-  // Also initialize on Turbo navigation
-  document.addEventListener('turbo:load', function() {
-    initialized = false;
-    initDocsSidebar();
-  });
 })();
