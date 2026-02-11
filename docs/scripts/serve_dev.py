@@ -6,7 +6,7 @@ Serves from _site/ but overlays docs/ for rapid iteration on source files.
 Changes to QML examples, JS, CSS in docs/ are immediately visible without rebuild.
 
 Usage (run from docs/ directory):
-    python3 serve_dev.py
+    python3 scripts/serve_dev.py
 
 Then open: http://localhost:8000/
 """
@@ -36,7 +36,7 @@ def kill_existing_server():
         pass  # No existing server or lsof not available
 
 # Directories to serve from (in priority order)
-DOCS_DIR = Path(__file__).parent
+DOCS_DIR = Path(__file__).parent.parent
 SITE_DIR = DOCS_DIR / '_site'
 
 # Paths to serve from docs/ directly (for rapid iteration)

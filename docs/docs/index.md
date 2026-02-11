@@ -20,14 +20,8 @@ Use the sidebar to navigate through guides and reference material, or pick a sec
   </div>
 
   <div class="docs-card">
-    <h3>Plugin Reference</h3>
-    <p>Explore all available plugins and their APIs.</p>
+    <h3>Plugins & API</h3>
+    <p>Explore all available plugins, their features, and detailed API reference.</p>
     <a href="{{ site.baseurl }}/docs/plugins/">Browse plugins →</a>
-  </div>
-
-  <div class="docs-card">
-    <h3>API Reference</h3>
-    <p>Detailed type documentation generated from source.</p>
-    <a href="{{ site.baseurl }}/api/">View API →</a>
   </div>
 </div>

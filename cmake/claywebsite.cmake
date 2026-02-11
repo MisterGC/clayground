@@ -113,8 +113,8 @@ function(clay_website_create_target)
 
     # Sync plugin documentation
     add_custom_target(website-sync-docs
-        COMMAND chmod +x sync-plugin-docs.sh
-        COMMAND ./sync-plugin-docs.sh
+        COMMAND chmod +x scripts/sync-plugin-docs.sh
+        COMMAND ./scripts/sync-plugin-docs.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         COMMENT "Syncing plugin documentation..."
     )
@@ -216,7 +216,7 @@ function(clay_website_create_target)
     # Jekyll build for local development (no baseurl prefix)
     # Use a helper script to properly pass empty baseurl
     add_custom_target(website-jekyll-dev
-        COMMAND ${CMAKE_SOURCE_DIR}/docs/build-dev.sh
+        COMMAND ${CMAKE_SOURCE_DIR}/docs/scripts/build-dev.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         DEPENDS website-sync-docs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (local dev)..."

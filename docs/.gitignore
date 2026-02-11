@@ -10,6 +10,19 @@ plugins/*.md
 
 # Generated API docs files
 api/version.json
+api/readme/*.html
+api/clayground.index
+api/images/
+api/style/
+
+# Generated Jekyll data
+_data/plugin_types.yml
+_includes/api/
 
 # Bundle
 .bundle/
+
+# OS / Editor junk
+__pycache__/
+*.pyc
+.DS_Store

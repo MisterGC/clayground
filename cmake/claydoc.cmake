@@ -50,9 +50,6 @@ function(clay_docs)
     # Create output directory
     file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 
-    # Generate version.json for the API docs
-    file(WRITE "${OUTPUT_DIR}/version.json" "{\"version\": \"${CLAYGROUND_VERSION}\"}")
-
     # Find Qt host include path for C++ parsing
     get_filename_component(QT_HOST_INCLUDE "${QT_HOST_PATH}/include" ABSOLUTE)
     if(NOT EXISTS "${QT_HOST_INCLUDE}")
@@ -82,9 +79,10 @@ function(clay_docs)
             "${TEMP_OUTPUT_DIR}/clayground.index"
             "${OUTPUT_DIR}/clayground.index"
         COMMAND sh -c "cp '${TEMP_OUTPUT_DIR}'/qml-*.html '${OUTPUT_DIR}/' 2>/dev/null || true"
+        COMMAND sh -c "cp '${TEMP_OUTPUT_DIR}'/clayground-*.html '${OUTPUT_DIR}/' 2>/dev/null || true"
         # Generate README HTML files for each plugin using external script
         COMMAND ${CMAKE_COMMAND} -E make_directory "${README_OUTPUT_DIR}"
-        COMMAND bash "${CMAKE_SOURCE_DIR}/docs/convert-readmes.sh"
+        COMMAND bash "${CMAKE_SOURCE_DIR}/docs/scripts/convert-readmes.sh"
         # Generate API include files for plugin documentation
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/docs/scripts/generate_api_includes.py"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/docs"

@@ -59,7 +59,7 @@ Cross-Origin-Embedder-Policy: require-corp
 Use Clayground's development server which handles this:
 
 ```bash
-cd docs && python3 serve_dev.py
+cd docs && python3 scripts/serve_dev.py
 ```
 
 ## Try It Online

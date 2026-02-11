@@ -69,9 +69,9 @@ docs/
 │   ├── plugins/          # Plugin documentation
 │   └── development/      # Developer documentation
 ├── scripts/
-│   └── generate_api_includes.py  # API include generator
-├── convert-readmes.sh    # README to HTML converter
-├── serve_dev.py          # Local development server
+│   ├── generate_api_includes.py  # API include generator
+│   ├── serve.sh          # Jekyll dev server launcher
+│   └── serve_dev.py      # Local development server
 └── pagefind.yml          # Search configuration
 ```
 
@@ -109,7 +109,7 @@ MODULE_TO_PLUGIN = {
 Always use `serve_dev.py` for local development:
 
 ```bash
-cd docs && python3 serve_dev.py
+cd docs && python3 scripts/serve_dev.py
 ```
 
 This server provides:

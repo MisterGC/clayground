@@ -121,9 +121,9 @@ def generate_html(types: list, plugin_name: str) -> str:
         lines.append(f'    </summary>')
         lines.append(f'    <div class="api-type-content">')
 
-        # Link to full API docs (via api-viewer to keep sidebar)
+        # Link to full API docs
         if href:
-            lines.append(f'      <p class="api-link"><a href="/docs/api-viewer/?type={href}">View full documentation</a></p>')
+            lines.append(f'      <p class="api-link"><a href="/api/{href}">View full documentation</a></p>')
 
         # Properties section
         if type_info["properties"]:

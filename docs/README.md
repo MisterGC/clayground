@@ -34,7 +34,7 @@ For quick iteration on Jekyll content (without API docs rebuild):
 
 2. Run the development server:
    ```bash
-   ./serve.sh
+   ./scripts/serve.sh
    ```
 
    Or manually:
@@ -159,7 +159,7 @@ The site will be available at: https://clayground.mistergc.dev/
 
 Plugin documentation is automatically generated from the README files in `plugins/clay_*/README.md`. 
 
-- **Locally**: The `serve.sh` script runs `sync-plugin-docs.sh` automatically
+- **Locally**: The `scripts/serve.sh` script runs `sync-plugin-docs.sh` automatically
 - **On GitHub**: The GitHub Action runs `sync-plugin-docs.sh` during deployment
 - **Generated files** in `docs/plugins/` are ignored by git (see `.gitignore`)
 
