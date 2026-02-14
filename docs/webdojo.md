@@ -32,6 +32,9 @@ permalink: /webdojo/
         <button id="sidebar-new" class="sidebar-icon" title="New Script">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M9 3v6H3v2h6v6h2v-6h6V9h-6V3z"/></svg>
         </button>
+        <button id="sidebar-url" class="sidebar-icon" title="Load URL">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.5" ry="7.5"/><line x1="2.5" y1="10" x2="17.5" y2="10"/></svg>
+        </button>
     </div>
 
     <div id="left-pane" class="left-pane">
@@ -61,6 +64,28 @@ permalink: /webdojo/
             <button id="run-button" class="run-button">▶ Run</button>
         </div>
     </div>
+
+        <div id="url-pane" class="url-pane hidden">
+            <div class="url-pane-content">
+                <h3 class="url-pane-title">Load from URL</h3>
+                <p class="url-pane-description">
+                    Load a QML file from any HTTP(S) URL.<br>
+                    Relative imports are supported.
+                </p>
+                <input type="text" id="url-pane-input" class="url-input"
+                       placeholder="https://raw.githubusercontent.com/..."
+                       aria-label="QML URL">
+                <div class="url-pane-actions">
+                    <button id="url-pane-load" class="load-url-button">Load</button>
+                    <button id="url-pane-load-edit" class="view-source-button">Load + Edit</button>
+                </div>
+                <div class="url-pane-hints">
+                    <span class="url-pane-hint">GitHub raw URL</span>
+                    <span class="url-pane-hint">localhost dev server</span>
+                    <span class="url-pane-hint">Any CORS-enabled host</span>
+                </div>
+            </div>
+        </div>
     </div>
     </div>
 

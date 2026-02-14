@@ -446,8 +446,25 @@ function buildGallery() {
 
     list.innerHTML = '';
 
+    // Remove any previous tip
+    list.parentElement.querySelector('.gallery-tip')?.remove();
+
     const filterText = (document.getElementById('gallery-filter-input')?.value || '').toLowerCase();
     const source = getContentSource();
+
+    // Show a tip when on the welcome screen
+    if (source.type === 'welcome' && !filterText) {
+        const tip = document.createElement('div');
+        tip.className = 'gallery-tip';
+        tip.innerHTML = 'Browse examples below, '
+            + '<button class="gallery-tip-link" id="gallery-tip-url">load from URL</button>, or '
+            + '<button class="gallery-tip-link" id="gallery-tip-new">start a new script</button>.';
+        list.parentElement.insertBefore(tip, list);
+        document.getElementById('gallery-tip-url')?.addEventListener('click', () => switchToView('url'));
+        document.getElementById('gallery-tip-new')?.addEventListener('click', () => {
+            document.getElementById('sidebar-new')?.click();
+        });
+    }
 
     for (const ex of examplesData) {
         if (ex.name === 'empty' || ex.name === 'welcome') continue;
@@ -504,7 +521,18 @@ function buildGallery() {
 
         item.addEventListener('click', () => {
             updateHashParam('clay-src', `example:${ex.name}`);
-            loadContent({ type: 'example', name: ex.name });
+            if (needsReload('example')) {
+                window.location.reload();
+                return;
+            }
+            const newSource = { type: 'example', name: ex.name };
+            currentSource = newSource;
+            originalSource = { ...newSource };
+            originalCode = null;
+            isDirty = false;
+            dirtyTrackingEnabled = false;
+            updateDirtyIndicator();
+            loadContent(newSource);
             // Update active state
             list.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
             item.classList.add('active');
@@ -528,22 +556,32 @@ function buildGallery() {
 function switchToView(view) {
     const galleryPane = document.getElementById('gallery-pane');
     const editorPane = document.getElementById('editor-pane');
+    const urlPane = document.getElementById('url-pane');
     const galleryBtn = document.getElementById('sidebar-gallery');
     const editorBtn = document.getElementById('sidebar-editor');
+    const urlBtn = document.getElementById('sidebar-url');
+
+    // Hide all panes, deactivate all buttons
+    galleryPane?.classList.add('hidden');
+    editorPane?.classList.add('hidden');
+    urlPane?.classList.add('hidden');
+    galleryBtn?.classList.remove('active');
+    editorBtn?.classList.remove('active');
+    urlBtn?.classList.remove('active');
 
     if (view === 'gallery') {
         galleryPane?.classList.remove('hidden');
-        editorPane?.classList.add('hidden');
         galleryBtn?.classList.add('active');
-        editorBtn?.classList.remove('active');
-    } else {
-        galleryPane?.classList.add('hidden');
+    } else if (view === 'editor') {
         editorPane?.classList.remove('hidden');
-        galleryBtn?.classList.remove('active');
         editorBtn?.classList.add('active');
         if (editor) {
             setTimeout(() => editor.layout(), 50);
         }
+    } else if (view === 'url') {
+        urlPane?.classList.remove('hidden');
+        urlBtn?.classList.add('active');
+        document.getElementById('url-pane-input')?.focus();
     }
 }
 
@@ -567,10 +605,22 @@ function setupGallery() {
     if (newBtn) {
         newBtn.addEventListener('click', () => {
             updateHashParam('clay-src', null);
+            if (needsReload('empty')) {
+                window.location.reload();
+                return;
+            }
+            currentSource = { type: 'empty' };
+            originalSource = { type: 'empty' };
+            originalCode = null;
+            isDirty = false;
+            dirtyTrackingEnabled = false;
             loadContent({ type: 'empty' });
             if (editor) {
                 fetchExample('empty').then(code => {
-                    if (code) editor.setValue(code);
+                    if (code) {
+                        editor.setValue(code);
+                        originalCode = code;
+                    }
                     editor.updateOptions({ readOnly: false });
                 });
                 enableEditControls();
@@ -580,7 +630,67 @@ function setupGallery() {
         });
     }
 
+    const urlBtn = document.getElementById('sidebar-url');
+    if (urlBtn) {
+        urlBtn.addEventListener('click', () => switchToView('url'));
+    }
+
     buildGallery();
+}
+
+function needsReload(newSourceType) {
+    const defaults = {
+        'welcome': { ed: 1, con: 0, hd: 1, fs: 1, br: 0 },
+        'empty':   { ed: 1, con: 1, hd: 1, fs: 1, br: 0 },
+        'example': { ed: 1, con: 1, hd: 1, fs: 1, br: 0 },
+        'code':    { ed: 0, con: 0, hd: 1, fs: 1, br: 0 },
+        'url':     { ed: 0, con: 0, hd: 1, fs: 1, br: 0 },
+    };
+    const d = defaults[newSourceType];
+    return d && (
+        !!d.ed !== currentVisibility.editor ||
+        !!d.con !== currentVisibility.console ||
+        !!d.hd !== currentVisibility.header
+    );
+}
+
+function setupUrlPane() {
+    const urlInput = document.getElementById('url-pane-input');
+    const loadBtn = document.getElementById('url-pane-load');
+    const loadEditBtn = document.getElementById('url-pane-load-edit');
+
+    if (!urlInput) return;
+
+    // Prevent Monaco from capturing clipboard events
+    urlInput.addEventListener('paste', (e) => e.stopPropagation());
+    urlInput.addEventListener('copy', (e) => e.stopPropagation());
+    urlInput.addEventListener('cut', (e) => e.stopPropagation());
+
+    // Pre-fill if current source is a URL
+    if (currentSource.type === 'url') {
+        urlInput.value = currentSource.url;
+    }
+
+    function doLoad(withEditor) {
+        const url = urlInput.value.trim();
+        if (!url) return;
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            logToConsole('URL must start with http:// or https://', 'warning');
+            return;
+        }
+        updateHashParam('clay-src', url);
+        if (withEditor) {
+            updateHashParam('clay-ed', '1');
+            updateHashParam('clay-con', '1');
+        }
+        window.location.reload();
+    }
+
+    loadBtn?.addEventListener('click', () => doLoad(false));
+    loadEditBtn?.addEventListener('click', () => doLoad(true));
+    urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') doLoad(false);
+    });
 }
 
 function getExamplesBaseUrl() {
@@ -626,6 +736,12 @@ let vimMode = null;
 // Stored source/visibility for callbacks
 let currentSource = null;
 let currentVisibility = null;
+
+// State tracking for dirty detection and smart sharing
+let originalSource = null;
+let originalCode = null;
+let isDirty = false;
+let dirtyTrackingEnabled = false;
 
 const EMPTY_TEMPLATE = 'import QtQuick\n\nItem {\n}\n';
 
@@ -686,6 +802,7 @@ async function initEditorWithVim(resolve, source) {
             } catch (e) {
                 initialCode = '// Failed to decompress code from URL';
             }
+            originalCode = initialCode;
             break;
         case 'url':
             initialCode = '// Loading from URL...';
@@ -757,12 +874,14 @@ function setupUrlSourceEditor(source) {
             document.querySelector('.readonly-badge')?.remove();
             logToConsole('Now editing a copy - relative imports will not work', 'warning');
 
-            // Switch to code source
+            // Switch URL to code source (preserves edits on refresh)
+            // but keep originalSource so Share/Standalone can reference it
             const code = editor.getValue();
             const compressed = LZString.compressToEncodedURIComponent(code);
             updateHashParam('clay-src', `code:${compressed}`);
             updateHashParam('clay-ed', '1');
             updateHashParam('clay-con', '1');
+            currentSource = { type: 'code', compressed };
 
             enableEditControls();
             runQml();
@@ -897,6 +1016,15 @@ async function getDirectCode(source) {
     }
 }
 
+function isExternalUrl(url) {
+    return url && url.startsWith('http') && !url.startsWith(window.location.origin);
+}
+
+function addCacheBuster(url) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}_t=${Date.now()}`;
+}
+
 // ============================================================================
 // QML Execution
 // ============================================================================
@@ -953,9 +1081,12 @@ function loadQmlFromUrlDirect(url) {
         url = window.location.origin + (url.startsWith('/') ? '' : '/') + url;
     }
 
+    // Cache-bust external URLs to ensure fresh content
+    const loadUrl = isExternalUrl(url) ? addCacheBuster(url) : url;
+
     try {
         if (webDojoModule.loadQmlFromUrl) {
-            webDojoModule.loadQmlFromUrl(url);
+            webDojoModule.loadQmlFromUrl(loadUrl);
         }
     } catch (error) {
         logToConsole(`Error loading from URL: ${error}`, 'error');
@@ -964,12 +1095,16 @@ function loadQmlFromUrlDirect(url) {
 
 async function fetchAndDisplayQml(url) {
     try {
-        const response = await fetch(url);
+        const fetchUrl = isExternalUrl(url) ? addCacheBuster(url) : url;
+        const response = await fetch(fetchUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const source = await response.text();
         if (editor) {
             editor.setValue(source);
         }
+        originalCode = source;
+        isDirty = false;
+        updateDirtyIndicator();
     } catch (error) {
         logToConsole(`Failed to fetch source: ${error}`, 'error');
     }
@@ -1022,10 +1157,10 @@ function setupEventHandlers(source, visibility) {
     }
 
     // Share button
-    setupShareButton(source, visibility);
+    setupShareButton();
 
     // Standalone button
-    setupStandaloneButton(source, visibility);
+    setupStandaloneButton();
 
     // Clear console
     const clearConsoleBtn = document.getElementById('clear-console');
@@ -1059,39 +1194,56 @@ function setupEventHandlers(source, visibility) {
         setupConsoleDivider();
     }
 
-    // URL input for URL sources without editor
+    // URL pane in sidebar (available when left section exists)
+    setupUrlPane();
+
+    // URL input in header for URL sources without editor (standalone URL view)
     if (source.type === 'url' && !visibility.editor) {
         setupUrlInputControls(source);
     }
 }
 
 
-function setupShareButton(source, visibility) {
+function buildSourceUrl(source) {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    if (source.type === 'example') {
+        return `${base}#clay-src=example:${source.name}`;
+    }
+    if (source.type === 'url') {
+        const encoded = encodeURIComponent(source.url).replace(/%3A/gi, ':').replace(/%2F/gi, '/');
+        return `${base}#clay-src=${encoded}`;
+    }
+    return null;
+}
+
+function setupShareButton() {
     const shareBtn = document.getElementById('share-button');
     if (!shareBtn) return;
 
     shareBtn.addEventListener('click', async () => {
         let url;
 
-        if (editor && visibility.editor) {
-            // Editor visible: compress code and share
+        // Unmodified example/url: share the original source reference
+        if (!isDirty && originalSource &&
+            (originalSource.type === 'example' || originalSource.type === 'url')) {
+            url = buildSourceUrl(originalSource);
+        } else if (editor) {
+            // Modified or code source: compress editor content
             const code = editor.getValue();
             const compressed = LZString.compressToEncodedURIComponent(code);
             url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
-
             if (url.length > 8000) {
                 alert('Code too long to share via URL. Max ~6KB of code.');
                 return;
             }
         } else {
-            // No editor: share current URL as-is
             url = window.location.href;
         }
 
         try {
             await navigator.clipboard.writeText(url);
             const originalText = shareBtn.textContent;
-            shareBtn.textContent = '✓ Copied!';
+            shareBtn.textContent = '\u2713 Copied!';
             setTimeout(() => shareBtn.textContent = originalText, 2000);
         } catch (e) {
             prompt('Copy this URL:', url);
@@ -1099,36 +1251,43 @@ function setupShareButton(source, visibility) {
     });
 }
 
-function setupStandaloneButton(source, visibility) {
+function setupStandaloneButton() {
     const standaloneBtn = document.getElementById('standalone-button');
     if (!standaloneBtn) return;
 
-    if (source.type === 'url' && visibility.editor) {
-        // URL source with editor: standalone opens URL without editor
-        standaloneBtn.addEventListener('click', () => {
-            const url = `${window.location.origin}${window.location.pathname}#clay-src=${encodeURIComponent(source.url)}`;
-            window.open(url, '_blank');
-        });
-    } else if (visibility.editor) {
-        // Normal editor: compress and open view-only
-        standaloneBtn.addEventListener('click', () => {
-            if (!editor) return;
+    // Already in standalone-like view: remove button
+    if (!currentVisibility.editor && !currentVisibility.header) {
+        standaloneBtn.remove();
+        return;
+    }
 
+    // Contextual label
+    if (currentSource.type === 'url') {
+        standaloneBtn.textContent = '\u25B6 Standalone App';
+    }
+
+    standaloneBtn.addEventListener('click', () => {
+        let url;
+
+        // Unmodified example/url: open with original source reference
+        if (!isDirty && originalSource &&
+            (originalSource.type === 'example' || originalSource.type === 'url')) {
+            url = buildSourceUrl(originalSource);
+        } else if (editor) {
+            // Modified or code source: compress and open
             const code = editor.getValue();
             const compressed = LZString.compressToEncodedURIComponent(code);
-            const url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
-
+            url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
             if (url.length > 8000) {
                 alert('Code too long for standalone URL. Max ~6KB.');
                 return;
             }
+        } else {
+            url = window.location.href;
+        }
 
-            window.open(url, '_blank');
-        });
-    } else {
-        // No editor: remove standalone button (already in standalone-like view)
-        standaloneBtn.remove();
-    }
+        if (url) window.open(url, '_blank');
+    });
 }
 
 function setupUrlInputControls(source) {
@@ -1257,6 +1416,41 @@ function enableEditControls() {
             reloadDebounceTimer = setTimeout(runQml, 500);
         });
     }
+
+    setupDirtyTracking();
+}
+
+function setupDirtyTracking() {
+    if (dirtyTrackingEnabled || !editor) return;
+    dirtyTrackingEnabled = true;
+
+    editor.onDidChangeModelContent(() => {
+        if (originalCode !== null) {
+            isDirty = (editor.getValue() !== originalCode);
+        } else {
+            isDirty = true;
+        }
+        updateDirtyIndicator();
+    });
+}
+
+function updateDirtyIndicator() {
+    let badge = document.getElementById('dirty-badge');
+    if (!badge) {
+        const controls = document.querySelector('.editor-controls-left');
+        if (!controls) return;
+        badge = document.createElement('span');
+        badge.id = 'dirty-badge';
+        badge.className = 'dirty-badge hidden';
+        badge.textContent = '(modified)';
+        controls.appendChild(badge);
+    }
+    if (isDirty && originalSource &&
+        (originalSource.type === 'example' || originalSource.type === 'url')) {
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
 }
 
 // ============================================================================
@@ -1360,6 +1554,7 @@ async function init() {
 
     // 2. Determine what to load and how to display
     currentSource = getContentSource();
+    originalSource = { ...currentSource };
     currentVisibility = resolveUIVisibility();
 
     // 3. Apply UI visibility (remove hidden elements)
@@ -1378,6 +1573,14 @@ async function init() {
 
     // 7. Initialize WASM (content loaded in onLoaded callback)
     await initWebDojo();
+
+    // 8. React to external hash changes (user editing URL bar)
+    window.addEventListener('hashchange', () => {
+        const newSource = getContentSource();
+        if (JSON.stringify(newSource) !== JSON.stringify(currentSource)) {
+            window.location.reload();
+        }
+    });
 }
 
 // Start when DOM is ready

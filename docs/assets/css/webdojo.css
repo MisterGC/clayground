@@ -188,6 +188,28 @@
     padding: 0.25rem 0;
 }
 
+.gallery-tip {
+    padding: 0.75rem;
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--border-color, #30363d);
+}
+
+.gallery-tip-link {
+    background: none;
+    border: none;
+    color: var(--accent-primary, #00d9ff);
+    cursor: pointer;
+    font-size: inherit;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.gallery-tip-link:hover {
+    color: #33e0ff;
+}
+
 .gallery-item {
     padding: 0.5rem 0.75rem;
     cursor: pointer;
@@ -368,6 +390,60 @@
     flex-direction: column;
 }
 
+/* URL input pane */
+.url-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary, #161b22);
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.url-pane-content {
+    max-width: 500px;
+}
+
+.url-pane-title {
+    color: var(--text-primary, #e6edf3);
+    font-size: 1rem;
+    margin: 0 0 0.5rem 0;
+}
+
+.url-pane-description {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0 0 1rem 0;
+}
+
+.url-pane .url-input {
+    width: 100%;
+    max-width: none;
+    margin-bottom: 0.75rem;
+    box-sizing: border-box;
+}
+
+.url-pane-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.url-pane-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.url-pane-hint {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #8b949e);
+    padding: 0.2rem 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+}
+
 #editor-container {
     flex: 1;
     overflow: hidden;
@@ -396,6 +472,20 @@
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 500;
+}
+
+.dirty-badge {
+    padding: 0.15rem 0.4rem;
+    background: rgba(240, 173, 78, 0.15);
+    color: #f0ad4e;
+    border: 1px solid rgba(240, 173, 78, 0.3);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.dirty-badge.hidden {
+    display: none;
 }
 
 .auto-reload-label,
