@@ -64,6 +64,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build
+          pip install build
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1

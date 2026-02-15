@@ -554,34 +554,29 @@ function buildGallery() {
 }
 
 function switchToView(view) {
-    const galleryPane = document.getElementById('gallery-pane');
-    const editorPane = document.getElementById('editor-pane');
-    const urlPane = document.getElementById('url-pane');
-    const galleryBtn = document.getElementById('sidebar-gallery');
-    const editorBtn = document.getElementById('sidebar-editor');
-    const urlBtn = document.getElementById('sidebar-url');
+    const panes = ['gallery-pane', 'editor-pane', 'url-pane', 'devserver-pane'];
+    const buttons = ['sidebar-gallery', 'sidebar-editor', 'sidebar-url', 'sidebar-devserver'];
 
     // Hide all panes, deactivate all buttons
-    galleryPane?.classList.add('hidden');
-    editorPane?.classList.add('hidden');
-    urlPane?.classList.add('hidden');
-    galleryBtn?.classList.remove('active');
-    editorBtn?.classList.remove('active');
-    urlBtn?.classList.remove('active');
+    panes.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    buttons.forEach(id => document.getElementById(id)?.classList.remove('active'));
 
     if (view === 'gallery') {
-        galleryPane?.classList.remove('hidden');
-        galleryBtn?.classList.add('active');
+        document.getElementById('gallery-pane')?.classList.remove('hidden');
+        document.getElementById('sidebar-gallery')?.classList.add('active');
     } else if (view === 'editor') {
-        editorPane?.classList.remove('hidden');
-        editorBtn?.classList.add('active');
+        document.getElementById('editor-pane')?.classList.remove('hidden');
+        document.getElementById('sidebar-editor')?.classList.add('active');
         if (editor) {
             setTimeout(() => editor.layout(), 50);
         }
     } else if (view === 'url') {
-        urlPane?.classList.remove('hidden');
-        urlBtn?.classList.add('active');
+        document.getElementById('url-pane')?.classList.remove('hidden');
+        document.getElementById('sidebar-url')?.classList.add('active');
         document.getElementById('url-pane-input')?.focus();
+    } else if (view === 'devserver') {
+        document.getElementById('devserver-pane')?.classList.remove('hidden');
+        document.getElementById('sidebar-devserver')?.classList.add('active');
     }
 }
 
@@ -633,6 +628,11 @@ function setupGallery() {
     const urlBtn = document.getElementById('sidebar-url');
     if (urlBtn) {
         urlBtn.addEventListener('click', () => switchToView('url'));
+    }
+
+    const devServerBtn = document.getElementById('sidebar-devserver');
+    if (devServerBtn) {
+        devServerBtn.addEventListener('click', () => switchToView('devserver'));
     }
 
     buildGallery();
@@ -691,6 +691,40 @@ function setupUrlPane() {
     urlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') doLoad(false);
     });
+}
+
+function setupDevServerPane() {
+    const installCmd = document.getElementById('devserver-install-cmd');
+    const downloadLink = document.getElementById('devserver-download-link');
+    const hint = document.getElementById('devserver-hint');
+
+    if (!installCmd) return;
+
+    // Determine version and wheel URL (dev serves from Pages, release from GitHub Releases)
+    let ver, whlName, whlUrl;
+    const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
+
+    if (resolvedVersion && !resolvedVersion.isLocal) {
+        const tag = resolvedVersion.tag;
+        ver = tag.startsWith('v') ? tag.slice(1) : tag;
+        whlName = `clay_dev_server-${ver}-py3-none-any.whl`;
+        whlUrl = `${GITHUB_RELEASES_URL}/${tag}/${whlName}`;
+    } else {
+        ver = claygroundVersion || '0.0.0';
+        whlName = `clay_dev_server-${ver}-py3-none-any.whl`;
+        whlUrl = `${baseUrl}/demo/webdojo/${whlName}`;
+    }
+
+    installCmd.textContent = `pip install ${whlName}`;
+
+    if (downloadLink) {
+        downloadLink.href = whlUrl;
+        downloadLink.textContent = `Download ${whlName}`;
+        downloadLink.style.display = 'inline-block';
+    }
+    if (hint) {
+        hint.textContent = `For file watching: pip install "${whlName}[watch]"`;
+    }
 }
 
 function getExamplesBaseUrl() {
@@ -1122,6 +1156,73 @@ function logToConsole(message, type = 'log') {
 }
 
 // ============================================================================
+// Dev Server SSE (Live Reload)
+// ============================================================================
+
+let devServerEventSource = null;
+let devServerRetryCount = 0;
+let devServerRetryTimer = null;
+const DEV_SERVER_MAX_RETRIES = 10;
+const DEV_SERVER_RETRY_INTERVAL = 2000;
+
+function isLocalhostUrl(url) {
+    try {
+        const parsed = new URL(url);
+        return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    } catch {
+        return false;
+    }
+}
+
+function setupDevServerSSE() {
+    cleanupDevServerSSE();
+    if (!currentSource || currentSource.type !== 'url' || !isLocalhostUrl(currentSource.url)) return;
+
+    const origin = new URL(currentSource.url).origin;
+    devServerEventSource = new EventSource(origin + '/events');
+
+    devServerEventSource.addEventListener('reload', (e) => {
+        const data = JSON.parse(e.data);
+        const files = data.files || [];
+        logToConsole(`Live reload: ${files.join(', ')}`, 'log');
+        loadQmlFromUrlDirect(currentSource.url);
+        if (editor && !document.getElementById('editor-pane')?.classList.contains('hidden')) {
+            fetchAndDisplayQml(currentSource.url);
+        }
+    });
+
+    devServerEventSource.addEventListener('open', () => {
+        devServerRetryCount = 0;
+        logToConsole('Dev server connected', 'success');
+    });
+
+    devServerEventSource.addEventListener('error', () => {
+        if (devServerEventSource?.readyState === EventSource.CLOSED) {
+            devServerEventSource = null;
+            if (devServerRetryCount < DEV_SERVER_MAX_RETRIES) {
+                devServerRetryCount++;
+                logToConsole(`Dev server disconnected, reconnecting (${devServerRetryCount}/${DEV_SERVER_MAX_RETRIES}) ...`, 'warning');
+                devServerRetryTimer = setTimeout(setupDevServerSSE, DEV_SERVER_RETRY_INTERVAL);
+            } else {
+                logToConsole('Dev server disconnected, giving up after max retries', 'warning');
+            }
+        }
+    });
+}
+
+function cleanupDevServerSSE() {
+    if (devServerRetryTimer) {
+        clearTimeout(devServerRetryTimer);
+        devServerRetryTimer = null;
+    }
+    devServerRetryCount = 0;
+    if (devServerEventSource) {
+        devServerEventSource.close();
+        devServerEventSource = null;
+    }
+}
+
+// ============================================================================
 // Event Handlers
 // ============================================================================
 
@@ -1196,6 +1297,9 @@ function setupEventHandlers(source, visibility) {
 
     // URL pane in sidebar (available when left section exists)
     setupUrlPane();
+
+    // Dev server pane
+    setupDevServerPane();
 
     // URL input in header for URL sources without editor (standalone URL view)
     if (source.type === 'url' && !visibility.editor) {
@@ -1574,7 +1678,10 @@ async function init() {
     // 7. Initialize WASM (content loaded in onLoaded callback)
     await initWebDojo();
 
-    // 8. React to external hash changes (user editing URL bar)
+    // 8. Connect to dev server SSE for live reload (localhost URLs only)
+    setupDevServerSSE();
+
+    // 9. React to external hash changes (user editing URL bar)
     window.addEventListener('hashchange', () => {
         const newSource = getContentSource();
         if (JSON.stringify(newSource) !== JSON.stringify(currentSource)) {

@@ -35,6 +35,9 @@ permalink: /webdojo/
         <button id="sidebar-url" class="sidebar-icon" title="Load URL">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.5" ry="7.5"/><line x1="2.5" y1="10" x2="17.5" y2="10"/></svg>
         </button>
+        <button id="sidebar-devserver" class="sidebar-icon" title="Dev Server">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4h14v9H3V4zm1 1v7h12V5H4zm2 9h8v1H6v-1zm-1 2h10v1H5v-1z"/></svg>
+        </button>
     </div>
 
     <div id="left-pane" class="left-pane">
@@ -84,6 +87,31 @@ permalink: /webdojo/
                     <span class="url-pane-hint">localhost dev server</span>
                     <span class="url-pane-hint">Any CORS-enabled host</span>
                 </div>
+            </div>
+        </div>
+
+        <div id="devserver-pane" class="devserver-pane hidden">
+            <div class="devserver-pane-content">
+                <h3 class="devserver-pane-title">Dev Server</h3>
+                <p class="devserver-pane-description">
+                    Develop QML locally with live-reload.<br>
+                    The dev server watches your project files and pushes
+                    changes to WebDojo via SSE.
+                </p>
+                <div class="devserver-install">
+                    <span class="devserver-install-label">Install</span>
+                    <code class="devserver-install-cmd" id="devserver-install-cmd"></code>
+                </div>
+                <div class="devserver-install">
+                    <span class="devserver-install-label">Run</span>
+                    <code class="devserver-install-cmd">clay-dev-server &lt;project_dir&gt;</code>
+                </div>
+                <div class="devserver-install">
+                    <span class="devserver-install-label">Then</span>
+                    <code class="devserver-install-cmd">Load http://localhost:8090/Main.qml via the URL pane</code>
+                </div>
+                <a id="devserver-download-link" class="devserver-download-btn" style="display:none;">Download wheel</a>
+                <p class="devserver-pane-hint" id="devserver-hint"></p>
             </div>
         </div>
     </div>

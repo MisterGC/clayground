@@ -444,6 +444,86 @@
     border-radius: 3px;
 }
 
+/* Dev Server pane */
+.devserver-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary, #161b22);
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.devserver-pane-content {
+    max-width: 500px;
+}
+
+.devserver-pane-title {
+    color: var(--text-primary, #e6edf3);
+    font-size: 1rem;
+    margin: 0 0 0.5rem 0;
+}
+
+.devserver-pane-description {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0 0 1rem 0;
+}
+
+.devserver-install {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.devserver-install-label {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 3.5rem;
+    flex-shrink: 0;
+}
+
+.devserver-install-cmd {
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-dark, #0d1117);
+    color: var(--accent-primary, #00d9ff);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    word-break: break-all;
+}
+
+.devserver-download-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.4rem 1rem;
+    background: var(--accent-primary, #00d9ff);
+    color: var(--bg-dark, #0d1117);
+    border: none;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.devserver-download-btn:hover {
+    box-shadow: var(--glow-primary);
+}
+
+.devserver-pane-hint {
+    color: var(--text-secondary, #8b949e);
+    font-size: 0.7rem;
+    margin-top: 0.75rem;
+    line-height: 1.4;
+}
+
 #editor-container {
     flex: 1;
     overflow: hidden;

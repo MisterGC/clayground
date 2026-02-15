@@ -95,6 +95,25 @@ function(clay_website_check_prerequisites)
         message(STATUS "Found Pagefind: ${PAGEFIND_EXECUTABLE}")
     endif()
 
+    # Check for Python 3 and build module (for dev server wheel)
+    find_program(PYTHON3_EXECUTABLE python3)
+    if(NOT PYTHON3_EXECUTABLE)
+        message(FATAL_ERROR
+            "Website build requires Python 3 (for dev server wheel).\n"
+            "Install Python 3 and ensure it's in your PATH.")
+    endif()
+    execute_process(
+        COMMAND ${PYTHON3_EXECUTABLE} -c "import build"
+        RESULT_VARIABLE PY_BUILD_RESULT
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(NOT PY_BUILD_RESULT EQUAL 0)
+        message(FATAL_ERROR
+            "Python 'build' module required (for dev server wheel).\n"
+            "Install with: pip install build")
+    endif()
+    message(STATUS "Found Python: ${PYTHON3_EXECUTABLE} (build module OK)")
+
     message(STATUS "Website prerequisites: OK (using ${BUNDLER_EXECUTABLE})")
 endfunction()
 
@@ -305,6 +324,38 @@ function(clay_website_create_target)
         )
         list(APPEND COPY_TARGETS_DEV ${COPY_TARGET_DEV})
     endforeach()
+
+    # Build dev server Python wheel and copy to website
+    set(DEVSERVER_DIR ${CMAKE_SOURCE_DIR}/tools/clay-dev-server)
+    set(DEVSERVER_WHEEL_SCRIPT ${CMAKE_SOURCE_DIR}/cmake/devserver_wheel.cmake)
+    set(DEVSERVER_BUILD_CMD ${CMAKE_COMMAND}
+        -DVERSION=${PROJECT_VERSION}
+        -DPYTHON3=${PYTHON3_EXECUTABLE}
+        -DDEVSERVER_DIR=${DEVSERVER_DIR}
+        -DOUTDIR=${DEVSERVER_DIR}/dist
+        -P ${DEVSERVER_WHEEL_SCRIPT})
+    set(DEVSERVER_COPY_CMD bash -c
+        "cp ${DEVSERVER_DIR}/dist/*.whl ${CMAKE_SOURCE_DIR}/docs/_site/demo/webdojo/")
+
+    add_custom_target(website-build-devserver-wheel
+        COMMAND ${DEVSERVER_BUILD_CMD}
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${CMAKE_SOURCE_DIR}/docs/_site/demo/webdojo
+        COMMAND ${DEVSERVER_COPY_CMD}
+        DEPENDS website-jekyll
+        COMMENT "Building dev server wheel (${PROJECT_VERSION})..."
+    )
+    list(APPEND COPY_TARGETS website-build-devserver-wheel)
+
+    add_custom_target(website-build-devserver-wheel-dev
+        COMMAND ${DEVSERVER_BUILD_CMD}
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${CMAKE_SOURCE_DIR}/docs/_site/demo/webdojo
+        COMMAND ${DEVSERVER_COPY_CMD}
+        DEPENDS website-jekyll-dev
+        COMMENT "Building dev server wheel (${PROJECT_VERSION}, dev)..."
+    )
+    list(APPEND COPY_TARGETS_DEV website-build-devserver-wheel-dev)
 
     # Production target: depends on all copy targets (which depend on demos + jekyll)
     add_custom_target(website

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clay-dev-server"
+# Version injected by CI from the root VERSION file before wheel build
+version = "0.0.0"
+description = "QML development server with file watching and SSE live-reload for Clayground WebDojo"
+license = "MIT"
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+watch = ["watchdog"]
+
+[project.scripts]
+clay-dev-server = "clay_dev_server.server:main"
