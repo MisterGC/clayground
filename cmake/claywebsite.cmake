@@ -96,9 +96,9 @@ function(clay_website_check_prerequisites)
     endif()
 
     # Check for Python 3 and build module (for dev server wheel)
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    # Use bare 'python3' so the active venv is respected at both configure and build time
     execute_process(
-        COMMAND ${Python3_EXECUTABLE} -c "import build"
+        COMMAND python3 -c "import build"
         RESULT_VARIABLE PY_BUILD_RESULT
         OUTPUT_QUIET ERROR_QUIET
     )
@@ -107,7 +107,7 @@ function(clay_website_check_prerequisites)
             "Python 'build' module required (for dev server wheel).\n"
             "Install with: pip install build")
     endif()
-    message(STATUS "Found Python: ${Python3_EXECUTABLE} (build module OK)")
+    message(STATUS "Python: python3 (build module OK)")
 
     message(STATUS "Website prerequisites: OK (using ${BUNDLER_EXECUTABLE})")
 endfunction()
@@ -325,7 +325,7 @@ function(clay_website_create_target)
     set(DEVSERVER_WHEEL_SCRIPT ${CMAKE_SOURCE_DIR}/cmake/devserver_wheel.cmake)
     set(DEVSERVER_BUILD_CMD ${CMAKE_COMMAND}
         -DVERSION=${PROJECT_VERSION}
-        -DPYTHON3=${Python3_EXECUTABLE}
+        -DPYTHON3=python3
         -DDEVSERVER_DIR=${DEVSERVER_DIR}
         -DOUTDIR=${DEVSERVER_DIR}/dist
         -P ${DEVSERVER_WHEEL_SCRIPT})
