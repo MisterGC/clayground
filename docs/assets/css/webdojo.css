@@ -138,6 +138,43 @@
     overflow: hidden;
 }
 
+.left-section.editor-collapsed .left-pane {
+    display: none;
+}
+
+.left-section.editor-collapsed {
+    min-width: auto;
+    flex: none;
+}
+
+.left-section.editor-collapsed + .divider {
+    display: none;
+}
+
+/* Toggle handle: visible when editor is collapsed */
+.editor-toggle-handle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    background: var(--bg-secondary, #161b22);
+    border-right: 1px solid var(--border-color, #30363d);
+    cursor: pointer;
+    color: var(--text-secondary, #8b949e);
+    font-size: 14px;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.editor-toggle-handle:hover {
+    color: var(--accent-primary, #00d9ff);
+    background: rgba(0, 217, 255, 0.1);
+}
+
+.left-section.editor-collapsed .editor-toggle-handle {
+    display: flex;
+}
+
 /* Gallery view */
 .gallery-pane {
     flex: 1;

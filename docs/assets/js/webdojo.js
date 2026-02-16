@@ -4,7 +4,7 @@
 //
 // URL scheme: #clay-src=<source>&clay-ed=0&clay-con=0&userArg=value
 // Sources: example:name, code:<LZString>, https://url
-// UI: clay-ed, clay-con, clay-hd, clay-fs, clay-br
+// UI: clay-ed, clay-edc, clay-con, clay-hd, clay-fs, clay-br
 
 // ============================================================================
 // Hash Parameter Parsing (clay-* prefix for system keys)
@@ -176,6 +176,7 @@ function resolveBool(explicit, defaultVal) {
 function resolveUIVisibility() {
     const params = parseHashParams();
     const source = getContentSource();
+    const isLocalhost = source.type === 'url' && isLocalhostUrl(source.url);
 
     const defaults = {
         'welcome': { ed: 1, con: 0, hd: 1, fs: 1, br: 0 },
@@ -184,14 +185,20 @@ function resolveUIVisibility() {
         'code':    { ed: 0, con: 0, hd: 1, fs: 1, br: 0 },
         'url':     { ed: 0, con: 0, hd: 1, fs: 1, br: 0 },
     };
-    const d = defaults[source.type];
+    let d = defaults[source.type];
+
+    // Localhost URLs (dev server): show editor section + console
+    if (isLocalhost) {
+        d = { ed: 1, con: 1, hd: 1, fs: 1, br: 0 };
+    }
 
     return {
-        editor:     resolveBool(params['clay-ed'], d.ed),
-        console:    resolveBool(params['clay-con'], d.con),
-        header:     resolveBool(params['clay-hd'], d.hd),
-        fullscreen: resolveBool(params['clay-fs'], d.fs),
-        branding:   resolveBool(params['clay-br'], d.br),
+        editor:          resolveBool(params['clay-ed'], d.ed),
+        editorCollapsed: resolveBool(params['clay-edc'], isLocalhost ? 1 : 0),
+        console:         resolveBool(params['clay-con'], d.con),
+        header:          resolveBool(params['clay-hd'], d.hd),
+        fullscreen:      resolveBool(params['clay-fs'], d.fs),
+        branding:        resolveBool(params['clay-br'], d.br),
     };
 }
 
@@ -580,6 +587,20 @@ function switchToView(view) {
     }
 }
 
+function setEditorCollapsed(collapsed) {
+    const leftSection = document.getElementById('left-section');
+    const divider = document.getElementById('divider');
+    if (!leftSection) return;
+    if (collapsed) {
+        leftSection.classList.add('editor-collapsed');
+        if (divider) divider.style.display = 'none';
+    } else {
+        leftSection.classList.remove('editor-collapsed');
+        if (divider) divider.style.display = '';
+        switchToView('editor');
+    }
+}
+
 function setupGallery() {
     const filterInput = document.getElementById('gallery-filter-input');
     if (filterInput) {
@@ -595,7 +616,34 @@ function setupGallery() {
         galleryBtn.addEventListener('click', () => switchToView('gallery'));
     }
     if (editorBtn) {
-        editorBtn.addEventListener('click', () => switchToView('editor'));
+        editorBtn.addEventListener('click', () => {
+            const leftSection = document.getElementById('left-section');
+            if (leftSection?.classList.contains('editor-collapsed')) {
+                setEditorCollapsed(false);
+                updateHashParam('clay-edc', '0');
+            } else if (document.getElementById('editor-pane')?.classList.contains('hidden')) {
+                switchToView('editor');
+            } else {
+                setEditorCollapsed(true);
+                updateHashParam('clay-edc', '1');
+            }
+        });
+        editorBtn.title = 'Show/hide code editor';
+    }
+
+    // Toggle handle: visible chevron when editor is collapsed
+    const toggleHandle = document.createElement('div');
+    toggleHandle.className = 'editor-toggle-handle';
+    toggleHandle.innerHTML = '&#x203A;';
+    toggleHandle.title = 'Show code editor';
+    toggleHandle.addEventListener('click', () => {
+        setEditorCollapsed(false);
+        updateHashParam('clay-edc', '0');
+    });
+    const leftSection = document.getElementById('left-section');
+    const sidebarIcons = document.getElementById('sidebar-icons');
+    if (leftSection && sidebarIcons) {
+        sidebarIcons.after(toggleHandle);
     }
     if (newBtn) {
         newBtn.addEventListener('click', () => {
@@ -1232,11 +1280,14 @@ function setupEventHandlers(source, visibility) {
         document.getElementById('left-section')?.remove();
     } else {
         setupGallery();
-        // Start on gallery view unless source is code/url (editing context)
-        if (source.type === 'code') {
+        // Start on editor for active editing contexts, gallery otherwise
+        if (source.type === 'code' || source.type === 'url') {
             switchToView('editor');
         } else if (source.type === 'welcome') {
             switchToView('gallery');
+        }
+        if (visibility.editorCollapsed) {
+            setEditorCollapsed(true);
         }
     }
 
@@ -1327,9 +1378,12 @@ function setupShareButton() {
     shareBtn.addEventListener('click', async () => {
         let url;
 
-        // Unmodified example/url: share the original source reference
-        if (!isDirty && originalSource &&
-            (originalSource.type === 'example' || originalSource.type === 'url')) {
+        // Unmodified example: share the original source reference
+        // For URLs: only share if publicly reachable (not localhost/dev server)
+        const canShareByRef = !isDirty && originalSource &&
+            (originalSource.type === 'example' ||
+             (originalSource.type === 'url' && !isLocalhostUrl(originalSource.url)));
+        if (canShareByRef) {
             url = buildSourceUrl(originalSource);
         } else if (editor) {
             // Modified or code source: compress editor content
@@ -1373,9 +1427,12 @@ function setupStandaloneButton() {
     standaloneBtn.addEventListener('click', () => {
         let url;
 
-        // Unmodified example/url: open with original source reference
-        if (!isDirty && originalSource &&
-            (originalSource.type === 'example' || originalSource.type === 'url')) {
+        // Unmodified example: open with original source reference
+        // For URLs: only use ref if publicly reachable (not localhost/dev server)
+        const canShareByRef = !isDirty && originalSource &&
+            (originalSource.type === 'example' ||
+             (originalSource.type === 'url' && !isLocalhostUrl(originalSource.url)));
+        if (canShareByRef) {
             url = buildSourceUrl(originalSource);
         } else if (editor) {
             // Modified or code source: compress and open
@@ -1577,6 +1634,8 @@ function setupResizableDivider() {
         e.preventDefault();
     });
 
+    const collapseThreshold = 150;
+
     document.addEventListener('mousemove', (e) => {
         if (!isResizing) return;
         const containerRect = container.getBoundingClientRect();
@@ -1584,7 +1643,9 @@ function setupResizableDivider() {
         const minWidth = 300;
         const maxWidth = containerRect.width - 300;
 
-        if (newWidth >= minWidth && newWidth <= maxWidth) {
+        if (newWidth < collapseThreshold) {
+            pendingWidth = 'collapse';
+        } else if (newWidth >= minWidth && newWidth <= maxWidth) {
             pendingWidth = newWidth;
             leftSection.style.flex = 'none';
             leftSection.style.width = `${newWidth}px`;
@@ -1595,10 +1656,15 @@ function setupResizableDivider() {
         if (isResizing) {
             isResizing = false;
             document.body.style.cursor = '';
-            if (pendingWidth !== null) {
+            if (pendingWidth === 'collapse') {
+                leftSection.style.flex = '';
+                leftSection.style.width = '';
+                setEditorCollapsed(true);
+                updateHashParam('clay-edc', '1');
+            } else if (pendingWidth !== null) {
                 window.dispatchEvent(new Event('resize'));
-                pendingWidth = null;
             }
+            pendingWidth = null;
         }
     });
 }
