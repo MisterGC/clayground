@@ -78,8 +78,12 @@ class DevHandler(SimpleHTTPRequestHandler):
         # Add COOP/COEP headers for SharedArrayBuffer (required for WASM threading)
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
         self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
-        # Disable caching for dev
-        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        # Cache WASM/loader files (large, rarely change), no-cache everything else
+        path = self.path.split('?')[0]
+        if path.endswith(('.wasm', '.js')) and '/demo/webdojo/' in path:
+            self.send_header('Cache-Control', 'public, max-age=86400')
+        else:
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         super().end_headers()
 
 if __name__ == '__main__':
