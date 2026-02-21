@@ -95,6 +95,7 @@ docs/api/version.json
 docs/webdojo-examples/*/
 !docs/webdojo-examples/empty/
 !docs/webdojo-examples/platform/
+!docs/webdojo-examples/welcome/
 docs/webdojo-examples/index.json
 
 # Temp/personal files

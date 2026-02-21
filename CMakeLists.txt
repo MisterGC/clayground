@@ -130,6 +130,7 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     clay_website_register_webdojo_example(examples/visualfx visualfx "Visual FX")
 
     # Source files in webdojo-examples (not copied, just registered)
+    clay_website_register_webdojo_example(docs/webdojo-examples/welcome welcome "welcome")
     clay_website_register_webdojo_example(docs/webdojo-examples/platform platform "Platform Detection")
     clay_website_register_webdojo_example(docs/webdojo-examples/empty empty "empty")
 endif()
