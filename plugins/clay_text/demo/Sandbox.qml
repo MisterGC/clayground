@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief CSV parsing, JSON transformation and text highlighting
 // @tags Text, CSV, JSON
+// @category Plugin Demos
 
 import QtQuick
 import QtQuick.Controls
@@ -159,7 +160,7 @@ Rectangle {
                     }
                     rowFilter: (vals) => { return vals[colNames.indexOf("Col1")] === "1.0"; }
                     rowTransform: (vals) => { return vals.map(v => v.replace(".", ",")); }
-                    Component.onCompleted: { load(); save(); }
+                    Component.onCompleted: { load(); }
                 }
             }
 
