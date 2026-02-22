@@ -22,19 +22,22 @@ Rectangle {
     // Test sound effect
     Sound {
         id: clickSound
-        source: "https://raw.githubusercontent.com/MisterGC/ld46-keep-it-alive/master/src/sound/munching.wav"
+        source: "sound.wav"
         volume: volumeSlider.value
         onErrorOccurred: (msg) => statusText.text = "Sound Error: " + msg
         onFinished: console.log("Sound finished")
     }
 
-    // Test background music (using a short sound as placeholder)
+    // Test background music
     Music {
         id: bgMusic
-        source: "https://raw.githubusercontent.com/MisterGC/ld46-keep-it-alive/master/src/sound/munching.wav"
+        source: "music.mp3"
         volume: volumeSlider.value
         loop: loopCheckbox.checked
-        onErrorOccurred: (msg) => statusText.text = "Music Error: " + msg
+        onStatusChanged: {
+            if (bgMusic.status === 3)
+                statusText.text = "Music Error: failed to load"
+        }
         onFinished: console.log("Music finished")
     }
 
