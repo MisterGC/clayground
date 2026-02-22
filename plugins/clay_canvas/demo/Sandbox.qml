@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief 2D shapes, images, connectors and polygons
 // @tags 2D, Canvas, Shapes
+// @category Plugin Demos
 
 import QtQuick
 import Clayground.Canvas as Canv
@@ -47,8 +48,8 @@ Rectangle {
         worldYMin: 0; worldYMax: 10
         keyBoardNavigationEnabled: true
 
-        Component { id: polyFactory; Canv.Poly { canvas: theCanvas } }
-        Component { id: txtFactory; Canv.Text { canvas: theCanvas; fontSizeWu: .25 } }
+        Component { id: polyFactory; Canv.Poly { canvas: theCanvas; color: "#e0e0e0" } }
+        Component { id: txtFactory; Canv.Text { canvas: theCanvas; fontSizeWu: .25; color: "#eaeaea" } }
         Component { id: imgFactory; Canv.Image { canvas: theCanvas; source: "image.svg" } }
         Component { id: rectFactory; Canv.Rectangle { color: "#0f9d9a"; canvas: theCanvas; xWu: 5; yWu: 4; widthWu: 2; heightWu: 3 } }
 
