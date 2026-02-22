@@ -26,6 +26,8 @@ clay_app(webdojo
         Qt::Quick3D
         Qt::Quick3DHelpers
         Qt::Sql
+        Qt::Svg
+        Qt6::QSvgPlugin
 
     QML_FILES
         Main.qml
