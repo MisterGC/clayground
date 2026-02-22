@@ -89,8 +89,8 @@ Shape {
     property real _heightWu: 0
     x: canvas ? canvas.xToScreen(_xWu) : 0
     y: canvas ? canvas.yToScreen(_yWu) : 0
-    width: _widthWu * canvas ? canvas.pixelPerUnit : 0
-    height: _heightWu * canvas ? canvas.pixelPerUnit : 0
+    width: _widthWu * (canvas ? canvas.pixelPerUnit : 0)
+    height: _heightWu * (canvas ? canvas.pixelPerUnit : 0)
     onVerticesChanged: refresh()
     function refresh() { _syncVisu(); }
     function _syncVisu() {

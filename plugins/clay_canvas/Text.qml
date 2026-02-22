@@ -45,5 +45,5 @@ Quick.Text {
 
     x: canvas ? canvas.xToScreen(xWu) : 0
     y: canvas ? canvas.yToScreen(yWu) : 0
-    font.pixelSize: fontSizeWu * canvas ? canvas.pixelPerUnit : 0
+    font.pixelSize: fontSizeWu * (canvas ? canvas.pixelPerUnit : 0)
 }

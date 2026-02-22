@@ -50,6 +50,6 @@ Quick.Image {
     y: canvas ? canvas.yToScreen(yWu) : 0
     width: sourceSize.width
     height: sourceSize.height
-    sourceSize.width: widthWu * canvas ? canvas.pixelPerUnit : 0
-    sourceSize.height: heightWu * canvas ? canvas.pixelPerUnit : 0
+    sourceSize.width: widthWu * (canvas ? canvas.pixelPerUnit : 0)
+    sourceSize.height: heightWu * (canvas ? canvas.pixelPerUnit : 0)
 }
