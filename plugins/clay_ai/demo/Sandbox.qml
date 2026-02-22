@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief AI chat integration with LLM providers
 // @tags AI, Chat, LLM
+// @category Plugin Demos
 
 import QtQuick
 import QtQuick.Controls

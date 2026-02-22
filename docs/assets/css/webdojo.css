@@ -304,6 +304,34 @@
     color: var(--bg-dark, #0d1117);
 }
 
+.gallery-group-header {
+    padding: 0.5rem 0.75rem 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color, #30363d);
+    margin-top: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.gallery-group-header:hover {
+    color: var(--text-primary, #e6edf3);
+}
+
+.gallery-group-header:first-child {
+    margin-top: 0;
+}
+
+.gallery-group-header .chevron {
+    margin-right: 0.3rem;
+}
+
+.gallery-group-items.collapsed {
+    display: none;
+}
 
 .share-button {
     padding: 0.35rem 0.75rem;

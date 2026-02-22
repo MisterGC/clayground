@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief Sound effects and music playback
 // @tags Audio, Sound, Music
+// @category Plugin Demos
 
 import QtQuick
 import QtQuick.Controls

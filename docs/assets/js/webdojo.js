@@ -473,6 +473,9 @@ function buildGallery() {
         });
     }
 
+    // Group examples by category
+    const groups = {};
+    const uncategorized = [];
     for (const ex of examplesData) {
         if (ex.name === 'empty' || ex.name === 'welcome') continue;
 
@@ -485,6 +488,15 @@ function buildGallery() {
         // Filter by tag
         if (activeTagFilter && !(ex.tags || []).includes(activeTagFilter)) continue;
 
+        if (ex.category) {
+            if (!groups[ex.category]) groups[ex.category] = [];
+            groups[ex.category].push(ex);
+        } else {
+            uncategorized.push(ex);
+        }
+    }
+
+    function createItem(ex) {
         const item = document.createElement('div');
         item.className = 'gallery-item';
         if (source.type === 'example' && source.name === ex.name) {
@@ -540,13 +552,39 @@ function buildGallery() {
             dirtyTrackingEnabled = false;
             updateDirtyIndicator();
             loadContent(newSource);
-            // Update active state
             list.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
             item.classList.add('active');
         });
 
-        list.appendChild(item);
+        return item;
     }
+
+    for (const [category, items] of Object.entries(groups)) {
+        const storageKey = `webdojo-collapsed-${category}`;
+        const isCollapsed = localStorage.getItem(storageKey) === 'true';
+
+        const header = document.createElement('div');
+        header.className = 'gallery-group-header';
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron';
+        chevron.textContent = isCollapsed ? '\u25B8' : '\u25BE';
+        header.appendChild(chevron);
+        header.appendChild(document.createTextNode(category));
+        list.appendChild(header);
+
+        const groupItems = document.createElement('div');
+        groupItems.className = 'gallery-group-items' + (isCollapsed ? ' collapsed' : '');
+        for (const ex of items) groupItems.appendChild(createItem(ex));
+        list.appendChild(groupItems);
+
+        header.addEventListener('click', () => {
+            const nowCollapsed = !groupItems.classList.contains('collapsed');
+            groupItems.classList.toggle('collapsed');
+            chevron.textContent = nowCollapsed ? '\u25B8' : '\u25BE';
+            localStorage.setItem(storageKey, nowCollapsed);
+        });
+    }
+    for (const ex of uncategorized) list.appendChild(createItem(ex));
 
     // Show version (WASM version takes precedence if resolved)
     const versionEl = document.getElementById('version-display');

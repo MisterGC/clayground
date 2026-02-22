@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief P2P multiplayer and HTTP client networking
 // @tags Network, Multiplayer, HTTP
+// @category Plugin Demos
 
 import QtQuick
 import QtQuick.Controls.Basic

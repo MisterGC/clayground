@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief Detect desktop, mobile and WebAssembly platforms
 // @tags Platform, Detection, Utility
+// @category Utilities
 
 import QtQuick
 import QtQuick.Layouts

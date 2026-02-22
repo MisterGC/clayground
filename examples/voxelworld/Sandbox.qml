@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief Interactive 3D voxel world with characters and navigation
 // @tags 3D, Voxels, World, Showcase
+// @category Showcases
 
 import QtQuick
 import QtQuick.Controls

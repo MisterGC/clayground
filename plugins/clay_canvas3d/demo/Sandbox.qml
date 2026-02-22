@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 // @brief 3D boxes, voxel maps and line rendering with toon shading
 // @tags 3D, Canvas3D, Voxels
+// @category Plugin Demos
 
 import QtQuick
 import QtQuick.Controls
