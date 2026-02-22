@@ -1,0 +1,4 @@
+# Build artifacts belong in _site/, not here
+*.wasm
+*.js
+!*.html
