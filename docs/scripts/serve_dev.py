@@ -14,6 +14,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -32,6 +33,7 @@ def kill_existing_server():
                 if pid:
                     os.kill(int(pid), signal.SIGTERM)
             print(f"Warning: Killed existing server (PID: {', '.join(pids)})")
+            time.sleep(0.5)  # Wait for port to be released
     except Exception:
         pass  # No existing server or lsof not available
 
