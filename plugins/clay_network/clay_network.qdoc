@@ -30,6 +30,46 @@
     \li Prototypes and indie games
     \endlist
 
+    \section1 Connection Establishment
+
+    Connecting two peers involves three phases:
+
+    \list
+    \li \b Signaling - Peers discover each other via a signaling server
+        (PeerJS cloud or embedded LAN server). This is only for discovery;
+        once connected, all data flows peer-to-peer.
+    \li \b {ICE Negotiation} - Peers negotiate the best connection path
+        using ICE (Interactive Connectivity Establishment). Three candidate
+        types are tried:
+        \list
+        \li \b host - Direct LAN connection (fastest, same network)
+        \li \b srflx - Server reflexive via STUN, discovers public IP/port
+        \li \b relay - Via TURN server, works through restrictive NATs
+        \endlist
+    \li \b {Data Channel} - A WebRTC data channel opens for encrypted,
+        reliable communication using DTLS and SCTP.
+    \endlist
+
+    Enable \l {Network::verbose}{verbose mode} and watch the
+    \l {Network::diagnosticMessage}{diagnosticMessage} signal to see
+    which candidate types are discovered and how long each phase takes.
+
+    \section1 ICE Server Configuration
+
+    By default, two Google STUN servers are used. For connections across
+    restrictive NATs (symmetric NAT, carrier-grade NAT), configure TURN
+    servers via the \l {Network::iceServers}{iceServers} property:
+
+    \qml
+    Network {
+        iceServers: [
+            "stun:stun.l.google.com:19302",
+            { urls: "turn:relay.example.com:3478",
+              username: "user", credential: "pass" }
+        ]
+    }
+    \endqml
+
     \section1 Scalability Considerations
 
     \warning P2P networking is not suitable for large-scale applications.
@@ -51,6 +91,45 @@
     \li \b LAN - Host runs an embedded signaling server.
         Works on local network without internet.
         Desktop and Mobile only (not available in browser).
+    \endlist
+
+    \section1 Troubleshooting
+
+    \table
+    \header
+        \li Problem
+        \li Likely Cause
+        \li Solution
+    \row
+        \li Connection hangs in "Connecting" (ice phase)
+        \li Both peers behind restrictive NATs (symmetric/carrier-grade)
+        \li Add a TURN server to iceServers
+    \row
+        \li Works one direction but not the other
+        \li Asymmetric NAT types between peers
+        \li Add a TURN server; check diagnosticMessage for candidate types
+    \row
+        \li Only "host" candidates, no "srflx"
+        \li STUN server unreachable or blocked
+        \li Check firewall, try different STUN servers
+    \row
+        \li "Network full" error
+        \li maxNodes limit reached
+        \li Increase maxNodes or wait for a slot
+    \row
+        \li Connection times out
+        \li Signaling server unreachable or NAT blocks all paths
+        \li Enable verbose mode, check diagnosticMessage for which phase fails
+    \endtable
+
+    \section1 External Resources
+
+    \list
+    \li \l {https://webrtc.org/}{WebRTC overview}
+    \li \l {https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Protocols}{ICE, STUN, TURN explained (MDN)}
+    \li \l {https://tailscale.com/blog/how-nat-traversal-works}{NAT traversal deep dive (Tailscale)}
+    \li \l {https://github.com/coturn/coturn}{coturn} - self-hosted TURN server
+    \li \l {https://www.metered.ca/tools/openrelay/}{Open Relay Project} - free TURN servers
     \endlist
 
     \section1 Components
@@ -121,4 +200,3 @@
     \qmlsignal ClayHttpClient::error(int requestId, int returnCode, string text)
     Emitted when a request fails.
 */
-

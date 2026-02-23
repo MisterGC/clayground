@@ -296,6 +296,10 @@ void LocalSignalingClient::onWsMessage(const std::string &message)
         QString mid = candidate["sdpMid"].toString();
         emit candidateReceived(fromId, candidateStr, mid);
     }
+    else if (type == "REJECT") {
+        QString reason = obj["payload"].toObject()["reason"].toString();
+        emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+    }
     else if (type == "ERROR") {
         QString errorMsg = obj["payload"].toObject()["msg"].toString();
         emit errorOccurred(errorMsg);
@@ -372,4 +376,14 @@ void LocalSignalingClient::sendCandidate(const QString &targetId, const QString 
     payload["connectionId"] = peerId_ + "_" + targetId;
 
     sendMessage("CANDIDATE", targetId, payload);
+}
+
+void LocalSignalingClient::sendReject(const QString &targetId, const QString &connectionId)
+{
+    QVariantMap payload;
+    payload["type"] = "data";
+    payload["connectionId"] = connectionId;
+    payload["reason"] = "Network full";
+
+    sendMessage("REJECT", targetId, payload);
 }

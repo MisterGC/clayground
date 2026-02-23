@@ -26,6 +26,7 @@ public:
     void sendOffer(const QString &targetId, const QString &sdp);
     void sendAnswer(const QString &targetId, const QString &sdp, const QString &connectionId);
     void sendCandidate(const QString &targetId, const QString &candidate, const QString &mid);
+    void sendReject(const QString &targetId, const QString &connectionId);
 
 signals:
     void connected(const QString &peerId);

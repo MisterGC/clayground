@@ -29,12 +29,14 @@ Rectangle {
     // Platform detection: LAN mode only available on native (not WASM)
     readonly property bool isWasm: Qt.platform.os === "wasm"
     property bool lanMode: false
+    property bool diagMode: false
 
     Network {
         id: network
         maxNodes: 4
         topology: Network.Topology.Star
         signalingMode: root.lanMode ? Network.SignalingMode.Local : Network.SignalingMode.Cloud
+        verbose: root.diagMode
 
         onNetworkCreated: (networkId) => logMessage("Created: " + networkId)
         onNodeJoined: (nodeId) => logMessage("Joined: " + nodeId.substring(0, 8))
@@ -55,6 +57,8 @@ Rectangle {
         }
         onErrorOccurred: (message) => logMessage("Error: " + message)
         onStatusChanged: logMessage("Status: " + ["Disconnected", "Connecting", "Connected", "Error"][network.status])
+        onDiagnosticMessage: (phase, detail) => diagLog(phase, detail)
+        onConnectionTimedOut: logMessage("Timed out in " + network.connectionPhase + " phase")
     }
 
     property var remoteNodes: ({})
@@ -73,6 +77,12 @@ Rectangle {
         if (logModel.count > 50) logModel.remove(0)
     }
 
+    function diagLog(phase, detail) {
+        let ts = new Date().toLocaleTimeString(Qt.locale(), "HH:mm:ss.zzz")
+        diagModel.append({ phase: phase, detail: detail, timestamp: ts })
+        if (diagModel.count > 200) diagModel.remove(0)
+    }
+
     Timer {
         interval: 50
         repeat: true
@@ -89,7 +99,7 @@ Rectangle {
         anchors.margins: 10
         spacing: 10
 
-        // Header with mode switch (LAN only available on native platforms)
+        // Header with mode switches
         RowLayout {
             Layout.fillWidth: true
             spacing: 15
@@ -139,7 +149,54 @@ Rectangle {
                 }
             }
 
+            // Diag toggle
+            Switch {
+                id: diagSwitch
+                checked: root.diagMode
+                onCheckedChanged: root.diagMode = checked
+
+                indicator: Rectangle {
+                    implicitWidth: 40
+                    implicitHeight: 20
+                    x: diagSwitch.leftPadding
+                    y: parent.height / 2 - height / 2
+                    radius: 10
+                    color: diagSwitch.checked ? "#ff3366" : Qt.darker(root.surfaceColor, 1.3)
+                    border.color: diagSwitch.checked ? Qt.darker("#ff3366", 1.2) : root.dimTextColor
+
+                    Rectangle {
+                        x: diagSwitch.checked ? parent.width - width - 2 : 2
+                        y: 2
+                        width: 16
+                        height: 16
+                        radius: 8
+                        color: "white"
+                        Behavior on x { NumberAnimation { duration: 100 } }
+                    }
+                }
+
+                contentItem: Text {
+                    text: "Diag"
+                    font.family: root.monoFont
+                    font.pixelSize: 12
+                    color: root.dimTextColor
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: diagSwitch.indicator.width + 6
+                }
+            }
+
             Item { Layout.fillWidth: true }
+
+            // Latency indicator (when verbose and connected)
+            Text {
+                visible: root.diagMode && network.connected && network.latency >= 0
+                text: network.latency + "ms"
+                font.family: root.monoFont
+                font.pixelSize: 14
+                font.bold: true
+                color: network.latency < 50 ? "#4ade80" :
+                       network.latency < 150 ? "#ffd93d" : "#ef4444"
+            }
 
             Text {
                 visible: network.connected
@@ -150,7 +207,7 @@ Rectangle {
             }
         }
 
-        // Status + Network ID
+        // Status + Network ID + Phase indicator
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -159,7 +216,9 @@ Rectangle {
                 text: {
                     switch (network.status) {
                         case Network.Status.Disconnected: return "Disconnected"
-                        case Network.Status.Connecting: return "Connecting..."
+                        case Network.Status.Connecting:
+                            let phase = network.connectionPhase
+                            return phase ? "Connecting (" + phase + ")..." : "Connecting..."
                         case Network.Status.Connected: return network.isHost ? "Hosting:" : "Joined:"
                         case Network.Status.Error: return "Error"
                         default: return ""
@@ -189,6 +248,23 @@ Rectangle {
                 }
                 onActiveFocusChanged: if (activeFocus) selectAll()
                 TapHandler { onDoubleTapped: { parent.selectAll(); parent.copy(); logMessage("Copied!") } }
+            }
+
+            // Phase timing summary after connected
+            Text {
+                visible: root.diagMode && network.connected && network.phaseTiming.total !== undefined
+                text: {
+                    let t = network.phaseTiming
+                    if (!t || t.total === undefined) return ""
+                    let parts = []
+                    if (t.signaling !== undefined) parts.push("sig:" + t.signaling)
+                    if (t.ice !== undefined) parts.push("ice:" + t.ice)
+                    parts.push("total:" + t.total + "ms")
+                    return parts.join(" ")
+                }
+                font.family: root.monoFont
+                font.pixelSize: 11
+                color: root.dimTextColor
             }
         }
 
@@ -284,7 +360,7 @@ Rectangle {
             color: "#f59e0b"
         }
 
-        // Controls (connected) - just Leave button, chat moved to log panel
+        // Controls (connected) - just Leave button
         RowLayout {
             Layout.fillWidth: true
             visible: network.connected
@@ -317,7 +393,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
         }
 
-        // Game area and log with resizable splitter
+        // Game area, chat, and diagnostics panel
         SplitView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -469,7 +545,7 @@ Rectangle {
                         }
 
                         Button {
-                            text: "▶"
+                            text: "\u25B6"
                             implicitWidth: 32
                             onClicked: if (chatInput.text.trim()) {
                                 network.broadcast({ type: "chat", text: chatInput.text, name: root.userName.substring(0, 6) })
@@ -488,6 +564,112 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
+                    }
+                }
+            }
+
+            // Diagnostics panel (visible when Diag is on)
+            Rectangle {
+                visible: root.diagMode
+                SplitView.preferredWidth: 280
+                SplitView.minimumWidth: 200
+                color: root.surfaceColor
+                border.color: "#ff3366"
+                border.width: 1
+                radius: 4
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 5
+
+                    Text {
+                        text: "Diagnostics"
+                        font.family: root.monoFont
+                        font.bold: true
+                        font.pixelSize: 12
+                        color: "#ff3366"
+                    }
+
+                    // Connection phase indicator
+                    Text {
+                        visible: network.status === Network.Status.Connecting
+                        text: {
+                            let phase = network.connectionPhase || "..."
+                            return "Phase: " + phase
+                        }
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                        color: "#ffd93d"
+                    }
+
+                    // Phase timing after connected
+                    Text {
+                        visible: network.connected && network.phaseTiming.total !== undefined
+                        text: {
+                            let t = network.phaseTiming
+                            if (!t || t.total === undefined) return ""
+                            let lines = []
+                            if (t.signaling !== undefined) lines.push("Signaling: " + t.signaling + "ms")
+                            if (t.ice !== undefined) lines.push("ICE: " + t.ice + "ms")
+                            lines.push("Total: " + t.total + "ms")
+                            return lines.join("\n")
+                        }
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                        color: "#4ade80"
+                    }
+
+                    // Per-peer latency
+                    Repeater {
+                        model: network.connected ? Object.keys(network.peerStats) : []
+                        delegate: Text {
+                            required property string modelData
+                            text: {
+                                let stats = network.peerStats[modelData]
+                                if (!stats) return ""
+                                let lat = stats.latency
+                                return modelData.substring(0, 8) + ": " +
+                                       (lat >= 0 ? lat + "ms" : "?")
+                            }
+                            font.family: root.monoFont
+                            font.pixelSize: 11
+                            color: {
+                                let stats = network.peerStats[modelData]
+                                if (!stats || stats.latency < 0) return root.dimTextColor
+                                return stats.latency < 50 ? "#4ade80" :
+                                       stats.latency < 150 ? "#ffd93d" : "#ef4444"
+                            }
+                        }
+                    }
+
+                    // Separator
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Qt.darker(root.surfaceColor, 0.8)
+                    }
+
+                    // Diagnostic log
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        model: ListModel { id: diagModel }
+                        delegate: Text {
+                            width: parent ? parent.width : 0
+                            text: "[" + phase + "] " + detail
+                            wrapMode: Text.Wrap
+                            font.family: root.monoFont
+                            font.pixelSize: 10
+                            color: {
+                                if (phase === "ice") return "#00d9ff"
+                                if (phase === "signaling") return "#ffd93d"
+                                if (phase === "datachannel") return "#4ade80"
+                                return root.dimTextColor
+                            }
+                        }
+                        onCountChanged: positionViewAtEnd()
                     }
                 }
             }

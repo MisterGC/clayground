@@ -6,6 +6,7 @@
 #include <QVariant>
 #include <QStringList>
 #include <QHash>
+#include <QElapsedTimer>
 #include <qqmlregistration.h>
 #include <memory>
 
@@ -46,6 +47,12 @@ class ClayNetwork : public QObject
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
     Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
+    Q_PROPERTY(QVariantList iceServers READ iceServers WRITE setIceServers NOTIFY iceServersChanged)
+    Q_PROPERTY(bool verbose READ verbose WRITE setVerbose NOTIFY verboseChanged)
+    Q_PROPERTY(QString connectionPhase READ connectionPhase NOTIFY connectionPhaseChanged)
+    Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
+    Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
+    Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
 
 public:
     enum Topology {
@@ -86,6 +93,14 @@ public:
     void setAutoRelay(bool relay);
     SignalingMode signalingMode() const;
     void setSignalingMode(SignalingMode mode);
+    QVariantList iceServers() const;
+    void setIceServers(const QVariantList &servers);
+    bool verbose() const;
+    void setVerbose(bool v);
+    QString connectionPhase() const;
+    QVariantMap phaseTiming() const;
+    int latency() const;
+    QVariantMap peerStats() const;
 
 public slots:
     void createRoom();
@@ -94,6 +109,7 @@ public slots:
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
+    void ping();
 
 signals:
     void roomCreated(const QString &networkId);
@@ -102,6 +118,7 @@ signals:
     void messageReceived(const QString &fromId, const QVariant &data);
     void stateReceived(const QString &fromId, const QVariant &data);
     void errorOccurred(const QString &message);
+    void diagnosticMessage(const QString &phase, const QString &detail);
 
     void networkIdChanged();
     void nodeIdChanged();
@@ -114,6 +131,12 @@ signals:
     void statusChanged();
     void autoRelayChanged();
     void signalingModeChanged();
+    void iceServersChanged();
+    void verboseChanged();
+    void connectionPhaseChanged();
+    void phaseTimingChanged();
+    void latencyChanged();
+    void peerStatsChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -123,11 +146,17 @@ private slots:
     void onSignalingError(const QString &error);
 
 private:
-    struct PeerConnection {
+    struct PeerConn {
         std::shared_ptr<rtc::PeerConnection> pc;
         std::shared_ptr<rtc::DataChannel> dc;
         QString connectionId;  // PeerJS connection ID (for ANSWER matching)
         bool ready = false;
+        // Per-peer stats (active when verbose)
+        int latency = -1;
+        qint64 msgSent = 0;
+        qint64 msgRecv = 0;
+        qint64 bytesSent = 0;
+        qint64 bytesRecv = 0;
     };
 
     void setupPeerConnection(const QString &peerId, bool isOfferer);
@@ -138,6 +167,8 @@ private:
     QString generateNetworkCode() const;
     void connectLocalSignaling();
     void setupLocalSignalingConnections();
+    void setConnectionPhase(const QString &phase);
+    void emitDiag(const QString &phase, const QString &detail);
     static QString encodeLanCode(const QString &host, uint16_t port);
     static bool decodeLanCode(const QString &code, QString &host, uint16_t &port);
     static QString getLocalIpAddress();
@@ -145,7 +176,7 @@ private:
     std::unique_ptr<PeerJSSignaling> signaling_;
     std::unique_ptr<LocalSignalingServer> localServer_;
     std::unique_ptr<LocalSignalingClient> localClient_;
-    QHash<QString, PeerConnection> peers_;
+    QHash<QString, PeerConn> peers_;
 
     QString networkId_;
     QString nodeId_;
@@ -157,4 +188,17 @@ private:
     bool autoRelay_ = true;
     SignalingMode signalingMode_ = Cloud;
     QStringList nodes_;
+
+    // ICE configuration
+    QVariantList iceServers_;
+
+    // Diagnostics
+    bool verbose_ = false;
+    QString connectionPhase_;
+    QVariantMap phaseTiming_;
+    int latency_ = -1;
+    QElapsedTimer phaseTimer_;
+    qint64 signalingStartMs_ = 0;
+    qint64 iceStartMs_ = 0;
+    qint64 totalStartMs_ = 0;
 };

@@ -35,6 +35,12 @@ class ClayNetwork : public QObject
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
     Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
+    Q_PROPERTY(QVariantList iceServers READ iceServers WRITE setIceServers NOTIFY iceServersChanged)
+    Q_PROPERTY(bool verbose READ verbose WRITE setVerbose NOTIFY verboseChanged)
+    Q_PROPERTY(QString connectionPhase READ connectionPhase NOTIFY connectionPhaseChanged)
+    Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
+    Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
+    Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
 
 public:
     enum Topology {
@@ -75,6 +81,14 @@ public:
     void setAutoRelay(bool relay);
     SignalingMode signalingMode() const;
     void setSignalingMode(SignalingMode mode);
+    QVariantList iceServers() const;
+    void setIceServers(const QVariantList &servers);
+    bool verbose() const;
+    void setVerbose(bool v);
+    QString connectionPhase() const;
+    QVariantMap phaseTiming() const;
+    int latency() const;
+    QVariantMap peerStats() const;
 
 public slots:
     void createRoom();
@@ -83,6 +97,7 @@ public slots:
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
+    void ping();
 
 signals:
     void roomCreated(const QString &networkId);
@@ -91,6 +106,7 @@ signals:
     void messageReceived(const QString &fromId, const QVariant &data);
     void stateReceived(const QString &fromId, const QVariant &data);
     void errorOccurred(const QString &message);
+    void diagnosticMessage(const QString &phase, const QString &detail);
 
     void networkIdChanged();
     void nodeIdChanged();
@@ -103,6 +119,12 @@ signals:
     void statusChanged();
     void autoRelayChanged();
     void signalingModeChanged();
+    void iceServersChanged();
+    void verboseChanged();
+    void connectionPhaseChanged();
+    void phaseTimingChanged();
+    void latencyChanged();
+    void peerStatsChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -113,10 +135,14 @@ public:
     void onMessage(const char* fromId, const char* data, bool isState);
     void onError(const char* errorMsg);
     void onDisconnected();
+    void onDiagnostic(const char* phase, const char* detail);
+    void onPong(const char* peerId, int rtt);
 
 private:
     void initPeerJS();
     QString generateNetworkCode() const;
+    void setConnectionPhase(const QString &phase);
+    void emitDiag(const QString &phase, const QString &detail);
 
     QString networkId_;
     QString nodeId_;
@@ -128,6 +154,16 @@ private:
     bool autoRelay_ = true;
     SignalingMode signalingMode_ = Cloud;  // WASM only supports Cloud
     QStringList nodes_;
+
+    // ICE configuration
+    QVariantList iceServers_;
+
+    // Diagnostics
+    bool verbose_ = false;
+    QString connectionPhase_;
+    QVariantMap phaseTiming_;
+    int latency_ = -1;
+    QVariantMap peerLatencies_;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

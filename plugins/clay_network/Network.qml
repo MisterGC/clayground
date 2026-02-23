@@ -134,6 +134,48 @@ Item {
     */
     property bool autoRelay: true
 
+    /*!
+        \qmlproperty var Network::iceServers
+        \brief Custom ICE server configuration for NAT traversal.
+
+        Override the default STUN servers. Accepts a list of URL strings
+        and/or objects with credentials for TURN servers.
+
+        Default: uses Google's public STUN servers.
+
+        Example with TURN server:
+        \qml
+        iceServers: [
+            "stun:stun.l.google.com:19302",
+            { urls: "turn:relay.example.com", username: "user", credential: "pass" }
+        ]
+        \endqml
+    */
+    property var iceServers: []
+
+    /*!
+        \qmlproperty bool Network::verbose
+        \brief Enable diagnostic output and quality monitoring.
+
+        When true, enables:
+        \list
+        \li Connection phase tracking (connectionPhase, phaseTiming)
+        \li ICE candidate type reporting via diagnosticMessage
+        \li Periodic ping/pong latency measurement
+        \li Per-peer statistics (peerStats)
+        \endlist
+    */
+    property bool verbose: false
+
+    /*!
+        \qmlproperty int Network::connectionTimeout
+        \brief Timeout in milliseconds for connection attempts. 0 to disable.
+
+        When a connection attempt exceeds this duration, connectionTimedOut()
+        is emitted and the connection is terminated. Default: 15000 (15 seconds).
+    */
+    property int connectionTimeout: 15000
+
     // ========== Read-only State ==========
 
     /*!
@@ -188,6 +230,38 @@ Item {
     */
     readonly property int status: _backend ? _backend.status : Network.Status.Disconnected
 
+    /*!
+        \qmlproperty string Network::connectionPhase
+        \brief Current connection phase when status is Connecting.
+
+        Possible values: "signaling", "ice", "datachannel", or "" when not connecting.
+    */
+    readonly property string connectionPhase: _backend ? _backend.connectionPhase : ""
+
+    /*!
+        \qmlproperty var Network::phaseTiming
+        \brief Timing breakdown of the connection phases in milliseconds.
+
+        After connection: { signaling: 230, ice: 1200, datachannel: 0, total: 1430 }
+    */
+    readonly property var phaseTiming: _backend ? _backend.phaseTiming : ({})
+
+    /*!
+        \qmlproperty int Network::latency
+        \brief Best RTT across all connected peers in milliseconds. -1 if unknown.
+
+        Updated every 2 seconds when verbose is true.
+    */
+    readonly property int latency: _backend ? _backend.latency : -1
+
+    /*!
+        \qmlproperty var Network::peerStats
+        \brief Per-peer statistics. Only populated when verbose is true.
+
+        Format: { nodeId: { latency, msgSent, msgRecv, bytesSent, bytesRecv } }
+    */
+    readonly property var peerStats: _backend ? _backend.peerStats : ({})
+
     // ========== Signals ==========
 
     /*!
@@ -232,6 +306,21 @@ Item {
     */
     signal errorOccurred(string message)
 
+    /*!
+        \qmlsignal Network::diagnosticMessage(string phase, string detail)
+        \brief Emitted with diagnostic info when verbose is true.
+
+        Provides visibility into connection phases, ICE candidates,
+        and state transitions.
+    */
+    signal diagnosticMessage(string phase, string detail)
+
+    /*!
+        \qmlsignal Network::connectionTimedOut()
+        \brief Emitted when a connection attempt exceeds connectionTimeout.
+    */
+    signal connectionTimedOut()
+
     // ========== Methods ==========
 
     /*!
@@ -247,6 +336,8 @@ Item {
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
+            _backend.iceServers = root.iceServers
+            _backend.verbose = root.verbose
             _backend.createRoom()
         }
     }
@@ -262,6 +353,8 @@ Item {
         if (_backend && !connected && networkId && networkId.length > 0) {
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
+            _backend.iceServers = root.iceServers
+            _backend.verbose = root.verbose
             _backend.joinRoom(networkId)
         }
     }
@@ -315,10 +408,34 @@ Item {
         }
     }
 
+    // ========== Connection Timeout ==========
+
+    Timer {
+        id: _timeoutTimer
+        interval: root.connectionTimeout
+        running: root.connectionTimeout > 0 && root.status === Network.Status.Connecting
+        onTriggered: {
+            root.connectionTimedOut()
+            root.errorOccurred("Connection timed out (" + root.connectionPhase + " phase)")
+            root.leave()
+        }
+    }
+
+    // ========== Ping Timer ==========
+
+    Timer {
+        id: _pingTimer
+        interval: 2000
+        repeat: true
+        running: root.verbose && root.connected && _backend
+        onTriggered: _backend.ping()
+    }
+
     // ========== Backend ==========
 
     ClayNetworkBackend {
         id: _backend
+        verbose: root.verbose
 
         onRoomCreated: (roomId) => root.networkCreated(roomId)
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)
@@ -326,5 +443,6 @@ Item {
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
         onStateReceived: (fromId, data) => root.stateReceived(fromId, data)
         onErrorOccurred: (message) => root.errorOccurred(message)
+        onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
     }
 }

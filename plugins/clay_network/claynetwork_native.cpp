@@ -6,10 +6,12 @@
 #include <rtc/rtc.hpp>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QUuid>
 #include <QDebug>
 #include <QRandomGenerator>
 #include <QNetworkInterface>
+#include <QDateTime>
 #include <cstring>
 
 ClayNetwork::ClayNetwork(QObject *parent)
@@ -70,6 +72,53 @@ void ClayNetwork::setSignalingMode(SignalingMode mode) {
     }
 }
 
+QVariantList ClayNetwork::iceServers() const { return iceServers_; }
+void ClayNetwork::setIceServers(const QVariantList &servers) {
+    if (iceServers_ != servers) {
+        iceServers_ = servers;
+        emit iceServersChanged();
+    }
+}
+
+bool ClayNetwork::verbose() const { return verbose_; }
+void ClayNetwork::setVerbose(bool v) {
+    if (verbose_ != v) {
+        verbose_ = v;
+        emit verboseChanged();
+    }
+}
+
+QString ClayNetwork::connectionPhase() const { return connectionPhase_; }
+QVariantMap ClayNetwork::phaseTiming() const { return phaseTiming_; }
+int ClayNetwork::latency() const { return latency_; }
+
+QVariantMap ClayNetwork::peerStats() const {
+    QVariantMap stats;
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
+        QVariantMap ps;
+        ps["latency"] = it->latency;
+        ps["msgSent"] = it->msgSent;
+        ps["msgRecv"] = it->msgRecv;
+        ps["bytesSent"] = it->bytesSent;
+        ps["bytesRecv"] = it->bytesRecv;
+        stats[it.key()] = ps;
+    }
+    return stats;
+}
+
+void ClayNetwork::setConnectionPhase(const QString &phase) {
+    if (connectionPhase_ != phase) {
+        connectionPhase_ = phase;
+        emit connectionPhaseChanged();
+    }
+}
+
+void ClayNetwork::emitDiag(const QString &phase, const QString &detail) {
+    if (verbose_) {
+        emit diagnosticMessage(phase, detail);
+    }
+}
+
 void ClayNetwork::createRoom()
 {
     if (connected_) {
@@ -80,6 +129,14 @@ void ClayNetwork::createRoom()
     status_ = Connecting;
     emit statusChanged();
     emit isHostChanged();
+
+    // Start phase timing
+    phaseTimer_.start();
+    totalStartMs_ = 0;
+    signalingStartMs_ = 0;
+    phaseTiming_.clear();
+    setConnectionPhase("signaling");
+    emitDiag("signaling", "Connecting to signaling...");
 
     if (signalingMode_ == Local) {
         // Start local signaling server
@@ -130,6 +187,14 @@ void ClayNetwork::joinRoom(const QString &networkId)
     emit isHostChanged();
     emit networkIdChanged();
 
+    // Start phase timing
+    phaseTimer_.start();
+    totalStartMs_ = 0;
+    signalingStartMs_ = 0;
+    phaseTiming_.clear();
+    setConnectionPhase("signaling");
+    emitDiag("signaling", "Connecting to signaling...");
+
     // Check if this is a LAN code
     QString host;
     uint16_t port;
@@ -173,6 +238,9 @@ void ClayNetwork::leave()
     isHost_ = false;
     connected_ = false;
     status_ = Disconnected;
+    connectionPhase_.clear();
+    phaseTiming_.clear();
+    latency_ = -1;
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -181,6 +249,10 @@ void ClayNetwork::leave()
     emit statusChanged();
     emit nodeCountChanged();
     emit nodesChanged();
+    emit connectionPhaseChanged();
+    emit phaseTimingChanged();
+    emit latencyChanged();
+    emit peerStatsChanged();
 }
 
 void ClayNetwork::broadcast(const QVariant &data)
@@ -227,16 +299,26 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
     nodeId_ = peerId;
     emit nodeIdChanged();
 
+    qint64 signalingMs = phaseTimer_.elapsed();
+    phaseTiming_["signaling"] = signalingMs;
+    emit phaseTimingChanged();
+    emitDiag("signaling", QString("Signaling ready (%1ms)").arg(signalingMs));
+
     if (isHost_) {
         // Host is ready, announce network
         connected_ = true;
         status_ = Connected;
+        setConnectionPhase("");
+        phaseTiming_["total"] = signalingMs;
+        emit phaseTimingChanged();
         emit connectedChanged();
         emit statusChanged();
         emit roomCreated(networkId_);
         qDebug() << "ClayNetwork: Hosting network" << networkId_;
     } else {
         // Client: initiate connection to host
+        setConnectionPhase("ice");
+        iceStartMs_ = phaseTimer_.elapsed();
         // In Local mode, host uses "HOST" as peerId; in Cloud mode, host uses networkId
         QString hostPeerId = (signalingMode_ == Local) ? "HOST" : networkId_;
         qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostPeerId;
@@ -255,9 +337,17 @@ void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp, co
 
     if (nodeCount() >= maxNodes_) {
         qWarning() << "ClayNetwork: Max nodes reached, rejecting" << fromId;
+        emitDiag("signaling", QString("Rejected %1 (network full)").arg(fromId.left(8)));
+        // Send rejection
+        if (signalingMode_ == Local && localClient_) {
+            localClient_->sendReject(fromId, connectionId);
+        } else {
+            signaling_->sendReject(fromId, connectionId);
+        }
         return;
     }
 
+    emitDiag("ice", QString("Offer from %1, negotiating...").arg(fromId.left(8)));
     setupPeerConnection(fromId, false);
 
     if (peers_.contains(fromId) && peers_[fromId].pc) {
@@ -296,22 +386,57 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
     qDebug() << "ClayNetwork: Setting up peer connection to" << peerId << (isOfferer ? "(offerer)" : "(answerer)");
 
     rtc::Configuration config;
-    config.iceServers.emplace_back("stun:stun.l.google.com:19302");
-    qDebug() << "ClayNetwork: Creating PeerConnection with STUN server";
+
+    // Configure ICE servers
+    if (iceServers_.isEmpty()) {
+        // Default: two STUN servers for fallback
+        config.iceServers.emplace_back("stun:stun.l.google.com:19302");
+        config.iceServers.emplace_back("stun:stun1.l.google.com:19302");
+    } else {
+        for (const QVariant &entry : iceServers_) {
+            if (entry.typeId() == QMetaType::QString) {
+                config.iceServers.emplace_back(entry.toString().toStdString());
+            } else if (entry.typeId() == QMetaType::QVariantMap) {
+                QVariantMap obj = entry.toMap();
+                QString urls = obj["urls"].toString();
+                QString username = obj.value("username").toString();
+                QString credential = obj.value("credential").toString();
+                if (!urls.isEmpty()) {
+                    rtc::IceServer server(urls.toStdString());
+                    if (!username.isEmpty()) {
+                        server.username = username.toStdString();
+                        server.password = credential.toStdString();
+                    }
+                    config.iceServers.emplace_back(std::move(server));
+                }
+            }
+        }
+    }
+
+    emitDiag("ice", QString("ICE config: %1 server(s)").arg(config.iceServers.size()));
 
     auto pc = std::make_shared<rtc::PeerConnection>(config);
     qDebug() << "ClayNetwork: PeerConnection created";
 
-    PeerConnection &peer = peers_[peerId];
+    PeerConn &peer = peers_[peerId];
     peer.pc = pc;
     peer.ready = false;
 
     pc->onStateChange([this, peerId](rtc::PeerConnection::State state) {
         qDebug() << "ClayNetwork: Peer" << peerId << "state:" << static_cast<int>(state);
-        if (state == rtc::PeerConnection::State::Failed ||
-            state == rtc::PeerConnection::State::Disconnected ||
-            state == rtc::PeerConnection::State::Closed) {
-            QMetaObject::invokeMethod(this, [this, peerId]() {
+
+        static const char* stateNames[] = {
+            "New", "Connecting", "Connected", "Disconnected", "Failed", "Closed"
+        };
+        int idx = static_cast<int>(state);
+        const char* name = (idx >= 0 && idx <= 5) ? stateNames[idx] : "Unknown";
+
+        QMetaObject::invokeMethod(this, [this, peerId, state, name]() {
+            emitDiag("ice", QString("Peer %1: %2").arg(peerId.left(8), name));
+
+            if (state == rtc::PeerConnection::State::Failed ||
+                state == rtc::PeerConnection::State::Disconnected ||
+                state == rtc::PeerConnection::State::Closed) {
                 if (peers_.contains(peerId) && peers_[peerId].ready) {
                     cleanupPeer(peerId);
                     nodes_.removeAll(peerId);
@@ -319,6 +444,14 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
                     emit nodesChanged();
                     emit playerLeft(peerId);
                 }
+            }
+        }, Qt::QueuedConnection);
+    });
+
+    pc->onGatheringStateChange([this, peerId](rtc::PeerConnection::GatheringState state) {
+        if (state == rtc::PeerConnection::GatheringState::Complete) {
+            QMetaObject::invokeMethod(this, [this, peerId]() {
+                emitDiag("ice", QString("ICE gathering complete for %1").arg(peerId.left(8)));
             }, Qt::QueuedConnection);
         }
     });
@@ -345,11 +478,23 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
     });
 
     pc->onLocalCandidate([this, peerId](rtc::Candidate candidate) {
+        QString candidateStr = QString::fromStdString(candidate.candidate());
+        // Parse candidate type for diagnostics
+        QString candidateType = "unknown";
+        if (candidateStr.contains("typ host")) candidateType = "host";
+        else if (candidateStr.contains("typ srflx")) candidateType = "srflx";
+        else if (candidateStr.contains("typ relay")) candidateType = "relay";
+        else if (candidateStr.contains("typ prflx")) candidateType = "prflx";
+
+        QMetaObject::invokeMethod(this, [this, peerId, candidateType]() {
+            emitDiag("ice", QString("Candidate: %1 (%2)").arg(candidateType, peerId.left(8)));
+        }, Qt::QueuedConnection);
+
         if (signalingMode_ == Local && localClient_) {
-            localClient_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
+            localClient_->sendCandidate(peerId, candidateStr,
                                         QString::fromStdString(candidate.mid()));
         } else {
-            signaling_->sendCandidate(peerId, QString::fromStdString(candidate.candidate()),
+            signaling_->sendCandidate(peerId, candidateStr,
                                       QString::fromStdString(candidate.mid()));
         }
     });
@@ -383,6 +528,17 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
                 emit playerJoined(peerId);
 
                 if (!isHost_ && !connected_) {
+                    qint64 iceMs = phaseTimer_.elapsed() - iceStartMs_;
+                    qint64 totalMs = phaseTimer_.elapsed();
+                    phaseTiming_["ice"] = iceMs;
+                    phaseTiming_["datachannel"] = 0;
+                    phaseTiming_["total"] = totalMs;
+                    emit phaseTimingChanged();
+                    setConnectionPhase("");
+
+                    emitDiag("datachannel",
+                             QString("Data channel open (total: %1ms)").arg(totalMs));
+
                     connected_ = true;
                     status_ = Connected;
                     emit connectedChanged();
@@ -418,12 +574,22 @@ void ClayNetwork::sendToPeer(const QString &peerId, const QString &message)
         std::vector<std::byte> bytes(utf8.size());
         std::memcpy(bytes.data(), utf8.constData(), utf8.size());
         peers_[peerId].dc->send(bytes);
+
+        if (verbose_) {
+            peers_[peerId].msgSent++;
+            peers_[peerId].bytesSent += utf8.size();
+        }
     }
 }
 
 void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message)
 {
     QMetaObject::invokeMethod(this, [this, fromId, message]() {
+        if (verbose_ && peers_.contains(fromId)) {
+            peers_[fromId].msgRecv++;
+            peers_[fromId].bytesRecv += message.size();
+        }
+
         QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
         if (!doc.isObject()) {
             return;
@@ -431,6 +597,49 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
 
         QJsonObject obj = doc.object();
         QString type = obj["t"].toString();
+
+        // Handle ping/pong (not relayed)
+        if (type == "p") {
+            // Respond with pong, echo timestamp
+            QJsonObject pong;
+            pong["t"] = "P";
+            pong["ts"] = obj["ts"];
+            QString json = QString::fromUtf8(QJsonDocument(pong).toJson(QJsonDocument::Compact));
+            sendToPeer(fromId, json);
+            return;
+        }
+        if (type == "P") {
+            // Pong received, calculate RTT
+            qint64 sentTs = obj["ts"].toDouble();
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            int rtt = static_cast<int>(now - sentTs);
+            if (peers_.contains(fromId)) {
+                int prev = peers_[fromId].latency;
+                // Exponential moving average (70/30)
+                peers_[fromId].latency = (prev < 0) ? rtt : static_cast<int>(prev * 0.7 + rtt * 0.3);
+
+                // Update best latency across all peers
+                int best = -1;
+                for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
+                    if (it->latency >= 0 && (best < 0 || it->latency < best))
+                        best = it->latency;
+                }
+                if (latency_ != best) {
+                    latency_ = best;
+                    emit latencyChanged();
+                }
+                emit peerStatsChanged();
+            }
+            return;
+        }
+
+        // Handle rejection from host
+        if (type == "R") {
+            QString reason = obj["r"].toString();
+            emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+            return;
+        }
+
         QJsonObject dataObj = obj["d"].toObject();
         QVariant data = dataObj.toVariantMap();
 
@@ -456,6 +665,21 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
             emit stateReceived(actualFromId, data);
         }
     }, Qt::QueuedConnection);
+}
+
+void ClayNetwork::ping()
+{
+    if (!connected_ || !verbose_) return;
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    QJsonObject msg;
+    msg["t"] = "p";
+    msg["ts"] = static_cast<double>(now);
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+
+    for (const QString &peerId : peers_.keys()) {
+        sendToPeer(peerId, json);
+    }
 }
 
 void ClayNetwork::cleanupPeer(const QString &peerId)
