@@ -10,13 +10,15 @@ Usage (run from docs/ directory):
 
 Then open: http://localhost:8000/
 """
+import datetime
+import email.utils
 import os
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 PORT = 8000
 
@@ -52,6 +54,26 @@ DEV_PATHS = [
 class DevHandler(SimpleHTTPRequestHandler):
     """HTTP handler that overlays docs/ on _site/ for development."""
 
+    def send_head(self):
+        """Add If-Modified-Since support for 304 responses."""
+        path = self.translate_path(self.path)
+        if os.path.isfile(path):
+            ims_header = self.headers.get('If-Modified-Since')
+            if ims_header:
+                try:
+                    ims_time = email.utils.parsedate_to_datetime(ims_header)
+                    file_mtime = os.stat(path).st_mtime
+                    file_dt = datetime.datetime.fromtimestamp(
+                        file_mtime, tz=datetime.timezone.utc
+                    ).replace(microsecond=0)
+                    if file_dt <= ims_time:
+                        self.send_response(304)
+                        self.end_headers()
+                        return None
+                except (TypeError, ValueError, OSError):
+                    pass
+        return super().send_head()
+
     def translate_path(self, path):
         # Strip query string before processing
         if '?' in path:
@@ -80,11 +102,12 @@ class DevHandler(SimpleHTTPRequestHandler):
         # Add COOP/COEP headers for SharedArrayBuffer (required for WASM threading)
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
         self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
-        # Cache WASM/loader files (large, rarely change), no-cache everything else
         path = self.path.split('?')[0]
-        if path.endswith(('.wasm', '.js')) and '/demo/webdojo/' in path:
-            self.send_header('Cache-Control', 'public, max-age=86400')
+        if path.endswith(('.wasm', '.js')):
+            # Cache but revalidate: 304 if unchanged, full fetch if rebuilt
+            self.send_header('Cache-Control', 'no-cache')
         else:
+            # Small files: always fresh
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         super().end_headers()
 
@@ -95,4 +118,4 @@ if __name__ == '__main__':
     print(f"  _site/: Built WASM and Jekyll output")
     print(f"  docs/:  Live overlay for {', '.join(DEV_PATHS)}")
     print("Press Ctrl+C to stop.")
-    HTTPServer(('localhost', PORT), DevHandler).serve_forever()
+    ThreadingHTTPServer(('localhost', PORT), DevHandler).serve_forever()
