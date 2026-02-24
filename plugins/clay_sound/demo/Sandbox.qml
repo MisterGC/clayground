@@ -41,6 +41,13 @@ Rectangle {
         onFinished: console.log("Music finished")
     }
 
+    MusicMonitor {
+        id: monitor
+        music: bgMusic
+        fftSize: 256
+        updateInterval: 33
+    }
+
     Column {
         anchors.centerIn: parent
         spacing: 20
@@ -206,6 +213,33 @@ Rectangle {
                     font.family: root.monoFont
                     font.pixelSize: 11
                     anchors.horizontalCenter: parent.horizontalCenter
+                }
+
+                // Spectrum visualizer
+                Item {
+                    id: spectrumViz
+                    width: monitor.spectrum.length * 4 - 1
+                    height: 60
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: bgMusic.playing || bgMusic.paused
+
+                    Repeater {
+                        model: monitor.spectrum.length
+                        Rectangle {
+                            required property int index
+                            x: index * 4
+                            width: 3
+                            height: Math.max(1, monitor.spectrum[index] * spectrumViz.height)
+                            y: spectrumViz.height - height
+                            color: {
+                                var t = index / Math.max(1, monitor.spectrum.length - 1);
+                                if (t < 0.33) return Qt.rgba(0, 0.85, 1, 1);       // cyan
+                                if (t < 0.55) return Qt.rgba(0.06, 0.62, 0.6, 1);  // teal
+                                if (t < 0.78) return Qt.rgba(1, 0.85, 0.24, 1);    // gold
+                                return Qt.rgba(1, 0.2, 0.4, 1);                    // pink
+                            }
+                        }
+                    }
                 }
             }
         }

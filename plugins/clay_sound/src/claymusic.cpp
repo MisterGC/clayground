@@ -73,6 +73,9 @@ EM_JS(int, js_music_play, (int bufferId, float volume, int loop, double offsetSe
 
     source.connect(gainNode);
     gainNode.connect(ctx.destination);
+    if (Module.clayMusicAnalyser) {
+        gainNode.connect(Module.clayMusicAnalyser);
+    }
 
     const startOffset = Math.max(0, Math.min(offsetSec, buffer.duration));
     source.start(0, startOffset);

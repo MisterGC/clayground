@@ -9,6 +9,7 @@
     \list
     \li \l Sound - For short sound effects (fire-and-forget, overlapping)
     \li \l Music - For background music (play/pause/stop/loop/seek)
+    \li \l MusicMonitor - Real-time audio spectrum and level analysis
     \endlist
 
     \section1 Platform Support
@@ -85,7 +86,58 @@
     \li Desktop: Uses low-latency QSoundEffect for Sound, full-featured QMediaPlayer for Music
     \endlist
 
-    \sa Sound, Music
+    \section2 Spectrum Analysis
+
+    Use \l MusicMonitor to visualize audio in real time:
+    \qml
+    Music { id: bgMusic; source: "music/theme.mp3" }
+
+    MusicMonitor {
+        id: monitor
+        music: bgMusic
+        fftSize: 256
+        updateInterval: 33
+    }
+    // monitor.spectrum: list<real> with fftSize/2 bins (0.0-1.0)
+    // monitor.level: real RMS level (0.0-1.0)
+    \endqml
+
+    \sa Sound, Music, MusicMonitor
+*/
+
+/*!
+    \qmltype MusicMonitor
+    \inqmlmodule Clayground.Sound
+    \inherits ClayMusicMonitor
+    \brief Real-time audio spectrum and level analysis for Music components.
+
+    MusicMonitor taps into a \l Music component's audio output and provides
+    frequency spectrum data and an RMS audio level, updated at a configurable
+    interval. Useful for visualizers, VU meters, and beat detection.
+
+    On desktop, captures PCM via QAudioBufferOutput and runs a Cooley-Tukey
+    radix-2 FFT. On WASM, uses the Web Audio API AnalyserNode.
+
+    \section1 Properties
+
+    \qmlproperty Music MusicMonitor::music
+    The Music component to monitor. Setting this connects the analyser.
+
+    \qmlproperty int MusicMonitor::fftSize
+    FFT window size (power of 2, 32-2048). Default: 256.
+    The spectrum will contain fftSize/2 frequency bins.
+
+    \qmlproperty int MusicMonitor::updateInterval
+    Update interval in milliseconds. Default: 33 (~30 fps).
+
+    \qmlproperty list<real> MusicMonitor::spectrum
+    Read-only. Frequency bin magnitudes, normalized 0.0 to 1.0.
+    Length is fftSize/2.
+
+    \qmlproperty real MusicMonitor::level
+    Read-only. RMS audio level, normalized 0.0 to 1.0.
+
+    \sa Music, Sound
 */
 
 /*!

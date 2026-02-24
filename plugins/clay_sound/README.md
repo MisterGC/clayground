@@ -47,6 +47,24 @@ onGamePaused: bgMusic.pause()
 onGameOver: bgMusic.stop()
 ```
 
+### MusicMonitor
+
+Real-time audio spectrum and level analysis for a Music component.
+
+```qml
+Music { id: bgMusic; source: "music.mp3" }
+
+MusicMonitor {
+    id: monitor
+    music: bgMusic
+    fftSize: 256         // FFT window size → 128 frequency bins
+    updateInterval: 33   // ~30fps refresh
+}
+
+// monitor.spectrum → list<real> length fftSize/2, normalized 0.0-1.0
+// monitor.level    → real 0.0-1.0 (RMS)
+```
+
 ## Properties
 
 ### Sound
@@ -72,6 +90,16 @@ onGameOver: bgMusic.stop()
 | `loop` | bool | false | Loop playback |
 | `position` | int | readonly | Current position (ms) |
 | `duration` | int | readonly | Total duration (ms) |
+
+### MusicMonitor
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `music` | Music | null | Music component to monitor |
+| `fftSize` | int | 256 | FFT window size (power of 2, 32-2048) |
+| `updateInterval` | int | 33 | Refresh interval in ms (~30fps) |
+| `spectrum` | list\<real\> | readonly | Frequency bins (length fftSize/2), 0.0-1.0 |
+| `level` | real | readonly | RMS audio level, 0.0-1.0 |
 
 ## Platform Support
 
