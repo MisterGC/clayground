@@ -138,6 +138,9 @@ void loadQmlFromUrl(const std::string& url)
         g_rootObject = nullptr;
     }
 
+    // Clear cached QML components so changed files are re-fetched
+    g_engine->clearComponentCache();
+
     emscripten_log(EM_LOG_CONSOLE, "Loading QML from URL: %s", url.c_str());
 
     // Create component from URL - use Asynchronous mode for network loading
