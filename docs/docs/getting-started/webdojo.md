@@ -17,21 +17,30 @@ That's it. All of Clayground's bundled plugins (Canvas, Canvas3D, Physics, World
 
 ## Develop with Your Own Files
 
-You can point the Web Dojo at QML files on your machine. Since browsers can't load `file://` URLs directly, you need a small local server:
+You can point the Web Dojo at QML files on your machine. The recommended approach is the `clay-dev-server`, which provides file watching with automatic live-reload via SSE:
 
 ```bash
-# Serve your project directory
+# Install the dev server
+pip install clay_dev_server
+
+# Serve your project with live-reload
+clay-dev-server ~/my-qml-project
+```
+
+Then open the Web Dojo's **Dev Server** pane (monitor icon in the sidebar) and click **Connect**. Edit `Main.qml` in your editor and changes are pushed to the browser automatically.
+
+Alternatively, any HTTP server works (without auto-reload):
+
+```bash
 cd ~/my-qml-project
 python3 -m http.server 9000
 ```
 
-Then open the Web Dojo with your file as `clay-src`:
+Then load via the URL pane or directly:
 
 ```
 https://clayground.mistergc.dev/webdojo/#clay-src=http://localhost:9000/Main.qml
 ```
-
-Edit `Main.qml` in your editor, refresh the browser, and see the result. This gives you a near-zero-setup development loop without installing Qt.
 
 ## Load from GitHub
 
@@ -81,7 +90,7 @@ The Web Dojo is great for prototyping and sharing, but has some constraints comp
 - **Pre-bundled plugins only** — You can't add custom C++ plugins
 - **No Network plugin** — TCP sockets aren't available in browsers
 - **No file system access** — Storage plugin uses browser localStorage instead
-- **Slower iteration** — Desktop Dojo reloads on file save automatically; Web Dojo requires manual refresh when using external URLs
+- **Slower iteration** — Desktop Dojo reloads on file save automatically; Web Dojo supports auto-reload via `clay-dev-server` but plain HTTP servers require manual refresh
 
 ## When to Switch to Desktop Dojo
 

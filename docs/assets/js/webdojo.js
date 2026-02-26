@@ -297,9 +297,11 @@ function migrateLegacyHash() {
 // ============================================================================
 
 function applyUIVisibility(visibility) {
+    // Use CSS 'hidden' class for editor/console so they can be toggled back.
+    // Only truly absent features (header, fullscreen) use .remove().
     if (!visibility.editor) {
-        document.getElementById('left-section')?.remove();
-        document.getElementById('divider')?.remove();
+        document.getElementById('left-section')?.classList.add('hidden');
+        document.getElementById('divider')?.classList.add('hidden');
         const canvasPane = document.getElementById('canvas-pane');
         if (canvasPane) {
             canvasPane.style.flex = '1';
@@ -308,8 +310,8 @@ function applyUIVisibility(visibility) {
     }
 
     if (!visibility.console) {
-        document.getElementById('divider-console')?.remove();
-        document.getElementById('console-container')?.remove();
+        document.getElementById('divider-console')?.classList.add('hidden');
+        document.getElementById('console-container')?.classList.add('hidden');
     }
 
     if (!visibility.header) {
@@ -333,6 +335,8 @@ function applyUIVisibility(visibility) {
         }
     }
 }
+
+let isStandaloneView = false;
 
 // ============================================================================
 // Dojo Args Bridge (for QML access to user URL parameters)
@@ -404,6 +408,10 @@ console.error = function(...args) {
     const msg = args.join(' ');
     if (msg.includes('qml:') || msg.includes('js:') || msg.includes('Error')) {
         logToConsole(msg.replace(/^qml:\s*/, '').replace(/^js:\s*/, ''), 'error');
+        // Hide loading overlay on QML errors
+        if (msg.includes('QML') || msg.includes('qml:')) {
+            document.getElementById('loading-overlay')?.classList.add('hidden');
+        }
     }
 };
 
@@ -499,6 +507,9 @@ function buildGallery() {
     function createItem(ex) {
         const item = document.createElement('div');
         item.className = 'gallery-item';
+        item.tabIndex = 0;
+        item.setAttribute('role', 'button');
+        item.setAttribute('aria-label', ex.name);
         if (source.type === 'example' && source.name === ex.name) {
             item.classList.add('active');
         }
@@ -538,7 +549,7 @@ function buildGallery() {
             item.appendChild(tagsEl);
         }
 
-        item.addEventListener('click', () => {
+        function activateItem() {
             updateHashParam('clay-src', `example:${ex.name}`);
             if (needsReload('example')) {
                 window.location.reload();
@@ -554,6 +565,14 @@ function buildGallery() {
             loadContent(newSource);
             list.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
             item.classList.add('active');
+        }
+
+        item.addEventListener('click', activateItem);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activateItem();
+            }
         });
 
         return item;
@@ -645,6 +664,7 @@ function setupGallery() {
         filterInput.addEventListener('input', () => buildGallery());
     }
 
+
     // Sidebar icon buttons
     const galleryBtn = document.getElementById('sidebar-gallery');
     const editorBtn = document.getElementById('sidebar-editor');
@@ -684,7 +704,7 @@ function setupGallery() {
         sidebarIcons.after(toggleHandle);
     }
     if (newBtn) {
-        newBtn.addEventListener('click', () => {
+        newBtn.addEventListener('click', async () => {
             updateHashParam('clay-src', null);
             if (needsReload('empty')) {
                 window.location.reload();
@@ -695,17 +715,20 @@ function setupGallery() {
             originalCode = null;
             isDirty = false;
             dirtyTrackingEnabled = false;
-            loadContent({ type: 'empty' });
+            updateDirtyIndicator();
+
             if (editor) {
-                fetchExample('empty').then(code => {
-                    if (code) {
-                        editor.setValue(code);
-                        originalCode = code;
-                    }
-                    editor.updateOptions({ readOnly: false });
-                });
+                // Fetch template first, then set editor, then run
+                const code = await fetchExample('empty') || EMPTY_TEMPLATE;
+                editor.setValue(code);
+                originalCode = code;
+                editor.updateOptions({ readOnly: false });
                 enableEditControls();
+                runQml();
+            } else {
+                loadContent({ type: 'empty' });
             }
+
             document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
             switchToView('editor');
         });
@@ -811,6 +834,29 @@ function setupDevServerPane() {
     if (hint) {
         hint.textContent = `For file watching: pip install "${whlName}[watch]"`;
     }
+
+    // Connect button: set clay-src and reload
+    const connectBtn = document.getElementById('devserver-connect-btn');
+    const devUrlInput = document.getElementById('devserver-url-input');
+    if (connectBtn && devUrlInput) {
+        // Prevent Monaco from capturing clipboard events
+        devUrlInput.addEventListener('paste', (e) => e.stopPropagation());
+        devUrlInput.addEventListener('copy', (e) => e.stopPropagation());
+        devUrlInput.addEventListener('cut', (e) => e.stopPropagation());
+
+        const doConnect = () => {
+            const url = devUrlInput.value.trim();
+            if (!url) return;
+            updateHashParam('clay-src', url);
+            updateHashParam('clay-ed', '1');
+            updateHashParam('clay-con', '1');
+            window.location.reload();
+        };
+        connectBtn.addEventListener('click', doConnect);
+        devUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') doConnect();
+        });
+    }
 }
 
 function getExamplesBaseUrl() {
@@ -841,6 +887,83 @@ async function fetchExample(name) {
         console.error(`Error loading example ${name}:`, e);
         return null;
     }
+}
+
+async function downloadCurrentExample() {
+    if (!currentSource || currentSource.type !== 'example') return;
+
+    const ex = examplesData.find(e => e.name === currentSource.name);
+    if (!ex) return;
+
+    const btn = document.getElementById('download-example-button');
+    if (btn) btn.disabled = true;
+
+    const baseUrl = getExamplesBaseUrl();
+    const binaryExts = ['.png', '.svg', '.mp3', '.wav', '.zip', '.jpg', '.jpeg', '.gif'];
+    const files = ex.files || [ex.path];
+
+    // Single file: download directly without ZIP
+    if (files.length === 1) {
+        try {
+            const filePath = files[0];
+            const url = baseUrl + filePath;
+            const isBinary = binaryExts.some(ext => filePath.toLowerCase().endsWith(ext));
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = isBinary ? await resp.blob() : new Blob([await resp.text()], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filePath.split('/').pop();
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch (e) {
+            logToConsole(`Download failed: ${e.message}`, 'error');
+        }
+        if (btn) btn.disabled = false;
+        return;
+    }
+
+    // Multi-file: bundle as ZIP
+    if (typeof JSZip === 'undefined') {
+        logToConsole('JSZip not loaded', 'error');
+        if (btn) btn.disabled = false;
+        return;
+    }
+
+    const zip = new JSZip();
+    // Determine common directory prefix for cleaner zip structure
+    const dirPrefix = files[0].split('/')[0] + '/';
+
+    for (const filePath of files) {
+        try {
+            const url = baseUrl + filePath;
+            const isBinary = binaryExts.some(ext => filePath.toLowerCase().endsWith(ext));
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                logToConsole(`Skip ${filePath}: HTTP ${resp.status}`, 'warning');
+                continue;
+            }
+            // Strip common directory prefix for flat structure in zip
+            const zipPath = filePath.startsWith(dirPrefix) ? filePath.slice(dirPrefix.length) : filePath;
+            if (isBinary) {
+                zip.file(zipPath, await resp.arrayBuffer());
+            } else {
+                zip.file(zipPath, await resp.text());
+            }
+        } catch (e) {
+            logToConsole(`Skip ${filePath}: ${e.message}`, 'warning');
+        }
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${ex.name.toLowerCase().replace(/\s+/g, '-')}.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    logToConsole('Download complete', 'success');
+
+    if (btn) btn.disabled = false;
 }
 
 // ============================================================================
@@ -964,6 +1087,11 @@ async function initEditorWithVim(resolve, source) {
 }
 
 
+function isSingleFileExample(name) {
+    const ex = examplesData.find(e => e.name === name);
+    return ex ? ex.singleFile !== false : true;
+}
+
 function setupUrlSourceEditor(source) {
     // Remove controls that don't apply for readonly
     document.getElementById('run-button')?.remove();
@@ -978,7 +1106,10 @@ function setupUrlSourceEditor(source) {
         editorControlsLeft.insertBefore(badge, editorControlsLeft.firstChild);
     }
 
-    // Add "Modify Copy" button
+    // "Modify Copy" button - always shown, but disabled with hint for multi-file
+    const canModify = source.type === 'url' ||
+        (source.type === 'example' && isSingleFileExample(source.name));
+
     const standaloneBtn = document.getElementById('standalone-button');
     if (standaloneBtn) {
         const modifyBtn = document.createElement('button');
@@ -987,26 +1118,29 @@ function setupUrlSourceEditor(source) {
         modifyBtn.textContent = 'Modify Copy';
         standaloneBtn.parentNode.insertBefore(modifyBtn, standaloneBtn.nextSibling);
 
-        modifyBtn.addEventListener('click', () => {
-            if (!editor) return;
+        if (canModify) {
+            modifyBtn.addEventListener('click', () => {
+                if (!editor) return;
 
-            editor.updateOptions({ readOnly: false });
-            document.querySelector('.readonly-badge')?.remove();
-            logToConsole('Now editing a copy - relative imports will not work', 'warning');
+                editor.updateOptions({ readOnly: false });
+                document.querySelector('.readonly-badge')?.remove();
+                logToConsole('Now editing a copy - relative imports will not work', 'warning');
 
-            // Switch URL to code source (preserves edits on refresh)
-            // but keep originalSource so Share/Standalone can reference it
-            const code = editor.getValue();
-            const compressed = LZString.compressToEncodedURIComponent(code);
-            updateHashParam('clay-src', `code:${compressed}`);
-            updateHashParam('clay-ed', '1');
-            updateHashParam('clay-con', '1');
-            currentSource = { type: 'code', compressed };
+                const code = editor.getValue();
+                const compressed = LZString.compressToEncodedURIComponent(code);
+                updateHashParam('clay-src', `code:${compressed}`);
+                updateHashParam('clay-ed', '1');
+                updateHashParam('clay-con', '1');
+                currentSource = { type: 'code', compressed };
 
-            enableEditControls();
-            runQml();
-            modifyBtn.remove();
-        });
+                enableEditControls();
+                runQml();
+                modifyBtn.remove();
+            });
+        } else {
+            modifyBtn.disabled = true;
+            modifyBtn.title = 'Multi-file example \u2014 download to edit locally';
+        }
     }
 
     // Fetch and display the source
@@ -1098,12 +1232,12 @@ function loadContent(source) {
             if (source.url) loadQmlFromUrlDirect(source.url);
             break;
         case 'example':
-            // Examples now use URL loading for relative import support
+            // Examples use URL loading for relative import support
             if (exampleFiles[source.name]) {
                 const url = getExamplesBaseUrl() + exampleFiles[source.name];
                 loadQmlFromUrlDirect(url);
-                // Also fetch source for editor display
-                fetchAndDisplayQml(url);
+                // Only fetch source for editor display when editor exists
+                if (editor) fetchAndDisplayQml(url);
             }
             break;
         default:
@@ -1193,8 +1327,22 @@ function runQmlDirect(code) {
     }
 }
 
+function showLoadingOverlay(msg) {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    overlay.querySelector('span').textContent = msg || 'Loading...';
+    overlay.classList.remove('hidden');
+}
+
+function hideLoadingOverlay() {
+    document.getElementById('loading-overlay')?.classList.add('hidden');
+}
+
 function loadQmlFromUrlDirect(url) {
-    if (!webDojoModule) return;
+    if (!webDojoModule) {
+        logToConsole('WASM not ready yet, cannot load URL', 'warning');
+        return;
+    }
 
     // Ensure absolute URL so Qt WASM resolves via HTTP, not file://
     if (url && !url.startsWith('http')) {
@@ -1213,7 +1361,7 @@ function loadQmlFromUrlDirect(url) {
     }
 }
 
-async function fetchAndDisplayQml(url) {
+async function fetchAndDisplayQml(url, retries = 1) {
     try {
         const fetchUrl = isExternalUrl(url) ? addCacheBuster(url) : url;
         const response = await fetch(fetchUrl);
@@ -1226,6 +1374,11 @@ async function fetchAndDisplayQml(url) {
         isDirty = false;
         updateDirtyIndicator();
     } catch (error) {
+        if (retries > 0) {
+            logToConsole(`Fetch failed, retrying in 2s...`, 'warning');
+            await new Promise(r => setTimeout(r, 2000));
+            return fetchAndDisplayQml(url, retries - 1);
+        }
         logToConsole(`Failed to fetch source: ${error}`, 'error');
     }
 }
@@ -1346,6 +1499,12 @@ function setupEventHandlers(source, visibility) {
         runButton.addEventListener('click', runQml);
     }
 
+    // Download example button
+    setupDownloadButton();
+
+    // Reload content button
+    setupReloadButton();
+
     // Share button
     setupShareButton();
 
@@ -1397,6 +1556,53 @@ function setupEventHandlers(source, visibility) {
 }
 
 
+function setupDownloadButton() {
+    const btn = document.getElementById('download-example-button');
+    if (!btn) return;
+
+    // Only show for example sources
+    if (currentSource.type === 'example') {
+        btn.classList.remove('hidden');
+    } else {
+        return;
+    }
+
+    btn.addEventListener('click', downloadCurrentExample);
+}
+
+function setupReloadButton() {
+    const btn = document.getElementById('reload-content-button');
+    if (!btn) return;
+
+    // Only show for URL and example sources
+    if (currentSource.type === 'url' || currentSource.type === 'example') {
+        btn.classList.remove('hidden');
+    } else {
+        return;
+    }
+
+    btn.addEventListener('click', () => {
+        let url;
+        if (currentSource.type === 'url') {
+            url = currentSource.url;
+        } else if (currentSource.type === 'example' && exampleFiles[currentSource.name]) {
+            url = getExamplesBaseUrl() + exampleFiles[currentSource.name];
+        }
+        if (!url) return;
+
+        // Always cache-bust on explicit reload
+        const bustUrl = addCacheBuster(url);
+        loadQmlFromUrlDirect(bustUrl);
+        if (editor && !document.getElementById('editor-pane')?.classList.contains('hidden')) {
+            fetchAndDisplayQml(bustUrl);
+        }
+
+        // Flash "Reloaded" feedback
+        btn.classList.add('reloaded');
+        setTimeout(() => btn.classList.remove('reloaded'), 1500);
+    });
+}
+
 function buildSourceUrl(source) {
     const base = `${window.location.origin}${window.location.pathname}`;
     if (source.type === 'example') {
@@ -1416,22 +1622,22 @@ function setupShareButton() {
     shareBtn.addEventListener('click', async () => {
         let url;
 
-        // Unmodified example: share the original source reference
-        // For URLs: only share if publicly reachable (not localhost/dev server)
+        // Unmodified example or public URL: share the original source reference
         const canShareByRef = !isDirty && originalSource &&
             (originalSource.type === 'example' ||
              (originalSource.type === 'url' && !isLocalhostUrl(originalSource.url)));
         if (canShareByRef) {
             url = buildSourceUrl(originalSource);
         } else if (editor) {
-            // Modified or code source: compress editor content
             const code = editor.getValue();
             const compressed = LZString.compressToEncodedURIComponent(code);
             url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
             if (url.length > 8000) {
-                alert('Code too long to share via URL. Max ~6KB of code.');
+                logToConsole('Code too long to share via URL. Max ~6KB.', 'warning');
                 return;
             }
+        } else if (currentSource.type === 'url') {
+            url = buildSourceUrl(currentSource);
         } else {
             url = window.location.href;
         }
@@ -1447,6 +1653,74 @@ function setupShareButton() {
     });
 }
 
+function toggleStandaloneView(forceState) {
+    const leftSection = document.getElementById('left-section');
+    const divider = document.getElementById('divider');
+    const dividerConsole = document.getElementById('divider-console');
+    const consoleContainer = document.getElementById('console-container');
+    const canvasPane = document.getElementById('canvas-pane');
+    const standaloneBtn = document.getElementById('standalone-button');
+
+    const goStandalone = forceState !== undefined ? forceState : !isStandaloneView;
+
+    if (goStandalone) {
+        leftSection?.classList.add('hidden');
+        divider?.classList.add('hidden');
+        dividerConsole?.classList.add('hidden');
+        consoleContainer?.classList.add('hidden');
+        if (canvasPane) {
+            canvasPane.style.flex = '1';
+            canvasPane.style.minWidth = '100%';
+        }
+        if (standaloneBtn) standaloneBtn.textContent = '\u270E Edit';
+        updateHashParam('clay-ed', '0');
+        updateHashParam('clay-con', '0');
+    } else {
+        leftSection?.classList.remove('hidden');
+        divider?.classList.remove('hidden');
+        dividerConsole?.classList.remove('hidden');
+        consoleContainer?.classList.remove('hidden');
+        if (canvasPane) {
+            canvasPane.style.flex = '';
+            canvasPane.style.minWidth = '';
+        }
+        if (standaloneBtn) standaloneBtn.textContent = '\u25B6 Standalone';
+        updateHashParam('clay-ed', null);
+        updateHashParam('clay-con', null);
+        if (editor) setTimeout(() => editor.layout(), 50);
+    }
+
+    isStandaloneView = goStandalone;
+    window.dispatchEvent(new Event('resize'));
+}
+
+function buildStandaloneUrl() {
+    let url;
+    const canShareByRef = !isDirty && originalSource &&
+        (originalSource.type === 'example' ||
+         (originalSource.type === 'url' && !isLocalhostUrl(originalSource.url)));
+
+    if (canShareByRef) {
+        url = buildSourceUrl(originalSource);
+    } else if (currentSource.type === 'url' && isLocalhostUrl(currentSource.url)) {
+        // Dev server: open with same localhost URL
+        const base = `${window.location.origin}${window.location.pathname}`;
+        const encoded = encodeURIComponent(currentSource.url).replace(/%3A/gi, ':').replace(/%2F/gi, '/');
+        url = `${base}#clay-src=${encoded}&clay-hd=0&clay-ed=0&clay-con=0`;
+    } else if (editor) {
+        const code = editor.getValue();
+        const compressed = LZString.compressToEncodedURIComponent(code);
+        url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
+        if (url.length > 8000) return null;
+    } else if (currentSource.type === 'url') {
+        // No editor but URL source: share by URL ref
+        url = buildSourceUrl(currentSource);
+    } else {
+        url = window.location.href;
+    }
+    return url;
+}
+
 function setupStandaloneButton() {
     const standaloneBtn = document.getElementById('standalone-button');
     if (!standaloneBtn) return;
@@ -1457,35 +1731,20 @@ function setupStandaloneButton() {
         return;
     }
 
-    // Contextual label
-    if (currentSource.type === 'url') {
-        standaloneBtn.textContent = '\u25B6 Standalone App';
-    }
-
-    standaloneBtn.addEventListener('click', () => {
-        let url;
-
-        // Unmodified example: open with original source reference
-        // For URLs: only use ref if publicly reachable (not localhost/dev server)
-        const canShareByRef = !isDirty && originalSource &&
-            (originalSource.type === 'example' ||
-             (originalSource.type === 'url' && !isLocalhostUrl(originalSource.url)));
-        if (canShareByRef) {
-            url = buildSourceUrl(originalSource);
-        } else if (editor) {
-            // Modified or code source: compress and open
-            const code = editor.getValue();
-            const compressed = LZString.compressToEncodedURIComponent(code);
-            url = `${window.location.origin}${window.location.pathname}#clay-src=code:${compressed}`;
-            if (url.length > 8000) {
-                alert('Code too long for standalone URL. Max ~6KB.');
+    standaloneBtn.addEventListener('click', (e) => {
+        // Ctrl+click (or Cmd+click on Mac): open standalone in new tab
+        if (e.ctrlKey || e.metaKey) {
+            const url = buildStandaloneUrl();
+            if (!url) {
+                logToConsole('Code too long for standalone URL. Max ~6KB.', 'warning');
                 return;
             }
-        } else {
-            url = window.location.href;
+            window.open(url, '_blank');
+            return;
         }
 
-        if (url) window.open(url, '_blank');
+        // Normal click: toggle standalone/edit in-place
+        toggleStandaloneView();
     });
 }
 

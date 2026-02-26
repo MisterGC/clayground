@@ -65,6 +65,28 @@
     font-size: 0.85rem;
 }
 
+.webdojo-help-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    border: 1px solid var(--border-color, #30363d);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.webdojo-help-link:hover {
+    color: var(--accent-primary, #00d9ff);
+    border-color: var(--accent-primary, #00d9ff);
+}
+
 .version-display {
     color: var(--text-secondary, #8b949e);
     font-size: 0.75rem;
@@ -333,6 +355,30 @@
     display: none;
 }
 
+.reload-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary, #e6edf3);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.reload-button:hover {
+    border-color: var(--accent-primary, #00d9ff);
+    color: var(--accent-primary, #00d9ff);
+}
+
+.reload-button.reloaded {
+    color: #7EE787;
+    border-color: #7EE787;
+}
+
 .share-button {
     padding: 0.35rem 0.75rem;
     background: var(--bg-dark, #0d1117);
@@ -435,8 +481,13 @@
     transition: all 0.2s ease;
 }
 
-.modify-copy-button:hover {
+.modify-copy-button:hover:not(:disabled) {
     background: #7d6b00;
+}
+
+.modify-copy-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Main container - fills remaining viewport */
@@ -560,6 +611,18 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     word-break: break-all;
+}
+
+.devserver-connect {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+}
+
+.devserver-connect .url-input {
+    flex: 1;
+    max-width: none;
 }
 
 .devserver-download-btn {
