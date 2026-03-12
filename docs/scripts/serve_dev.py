@@ -8,12 +8,14 @@ Changes to QML examples, JS, CSS in docs/ are immediately visible without rebuil
 Usage (run from docs/ directory):
     python3 scripts/serve_dev.py
 
-Then open: http://localhost:8000/
+Then open: https://localhost:8000/
 """
 import datetime
 import email.utils
 import os
 import signal
+import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -21,6 +23,9 @@ from pathlib import Path
 from http.server import HTTPServer, ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 PORT = 8000
+CERT_DIR = Path(__file__).parent.parent / '.dev-cert'
+CERT_FILE = CERT_DIR / 'cert.pem'
+KEY_FILE = CERT_DIR / 'key.pem'
 
 def kill_existing_server():
     """Kill any existing server on our port."""
@@ -39,6 +44,21 @@ def kill_existing_server():
     except Exception:
         pass  # No existing server or lsof not available
 
+def ensure_cert():
+    """Generate a self-signed certificate if none exists."""
+    if CERT_FILE.exists() and KEY_FILE.exists():
+        return
+    CERT_DIR.mkdir(parents=True, exist_ok=True)
+    hostname = socket.gethostname()
+    subprocess.run([
+        'openssl', 'req', '-x509', '-newkey', 'rsa:2048',
+        '-keyout', str(KEY_FILE), '-out', str(CERT_FILE),
+        '-days', '365', '-nodes',
+        '-subj', f'/CN={hostname}',
+        '-addext', f'subjectAltName=DNS:{hostname},DNS:localhost,IP:127.0.0.1',
+    ], check=True, capture_output=True)
+    print(f"Generated self-signed cert for {hostname}")
+
 # Directories to serve from (in priority order)
 DOCS_DIR = Path(__file__).parent.parent
 SITE_DIR = DOCS_DIR / '_site'
@@ -48,6 +68,7 @@ DEV_PATHS = [
     '/webdojo-examples/',
     '/assets/js/',
     '/assets/css/',
+    '/vendor/',
     '/demo/',  # WASM builds are copied here
 ]
 
@@ -101,7 +122,9 @@ class DevHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # Add COOP/COEP headers for SharedArrayBuffer (required for WASM threading)
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
-        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+        self.send_header('Cross-Origin-Embedder-Policy', 'credentialless')
+        self.send_header('Cross-Origin-Resource-Policy', 'cross-origin')
+        self.send_header('Access-Control-Allow-Origin', '*')
         path = self.path.split('?')[0]
         if path.endswith(('.wasm', '.js')):
             # Cache but revalidate: 304 if unchanged, full fetch if rebuilt
@@ -113,9 +136,16 @@ class DevHandler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     kill_existing_server()
+    ensure_cert()
     os.chdir(SITE_DIR)  # Change to _site for default behavior
-    print(f"Development server at http://localhost:{PORT}/")
+    hostname = socket.gethostname()
+    server = ThreadingHTTPServer(('', PORT), DevHandler)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
+    server.socket = ctx.wrap_socket(server.socket, server_side=True)
+    print(f"Development server at https://localhost:{PORT}/")
+    print(f"  LAN: https://{hostname}:{PORT}/")
     print(f"  _site/: Built WASM and Jekyll output")
     print(f"  docs/:  Live overlay for {', '.join(DEV_PATHS)}")
     print("Press Ctrl+C to stop.")
-    ThreadingHTTPServer(('localhost', PORT), DevHandler).serve_forever()
+    server.serve_forever()
