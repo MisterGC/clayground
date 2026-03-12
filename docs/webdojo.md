@@ -156,13 +156,13 @@ JavaScript is required to run the Web Dojo.
 </noscript>
 
 <!-- JSZip for example downloads -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="{{ site.baseurl }}/vendor/jszip.min.js"></script>
 
 <!-- LZ-String for URL compression -->
-<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+<script src="{{ site.baseurl }}/vendor/lz-string.min.js"></script>
 
 <!-- Monaco Editor -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<script src="{{ site.baseurl }}/vendor/monaco-editor/min/vs/loader.js"></script>
 
 <!-- QML language definition -->
 <script src="{{ site.baseurl }}/assets/js/qml-language.js"></script>

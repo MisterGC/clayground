@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "description": "Vendored JS dependencies for WebDojo (not an npm project)",
+  "scripts": {
+    "vendor": "node scripts/vendor-deps.js"
+  },
+  "dependencies": {
+    "jszip": "3.10.1",
+    "lz-string": "1.5.0",
+    "monaco-editor": "0.45.0",
+    "monaco-vim": "0.4.2"
+  }
+}

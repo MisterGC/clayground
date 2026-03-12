@@ -3,7 +3,10 @@ _site/
 .sass-cache/
 .jekyll-cache/
 .jekyll-metadata
-vendor
+vendor/bundle/
+
+# Dev server self-signed cert
+.dev-cert/
 
 # Generated plugin documentation
 plugins/*.md
@@ -21,6 +24,9 @@ _includes/api/
 
 # Bundle
 .bundle/
+
+# npm (vendor script only, not a runtime dependency)
+node_modules/
 
 # OS / Editor junk
 __pycache__/

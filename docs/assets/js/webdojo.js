@@ -991,7 +991,7 @@ const EMPTY_TEMPLATE = 'import QtQuick\n\nItem {\n}\n';
 async function initEditor(source) {
     return new Promise((resolve) => {
         require.config({
-            paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }
+            paths: { vs: (document.querySelector('meta[name="baseurl"]')?.content || '') + '/vendor/monaco-editor/min/vs' }
         });
 
         require(['vs/editor/editor.main'], function() {
@@ -999,7 +999,7 @@ async function initEditor(source) {
             window.define = undefined;
 
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/monaco-vim@0.4.2/dist/monaco-vim.min.js';
+            script.src = (document.querySelector('meta[name="baseurl"]')?.content || '') + '/vendor/monaco-vim.min.js';
             script.onload = () => {
                 window.define = savedDefine;
                 initEditorWithVim(resolve, source);
