@@ -154,6 +154,17 @@ Item {
     property var iceServers: []
 
     /*!
+        \qmlproperty string Network::signalingUrl
+        \brief Custom signaling server URL for offline/LAN operation.
+
+        When set, overrides the default PeerJS cloud signaling server.
+        Use this to point at a local PeerJS-compatible relay (e.g. clay-dev-server).
+
+        Example: "wss://myhost:8090/peerjs"
+    */
+    property string signalingUrl: ""
+
+    /*!
         \qmlproperty bool Network::verbose
         \brief Enable diagnostic output and quality monitoring.
 
@@ -336,6 +347,7 @@ Item {
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
+            _backend.signalingUrl = root.signalingUrl
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.createRoom()
@@ -353,6 +365,7 @@ Item {
         if (_backend && !connected && networkId && networkId.length > 0) {
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
+            _backend.signalingUrl = root.signalingUrl
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.joinRoom(networkId)

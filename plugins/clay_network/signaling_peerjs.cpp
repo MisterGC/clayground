@@ -19,6 +19,15 @@ PeerJSSignaling::~PeerJSSignaling()
     disconnect();
 }
 
+void PeerJSSignaling::setServerUrl(const QString &url)
+{
+    // Normalize: ensure URL ends with ?key=peerjs so connect() can append &id=&token=
+    if (url.contains('?'))
+        serverUrl_ = url;
+    else
+        serverUrl_ = url + "?key=peerjs";
+}
+
 void PeerJSSignaling::connect(const QString &peerId)
 {
     if (ws_) {

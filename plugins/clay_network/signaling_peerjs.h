@@ -23,6 +23,8 @@ public:
     bool isConnected() const;
     QString peerId() const;
 
+    void setServerUrl(const QString &url);
+
     void sendOffer(const QString &targetId, const QString &sdp);
     void sendAnswer(const QString &targetId, const QString &sdp, const QString &connectionId);
     void sendCandidate(const QString &targetId, const QString &candidate, const QString &mid);

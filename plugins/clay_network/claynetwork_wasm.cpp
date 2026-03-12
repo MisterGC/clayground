@@ -86,6 +86,14 @@ EM_JS(void, js_set_ice_servers, (int instanceId, const char* iceJson), {
     }
 });
 
+// JavaScript: Set custom signaling URL
+EM_JS(void, js_set_signaling_url, (int instanceId, const char* urlStr), {
+    const state = Module.clayNetwork[instanceId];
+    if (state) {
+        state.signalingUrl = UTF8ToString(urlStr) || '';
+    }
+});
+
 // JavaScript: Send ping to all peers
 EM_JS(void, js_ping, (int instanceId), {
     const state = Module.clayNetwork[instanceId];
@@ -105,7 +113,7 @@ EM_JS(void, js_init_helpers, (), {
     if (Module.clayHelpers) return;
     Module.clayHelpers = true;
 
-    // Build PeerJS config with ICE servers
+    // Build PeerJS config with ICE servers and optional custom signaling
     Module.clayBuildPeerConfig = function(state) {
         var cfg = { debug: 1 };
         if (state.iceServers && state.iceServers.length > 0) {
@@ -113,6 +121,14 @@ EM_JS(void, js_init_helpers, (), {
                 if (typeof s === 'string') return { urls: s };
                 return s;
             })};
+        }
+        if (state.signalingUrl) {
+            var url = new URL(state.signalingUrl);
+            cfg.host = url.hostname;
+            cfg.port = parseInt(url.port) || (url.protocol === 'wss:' ? 443 : 80);
+            cfg.path = url.pathname;
+            cfg.secure = url.protocol === 'wss:';
+            cfg.key = 'peerjs';
         }
         return cfg;
     };
@@ -760,6 +776,17 @@ void ClayNetwork::setIceServers(const QVariantList &servers) {
         js_set_ice_servers(instanceId_, json.constData());
 #endif
         emit iceServersChanged();
+    }
+}
+
+QString ClayNetwork::signalingUrl() const { return signalingUrl_; }
+void ClayNetwork::setSignalingUrl(const QString &url) {
+    if (signalingUrl_ != url) {
+        signalingUrl_ = url;
+#ifdef __EMSCRIPTEN__
+        js_set_signaling_url(instanceId_, url.toUtf8().constData());
+#endif
+        emit signalingUrlChanged();
     }
 }
 

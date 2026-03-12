@@ -80,6 +80,14 @@ void ClayNetwork::setIceServers(const QVariantList &servers) {
     }
 }
 
+QString ClayNetwork::signalingUrl() const { return signalingUrl_; }
+void ClayNetwork::setSignalingUrl(const QString &url) {
+    if (signalingUrl_ != url) {
+        signalingUrl_ = url;
+        emit signalingUrlChanged();
+    }
+}
+
 bool ClayNetwork::verbose() const { return verbose_; }
 void ClayNetwork::setVerbose(bool v) {
     if (verbose_ != v) {
@@ -138,7 +146,13 @@ void ClayNetwork::createRoom()
     setConnectionPhase("signaling");
     emitDiag("signaling", "Connecting to signaling...");
 
-    if (signalingMode_ == Local) {
+    if (!signalingUrl_.isEmpty()) {
+        // Custom signaling server: use Cloud mode via custom URL
+        signaling_->setServerUrl(signalingUrl_);
+        networkId_ = generateNetworkCode();
+        emit networkIdChanged();
+        signaling_->connect(networkId_);
+    } else if (signalingMode_ == Local) {
         // Start local signaling server
         localServer_ = std::make_unique<LocalSignalingServer>(this);
         if (!localServer_->start(0)) {  // 0 = auto-select port
@@ -195,21 +209,28 @@ void ClayNetwork::joinRoom(const QString &networkId)
     setConnectionPhase("signaling");
     emitDiag("signaling", "Connecting to signaling...");
 
-    // Check if this is a LAN code
-    QString host;
-    uint16_t port;
-    if (decodeLanCode(networkId, host, port)) {
-        // Local mode: connect to local signaling server
-        qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
-        signalingMode_ = Local;
-        emit signalingModeChanged();
-        connectLocalSignaling();
-    } else {
-        // Cloud mode: use PeerJS signaling
-        qDebug() << "ClayNetwork: Connecting to signaling server as client...";
-        signalingMode_ = Cloud;
-        emit signalingModeChanged();
+    if (!signalingUrl_.isEmpty()) {
+        // Custom signaling server: use Cloud mode via custom URL
+        qDebug() << "ClayNetwork: Using custom signaling:" << signalingUrl_;
+        signaling_->setServerUrl(signalingUrl_);
         signaling_->connect();
+    } else {
+        // Check if this is a LAN code
+        QString host;
+        uint16_t port;
+        if (decodeLanCode(networkId, host, port)) {
+            // Local mode: connect to local signaling server
+            qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
+            signalingMode_ = Local;
+            emit signalingModeChanged();
+            connectLocalSignaling();
+        } else {
+            // Cloud mode: use PeerJS signaling
+            qDebug() << "ClayNetwork: Connecting to signaling server as client...";
+            signalingMode_ = Cloud;
+            emit signalingModeChanged();
+            signaling_->connect();
+        }
     }
 }
 

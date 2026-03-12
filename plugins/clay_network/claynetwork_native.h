@@ -48,6 +48,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(bool autoRelay READ autoRelay WRITE setAutoRelay NOTIFY autoRelayChanged)
     Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
     Q_PROPERTY(QVariantList iceServers READ iceServers WRITE setIceServers NOTIFY iceServersChanged)
+    Q_PROPERTY(QString signalingUrl READ signalingUrl WRITE setSignalingUrl NOTIFY signalingUrlChanged)
     Q_PROPERTY(bool verbose READ verbose WRITE setVerbose NOTIFY verboseChanged)
     Q_PROPERTY(QString connectionPhase READ connectionPhase NOTIFY connectionPhaseChanged)
     Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
@@ -95,6 +96,8 @@ public:
     void setSignalingMode(SignalingMode mode);
     QVariantList iceServers() const;
     void setIceServers(const QVariantList &servers);
+    QString signalingUrl() const;
+    void setSignalingUrl(const QString &url);
     bool verbose() const;
     void setVerbose(bool v);
     QString connectionPhase() const;
@@ -132,6 +135,7 @@ signals:
     void autoRelayChanged();
     void signalingModeChanged();
     void iceServersChanged();
+    void signalingUrlChanged();
     void verboseChanged();
     void connectionPhaseChanged();
     void phaseTimingChanged();
@@ -188,6 +192,9 @@ private:
     bool autoRelay_ = true;
     SignalingMode signalingMode_ = Cloud;
     QStringList nodes_;
+
+    // Custom signaling
+    QString signalingUrl_;
 
     // ICE configuration
     QVariantList iceServers_;
