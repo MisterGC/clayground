@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "clayplatform.h"
 
+#include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -132,8 +133,18 @@ QVariantMap ClayPlatform::dojoArgs() const
     }
     return result;
 #else
-    // Native apps don't have URL hash params
-    return {};
+    // Native: parse --arg key=value pairs from command line
+    QVariantMap result;
+    const QStringList args = QCoreApplication::arguments();
+    for (int i = 0; i < args.size(); ++i) {
+        if (args[i] == QLatin1String("--arg") && i + 1 < args.size()) {
+            const QString kv = args[++i];
+            int eq = kv.indexOf(QLatin1Char('='));
+            if (eq > 0)
+                result[kv.left(eq)] = kv.mid(eq + 1);
+        }
+    }
+    return result;
 #endif
 }
 
