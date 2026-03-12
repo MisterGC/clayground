@@ -316,8 +316,10 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
 
     Module.clayPeerJSReady.then(() => {
         const cfg = Module.clayBuildPeerConfig(state);
-        // Client gets random peer ID
-        state.peer = new Peer(cfg);
+        // Generate random peer ID client-side (avoids HTTP /id request
+        // which fails with custom signaling servers)
+        const clientId = 'c' + Math.random().toString(36).substring(2, 16);
+        state.peer = new Peer(clientId, cfg);
 
         state.peer.on('open', (id) => {
             console.log('[ClayNetwork] Client node ready:', id);

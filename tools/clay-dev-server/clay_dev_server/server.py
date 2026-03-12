@@ -158,9 +158,8 @@ peerjs_peers_lock = threading.Lock()
 
 def _ws_send(sock, ws_conn, data):
     """Send a WebSocket text frame over a raw socket."""
-    ws_conn.send(Message(data=data))
     try:
-        sock.sendall(ws_conn.data_to_send())
+        sock.sendall(ws_conn.send(Message(data=data)))
     except (BrokenPipeError, ConnectionResetError, OSError):
         pass
 
@@ -204,8 +203,7 @@ def handle_peerjs_ws(request_handler):
     # Process the Request event and accept
     for event in ws.events():
         if isinstance(event, Request):
-            ws.send(AcceptConnection())
-            sock.sendall(ws.data_to_send())
+            sock.sendall(ws.send(AcceptConnection()))
             break
     else:
         return
@@ -229,12 +227,10 @@ def handle_peerjs_ws(request_handler):
                     text = event.data if isinstance(event.data, str) else event.data.decode()
                     _handle_peerjs_message(peer_id, sock, ws, text)
                 elif isinstance(event, Ping):
-                    ws.send(Pong())
-                    sock.sendall(ws.data_to_send())
+                    sock.sendall(ws.send(Pong()))
                 elif isinstance(event, CloseConnection):
-                    ws.send(CloseConnection(code=event.code, reason=event.reason))
                     try:
-                        sock.sendall(ws.data_to_send())
+                        sock.sendall(ws.send(CloseConnection(code=event.code, reason=event.reason)))
                     except (BrokenPipeError, ConnectionResetError, OSError):
                         pass
                     return
