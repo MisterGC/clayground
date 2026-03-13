@@ -2,3 +2,4 @@
 *.wasm
 *.js
 !*.html
+!peerjs.min.js

@@ -16,25 +16,44 @@
 static std::map<int, ClayNetwork*> g_networkRegistry;
 int ClayNetwork::nextInstanceId_ = 0;
 
-// JavaScript: Load PeerJS library dynamically
+// JavaScript: Load PeerJS library dynamically (CDN with local fallback)
 EM_JS(void, js_load_peerjs, (), {
     if (Module.clayPeerJSLoaded) return;
     if (Module.clayPeerJSLoading) return;
 
     Module.clayPeerJSLoading = true;
     Module.clayPeerJSReady = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-        script.onload = () => {
+        // Already loaded externally (e.g. via <script> tag)?
+        if (typeof Peer !== 'undefined') {
             Module.clayPeerJSLoaded = true;
             Module.clayPeerJSLoading = false;
-            console.log('[ClayNetwork] PeerJS loaded');
+            console.log('[ClayNetwork] PeerJS already available');
+            resolve();
+            return;
+        }
+
+        var onLoaded = function(src) {
+            Module.clayPeerJSLoaded = true;
+            Module.clayPeerJSLoading = false;
+            console.log('[ClayNetwork] PeerJS loaded from ' + src);
             resolve();
         };
-        script.onerror = (e) => {
-            Module.clayPeerJSLoading = false;
-            console.error('[ClayNetwork] Failed to load PeerJS', e);
-            reject(e);
+
+        var script = document.createElement('script');
+        script.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+        script.onload = function() { onLoaded('CDN'); };
+        script.onerror = function() {
+            // Fallback: load vendored local copy
+            console.warn('[ClayNetwork] CDN unavailable, trying local fallback');
+            var local = document.createElement('script');
+            local.src = '/demo/webdojo/peerjs.min.js';
+            local.onload = function() { onLoaded('local'); };
+            local.onerror = function(e) {
+                Module.clayPeerJSLoading = false;
+                console.error('[ClayNetwork] Failed to load PeerJS', e);
+                reject(e);
+            };
+            document.head.appendChild(local);
         };
         document.head.appendChild(script);
     });
