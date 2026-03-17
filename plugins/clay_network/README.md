@@ -159,8 +159,10 @@ This also explains asymmetric connectivity: it can work in one direction but not
 
 | Mode | Transport | Cross-Platform | Requires Internet |
 |------|-----------|----------------|-------------------|
-| **Cloud** | PeerJS server | Yes (Browser + Desktop + Mobile) | Yes |
+| **Cloud** | PeerJS server | Yes (Browser + Desktop + Mobile) | No, when using clay-dev-server as local signaling relay |
 | **Local** | Embedded WS server | Desktop/Mobile only | No |
+
+`clay-dev-server` includes a built-in PeerJS signaling relay (`wss://<host>:<port>/peerjs`), so Cloud mode works entirely offline on a LAN. The PeerJS library is vendored locally (no CDN needed) and peer IDs are generated client-side (no cloud `/id` endpoint needed). This enables browser-based P2P networking without any internet dependency. Install the signaling extra with: `pip install clay_dev_server[signaling]`
 
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 

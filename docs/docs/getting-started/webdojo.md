@@ -29,6 +29,8 @@ clay-dev-server ~/my-qml-project
 
 Then open the Web Dojo's **Dev Server** pane (monitor icon in the sidebar) and click **Connect**. Edit `Main.qml` in your editor and changes are pushed to the browser automatically.
 
+`clay-dev-server` also includes a built-in PeerJS signaling relay, enabling browser-based P2P networking on a LAN without internet. Install the signaling extra with `pip install clay_dev_server[signaling]`. See the [Network plugin docs]({{ site.baseurl }}/plugins/network/#signaling-modes) for details.
+
 Alternatively, any HTTP server works (without auto-reload):
 
 ```bash
@@ -88,7 +90,7 @@ The Web Dojo is great for prototyping and sharing, but has some constraints comp
 
 - **Single-file QML** — No multi-file project support (though relative imports from URL sources work)
 - **Pre-bundled plugins only** — You can't add custom C++ plugins
-- **No Network plugin** — TCP sockets aren't available in browsers
+- **Network plugin requires clay-dev-server** — Browser P2P networking works via WebRTC/PeerJS but needs `clay-dev-server` as local signaling relay (see [Network plugin]({{ site.baseurl }}/plugins/network/#signaling-modes))
 - **No file system access** — Storage plugin uses browser localStorage instead
 - **Slower iteration** — Desktop Dojo reloads on file save automatically; Web Dojo supports auto-reload via `clay-dev-server` but plain HTTP servers require manual refresh
 
@@ -100,5 +102,5 @@ Consider [installing Clayground locally]({{ site.baseurl }}/docs/getting-started
 - Custom C++ plugins with hot-reloading
 - Automatic reload on file save (no manual refresh)
 - Full debugger and profiler access
-- Network/multiplayer features
+- Network/multiplayer without clay-dev-server
 - The fastest possible iteration speed
