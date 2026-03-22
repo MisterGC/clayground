@@ -1,4 +1,4 @@
-name: Release Dev Server
+name: Release
 
 on:
   release:
@@ -6,6 +6,12 @@ on:
 
 permissions:
   contents: write
+
+env:
+  QT_VERSION_WASM: '6.10.1'
+  QT_VERSION_HOST: '6.10.1'
+  QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
+  EMSDK_VERSION: '4.0.7'
 
 jobs:
   build-wheel:
@@ -33,3 +39,70 @@ jobs:
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
             tools/clay-dev-server/dist/*.whl
+
+  build-webdojo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Install Qt (Desktop - for host tools)
+        id: qt-desktop
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION_HOST }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: ${{ env.QT_MODULES }}
+          set-env: false
+          cache: true
+          dir: ${{ runner.temp }}/qt-desktop
+
+      - name: Install Qt (WASM)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION_WASM }}
+          host: all_os
+          target: wasm
+          arch: wasm_multithread
+          modules: ${{ env.QT_MODULES }}
+          aqtversion: '>=3.2.0'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          pip install build
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: ./docs
+
+      - name: Configure CMake
+        run: |
+          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release \
+            -DCLAY_BUILD_WEBSITE=ON \
+            -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
+
+      - name: Build WebDojo
+        run: cmake --build build --target webdojo
+
+      - name: Upload WebDojo assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            build/bin/webdojo.js \
+            build/bin/webdojo.wasm \
+            build/bin/qtloader.js
