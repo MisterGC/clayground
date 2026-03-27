@@ -73,10 +73,10 @@ function getClayVersion() {
 }
 
 async function resolveVersion(version) {
-    // Default to 'dev' if not specified
+    // Default to 'latest' if not specified
     if (!version) {
-        version = 'dev';
-        updateHashParam('clay-version', 'dev');
+        version = 'latest';
+        updateHashParam('clay-version', 'latest');
     }
 
     if (version === 'dev') {
@@ -159,6 +159,47 @@ async function fetchAvailableVersions() {
         console.warn('Failed to fetch releases:', e);
         return [];
     }
+}
+
+async function populateVersionSelect() {
+    const sel = document.getElementById('version-select');
+    if (!sel || sel.options.length > 1) return;
+
+    const current = resolvedVersion
+        ? (resolvedVersion.isLocal ? 'dev' : resolvedVersion.tag)
+        : (getClayVersion() || 'latest');
+
+    // Start with placeholder showing current version while loading
+    sel.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = current;
+    placeholder.textContent = current === 'dev' ? 'dev (main)' : current;
+    sel.appendChild(placeholder);
+
+    const versions = await fetchAvailableVersions();
+
+    sel.innerHTML = '';
+
+    // "dev" is always available (latest main build)
+    const devOpt = document.createElement('option');
+    devOpt.value = 'dev';
+    devOpt.textContent = 'dev (main)';
+    sel.appendChild(devOpt);
+
+    // Release versions
+    for (const v of versions) {
+        const opt = document.createElement('option');
+        opt.value = v.tag;
+        opt.textContent = v.tag;
+        sel.appendChild(opt);
+    }
+
+    sel.value = current;
+
+    sel.addEventListener('change', () => {
+        updateHashParam('clay-version', sel.value);
+        window.location.reload();
+    });
 }
 
 // ============================================================================
@@ -618,16 +659,7 @@ function buildGallery() {
     }
     for (const ex of uncategorized) list.appendChild(createItem(ex));
 
-    // Show version (WASM version takes precedence if resolved)
-    const versionEl = document.getElementById('version-display');
-    if (versionEl) {
-        if (resolvedVersion) {
-            const wasmVer = resolvedVersion.isLocal ? 'dev' : resolvedVersion.tag;
-            versionEl.textContent = `WebDojo ${wasmVer}`;
-        } else if (claygroundVersion) {
-            versionEl.textContent = `Clayground ${claygroundVersion}`;
-        }
-    }
+    populateVersionSelect();
 }
 
 function switchToView(view) {

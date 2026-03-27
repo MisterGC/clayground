@@ -25,7 +25,7 @@ permalink: /webdojo/
         <a href="{{ site.baseurl }}/docs/getting-started/webdojo/" target="_blank"
            class="webdojo-help-link" title="Documentation" aria-label="Documentation">?</a>
     </div>
-    <span id="version-display" class="version-display"></span>
+    <select id="version-select" class="version-select" aria-label="WebDojo version"></select>
 </div>
 
 <div id="playground-container" class="playground-container">

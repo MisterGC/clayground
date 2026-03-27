@@ -81,5 +81,5 @@
         return loadWithFallback(taggedBase(tag));
     }
 
-    resolveAndLoad(parseVersion());
+    resolveAndLoad(parseVersion() || 'latest');
 })();
