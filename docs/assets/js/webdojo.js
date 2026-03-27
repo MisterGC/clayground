@@ -84,11 +84,23 @@ async function resolveVersion(version) {
     }
 
     if (version === 'latest') {
+        // Try same-origin versions manifest first, fall back to GitHub API
+        const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
+        try {
+            const mResp = await fetch(`${baseUrl}/v/versions.json`);
+            if (mResp.ok) {
+                const data = await mResp.json();
+                if (data.latest) {
+                    return { version: data.latest, isLocal: false, tag: data.latest };
+                }
+            }
+        } catch (e) { /* fall through to GitHub API */ }
+
         try {
             const resp = await fetch(`${GITHUB_API_URL}/latest`);
             if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
             const data = await resp.json();
-            const tag = data.tag_name;  // e.g., "v2026.1.0"
+            const tag = data.tag_name;
             return { version: tag, isLocal: false, tag };
         } catch (e) {
             console.warn('Failed to fetch latest release, falling back to dev:', e);
@@ -99,38 +111,39 @@ async function resolveVersion(version) {
 
     // Specific version (e.g., "2026.1.0" or "v2026.1.0")
     const tag = version.startsWith('v') ? version : `v${version}`;
-
-    // Verify the release exists before trying to load from it
-    try {
-        const resp = await fetch(`${GITHUB_API_URL}/tags/${tag}`);
-        if (!resp.ok) {
-            console.warn(`Release ${tag} not found, falling back to dev`);
-            logToConsole(`Version ${version} not found, using dev`, 'warning');
-            updateHashParam('clay-version', 'dev');
-            return { version: 'dev', isLocal: true };
-        }
-        return { version: version, isLocal: false, tag };
-    } catch (e) {
-        console.warn(`Failed to verify release ${tag}, falling back to dev:`, e);
-        logToConsole(`Could not verify version ${version}, using dev`, 'warning');
-        updateHashParam('clay-version', 'dev');
-        return { version: 'dev', isLocal: true };
-    }
+    return { version: version, isLocal: false, tag };
 }
 
 function getWasmBasePath(versionInfo) {
+    // Use the path set by webdojo-loader.js if available (ensures JS+WASM match)
+    if (window.__wasmBasePath) {
+        return window.__wasmBasePath;
+    }
+
     const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
 
     if (versionInfo.isLocal) {
-        // Local dev version from GitHub Pages
         return `${baseUrl}/demo/webdojo/`;
     }
 
-    // Release version from GitHub Release assets
-    return `${GITHUB_RELEASES_URL}/${versionInfo.tag}/`;
+    // Release version served from same-origin GitHub Pages
+    return `${baseUrl}/v/${versionInfo.tag}/webdojo/`;
 }
 
 async function fetchAvailableVersions() {
+    // Try same-origin versions manifest first (no rate limits, faster)
+    const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
+    try {
+        const mResp = await fetch(`${baseUrl}/v/versions.json`);
+        if (mResp.ok) {
+            const data = await mResp.json();
+            if (data.versions && data.versions.length > 0) {
+                return data.versions.map(tag => ({ tag, name: tag }));
+            }
+        }
+    } catch (e) { /* fall through to GitHub API */ }
+
+    // Fallback: GitHub API
     try {
         const resp = await fetch(GITHUB_API_URL);
         if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
@@ -1155,6 +1168,17 @@ async function initWebDojo() {
     const container = document.getElementById('webdojo-container');
 
     try {
+        // Wait for webdojo-loader.js to finish loading versioned scripts
+        if (!window.__wasmScriptsReady) {
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('WASM scripts loading timed out')), 30000);
+                window.addEventListener('wasm-scripts-ready', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+            });
+        }
+
         if (typeof qtLoad === 'undefined') {
             throw new Error('Qt loader not found. Make sure qtloader.js is included.');
         }

@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,6 +23,8 @@ env:
   # Note: qtquick3dphysics excluded - crashes browser in WASM (not yet supported)
   QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
   EMSDK_VERSION: '4.0.7'
+  # How many past releases to include in the site (each adds ~38 MB)
+  MAX_RELEASE_VERSIONS: 5
 
 jobs:
   build:
@@ -87,6 +90,45 @@ jobs:
       - name: Build Pagefind Index
         run: cd docs && pagefind
 
+      - name: Download release WASM assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Collect tags of non-draft releases (newest first), keep last N
+          tags=$(gh release list --json tagName,isDraft \
+            --jq '.[] | select(.isDraft == false) | .tagName' \
+            | head -n "$MAX_RELEASE_VERSIONS")
+
+          latest=""
+          downloaded=""
+          for tag in $tags; do
+            has_wasm=$(gh release view "$tag" --json assets \
+              --jq '[.assets[].name] | if index("webdojo.wasm") then "yes" else "no" end')
+            if [ "$has_wasm" = "yes" ]; then
+              echo "Downloading WASM assets for $tag ..."
+              dest="docs/_site/v/${tag}/webdojo"
+              mkdir -p "$dest"
+              gh release download "$tag" \
+                --pattern "webdojo.js" \
+                --pattern "webdojo.wasm" \
+                --pattern "qtloader.js" \
+                --dir "$dest"
+              if [ -z "$latest" ]; then
+                latest="$tag"
+              fi
+              downloaded="${downloaded:+$downloaded, }\"$tag\""
+            fi
+          done
+
+          # Generate versions manifest
+          if [ -n "$downloaded" ]; then
+            echo "{\"versions\": [$downloaded], \"latest\": \"$latest\"}" \
+              > docs/_site/v/versions.json
+            echo "Generated versions.json: $(cat docs/_site/v/versions.json)"
+          else
+            echo "No releases with WASM assets found"
+          fi
+
       - name: List website structure
         run: |
           echo "Website structure:"
@@ -103,13 +145,13 @@ jobs:
 
       # Upload as pages artifact for deployment (main only)
       - name: Upload pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs/_site
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 env:
   QT_VERSION_WASM: '6.10.1'
@@ -106,3 +107,12 @@ jobs:
             build/bin/webdojo.js \
             build/bin/webdojo.wasm \
             build/bin/qtloader.js
+
+  trigger-docs-rebuild:
+    needs: build-webdojo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger docs rebuild to include release WASM on Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs-check.yml --ref main
