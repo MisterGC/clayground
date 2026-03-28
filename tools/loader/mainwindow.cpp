@@ -3,6 +3,7 @@
 #include "mainwindow.h"
 #include "hotreloadcontainer.h"
 #include "clayliveloader.h"
+#include "clayinspector.h"
 #include <QQuickWidget>
 #include <QQmlContext>
 #include <QKeyEvent>
@@ -89,8 +90,11 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
         });
     });
     
+    // Create inspector
+    m_inspector = new ClayInspector(m_container, this);
+
     // Overlays will be created after engine is ready
-    
+
     // Setup shortcuts
     setupShortcuts();
     
@@ -162,6 +166,7 @@ void MainWindow::onSandboxUrlChanged()
     }
     
     m_container->setSource(url);
+    m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
     showSandboxName();
     
     // Create overlays on first load if not already created
@@ -179,6 +184,9 @@ void MainWindow::onRestarted()
     // Trigger hot reload with fade animation
     m_container->hotReload();
     
+    // Clear inspector logs on reload
+    m_inspector->clearLogs();
+
     // Clear log overlay if visible
     if (m_logOverlay) {
         // TODO: Clear log content

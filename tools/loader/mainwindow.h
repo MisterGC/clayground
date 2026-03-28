@@ -6,6 +6,7 @@
 
 class HotReloadContainer;
 class ClayLiveLoader;
+class ClayInspector;
 class QQuickWidget;
 
 class MainWindow : public QMainWindow
@@ -15,6 +16,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(ClayLiveLoader* loader, QWidget *parent = nullptr);
     ~MainWindow();
+
+    ClayInspector* inspector() const { return m_inspector; }
     
 protected:
     void keyPressEvent(QKeyEvent *event) override;
@@ -40,6 +43,7 @@ private:
 private:
     ClayLiveLoader* m_liveLoader = nullptr;
     HotReloadContainer* m_container = nullptr;
+    ClayInspector* m_inspector = nullptr;
     QQuickWidget* m_logOverlay = nullptr;
     QQuickWidget* m_guideOverlay = nullptr;
 

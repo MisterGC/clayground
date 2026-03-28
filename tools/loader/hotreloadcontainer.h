@@ -24,6 +24,7 @@ public:
     
     QQmlEngine* engine() const;
     QQmlContext* rootContext() const;
+    QQuickItem* rootObject() const;
     
     void hotReload();
     

@@ -101,6 +101,13 @@ QQmlContext* HotReloadContainer::rootContext() const
     return m_engine ? m_engine->rootContext() : nullptr;
 }
 
+QQuickItem* HotReloadContainer::rootObject() const
+{
+    if (m_currentWidget)
+        return m_currentWidget->rootObject();
+    return nullptr;
+}
+
 void HotReloadContainer::hotReload()
 {
     if (m_isReloading || m_source.isEmpty())
