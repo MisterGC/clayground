@@ -17,6 +17,8 @@
   children:
     - title: Dojo - Live Reloading
       url: /docs/manual/dojo/
+    - title: Inspector
+      url: /docs/manual/inspector/
     - title: Logging Overlay
       url: /docs/manual/logging/
     - title: Plugin Development

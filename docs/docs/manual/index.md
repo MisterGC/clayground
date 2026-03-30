@@ -9,6 +9,7 @@ The Clayground manual covers the development tools and workflows in detail.
 ## Development Tools
 
 - **[Dojo - Live Reloading]({{ site.baseurl }}/docs/manual/dojo/)** - The primary development environment with hot-reload
+- **[Inspector]({{ site.baseurl }}/docs/manual/inspector/)** - File-based introspection, snapshots, and flagging moments
 - **[Logging Overlay]({{ site.baseurl }}/docs/manual/logging/)** - Real-time debugging and property watching
 - **[Plugin Development]({{ site.baseurl }}/docs/manual/plugin-development/)** - Creating your own Clayground plugins
 

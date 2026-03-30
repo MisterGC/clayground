@@ -152,6 +152,117 @@ Item {
         return yW;
     }
 
+    /*!
+        \qmlmethod list ClayCanvas::find(object filters)
+        \brief Search for items matching filter conditions.
+
+        Returns an array of matching items with their properties.
+        All filters are optional and combined with AND.
+
+        Supported filters:
+        \list
+        \li \c type — class name pattern (* wildcard)
+        \li \c objectName — objectName pattern (* wildcard)
+        \li \c near — spatial filter: {objectName: "player", radius: 10} or {x: 30, y: 40, radius: 15}
+        \li \c where — JS expression evaluated per candidate, e.g. "health < 50"
+        \li \c props — array of property names to include in results
+        \li \c limit — max results (default 50)
+        \endlist
+
+        Distance is in world units.
+    */
+    function find(filters) {
+        if (!filters) filters = {};
+        var items = coordSys.children;
+        var results = [];
+        var limit = filters.limit || 50;
+
+        // Resolve 'near' reference position
+        var refX = undefined, refY = undefined, radius = 0;
+        if (filters.near) {
+            radius = filters.near.radius || 0;
+            if (filters.near.x !== undefined && filters.near.y !== undefined) {
+                refX = filters.near.x;
+                refY = filters.near.y;
+            } else {
+                // Find reference item by objectName or type
+                var refName = filters.near.objectName || "";
+                var refType = filters.near.type || "";
+                for (var r = 0; r < items.length; r++) {
+                    var ref = items[r];
+                    if (refName && ref.objectName === refName) {
+                        refX = ref.xWu !== undefined ? ref.xWu : screenXToWorld(ref.x);
+                        refY = ref.yWu !== undefined ? ref.yWu : screenYToWorld(ref.y);
+                        break;
+                    }
+                    if (refType && _matchPattern(ref.toString(), refType)) {
+                        refX = ref.xWu !== undefined ? ref.xWu : screenXToWorld(ref.x);
+                        refY = ref.yWu !== undefined ? ref.yWu : screenYToWorld(ref.y);
+                        break;
+                    }
+                }
+            }
+        }
+
+        for (var i = 0; i < items.length && results.length < limit; i++) {
+            var item = items[i];
+            var typeName = item.toString().split("(")[0].replace(/^QQuick/, "");
+
+            // Type filter
+            if (filters.type && !_matchPattern(typeName, filters.type))
+                continue;
+
+            // ObjectName filter
+            if (filters.objectName && !_matchPattern(item.objectName || "", filters.objectName))
+                continue;
+
+            // Near filter
+            var dist = -1;
+            if (refX !== undefined && refY !== undefined && radius > 0) {
+                var ix = item.xWu !== undefined ? item.xWu : screenXToWorld(item.x);
+                var iy = item.yWu !== undefined ? item.yWu : screenYToWorld(item.y);
+                dist = Math.hypot(ix - refX, iy - refY);
+                if (dist > radius)
+                    continue;
+            }
+
+            // Where filter
+            if (filters.where) {
+                try {
+                    var fn = new Function("item", "with(item){return " + filters.where + ";}");
+                    if (!fn(item)) continue;
+                } catch (e) { continue; }
+            }
+
+            // Build result
+            var match = {type: typeName};
+            if (item.objectName) match.objectName = item.objectName;
+            if (item.xWu !== undefined) { match.xWu = item.xWu; match.yWu = item.yWu; }
+            if (dist >= 0) match.distance = Math.round(dist * 100) / 100;
+
+            // Collect requested properties
+            if (filters.props) {
+                var p = {};
+                for (var j = 0; j < filters.props.length; j++) {
+                    var key = filters.props[j];
+                    if (item[key] !== undefined) p[key] = item[key];
+                }
+                match.properties = p;
+            }
+
+            results.push(match);
+        }
+
+        return results;
+    }
+
+    function _matchPattern(str, pattern) {
+        if (pattern === "*") return true;
+        if (pattern.indexOf("*") < 0) return str.indexOf(pattern) >= 0;
+        var regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+        return regex.test(str);
+    }
+
     /** Item that the 'camera' of the canvas follows automatically - set to null to disable. */
     property var observedItem: null
     onObservedItemChanged: {

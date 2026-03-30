@@ -36,6 +36,16 @@ Rectangle {
             keys: "Ctrl+G"
             descr: "Show/Hide this guide overlay"
         }
+
+        ShortcutDescr {
+            keys: "Ctrl+F"
+            descr: "Flag: screenshot + annotation"
+        }
+
+        ShortcutDescr {
+            keys: "Ctrl+T"
+            descr: "Toggle trace recording"
+        }
         
         Text {
             font.bold: true

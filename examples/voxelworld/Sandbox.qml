@@ -148,6 +148,7 @@ Item {
         Box3D {
             x: -200; y: 0; z: 50
             width: 100
+            color: "green"
             Node {
                 x: 0; y: 10; z: 50.1
                 Label {

@@ -17,6 +17,8 @@
 #include <QTimer>
 #include <QEventLoop>
 #include <QJSValue>
+#include <QVector2D>
+#include <QVector3D>
 
 ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
     : QObject(parent)
@@ -34,6 +36,7 @@ void ClayInspector::setSandboxDir(const QString& dir)
     stopWatching();
     m_sandboxDir = dir;
     m_inspectDir = dir + "/.clay/inspect";
+    m_crewDir = dir + "/.clay/crew";
     ensureInspectDir();
     startWatching();
 }
@@ -42,6 +45,12 @@ void ClayInspector::ensureInspectDir()
 {
     QDir dir;
     dir.mkpath(m_inspectDir);
+}
+
+void ClayInspector::ensureCrewDir()
+{
+    QDir dir;
+    dir.mkpath(m_crewDir);
 }
 
 void ClayInspector::startWatching()
@@ -133,6 +142,8 @@ void ClayInspector::processRequest(const QJsonObject& request)
         response = handleEval(request);
     else if (action == "tree")
         response = handleTree(request);
+    else if (action == "trace")
+        response = handleTrace(request);
     else {
         response["error"] = QString("Unknown action: %1").arg(action);
     }
@@ -154,7 +165,7 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
     }
 
     // Root properties (auto-captured primitives)
-    response["rootProperties"] = collectRootProperties(root);
+    response["rootProperties"] = collectCustomProperties(root);
 
     // flagInfo() if available
     QJsonValue flagInfo = callFlagInfo(root);
@@ -245,33 +256,64 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
     }
 
     int maxDepth = request.value("maxDepth").toInt(-1);
-    response["tree"] = buildItemTree(root, maxDepth);
+    bool fullDetail = request.value("detail").toString("overview") == "full";
+    response["tree"] = buildItemTree(root, maxDepth, 0, fullDetail);
     return response;
 }
 
-QJsonObject ClayInspector::collectRootProperties(QQuickItem* root)
+// Find the property index where Qt's built-in properties end.
+// Walks the metaobject chain and finds the highest propertyCount()
+// from any Qt-internal class (QQuick*/QQml* that isn't QML-generated).
+static int qtPropertyBoundary(QQuickItem* item)
+{
+    int boundary = QQuickItem::staticMetaObject.propertyCount();
+    const QMetaObject* m = item->metaObject();
+    while (m && m != &QQuickItem::staticMetaObject) {
+        QString cls = QString::fromUtf8(m->className());
+        bool isQtInternal = (cls.startsWith("QQuick") || cls.startsWith("QQml"))
+                         && !cls.contains("QMLTYPE")
+                         && !cls.contains("_QML_");
+        if (isQtInternal)
+            boundary = qMax(boundary, m->propertyCount());
+        m = m->superClass();
+    }
+    return boundary;
+}
+
+// Small set of Qt-internal properties that carry semantic meaning
+// and should always be captured even from Qt base classes.
+static bool isUsefulQtProperty(const QString& name)
+{
+    static const QStringList useful = {
+        "text", "color", "source", "radius", "contextType"
+    };
+    return useful.contains(name);
+}
+
+QJsonObject ClayInspector::collectCustomProperties(QQuickItem* item)
 {
     QJsonObject props;
-    if (!root)
+    if (!item)
         return props;
 
-    auto* meta = root->metaObject();
+    auto* meta = item->metaObject();
+    int itemBase = QQuickItem::staticMetaObject.propertyCount();
+    int qtEnd = qtPropertyBoundary(item);
 
-    // Start after QQuickItem's own properties to get only custom ones
-    int qquickItemPropCount = QQuickItem::staticMetaObject.propertyCount();
-
-    for (int i = qquickItemPropCount; i < meta->propertyCount(); ++i) {
+    for (int i = itemBase; i < meta->propertyCount(); ++i) {
         auto prop = meta->property(i);
         QString name = QString::fromUtf8(prop.name());
 
-        // Skip private properties (convention: start with _)
         if (name.startsWith('_'))
             continue;
 
-        QVariant value = prop.read(root);
+        // Skip Qt-internal properties unless universally useful
+        if (i < qtEnd && !isUsefulQtProperty(name))
+            continue;
+
+        QVariant value = prop.read(item);
         int typeId = value.typeId();
 
-        // Only capture primitive types
         switch (typeId) {
         case QMetaType::Int:
             props[name] = value.toInt();
@@ -290,12 +332,104 @@ QJsonObject ClayInspector::collectRootProperties(QQuickItem* root)
             props[name] = value.toString();
             break;
         default:
-            // Skip complex types (var, list, object, etc.)
             break;
         }
     }
 
     return props;
+}
+
+QJsonArray ClayInspector::collectComplexPropertyNames(QQuickItem* item)
+{
+    QJsonArray names;
+    if (!item)
+        return names;
+
+    auto* meta = item->metaObject();
+    int itemBase = QQuickItem::staticMetaObject.propertyCount();
+    int qtEnd = qtPropertyBoundary(item);
+
+    for (int i = itemBase; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        QString name = QString::fromUtf8(prop.name());
+
+        if (name.startsWith('_'))
+            continue;
+
+        if (i < qtEnd && !isUsefulQtProperty(name))
+            continue;
+
+        QVariant value = prop.read(item);
+        int typeId = value.typeId();
+
+        switch (typeId) {
+        case QMetaType::Int:
+        case QMetaType::Double:
+        case QMetaType::Float:
+        case QMetaType::QString:
+        case QMetaType::Bool:
+        case QMetaType::QColor:
+            break;
+        default:
+            names.append(name);
+            break;
+        }
+    }
+
+    return names;
+}
+
+QJsonObject ClayInspector::collectVectorProperties(QQuickItem* item)
+{
+    QJsonObject vecs;
+    if (!item)
+        return vecs;
+
+    auto* meta = item->metaObject();
+    for (int i = 0; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        QString typeName = QString::fromUtf8(prop.typeName());
+        QString name = QString::fromUtf8(prop.name());
+
+        if (name.startsWith('_'))
+            continue;
+
+        if (typeName == "QVector3D") {
+            QVector3D v = prop.read(item).value<QVector3D>();
+            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}, {"z", v.z()}};
+        } else if (typeName == "QVector2D") {
+            QVector2D v = prop.read(item).value<QVector2D>();
+            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}};
+        }
+    }
+
+    return vecs;
+}
+
+QString ClayInspector::sourceFileName(QQuickItem* item)
+{
+    auto* context = QQmlEngine::contextForObject(item);
+    if (!context)
+        return {};
+
+    QUrl url = context->baseUrl();
+    if (url.isEmpty())
+        return {};
+
+    return url.fileName();
+}
+
+bool ClayInspector::isInternalType(const QString& className)
+{
+    static const QStringList internals = {
+        "ContentItem", "Overlay", "RootItem", "Loader_QML",
+        "WindowContentItem", "ShaderEffectSource"
+    };
+    for (const auto& s : internals) {
+        if (className.contains(s))
+            return true;
+    }
+    return false;
 }
 
 QJsonValue ClayInspector::callFlagInfo(QQuickItem* root)
@@ -362,39 +496,167 @@ QJsonObject ClayInspector::evalExpressions(QQuickItem* root, const QJsonArray& e
     return results;
 }
 
-QJsonObject ClayInspector::buildItemTree(QQuickItem* item, int maxDepth, int depth)
+QJsonObject ClayInspector::buildItemTree(QQuickItem* item, int maxDepth,
+                                         int depth, bool fullDetail,
+                                         const QString& parentSource)
 {
     QJsonObject node;
     if (!item)
         return node;
 
-    // Type name from metaObject
+    // Type name — strip common prefixes for readability
     QString typeName = QString::fromUtf8(item->metaObject()->className());
-    // Strip QQuick prefix for readability
-    if (typeName.startsWith("QQuick"))
+    if (typeName.startsWith("QQuick3D"))
+        typeName = typeName.mid(8);
+    else if (typeName.startsWith("QQuick"))
         typeName = typeName.mid(6);
+
+    // Collect custom properties and complex names
+    QJsonObject customProps = collectCustomProperties(item);
+    QJsonArray complexNames = collectComplexPropertyNames(item);
+    bool hasObjectName = !item->objectName().isEmpty();
+
+    // Skip internal Qt plumbing items that carry no app-level info
+    if (!hasObjectName && customProps.isEmpty() && isInternalType(typeName)) {
+        auto children = item->childItems();
+        if (children.isEmpty())
+            return {};
+        // Pass through to children — don't create a node for this item
+        // But only if there's exactly one child (transparent wrapper)
+        if (children.size() == 1)
+            return buildItemTree(children.first(), maxDepth, depth, fullDetail, parentSource);
+    }
 
     node["type"] = typeName;
 
-    if (!item->objectName().isEmpty())
+    if (hasObjectName)
         node["objectName"] = item->objectName();
 
+    // Source file — only include when different from parent to reduce noise
+    QString src = sourceFileName(item);
+    if (!src.isEmpty() && src != parentSource)
+        node["source"] = src;
+
+    // Geometry (always)
     node["x"] = item->x();
     node["y"] = item->y();
     node["width"] = item->width();
     node["height"] = item->height();
     node["visible"] = item->isVisible();
+    node["enabled"] = item->isEnabled();
 
-    if (item->opacity() < 1.0)
-        node["opacity"] = item->opacity();
+    // Custom properties (app-level state)
+    if (!customProps.isEmpty())
+        node["properties"] = customProps;
 
-    // Recurse into children if within depth limit
+    // Complex property names (tells you what the item can do)
+    if (!complexNames.isEmpty())
+        node["complexProperties"] = complexNames;
+
+    // Full detail extras
+    if (fullDetail) {
+        node["z"] = item->z();
+        if (item->opacity() < 1.0)
+            node["opacity"] = item->opacity();
+        if (item->clip())
+            node["clip"] = true;
+
+        QString state = item->state();
+        if (!state.isEmpty())
+            node["state"] = state;
+
+        // All QVector3D/QVector2D properties (generic — covers 3D transforms etc.)
+        QJsonObject vecs = collectVectorProperties(item);
+        if (!vecs.isEmpty())
+            node["vectors"] = vecs;
+
+        // Children bounding rect
+        QRectF cr = item->childrenRect();
+        if (!cr.isNull())
+            node["childrenRect"] = QJsonObject{
+                {"x", cr.x()}, {"y", cr.y()},
+                {"w", cr.width()}, {"h", cr.height()}
+            };
+    } else {
+        // Overview: only include opacity when not 1.0
+        if (item->opacity() < 1.0)
+            node["opacity"] = item->opacity();
+    }
+
+    // Recurse into children
     auto children = item->childItems();
+    QString currentSource = src.isEmpty() ? parentSource : src;
+
     if (!children.isEmpty() && (maxDepth < 0 || depth < maxDepth)) {
+        static const int MAX_CHILDREN_INLINE = 20;
+        static const int TRUNCATED_SHOW = 5;
+
         QJsonArray childArray;
-        for (auto* child : children)
-            childArray.append(buildItemTree(child, maxDepth, depth + 1));
+        int limit = children.size();
+        bool truncated = false;
+
+        if (limit > MAX_CHILDREN_INLINE) {
+            limit = TRUNCATED_SHOW;
+            truncated = true;
+        }
+
+        for (int i = 0; i < limit; ++i) {
+            QJsonObject childNode = buildItemTree(children[i], maxDepth,
+                                                  depth + 1, fullDetail,
+                                                  currentSource);
+            if (!childNode.isEmpty())
+                childArray.append(childNode);
+        }
+
         node["children"] = childArray;
+        if (truncated) {
+            node["childCount"] = children.size();
+            node["truncated"] = true;
+
+            // Build a summary of ALL children: type counts + rare/named items
+            QHash<QString, int> typeCounts;
+            for (auto* child : children) {
+                QString cls = QString::fromUtf8(child->metaObject()->className());
+                if (cls.startsWith("QQuick3D"))
+                    cls = cls.mid(8);
+                else if (cls.startsWith("QQuick"))
+                    cls = cls.mid(6);
+                typeCounts[cls]++;
+            }
+
+            QJsonObject typeCountsJson;
+            for (auto it = typeCounts.cbegin(); it != typeCounts.cend(); ++it)
+                typeCountsJson[it.key()] = it.value();
+
+            QJsonArray namedItems;
+            for (auto* child : children) {
+                QString cls = QString::fromUtf8(child->metaObject()->className());
+                if (cls.startsWith("QQuick3D"))
+                    cls = cls.mid(8);
+                else if (cls.startsWith("QQuick"))
+                    cls = cls.mid(6);
+
+                bool hasName = !child->objectName().isEmpty();
+                bool isRare = typeCounts.value(cls) <= 3;
+
+                if (hasName || isRare) {
+                    QJsonObject mini;
+                    mini["type"] = cls;
+                    if (hasName)
+                        mini["objectName"] = child->objectName();
+                    QJsonObject props = collectCustomProperties(child);
+                    if (!props.isEmpty())
+                        mini["properties"] = props;
+                    namedItems.append(mini);
+                }
+            }
+
+            QJsonObject summary;
+            summary["typeCounts"] = typeCountsJson;
+            if (!namedItems.isEmpty())
+                summary["namedItems"] = namedItems;
+            node["summary"] = summary;
+        }
     } else if (!children.isEmpty()) {
         node["childCount"] = children.size();
     }
@@ -416,4 +678,349 @@ void ClayInspector::writeResponse(const QJsonObject& response)
     QJsonDocument doc(response);
     file.write(doc.toJson(QJsonDocument::Indented));
     file.close();
+}
+
+QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    if (request.value("stop").toBool(false)) {
+        if (!m_traceTimer) {
+            response["error"] = "No trace is running";
+            return response;
+        }
+        stopTrace("manual");
+        response["status"] = "stopped";
+        response["stoppedBy"] = "manual";
+        response["samples"] = m_traceSamples;
+        response["duration"] = static_cast<int>(m_traceElapsed.elapsed());
+        response["file"] = m_inspectDir + "/trace.jsonl";
+        response["summary"] = buildTraceSummary();
+        return response;
+    }
+
+    if (request.value("start").toBool(false)) {
+        if (m_traceTimer) {
+            stopTrace("replaced");
+        }
+
+        auto* root = m_container->rootObject();
+        if (!root) {
+            response["error"] = "No sandbox root item available";
+            return response;
+        }
+
+        m_traceWatch = request.value("watch").toArray();
+        m_traceStopExpr = request.value("stopWhen").toString();
+        m_traceTimeout = request.value("timeout").toInt(30000);
+        m_traceSamples = 0;
+        m_traceFirstSample = {};
+        m_traceLastSample = {};
+        m_traceMin.clear();
+        m_traceMax.clear();
+        m_traceChanges.clear();
+        m_traceStringValues.clear();
+
+        ensureInspectDir();
+        m_traceFile = new QFile(m_inspectDir + "/trace.jsonl", this);
+        if (!m_traceFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            response["error"] = "Cannot open trace file";
+            delete m_traceFile;
+            m_traceFile = nullptr;
+            return response;
+        }
+
+        int interval = request.value("interval").toInt(200);
+        m_traceTimer = new QTimer(this);
+        connect(m_traceTimer, &QTimer::timeout, this, &ClayInspector::onTraceTick);
+        m_traceElapsed.start();
+        m_traceTimer->start(interval);
+
+        // Take first sample immediately
+        onTraceTick();
+
+        response["status"] = "started";
+        response["watch"] = m_traceWatch;
+        response["interval"] = interval;
+        response["timeout"] = m_traceTimeout;
+        emit traceStarted();
+        return response;
+    }
+
+    response["error"] = "Trace request must have 'start' or 'stop'";
+    return response;
+}
+
+void ClayInspector::onTraceTick()
+{
+    auto* root = m_container->rootObject();
+    if (!root || !m_traceFile)
+        return;
+
+    qint64 elapsed = m_traceElapsed.elapsed();
+
+    // Check timeout
+    if (elapsed > m_traceTimeout) {
+        stopTrace("timeout");
+        QJsonObject response;
+        response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+        response["action"] = "trace";
+        response["status"] = "stopped";
+        response["stoppedBy"] = "timeout";
+        response["samples"] = m_traceSamples;
+        response["duration"] = static_cast<int>(elapsed);
+        response["file"] = m_inspectDir + "/trace.jsonl";
+        response["summary"] = buildTraceSummary();
+        writeResponse(response);
+        emit traceStopped();
+        return;
+    }
+
+    // Evaluate watched expressions
+    QJsonObject sample;
+    sample["t"] = static_cast<int>(elapsed);
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context)
+        return;
+
+    for (const auto& watchVal : m_traceWatch) {
+        QString expr = watchVal.toString();
+        if (expr.isEmpty()) continue;
+
+        QQmlExpression qmlExpr(context, root, expr);
+        bool isUndefined = false;
+        QVariant result = qmlExpr.evaluate(&isUndefined);
+
+        QJsonValue jsonVal;
+        if (qmlExpr.hasError() || isUndefined)
+            jsonVal = QJsonValue::Null;
+        else
+            jsonVal = QJsonValue::fromVariant(result);
+        sample[expr] = jsonVal;
+
+        // Update running stats
+        if (jsonVal.isDouble()) {
+            double v = jsonVal.toDouble();
+            if (!m_traceMin.contains(expr) || v < m_traceMin[expr])
+                m_traceMin[expr] = v;
+            if (!m_traceMax.contains(expr) || v > m_traceMax[expr])
+                m_traceMax[expr] = v;
+        }
+        if (jsonVal.isString()) {
+            m_traceStringValues[expr].insert(jsonVal.toString());
+        }
+
+        // Track changes
+        if (m_traceLastSample.contains(expr) && m_traceLastSample[expr] != jsonVal) {
+            m_traceChanges[expr] = m_traceChanges.value(expr, 0) + 1;
+        }
+    }
+
+    // Write JSONL line
+    QJsonDocument doc(sample);
+    m_traceFile->write(doc.toJson(QJsonDocument::Compact));
+    m_traceFile->write("\n");
+    m_traceFile->flush();
+
+    if (m_traceSamples == 0)
+        m_traceFirstSample = sample;
+    m_traceLastSample = sample;
+    m_traceSamples++;
+
+    // Check stop condition
+    if (!m_traceStopExpr.isEmpty()) {
+        QQmlExpression stopExpr(context, root, m_traceStopExpr);
+        QVariant stopResult = stopExpr.evaluate();
+        if (!stopExpr.hasError() && stopResult.toBool()) {
+            int duration = static_cast<int>(m_traceElapsed.elapsed());
+            stopTrace("condition");
+            QJsonObject response;
+            response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+            response["action"] = "trace";
+            response["status"] = "stopped";
+            response["stoppedBy"] = "condition";
+            response["stopCondition"] = m_traceStopExpr;
+            response["samples"] = m_traceSamples;
+            response["duration"] = duration;
+            response["file"] = m_inspectDir + "/trace.jsonl";
+            response["summary"] = buildTraceSummary();
+            writeResponse(response);
+            emit traceStopped();
+        }
+    }
+}
+
+void ClayInspector::stopTrace(const QString& /*reason*/)
+{
+    if (m_traceTimer) {
+        m_traceTimer->stop();
+        delete m_traceTimer;
+        m_traceTimer = nullptr;
+    }
+    if (m_traceFile) {
+        m_traceFile->close();
+        delete m_traceFile;
+        m_traceFile = nullptr;
+    }
+}
+
+void ClayInspector::toggleTrace()
+{
+    if (m_traceTimer) {
+        int duration = static_cast<int>(m_traceElapsed.elapsed());
+        stopTrace("manual");
+        QJsonObject response;
+        response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+        response["action"] = "trace";
+        response["status"] = "stopped";
+        response["stoppedBy"] = "manual";
+        response["samples"] = m_traceSamples;
+        response["duration"] = duration;
+        response["file"] = m_inspectDir + "/trace.jsonl";
+        response["summary"] = buildTraceSummary();
+        writeResponse(response);
+        emit traceStopped();
+    }
+    // If no trace is running, toggle has no effect (agent must configure first)
+}
+
+bool ClayInspector::isTracing() const
+{
+    return m_traceTimer != nullptr;
+}
+
+QJsonObject ClayInspector::buildTraceSummary()
+{
+    QJsonObject summary;
+
+    for (const auto& watchVal : m_traceWatch) {
+        QString expr = watchVal.toString();
+        QJsonObject exprSummary;
+
+        if (m_traceFirstSample.contains(expr))
+            exprSummary["first"] = m_traceFirstSample[expr];
+        if (m_traceLastSample.contains(expr))
+            exprSummary["last"] = m_traceLastSample[expr];
+        if (m_traceMin.contains(expr))
+            exprSummary["min"] = m_traceMin[expr];
+        if (m_traceMax.contains(expr))
+            exprSummary["max"] = m_traceMax[expr];
+        exprSummary["changes"] = m_traceChanges.value(expr, 0);
+
+        if (m_traceStringValues.contains(expr)) {
+            QJsonArray vals;
+            for (const auto& s : m_traceStringValues[expr])
+                vals.append(s);
+            exprSummary["values"] = vals;
+        }
+
+        summary[expr] = exprSummary;
+    }
+
+    return summary;
+}
+
+void ClayInspector::startFlag()
+{
+    auto* root = m_container->rootObject();
+    if (!root) {
+        qWarning() << "ClayInspector: no sandbox root for flag capture";
+        return;
+    }
+
+    ensureCrewDir();
+    m_pendingFlagTimestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
+    m_pendingFlagScreenshot = m_crewDir + "/flag_" + m_pendingFlagTimestamp + ".png";
+
+    auto grabResult = root->grabToImage();
+    if (!grabResult) {
+        qWarning() << "ClayInspector: grabToImage failed";
+        m_pendingFlagTimestamp.clear();
+        m_pendingFlagScreenshot.clear();
+        return;
+    }
+
+    connect(grabResult.data(), &QQuickItemGrabResult::ready, this, [this, grabResult]() {
+        if (grabResult->saveToFile(m_pendingFlagScreenshot))
+            emit flagReady(m_pendingFlagScreenshot);
+        else {
+            qWarning() << "ClayInspector: failed to save flag screenshot";
+            m_pendingFlagTimestamp.clear();
+            m_pendingFlagScreenshot.clear();
+        }
+    });
+}
+
+void ClayInspector::completeFlag(const QString& annotation)
+{
+    if (m_pendingFlagTimestamp.isEmpty())
+        return;
+
+    auto* root = m_container->rootObject();
+
+    QJsonObject flag;
+    flag["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    flag["screenshot"] = m_pendingFlagScreenshot;
+    flag["annotation"] = annotation;
+
+    if (root) {
+        flag["rootProperties"] = collectCustomProperties(root);
+        QJsonValue fi = callFlagInfo(root);
+        if (!fi.isNull())
+            flag["flagInfo"] = fi;
+        flag["tree"] = buildItemTree(root, 4, 0, false);
+    }
+
+    QJsonArray logTail;
+    int logStart = qMax(0, m_logBuffer.size() - 50);
+    for (int i = logStart; i < m_logBuffer.size(); ++i)
+        logTail.append(m_logBuffer.at(i));
+    flag["logTail"] = logTail;
+
+    QJsonArray warnings;
+    for (const auto& w : m_warningBuffer)
+        warnings.append(w);
+    flag["warnings"] = warnings;
+
+    QJsonArray errors;
+    for (const auto& e : m_errorBuffer)
+        errors.append(e);
+    flag["errors"] = errors;
+
+    QString flagPath = m_crewDir + "/flag_" + m_pendingFlagTimestamp + ".json";
+    QFile file(flagPath);
+    if (file.open(QIODevice::WriteOnly)) {
+        QJsonDocument doc(flag);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+        emit flagSaved(flagPath);
+    }
+
+    cleanupOldFlags();
+    m_pendingFlagTimestamp.clear();
+    m_pendingFlagScreenshot.clear();
+}
+
+void ClayInspector::cancelFlag()
+{
+    if (!m_pendingFlagScreenshot.isEmpty())
+        QFile::remove(m_pendingFlagScreenshot);
+    m_pendingFlagTimestamp.clear();
+    m_pendingFlagScreenshot.clear();
+}
+
+void ClayInspector::cleanupOldFlags()
+{
+    static const int MAX_FLAGS = 5;
+
+    QDir crewDir(m_crewDir);
+    QStringList flags = crewDir.entryList({"flag_*.json"}, QDir::Files, QDir::Name);
+
+    while (flags.size() > MAX_FLAGS) {
+        QString oldest = flags.takeFirst();
+        QString baseName = oldest.chopped(5); // remove ".json"
+        crewDir.remove(oldest);
+        crewDir.remove(baseName + ".png");
+    }
 }

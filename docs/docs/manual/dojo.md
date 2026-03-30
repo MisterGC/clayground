@@ -35,6 +35,8 @@ Dojo is the primary development tool for Clayground projects. It monitors your s
 |----------|--------|
 | `Ctrl+G` | Toggle guide overlay |
 | `Ctrl+L` | Toggle logging overlay |
+| `Ctrl+F` | [Flag a moment]({{ site.baseurl }}/docs/manual/inspector/#ctrlf--flag-a-moment) — screenshot + annotation |
+| `Ctrl+T` | [Toggle trace]({{ site.baseurl }}/docs/manual/inspector/#ctrlt--toggle-trace) recording |
 | `Ctrl+1` to `Ctrl+5` | Switch between loaded sandboxes |
 
 ## How Live-Reloading Works
@@ -71,5 +73,6 @@ The format is `--dynplugin <source_dir>,<binary_dir>`. Dojo detects when your pl
 
 ## Next Steps
 
+- Use the [Inspector]({{ site.baseurl }}/docs/manual/inspector/) for structured state snapshots and flagging moments
 - Learn about the [Logging Overlay]({{ site.baseurl }}/docs/manual/logging/)
 - Create your own [plugins]({{ site.baseurl }}/docs/manual/plugin-development/)

@@ -53,12 +53,17 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     connect(m_container, &HotReloadContainer::engineAboutToBeDestroyed, [this]() {
         qDebug() << "Engine about to be destroyed - cleaning up overlays";
         if (m_logOverlay) {
-            delete m_logOverlay;  // Delete immediately, not later
+            delete m_logOverlay;
             m_logOverlay = nullptr;
         }
         if (m_guideOverlay) {
-            delete m_guideOverlay;  // Delete immediately, not later
+            delete m_guideOverlay;
             m_guideOverlay = nullptr;
+        }
+        if (m_flagOverlay) {
+            delete m_flagOverlay;
+            m_flagOverlay = nullptr;
+            m_flagActive = false;
         }
     });
             
@@ -92,6 +97,26 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     
     // Create inspector
     m_inspector = new ClayInspector(m_container, this);
+    connect(m_inspector, &ClayInspector::flagReady,
+            this, &MainWindow::onFlagReady);
+
+    // Trace recording indicator
+    m_traceIndicator = new QLabel(" \u25CF REC ", this);
+    m_traceIndicator->setStyleSheet(
+        "QLabel { background-color: rgba(180, 30, 30, 180); color: white;"
+        " font-family: monospace; font-size: 13px; font-weight: bold;"
+        " padding: 3px 8px; border-radius: 4px; }");
+    m_traceIndicator->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_traceIndicator->hide();
+    connect(m_inspector, &ClayInspector::traceStarted, this, [this]() {
+        m_traceIndicator->adjustSize();
+        m_traceIndicator->move(width() - m_traceIndicator->width() - 10, 10);
+        m_traceIndicator->show();
+        m_traceIndicator->raise();
+    });
+    connect(m_inspector, &ClayInspector::traceStopped, this, [this]() {
+        m_traceIndicator->hide();
+    });
 
     // Overlays will be created after engine is ready
 
@@ -146,6 +171,12 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     }
     if (m_guideOverlay) {
         m_guideOverlay->setGeometry(0, 0, width(), height());
+    }
+    if (m_flagOverlay) {
+        m_flagOverlay->setGeometry(0, 0, width(), height());
+    }
+    if (m_traceIndicator && m_traceIndicator->isVisible()) {
+        m_traceIndicator->move(width() - m_traceIndicator->width() - 10, 10);
     }
 }
 
@@ -235,6 +266,14 @@ void MainWindow::setupShortcuts()
     auto* guideShortcut = new QShortcut(QKeySequence("Ctrl+G"), this);
     connect(guideShortcut, &QShortcut::activated, this, &MainWindow::toggleGuideOverlay);
     
+    // Flag overlay shortcut
+    auto* flagShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
+    connect(flagShortcut, &QShortcut::activated, this, &MainWindow::startFlag);
+
+    // Trace toggle shortcut
+    auto* traceShortcut = new QShortcut(QKeySequence("Ctrl+T"), this);
+    connect(traceShortcut, &QShortcut::activated, m_inspector, &ClayInspector::toggleTrace);
+
     // Sandbox switching shortcuts
     for (int i = 0; i < 5; ++i) {
         auto* shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i + 1)), this);
@@ -291,9 +330,32 @@ void MainWindow::createOverlays()
     m_guideOverlay->setSource(QUrl("qrc:/clayground/GuideOverlay.qml"));
     m_guideOverlay->hide();
     m_guideOverlay->raise();
-    
+
+    // Create flag overlay
+    m_flagOverlay = new QQuickWidget(engine, centralWidget());
+    m_flagOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_flagOverlay->setAttribute(Qt::WA_TranslucentBackground);
+    m_flagOverlay->setGeometry(0, 0, width(), height());
+
+    connect(m_flagOverlay, &QQuickWidget::statusChanged, [this](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error)
+            qCritical() << "Failed to load FlagOverlay:" << m_flagOverlay->errors();
+    });
+
+    m_flagOverlay->setSource(QUrl("qrc:/clayground/FlagOverlay.qml"));
+    m_flagOverlay->hide();
+    m_flagOverlay->raise();
+
+    // Connect flag overlay signals
+    if (auto* flagRoot = m_flagOverlay->rootObject()) {
+        connect(flagRoot, SIGNAL(confirmed(QString)),
+                this, SLOT(onFlagConfirmed(QString)));
+        connect(flagRoot, SIGNAL(cancelled()),
+                this, SLOT(onFlagCancelled()));
+    }
+
     qDebug() << "Overlays created successfully";
-    
+
     // Engine recreation is handled in the constructor
 }
 
@@ -364,14 +426,62 @@ void MainWindow::showAltMessage()
 {
     // Hide container
     m_container->hide();
-    
+
     // Create text widget to show alt message
     auto* textWidget = new QTextEdit(this);
     textWidget->setReadOnly(true);
     textWidget->setHtml(m_liveLoader->altMessage());
     textWidget->setStyleSheet("QTextEdit { background-color: black; color: white; "
                              "font-family: monospace; font-size: 16px; }");
-    
+
     // Replace central widget
     setCentralWidget(textWidget);
+}
+
+void MainWindow::startFlag()
+{
+    if (m_flagActive)
+        return;
+    m_flagActive = true;
+    m_inspector->startFlag();
+}
+
+void MainWindow::onFlagReady(const QString& screenshotPath)
+{
+    if (!m_flagOverlay) {
+        m_flagActive = false;
+        return;
+    }
+
+    m_flagOverlay->setGeometry(0, 0, width(), height());
+
+    if (auto* flagRoot = m_flagOverlay->rootObject()) {
+        QMetaObject::invokeMethod(flagRoot, "activate",
+                                  Q_ARG(QVariant, screenshotPath));
+    }
+
+    m_flagOverlay->show();
+    m_flagOverlay->raise();
+}
+
+void MainWindow::onFlagConfirmed(const QString& annotation)
+{
+    m_inspector->completeFlag(annotation);
+    if (m_flagOverlay) {
+        if (auto* flagRoot = m_flagOverlay->rootObject())
+            QMetaObject::invokeMethod(flagRoot, "deactivate");
+        m_flagOverlay->hide();
+    }
+    m_flagActive = false;
+}
+
+void MainWindow::onFlagCancelled()
+{
+    m_inspector->cancelFlag();
+    if (m_flagOverlay) {
+        if (auto* flagRoot = m_flagOverlay->rootObject())
+            QMetaObject::invokeMethod(flagRoot, "deactivate");
+        m_flagOverlay->hide();
+    }
+    m_flagActive = false;
 }
