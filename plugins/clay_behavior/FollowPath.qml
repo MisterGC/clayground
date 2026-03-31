@@ -82,7 +82,14 @@ Item
     */
     signal arrived()
 
-    onWpsWuChanged: _currentWpIndex = wpsWu.length > 0 ? 0 : -1
+    onWpsWuChanged: {
+        _currentWpIndex = wpsWu.length > 0 ? 0 : -1
+        if (_currentWpIndex >= 0 && _currentWpIndex < wpsWu.length) {
+            let wp = wpsWu[_currentWpIndex];
+            _moveto.destXWu = wp.x;
+            _moveto.destYWu = wp.y;
+        }
+    }
 
     /*!
         \qmlproperty bool FollowPath::debug
@@ -96,21 +103,33 @@ Item
     */
     property alias debugColor: _moveto.debugColor
 
+    /*!
+        \qmlproperty real FollowPath::desiredSpeed
+        \brief Movement speed in world units per second (default: 2).
+    */
+    property alias desiredSpeed: _moveto.desiredSpeed
+
     Component {
         id: debugVisu
         Item{
             id: item
             parent: behavior
+            property var _wpVisuals: []
+            Component.onDestruction: {
+                for (let obj of _wpVisuals)
+                    if (obj && obj.destroy) obj.destroy();
+            }
             Timer {id: createWps; running: true; interval: 1; onTriggered: createWpVisu();}
             function createWpVisu() {
                 for (let i=0; i<wpsWu.length; ++i){
                     let obj = wpComp.createObject(behavior.world.room);
-                    obj.xWu = Qt.binding(_ => {return behavior.wpsWu[i].x - .5 * obj.widthWu});
-                    obj.yWu = Qt.binding(_ => {return behavior.wpsWu[i].y + .5 * obj.heightWu});
+                    obj.xWu = Qt.binding(_ => {let wp = behavior.wpsWu[i]; return wp ? wp.x - .5 * obj.widthWu : 0});
+                    obj.yWu = Qt.binding(_ => {let wp = behavior.wpsWu[i]; return wp ? wp.y + .5 * obj.heightWu : 0});
+                    _wpVisuals.push(obj);
                 }
             }
             Canv.Poly {canvas: world.canvas; opacity: .75
-                vertices: wpsWu; strokeStyle: ShapePath.DashLine; strokeWidth: 3; strokeColor: Qt.darker(_moveto.debugColor, 1.2); }
+                vertices: wpsWu; strokeStyle: ShapePath.SolidLine; strokeWidth: 3; strokeColor: Qt.darker(_moveto.debugColor, 1.2); }
             Component{
                 id: wpComp
                 Canv.Rectangle{
@@ -126,7 +145,6 @@ Item
 
     MoveTo {
         id: _moveto; parent: actor; actor: behavior.actor; world: behavior.world;
-        debug: true
         anchors.centerIn: parent; destXWu: actor.xWu; destYWu: actor.yWu
         onArrived: {
             if (_currentWpIndex < wpsWu.length -1) _currentWpIndex++;

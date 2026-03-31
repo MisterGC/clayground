@@ -22,6 +22,13 @@
     }
     \endqml
 
+    \note When declaring fixtures inline, use an explicit ID to reference
+    the item's dimensions — \b not \c parent. Box2D fixture types (Box, Circle,
+    Polygon, etc.) are QObjects. In QML, \c parent inside a QObject resolves
+    via the scope chain to the PhysicsItem's visual parent, not the PhysicsItem
+    itself. Use \c {width: myItem.width} instead of \c {width: parent.width}.
+    Prefer RectBoxBody or ImageBoxBody which handle this correctly.
+
     \sa RectBoxBody, ImageBoxBody, VisualizedPolyBody
 */
 import QtQuick

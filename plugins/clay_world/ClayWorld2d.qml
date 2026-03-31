@@ -155,7 +155,7 @@ ClayWorldBase {
 
         showDebugInfo: _world.debugRendering
         anchors.fill: parent
-        Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; world: _physicsWorld }}
+        Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; anchors.fill: parent; world: _physicsWorld; flags: DebugDraw.Shape }}
         Loader { sourceComponent: debugPhysics ? _physDebug : null }
 
         World {
