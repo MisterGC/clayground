@@ -7,6 +7,7 @@ clay_plugin( Behavior
     QML_FILES
         FollowPath.qml
         MoveTo.qml
+        NavigateTo.qml
         RectTrigger.qml
         WorldChangedConnections.qml
         DoorBuilder.qml
@@ -16,4 +17,5 @@ clay_plugin( Behavior
         Qt::Quick
         Qt::Qml
         ClayWorld
+        ClayAlgorithm
 )
