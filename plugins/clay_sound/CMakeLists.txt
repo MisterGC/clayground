@@ -15,12 +15,15 @@ if(EMSCRIPTEN)
     set_source_files_properties(Music_wasm.qml PROPERTIES QT_QML_SOURCE_TYPENAME Music)
     set(SOUND_QML Sound_wasm.qml)
     set(MUSIC_QML Music_wasm.qml)
-    set(CPP_SRC src/claysound.cpp src/claysound.h src/claymusic.cpp src/claymusic.h)
+    set(CPP_SRC
+        src/claysound.cpp src/claysound.h
+        src/claymusic.cpp src/claymusic.h
+        src/chipmood.cpp src/chipmood.h)
     set(EXTRA_LIBS "")
 else()
     set(SOUND_QML Sound.qml)
     set(MUSIC_QML Music.qml)
-    set(CPP_SRC "")
+    set(CPP_SRC src/chipmood.cpp src/chipmood.h src/softsynth.cpp src/softsynth.h)
     set(EXTRA_LIBS Qt::Multimedia)
 endif()
 
@@ -31,6 +34,4 @@ clay_plugin(Sound
     LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS}
 )
 
-if(EMSCRIPTEN)
-    target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-endif()
+target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
