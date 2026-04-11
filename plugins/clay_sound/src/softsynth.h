@@ -32,6 +32,16 @@ struct Voice {
     double sustain = 0.6;   // level (0-1)
     double release = 0.3;
 
+    // Pitch envelope (semitone offsets, sweep time in seconds)
+    double pitchStart = 0.0;
+    double pitchEnd = 0.0;
+    double pitchTime = 0.0;
+
+    // LFO (0=none, 1=pitch, 2=volume)
+    double lfoRate = 0.0;
+    double lfoDepth = 0.0;
+    int lfoTarget = 0;
+
     double startTime = 0.0;
     double duration = 0.5;  // total note duration
     bool active = false;
@@ -46,6 +56,22 @@ struct NoteEvent {
     double duration;
     double gain;
     Voice::Waveform waveform;
+
+    // Per-note ADSR (patch-driven)
+    double attack = 0.01;
+    double decay = 0.1;
+    double sustain = 0.6;
+    double release = 0.3;
+
+    // Per-note pitch envelope
+    double pitchStart = 0.0;
+    double pitchEnd = 0.0;
+    double pitchTime = 0.0;
+
+    // Per-note LFO
+    double lfoRate = 0.0;
+    double lfoDepth = 0.0;
+    int lfoTarget = 0;
 };
 
 class SoftSynth : public QObject
@@ -75,6 +101,11 @@ public:
 
     // Current playback position in seconds
     double position() const;
+    double loopDuration() const { return loopDuration_; }
+    const std::vector<NoteEvent> &compositionData() const { return composition_; }
+
+    // Offline rendering (for WAV export) — renders samples without audio output
+    void renderOffline(float *buffer, int sampleCount);
 
 private slots:
     void generateSamples();
@@ -86,7 +117,7 @@ private:
     static constexpr int BUFFER_SAMPLES = SAMPLE_RATE * BUFFER_MS / 1000;
     static constexpr int MAX_VOICES = 32;
 
-    double generateWaveform(Voice &voice);
+    double generateWaveform(Voice &voice, double currentTime);
     double applyEnvelope(const Voice &voice, double currentTime);
     void processFilter(float *buffer, int count);
     void processDelay(float *buffer, int count);

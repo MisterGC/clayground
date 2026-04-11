@@ -193,7 +193,7 @@ double SoftSynth::position() const
     return currentTime_;
 }
 
-double SoftSynth::generateWaveform(Voice &voice)
+double SoftSynth::generateWaveform(Voice &voice, double currentTime)
 {
     double sample = 0.0;
 
@@ -236,8 +236,23 @@ double SoftSynth::generateWaveform(Voice &voice)
     }
     }
 
-    // Advance phase
-    voice.phase += voice.frequency / static_cast<double>(SAMPLE_RATE);
+    // Compute effective frequency (base + pitch envelope + LFO)
+    double effFreq = voice.frequency;
+    double elapsed = currentTime - voice.startTime;
+
+    if (voice.pitchTime > 0.0) {
+        double p = std::min(elapsed / voice.pitchTime, 1.0);
+        double semitones = voice.pitchStart + (voice.pitchEnd - voice.pitchStart) * p;
+        effFreq *= std::pow(2.0, semitones / 12.0);
+    }
+
+    if (voice.lfoRate > 0.0 && voice.lfoDepth > 0.0 && voice.lfoTarget == 1) {
+        double lfo = std::sin(2.0 * M_PI * elapsed * voice.lfoRate);
+        effFreq *= std::pow(2.0, lfo * voice.lfoDepth / 12.0);
+    }
+
+    // Advance phase with effective frequency
+    voice.phase += effFreq / static_cast<double>(SAMPLE_RATE);
     if (voice.phase >= 1.0)
         voice.phase -= 1.0;
 
@@ -349,6 +364,22 @@ void SoftSynth::activateScheduledNotes()
         v->phase = 0.0;
         v->active = true;
 
+        // Per-note ADSR from patch
+        v->attack = note.attack;
+        v->decay = note.decay;
+        v->sustain = note.sustain;
+        v->release = note.release;
+
+        // Per-note pitch envelope
+        v->pitchStart = note.pitchStart;
+        v->pitchEnd = note.pitchEnd;
+        v->pitchTime = note.pitchTime;
+
+        // Per-note LFO
+        v->lfoRate = note.lfoRate;
+        v->lfoDepth = note.lfoDepth;
+        v->lfoTarget = note.lfoTarget;
+
         // Reset noise seed for noise voices
         if (v->waveform == Voice::Noise)
             v->noiseSeed = 12345 + static_cast<unsigned int>(nextNoteIndex_);
@@ -388,7 +419,14 @@ void SoftSynth::generateSamples()
             }
             double envelope = applyEnvelope(voices_[v], currentTime_);
 
-            double wave = generateWaveform(voices_[v]);
+            // Volume LFO
+            if (voices_[v].lfoTarget == 2 && voices_[v].lfoRate > 0.0) {
+                double el = currentTime_ - voices_[v].startTime;
+                double lfo = std::sin(2.0 * M_PI * el * voices_[v].lfoRate);
+                envelope *= 1.0 - voices_[v].lfoDepth * 0.5 * (1.0 - lfo);
+            }
+
+            double wave = generateWaveform(voices_[v], currentTime_);
             mixSample += wave * envelope * voices_[v].gain;
         }
 
@@ -455,6 +493,49 @@ void SoftSynth::generateSamples()
             break;
         written += chunk;
     }
+}
+
+void SoftSynth::renderOffline(float *output, int sampleCount)
+{
+    // Reset state for clean offline render
+    currentTime_ = 0.0;
+    nextNoteIndex_ = 0;
+    filterState_ = 0.0;
+    delayWritePos_ = 0;
+    std::fill(delayBuffer_.begin(), delayBuffer_.end(), 0.0f);
+    for (int i = 0; i < MAX_VOICES; ++i)
+        voices_[i].active = false;
+
+    for (int i = 0; i < sampleCount; ++i) {
+        activateScheduledNotes();
+
+        double mix = 0.0;
+        for (int v = 0; v < MAX_VOICES; ++v) {
+            if (!voices_[v].active) continue;
+            if (currentTime_ - voices_[v].startTime >= voices_[v].duration) {
+                voices_[v].active = false;
+                continue;
+            }
+            double env = applyEnvelope(voices_[v], currentTime_);
+            if (voices_[v].lfoTarget == 2 && voices_[v].lfoRate > 0.0) {
+                double el = currentTime_ - voices_[v].startTime;
+                double lfo = std::sin(2.0 * M_PI * el * voices_[v].lfoRate);
+                env *= 1.0 - voices_[v].lfoDepth * 0.5 * (1.0 - lfo);
+            }
+            mix += generateWaveform(voices_[v], currentTime_) * env * voices_[v].gain;
+        }
+
+        mix *= volume_;
+        output[i] = static_cast<float>(std::clamp(mix, -1.0, 1.0));
+        currentTime_ += 1.0 / SAMPLE_RATE;
+    }
+
+    // Apply filter and delay
+    processFilter(output, sampleCount);
+    processDelay(output, sampleCount);
+
+    for (int i = 0; i < sampleCount; ++i)
+        output[i] = std::clamp(output[i], -1.0f, 1.0f);
 }
 
 #endif // !__EMSCRIPTEN__

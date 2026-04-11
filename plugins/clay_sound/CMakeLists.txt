@@ -5,7 +5,7 @@
 # Desktop/Mobile: Qt Multimedia (pure QML)
 #
 if(NOT EMSCRIPTEN)
-    find_package(Qt6 COMPONENTS Multimedia REQUIRED)
+    find_package(Qt6 COMPONENTS Multimedia Widgets REQUIRED)
 endif()
 
 include(clayplugin)
@@ -18,13 +18,15 @@ if(EMSCRIPTEN)
     set(CPP_SRC
         src/claysound.cpp src/claysound.h
         src/claymusic.cpp src/claymusic.h
-        src/chipmood.cpp src/chipmood.h)
+        src/chiptracker.cpp src/chiptracker.h)
     set(EXTRA_LIBS "")
 else()
     set(SOUND_QML Sound.qml)
     set(MUSIC_QML Music.qml)
-    set(CPP_SRC src/chipmood.cpp src/chipmood.h src/softsynth.cpp src/softsynth.h)
-    set(EXTRA_LIBS Qt::Multimedia)
+    set(CPP_SRC
+        src/chiptracker.cpp src/chiptracker.h
+        src/softsynth.cpp src/softsynth.h)
+    set(EXTRA_LIBS Qt::Multimedia Qt::Widgets)
 endif()
 
 clay_plugin(Sound
