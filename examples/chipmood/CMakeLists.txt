@@ -13,4 +13,8 @@ clay_app( sbx_chipmood
     QML_FILES
         Main.qml
         Sandbox.qml
+        Presets.js
+        Generator.js
+        Instruments.js
+        Phrases.js
 )
