@@ -296,6 +296,10 @@ void ClayInspector::processRequest(const QJsonObject& request)
 
     response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
     response["action"] = action;
+    // Echo the caller-supplied id so agents can correlate a reply to their
+    // request and ignore stale responses from earlier roundtrips.
+    if (request.contains("id"))
+        response["requestId"] = request.value("id");
 
     writeResponse(response);
 }
@@ -819,8 +823,12 @@ void ClayInspector::writeResponse(const QJsonObject& response)
 {
     ensureInspectDir();
 
+    // Atomic write: QSaveFile writes to a sibling temp file and commits via
+    // rename(2), so an agent reading response.json concurrently never observes
+    // a half-written payload. Plain open(Truncate) briefly exposes an empty
+    // file, which has been known to confuse QFileSystemWatcher-based waiters.
     QString responsePath = m_inspectDir + "/response.json";
-    QFile file(responsePath);
+    QSaveFile file(responsePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         qWarning() << "ClayInspector: cannot write response to" << responsePath;
         return;
@@ -828,7 +836,8 @@ void ClayInspector::writeResponse(const QJsonObject& response)
 
     QJsonDocument doc(response);
     file.write(doc.toJson(QJsonDocument::Indented));
-    file.close();
+    if (!file.commit())
+        qWarning() << "ClayInspector: failed to commit response to" << responsePath;
 }
 
 QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
@@ -887,6 +896,8 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
         m_traceElapsed.start();
         m_traceTimer->start(interval);
 
+        m_traceRequestId = request.value("id");
+
         // Take first sample immediately
         onTraceTick();
 
@@ -920,6 +931,7 @@ void ClayInspector::onTraceTick()
 
     // Check timeout
     if (elapsed > m_traceTimeout) {
+        QJsonValue correlation = m_traceRequestId;
         stopTrace("timeout");
         QJsonObject response;
         response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
@@ -930,6 +942,8 @@ void ClayInspector::onTraceTick()
         response["duration"] = static_cast<int>(elapsed);
         response["file"] = m_inspectDir + "/trace.jsonl";
         response["summary"] = buildTraceSummary();
+        if (!correlation.isNull() && !correlation.isUndefined())
+            response["requestId"] = correlation;
         writeResponse(response);
         emit traceStopped();
         return;
@@ -993,6 +1007,7 @@ void ClayInspector::onTraceTick()
         QVariant stopResult = stopExpr.evaluate();
         if (!stopExpr.hasError() && stopResult.toBool()) {
             int duration = static_cast<int>(m_traceElapsed.elapsed());
+            QJsonValue correlation = m_traceRequestId;
             stopTrace("condition");
             QJsonObject response;
             response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
@@ -1004,6 +1019,8 @@ void ClayInspector::onTraceTick()
             response["duration"] = duration;
             response["file"] = m_inspectDir + "/trace.jsonl";
             response["summary"] = buildTraceSummary();
+            if (!correlation.isNull() && !correlation.isUndefined())
+                response["requestId"] = correlation;
             writeResponse(response);
             emit traceStopped();
         }
@@ -1033,6 +1050,8 @@ void ClayInspector::stopTrace(const QString& reason)
         payload["duration"] = duration;
         appendEvent("trace_stop", payload);
     }
+
+    m_traceRequestId = QJsonValue();
 }
 
 void ClayInspector::toggleTrace()

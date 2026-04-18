@@ -6,6 +6,7 @@
 #include <QFileSystemWatcher>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QJsonValue>
 #include <QStringList>
 #include <QQuickItem>
 #include <QElapsedTimer>
@@ -111,6 +112,10 @@ private:
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;
+
+    // Remembered id from the most recent trace-start request, echoed back on
+    // the async trace-completion response so the agent can correlate.
+    QJsonValue m_traceRequestId;
 
     QStringList m_logBuffer;
     QStringList m_warningBuffer;

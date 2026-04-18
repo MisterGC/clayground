@@ -30,6 +30,7 @@ private slots:
     void testInvalidJsonIsIgnored();
     void testStateFileReflectsPhaseTransitions();
     void testEventLogRecordsSessionAndPhaseEvents();
+    void testResponseEchoesRequestId();
 };
 
 void TestInspectorUnit::testLogBufferAdd()
@@ -442,6 +443,33 @@ void TestInspectorUnit::testEventLogRecordsSessionAndPhaseEvents()
 
     QCOMPARE(third["type"].toString(), QStringLiteral("phase_change"));
     QCOMPARE(third["data"].toObject()["phase"].toString(), QStringLiteral("ready"));
+}
+
+void TestInspectorUnit::testResponseEchoesRequestId()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QString reqPath = tmpDir.path() + "/.clay/inspect/request.json";
+    QJsonObject req;
+    req["action"] = "snapshot";
+    req["id"] = "req-42";
+    QFile f(reqPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(QJsonDocument(req).toJson());
+    f.close();
+
+    QTest::qWait(500);
+
+    QFile rf(tmpDir.path() + "/.clay/inspect/response.json");
+    QVERIFY(rf.open(QIODevice::ReadOnly));
+    auto resp = QJsonDocument::fromJson(rf.readAll()).object();
+    rf.close();
+
+    QCOMPARE(resp["requestId"].toString(), QStringLiteral("req-42"));
 }
 
 QTEST_MAIN(TestInspectorUnit)
