@@ -61,6 +61,9 @@ signals:
     void flagSaved(const QString& flagPath);
     void traceStarted();
     void traceStopped();
+    // Agent-requested reload: wired to MainWindow so the standard reload
+    // sequence (clearLogs -> markReloading -> hotReload) runs.
+    void reloadRequested();
 
 private slots:
     void onRequestFileChanged(const QString& path);
@@ -73,6 +76,8 @@ private:
     QJsonObject handleEval(const QJsonObject& request);
     QJsonObject handleTree(const QJsonObject& request);
     QJsonObject handleTrace(const QJsonObject& request);
+    QJsonObject handleReload(const QJsonObject& request);
+    QJsonObject handleWaitForRoot(const QJsonObject& request);
     void attachDiagnostics(QJsonObject& response) const;
     void writeState();
     static QString phaseName(Phase p);

@@ -290,6 +290,10 @@ void ClayInspector::processRequest(const QJsonObject& request)
         response = handleTree(request);
     else if (action == "trace")
         response = handleTrace(request);
+    else if (action == "reload")
+        response = handleReload(request);
+    else if (action == "waitForRoot")
+        response = handleWaitForRoot(request);
     else {
         response["error"] = QString("Unknown action: %1").arg(action);
     }
@@ -413,6 +417,63 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
     int maxDepth = request.value("maxDepth").toInt(-1);
     bool fullDetail = request.value("detail").toString("overview") == "full";
     response["tree"] = buildItemTree(root, maxDepth, 0, fullDetail);
+    return response;
+}
+
+QJsonObject ClayInspector::handleReload(const QJsonObject& /*request*/)
+{
+    emit reloadRequested();
+    QJsonObject response;
+    response["status"] = "requested";
+    response["phase"] = phaseName(m_phase);
+    return response;
+}
+
+QJsonObject ClayInspector::handleWaitForRoot(const QJsonObject& request)
+{
+    QJsonObject response;
+    int timeoutMs = request.value("timeoutMs").toInt(3000);
+
+    // Early-out on terminal states: a reload is not in progress, so waiting
+    // would only ever burn the timeout. Report the current situation instead
+    // and let the agent decide its next move.
+    bool terminal = (m_phase == Phase::Ready || m_phase == Phase::LoadError);
+    bool haveRoot = m_container && m_container->rootObject();
+    if (terminal) {
+        response["phase"] = phaseName(m_phase);
+        response["waited"] = 0;
+        response["ready"] = haveRoot;
+        attachDiagnostics(response);
+        return response;
+    }
+
+    // Phase is Starting or Reloading — block on the next load result.
+    QEventLoop loop;
+    QElapsedTimer timer;
+    timer.start();
+
+    bool loaded = false;
+    auto succConn = m_container
+        ? connect(m_container, &HotReloadContainer::loadSucceeded,
+                  &loop, [&]() { loaded = true; loop.quit(); })
+        : QMetaObject::Connection();
+    auto failConn = m_container
+        ? connect(m_container, &HotReloadContainer::loadFailed,
+                  &loop, [&](const QStringList&) { loaded = false; loop.quit(); })
+        : QMetaObject::Connection();
+    QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    if (succConn) disconnect(succConn);
+    if (failConn) disconnect(failConn);
+
+    response["phase"] = phaseName(m_phase);
+    response["waited"] = static_cast<int>(timer.elapsed());
+    response["ready"] = loaded || (m_container && m_container->rootObject() != nullptr);
+    if (response["waited"].toInt() >= timeoutMs && !response["ready"].toBool())
+        response["timedOut"] = true;
+    attachDiagnostics(response);
     return response;
 }
 

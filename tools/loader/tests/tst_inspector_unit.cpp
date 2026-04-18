@@ -31,6 +31,8 @@ private slots:
     void testStateFileReflectsPhaseTransitions();
     void testEventLogRecordsSessionAndPhaseEvents();
     void testResponseEchoesRequestId();
+    void testReloadActionEmitsSignal();
+    void testWaitForRootOnLoadErrorEarlyReturns();
 };
 
 void TestInspectorUnit::testLogBufferAdd()
@@ -470,6 +472,70 @@ void TestInspectorUnit::testResponseEchoesRequestId()
     rf.close();
 
     QCOMPARE(resp["requestId"].toString(), QStringLiteral("req-42"));
+}
+
+void TestInspectorUnit::testReloadActionEmitsSignal()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QSignalSpy spy(&inspector, &ClayInspector::reloadRequested);
+
+    QString reqPath = tmpDir.path() + "/.clay/inspect/request.json";
+    QJsonObject req;
+    req["action"] = "reload";
+    req["id"] = "r1";
+    QFile f(reqPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(QJsonDocument(req).toJson());
+    f.close();
+
+    QTest::qWait(500);
+
+    QCOMPARE(spy.count(), 1);
+
+    QFile rf(tmpDir.path() + "/.clay/inspect/response.json");
+    QVERIFY(rf.open(QIODevice::ReadOnly));
+    auto resp = QJsonDocument::fromJson(rf.readAll()).object();
+    rf.close();
+    QCOMPARE(resp["status"].toString(), QStringLiteral("requested"));
+    QCOMPARE(resp["requestId"].toString(), QStringLiteral("r1"));
+}
+
+void TestInspectorUnit::testWaitForRootOnLoadErrorEarlyReturns()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.markLoadError();  // terminal phase — waitForRoot must not block
+
+    QString reqPath = tmpDir.path() + "/.clay/inspect/request.json";
+    QJsonObject req;
+    req["action"] = "waitForRoot";
+    req["id"] = "w1";
+    req["timeoutMs"] = 5000;  // large — test would hang if early-return broke
+    QFile f(reqPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(QJsonDocument(req).toJson());
+    f.close();
+
+    QElapsedTimer t; t.start();
+    QTest::qWait(500);
+    qint64 elapsed = t.elapsed();
+    QVERIFY2(elapsed < 2000, "waitForRoot blocked despite terminal phase");
+
+    QFile rf(tmpDir.path() + "/.clay/inspect/response.json");
+    QVERIFY(rf.open(QIODevice::ReadOnly));
+    auto resp = QJsonDocument::fromJson(rf.readAll()).object();
+    rf.close();
+    QCOMPARE(resp["phase"].toString(), QStringLiteral("load_error"));
+    QCOMPARE(resp["ready"].toBool(), false);
+    QCOMPARE(resp["waited"].toInt(), 0);
 }
 
 QTEST_MAIN(TestInspectorUnit)

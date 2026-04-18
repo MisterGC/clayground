@@ -108,6 +108,11 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
                 m_inspector->markLoadError();
             });
 
+    // Agent-issued reload action goes through the same path as file-watch
+    // reloads so clearLogs / markReloading / hotReload stay in lockstep.
+    connect(m_inspector, &ClayInspector::reloadRequested,
+            this, &MainWindow::onRestarted);
+
     // Trace recording indicator
     m_traceIndicator = new QLabel(" \u25CF REC ", this);
     m_traceIndicator->setStyleSheet(
