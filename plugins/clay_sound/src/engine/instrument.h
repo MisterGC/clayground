@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "scheduler.h"
 #include <memory>
 
 namespace clay::sound {
@@ -19,8 +20,12 @@ public:
     virtual ~IInstrument() = default;
 
     // Build a fully-configured voice for this event. The engine owns
-    // the returned voice for its lifetime.
-    virtual std::unique_ptr<IVoice> createVoice(const NoteEvent& ev, int sampleRate) = 0;
+    // the returned voice for its lifetime. `id` is the scheduler ticket
+    // returned by Engine::schedule(); instruments that keep per-event
+    // side state (e.g. patches queued before scheduling) key on it.
+    virtual std::unique_ptr<IVoice> createVoice(const NoteEvent& ev,
+                                                EventId id,
+                                                int sampleRate) = 0;
 };
 
 } // namespace clay::sound

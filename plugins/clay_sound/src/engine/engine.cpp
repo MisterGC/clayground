@@ -51,7 +51,7 @@ void Engine::renderOffline(float* out, int frames)
         const int instId = f.ev.instrumentId;
         if (instId < 0 || static_cast<size_t>(instId) >= instruments_.size())
             continue;
-        auto voice = instruments_[instId]->createVoice(f.ev, sampleRate_);
+        auto voice = instruments_[instId]->createVoice(f.ev, f.id, sampleRate_);
         if (!voice) continue;
         voice->onNoteOn(f.ev, sampleRate_);
         voices_.push_back(std::move(voice));

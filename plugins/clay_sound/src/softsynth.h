@@ -1,7 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
-// SoftSynth — Lightweight software synthesizer for ChipMood desktop playback
-// Generates audio samples using basic oscillators, ADSR envelopes, filters, and delay.
+// SoftSynth — lightweight software synthesizer used by ChipMood.
+// As of Stage 1, the per-note DSP lives in clay::sound::OscillatorVoice
+// under src/engine/; SoftSynth is now the timing/mixer/filter/delay host
+// that drives those voices. The public API is unchanged.
 
 #ifndef SOFTSYNTH_H
 #define SOFTSYNTH_H
@@ -9,70 +11,48 @@
 #ifndef __EMSCRIPTEN__
 
 #include <QObject>
-#include <QAudioSink>
 #include <QAudioFormat>
 #include <QIODevice>
 #include <QTimer>
+#include <memory>
 #include <vector>
-#include <cmath>
-#include <functional>
 
 class QAudioSink;
 
-struct Voice {
+// Legacy enum kept for callers (chipmood.cpp, chiptracker.cpp) that
+// reference Voice::Waveform symbolically.
+struct Voice
+{
     enum Waveform { Sine, Square, Triangle, Sawtooth, Noise };
-    Waveform waveform = Sine;
-    double frequency = 440.0;
-    double gain = 0.5;
-    double phase = 0.0;
-
-    // ADSR envelope
-    double attack = 0.01;   // seconds
-    double decay = 0.1;
-    double sustain = 0.6;   // level (0-1)
-    double release = 0.3;
-
-    // Pitch envelope (semitone offsets, sweep time in seconds)
-    double pitchStart = 0.0;
-    double pitchEnd = 0.0;
-    double pitchTime = 0.0;
-
-    // LFO (0=none, 1=pitch, 2=volume)
-    double lfoRate = 0.0;
-    double lfoDepth = 0.0;
-    int lfoTarget = 0;
-
-    double startTime = 0.0;
-    double duration = 0.5;  // total note duration
-    bool active = false;
-
-    // For noise generation
-    unsigned int noiseSeed = 12345;
 };
 
-struct NoteEvent {
-    double time;        // seconds from start
+// Per-note input format. Time/duration in seconds.
+struct NoteEvent
+{
+    double time;
     double frequency;
     double duration;
     double gain;
     Voice::Waveform waveform;
 
     // Per-note ADSR (patch-driven)
-    double attack = 0.01;
-    double decay = 0.1;
+    double attack  = 0.01;
+    double decay   = 0.1;
     double sustain = 0.6;
     double release = 0.3;
 
     // Per-note pitch envelope
     double pitchStart = 0.0;
-    double pitchEnd = 0.0;
-    double pitchTime = 0.0;
+    double pitchEnd   = 0.0;
+    double pitchTime  = 0.0;
 
     // Per-note LFO
-    double lfoRate = 0.0;
-    double lfoDepth = 0.0;
-    int lfoTarget = 0;
+    double lfoRate   = 0.0;
+    double lfoDepth  = 0.0;
+    int    lfoTarget = 0;
 };
+
+namespace clay::sound { class OscillatorVoice; struct NoteEvent; }
 
 class SoftSynth : public QObject
 {
@@ -83,14 +63,11 @@ public:
     ~SoftSynth();
 
     void setVolume(double volume);
-    void setFilterCutoff(double hz);     // lowpass cutoff
-    void setEchoMix(double mix);         // 0-1 echo wet level
-    void setEchoDelay(double seconds);   // echo delay time
+    void setFilterCutoff(double hz);
+    void setEchoMix(double mix);
+    void setEchoDelay(double seconds);
 
-    // Schedule a note to play at a specific time (relative to playback start)
     void scheduleNote(const NoteEvent &note);
-
-    // Load an entire composition (list of note events)
     void loadComposition(const std::vector<NoteEvent> &notes, double loopDuration);
 
     void play();
@@ -99,12 +76,10 @@ public:
     void resume();
     bool isPlaying() const { return playing_; }
 
-    // Current playback position in seconds
     double position() const;
     double loopDuration() const { return loopDuration_; }
     const std::vector<NoteEvent> &compositionData() const { return composition_; }
 
-    // Offline rendering (for WAV export) — renders samples without audio output
     void renderOffline(float *buffer, int sampleCount);
 
 private slots:
@@ -117,12 +92,12 @@ private:
     static constexpr int BUFFER_SAMPLES = SAMPLE_RATE * BUFFER_MS / 1000;
     static constexpr int MAX_VOICES = 32;
 
-    double generateWaveform(Voice &voice, double currentTime);
-    double applyEnvelope(const Voice &voice, double currentTime);
+    void activateScheduledNotes(int64_t currentFrame);
+    void pruneFinishedVoices(int64_t currentFrame);
+    void mixActiveVoices(float *out, int frames, int64_t startFrame);
     void processFilter(float *buffer, int count);
     void processDelay(float *buffer, int count);
-    Voice *allocateVoice();
-    void activateScheduledNotes();
+    void applyPendingComposition(int64_t currentFrame);
 
     // Audio output
     QAudioSink *audioSink_ = nullptr;
@@ -130,11 +105,11 @@ private:
     QTimer renderTimer_;
 
     // Synth state
-    Voice voices_[MAX_VOICES];
-    double currentTime_ = 0.0;
-    double volume_ = 0.7;
-    bool playing_ = false;
-    bool paused_ = false;
+    std::vector<std::unique_ptr<clay::sound::OscillatorVoice>> voices_;
+    int64_t currentFrame_ = 0;
+    double  volume_ = 0.7;
+    bool    playing_ = false;
+    bool    paused_ = false;
 
     // Lowpass filter state (simple one-pole)
     double filterCutoff_ = 8000.0;
@@ -142,7 +117,7 @@ private:
 
     // Echo delay line
     std::vector<float> delayBuffer_;
-    int delayWritePos_ = 0;
+    int    delayWritePos_ = 0;
     double echoDelay_ = 0.15;
     double echoMix_ = 0.3;
 
@@ -158,7 +133,6 @@ private:
     double fadeProgress_ = 0.0;
     std::vector<NoteEvent> pendingComposition_;
     double pendingLoopDuration_ = 0.0;
-    void applyPendingComposition();
 };
 
 #endif // !__EMSCRIPTEN__

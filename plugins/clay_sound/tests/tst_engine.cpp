@@ -62,7 +62,7 @@ private:
 class ImpulseInstrument : public IInstrument
 {
 public:
-    std::unique_ptr<IVoice> createVoice(const NoteEvent&, int) override
+    std::unique_ptr<IVoice> createVoice(const NoteEvent&, EventId, int) override
     {
         return std::make_unique<ImpulseVoice>();
     }
@@ -104,7 +104,7 @@ private:
 class SineInstrument : public IInstrument
 {
 public:
-    std::unique_ptr<IVoice> createVoice(const NoteEvent&, int) override
+    std::unique_ptr<IVoice> createVoice(const NoteEvent&, EventId, int) override
     {
         return std::make_unique<SineVoice>();
     }

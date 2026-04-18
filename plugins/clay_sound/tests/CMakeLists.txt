@@ -13,6 +13,10 @@ add_executable(tst_clay_sound_engine
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
+    ../src/engine/oscillator_voice.cpp
+    ../src/engine/oscillator_voice.h
+    ../src/engine/oscillator_instrument.cpp
+    ../src/engine/oscillator_instrument.h
 )
 
 set_target_properties(tst_clay_sound_engine PROPERTIES AUTOMOC ON)

@@ -17,7 +17,9 @@ set(ENGINE_SRC
     src/engine/voice.h
     src/engine/instrument.h
     src/engine/scheduler.cpp src/engine/scheduler.h
-    src/engine/engine.cpp src/engine/engine.h)
+    src/engine/engine.cpp src/engine/engine.h
+    src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
+    src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h)
 
 if(EMSCRIPTEN)
     set_source_files_properties(Sound_wasm.qml PROPERTIES QT_QML_SOURCE_TYPENAME Sound)
