@@ -52,6 +52,50 @@ At the heart of Dojo is a sophisticated hot-reload system. When you save a QML f
 
 The 50ms debounce window catches rapid file changes from editor auto-saves.
 
+## Ignoring Files — `.dojoignore`
+
+Dojo watches the sandbox directory recursively, so **any** file change in
+that tree (including data files your sandbox edits live, song sources,
+generated caches, etc.) triggers a full scene reload. For files that your
+sandbox handles itself at runtime — e.g. a song file being hot-reloaded
+by `SongPlayer` — that full reload is counter-productive: it drags the
+playhead back to zero and throws away the live state you were tuning.
+
+Drop a `.dojoignore` file next to your `Sandbox.qml` to exclude paths
+from the reload trigger. Same spirit as `.gitignore`:
+
+```text
+# ignore a single file, anywhere under the sandbox dir
+notes.txt
+
+# ignore all song sources
+*.song.json
+
+# ignore an entire subdirectory and its contents
+songs/
+
+# anchor to the sandbox dir (exact path)
+data/level1.json
+```
+
+Semantics:
+
+| Pattern                  | Matches                                                        |
+|--------------------------|----------------------------------------------------------------|
+| `name`                   | any file/dir named `name` under the sandbox tree               |
+| `*.ext`                  | basename wildcard, matches in any subdirectory                 |
+| `name/`                  | the directory and everything beneath it                        |
+| `sub/file.txt`           | path-anchored (no match on `other/sub/file.txt`)               |
+| `/file.txt`              | path-anchored (leading `/` optional; same meaning as above)    |
+| `**`                     | any number of path segments                                    |
+
+Comments start with `#`; blank lines are ignored. The file is re-read
+automatically when you save it, so you can add/remove patterns without
+restarting the dojo.
+
+`.dojoignore` only ever *subtracts* from the watched set — it cannot make
+the dojo watch files it would otherwise miss.
+
 ## Dynamic Plugin Development
 
 Beyond QML hot-reloading, Dojo supports live development of C++ plugins:

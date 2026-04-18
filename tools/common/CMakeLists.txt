@@ -7,13 +7,18 @@ set(CMAKE_AUTOMOC ON)
 
 add_library (${PROJECT_NAME} STATIC
     clayfilesysobserver.cpp
+    dojoignore.cpp
     utilityfunctions.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC .)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
-PUBLIC 
+PUBLIC
   Qt::Core
 )
+
+if(NOT EMSCRIPTEN AND BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 

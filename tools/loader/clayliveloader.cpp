@@ -125,17 +125,32 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
         {
             qInfo() << "\n\nAdd Sandbox: " << sbx;
             auto const dir = sbxTest.absoluteDir().absolutePath();
+            reloadIgnoreFor(dir);
             fileObserver_.observeDir(dir);
-            
+
             // Also watch the sandbox file itself
             fileObserver_.observeFile(sbxTest.absoluteFilePath());
-            
+
             auto const url = QUrl::fromLocalFile(sbxTest.filePath());
             allSbxs_ << url;
             qInfo() << "\n";
         }
     }
     emit sandboxesChanged();
+}
+
+void ClayLiveLoader::reloadIgnoreFor(const QString &sandboxDir)
+{
+    ignoreFile_ = QDir(sandboxDir).filePath(".dojoignore");
+    if (ignore_.load(ignoreFile_, sandboxDir)) {
+        qInfo().noquote() << "Loaded .dojoignore with"
+                          << ignore_.ruleCount() << "rule(s) from" << ignoreFile_;
+    } else {
+        ignore_.clear();
+    }
+    // Watch the ignore file so edits take effect without a dojo restart.
+    if (QFileInfo::exists(ignoreFile_))
+        fileObserver_.observeFile(ignoreFile_);
 }
 
 void ClayLiveLoader::addDynImportDir(const QString &path)
@@ -188,19 +203,31 @@ bool ClayLiveLoader::restartIfDifferentSbx(const QString& path)
 
 void ClayLiveLoader::onFileChanged(const QString &path)
 {
+    // Editing .dojoignore itself updates the rules without reloading.
+    if (!ignoreFile_.isEmpty() && path == ignoreFile_) {
+        qInfo() << ".dojoignore changed, re-reading rules";
+        ignore_.load(ignoreFile_, QFileInfo(ignoreFile_).absolutePath());
+        return;
+    }
+
+    if (ignore_.matches(path)) {
+        qInfo().noquote() << "Ignored (per .dojoignore):" << path;
+        return;
+    }
+
     qInfo() << "File changed:" << path;
-    
+
     if (restartIfDifferentSbx(path)) {
         qInfo() << "Switching to different sandbox";
         return;
     }
-    
+
     if (isQmlPlugin(path)) {
         qInfo() << "Plugin changed, quitting application";
         QGuiApplication::quit();
         return;
     }
-    
+
     // Check if this is the current sandbox file
     if (sbxIdx_ >= 0 && sbxIdx_ < allSbxs_.size()) {
         auto currentUrl = allSbxs_[sbxIdx_];
@@ -208,18 +235,20 @@ void ClayLiveLoader::onFileChanged(const QString &path)
             qInfo() << "Current sandbox file changed, scheduling reload in" << RAPID_CHANGE_CATCHTIME << "ms";
         }
     }
-    
+
     reload_.start(RAPID_CHANGE_CATCHTIME);
 }
 
 void ClayLiveLoader::onFileAdded(const QString &path)
 {
+    if (ignore_.matches(path)) return;
     qInfo() << "++ FILE ADDED" << path;
     if (isQmlPlugin(path)) QGuiApplication::quit();
 }
 
 void ClayLiveLoader::onFileRemoved(const QString &path)
 {
+    if (ignore_.matches(path)) return;
     qInfo() << "-- FILE REMOVED" << path;
     if (isQmlPlugin(path)) QGuiApplication::quit();
 }
