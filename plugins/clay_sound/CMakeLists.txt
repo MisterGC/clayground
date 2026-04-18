@@ -22,7 +22,9 @@ set(ENGINE_SRC
     src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h
     src/engine/pcm_buffer.cpp src/engine/pcm_buffer.h
     src/engine/sample_voice.cpp src/engine/sample_voice.h
-    src/engine/sampler_instrument.cpp src/engine/sampler_instrument.h)
+    src/engine/sampler_instrument.cpp src/engine/sampler_instrument.h
+    src/song/song_model.h
+    src/song/song_parser.cpp src/song/song_parser.h)
 
 if(EMSCRIPTEN)
     set_source_files_properties(Sound_wasm.qml PROPERTIES QT_QML_SOURCE_TYPENAME Sound)

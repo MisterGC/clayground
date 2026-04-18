@@ -48,3 +48,28 @@ target_link_libraries(tst_clay_sound_engine PRIVATE
 
 add_test(NAME clay_sound_engine COMMAND tst_clay_sound_engine)
 set_tests_properties(clay_sound_engine PROPERTIES LABELS "clay_sound;unit")
+
+# ----------------------------------------------------------------------
+# Song parser tests (pure data; no audio).
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_song_parser
+    tst_song_parser.cpp
+    ../src/song/song_model.h
+    ../src/song/song_parser.cpp
+    ../src/song/song_parser.h
+)
+
+set_target_properties(tst_clay_sound_song_parser PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_song_parser PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(tst_clay_sound_song_parser PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME clay_sound_song_parser COMMAND tst_clay_sound_song_parser)
+set_tests_properties(clay_sound_song_parser PROPERTIES LABELS "clay_sound;unit")
