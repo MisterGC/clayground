@@ -24,6 +24,7 @@ private slots:
     void testSnapshotWithNullContainerReturnsError();
     void testEvalWithNullContainerReturnsError();
     void testTreeWithNullContainerReturnsError();
+    void testNullRootSnapshotCarriesDiagnostics();
     void testUnknownActionReturnsError();
     void testEmptyRequestFileIsIgnored();
     void testInvalidJsonIsIgnored();
@@ -127,9 +128,14 @@ void TestInspectorUnit::testClearLogs()
     auto resp = QJsonDocument::fromJson(rf.readAll()).object();
     rf.close();
 
-    // With null container we get error but no log/warn/error arrays
-    // (they're only added in handleSnapshot which bails early on null root)
+    // Null root now also attaches diagnostics, but after clearLogs() they are empty.
     QVERIFY(resp.contains("error"));
+    QVERIFY(resp.contains("logTail"));
+    QVERIFY(resp.contains("warnings"));
+    QVERIFY(resp.contains("errors"));
+    QCOMPARE(resp["logTail"].toArray().size(), 0);
+    QCOMPARE(resp["warnings"].toArray().size(), 0);
+    QCOMPARE(resp["errors"].toArray().size(), 0);
 }
 
 void TestInspectorUnit::testSetSandboxDirCreatesInspectDir()
@@ -236,6 +242,53 @@ void TestInspectorUnit::testTreeWithNullContainerReturnsError()
 
     QVERIFY(resp.contains("error"));
     QCOMPARE(resp["action"].toString(), "tree");
+}
+
+void TestInspectorUnit::testNullRootSnapshotCarriesDiagnostics()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.addLogMessage("scene-init begin");
+    inspector.addWarning("deprecated property X");
+    inspector.addError("Type SomeMissingComponent unavailable");
+
+    inspector.setSandboxDir(tmpDir.path());
+
+    QString reqPath = tmpDir.path() + "/.clay/inspect/request.json";
+    QJsonObject req;
+    req["action"] = "snapshot";
+    QFile f(reqPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(QJsonDocument(req).toJson());
+    f.close();
+
+    QTest::qWait(500);
+
+    QFile rf(tmpDir.path() + "/.clay/inspect/response.json");
+    QVERIFY(rf.open(QIODevice::ReadOnly));
+    auto resp = QJsonDocument::fromJson(rf.readAll()).object();
+    rf.close();
+
+    QVERIFY(resp.contains("error"));
+    QVERIFY(resp["error"].toString().contains("No sandbox root"));
+
+    // The whole point of this fix: diagnostics must be present even when the
+    // sandbox failed to produce a root item.
+    QVERIFY(resp.contains("logTail"));
+    QVERIFY(resp.contains("warnings"));
+    QVERIFY(resp.contains("errors"));
+
+    auto logs = resp["logTail"].toArray();
+    auto warns = resp["warnings"].toArray();
+    auto errs = resp["errors"].toArray();
+    QCOMPARE(logs.size(), 1);
+    QCOMPARE(logs[0].toString(), QStringLiteral("scene-init begin"));
+    QCOMPARE(warns.size(), 1);
+    QCOMPARE(warns[0].toString(), QStringLiteral("deprecated property X"));
+    QCOMPARE(errs.size(), 1);
+    QVERIFY(errs[0].toString().contains("SomeMissingComponent"));
 }
 
 void TestInspectorUnit::testUnknownActionReturnsError()

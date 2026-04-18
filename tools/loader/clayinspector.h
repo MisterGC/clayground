@@ -52,6 +52,7 @@ private:
     QJsonObject handleEval(const QJsonObject& request);
     QJsonObject handleTree(const QJsonObject& request);
     QJsonObject handleTrace(const QJsonObject& request);
+    void attachDiagnostics(QJsonObject& response) const;
     void onTraceTick();
     void stopTrace(const QString& reason);
     QJsonObject buildTraceSummary();

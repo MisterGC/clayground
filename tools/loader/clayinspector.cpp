@@ -154,13 +154,33 @@ void ClayInspector::processRequest(const QJsonObject& request)
     writeResponse(response);
 }
 
+void ClayInspector::attachDiagnostics(QJsonObject& response) const
+{
+    QJsonArray logTail;
+    int logStart = qMax(0, m_logBuffer.size() - 50);
+    for (int i = logStart; i < m_logBuffer.size(); ++i)
+        logTail.append(m_logBuffer.at(i));
+    response["logTail"] = logTail;
+
+    QJsonArray warnings;
+    for (const auto& w : m_warningBuffer)
+        warnings.append(w);
+    response["warnings"] = warnings;
+
+    QJsonArray errors;
+    for (const auto& e : m_errorBuffer)
+        errors.append(e);
+    response["errors"] = errors;
+}
+
 QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container->rootObject();
+    auto* root = m_container ? m_container->rootObject() : nullptr;
     if (!root) {
         response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
         return response;
     }
 
@@ -202,24 +222,7 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
         }
     }
 
-    // Log tail (last 50 entries)
-    QJsonArray logTail;
-    int logStart = qMax(0, m_logBuffer.size() - 50);
-    for (int i = logStart; i < m_logBuffer.size(); ++i)
-        logTail.append(m_logBuffer.at(i));
-    response["logTail"] = logTail;
-
-    // Warnings
-    QJsonArray warnings;
-    for (const auto& w : m_warningBuffer)
-        warnings.append(w);
-    response["warnings"] = warnings;
-
-    // Errors
-    QJsonArray errors;
-    for (const auto& e : m_errorBuffer)
-        errors.append(e);
-    response["errors"] = errors;
+    attachDiagnostics(response);
 
     return response;
 }
@@ -228,9 +231,10 @@ QJsonObject ClayInspector::handleEval(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container->rootObject();
+    auto* root = m_container ? m_container->rootObject() : nullptr;
     if (!root) {
         response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
         return response;
     }
 
@@ -249,9 +253,10 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container->rootObject();
+    auto* root = m_container ? m_container->rootObject() : nullptr;
     if (!root) {
         response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
         return response;
     }
 
