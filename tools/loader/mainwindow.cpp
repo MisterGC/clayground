@@ -100,6 +100,14 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     connect(m_inspector, &ClayInspector::flagReady,
             this, &MainWindow::onFlagReady);
 
+    // Route container load results into inspector phase state
+    connect(m_container, &HotReloadContainer::loadSucceeded,
+            m_inspector, &ClayInspector::markReady);
+    connect(m_container, &HotReloadContainer::loadFailed,
+            m_inspector, [this](const QStringList&) {
+                m_inspector->markLoadError();
+            });
+
     // Trace recording indicator
     m_traceIndicator = new QLabel(" \u25CF REC ", this);
     m_traceIndicator->setStyleSheet(
@@ -216,6 +224,7 @@ void MainWindow::onRestarted()
     // QML loading that may emit warnings/errors via the message handler;
     // clearing after would wipe those diagnostics before the agent can read them.
     m_inspector->clearLogs();
+    m_inspector->markReloading();
 
     // Trigger hot reload with fade animation
     m_container->hotReload();

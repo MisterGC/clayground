@@ -2,6 +2,7 @@
 
 #include "clayinspector.h"
 #include "hotreloadcontainer.h"
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -12,6 +13,7 @@
 #include <QQmlExpression>
 #include <QQmlContext>
 #include <QQuickItemGrabResult>
+#include <QSaveFile>
 #include <QDateTime>
 #include <QDebug>
 #include <QTimer>
@@ -30,6 +32,7 @@ ClayInspector* ClayInspector::current()
 ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
     : QObject(parent)
     , m_container(container)
+    , m_startedAt(QDateTime::currentDateTime())
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged,
             this, &ClayInspector::onRequestFileChanged);
@@ -38,8 +41,73 @@ ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
 
 ClayInspector::~ClayInspector()
 {
+    m_phase = Phase::Stopped;
+    if (!m_inspectDir.isEmpty())
+        writeState();
     if (g_currentInspector == this)
         g_currentInspector = nullptr;
+}
+
+QString ClayInspector::phaseName(Phase p)
+{
+    switch (p) {
+    case Phase::Starting:   return QStringLiteral("starting");
+    case Phase::Reloading:  return QStringLiteral("reloading");
+    case Phase::Ready:      return QStringLiteral("ready");
+    case Phase::LoadError:  return QStringLiteral("load_error");
+    case Phase::Stopped:    return QStringLiteral("stopped");
+    }
+    return QStringLiteral("unknown");
+}
+
+void ClayInspector::markReloading()
+{
+    if (m_phase == Phase::Reloading)
+        return;
+    m_phase = Phase::Reloading;
+    ++m_reloadCount;
+    writeState();
+}
+
+void ClayInspector::markReady()
+{
+    m_phase = Phase::Ready;
+    m_lastReadyAt = QDateTime::currentDateTime();
+    writeState();
+}
+
+void ClayInspector::markLoadError()
+{
+    m_phase = Phase::LoadError;
+    m_lastLoadErrorAt = QDateTime::currentDateTime();
+    writeState();
+}
+
+void ClayInspector::writeState()
+{
+    if (m_inspectDir.isEmpty())
+        return;
+
+    QJsonObject state;
+    state["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
+    state["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
+    state["phase"] = phaseName(m_phase);
+    state["reloadCount"] = m_reloadCount;
+    state["startedAt"] = m_startedAt.toString(Qt::ISODateWithMs);
+    if (m_lastReadyAt.isValid())
+        state["lastReadyAt"] = m_lastReadyAt.toString(Qt::ISODateWithMs);
+    if (m_lastLoadErrorAt.isValid())
+        state["lastLoadErrorAt"] = m_lastLoadErrorAt.toString(Qt::ISODateWithMs);
+    state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+
+    QSaveFile file(m_inspectDir + "/state.json");
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "ClayInspector: cannot open state.json for write";
+        return;
+    }
+    file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    if (!file.commit())
+        qWarning() << "ClayInspector: failed to commit state.json";
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)
@@ -53,6 +121,7 @@ void ClayInspector::setSandboxDir(const QString& dir)
     m_crewDir = dir + "/.clay/crew";
     ensureInspectDir();
     startWatching();
+    writeState();
 }
 
 void ClayInspector::ensureInspectDir()

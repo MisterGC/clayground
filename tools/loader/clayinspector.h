@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QObject>
+#include <QDateTime>
 #include <QFileSystemWatcher>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -28,11 +29,24 @@ public:
     // Returns nullptr before an inspector exists.
     static ClayInspector* current();
 
+    enum class Phase {
+        Starting,
+        Reloading,
+        Ready,
+        LoadError,
+        Stopped
+    };
+
     void setSandboxDir(const QString& dir);
     void addLogMessage(const QString& msg);
     void addWarning(const QString& msg);
     void addError(const QString& msg);
     void clearLogs();
+
+    // Phase transitions. Each call rewrites .clay/inspect/state.json atomically.
+    void markReloading();
+    void markReady();
+    void markLoadError();
 
     void startFlag();
     void completeFlag(const QString& annotation);
@@ -59,6 +73,8 @@ private:
     QJsonObject handleTree(const QJsonObject& request);
     QJsonObject handleTrace(const QJsonObject& request);
     void attachDiagnostics(QJsonObject& response) const;
+    void writeState();
+    static QString phaseName(Phase p);
     void onTraceTick();
     void stopTrace(const QString& reason);
     QJsonObject buildTraceSummary();
@@ -84,6 +100,12 @@ private:
     QString m_sandboxDir;
     QString m_inspectDir;
     QString m_crewDir;
+
+    Phase m_phase = Phase::Starting;
+    QDateTime m_startedAt;
+    QDateTime m_lastReadyAt;
+    QDateTime m_lastLoadErrorAt;
+    int m_reloadCount = 0;
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;

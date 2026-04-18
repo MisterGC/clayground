@@ -309,18 +309,24 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
                 // Hide loading screen immediately
                 hideLoadingScreen();
             }
+            emit loadSucceeded();
             break;
-            
-        case QQuickWidget::Error:
+
+        case QQuickWidget::Error: {
             qCritical() << "QML loading failed!";
+            QStringList errorLines;
             for (const auto& error : widget->errors()) {
-                qCritical() << error.toString();
+                QString line = error.toString();
+                qCritical() << line;
+                errorLines.append(line);
             }
             if (m_isReloading) {
                 hideLoadingScreen();
             }
+            emit loadFailed(errorLines);
             break;
-            
+        }
+
         default:
             break;
     }

@@ -28,6 +28,7 @@ private slots:
     void testUnknownActionReturnsError();
     void testEmptyRequestFileIsIgnored();
     void testInvalidJsonIsIgnored();
+    void testStateFileReflectsPhaseTransitions();
 };
 
 void TestInspectorUnit::testLogBufferAdd()
@@ -358,6 +359,50 @@ void TestInspectorUnit::testInvalidJsonIsIgnored()
 
     // No response should be written for invalid JSON
     QVERIFY(!QFile::exists(tmpDir.path() + "/.clay/inspect/response.json"));
+}
+
+void TestInspectorUnit::testStateFileReflectsPhaseTransitions()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QString statePath = tmpDir.path() + "/.clay/inspect/state.json";
+    QVERIFY(QFile::exists(statePath));
+
+    auto readState = [&]() {
+        QFile f(statePath);
+        [&]{ QVERIFY(f.open(QIODevice::ReadOnly)); }();
+        return QJsonDocument::fromJson(f.readAll()).object();
+    };
+
+    auto initial = readState();
+    QCOMPARE(initial["phase"].toString(), QStringLiteral("starting"));
+    QCOMPARE(initial["reloadCount"].toInt(), 0);
+    QVERIFY(initial.contains("pid"));
+    QVERIFY(initial.contains("startedAt"));
+    QVERIFY(!initial.contains("lastReadyAt"));
+    QVERIFY(!initial.contains("lastLoadErrorAt"));
+
+    inspector.markReady();
+    auto ready = readState();
+    QCOMPARE(ready["phase"].toString(), QStringLiteral("ready"));
+    QVERIFY(ready.contains("lastReadyAt"));
+
+    inspector.markReloading();
+    auto reloading = readState();
+    QCOMPARE(reloading["phase"].toString(), QStringLiteral("reloading"));
+    QCOMPARE(reloading["reloadCount"].toInt(), 1);
+
+    inspector.markLoadError();
+    auto errored = readState();
+    QCOMPARE(errored["phase"].toString(), QStringLiteral("load_error"));
+    QVERIFY(errored.contains("lastLoadErrorAt"));
+    // Prior success timestamp must be preserved across a failed reload so the
+    // agent can reason about "last known good state".
+    QVERIFY(errored.contains("lastReadyAt"));
 }
 
 QTEST_MAIN(TestInspectorUnit)
