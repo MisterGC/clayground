@@ -21,6 +21,12 @@ class ClayInspector : public QObject
 
 public:
     explicit ClayInspector(HotReloadContainer* container, QObject* parent = nullptr);
+    ~ClayInspector();
+
+    // Process-wide accessor used by the Qt message handler to route logs,
+    // warnings and errors without having to be wired up after construction.
+    // Returns nullptr before an inspector exists.
+    static ClayInspector* current();
 
     void setSandboxDir(const QString& dir);
     void addLogMessage(const QString& msg);

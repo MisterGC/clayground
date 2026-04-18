@@ -212,11 +212,13 @@ void MainWindow::onSandboxUrlChanged()
 
 void MainWindow::onRestarted()
 {
+    // Clear inspector logs BEFORE reload. hotReload() synchronously triggers
+    // QML loading that may emit warnings/errors via the message handler;
+    // clearing after would wipe those diagnostics before the agent can read them.
+    m_inspector->clearLogs();
+
     // Trigger hot reload with fade animation
     m_container->hotReload();
-    
-    // Clear inspector logs on reload
-    m_inspector->clearLogs();
 
     // Clear log overlay if visible
     if (m_logOverlay) {

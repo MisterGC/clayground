@@ -20,12 +20,26 @@
 #include <QVector2D>
 #include <QVector3D>
 
+static ClayInspector* g_currentInspector = nullptr;
+
+ClayInspector* ClayInspector::current()
+{
+    return g_currentInspector;
+}
+
 ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
     : QObject(parent)
     , m_container(container)
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged,
             this, &ClayInspector::onRequestFileChanged);
+    g_currentInspector = this;
+}
+
+ClayInspector::~ClayInspector()
+{
+    if (g_currentInspector == this)
+        g_currentInspector = nullptr;
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)

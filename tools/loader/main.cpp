@@ -52,11 +52,11 @@ class MsgHandlerWrapper {
 
 public:
     static ClayLiveLoader* theLoader;
-    static ClayInspector* theInspector;
 
     static void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
     {
         QByteArray localMsg = msg.toLocal8Bit();
+        auto* inspector = ClayInspector::current();
 
         switch (type) {
         case QtDebugMsg:
@@ -65,21 +65,21 @@ public:
             fileN = fileN.split("/").last().split(".").first();
             fprintf(stderr, "%s (%s::%s)\n", localMsg.constData(), fileN.toUtf8().data(), context.function);
             theLoader->postMessage(msg);
-            if (theInspector) theInspector->addLogMessage(msg);
+            if (inspector) inspector->addLogMessage(msg);
         } break;
         case QtInfoMsg:
         {
             fprintf(stderr, "%s\n", localMsg.constData());
             theLoader->postMessage(msg);
-            if (theInspector) theInspector->addLogMessage(msg);
+            if (inspector) inspector->addLogMessage(msg);
         } break;
         case QtWarningMsg:
             fprintf(stderr, "WARNING  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-            if (theInspector) theInspector->addWarning(msg);
+            if (inspector) inspector->addWarning(msg);
             break;
         case QtCriticalMsg:
             fprintf(stderr, "ERROR  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-            if (theInspector) theInspector->addError(msg);
+            if (inspector) inspector->addError(msg);
             break;
         case QtFatalMsg:
             fprintf(stderr, "FATAL  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
@@ -88,7 +88,6 @@ public:
     }
 };
 ClayLiveLoader* MsgHandlerWrapper::theLoader = nullptr;
-ClayInspector* MsgHandlerWrapper::theInspector = nullptr;
 
 int main(int argc, char *argv[])
 {
@@ -120,7 +119,6 @@ int main(int argc, char *argv[])
     
     // Create and show the main window
     MainWindow mainWindow(&liveLoader);
-    MsgHandlerWrapper::theInspector = mainWindow.inspector();
     mainWindow.show();
 
     return app.exec();
