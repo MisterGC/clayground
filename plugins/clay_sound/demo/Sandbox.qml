@@ -322,6 +322,231 @@ Rectangle {
             }
         }
 
+        // Pattern Lab — SongPlayer
+        Rectangle {
+            width: parent.width
+            height: patternColumn.height + 30
+            color: root.surfaceColor
+            radius: 8
+
+            SynthInstrument {
+                id: songLead
+                objectName: "demoLead"
+                waveform: "triangle"
+                attack: 0.005
+                decay: 0.08
+                sustain: 0.5
+                release: 0.15
+                volume: volumeSlider.value
+            }
+            SynthInstrument {
+                id: songBass
+                objectName: "demoBass"
+                waveform: "sawtooth"
+                attack: 0.01
+                decay: 0.1
+                sustain: 0.6
+                release: 0.2
+                volume: volumeSlider.value * 0.6
+            }
+
+            SongPlayer {
+                id: songPlayer
+                source: "songs/demo.song.json"
+                instruments: [songLead, songBass]
+                loop: songLoopCheckbox.checked
+                onParseError: (msg) => statusText.text = "Song parse error: " + msg
+                onHotReloaded: statusText.text = "Song hot-reloaded"
+            }
+
+            Column {
+                id: patternColumn
+                anchors.centerIn: parent
+                spacing: 10
+                width: parent.width - 30
+
+                Text {
+                    text: "Pattern Lab — SongPlayer"
+                    color: root.accentColor
+                    font.family: root.monoFont
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "source: " + songPlayer.source + "  (edit live; .dojoignore protects from reload)"
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 8
+                    Button { text: songPlayer.playing ? "Playing..." : "Play"
+                             enabled: !songPlayer.playing && songPlayer.loaded
+                             onClicked: songPlayer.play() }
+                    Button { text: "Pause"
+                             enabled: songPlayer.playing
+                             onClicked: songPlayer.pause() }
+                    Button { text: "Stop"
+                             onClicked: songPlayer.stop() }
+                    CheckBox {
+                        id: songLoopCheckbox
+                        text: "Loop"
+                        checked: true
+                        contentItem: Text {
+                            text: songLoopCheckbox.text
+                            color: root.textColor
+                            font.family: root.monoFont
+                            leftPadding: songLoopCheckbox.indicator.width + 5
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 10
+                    Text {
+                        text: "pos: " + songPlayer.position.toFixed(2) +
+                              " / " + songPlayer.totalBeats.toFixed(1) + " beats"
+                        color: root.dimTextColor
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                    }
+                    Text {
+                        text: "tempo: " + songPlayer.tempo.toFixed(0) + " BPM"
+                        color: root.dimTextColor
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                    }
+                    Text {
+                        text: "loaded: " + songPlayer.loaded
+                        color: songPlayer.loaded ? "#4ade80" : "#f87171"
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                    }
+                }
+            }
+        }
+
+        // Bake Lab — SynthInstrument -> WAV -> SampleInstrument A/B
+        Rectangle {
+            width: parent.width
+            height: bakeColumn.height + 30
+            color: root.surfaceColor
+            radius: 8
+
+            SynthInstrument {
+                id: bakeSource
+                waveform: "square"
+                attack: 0.002
+                decay: 0.05
+                sustain: 0.7
+                release: 0.15
+                pitchStart: 4
+                pitchEnd: 0
+                pitchTime: 0.08
+                volume: volumeSlider.value
+            }
+            SampleInstrument {
+                id: bakeSample
+                volume: volumeSlider.value
+            }
+
+            Column {
+                id: bakeColumn
+                anchors.centerIn: parent
+                spacing: 10
+                width: parent.width - 30
+
+                Text {
+                    text: "Bake Lab — Synth ↔ Sample"
+                    color: root.accentColor
+                    font.family: root.monoFont
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 8
+                    Button {
+                        text: "Trigger synth"
+                        onClicked: bakeSource.triggerNote(69, 0.9, 0.4)
+                    }
+                    Button {
+                        text: "Bake to WAV"
+                        onClicked: {
+                            var p = bakeSource.bake(69, 0.4, 0.9)
+                            if (!p.length) { statusText.text = "Bake failed"; return }
+                            bakeSample.source = "file://" + p
+                            statusText.text = "Baked: " + p
+                        }
+                    }
+                    Button {
+                        text: "Trigger baked sample"
+                        enabled: bakeSample.loaded
+                        onClicked: bakeSample.triggerOneShot(0.9)
+                    }
+                }
+                Text {
+                    text: bakeSample.loaded
+                          ? "Sample: " + bakeSample.source
+                          : "Sample: (bake first)"
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+
+        // Capability / Status Panel
+        Rectangle {
+            width: parent.width
+            height: statusColumn.height + 30
+            color: root.surfaceColor
+            radius: 8
+
+            Column {
+                id: statusColumn
+                anchors.centerIn: parent
+                spacing: 4
+                width: parent.width - 30
+
+                Text {
+                    text: "Status"
+                    color: root.accentColor
+                    font.family: root.monoFont
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "backend: desktop · sample rate: 44100 Hz"
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "active voices — hop: " + hop.activeVoices
+                          + ", lead: " + songLead.activeVoices
+                          + ", bass: " + songBass.activeVoices
+                          + ", bakeSrc: " + bakeSource.activeVoices
+                          + ", bakeSmp: " + bakeSample.activeVoices
+                    color: root.dimTextColor
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+
         // Status
         Text {
             id: statusText
