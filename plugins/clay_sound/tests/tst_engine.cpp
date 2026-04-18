@@ -18,6 +18,7 @@
 #include "engine/note_event.h"
 #include "engine/scheduler.h"
 #include "engine/voice.h"
+#include "synth_instrument.h"
 
 #include <QtTest/QtTest>
 #include <cmath>
@@ -137,6 +138,8 @@ private slots:
     void schedulerCancelDropsEvent();
     void voiceSpawnsAtExactFrame();
     void goldenRender();
+    void synthInstrumentOfflineTrigger();
+    void synthInstrumentMultipleTriggersOverlap();
 };
 
 void EngineSpineTest::emptyEngineRendersSilence()
@@ -237,6 +240,52 @@ void EngineSpineTest::goldenRender()
                  static_cast<unsigned long long>(got),
                  static_cast<unsigned long long>(expected));
     QCOMPARE(got, expected);
+}
+
+void EngineSpineTest::synthInstrumentOfflineTrigger()
+{
+    SynthInstrument synth;
+    synth.setWaveform("sine");
+    synth.setAttack(0.0);
+    synth.setDecay(0.0);
+    synth.setSustain(1.0);
+    synth.setRelease(0.0);
+    synth.setPitchStart(0.0);
+    synth.setPitchEnd(0.0);
+    synth.setPitchTime(0.0);
+    synth.setVolume(1.0);
+
+    QVERIFY(synth.trigger(440.0, 1.0, 0.1));
+    // Duration 0.1s at 44100 = 4410 frames; render 8820 to cover tail silence.
+    auto buf = synth.renderOffline(0.2);
+    QCOMPARE(buf.size(), 8820);
+
+    // Sum absolute energy: first half non-zero, second half silent.
+    double e1 = 0.0, e2 = 0.0;
+    for (int i = 0; i < 4410; ++i)   e1 += std::abs(buf[i]);
+    for (int i = 4410; i < 8820; ++i) e2 += std::abs(buf[i]);
+    QVERIFY2(e1 > 100.0, qPrintable(QString("expected audible note, energy=%1").arg(e1)));
+    QVERIFY2(e2 < 1.0,   qPrintable(QString("expected silent tail, energy=%1").arg(e2)));
+}
+
+void EngineSpineTest::synthInstrumentMultipleTriggersOverlap()
+{
+    SynthInstrument synth;
+    synth.setWaveform("square");
+    synth.setAttack(0.0);
+    synth.setRelease(0.0);
+    synth.setVolume(0.5);
+
+    // Three overlapping notes.
+    QVERIFY(synth.trigger(220.0, 0.5, 0.05));
+    QVERIFY(synth.trigger(330.0, 0.5, 0.05));
+    QVERIFY(synth.trigger(440.0, 0.5, 0.05));
+    auto buf = synth.renderOffline(0.1);
+    QCOMPARE(buf.size(), 4410);
+
+    double e = 0.0;
+    for (auto s : buf) e += std::abs(s);
+    QVERIFY2(e > 100.0, qPrintable(QString("expected audible mix, energy=%1").arg(e)));
 }
 
 QTEST_APPLESS_MAIN(EngineSpineTest)

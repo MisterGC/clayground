@@ -38,6 +38,7 @@ else()
     set(CPP_SRC
         src/chiptracker.cpp src/chiptracker.h
         src/softsynth.cpp src/softsynth.h
+        src/synth_instrument.cpp src/synth_instrument.h
         ${ENGINE_SRC})
     set(EXTRA_LIBS Qt::Multimedia Qt::Widgets)
 endif()

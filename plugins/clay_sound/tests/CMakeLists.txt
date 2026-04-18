@@ -2,7 +2,7 @@
 #
 # Tests for clay_sound engine (Stage 0 spine)
 
-find_package(Qt6 REQUIRED COMPONENTS Test)
+find_package(Qt6 REQUIRED COMPONENTS Test Multimedia)
 
 add_executable(tst_clay_sound_engine
     tst_engine.cpp
@@ -17,6 +17,8 @@ add_executable(tst_clay_sound_engine
     ../src/engine/oscillator_voice.h
     ../src/engine/oscillator_instrument.cpp
     ../src/engine/oscillator_instrument.h
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
 )
 
 set_target_properties(tst_clay_sound_engine PROPERTIES AUTOMOC ON)
@@ -28,6 +30,8 @@ target_include_directories(tst_clay_sound_engine PRIVATE
 target_link_libraries(tst_clay_sound_engine PRIVATE
     Qt6::Core
     Qt6::Test
+    Qt6::Qml
+    Qt6::Multimedia
 )
 
 add_test(NAME clay_sound_engine COMMAND tst_clay_sound_engine)
