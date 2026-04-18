@@ -24,6 +24,12 @@
 
 static ClayInspector* g_currentInspector = nullptr;
 
+// Event log is capped by a one-level rotation. When the active file grows past
+// this size, it is renamed to events.rotated.jsonl (overwriting any previous
+// rotation) and a fresh active file is started. Total on-disk usage is
+// therefore bounded at ~2x this value.
+static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
+
 ClayInspector* ClayInspector::current()
 {
     return g_currentInspector;
@@ -67,6 +73,10 @@ void ClayInspector::markReloading()
     m_phase = Phase::Reloading;
     ++m_reloadCount;
     writeState();
+    QJsonObject payload;
+    payload["phase"] = phaseName(m_phase);
+    payload["reloadCount"] = m_reloadCount;
+    appendEvent("phase_change", payload);
 }
 
 void ClayInspector::markReady()
@@ -74,6 +84,9 @@ void ClayInspector::markReady()
     m_phase = Phase::Ready;
     m_lastReadyAt = QDateTime::currentDateTime();
     writeState();
+    QJsonObject payload;
+    payload["phase"] = phaseName(m_phase);
+    appendEvent("phase_change", payload);
 }
 
 void ClayInspector::markLoadError()
@@ -81,6 +94,51 @@ void ClayInspector::markLoadError()
     m_phase = Phase::LoadError;
     m_lastLoadErrorAt = QDateTime::currentDateTime();
     writeState();
+    QJsonObject payload;
+    payload["phase"] = phaseName(m_phase);
+    QJsonArray errs;
+    int start = qMax(0, m_errorBuffer.size() - 5);
+    for (int i = start; i < m_errorBuffer.size(); ++i)
+        errs.append(m_errorBuffer.at(i));
+    if (!errs.isEmpty())
+        payload["errorsTail"] = errs;
+    appendEvent("phase_change", payload);
+}
+
+void ClayInspector::resetEventLog()
+{
+    if (m_inspectDir.isEmpty()) return;
+    QFile::remove(m_inspectDir + "/events.jsonl");
+    QFile::remove(m_inspectDir + "/events.rotated.jsonl");
+}
+
+void ClayInspector::appendEvent(const QString& type, const QJsonObject& payload)
+{
+    if (m_inspectDir.isEmpty()) return;
+
+    QString path = m_inspectDir + "/events.jsonl";
+
+    // Rotate once we pass the size cap so the active file stays tail-friendly
+    // and total disk usage remains bounded.
+    QFileInfo fi(path);
+    if (fi.exists() && fi.size() > EVENT_LOG_ROTATE_BYTES) {
+        QString rotated = m_inspectDir + "/events.rotated.jsonl";
+        QFile::remove(rotated);
+        QFile::rename(path, rotated);
+    }
+
+    QJsonObject ev;
+    ev["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    ev["type"] = type;
+    if (!payload.isEmpty())
+        ev["data"] = payload;
+
+    QFile f(path);
+    if (!f.open(QIODevice::Append | QIODevice::WriteOnly))
+        return;
+    f.write(QJsonDocument(ev).toJson(QJsonDocument::Compact));
+    f.write("\n");
+    f.close();
 }
 
 void ClayInspector::writeState()
@@ -121,7 +179,12 @@ void ClayInspector::setSandboxDir(const QString& dir)
     m_crewDir = dir + "/.clay/crew";
     ensureInspectDir();
     startWatching();
+    resetEventLog();
     writeState();
+    QJsonObject payload;
+    payload["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
+    payload["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
+    appendEvent("session_start", payload);
 }
 
 void ClayInspector::ensureInspectDir()
@@ -832,6 +895,14 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
         response["interval"] = interval;
         response["timeout"] = m_traceTimeout;
         emit traceStarted();
+
+        QJsonObject payload;
+        payload["watch"] = m_traceWatch;
+        payload["interval"] = interval;
+        payload["timeout"] = m_traceTimeout;
+        if (!m_traceStopExpr.isEmpty())
+            payload["stopWhen"] = m_traceStopExpr;
+        appendEvent("trace_start", payload);
         return response;
     }
 
@@ -939,8 +1010,11 @@ void ClayInspector::onTraceTick()
     }
 }
 
-void ClayInspector::stopTrace(const QString& /*reason*/)
+void ClayInspector::stopTrace(const QString& reason)
 {
+    bool wasRunning = (m_traceTimer != nullptr);
+    int duration = wasRunning ? static_cast<int>(m_traceElapsed.elapsed()) : 0;
+
     if (m_traceTimer) {
         m_traceTimer->stop();
         delete m_traceTimer;
@@ -950,6 +1024,14 @@ void ClayInspector::stopTrace(const QString& /*reason*/)
         m_traceFile->close();
         delete m_traceFile;
         m_traceFile = nullptr;
+    }
+
+    if (wasRunning) {
+        QJsonObject payload;
+        payload["reason"] = reason;
+        payload["samples"] = m_traceSamples;
+        payload["duration"] = duration;
+        appendEvent("trace_stop", payload);
     }
 }
 
@@ -1083,6 +1165,13 @@ void ClayInspector::completeFlag(const QString& annotation)
         file.write(doc.toJson(QJsonDocument::Indented));
         file.close();
         emit flagSaved(flagPath);
+
+        QJsonObject payload;
+        payload["flagPath"] = flagPath;
+        payload["screenshot"] = m_pendingFlagScreenshot;
+        if (!annotation.isEmpty())
+            payload["annotation"] = annotation;
+        appendEvent("flag", payload);
     }
 
     cleanupOldFlags();

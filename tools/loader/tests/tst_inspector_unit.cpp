@@ -29,6 +29,7 @@ private slots:
     void testEmptyRequestFileIsIgnored();
     void testInvalidJsonIsIgnored();
     void testStateFileReflectsPhaseTransitions();
+    void testEventLogRecordsSessionAndPhaseEvents();
 };
 
 void TestInspectorUnit::testLogBufferAdd()
@@ -403,6 +404,44 @@ void TestInspectorUnit::testStateFileReflectsPhaseTransitions()
     // Prior success timestamp must be preserved across a failed reload so the
     // agent can reason about "last known good state".
     QVERIFY(errored.contains("lastReadyAt"));
+}
+
+void TestInspectorUnit::testEventLogRecordsSessionAndPhaseEvents()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.markReloading();
+    inspector.markReady();
+
+    QString eventsPath = tmpDir.path() + "/.clay/inspect/events.jsonl";
+    QVERIFY(QFile::exists(eventsPath));
+
+    QFile f(eventsPath);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QStringList lines = QString::fromUtf8(f.readAll()).split('\n', Qt::SkipEmptyParts);
+    f.close();
+
+    QCOMPARE(lines.size(), 3);
+
+    auto parse = [](const QString& s) {
+        return QJsonDocument::fromJson(s.toUtf8()).object();
+    };
+    auto first = parse(lines[0]);
+    auto second = parse(lines[1]);
+    auto third = parse(lines[2]);
+
+    QCOMPARE(first["type"].toString(), QStringLiteral("session_start"));
+    QVERIFY(first["data"].toObject().contains("pid"));
+    QVERIFY(first["data"].toObject().contains("sandbox"));
+
+    QCOMPARE(second["type"].toString(), QStringLiteral("phase_change"));
+    QCOMPARE(second["data"].toObject()["phase"].toString(), QStringLiteral("reloading"));
+
+    QCOMPARE(third["type"].toString(), QStringLiteral("phase_change"));
+    QCOMPARE(third["data"].toObject()["phase"].toString(), QStringLiteral("ready"));
 }
 
 QTEST_MAIN(TestInspectorUnit)

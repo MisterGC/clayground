@@ -204,8 +204,10 @@ void MainWindow::onSandboxUrlChanged()
         }
     }
     
-    m_container->setSource(url);
+    // setSandboxDir must precede setSource so the inspector has a write target
+    // when the first load's ready/error signal fires.
     m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
+    m_container->setSource(url);
     showSandboxName();
     
     // Create overlays on first load if not already created

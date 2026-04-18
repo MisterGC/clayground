@@ -75,6 +75,8 @@ private:
     void attachDiagnostics(QJsonObject& response) const;
     void writeState();
     static QString phaseName(Phase p);
+    void appendEvent(const QString& type, const QJsonObject& payload = {});
+    void resetEventLog();
     void onTraceTick();
     void stopTrace(const QString& reason);
     QJsonObject buildTraceSummary();
