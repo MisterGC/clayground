@@ -97,6 +97,15 @@ public:
     // baking.
     Q_INVOKABLE QVector<float> renderOffline(qreal durationSeconds);
 
+    // Synth-to-sample bounce. Renders one note with the current patch
+    // into a WAV under QStandardPaths::CacheLocation/clay_sound and
+    // returns its absolute path. Repeated bakes of the same patch+note
+    // produce the same filename so the cache stays bounded. Returns an
+    // empty string on failure (e.g. cache dir uncreatable).
+    Q_INVOKABLE QString bake(int midiNote,
+                             qreal durationSeconds = 1.0,
+                             qreal velocity = 1.0);
+
 signals:
     void waveformChanged();
     void attackChanged();

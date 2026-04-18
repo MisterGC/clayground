@@ -6,15 +6,20 @@
 
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
+#include "engine/pcm_buffer.h"
 
 #include <QAudioSink>
 #include <QAudioDevice>
 #include <QAudioFormat>
+#include <QCryptographicHash>
 #include <QDebug>
+#include <QDir>
 #include <QMediaDevices>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace cs = clay::sound;
 
@@ -208,6 +213,69 @@ QVector<float> SynthInstrument::renderOffline(qreal durationSeconds)
     const float v = static_cast<float>(volume_);
     for (auto &s : out) s = std::clamp(s * v, -1.0f, 1.0f);
     return out;
+}
+
+QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocity)
+{
+    if (durationSeconds <= 0.0) return {};
+    if (midiNote < 0 || midiNote > 127) return {};
+
+    // Deterministic filename from patch + note + duration so repeated
+    // bakes of the same inputs reuse the same cached WAV.
+    QByteArray signature;
+    signature += waveformName_.toUtf8() + '|';
+    signature += QByteArray::number(patch_.attack,     'g', 6) + '|';
+    signature += QByteArray::number(patch_.decay,      'g', 6) + '|';
+    signature += QByteArray::number(patch_.sustain,    'g', 6) + '|';
+    signature += QByteArray::number(patch_.release,    'g', 6) + '|';
+    signature += QByteArray::number(patch_.pitchStart, 'g', 6) + '|';
+    signature += QByteArray::number(patch_.pitchEnd,   'g', 6) + '|';
+    signature += QByteArray::number(patch_.pitchTime,  'g', 6) + '|';
+    signature += QByteArray::number(patch_.lfoRate,    'g', 6) + '|';
+    signature += QByteArray::number(patch_.lfoDepth,   'g', 6) + '|';
+    signature += lfoTargetName_.toUtf8() + '|';
+    signature += QByteArray::number(midiNote) + '|';
+    signature += QByteArray::number(durationSeconds, 'g', 6) + '|';
+    signature += QByteArray::number(velocity, 'g', 6);
+    const QString hash = QCryptographicHash::hash(
+        signature, QCryptographicHash::Sha1).toHex().left(16);
+
+    const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    const QString cacheDir  = QDir(cacheRoot).filePath("clay_sound/bakes");
+    if (!QDir().mkpath(cacheDir)) {
+        qWarning() << "SynthInstrument::bake: cannot create" << cacheDir;
+        return {};
+    }
+    const QString path = QDir(cacheDir).filePath(QStringLiteral("%1.wav").arg(hash));
+    if (QFileInfo::exists(path)) return path; // cache hit
+
+    // Render on a scratch engine/instrument so we don't disturb the
+    // live synth path.
+    cs::Engine scratch(SAMPLE_RATE);
+    auto osc = std::make_unique<cs::OscillatorInstrument>();
+    auto *oscPtr = osc.get();
+    const int instId = scratch.addInstrument(std::move(osc));
+
+    cs::NoteEvent ev;
+    ev.instrumentId   = instId;
+    ev.timeFrames     = scratch.currentFrame();
+    ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
+    ev.freqHz         = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
+    ev.velocity       = static_cast<float>(std::clamp<qreal>(velocity, 0.0, 1.0));
+    const cs::EventId id = scratch.schedule(ev);
+    oscPtr->pushPatch(id, patch_);
+
+    const int frames = static_cast<int>(std::llround(durationSeconds * SAMPLE_RATE));
+    std::vector<float> samples(static_cast<size_t>(frames), 0.0f);
+    scratch.renderOffline(samples.data(), frames);
+
+    const auto pcm = cs::PcmBuffer::fromFloats(std::move(samples), SAMPLE_RATE);
+    std::string err;
+    if (!pcm.saveWav(path.toStdString(), &err)) {
+        qWarning() << "SynthInstrument::bake: saveWav failed:" << QString::fromStdString(err);
+        return {};
+    }
+    return path;
 }
 
 // --- audio plumbing ----------------------------------------------------
