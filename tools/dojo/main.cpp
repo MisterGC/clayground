@@ -24,6 +24,10 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
             restarter.addDynPluginDepedency(dynPlugDirs[0], dynPlugDirs[1]);
         }
     }
+    if (parser.isSet(SBX_ARG)) {
+        for (auto const& sbx: parser.values(SBX_ARG))
+            restarter.addSandboxDir(sbx);
+    }
 }
 
 int main(int argc, char *argv[])
