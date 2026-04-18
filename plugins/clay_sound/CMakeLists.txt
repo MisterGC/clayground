@@ -50,6 +50,7 @@ else()
         src/softsynth.cpp src/softsynth.h
         src/synth_instrument.cpp src/synth_instrument.h
         src/sample_instrument.cpp src/sample_instrument.h
+        src/song_player.cpp src/song_player.h
         src/sound.cpp src/sound.h
         ${ENGINE_SRC})
     set(EXTRA_LIBS Qt::Multimedia Qt::Widgets)

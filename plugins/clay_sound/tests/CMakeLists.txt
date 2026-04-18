@@ -73,3 +73,31 @@ target_link_libraries(tst_clay_sound_song_parser PRIVATE
 
 add_test(NAME clay_sound_song_parser COMMAND tst_clay_sound_song_parser)
 set_tests_properties(clay_sound_song_parser PROPERTIES LABELS "clay_sound;unit")
+
+# ----------------------------------------------------------------------
+# SongPlayer tests (drives a fake instrument via Q_INVOKABLE triggerNote).
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_song_player
+    tst_song_player.cpp
+    ../src/song_player.cpp
+    ../src/song_player.h
+    ../src/song/song_model.h
+    ../src/song/song_parser.cpp
+    ../src/song/song_parser.h
+)
+
+set_target_properties(tst_clay_sound_song_player PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_song_player PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(tst_clay_sound_song_player PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Test
+)
+
+add_test(NAME clay_sound_song_player COMMAND tst_clay_sound_song_player)
+set_tests_properties(clay_sound_song_player PROPERTIES LABELS "clay_sound;unit")
