@@ -24,6 +24,7 @@
 #include "song/song_model.h"
 
 #include <QElapsedTimer>
+#include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
 #include <QQmlEngine>
@@ -87,6 +88,7 @@ signals:
 
 private slots:
     void tick();
+    void onWatchedFileChanged(const QString &path);
 
 private:
     struct ScheduledEvent
@@ -98,10 +100,12 @@ private:
         QString track;
     };
 
-    void reload();
+    void reload();      // full load: drops schedule, resets position
+    void hotReload();   // re-parse; keep position, rebuild schedule
     void rebuildSchedule();
     void rebuildInstrumentMap();
     void setError(const QString &err);
+    void updateWatchedFile(const QString &path);
     QObject *resolveInstrument(const QString &name) const;
 
     QUrl             source_;
@@ -119,9 +123,15 @@ private:
     double            position_ = 0.0;
     QString           error_;
 
-    QTimer            tickTimer_;
-    QElapsedTimer     wallClock_;
-    qint64            lastWallMs_ = 0;
+    QTimer             tickTimer_;
+    QElapsedTimer      wallClock_;
+    qint64             lastWallMs_ = 0;
+
+    QFileSystemWatcher watcher_;
+    QString            watchedPath_;
+
+signals:
+    void hotReloaded();
 };
 
 #endif // !__EMSCRIPTEN__

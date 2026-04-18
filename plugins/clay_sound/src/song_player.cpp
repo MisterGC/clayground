@@ -41,6 +41,8 @@ SongPlayer::SongPlayer(QObject *parent)
 {
     tickTimer_.setInterval(kTickMs);
     connect(&tickTimer_, &QTimer::timeout, this, &SongPlayer::tick);
+    connect(&watcher_, &QFileSystemWatcher::fileChanged,
+            this, &SongPlayer::onWatchedFileChanged);
 }
 
 SongPlayer::~SongPlayer() = default;
@@ -169,6 +171,7 @@ void SongPlayer::reload()
     const QUrl url = resolveUrl(this, source_);
     if (url.isEmpty()) {
         setError(QString());
+        updateWatchedFile({});
         emit loadedChanged();
         emit totalBeatsChanged();
         if (model_.tempo != prevTempo) emit tempoChanged();
@@ -180,6 +183,7 @@ void SongPlayer::reload()
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
         setError(QStringLiteral("cannot open %1").arg(path));
+        updateWatchedFile({});
         emit parseError(error_);
         emit loadedChanged();
         return;
@@ -187,6 +191,7 @@ void SongPlayer::reload()
     const auto res = clay::sound::SongParser::parse(f.readAll());
     if (!res.ok) {
         setError(res.error);
+        updateWatchedFile(path);
         emit parseError(error_);
         emit loadedChanged();
         return;
@@ -195,10 +200,70 @@ void SongPlayer::reload()
     rebuildSchedule();
     setError(QString());
     loaded_ = true;
+    updateWatchedFile(path);
     emit loadedChanged();
     emit tempoChanged();
     emit totalBeatsChanged();
     emit positionChanged();
+}
+
+void SongPlayer::hotReload()
+{
+    // Used when the source file content changed on disk while the
+    // player may be mid-playback. Keep position_, rebuild schedule,
+    // clamp into new range. On parse failure keep the previous model
+    // intact so playback survives typos mid-edit.
+    const QUrl url = resolveUrl(this, source_);
+    const QString path = urlToLocalPath(url);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        setError(QStringLiteral("cannot open %1").arg(path));
+        emit parseError(error_);
+        return;
+    }
+    const auto res = clay::sound::SongParser::parse(f.readAll());
+    if (!res.ok) {
+        setError(res.error);
+        emit parseError(error_);
+        return;
+    }
+    const double prevTempo = model_.tempo;
+    model_ = res.model;
+    rebuildSchedule();
+
+    // Clamp position to the new range; re-seek the cursor.
+    if (position_ > totalBeats_) position_ = totalBeats_;
+    auto it = std::lower_bound(
+        schedule_.begin(), schedule_.end(), position_,
+        [](const ScheduledEvent &e, double b) { return e.beat < b; });
+    nextIdx_ = static_cast<int>(it - schedule_.begin());
+
+    setError(QString());
+    if (!loaded_) {
+        loaded_ = true;
+        emit loadedChanged();
+    }
+    if (model_.tempo != prevTempo) emit tempoChanged();
+    emit totalBeatsChanged();
+    emit positionChanged();
+    emit hotReloaded();
+}
+
+void SongPlayer::onWatchedFileChanged(const QString &path)
+{
+    // Editors that save atomically remove the file; re-add after the
+    // event (Qt's watcher drops the path on removal).
+    updateWatchedFile(path);
+    hotReload();
+}
+
+void SongPlayer::updateWatchedFile(const QString &path)
+{
+    if (!watchedPath_.isEmpty())
+        watcher_.removePath(watchedPath_);
+    watchedPath_ = path;
+    if (!watchedPath_.isEmpty() && QFileInfo::exists(watchedPath_))
+        watcher_.addPath(watchedPath_);
 }
 
 void SongPlayer::rebuildSchedule()

@@ -34,6 +34,8 @@ private slots:
     void loopingRestartsFromBeginning();
     void seekSkipsPastEvents();
     void parseErrorKeepsUnloaded();
+    void hotReloadKeepsPositionAndSwapsFutureEvents();
+    void hotReloadWithBadSyntaxKeepsPreviousModel();
 
 private:
     QString writeSong(QTemporaryDir &dir, const QByteArray &content);
@@ -165,6 +167,91 @@ void TestSongPlayer::parseErrorKeepsUnloaded()
     QVERIFY(!p.loaded());
     QVERIFY(errSpy.count() >= 1);
     QVERIFY(!p.error().isEmpty());
+}
+
+void TestSongPlayer::hotReloadKeepsPositionAndSwapsFutureEvents()
+{
+    QTemporaryDir dir;
+    // First version: three notes across ~2 beats; slow tempo so the
+    // test has time to overwrite the file mid-playback.
+    const QString path = writeSong(dir, R"({
+        "tempo": 60,
+        "tracks": { "l": { "instrument": "inst" } },
+        "patterns": {
+          "A": { "l": [
+            { "t": 0,   "note": 60, "dur": 0.25 },
+            { "t": 1.0, "note": 62, "dur": 0.25 },
+            { "t": 2.0, "note": 64, "dur": 0.25 }
+          ] }
+        },
+        "sections": [ { "pattern": "A" } ]
+    })");
+    FakeInstrument fake;
+    fake.setObjectName("inst");
+    SongPlayer p;
+    p.setInstruments(QVariantList{ QVariant::fromValue<QObject *>(&fake) });
+    p.setSource(QUrl::fromLocalFile(path));
+    QSignalSpy hotSpy(&p, &SongPlayer::hotReloaded);
+
+    p.play();
+    // Wait until the first note fires but before the second.
+    QVERIFY(waitUntil([&] { return fake.calls.size() >= 1; }, 3000));
+    QVERIFY(p.position() < 1.0);
+
+    // Overwrite with a new version — different notes at the same times.
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(R"({
+        "tempo": 60,
+        "tracks": { "l": { "instrument": "inst" } },
+        "patterns": {
+          "A": { "l": [
+            { "t": 0,   "note": 60, "dur": 0.25 },
+            { "t": 1.0, "note": 72, "dur": 0.25 },
+            { "t": 2.0, "note": 74, "dur": 0.25 }
+          ] }
+        },
+        "sections": [ { "pattern": "A" } ]
+    })");
+    f.close();
+
+    QVERIFY(waitUntil([&] { return hotSpy.count() >= 1; }, 3000));
+    QVERIFY(p.playing());
+    // Subsequent notes should be the NEW ones.
+    QVERIFY(waitUntil([&] { return fake.calls.size() >= 3; }, 5000));
+    p.stop();
+
+    // calls[0] fired before the swap (old note 60)
+    QCOMPARE(fake.calls[0].midi, 60);
+    // Remaining triggers are from the new file.
+    QCOMPARE(fake.calls[1].midi, 72);
+    QCOMPARE(fake.calls[2].midi, 74);
+}
+
+void TestSongPlayer::hotReloadWithBadSyntaxKeepsPreviousModel()
+{
+    QTemporaryDir dir;
+    const QString path = writeSong(dir, R"({
+        "tempo": 120,
+        "tracks": { "l": { "instrument": "inst" } },
+        "patterns": { "A": { "l": [ { "t": 0, "note": 60, "dur": 0.25 } ] } }
+    })");
+    SongPlayer p;
+    FakeInstrument fake;
+    fake.setObjectName("inst");
+    p.setInstruments(QVariantList{ QVariant::fromValue<QObject *>(&fake) });
+    p.setSource(QUrl::fromLocalFile(path));
+    QVERIFY(p.loaded());
+    const double prevTotal = p.totalBeats();
+
+    QSignalSpy errSpy(&p, &SongPlayer::parseError);
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write("{ not json");
+    f.close();
+    QVERIFY(waitUntil([&] { return errSpy.count() >= 1; }, 3000));
+    QVERIFY(p.loaded());
+    QCOMPARE(p.totalBeats(), prevTotal);
 }
 
 QTEST_MAIN(TestSongPlayer)
