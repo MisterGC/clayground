@@ -19,7 +19,10 @@ set(ENGINE_SRC
     src/engine/scheduler.cpp src/engine/scheduler.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
-    src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h)
+    src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h
+    src/engine/pcm_buffer.cpp src/engine/pcm_buffer.h
+    src/engine/sample_voice.cpp src/engine/sample_voice.h
+    src/engine/sampler_instrument.cpp src/engine/sampler_instrument.h)
 
 if(EMSCRIPTEN)
     set_source_files_properties(Sound_wasm.qml PROPERTIES QT_QML_SOURCE_TYPENAME Sound)
@@ -33,12 +36,15 @@ if(EMSCRIPTEN)
         ${ENGINE_SRC})
     set(EXTRA_LIBS "")
 else()
-    set(SOUND_QML Sound.qml)
+    # Desktop: Sound is a C++ QML_ELEMENT (Sound.qml retired, see [#113]).
+    set(SOUND_QML "")
     set(MUSIC_QML Music.qml)
     set(CPP_SRC
         src/chiptracker.cpp src/chiptracker.h
         src/softsynth.cpp src/softsynth.h
         src/synth_instrument.cpp src/synth_instrument.h
+        src/sample_instrument.cpp src/sample_instrument.h
+        src/sound.cpp src/sound.h
         ${ENGINE_SRC})
     set(EXTRA_LIBS Qt::Multimedia Qt::Widgets)
 endif()

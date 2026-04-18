@@ -16,8 +16,12 @@
 #include "engine/engine.h"
 #include "engine/instrument.h"
 #include "engine/note_event.h"
+#include "engine/pcm_buffer.h"
+#include "engine/sample_voice.h"
+#include "engine/sampler_instrument.h"
 #include "engine/scheduler.h"
 #include "engine/voice.h"
+#include "sample_instrument.h"
 #include "synth_instrument.h"
 
 #include <QtTest/QtTest>
@@ -140,6 +144,10 @@ private slots:
     void goldenRender();
     void synthInstrumentOfflineTrigger();
     void synthInstrumentMultipleTriggersOverlap();
+    void sampleVoicePlaysBuffer();
+    void sampleVoicePitchShift();
+    void sampleVoiceLoops();
+    void sampleInstrumentLoadsDemoWav();
 };
 
 void EngineSpineTest::emptyEngineRendersSilence()
@@ -286,6 +294,139 @@ void EngineSpineTest::synthInstrumentMultipleTriggersOverlap()
     double e = 0.0;
     for (auto s : buf) e += std::abs(s);
     QVERIFY2(e > 100.0, qPrintable(QString("expected audible mix, energy=%1").arg(e)));
+}
+
+// --- Sample voice / instrument tests ----------------------------------
+
+static std::shared_ptr<const PcmBuffer> makeSineBuffer(double freqHz,
+                                                      int sampleRate,
+                                                      int frames)
+{
+    std::vector<float> s(frames);
+    const double step = 2.0 * M_PI * freqHz / sampleRate;
+    for (int i = 0; i < frames; ++i)
+        s[i] = static_cast<float>(std::sin(i * step));
+    return std::make_shared<const PcmBuffer>(
+        PcmBuffer::fromFloats(std::move(s), sampleRate));
+}
+
+void EngineSpineTest::sampleVoicePlaysBuffer()
+{
+    Engine eng(44100);
+    auto core = std::make_unique<SamplerInstrument>();
+    core->setSource(makeSineBuffer(440.0, 44100, 4410)); // 100ms
+    core->setRootMidiNote(69);                           // A4 = 440 Hz
+    auto *rawCore = core.get();
+    const int instId = eng.addInstrument(std::move(core));
+    (void)rawCore;
+
+    NoteEvent ev;
+    ev.timeFrames     = 0;
+    ev.durationFrames = 4410;
+    ev.freqHz         = 440.0;
+    ev.velocity       = 1.0f;
+    ev.instrumentId   = instId;
+    eng.schedule(ev);
+
+    std::vector<float> buf(8820, 0.0f);
+    eng.renderOffline(buf.data(), static_cast<int>(buf.size()));
+
+    double e1 = 0.0, e2 = 0.0;
+    for (int i = 0; i < 4410; ++i)   e1 += std::abs(buf[i]);
+    for (int i = 4410; i < 8820; ++i) e2 += std::abs(buf[i]);
+    QVERIFY2(e1 > 100.0, qPrintable(QString("expected sample audible, energy=%1").arg(e1)));
+    QVERIFY2(e2 < 1.0,   qPrintable(QString("expected post-sample silence, energy=%1").arg(e2)));
+}
+
+void EngineSpineTest::sampleVoicePitchShift()
+{
+    // Feed a 1 kHz sine sample; trigger at 2 kHz (one octave up).
+    // Expect the played-back audio to cross zero ~twice as often.
+    Engine eng(44100);
+    auto core = std::make_unique<SamplerInstrument>();
+    const int srcRate = 44100;
+    const int srcFrames = 22050; // 500 ms source
+    core->setSource(makeSineBuffer(1000.0, srcRate, srcFrames));
+    core->setRootMidiNote(69);                       // root = A4 = 440 Hz
+    const int instId = eng.addInstrument(std::move(core));
+
+    NoteEvent ev;
+    ev.timeFrames     = 0;
+    ev.durationFrames = 4410;                        // 100 ms playback
+    ev.freqHz         = 880.0;                       // one octave up from root
+    ev.velocity       = 1.0f;
+    ev.instrumentId   = instId;
+    eng.schedule(ev);
+
+    std::vector<float> buf(4410, 0.0f);
+    eng.renderOffline(buf.data(), static_cast<int>(buf.size()));
+
+    int zeroCrossings = 0;
+    for (int i = 1; i < static_cast<int>(buf.size()); ++i)
+        if ((buf[i - 1] >= 0.0f) != (buf[i] >= 0.0f))
+            ++zeroCrossings;
+    // 1 kHz source + octave-up => effective 2 kHz. Over 100 ms that's
+    // ~400 zero crossings; allow healthy margin.
+    QVERIFY2(zeroCrossings >= 300 && zeroCrossings <= 500,
+             qPrintable(QString("unexpected zero-crossing count %1").arg(zeroCrossings)));
+}
+
+void EngineSpineTest::sampleVoiceLoops()
+{
+    // Source is 10ms of a 440Hz sine; loop makes it play for 200ms.
+    Engine eng(44100);
+    auto core = std::make_unique<SamplerInstrument>();
+    core->setSource(makeSineBuffer(440.0, 44100, 441));
+    core->setRootMidiNote(69);
+    SampleVoice::Patch p;
+    p.looping = true;
+    p.loopStartFrac = 0.0;
+    p.loopEndFrac   = 1.0;
+    core->setDefaultPatch(p);
+    const int instId = eng.addInstrument(std::move(core));
+
+    NoteEvent ev;
+    ev.timeFrames     = 0;
+    ev.durationFrames = 8820; // 200 ms
+    ev.freqHz         = 440.0;
+    ev.velocity       = 1.0f;
+    ev.instrumentId   = instId;
+    eng.schedule(ev);
+
+    std::vector<float> buf(8820, 0.0f);
+    eng.renderOffline(buf.data(), static_cast<int>(buf.size()));
+
+    // Every 50-ms window should carry roughly equal energy if looping
+    // held. Check the final window too: without a loop it would be
+    // silent.
+    double last = 0.0;
+    for (int i = 6615; i < 8820; ++i) last += std::abs(buf[i]);
+    QVERIFY2(last > 50.0, qPrintable(QString("looping seems off, tail energy=%1").arg(last)));
+}
+
+void EngineSpineTest::sampleInstrumentLoadsDemoWav()
+{
+    // The demo WAV ships with the plugin; CMake passes its absolute
+    // path as a compile-time define.
+#ifndef CLAY_SOUND_DEMO_WAV
+    QSKIP("CLAY_SOUND_DEMO_WAV not defined");
+#else
+    SampleInstrument s;
+    QSignalSpy spy(&s, &SampleInstrument::loadedChanged);
+    s.setSource(QUrl::fromLocalFile(CLAY_SOUND_DEMO_WAV));
+    QCOMPARE(spy.count(), 1);
+    QVERIFY(s.loaded());
+    auto buf = s.renderOffline(0.5); // 500ms — sample is ~300ms
+    QCOMPARE(buf.size(), 22050);
+    // Not playable without a trigger: expect silence.
+    for (auto v : buf) QCOMPARE(v, 0.0f);
+    // Trigger and render again.
+    QVERIFY(s.triggerOneShot(1.0));
+    auto buf2 = s.renderOffline(0.5);
+    double e = 0.0;
+    for (auto v : buf2) e += std::abs(v);
+    QVERIFY2(e > 100.0, qPrintable(QString("expected audible playback, energy=%1").arg(e)));
+#endif
 }
 
 QTEST_APPLESS_MAIN(EngineSpineTest)

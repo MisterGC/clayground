@@ -17,14 +17,26 @@ add_executable(tst_clay_sound_engine
     ../src/engine/oscillator_voice.h
     ../src/engine/oscillator_instrument.cpp
     ../src/engine/oscillator_instrument.h
+    ../src/engine/pcm_buffer.cpp
+    ../src/engine/pcm_buffer.h
+    ../src/engine/sample_voice.cpp
+    ../src/engine/sample_voice.h
+    ../src/engine/sampler_instrument.cpp
+    ../src/engine/sampler_instrument.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
+    ../src/sample_instrument.cpp
+    ../src/sample_instrument.h
 )
 
 set_target_properties(tst_clay_sound_engine PROPERTIES AUTOMOC ON)
 
 target_include_directories(tst_clay_sound_engine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(tst_clay_sound_engine PRIVATE
+    CLAY_SOUND_DEMO_WAV="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sound.wav"
 )
 
 target_link_libraries(tst_clay_sound_engine PRIVATE
