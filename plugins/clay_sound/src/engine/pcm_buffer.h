@@ -30,6 +30,10 @@ struct PcmBuffer
 
     // Construct in-memory (for tests and synth-to-sample baking).
     static PcmBuffer fromFloats(std::vector<float> mono, int sampleRate);
+
+    // Write this buffer to a 16-bit signed PCM mono WAV file. Returns
+    // true on success; `error` (if non-null) carries the failure reason.
+    bool saveWav(const std::string& path, std::string* error = nullptr) const;
 };
 
 } // namespace clay::sound

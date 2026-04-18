@@ -29,18 +29,22 @@ if(EMSCRIPTEN)
     set_source_files_properties(Music_wasm.qml PROPERTIES QT_QML_SOURCE_TYPENAME Music)
     set(SOUND_QML Sound_wasm.qml)
     set(MUSIC_QML Music_wasm.qml)
+    set(MOOD_QML MoodPlayer.qml)
     set(CPP_SRC
         src/claysound.cpp src/claysound.h
         src/claymusic.cpp src/claymusic.h
         src/chiptracker.cpp src/chiptracker.h
+        src/chipmood.cpp src/chipmood.h
         ${ENGINE_SRC})
     set(EXTRA_LIBS "")
 else()
     # Desktop: Sound is a C++ QML_ELEMENT (Sound.qml retired, see [#113]).
     set(SOUND_QML "")
     set(MUSIC_QML Music.qml)
+    set(MOOD_QML MoodPlayer.qml)
     set(CPP_SRC
         src/chiptracker.cpp src/chiptracker.h
+        src/chipmood.cpp src/chipmood.h
         src/softsynth.cpp src/softsynth.h
         src/synth_instrument.cpp src/synth_instrument.h
         src/sample_instrument.cpp src/sample_instrument.h
@@ -52,7 +56,7 @@ endif()
 clay_plugin(Sound
     VERSION 1.0
     SOURCES ${CPP_SRC}
-    QML_FILES ${SOUND_QML} ${MUSIC_QML}
+    QML_FILES ${SOUND_QML} ${MUSIC_QML} ${MOOD_QML}
     LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS}
 )
 

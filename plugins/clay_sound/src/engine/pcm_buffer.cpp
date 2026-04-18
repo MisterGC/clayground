@@ -2,6 +2,8 @@
 
 #include "pcm_buffer.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -140,6 +142,69 @@ std::optional<PcmBuffer> PcmBuffer::loadWav(const std::string& path, std::string
     out.samples = std::move(mono);
     out.sampleRate = static_cast<int>(fmt.sampleRate);
     return out;
+}
+
+namespace {
+
+static void write_u32_le(std::FILE *f, uint32_t v)
+{
+    uint8_t b[4] = {
+        static_cast<uint8_t>(v & 0xff),
+        static_cast<uint8_t>((v >> 8) & 0xff),
+        static_cast<uint8_t>((v >> 16) & 0xff),
+        static_cast<uint8_t>((v >> 24) & 0xff)};
+    std::fwrite(b, 1, 4, f);
+}
+
+static void write_u16_le(std::FILE *f, uint16_t v)
+{
+    uint8_t b[2] = { static_cast<uint8_t>(v & 0xff),
+                     static_cast<uint8_t>((v >> 8) & 0xff) };
+    std::fwrite(b, 1, 2, f);
+}
+
+} // namespace
+
+bool PcmBuffer::saveWav(const std::string& path, std::string* error) const
+{
+    if (sampleRate <= 0) return setError(error, "invalid sample rate");
+    if (samples.empty()) return setError(error, "empty buffer");
+
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) return setError(error, "open for write failed");
+
+    const uint32_t frameCount = static_cast<uint32_t>(samples.size());
+    const uint16_t bitsPerSample = 16;
+    const uint16_t channels = 1;
+    const uint32_t byteRate = static_cast<uint32_t>(sampleRate) * channels * (bitsPerSample / 8);
+    const uint16_t blockAlign = channels * (bitsPerSample / 8);
+    const uint32_t dataBytes = frameCount * blockAlign;
+
+    // RIFF/WAVE header (44 bytes)
+    std::fwrite("RIFF", 1, 4, f);
+    write_u32_le(f, 36 + dataBytes);
+    std::fwrite("WAVE", 1, 4, f);
+    std::fwrite("fmt ", 1, 4, f);
+    write_u32_le(f, 16);
+    write_u16_le(f, 1);                                  // audioFormat = PCM
+    write_u16_le(f, channels);
+    write_u32_le(f, static_cast<uint32_t>(sampleRate));
+    write_u32_le(f, byteRate);
+    write_u16_le(f, blockAlign);
+    write_u16_le(f, bitsPerSample);
+    std::fwrite("data", 1, 4, f);
+    write_u32_le(f, dataBytes);
+
+    for (float s : samples) {
+        const int q = static_cast<int>(std::lround(std::clamp(s, -1.0f, 1.0f) * 32767.0f));
+        const int16_t v = static_cast<int16_t>(std::clamp(q, -32768, 32767));
+        uint8_t b[2] = { static_cast<uint8_t>(v & 0xff),
+                         static_cast<uint8_t>((v >> 8) & 0xff) };
+        std::fwrite(b, 1, 2, f);
+    }
+
+    std::fclose(f);
+    return true;
 }
 
 } // namespace clay::sound

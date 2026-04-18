@@ -158,7 +158,7 @@ public slots:
     void pause();
     void resume();
     void randomize();
-    Q_INVOKABLE void exportWav();
+    Q_INVOKABLE void exportWav(const QString &path = QString());
 
 signals:
     void presetChanged();
@@ -180,6 +180,7 @@ signals:
     void totalSectionsChanged();
     void sectionProgressChanged();
     void loopCompleted();
+    void exportFinished(const QString &path);
 
 private slots:
     void updateSectionInfo();

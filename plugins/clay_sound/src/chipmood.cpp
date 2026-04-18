@@ -3,6 +3,7 @@
 #include <QDebug>
 #ifndef __EMSCRIPTEN__
 #include "softsynth.h"
+#include "engine/pcm_buffer.h"
 #endif
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1207,10 +1208,42 @@ void ChipMood::updateSectionInfo()
 #endif
 }
 
-void ChipMood::exportWav()
+void ChipMood::exportWav(const QString &path)
 {
 #ifdef EMSCRIPTEN
+    Q_UNUSED(path);
     js_chipmood_export_wav(instanceId_);
+#else
+    if (!synth_ || preset_.isEmpty() || path.isEmpty()) return;
+
+    // Rebuild the composition and render it offline via a scratch
+    // SoftSynth (live synth state is preserved).
+    buildDesktopComposition();
+    const int sampleRate = 44100;
+    const int totalSamples = static_cast<int>(synth_->loopDuration() * sampleRate);
+    if (totalSamples <= 0) return;
+
+    SoftSynth renderer;
+    const double warmth = preset_.value("warmth", 0.5).toDouble();
+    double filterHz = (4000.0 + (1.0 - warmth) * 12000.0) * (0.5 + brightness_ * 0.5);
+    renderer.setFilterCutoff(filterHz);
+    renderer.setEchoMix(preset_.value("echo", 0.3).toDouble());
+    renderer.setVolume(volume_);
+    renderer.loadComposition(synth_->compositionData(), synth_->loopDuration());
+
+    std::vector<float> samples(totalSamples);
+    renderer.renderOffline(samples.data(), totalSamples);
+
+    const auto pcm = clay::sound::PcmBuffer::fromFloats(std::move(samples), sampleRate);
+    std::string err;
+    if (!pcm.saveWav(path.toStdString(), &err)) {
+        qWarning() << "ChipMood: failed to write WAV to" << path
+                   << "reason:" << QString::fromStdString(err);
+        return;
+    }
+
+    qDebug() << "[ChipMood] WAV exported to:" << path;
+    emit exportFinished(path);
 #endif
 }
 
