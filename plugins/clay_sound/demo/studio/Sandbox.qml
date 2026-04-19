@@ -155,7 +155,10 @@ Rectangle {
         if (!anyMatch) { _exitJump(); return true }
         if (next.length === 2 && _jumpActions[next]) {
             _jumpActions[next]()
-            _exitJump()
+            _jumpPrefix = ""
+            // Only fall back to normal if the action didn't switch us
+            // into another mode (e.g. _enterFocus → "focus").
+            if (vimSubmode === "jump") vimSubmode = "normal"
             return true
         }
         _jumpPrefix = next
