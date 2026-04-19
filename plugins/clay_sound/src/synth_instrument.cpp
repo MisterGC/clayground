@@ -215,6 +215,46 @@ QVector<float> SynthInstrument::renderOffline(qreal durationSeconds)
     return out;
 }
 
+std::vector<float> SynthInstrument::renderScratch(int midiNote,
+                                                  qreal durationSeconds,
+                                                  qreal velocity) const
+{
+    const int frames = std::max(0, static_cast<int>(std::llround(durationSeconds * SAMPLE_RATE)));
+    std::vector<float> out(static_cast<size_t>(frames), 0.0f);
+    if (frames == 0) return out;
+    if (midiNote < 0 || midiNote > 127) return out;
+
+    cs::Engine scratch(SAMPLE_RATE);
+    auto osc = std::make_unique<cs::OscillatorInstrument>();
+    auto *oscPtr = osc.get();
+    const int instId = scratch.addInstrument(std::move(osc));
+
+    cs::NoteEvent ev;
+    ev.instrumentId   = instId;
+    ev.timeFrames     = scratch.currentFrame();
+    ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
+    ev.freqHz         = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
+    ev.velocity       = static_cast<float>(std::clamp<qreal>(velocity, 0.0, 1.0));
+    const cs::EventId id = scratch.schedule(ev);
+    oscPtr->pushPatch(id, patch_);
+
+    scratch.renderOffline(out.data(), frames);
+    const float v = static_cast<float>(volume_);
+    for (auto &s : out) s = std::clamp(s * v, -1.0f, 1.0f);
+    return out;
+}
+
+QVector<float> SynthInstrument::renderPatchPreview(int midiNote,
+                                                   qreal durationSeconds,
+                                                   qreal velocity)
+{
+    const auto vec = renderScratch(midiNote, durationSeconds, velocity);
+    QVector<float> out;
+    out.reserve(static_cast<int>(vec.size()));
+    for (float s : vec) out.append(s);
+    return out;
+}
+
 QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocity)
 {
     if (durationSeconds <= 0.0) return {};
@@ -249,25 +289,8 @@ QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocit
     const QString path = QDir(cacheDir).filePath(QStringLiteral("%1.wav").arg(hash));
     if (QFileInfo::exists(path)) return path; // cache hit
 
-    // Render on a scratch engine/instrument so we don't disturb the
-    // live synth path.
-    cs::Engine scratch(SAMPLE_RATE);
-    auto osc = std::make_unique<cs::OscillatorInstrument>();
-    auto *oscPtr = osc.get();
-    const int instId = scratch.addInstrument(std::move(osc));
-
-    cs::NoteEvent ev;
-    ev.instrumentId   = instId;
-    ev.timeFrames     = scratch.currentFrame();
-    ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
-    ev.freqHz         = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
-    ev.velocity       = static_cast<float>(std::clamp<qreal>(velocity, 0.0, 1.0));
-    const cs::EventId id = scratch.schedule(ev);
-    oscPtr->pushPatch(id, patch_);
-
-    const int frames = static_cast<int>(std::llround(durationSeconds * SAMPLE_RATE));
-    std::vector<float> samples(static_cast<size_t>(frames), 0.0f);
-    scratch.renderOffline(samples.data(), frames);
+    auto samples = renderScratch(midiNote, durationSeconds, velocity);
+    if (samples.empty()) return {};
 
     const auto pcm = cs::PcmBuffer::fromFloats(std::move(samples), SAMPLE_RATE);
     std::string err;

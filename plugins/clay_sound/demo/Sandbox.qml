@@ -168,12 +168,43 @@ Rectangle {
             }
         }
 
-        TabBar {
-            id: tabs
+        Row {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: parent.width * 0.5
-            TabButton { text: "Studio" }
-            TabButton { text: "Basics" }
+            spacing: 16
+            TabBar {
+                id: tabs
+                width: 220
+                TabButton { text: "Studio" }
+                TabButton { text: "Basics" }
+            }
+            W.RetroToggle {
+                width: 130; height: 28
+                leftLabel: "MOUSE"; rightLabel: "VIM"
+                checked: root.vimMode
+                onToggled: (v) => root.vimMode = v
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Rectangle {
+                width: 32; height: 28
+                color: "transparent"
+                border.color: W.Retro.bevelHi
+                border.width: 1
+                radius: 2
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    anchors.centerIn: parent
+                    text: "?"
+                    color: W.Retro.teal
+                    font.family: W.Retro.mono
+                    font.pixelSize: W.Retro.fsHeader
+                    font.bold: true
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: helpOverlay.open = true
+                }
+            }
         }
     }
 
@@ -524,220 +555,62 @@ Rectangle {
                 width: parent.parent.width
                 spacing: 16
 
-                // ------- Widget preview (5a smoke) --------------------
-                Rectangle {
+                // ------- Sample Bank (4 cartridges) -------------------
+                Row {
                     width: parent.width
-                    height: 240
-                    color: root.surfaceColor
-                    radius: 8
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 16
+                    spacing: 8
+                    readonly property int slotW: (width - 3 * spacing) / 4
 
-                        W.RetroPanel {
-                            width: 260; height: 200
-                            title: "S1 KICK"
-                            Column {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                spacing: 6
-                                W.MiniScope {
-                                    id: previewScope
-                                    width: parent.width
-                                    height: 50
-                                    samples: {
-                                        // Build a simple test wave (two cycles of a decaying sine)
-                                        var out = []
-                                        for (var i = 0; i < 256; ++i) {
-                                            var t = i / 256
-                                            out.push(Math.sin(t * Math.PI * 8) * (1 - t))
-                                        }
-                                        return out
-                                    }
-                                }
-                                W.LEDBar {
-                                    width: parent.width; height: 8
-                                    count: 16; active: 9.4
-                                }
-                                Row {
-                                    spacing: 8
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    W.RetroKnob {
-                                        width: 64; height: 70
-                                        label: "TUNE"
-                                        from: -24; to: 24; steps: 48
-                                        value: 3
-                                    }
-                                    W.RetroKnob {
-                                        width: 64; height: 70
-                                        label: "DECAY"
-                                        from: 0; to: 1; steps: 24
-                                        value: 0.3
-                                        accent: W.Retro.pink
-                                    }
-                                }
-                            }
-                        }
-
-                        Column {
-                            spacing: 10
-                            W.StepGraph {
-                                width: 200; height: 64
-                                label: "ADSR"
-                                points: [[0, 0], [0.12, 1], [0.3, 0.6], [0.78, 0.6], [1, 0]]
-                            }
-                            W.StepGraph {
-                                width: 200; height: 54
-                                label: "PITCH"
-                                points: [[0, 0.55], [0.08, 0.9], [0.4, 0.5], [1, 0.5]]
-                                traceColor: W.Retro.teal
-                            }
-                            Row {
-                                spacing: 4
-                                Repeater {
-                                    model: ["C2", "---", "Eb3", "G4"]
-                                    W.StepCell {
-                                        label: modelData
-                                        active: modelData !== "---"
-                                        beat: index % 2 === 0
-                                        playhead: index === 2
-                                    }
-                                }
-                            }
-                        }
-
-                        Column {
-                            spacing: 10
-                            W.CartridgeButton {
-                                width: 160; height: 34
-                                tag: "01"; label: "CHIP RALLY"
-                                selected: true
-                            }
-                            W.CartridgeButton {
-                                width: 160; height: 34
-                                tag: "02"; label: "NEON CLUB"
-                            }
-                            W.CartridgeButton {
-                                width: 160; height: 34
-                                tag: "03"; label: "BOSS FIGHT"
-                            }
-                            W.RetroToggle {
-                                width: 130; height: 28
-                                leftLabel: "MOUSE"; rightLabel: "VIM"
-                                checked: vimMode
-                                onToggled: (v) => vimMode = v
-                            }
-                            Button {
-                                text: "? Help (F1)"
-                                onClicked: helpOverlay.open = true
-                            }
+                    W.SlotPanel {
+                        width: parent.slotW; height: 360
+                        title: "S1 KICK"
+                        role: "kick"
+                        accent: W.Retro.amber
+                        instrument: slot0
+                        triggered: slot0.activeVoices > 0
+                        onPreviewRequested: slot0.triggerNote(36, 0.9, 0.3)
+                        onBakeRequested: {
+                            var p = slot0.bake(36, 0.5, 0.9)
+                            statusText.text = p.length ? "Baked S1 KICK → " + p : "Bake failed"
                         }
                     }
-                }
-
-                // ------- Sample Bank ----------------------------------
-                Rectangle {
-                    width: parent.width
-                    height: bankColumn.height + 30
-                    color: root.surfaceColor
-                    radius: 8
-                    Column {
-                        id: bankColumn
-                        anchors.centerIn: parent
-                        spacing: 8
-                        width: parent.width - 30
-
-                        Text {
-                            text: "Sample Bank — 4 live patches"
-                            color: root.accentColor
-                            font.family: root.monoFont
-                            font.bold: true
-                            anchors.horizontalCenter: parent.horizontalCenter
+                    W.SlotPanel {
+                        width: parent.slotW; height: 360
+                        title: "S2 HAT"
+                        role: "hat"
+                        accent: W.Retro.amber
+                        instrument: slot1
+                        triggered: slot1.activeVoices > 0
+                        onPreviewRequested: slot1.triggerNote(60, 0.7, 0.2)
+                        onBakeRequested: {
+                            var p = slot1.bake(60, 0.2, 0.7)
+                            statusText.text = p.length ? "Baked S2 HAT → " + p : "Bake failed"
                         }
-                        Text {
-                            text: "edit a slot while the tracker loops — next trigger picks up your change"
-                            color: root.dimTextColor
-                            font.family: root.monoFont
-                            font.pixelSize: 10
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            wrapMode: Text.Wrap
-                            width: parent.width
-                            horizontalAlignment: Text.AlignHCenter
+                    }
+                    W.SlotPanel {
+                        width: parent.slotW; height: 360
+                        title: "S3 LEAD"
+                        role: "lead"
+                        accent: W.Retro.amber
+                        instrument: slot2
+                        triggered: slot2.activeVoices > 0
+                        onPreviewRequested: slot2.triggerNote(60, 0.9, 0.3)
+                        onBakeRequested: {
+                            var p = slot2.bake(60, 0.4, 0.9)
+                            statusText.text = p.length ? "Baked S3 LEAD → " + p : "Bake failed"
                         }
-
-                        Repeater {
-                            model: 4
-                            Rectangle {
-                                readonly property int slotIdx: index
-                                readonly property var inst: root._bankSlots[slotIdx]
-                                width: bankColumn.width
-                                height: slotColumn.height + 14
-                                color: "#1f2a44"
-                                radius: 4
-
-                                Column {
-                                    id: slotColumn
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    spacing: 4
-
-                                    Row {
-                                        spacing: 10
-                                        width: parent.width
-                                        Text {
-                                            text: root._bankNames[slotIdx]
-                                            color: root.accentColor
-                                            font.family: root.monoFont
-                                            font.bold: true
-                                            font.pixelSize: 12
-                                            width: 110
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        ComboBox {
-                                            model: ["sine", "square", "triangle", "sawtooth", "noise"]
-                                            currentIndex: ["sine","square","triangle","sawtooth","noise"].indexOf(inst.waveform)
-                                            width: 110
-                                            onCurrentTextChanged: inst.waveform = currentText
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        Button {
-                                            text: "▶"
-                                            width: 32
-                                            onClicked: inst.triggerNote(60, 0.9, 0.3)
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        Button {
-                                            text: "Bake"
-                                            onClicked: {
-                                                var p = inst.bake(60, 0.5, 0.9)
-                                                statusText.text = p.length
-                                                    ? "Baked " + root._bankNames[slotIdx] + " → " + p
-                                                    : "Bake failed"
-                                            }
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                    }
-                                    Row {
-                                        spacing: 8
-                                        width: parent.width
-                                        Text { text: "A";   color: root.dimTextColor; font.family: root.monoFont; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 90; from: 0; to: 0.3; value: inst.attack;  onValueChanged: inst.attack  = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "D";   color: root.dimTextColor; font.family: root.monoFont; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 90; from: 0; to: 0.5; value: inst.decay;   onValueChanged: inst.decay   = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "S";   color: root.dimTextColor; font.family: root.monoFont; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 90; from: 0; to: 1.0; value: inst.sustain; onValueChanged: inst.sustain = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "R";   color: root.dimTextColor; font.family: root.monoFont; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 90; from: 0; to: 0.8; value: inst.release; onValueChanged: inst.release = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "Pitch→";  color: root.dimTextColor; font.family: root.monoFont; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 80; from: -24; to: 24; stepSize: 1; value: inst.pitchStart; onValueChanged: inst.pitchStart = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 80; from: -24; to: 24; stepSize: 1; value: inst.pitchEnd;   onValueChanged: inst.pitchEnd   = value; anchors.verticalCenter: parent.verticalCenter }
-                                        Slider { width: 60; from: 0;  to: 1;  value: inst.pitchTime; onValueChanged: inst.pitchTime = value; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
-                            }
+                    }
+                    W.SlotPanel {
+                        width: parent.slotW; height: 360
+                        title: "S4 BASS"
+                        role: "bass"
+                        accent: W.Retro.amber
+                        instrument: slot3
+                        triggered: slot3.activeVoices > 0
+                        onPreviewRequested: slot3.triggerNote(43, 0.9, 0.3)
+                        onBakeRequested: {
+                            var p = slot3.bake(43, 0.4, 0.9)
+                            statusText.text = p.length ? "Baked S4 BASS → " + p : "Bake failed"
                         }
                     }
                 }

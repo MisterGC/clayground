@@ -106,6 +106,15 @@ public:
                              qreal durationSeconds = 1.0,
                              qreal velocity = 1.0);
 
+    // Renders one note through a *scratch* engine with the current
+    // patch and returns the resulting mono float buffer. Does NOT
+    // touch the live audio sink — safe to call while the synth is
+    // actively playing. Used by the Studio UI to draw per-slot
+    // oscilloscope previews.
+    Q_INVOKABLE QVector<float> renderPatchPreview(int midiNote = 60,
+                                                  qreal durationSeconds = 0.25,
+                                                  qreal velocity = 1.0);
+
 signals:
     void waveformChanged();
     void attackChanged();
@@ -130,6 +139,12 @@ private:
 
     void ensureSinkRunning();
     void stopSink();
+    // Render one note on a scratch engine using the current patch.
+    // Returns a vector of `frames` mono samples (post-volume) so UI
+    // previews and bakes share a single code path.
+    std::vector<float> renderScratch(int midiNote,
+                                     qreal durationSeconds,
+                                     qreal velocity) const;
 
     // Engine ownership (needs full type for std::unique_ptr).
     clay::sound::Engine engine_{SAMPLE_RATE};
