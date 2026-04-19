@@ -25,7 +25,7 @@ Item {
     // When > 0 the panel gets a subtle scanline overlay.
     property real   scanlineAlpha: 0.04
 
-    readonly property int titleH: title.length > 0 ? 22 : 0
+    readonly property int titleH: title.length > 0 ? 24 : 0
 
     // Outer bezel
     Rectangle {
@@ -43,6 +43,19 @@ Item {
         border.color: Retro.bevelLo
         border.width: 1
         radius: 2
+    }
+    // Corner screws — faux hex-head bolts in each corner sell the
+    // "rack-mounted hardware" vibe.
+    Repeater {
+        model: [[6, 6], [6, -6], [-6, 6], [-6, -6]]
+        Rectangle {
+            x: modelData[0] >= 0 ? modelData[0] : root.width + modelData[0] - 3
+            y: modelData[1] >= 0 ? modelData[1] : root.height + modelData[1] - 3
+            width: 3; height: 3; radius: 0
+            color: Retro.bevelLo
+            border.color: Retro.bevelHi
+            border.width: 1
+        }
     }
 
     // Title strip

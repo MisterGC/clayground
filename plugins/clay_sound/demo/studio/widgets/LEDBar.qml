@@ -11,8 +11,9 @@ Item {
     id: root
 
     property int   count: 16
-    // Floating-point active value; fractional part is shown as the
-    // last LED flickering between dim/bright for a subtle "alive" vibe.
+    // Floating-point active value; the fractional part of the last lit
+    // LED is rendered via opacity so the bar looks analog without the
+    // LED actually flashing.
     property real  active: 0
     property color colorOn:  Retro.amber
     property color colorOff: Retro.amberDim
@@ -29,15 +30,6 @@ Item {
     readonly property real _ledWidth:
         (width - gap * (count - 1)) / count
 
-    // Flicker timer for the fractional LED — barely perceptible.
-    property bool _flickerOn: true
-    Timer {
-        interval: 90
-        running: true
-        repeat: true
-        onTriggered: root._flickerOn = !root._flickerOn
-    }
-
     Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: root.gap
@@ -50,7 +42,7 @@ Item {
                 readonly property real _lit:
                     index < Math.floor(root.active) ? 1.0
                                                     : (index === Math.floor(root.active)
-                                                        ? (root.active - index) * (root._flickerOn ? 1.0 : 0.6)
+                                                        ? (root.active - index)
                                                         : 0.0)
                 color: {
                     if (root.hotThreshold > 0 && index >= root.hotThreshold)

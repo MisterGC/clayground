@@ -25,63 +25,62 @@ Rectangle {
     property bool   beat:        false
     property bool   bar:         false
 
-    implicitWidth: 42
-    implicitHeight: 22
-    radius: 2
+    implicitWidth: 46
+    implicitHeight: 30
+    radius: 1
 
+    // Every cell has a clear recessed "key" look whether active or not.
     color: {
         if (playhead)    return Retro.pink
         if (trailStrong) return Qt.darker(Retro.pink, 1.8)
         if (trailWeak)   return Qt.darker(Retro.pink, 3.5)
         if (active)      return Retro.teal
-        if (beat)        return "#1d273f"
-        return "#0d1222"
+        return beat ? "#1a2742" : "#0f1628"
     }
 
-    // Bar (every 16 steps) gets a thicker, brighter border.
-    border.width: bar ? 2 : 1
+    border.width: 1
     border.color: cursor ? Retro.cyan
-                : (bar ? Retro.tealDim
-                       : (beat ? "#35456b" : "#141b30"))
+                : (active ? Qt.lighter(Retro.teal, 1.3)
+                          : (beat ? "#2a3656" : "#1b2540"))
 
-    // Inner bevel (top-left highlight)
+    // Always-visible inner top highlight (the "key cap" edge).
     Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.margins: 1
         height: 1
-        color: root.active || root.playhead ? "#ffffff" : "#3a486b"
-        opacity: root.active || root.playhead ? 0.35 : 0.22
+        color: root.active || root.playhead ? "#ffffff" : "#4a5a80"
+        opacity: root.active || root.playhead ? 0.45 : 0.3
     }
-    // Inner bevel (bottom-right shadow)
+    // Always-visible inner bottom shadow.
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.margins: 1
         height: 1
         color: "#000000"
-        opacity: 0.35
+        opacity: 0.45
     }
 
-    // Subtle white flash on top of playhead fill — CRT-scanline
-    // highlight, fades back down so trail cells look settled.
+    // White flash on playhead fill.
     Rectangle {
         anchors.fill: parent
         color: "#ffffff"
         opacity: root.playhead ? 0.28 : 0
-        radius: 2
+        radius: root.radius
         Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
     }
 
-    // Pink glow outline on the live playhead cell only — pops it out
-    // from the trail.
+    // Pink glow outline on the live playhead cell only.
     Rectangle {
         anchors.fill: parent
         anchors.margins: -1
         color: "transparent"
         border.color: Retro.pink
         border.width: 2
-        radius: 3
+        radius: 2
         opacity: root.playhead ? 0.9 : 0
         Behavior on opacity { NumberAnimation { duration: 100 } }
     }
@@ -92,9 +91,9 @@ Rectangle {
         color: root.active || root.playhead ? "#ffffff"
                                             : (root.trailStrong ? "#e4e4e4"
                                                                 : (root.trailWeak ? "#a49099"
-                                                                                  : Retro.txtDark))
+                                                                                  : "#7a8aaf"))
         font.family: Retro.mono
-        font.pixelSize: Retro.fsLabel
-        font.bold: root.active || root.playhead
+        font.pixelSize: root.active ? Retro.fsValue : Retro.fsLabel
+        font.bold: true
     }
 }

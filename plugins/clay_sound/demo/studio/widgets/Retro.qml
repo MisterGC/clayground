@@ -46,10 +46,10 @@ QtObject {
     // Font
     readonly property string mono: Qt.platform.os === "osx" ? "Menlo" :
                                    Qt.platform.os === "windows" ? "Consolas" : "monospace"
-    readonly property int fsLabel:   10
-    readonly property int fsValue:   12
-    readonly property int fsHeader:  14
-    readonly property int fsTitle:   18
+    readonly property int fsLabel:   11
+    readonly property int fsValue:   13
+    readonly property int fsHeader:  15
+    readonly property int fsTitle:   20
 
     // Pixel grid — align everything to 2 px for the crisp retro feel.
     readonly property int grid: 2
