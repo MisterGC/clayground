@@ -359,6 +359,47 @@ Rectangle {
             root._handleVimKey(ev)
     }
 
+    // Global shortcuts — survive focus theft by knobs/sliders/buttons.
+    // These cover the vim entry points; once they fire we reclaim focus
+    // so subsequent in-mode keys flow through Keys.onPressed normally.
+    Shortcut {
+        sequence: "Space"
+        enabled: root.vimMode && root.vimSubmode !== "insert" && root.vimSubmode !== "append"
+        onActivated: {
+            if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
+            else                 { tracker.step = -1; tracker.playing = true }
+            if (root.vimSubmode === "jump")    root._exitJump()
+            if (root.vimSubmode === "replace") root.vimSubmode = "normal"
+            root.forceActiveFocus()
+        }
+    }
+    Shortcut {
+        sequence: "F"
+        enabled: root.vimMode && (root.vimSubmode === "normal" || root.vimSubmode === "focus")
+        onActivated: { root._enterJump(); root.forceActiveFocus() }
+    }
+    Shortcut {
+        sequence: "I"
+        enabled: root.vimMode && root.vimSubmode === "normal"
+        onActivated: { root.vimSubmode = "insert"; root.forceActiveFocus() }
+    }
+    Shortcut {
+        sequence: "A"
+        enabled: root.vimMode && root.vimSubmode === "normal"
+        onActivated: { root.vimSubmode = "append"; root.forceActiveFocus() }
+    }
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.vimMode
+        onActivated: {
+            if (helpOverlay.open) { helpOverlay.open = false; root.forceActiveFocus(); return }
+            if (root.vimSubmode === "jump")  root._exitJump()
+            else if (root.vimSubmode === "focus") root._exitFocus()
+            else                                  root.vimSubmode = "normal"
+            root.forceActiveFocus()
+        }
+    }
+
     // --- Sample Bank (4 slots, editable live) ------------------------
     // Each slot IS a SynthInstrument — editing its properties while the
     // tracker loops means the next trigger uses the new patch. The
