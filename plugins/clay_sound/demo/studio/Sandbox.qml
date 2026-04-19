@@ -227,6 +227,18 @@ Rectangle {
     }
 
     function _handleVimKey(ev) {
+        // Global: <Space> toggles play in any mode except insert/append,
+        // where it has its own cursor-advance / skip semantic.
+        if (ev.key === Qt.Key_Space
+            && root.vimSubmode !== "insert"
+            && root.vimSubmode !== "append") {
+            if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
+            else                 { tracker.step = -1; tracker.playing = true }
+            if (root.vimSubmode === "jump")    root._exitJump()
+            if (root.vimSubmode === "replace") root.vimSubmode = "normal"
+            ev.accepted = true
+            return
+        }
         if (root.vimSubmode === "normal")  return root._vimNormal(ev)
         if (root.vimSubmode === "insert")  return root._vimInsert(ev)
         if (root.vimSubmode === "append")  return root._vimAppend(ev)
@@ -252,12 +264,6 @@ Rectangle {
         if (ev.key === Qt.Key_F) { root._enterJump(); ev.accepted = true; return }
         if (ev.key === Qt.Key_U) { tracker.undo(); ev.accepted = true; return }
         if (ev.key === Qt.Key_X) { root._clearCurrent(); ev.accepted = true; return }
-        // <Space> toggles play/stop in normal mode (DAW convention).
-        if (ev.key === Qt.Key_Space) {
-            if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
-            else                 { tracker.step = -1; tracker.playing = true }
-            ev.accepted = true; return
-        }
         if (ev.text === ",") { root._shiftBaseOctave(-5); ev.accepted = true; return }
         if (ev.text === ".") { root._shiftBaseOctave( 5); ev.accepted = true; return }
     }
