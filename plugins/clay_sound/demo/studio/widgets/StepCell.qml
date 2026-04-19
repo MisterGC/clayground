@@ -38,10 +38,29 @@ Rectangle {
         return beat ? "#1a2742" : "#0f1628"
     }
 
-    border.width: 1
+    border.width: cursor ? 2 : 1
     border.color: cursor ? Retro.cyan
                 : (active ? Qt.lighter(Retro.teal, 1.3)
                           : (beat ? "#2a3656" : "#1b2540"))
+
+    // Pulsing cyan halo around the cell when the keyboard cursor is on it.
+    // Sits OUTSIDE the cell so it's visible regardless of cell fill colour.
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -3
+        color: "transparent"
+        border.color: Retro.cyan
+        border.width: 2
+        radius: root.radius + 3
+        visible: root.cursor
+        z: 5
+        SequentialAnimation on opacity {
+            running: root.cursor
+            loops: Animation.Infinite
+            NumberAnimation { from: 0.55; to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+            NumberAnimation { from: 1.0; to: 0.55; duration: 400; easing.type: Easing.InOutQuad }
+        }
+    }
 
     // Always-visible inner top highlight (the "key cap" edge).
     Rectangle {

@@ -24,9 +24,62 @@ Rectangle {
     // Vim-mode flag (wired to RetroToggle in the header). When true,
     // the keyboard handler dispatches into the vim state machine below.
     property bool vimMode: false
-    // Sub-mode within vimMode: "normal" | "insert" | "append" | "replace"
+    // Sub-mode within vimMode: "normal" | "insert" | "append" | "replace" | "jump"
     property string vimSubmode: "normal"
-    onVimModeChanged: if (!vimMode) vimSubmode = "normal"
+    onVimModeChanged: if (!vimMode) { vimSubmode = "normal"; _jumpPrefix = "" }
+
+    // Accumulated keystrokes while in jump mode (max 2 chars).
+    property string _jumpPrefix: ""
+
+    // Jump label → action callback. All actions return to normal when done.
+    // Convention: first char = category, second char = position.
+    //   r{1-4} jump cursor to tracker row N
+    //   c{1-3} apply cartridge preset (FROG/COLUMN/MAMPFER)
+    //   t{p,s,c,l}  transport: PLAY toggle / STOP / CLEAR / LOOP toggle
+    //   p{1-4} toggle slot N PREVIEW loop
+    property var _jumpActions: ({})
+
+    function _buildJumpActions() {
+        var a = {}
+        a["r1"] = function() { tracker.cursorRow = 0 }
+        a["r2"] = function() { tracker.cursorRow = 1 }
+        a["r3"] = function() { tracker.cursorRow = 2 }
+        a["r4"] = function() { tracker.cursorRow = 3 }
+        a["c1"] = function() { tracker.applyPreset("frog");    statusText.text = "preset: frog" }
+        a["c2"] = function() { tracker.applyPreset("column");  statusText.text = "preset: column" }
+        a["c3"] = function() { tracker.applyPreset("mampfer"); statusText.text = "preset: mampfer" }
+        a["tp"] = function() {
+            if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
+            else                 { tracker.step = -1; tracker.playing = true }
+        }
+        a["ts"] = function() { tracker.playing = false; tracker.step = -1 }
+        a["tc"] = function() { tracker.clearAll() }
+        a["tl"] = function() { tracker.loop = !tracker.loop }
+        a["p1"] = function() { var sp = slotRepeater.itemAt(0); if (sp) sp.previewing = !sp.previewing }
+        a["p2"] = function() { var sp = slotRepeater.itemAt(1); if (sp) sp.previewing = !sp.previewing }
+        a["p3"] = function() { var sp = slotRepeater.itemAt(2); if (sp) sp.previewing = !sp.previewing }
+        a["p4"] = function() { var sp = slotRepeater.itemAt(3); if (sp) sp.previewing = !sp.previewing }
+        _jumpActions = a
+    }
+    Component.onCompleted: _buildJumpActions()
+
+    function _enterJump() { vimSubmode = "jump"; _jumpPrefix = "" }
+    function _exitJump()  { vimSubmode = "normal"; _jumpPrefix = "" }
+    function _processJumpKey(text) {
+        if (text.length !== 1) return false
+        var next = _jumpPrefix + text
+        // Check if any label starts with `next`. If none, abort.
+        var anyMatch = false
+        for (var k in _jumpActions) { if (k.indexOf(next) === 0) { anyMatch = true; break } }
+        if (!anyMatch) { _exitJump(); return true }
+        if (next.length === 2 && _jumpActions[next]) {
+            _jumpActions[next]()
+            _exitJump()
+            return true
+        }
+        _jumpPrefix = next
+        return true
+    }
 
     // First palette index that the leftmost note key ('a') maps to.
     // The 10 note keys (`asdfghjkl{`) cover [noteBaseIdx ... noteBaseIdx+9].
@@ -52,6 +105,14 @@ Rectangle {
         tracker.cellSet(tracker.cursorRow, tracker.cursorCol, palIdx)
         tracker.presetName = "(user)"
         root._flashNote(palIdx)
+        // Audition the note when the tracker is idle so the user hears
+        // what they entered. While the tracker plays, the stepTimer will
+        // fire it on its own — we don't double up.
+        if (!tracker.playing) {
+            var midi = tracker.palette[palIdx]
+            if (midi >= 0)
+                root._bankSlots[tracker.cursorRow].triggerNote(midi, 0.85, 0.25)
+        }
         if (advance)
             tracker.cursorCol = (tracker.cursorCol + 1) % tracker.stepCount
     }
@@ -65,6 +126,7 @@ Rectangle {
         if (root.vimSubmode === "insert")  return root._vimInsert(ev)
         if (root.vimSubmode === "append")  return root._vimAppend(ev)
         if (root.vimSubmode === "replace") return root._vimReplace(ev)
+        if (root.vimSubmode === "jump")    return root._vimJump(ev)
     }
     function _vimNormal(ev) {
         if (ev.key === Qt.Key_H) { tracker.moveCursor(0, -1); ev.accepted = true; return }
@@ -74,9 +136,22 @@ Rectangle {
         if (ev.key === Qt.Key_I) { root.vimSubmode = "insert";  ev.accepted = true; return }
         if (ev.key === Qt.Key_A) { root.vimSubmode = "append";  ev.accepted = true; return }
         if (ev.key === Qt.Key_R) { root.vimSubmode = "replace"; ev.accepted = true; return }
+        if (ev.key === Qt.Key_F) { root._enterJump(); ev.accepted = true; return }
         if (ev.key === Qt.Key_X) { root._clearCurrent(); ev.accepted = true; return }
+        // <Space> toggles play/stop in normal mode (DAW convention).
+        if (ev.key === Qt.Key_Space) {
+            if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
+            else                 { tracker.step = -1; tracker.playing = true }
+            ev.accepted = true; return
+        }
         if (ev.text === ",") { root._shiftBaseOctave(-5); ev.accepted = true; return }
         if (ev.text === ".") { root._shiftBaseOctave( 5); ev.accepted = true; return }
+    }
+    function _vimJump(ev) {
+        if (ev.key === Qt.Key_Escape) { root._exitJump(); ev.accepted = true; return }
+        if (ev.text && ev.text.length === 1) {
+            if (root._processJumpKey(ev.text)) { ev.accepted = true; return }
+        }
     }
     function _vimInsert(ev) {
         if (ev.key === Qt.Key_Escape)    { root.vimSubmode = "normal"; ev.accepted = true; return }
@@ -119,6 +194,29 @@ Rectangle {
             root._setCellAndMaybeAdvance(root.noteBaseIdx + ni, false)
         root.vimSubmode = "normal"
         ev.accepted = true
+    }
+
+    // Compact 2-letter jump label. Visible only while in jump mode,
+    // dims labels whose code doesn't match the current prefix.
+    component JumpLabel : Rectangle {
+        property string code: ""
+        visible: root.vimSubmode === "jump"
+        opacity: (root._jumpPrefix === "" || code.indexOf(root._jumpPrefix) === 0) ? 1.0 : 0.25
+        z: 1000
+        width: 22
+        height: 14
+        radius: 2
+        color: W.Retro.amber
+        border.color: W.Retro.bevelHi
+        border.width: 1
+        Text {
+            anchors.centerIn: parent
+            text: parent.code
+            color: "#0a0f1a"
+            font.family: W.Retro.mono
+            font.pixelSize: W.Retro.fsLabel
+            font.bold: true
+        }
     }
 
     Keys.onPressed: (ev) => {
@@ -353,6 +451,7 @@ Rectangle {
             spacing: 8
 
             Repeater {
+                id: slotRepeater
                 model: [
                     { title: "S1 KICK", role: "kick", inst: slot0,
                       prev: [36, 0.9, 0.3], bake: [36, 0.5, 0.9] },
@@ -367,6 +466,12 @@ Rectangle {
                     id: sp
                     Layout.preferredWidth: 220
                     Layout.preferredHeight: 446
+                    JumpLabel {
+                        code: "p" + (index + 1)
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 4
+                    }
                     title: modelData.title
                     role: modelData.role
                     accent: W.Retro.amber
@@ -762,22 +867,46 @@ Rectangle {
                             accent: W.Retro.green
                             on: tracker.playing
                             onClicked: { tracker.step = -1; tracker.playing = true }
+                            JumpLabel {
+                                code: "tp"
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 2
+                            }
                         }
                         RetroBtn {
                             text: "■ STOP"
                             accent: W.Retro.red
                             onClicked: { tracker.playing = false; tracker.step = -1 }
+                            JumpLabel {
+                                code: "ts"
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 2
+                            }
                         }
                         RetroBtn {
                             text: "CLEAR"
                             accent: W.Retro.pink
                             onClicked: tracker.clearAll()
+                            JumpLabel {
+                                code: "tc"
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 2
+                            }
                         }
                         RetroBtn {
                             text: "LOOP"
                             accent: W.Retro.teal
                             on: tracker.loop
                             onClicked: tracker.loop = !tracker.loop
+                            JumpLabel {
+                                code: "tl"
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 2
+                            }
                         }
                     }
 
@@ -818,18 +947,36 @@ Rectangle {
                         tag: "01"; label: "FROG"
                         selected: tracker.presetName === "frog"
                         onClicked: { tracker.applyPreset("frog"); statusText.text = "preset: frog" }
+                        JumpLabel {
+                            code: "c1"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 2
+                        }
                     }
                     W.CartridgeButton {
                         width: 140; height: 28
                         tag: "02"; label: "COLUMN"
                         selected: tracker.presetName === "column"
                         onClicked: { tracker.applyPreset("column"); statusText.text = "preset: column" }
+                        JumpLabel {
+                            code: "c2"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 2
+                        }
                     }
                     W.CartridgeButton {
                         width: 140; height: 28
                         tag: "03"; label: "MAMPFER"
                         selected: tracker.presetName === "mampfer"
                         onClicked: { tracker.applyPreset("mampfer"); statusText.text = "preset: mampfer" }
+                        JumpLabel {
+                            code: "c3"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 2
+                        }
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -880,6 +1027,12 @@ Rectangle {
                                         font.family: W.Retro.mono
                                         font.bold: true
                                         font.pixelSize: W.Retro.fsValue
+                                    }
+                                    JumpLabel {
+                                        code: "r" + (rowIdx + 1)
+                                        anchors.top: parent.top
+                                        anchors.right: parent.right
+                                        anchors.margins: 1
                                     }
                                 }
                                 Repeater {
