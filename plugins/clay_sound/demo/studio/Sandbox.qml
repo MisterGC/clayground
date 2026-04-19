@@ -81,6 +81,11 @@ Rectangle {
         a["sj"] = function() { _enterFocus("p1:1") }
         a["sk"] = function() { _enterFocus("p1:2") }
         a["sl"] = function() { _enterFocus("p1:3") }
+        // Slot secondary knob → focus (DECAY / RELEASE / LFO / GLIDE)
+        a["dh"] = function() { _enterFocus("p2:0") }
+        a["dj"] = function() { _enterFocus("p2:1") }
+        a["dk"] = function() { _enterFocus("p2:2") }
+        a["dl"] = function() { _enterFocus("p2:3") }
         // Slot VOL → focus
         a["fh"] = function() { _enterFocus("vol:0") }
         a["fj"] = function() { _enterFocus("vol:1") }
@@ -128,6 +133,22 @@ Rectangle {
                 if (slot.pitchTime <= 0) slot.pitchTime = 0.01
             } else if (role === "hat") {
                 slot.sustain = Math.max(0, Math.min(1, slot.sustain + delta * 0.05))
+            }
+        } else if (vimFocus.indexOf("p2:") === 0) {
+            var i2 = parseInt(vimFocus.split(":")[1])
+            var slot2 = _bankSlots[i2]
+            var role2 = ["kick", "hat", "lead", "bass"][i2]
+            if (role2 === "kick") {
+                slot2.decay = Math.max(0, Math.min(1, slot2.decay + delta * 0.05))
+            } else if (role2 === "hat") {
+                slot2.release = Math.max(0, Math.min(0.6, slot2.release + delta * 0.03))
+            } else if (role2 === "lead") {
+                var lv = Math.max(0, Math.min(4, slot2.lfoDepth + delta * 0.2))
+                slot2.lfoDepth = lv
+                slot2.lfoRate = 5
+                slot2.lfoTarget = lv > 0 ? "pitch" : "none"
+            } else if (role2 === "bass") {
+                slot2.pitchTime = Math.max(0, Math.min(0.4, slot2.pitchTime + delta * 0.02))
             }
         } else if (vimFocus.indexOf("vol:") === 0) {
             var idx = parseInt(vimFocus.split(":")[1])
@@ -578,6 +599,7 @@ Rectangle {
                     jumpPrefix: root._jumpPrefix
                     jumpActive: root.vimSubmode === "jump"
                     focusedControl: root.vimFocus === ("p1:" + index)  ? "p1"
+                                  : root.vimFocus === ("p2:" + index)  ? "p2"
                                   : root.vimFocus === ("vol:" + index) ? "vol"
                                   : ""
 

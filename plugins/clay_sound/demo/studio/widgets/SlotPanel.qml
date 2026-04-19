@@ -241,6 +241,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.decay : 0
                 meterColor: Retro.teal
                 onValueEdited: (v) => { if (root.instrument) root.instrument.decay = v }
+                focused: root.focusedControl === "p2"
+                jumpCode: "d" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
 
             // HAT — NOISE + RELEASE
@@ -265,6 +269,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.release : 0
                 meterColor: Retro.amber
                 onValueEdited: (v) => { if (root.instrument) root.instrument.release = v }
+                focused: root.focusedControl === "p2"
+                jumpCode: "d" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
 
             // LEAD — TUNE + LFO
@@ -305,6 +313,10 @@ RetroPanel {
                         root.instrument.lfoTarget = v > 0 ? "pitch" : "none"
                     }
                 }
+                focused: root.focusedControl === "p2"
+                jumpCode: "d" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
 
             // BASS — TUNE + GLIDE
@@ -329,6 +341,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.pitchTime : 0
                 meterColor: Retro.red
                 onValueEdited: (v) => { if (root.instrument) root.instrument.pitchTime = v }
+                focused: root.focusedControl === "p2"
+                jumpCode: "d" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
 
         }
