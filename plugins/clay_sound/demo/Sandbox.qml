@@ -989,26 +989,23 @@ Rectangle {
                                 }
                                 Repeater {
                                     model: tracker.stepCount
-                                    Rectangle {
+                                    W.StepCell {
                                         readonly property int  stepIdx: index
                                         readonly property int  paletteIdx: tracker.tracks[parent.rowIdx][stepIdx]
-                                        readonly property bool isCurrent: tracker.step === stepIdx
-                                        readonly property bool isBeat: (stepIdx % 4) === 0
-                                        width: tracker.cellWidth; height: 22
-                                        radius: 3
-                                        color: isCurrent ? "#ff3366"
-                                                         : (paletteIdx > 0 ? "#0f9d9a"
-                                                                           : (isBeat ? "#2a3246" : "#1a2234"))
-                                        border.color: isBeat ? "#3f4b68" : "#2a3246"
-                                        border.width: 1
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: tracker.paletteLabels[paletteIdx]
-                                            color: paletteIdx > 0 ? "#ffffff" : root.dimTextColor
-                                            font.family: root.monoFont
-                                            font.pixelSize: 10
-                                            font.bold: paletteIdx > 0
+                                        // Distance behind the live playhead (0 = on it, 1/2 = trail).
+                                        readonly property int _delta: {
+                                            var d = tracker.step - stepIdx
+                                            if (d < 0) d += tracker.stepCount
+                                            return d
                                         }
+                                        width: tracker.cellWidth; height: 22
+                                        label: tracker.paletteLabels[paletteIdx]
+                                        active: paletteIdx > 0
+                                        playhead:    tracker.playing && _delta === 0
+                                        trailStrong: tracker.playing && _delta === 1
+                                        trailWeak:   tracker.playing && _delta === 2
+                                        beat:        (stepIdx % 4) === 0
+                                        bar:         (stepIdx % 16) === 0 && stepIdx > 0
                                         MouseArea {
                                             anchors.fill: parent
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton
