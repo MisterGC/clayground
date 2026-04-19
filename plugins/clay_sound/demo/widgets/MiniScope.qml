@@ -24,6 +24,13 @@ Item {
     property color traceDim:    Retro.amberDim
     property color bg:          Retro.inset
     property color gridColor:   "#1a2234"
+    // Horizontal block width — chunky low-res look. 1 = smooth.
+    property int   pixelStep: 3
+    // Gap between horizontal blocks (adds the CRT "pixel grid" feel).
+    property int   pixelGap: 1
+    // Vertical quantization: amplitudes snap to N discrete steps per
+    // half-height. 0 = no snap.
+    property int   vSteps: 14
     // True briefly after a trigger — scope flashes for feedback.
     property bool  trigger: false
 
@@ -72,38 +79,50 @@ Item {
             ctx.reset()
             var n = root.samples ? root.samples.length : 0
             if (n === 0) return
-            var cy = height / 2
-            var step = n / width
-            ctx.fillStyle = root.traceColor
-            ctx.strokeStyle = root.traceColor
-            for (var x = 0; x < width; ++x) {
-                // Take the peak absolute value in this pixel's sample
-                // slice — pixelated readout that still shows dynamics.
-                var start = Math.floor(x * step)
-                var end   = Math.min(n, Math.floor((x + 1) * step))
-                if (end <= start) end = start + 1
+            var cy = Math.round(height / 2)
+            var blockW = Math.max(1, root.pixelStep)
+            var gap    = Math.max(0, root.pixelGap)
+            var stride = blockW + gap
+            var cols   = Math.max(1, Math.floor(width / stride))
+            var span   = n / cols
+            var halfH  = cy - 2
+            var vSnap  = root.vSteps > 0 ? root.vSteps : 0
+
+            for (var c = 0; c < cols; ++c) {
+                var start = Math.floor(c * span)
+                var end   = Math.max(start + 1, Math.floor((c + 1) * span))
+                if (end > n) end = n
                 var peak = 0
                 for (var i = start; i < end; ++i) {
                     var v = root.samples[i]
                     if (Math.abs(v) > Math.abs(peak)) peak = v
                 }
-                // Scale: -1..1 → pixel height
-                var amp = peak * (cy - 2)
+                // Vertical quantise: snap peak to N discrete levels per half.
+                if (vSnap > 0) {
+                    var sign = peak >= 0 ? 1 : -1
+                    var q = Math.round(Math.abs(peak) * vSnap) / vSnap
+                    peak = sign * q
+                }
+                var amp = peak * halfH
                 var top = cy - Math.max(0, amp)
                 var bot = cy - Math.min(0, amp)
+                var xPx = c * stride
                 if (top < cy) {
                     ctx.fillStyle = root.traceColor
-                    ctx.fillRect(x, Math.round(top), 1, Math.round(cy - top))
+                    ctx.fillRect(xPx, Math.round(top), blockW, Math.max(2, Math.round(cy - top)))
                 }
                 if (bot > cy) {
                     ctx.fillStyle = root.traceDim
-                    ctx.fillRect(x, Math.round(cy), 1, Math.round(bot - cy))
+                    ctx.fillRect(xPx, Math.round(cy), blockW, Math.max(2, Math.round(bot - cy)))
                 }
             }
         }
         Connections {
             target: root
-            function onSamplesChanged() { trace.requestPaint() }
+            function onSamplesChanged()   { trace.requestPaint() }
+            function onPixelStepChanged() { trace.requestPaint() }
+            function onPixelGapChanged()  { trace.requestPaint() }
+            function onVStepsChanged()    { trace.requestPaint() }
         }
     }
 

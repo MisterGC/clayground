@@ -23,9 +23,12 @@ Item {
     property color  traceColor: Retro.txt
     property color  gridColor:  "#1a2234"
     property color  bg:         Retro.inset
-    // How many horizontal pixels between vertices — larger values =
-    // chunkier/more retro. 4 is a good default.
-    property int    pixelStep: 4
+    // Horizontal block width — bigger = chunkier/more retro.
+    property int    pixelStep: 6
+    // Gap between horizontal blocks.
+    property int    pixelGap:  1
+    // Vertical quantization — value snaps to this many bands (0 = off).
+    property int    vSteps:    10
 
     implicitHeight: 56
 
@@ -92,28 +95,34 @@ Item {
 
             // Draw pixel-stepped rectangles for a clearly digital look
             ctx.fillStyle = root.traceColor
-            var columns = Math.floor(width / root.pixelStep)
-            var prevY = null
+            var blockW = Math.max(1, root.pixelStep)
+            var gap    = Math.max(0, root.pixelGap)
+            var stride = blockW + gap
+            var columns = Math.max(1, Math.floor(width / stride))
+            var prevTop = null
             for (var c = 0; c < columns; ++c) {
-                var xPx = c * root.pixelStep
-                var t = c / (columns - 1)
+                var xPx = c * stride
+                var t = columns > 1 ? c / (columns - 1) : 0
                 var y = yAt(t)
-                var h = Math.max(1, y * (height - 2))
+                if (root.vSteps > 0) y = Math.round(y * root.vSteps) / root.vSteps
+                var h = Math.max(2, y * (height - 2))
                 var top = Math.round(height - h)
-                ctx.fillRect(xPx, top, root.pixelStep, 2)
-                if (prevY !== null && prevY !== top) {
-                    var lo = Math.min(prevY, top)
-                    var hi = Math.max(prevY, top)
-                    ctx.fillRect(xPx, lo, 2, hi - lo + 2)
+                ctx.fillRect(xPx, top, blockW, 2)
+                if (prevTop !== null && prevTop !== top) {
+                    var lo = Math.min(prevTop, top)
+                    var hi = Math.max(prevTop, top)
+                    ctx.fillRect(xPx, lo, Math.max(1, Math.floor(blockW / 2)), hi - lo + 2)
                 }
-                prevY = top
+                prevTop = top
             }
         }
         Connections {
             target: root
-            function onPointsChanged() { trace.requestPaint() }
+            function onPointsChanged()     { trace.requestPaint() }
             function onTraceColorChanged() { trace.requestPaint() }
-            function onPixelStepChanged() { trace.requestPaint() }
+            function onPixelStepChanged()  { trace.requestPaint() }
+            function onPixelGapChanged()   { trace.requestPaint() }
+            function onVStepsChanged()     { trace.requestPaint() }
         }
     }
 }
