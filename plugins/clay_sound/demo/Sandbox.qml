@@ -555,14 +555,13 @@ Rectangle {
                 width: parent.parent.width
                 spacing: 16
 
-                // ------- Sample Bank (4 cartridges) -------------------
-                Row {
+                // ------- Sample Bank (4 cartridge strips stacked) -----
+                Column {
                     width: parent.width
-                    spacing: 8
-                    readonly property int slotW: (width - 3 * spacing) / 4
+                    spacing: 6
 
                     W.SlotPanel {
-                        width: parent.slotW; height: 360
+                        width: parent.width; height: 100
                         title: "S1 KICK"
                         role: "kick"
                         accent: W.Retro.amber
@@ -575,7 +574,7 @@ Rectangle {
                         }
                     }
                     W.SlotPanel {
-                        width: parent.slotW; height: 360
+                        width: parent.width; height: 100
                         title: "S2 HAT"
                         role: "hat"
                         accent: W.Retro.amber
@@ -588,7 +587,7 @@ Rectangle {
                         }
                     }
                     W.SlotPanel {
-                        width: parent.slotW; height: 360
+                        width: parent.width; height: 100
                         title: "S3 LEAD"
                         role: "lead"
                         accent: W.Retro.amber
@@ -601,7 +600,7 @@ Rectangle {
                         }
                     }
                     W.SlotPanel {
-                        width: parent.slotW; height: 360
+                        width: parent.width; height: 100
                         title: "S4 BASS"
                         role: "bass"
                         accent: W.Retro.amber
