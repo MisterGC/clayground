@@ -7,11 +7,13 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Clayground.Sound
+import "widgets" as W
 
 Rectangle {
     id: root
     anchors.fill: parent
     color: "#1a1a2e"
+    focus: true
 
     property color accentColor: "#0f9d9a"
     property color surfaceColor: "#16213e"
@@ -19,6 +21,23 @@ Rectangle {
     property color dimTextColor: "#8a8a8a"
     property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
                               Qt.platform.os === "windows" ? "Consolas" : "monospace"
+
+    // Vim-mode flag (wired to RetroToggle in the Studio tab); keyboard
+    // navigation logic comes in substage 5e.
+    property bool vimMode: false
+
+    Keys.onPressed: (ev) => {
+        if (ev.key === Qt.Key_F1) {
+            helpOverlay.open = !helpOverlay.open
+            ev.accepted = true
+        } else if (ev.key === Qt.Key_F12) {
+            root.vimMode = !root.vimMode
+            ev.accepted = true
+        } else if (ev.key === Qt.Key_Escape && helpOverlay.open) {
+            helpOverlay.open = false
+            ev.accepted = true
+        }
+    }
 
     // --- Basics: wrapper demos ---------------------------------------
     Sound {
@@ -153,8 +172,8 @@ Rectangle {
             id: tabs
             anchors.horizontalCenter: parent.horizontalCenter
             width: parent.width * 0.5
-            TabButton { text: "Basics" }
             TabButton { text: "Studio" }
+            TabButton { text: "Basics" }
         }
     }
 
@@ -167,7 +186,8 @@ Rectangle {
         anchors.right: parent.right
         anchors.leftMargin: parent.width * 0.1
         anchors.rightMargin: parent.width * 0.1
-        currentIndex: tabs.currentIndex
+        // Tab 0 = Studio (shown second in StackLayout), tab 1 = Basics
+        currentIndex: tabs.currentIndex === 0 ? 1 : 0
 
         // =============================================================
         // Tab 1 — Basics
@@ -503,6 +523,117 @@ Rectangle {
             Column {
                 width: parent.parent.width
                 spacing: 16
+
+                // ------- Widget preview (5a smoke) --------------------
+                Rectangle {
+                    width: parent.width
+                    height: 240
+                    color: root.surfaceColor
+                    radius: 8
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 16
+
+                        W.RetroPanel {
+                            width: 260; height: 200
+                            title: "S1 KICK"
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 6
+                                spacing: 6
+                                W.MiniScope {
+                                    id: previewScope
+                                    width: parent.width
+                                    height: 50
+                                    samples: {
+                                        // Build a simple test wave (two cycles of a decaying sine)
+                                        var out = []
+                                        for (var i = 0; i < 256; ++i) {
+                                            var t = i / 256
+                                            out.push(Math.sin(t * Math.PI * 8) * (1 - t))
+                                        }
+                                        return out
+                                    }
+                                }
+                                W.LEDBar {
+                                    width: parent.width; height: 8
+                                    count: 16; active: 9.4
+                                }
+                                Row {
+                                    spacing: 8
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    W.RetroKnob {
+                                        width: 64; height: 70
+                                        label: "TUNE"
+                                        from: -24; to: 24; steps: 48
+                                        value: 3
+                                    }
+                                    W.RetroKnob {
+                                        width: 64; height: 70
+                                        label: "DECAY"
+                                        from: 0; to: 1; steps: 24
+                                        value: 0.3
+                                        accent: W.Retro.pink
+                                    }
+                                }
+                            }
+                        }
+
+                        Column {
+                            spacing: 10
+                            W.StepGraph {
+                                width: 200; height: 64
+                                label: "ADSR"
+                                points: [[0, 0], [0.12, 1], [0.3, 0.6], [0.78, 0.6], [1, 0]]
+                            }
+                            W.StepGraph {
+                                width: 200; height: 54
+                                label: "PITCH"
+                                points: [[0, 0.55], [0.08, 0.9], [0.4, 0.5], [1, 0.5]]
+                                traceColor: W.Retro.teal
+                            }
+                            Row {
+                                spacing: 4
+                                Repeater {
+                                    model: ["C2", "---", "Eb3", "G4"]
+                                    W.StepCell {
+                                        label: modelData
+                                        active: modelData !== "---"
+                                        beat: index % 2 === 0
+                                        playhead: index === 2
+                                    }
+                                }
+                            }
+                        }
+
+                        Column {
+                            spacing: 10
+                            W.CartridgeButton {
+                                width: 160; height: 34
+                                tag: "01"; label: "CHIP RALLY"
+                                selected: true
+                            }
+                            W.CartridgeButton {
+                                width: 160; height: 34
+                                tag: "02"; label: "NEON CLUB"
+                            }
+                            W.CartridgeButton {
+                                width: 160; height: 34
+                                tag: "03"; label: "BOSS FIGHT"
+                            }
+                            W.RetroToggle {
+                                width: 130; height: 28
+                                leftLabel: "MOUSE"; rightLabel: "VIM"
+                                checked: vimMode
+                                onToggled: (v) => vimMode = v
+                            }
+                            Button {
+                                text: "? Help (F1)"
+                                onClicked: helpOverlay.open = true
+                            }
+                        }
+                    }
+                }
 
                 // ------- Sample Bank ----------------------------------
                 Rectangle {
@@ -943,5 +1074,10 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
+    }
+
+    W.HelpOverlay {
+        id: helpOverlay
+        onClosed: root.forceActiveFocus()
     }
 }

@@ -1,0 +1,11 @@
+module Widgets
+singleton Retro 1.0 Retro.qml
+RetroPanel 1.0 RetroPanel.qml
+LEDBar 1.0 LEDBar.qml
+RetroKnob 1.0 RetroKnob.qml
+MiniScope 1.0 MiniScope.qml
+StepGraph 1.0 StepGraph.qml
+StepCell 1.0 StepCell.qml
+CartridgeButton 1.0 CartridgeButton.qml
+RetroToggle 1.0 RetroToggle.qml
+HelpOverlay 1.0 HelpOverlay.qml
