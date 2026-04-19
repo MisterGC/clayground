@@ -615,12 +615,13 @@ Rectangle {
                 }
 
                 // ------- Tracker --------------------------------------
-                Rectangle {
+                W.RetroPanel {
                     id: tracker
                     width: parent.width
-                    height: trackerColumn.height + 30
-                    color: root.surfaceColor
-                    radius: 8
+                    height: trackerColumn.height + 46
+                    title: "TRACKER · " + tracker.stepCount + " STEPS × " + tracker.trackCount + " TRACKS"
+                    titleColor: W.Retro.teal
+                    activeLeds: tracker.playing ? 4 : 1
 
                     readonly property var palette: [
                         -1,
@@ -692,59 +693,79 @@ Rectangle {
                     }
 
                     function applyPreset(name) {
-                        if (name === "psy") {
+                        if (name === "chip_rally") {
                             bpm = 145
-                            presetName = "psy trance"
+                            presetName = "chip rally"
                             stepCount = 16
-                            // Slot 0 — deep saw kick with snappy pitch drop
                             slot0.waveform = "sawtooth"
                             slot0.attack = 0.001; slot0.decay = 0.10; slot0.sustain = 0.0; slot0.release = 0.05
                             slot0.pitchStart = 12; slot0.pitchEnd = -4; slot0.pitchTime = 0.08
-                            // Slot 1 — tight noise hat
                             slot1.waveform = "noise"
                             slot1.attack = 0.001; slot1.decay = 0.04; slot1.sustain = 0.0; slot1.release = 0.02
                             slot1.pitchStart = 0; slot1.pitchEnd = 0; slot1.pitchTime = 0
-                            // Slot 2 — bright saw lead
                             slot2.waveform = "sawtooth"
                             slot2.attack = 0.005; slot2.decay = 0.15; slot2.sustain = 0.3; slot2.release = 0.08
                             slot2.pitchStart = 0; slot2.pitchEnd = 0; slot2.pitchTime = 0
-                            // Slot 3 — rolling saw bass
                             slot3.waveform = "sawtooth"
                             slot3.attack = 0.001; slot3.decay = 0.05; slot3.sustain = 0.4; slot3.release = 0.04
                             slot3.pitchStart = 0; slot3.pitchEnd = 0; slot3.pitchTime = 0
-                            // 4-on-the-floor kick, offbeat hats, sparse lead, rolling 16ths bass
                             var k = Array(16).fill(0); k[0]=6; k[4]=6; k[8]=6; k[12]=6
                             var h = Array(16).fill(0); h[2]=12; h[6]=12; h[10]=12; h[14]=12
-                            var l = Array(16).fill(0); l[3]=19; l[11]=18  // G4, F4
+                            var l = Array(16).fill(0); l[3]=19; l[11]=18
                             var b = Array(16).fill(0)
-                            for (var i = 0; i < 16; ++i) if (i % 4 !== 0) b[i] = 6  // C2 everywhere except kick slots
+                            for (var i = 0; i < 16; ++i) if (i % 4 !== 0) b[i] = 6
                             tracks = [k, h, l, b]
-                        } else if (name === "house") {
+                        } else if (name === "neon_club") {
                             bpm = 124
-                            presetName = "classic house"
+                            presetName = "neon club"
                             stepCount = 16
-                            // Slot 0 — soft sine kick
                             slot0.waveform = "sine"
                             slot0.attack = 0.002; slot0.decay = 0.12; slot0.sustain = 0.0; slot0.release = 0.08
                             slot0.pitchStart = 6; slot0.pitchEnd = -2; slot0.pitchTime = 0.1
-                            // Slot 1 — clap-flavoured noise
                             slot1.waveform = "noise"
                             slot1.attack = 0.003; slot1.decay = 0.08; slot1.sustain = 0.0; slot1.release = 0.04
                             slot1.pitchStart = 0; slot1.pitchEnd = 0; slot1.pitchTime = 0
-                            // Slot 2 — warm triangle lead
                             slot2.waveform = "triangle"
                             slot2.attack = 0.01; slot2.decay = 0.1; slot2.sustain = 0.5; slot2.release = 0.15
                             slot2.pitchStart = 0; slot2.pitchEnd = 0; slot2.pitchTime = 0
-                            // Slot 3 — round triangle bass
                             slot3.waveform = "triangle"
                             slot3.attack = 0.005; slot3.decay = 0.15; slot3.sustain = 0.55; slot3.release = 0.18
                             slot3.pitchStart = 0; slot3.pitchEnd = 0; slot3.pitchTime = 0
-                            // 4-on-the-floor kick, claps on 2&4, sparse lead, offbeat bass line
                             var kk = Array(16).fill(0); kk[0]=6; kk[4]=6; kk[8]=6; kk[12]=6
-                            var cp = Array(16).fill(0); cp[4]=16; cp[12]=16                // C4 clap
-                            var ll = Array(16).fill(0); ll[6]=19; ll[14]=20                // G4, Bb4
-                            var bb = Array(16).fill(0); bb[2]=6; bb[6]=8; bb[10]=6; bb[14]=9  // C2, F2, C2, G2
+                            var cp = Array(16).fill(0); cp[4]=16; cp[12]=16
+                            var ll = Array(16).fill(0); ll[6]=19; ll[14]=20
+                            var bb = Array(16).fill(0); bb[2]=6; bb[6]=8; bb[10]=6; bb[14]=9
                             tracks = [kk, cp, ll, bb]
+                        } else if (name === "boss_fight") {
+                            // Slow, dark, minor. Menacing bass-forward arcade boss vibe.
+                            bpm = 98
+                            presetName = "boss fight"
+                            stepCount = 16
+                            // Slot 0 — subsonic saw kick with a long decay
+                            slot0.waveform = "sawtooth"
+                            slot0.attack = 0.001; slot0.decay = 0.25; slot0.sustain = 0.0; slot0.release = 0.12
+                            slot0.pitchStart = 18; slot0.pitchEnd = -8; slot0.pitchTime = 0.18
+                            // Slot 1 — filtered noise snare (long tail)
+                            slot1.waveform = "noise"
+                            slot1.attack = 0.002; slot1.decay = 0.12; slot1.sustain = 0.2; slot1.release = 0.15
+                            slot1.pitchStart = 0; slot1.pitchEnd = 0; slot1.pitchTime = 0
+                            // Slot 2 — menacing detuned-saw lead, LFO on pitch
+                            slot2.waveform = "sawtooth"
+                            slot2.attack = 0.02; slot2.decay = 0.2; slot2.sustain = 0.4; slot2.release = 0.3
+                            slot2.pitchStart = -2; slot2.pitchEnd = 0; slot2.pitchTime = 0.4
+                            slot2.lfoTarget = "pitch"; slot2.lfoRate = 5; slot2.lfoDepth = 0.5
+                            // Slot 3 — heavy bass with a short pitch dip (boss footstep)
+                            slot3.waveform = "sawtooth"
+                            slot3.attack = 0.005; slot3.decay = 0.1; slot3.sustain = 0.6; slot3.release = 0.2
+                            slot3.pitchStart = 4; slot3.pitchEnd = 0; slot3.pitchTime = 0.08
+                            // Beat 1 & 3 kick, snare on 2 & 4, menacing lead, stomping bass
+                            var bk = Array(16).fill(0); bk[0]=6; bk[8]=6
+                            var bs = Array(16).fill(0); bs[4]=12; bs[12]=12
+                            var bl = Array(16).fill(0); bl[6]=15; bl[7]=14; bl[14]=15; bl[15]=16  // Bb4/G4/Bb4/C5
+                            var bb2 = Array(16).fill(0)
+                            bb2[0]=6; bb2[2]=6; bb2[4]=6; bb2[6]=6
+                            bb2[8]=4; bb2[10]=4; bb2[12]=4; bb2[14]=4   // drop to G2 second half
+                            tracks = [bk, bs, bl, bb2]
                         }
                     }
                     function fireStep() {
@@ -772,102 +793,181 @@ Rectangle {
                         }
                     }
 
+                    // Helper for retro-styled transport buttons
+                    component RetroBtn : Rectangle {
+                        property string text: ""
+                        property color  accent: W.Retro.amber
+                        property bool   on: false
+                        signal clicked
+                        implicitWidth: 62; implicitHeight: 26
+                        color: on ? "#1a2033" : "#0c1120"
+                        border.width: 1
+                        border.color: on ? accent : W.Retro.bevelHi
+                        radius: 2
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: 2
+                            color: on ? accent : W.Retro.panelHi
+                            opacity: 0.7
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.text
+                            color: on ? "#ffffff" : W.Retro.txt
+                            font.family: W.Retro.mono
+                            font.pixelSize: W.Retro.fsLabel
+                            font.bold: true
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: parent.clicked()
+                        }
+                    }
+
                     Column {
                         id: trackerColumn
-                        anchors.centerIn: parent
-                        spacing: 10
-                        width: parent.width - 30
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.topMargin: 4
+                        spacing: 8
 
-                        Text {
-                            text: "Tracker — 16 steps × 4 tracks (each track plays its bank slot)"
-                            color: root.accentColor
-                            font.family: root.monoFont
-                            font.bold: true
-                            anchors.horizontalCenter: parent.horizontalCenter
-                        }
-
-                        Row {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: 6
-                            Button {
-                                text: tracker.playing ? "Playing..." : "Play"
-                                enabled: !tracker.playing
-                                onClicked: { tracker.step = -1; tracker.playing = true }
-                            }
-                            Button { text: "Stop"; onClicked: { tracker.playing = false; tracker.step = -1 } }
-                            Button { text: "Clear"; onClicked: tracker.clearAll() }
-                            CheckBox {
-                                id: trkLoopChk
-                                text: "Loop"
-                                checked: tracker.loop
-                                onCheckedChanged: tracker.loop = checked
-                                contentItem: Text {
-                                    text: trkLoopChk.text
-                                    color: root.textColor
-                                    font.family: root.monoFont
-                                    leftPadding: trkLoopChk.indicator.width + 5
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-                        }
+                        // Transport strip
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
                             spacing: 8
-                            Text {
-                                text: "BPM: " + tracker.bpm
-                                color: root.textColor
-                                font.family: root.monoFont
-                                font.pixelSize: 11
+
+                            Row {
+                                spacing: 4
+                                RetroBtn {
+                                    text: "▶ PLAY"
+                                    accent: W.Retro.green
+                                    on: tracker.playing
+                                    onClicked: { tracker.step = -1; tracker.playing = true }
+                                }
+                                RetroBtn {
+                                    text: "■ STOP"
+                                    accent: W.Retro.red
+                                    onClicked: { tracker.playing = false; tracker.step = -1 }
+                                }
+                                RetroBtn {
+                                    text: "✕ CLEAR"
+                                    accent: W.Retro.pink
+                                    onClicked: tracker.clearAll()
+                                }
+                                RetroBtn {
+                                    text: "LOOP"
+                                    accent: W.Retro.teal
+                                    on: tracker.loop
+                                    onClicked: tracker.loop = !tracker.loop
+                                }
+                            }
+
+                            // Divider
+                            Rectangle {
+                                width: 1
+                                height: 24
+                                color: W.Retro.bevelLo
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-                            Slider {
-                                width: 200
-                                from: 60; to: 220; stepSize: 1
-                                value: tracker.bpm
-                                onValueChanged: tracker.bpm = Math.round(value)
+
+                            // BPM
+                            Row {
+                                spacing: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                Column {
+                                    spacing: 1
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Text {
+                                        text: "BPM"
+                                        color: W.Retro.txtDim
+                                        font.family: W.Retro.mono
+                                        font.pixelSize: W.Retro.fsLabel
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: tracker.bpm
+                                        color: W.Retro.amber
+                                        font.family: W.Retro.mono
+                                        font.pixelSize: W.Retro.fsValue
+                                        font.bold: true
+                                    }
+                                }
+                                W.RetroKnob {
+                                    width: 44; height: 50
+                                    label: ""
+                                    from: 60; to: 220; steps: 160
+                                    value: tracker.bpm
+                                    accent: W.Retro.amber
+                                    onValueEdited: (v) => tracker.bpm = Math.round(v)
+                                }
                             }
-                            Text {
-                                text: "Length:"
-                                color: root.textColor
-                                font.family: root.monoFont
-                                font.pixelSize: 11
+
+                            // Divider
+                            Rectangle {
+                                width: 1
+                                height: 24
+                                color: W.Retro.bevelLo
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-                            ComboBox {
-                                width: 70
-                                model: [8, 16, 32]
-                                currentIndex: model.indexOf(tracker.stepCount)
-                                onCurrentTextChanged: {
-                                    var n = parseInt(currentText)
-                                    if (!isNaN(n) && n !== tracker.stepCount)
-                                        tracker.stepCount = n
+
+                            // Length segmented
+                            Row {
+                                spacing: 2
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    text: "LEN"
+                                    color: W.Retro.txtDim
+                                    font.family: W.Retro.mono
+                                    font.pixelSize: W.Retro.fsLabel
+                                    font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    rightPadding: 6
+                                }
+                                Repeater {
+                                    model: [8, 16, 32]
+                                    RetroBtn {
+                                        width: 34
+                                        text: modelData
+                                        accent: W.Retro.teal
+                                        on: tracker.stepCount === modelData
+                                        onClicked: tracker.stepCount = modelData
+                                    }
                                 }
                             }
                         }
+
+                        // Cartridge preset row
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: 8
+                            spacing: 10
+                            W.CartridgeButton {
+                                width: 140; height: 28
+                                tag: "01"; label: "CHIP RALLY"
+                                selected: tracker.presetName === "chip rally"
+                                onClicked: { tracker.applyPreset("chip_rally"); statusText.text = "preset: chip rally" }
+                            }
+                            W.CartridgeButton {
+                                width: 140; height: 28
+                                tag: "02"; label: "NEON CLUB"
+                                selected: tracker.presetName === "neon club"
+                                onClicked: { tracker.applyPreset("neon_club"); statusText.text = "preset: neon club" }
+                            }
+                            W.CartridgeButton {
+                                width: 140; height: 28
+                                tag: "03"; label: "BOSS FIGHT"
+                                selected: tracker.presetName === "boss fight"
+                                onClicked: { tracker.applyPreset("boss_fight"); statusText.text = "preset: boss fight" }
+                            }
                             Text {
-                                text: "Preset:"
-                                color: root.textColor
-                                font.family: root.monoFont
-                                font.pixelSize: 11
                                 anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Button {
-                                text: "Psy Trance"
-                                onClicked: { tracker.applyPreset("psy"); statusText.text = "preset: psy trance" }
-                            }
-                            Button {
-                                text: "House"
-                                onClicked: { tracker.applyPreset("house"); statusText.text = "preset: classic house" }
-                            }
-                            Text {
                                 text: "→ " + tracker.presetName
-                                color: root.dimTextColor
-                                font.family: root.monoFont
-                                font.pixelSize: 11
-                                anchors.verticalCenter: parent.verticalCenter
+                                color: W.Retro.txtDim
+                                font.family: W.Retro.mono
+                                font.pixelSize: W.Retro.fsLabel
                             }
                         }
 
