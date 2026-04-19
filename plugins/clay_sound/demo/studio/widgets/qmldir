@@ -10,3 +10,4 @@ CartridgeButton 1.0 CartridgeButton.qml
 RetroToggle 1.0 RetroToggle.qml
 HelpOverlay 1.0 HelpOverlay.qml
 SlotPanel 1.0 SlotPanel.qml
+JumpLabel 1.0 JumpLabel.qml

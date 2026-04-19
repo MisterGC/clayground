@@ -24,44 +24,125 @@ Rectangle {
     // Vim-mode flag (wired to RetroToggle in the header). When true,
     // the keyboard handler dispatches into the vim state machine below.
     property bool vimMode: false
-    // Sub-mode within vimMode: "normal" | "insert" | "append" | "replace" | "jump"
+    // Sub-mode within vimMode: "normal" | "insert" | "append" | "replace" | "jump" | "focus"
     property string vimSubmode: "normal"
-    onVimModeChanged: if (!vimMode) { vimSubmode = "normal"; _jumpPrefix = "" }
+    onVimModeChanged: if (!vimMode) { vimSubmode = "normal"; _jumpPrefix = ""; vimFocus = "" }
 
     // Accumulated keystrokes while in jump mode (max 2 chars).
     property string _jumpPrefix: ""
+    // While in "focus" submode, identifies the focused control.
+    // Format: "p1:<slotIdx>" | "vol:<slotIdx>" | "bpm" | "length"
+    property string vimFocus: ""
 
-    // Jump label → action callback. All actions return to normal when done.
-    // Convention: first char = category, second char = position.
-    //   r{1-4} jump cursor to tracker row N
-    //   c{1-3} apply cartridge preset (FROG/COLUMN/MAMPFER)
-    //   t{p,s,c,l}  transport: PLAY toggle / STOP / CLEAR / LOOP toggle
-    //   p{1-4} toggle slot N PREVIEW loop
+    // Bake parameters mirror what the SlotPanel Repeater model carries —
+    // exposed at root so jump actions can bake without going through
+    // the panel's signal handler.
+    readonly property var _slotBakeParams: [
+        [36, 0.5, 0.9],
+        [60, 0.2, 0.7],
+        [60, 0.4, 0.9],
+        [43, 0.4, 0.9]
+    ]
+
+    // Jump label → action callback. Labels are 2-char combos drawn from
+    // the home-row letters so any keyboard layout types them comfortably:
+    //   j{a,s,d,f}     jump cursor to tracker row N (col 0)
+    //   l{a,s,d}       apply cartridge preset (FROG / COLUMN / MAMPFER)
+    //   a{h,j,k,l}     transport: PLAY / STOP / CLEAR / LOOP
+    //   s{h,j,k,l}     focus slot N primary knob (TUNE / NOISE)
+    //   f{h,j,k,l}     focus slot N VOL
+    //   g{h,j,k,l}     toggle slot N PREVIEW loop
+    //   k{a,s,d,f}     bake slot N
+    //   ha             focus BPM (j/k step ±5)
+    //   hs             focus LENGTH (j/k cycle 8/16/32)
     property var _jumpActions: ({})
 
     function _buildJumpActions() {
         var a = {}
-        a["r1"] = function() { tracker.cursorRow = 0 }
-        a["r2"] = function() { tracker.cursorRow = 1 }
-        a["r3"] = function() { tracker.cursorRow = 2 }
-        a["r4"] = function() { tracker.cursorRow = 3 }
-        a["c1"] = function() { tracker.applyPreset("frog");    statusText.text = "preset: frog" }
-        a["c2"] = function() { tracker.applyPreset("column");  statusText.text = "preset: column" }
-        a["c3"] = function() { tracker.applyPreset("mampfer"); statusText.text = "preset: mampfer" }
-        a["tp"] = function() {
+        // Tracker row jumps — cursor goes to (row, 0).
+        a["ja"] = function() { tracker.cursorRow = 0; tracker.cursorCol = 0 }
+        a["js"] = function() { tracker.cursorRow = 1; tracker.cursorCol = 0 }
+        a["jd"] = function() { tracker.cursorRow = 2; tracker.cursorCol = 0 }
+        a["jf"] = function() { tracker.cursorRow = 3; tracker.cursorCol = 0 }
+        // Cartridges
+        a["la"] = function() { tracker.applyPreset("frog");    statusText.text = "preset: frog" }
+        a["ls"] = function() { tracker.applyPreset("column");  statusText.text = "preset: column" }
+        a["ld"] = function() { tracker.applyPreset("mampfer"); statusText.text = "preset: mampfer" }
+        // Transport
+        a["ah"] = function() {
             if (tracker.playing) { tracker.playing = false; tracker.step = -1 }
             else                 { tracker.step = -1; tracker.playing = true }
         }
-        a["ts"] = function() { tracker.playing = false; tracker.step = -1 }
-        a["tc"] = function() { tracker.clearAll() }
-        a["tl"] = function() { tracker.loop = !tracker.loop }
-        a["p1"] = function() { var sp = slotRepeater.itemAt(0); if (sp) sp.previewing = !sp.previewing }
-        a["p2"] = function() { var sp = slotRepeater.itemAt(1); if (sp) sp.previewing = !sp.previewing }
-        a["p3"] = function() { var sp = slotRepeater.itemAt(2); if (sp) sp.previewing = !sp.previewing }
-        a["p4"] = function() { var sp = slotRepeater.itemAt(3); if (sp) sp.previewing = !sp.previewing }
+        a["aj"] = function() { tracker.playing = false; tracker.step = -1 }
+        a["ak"] = function() { tracker.clearAll() }
+        a["al"] = function() { tracker.loop = !tracker.loop }
+        // Slot primary knob → focus
+        a["sh"] = function() { _enterFocus("p1:0") }
+        a["sj"] = function() { _enterFocus("p1:1") }
+        a["sk"] = function() { _enterFocus("p1:2") }
+        a["sl"] = function() { _enterFocus("p1:3") }
+        // Slot VOL → focus
+        a["fh"] = function() { _enterFocus("vol:0") }
+        a["fj"] = function() { _enterFocus("vol:1") }
+        a["fk"] = function() { _enterFocus("vol:2") }
+        a["fl"] = function() { _enterFocus("vol:3") }
+        // Slot PREVIEW → toggle
+        a["gh"] = function() { var sp = slotRepeater.itemAt(0); if (sp) sp.previewing = !sp.previewing }
+        a["gj"] = function() { var sp = slotRepeater.itemAt(1); if (sp) sp.previewing = !sp.previewing }
+        a["gk"] = function() { var sp = slotRepeater.itemAt(2); if (sp) sp.previewing = !sp.previewing }
+        a["gl"] = function() { var sp = slotRepeater.itemAt(3); if (sp) sp.previewing = !sp.previewing }
+        // Slot BAKE
+        a["ka"] = function() { _bakeSlot(0) }
+        a["ks"] = function() { _bakeSlot(1) }
+        a["kd"] = function() { _bakeSlot(2) }
+        a["kf"] = function() { _bakeSlot(3) }
+        // Tracker BPM / LENGTH → focus
+        a["ha"] = function() { _enterFocus("bpm") }
+        a["hs"] = function() { _enterFocus("length") }
         _jumpActions = a
     }
     Component.onCompleted: _buildJumpActions()
+
+    function _bakeSlot(i) {
+        var sp = slotRepeater.itemAt(i)
+        if (sp) sp.previewing = false
+        var p = _bankSlots[i].bake(_slotBakeParams[i][0],
+                                   _slotBakeParams[i][1],
+                                   _slotBakeParams[i][2])
+        statusText.text = p.length ? "Baked S" + (i + 1) + " → " + p : "Bake failed"
+    }
+
+    function _enterFocus(key) { vimFocus = key; vimSubmode = "focus" }
+    function _exitFocus()     { vimFocus = ""; vimSubmode = "normal" }
+    function _adjustFocused(delta) {
+        if (vimFocus.indexOf("p1:") === 0) {
+            var i = parseInt(vimFocus.split(":")[1])
+            var slot = _bankSlots[i]
+            var role = ["kick", "hat", "lead", "bass"][i]
+            if (role === "kick" || role === "bass") {
+                slot.pitchEnd = Math.max(-24, Math.min(24, slot.pitchEnd + delta))
+            } else if (role === "lead") {
+                var v = Math.max(-24, Math.min(24, slot.pitchStart + delta))
+                slot.pitchStart = v
+                slot.pitchEnd = v
+                if (slot.pitchTime <= 0) slot.pitchTime = 0.01
+            } else if (role === "hat") {
+                slot.sustain = Math.max(0, Math.min(1, slot.sustain + delta * 0.05))
+            }
+        } else if (vimFocus.indexOf("vol:") === 0) {
+            var idx = parseInt(vimFocus.split(":")[1])
+            _setSlotLevel(idx, Math.max(0, Math.min(1, _slotLevels[idx] + delta * 0.05)))
+        } else if (vimFocus === "bpm") {
+            tracker.bpm = Math.max(60, Math.min(220, tracker.bpm + delta * 5))
+        } else if (vimFocus === "length") {
+            // delta = +1 cycles up (8 → 16 → 32), -1 cycles down
+            var sizes = [8, 16, 32]
+            var ci = sizes.indexOf(tracker.stepCount)
+            if (ci < 0) ci = 1
+            ci = Math.max(0, Math.min(sizes.length - 1, ci + (delta > 0 ? 1 : -1)))
+            tracker.stepCount = sizes[ci]
+        }
+    }
 
     function _enterJump() { vimSubmode = "jump"; _jumpPrefix = "" }
     function _exitJump()  { vimSubmode = "normal"; _jumpPrefix = "" }
@@ -127,6 +208,14 @@ Rectangle {
         if (root.vimSubmode === "append")  return root._vimAppend(ev)
         if (root.vimSubmode === "replace") return root._vimReplace(ev)
         if (root.vimSubmode === "jump")    return root._vimJump(ev)
+        if (root.vimSubmode === "focus")   return root._vimFocusMode(ev)
+    }
+    function _vimFocusMode(ev) {
+        if (ev.key === Qt.Key_Escape) { root._exitFocus(); ev.accepted = true; return }
+        if (ev.key === Qt.Key_F)      { root._enterJump(); ev.accepted = true; return }
+        var step = (ev.modifiers & Qt.ShiftModifier) ? 5 : 1
+        if (ev.key === Qt.Key_J) { root._adjustFocused(-step); ev.accepted = true; return }
+        if (ev.key === Qt.Key_K) { root._adjustFocused( step); ev.accepted = true; return }
     }
     function _vimNormal(ev) {
         if (ev.key === Qt.Key_H) { tracker.moveCursor(0, -1); ev.accepted = true; return }
@@ -137,6 +226,7 @@ Rectangle {
         if (ev.key === Qt.Key_A) { root.vimSubmode = "append";  ev.accepted = true; return }
         if (ev.key === Qt.Key_R) { root.vimSubmode = "replace"; ev.accepted = true; return }
         if (ev.key === Qt.Key_F) { root._enterJump(); ev.accepted = true; return }
+        if (ev.key === Qt.Key_U) { tracker.undo(); ev.accepted = true; return }
         if (ev.key === Qt.Key_X) { root._clearCurrent(); ev.accepted = true; return }
         // <Space> toggles play/stop in normal mode (DAW convention).
         if (ev.key === Qt.Key_Space) {
@@ -467,7 +557,7 @@ Rectangle {
                     Layout.preferredWidth: 220
                     Layout.preferredHeight: 446
                     JumpLabel {
-                        code: "p" + (index + 1)
+                        code: "g" + ["h","j","k","l"][index]
                         anchors.top: parent.top
                         anchors.right: parent.right
                         anchors.margins: 4
@@ -479,6 +569,14 @@ Rectangle {
                     triggered: modelData.inst.activeVoices > 0
                     level: root._slotLevels[index]
                     onLevelEdited: (v) => root._setSlotLevel(index, v)
+                    // Vim integration — these drive the JumpLabels and
+                    // focus halos rendered inside SlotPanel.
+                    slotIndex: index
+                    jumpPrefix: root._jumpPrefix
+                    jumpActive: root.vimSubmode === "jump"
+                    focusedControl: root.vimFocus === ("p1:" + index)  ? "p1"
+                                  : root.vimFocus === ("vol:" + index) ? "vol"
+                                  : ""
 
                     // Re-triggers the preview note while `previewing`
                     // is true, so the user can hear patch edits live.
@@ -568,6 +666,27 @@ Rectangle {
                 Array(16).fill(0)
             ]
 
+            // Undo stack of {tracks, stepCount, presetName} snapshots.
+            // _pushUndo() captures the current state BEFORE a mutating call.
+            property var _undoStack: []
+
+            function _pushUndo() {
+                var snap = {
+                    tracks: tracks.map(function(r) { return r.slice() }),
+                    stepCount: stepCount,
+                    presetName: presetName
+                }
+                _undoStack.push(snap)
+                if (_undoStack.length > 32) _undoStack.shift()
+            }
+            function undo() {
+                if (_undoStack.length === 0) return
+                var snap = _undoStack.pop()
+                if (stepCount !== snap.stepCount) stepCount = snap.stepCount
+                tracks = snap.tracks
+                presetName = snap.presetName
+            }
+
             onStepCountChanged: resizeTracksTo(stepCount)
 
             function resizeTracksTo(newCount) {
@@ -584,6 +703,7 @@ Rectangle {
             }
 
             function cellSet(row, idx, paletteIdx) {
+                _pushUndo()
                 var arr = tracks[row].slice()
                 var palN = palette.length
                 arr[idx] = ((paletteIdx % palN) + palN) % palN
@@ -598,12 +718,14 @@ Rectangle {
                 cellSet(row, idx, 0)
             }
             function clearAll() {
+                _pushUndo()
                 var all = []
                 for (var i = 0; i < trackCount; ++i) all.push(Array(stepCount).fill(0))
                 tracks = all
             }
 
             function applyPreset(name) {
+                _pushUndo()
                 // Reset optional FX so presets start from a known baseline.
                 for (var si = 0; si < root._bankSlots.length; ++si) {
                     var s = root._bankSlots[si]
@@ -868,7 +990,7 @@ Rectangle {
                             on: tracker.playing
                             onClicked: { tracker.step = -1; tracker.playing = true }
                             JumpLabel {
-                                code: "tp"
+                                code: "ah"
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 2
@@ -879,7 +1001,7 @@ Rectangle {
                             accent: W.Retro.red
                             onClicked: { tracker.playing = false; tracker.step = -1 }
                             JumpLabel {
-                                code: "ts"
+                                code: "aj"
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 2
@@ -890,7 +1012,7 @@ Rectangle {
                             accent: W.Retro.pink
                             onClicked: tracker.clearAll()
                             JumpLabel {
-                                code: "tc"
+                                code: "ak"
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 2
@@ -902,7 +1024,7 @@ Rectangle {
                             on: tracker.loop
                             onClicked: tracker.loop = !tracker.loop
                             JumpLabel {
-                                code: "tl"
+                                code: "al"
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 2
@@ -925,6 +1047,28 @@ Rectangle {
                         step: 2
                         onStepRequested: (d) => tracker.bpm =
                             Math.max(60, Math.min(220, tracker.bpm + d))
+                        JumpLabel {
+                            code: "ha"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 2
+                        }
+                        Rectangle {
+                            visible: root.vimFocus === "bpm"
+                            anchors.fill: parent
+                            anchors.margins: -3
+                            color: "transparent"
+                            border.color: W.Retro.cyan
+                            border.width: 2
+                            radius: 4
+                            z: 5
+                            SequentialAnimation on opacity {
+                                running: root.vimFocus === "bpm"
+                                loops: Animation.Infinite
+                                NumberAnimation { from: 0.55; to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+                                NumberAnimation { from: 1.0; to: 0.55; duration: 400; easing.type: Easing.InOutQuad }
+                            }
+                        }
                     }
 
                     DigitalBox {
@@ -934,6 +1078,28 @@ Rectangle {
                         valueColor: W.Retro.teal
                         cycle: ["8", "16", "32"]
                         onValueSelected: (v) => tracker.stepCount = parseInt(v)
+                        JumpLabel {
+                            code: "hs"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 2
+                        }
+                        Rectangle {
+                            visible: root.vimFocus === "length"
+                            anchors.fill: parent
+                            anchors.margins: -3
+                            color: "transparent"
+                            border.color: W.Retro.cyan
+                            border.width: 2
+                            radius: 4
+                            z: 5
+                            SequentialAnimation on opacity {
+                                running: root.vimFocus === "length"
+                                loops: Animation.Infinite
+                                NumberAnimation { from: 0.55; to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+                                NumberAnimation { from: 1.0; to: 0.55; duration: 400; easing.type: Easing.InOutQuad }
+                            }
+                        }
                     }
                 }
 
@@ -948,7 +1114,7 @@ Rectangle {
                         selected: tracker.presetName === "frog"
                         onClicked: { tracker.applyPreset("frog"); statusText.text = "preset: frog" }
                         JumpLabel {
-                            code: "c1"
+                            code: "la"
                             anchors.top: parent.top
                             anchors.right: parent.right
                             anchors.margins: 2
@@ -960,7 +1126,7 @@ Rectangle {
                         selected: tracker.presetName === "column"
                         onClicked: { tracker.applyPreset("column"); statusText.text = "preset: column" }
                         JumpLabel {
-                            code: "c2"
+                            code: "ls"
                             anchors.top: parent.top
                             anchors.right: parent.right
                             anchors.margins: 2
@@ -972,7 +1138,7 @@ Rectangle {
                         selected: tracker.presetName === "mampfer"
                         onClicked: { tracker.applyPreset("mampfer"); statusText.text = "preset: mampfer" }
                         JumpLabel {
-                            code: "c3"
+                            code: "ld"
                             anchors.top: parent.top
                             anchors.right: parent.right
                             anchors.margins: 2
@@ -1029,7 +1195,7 @@ Rectangle {
                                         font.pixelSize: W.Retro.fsValue
                                     }
                                     JumpLabel {
-                                        code: "r" + (rowIdx + 1)
+                                        code: "j" + ["a","s","d","f"][rowIdx]
                                         anchors.top: parent.top
                                         anchors.right: parent.right
                                         anchors.margins: 1

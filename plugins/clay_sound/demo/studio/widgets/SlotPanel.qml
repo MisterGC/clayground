@@ -48,6 +48,12 @@ RetroPanel {
     // re-trigger Timer, which is why this is driven from outside.
     property bool previewing: false
 
+    // Vim integration — driven from outside.
+    property int    slotIndex: 0           // 0..3, used for jump label codes
+    property string jumpPrefix: ""         // accumulated jump prefix
+    property bool   jumpActive: false      // true while in vim jump mode
+    property string focusedControl: ""     // "" | "p1" | "vol"
+
     signal previewRequested
     signal bakeRequested
     signal levelEdited(real v)
@@ -115,24 +121,57 @@ RetroPanel {
         property real value: 0
         property color accent: Retro.teal
         property color meterColor: Retro.amber
+        // True when this knob is the focused control under vim focus mode;
+        // shows a pulsing cyan halo behind the knob.
+        property bool focused: false
+        // Optional jump label for the knob (rendered top-right of knob).
+        property string jumpCode: ""
+        property string jumpPrefix: ""
+        property bool   jumpActive: false
         readonly property real _norm:
             (to === from) ? 0
                           : Math.max(0, Math.min(1, (value - from) / (to - from)))
         signal valueEdited(real v)
         spacing: 3
-        RetroKnob {
-            // Knob scales with its column width up to a cap so two
-            // knobs in a narrow slot look balanced, but never silly big.
+        Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             Layout.preferredWidth: 84
             Layout.maximumWidth: 110
             Layout.preferredHeight: 84
-            label: km.label
-            from: km.from; to: km.to; steps: km.steps
-            value: km.value
-            accent: km.accent
-            onValueEdited: (v) => km.valueEdited(v)
+            // Pulsing focus halo.
+            Rectangle {
+                visible: km.focused
+                anchors.fill: parent
+                anchors.margins: -3
+                color: "transparent"
+                border.color: Retro.cyan
+                border.width: 2
+                radius: 6
+                z: 5
+                SequentialAnimation on opacity {
+                    running: km.focused
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 0.55; to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 1.0; to: 0.55; duration: 400; easing.type: Easing.InOutQuad }
+                }
+            }
+            RetroKnob {
+                anchors.fill: parent
+                label: km.label
+                from: km.from; to: km.to; steps: km.steps
+                value: km.value
+                accent: km.accent
+                onValueEdited: (v) => km.valueEdited(v)
+            }
+            JumpLabel {
+                code: km.jumpCode
+                activePrefix: km.jumpPrefix
+                jumpActive: km.jumpActive && km.jumpCode.length > 0
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 0
+            }
         }
         LEDBar {
             Layout.fillWidth: true
@@ -189,6 +228,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.pitchEnd : 0
                 meterColor: Retro.red
                 onValueEdited: (v) => { if (root.instrument) root.instrument.pitchEnd = v }
+                focused: root.focusedControl === "p1"
+                jumpCode: "s" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
             KnobMeter {
                 Layout.fillWidth: true
@@ -209,6 +252,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.sustain : 0
                 meterColor: Retro.amber
                 onValueEdited: (v) => { if (root.instrument) root.instrument.sustain = v }
+                focused: root.focusedControl === "p1"
+                jumpCode: "s" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
             KnobMeter {
                 Layout.fillWidth: true
@@ -239,6 +286,10 @@ RetroPanel {
                             root.instrument.pitchTime = 0.01
                     }
                 }
+                focused: root.focusedControl === "p1"
+                jumpCode: "s" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
             KnobMeter {
                 Layout.fillWidth: true
@@ -265,6 +316,10 @@ RetroPanel {
                 value: root.instrument ? root.instrument.pitchEnd : 0
                 meterColor: Retro.red
                 onValueEdited: (v) => { if (root.instrument) root.instrument.pitchEnd = v }
+                focused: root.focusedControl === "p1"
+                jumpCode: "s" + ["h","j","k","l"][root.slotIndex]
+                jumpPrefix: root.jumpPrefix
+                jumpActive: root.jumpActive
             }
             KnobMeter {
                 Layout.fillWidth: true
@@ -312,6 +367,30 @@ RetroPanel {
                     }
                     onPressed: (ev) => _apply(ev.x)
                     onPositionChanged: (ev) => { if (pressed) _apply(ev.x) }
+                }
+                // Pulsing focus halo when VOL is the focused control.
+                Rectangle {
+                    visible: root.focusedControl === "vol"
+                    anchors.fill: parent
+                    anchors.margins: -3
+                    color: "transparent"
+                    border.color: Retro.cyan
+                    border.width: 2
+                    radius: 3
+                    z: 5
+                    SequentialAnimation on opacity {
+                        running: root.focusedControl === "vol"
+                        loops: Animation.Infinite
+                        NumberAnimation { from: 0.55; to: 1.0; duration: 400; easing.type: Easing.InOutQuad }
+                        NumberAnimation { from: 1.0; to: 0.55; duration: 400; easing.type: Easing.InOutQuad }
+                    }
+                }
+                JumpLabel {
+                    code: "f" + ["h","j","k","l"][root.slotIndex]
+                    activePrefix: root.jumpPrefix
+                    jumpActive: root.jumpActive
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
             Text {
@@ -391,6 +470,14 @@ RetroPanel {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.bakeRequested()
+                }
+                JumpLabel {
+                    code: "k" + ["a","s","d","f"][root.slotIndex]
+                    activePrefix: root.jumpPrefix
+                    jumpActive: root.jumpActive
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.margins: 2
                 }
             }
         }
