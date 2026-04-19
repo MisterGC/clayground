@@ -21,21 +21,124 @@ Rectangle {
     property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
                               Qt.platform.os === "windows" ? "Consolas" : "monospace"
 
-    // Vim-mode flag (wired to RetroToggle in the header); keyboard
-    // navigation logic lives in the tracker itself.
+    // Vim-mode flag (wired to RetroToggle in the header). When true,
+    // the keyboard handler dispatches into the vim state machine below.
     property bool vimMode: false
+    // Sub-mode within vimMode: "normal" | "insert" | "append" | "replace"
+    property string vimSubmode: "normal"
+    onVimModeChanged: if (!vimMode) vimSubmode = "normal"
+
+    // First palette index that the leftmost note key ('a') maps to.
+    // The 10 note keys (`asdfghjkl{`) cover [noteBaseIdx ... noteBaseIdx+9].
+    // ',' / '.' shift this base by one pentatonic octave (5 notes).
+    property int noteBaseIdx: 6     // C3 by default
+    readonly property var _noteKeyChars: ["a", "s", "d", "f", "g", "h", "j", "k", "l", "{"]
+
+    function _noteKeyIndex(text) {
+        var i = root._noteKeyChars.indexOf(text)
+        if (i >= 0) return i
+        if (text === ";") return 9      // QWERTY fallback for the 10th slot
+        return -1
+    }
+    function _shiftBaseOctave(delta) {
+        var maxBase = tracker.palette.length - 10
+        root.noteBaseIdx = Math.max(1, Math.min(maxBase, root.noteBaseIdx + delta))
+    }
+    function _flashNote(palIdx) {
+        notePosOverlay.show(palIdx)
+    }
+    function _setCellAndMaybeAdvance(palIdx, advance) {
+        if (palIdx < 1 || palIdx >= tracker.palette.length) return
+        tracker.cellSet(tracker.cursorRow, tracker.cursorCol, palIdx)
+        tracker.presetName = "(user)"
+        root._flashNote(palIdx)
+        if (advance)
+            tracker.cursorCol = (tracker.cursorCol + 1) % tracker.stepCount
+    }
+    function _clearCurrent() {
+        tracker.cellClear(tracker.cursorRow, tracker.cursorCol)
+        tracker.presetName = "(user)"
+    }
+
+    function _handleVimKey(ev) {
+        if (root.vimSubmode === "normal")  return root._vimNormal(ev)
+        if (root.vimSubmode === "insert")  return root._vimInsert(ev)
+        if (root.vimSubmode === "append")  return root._vimAppend(ev)
+        if (root.vimSubmode === "replace") return root._vimReplace(ev)
+    }
+    function _vimNormal(ev) {
+        if (ev.key === Qt.Key_H) { tracker.moveCursor(0, -1); ev.accepted = true; return }
+        if (ev.key === Qt.Key_L) { tracker.moveCursor(0,  1); ev.accepted = true; return }
+        if (ev.key === Qt.Key_J) { tracker.moveCursor(1,  0); ev.accepted = true; return }
+        if (ev.key === Qt.Key_K) { tracker.moveCursor(-1, 0); ev.accepted = true; return }
+        if (ev.key === Qt.Key_I) { root.vimSubmode = "insert";  ev.accepted = true; return }
+        if (ev.key === Qt.Key_A) { root.vimSubmode = "append";  ev.accepted = true; return }
+        if (ev.key === Qt.Key_R) { root.vimSubmode = "replace"; ev.accepted = true; return }
+        if (ev.key === Qt.Key_X) { root._clearCurrent(); ev.accepted = true; return }
+        if (ev.text === ",") { root._shiftBaseOctave(-5); ev.accepted = true; return }
+        if (ev.text === ".") { root._shiftBaseOctave( 5); ev.accepted = true; return }
+    }
+    function _vimInsert(ev) {
+        if (ev.key === Qt.Key_Escape)    { root.vimSubmode = "normal"; ev.accepted = true; return }
+        if (ev.key === Qt.Key_Space)     {
+            tracker.cursorCol = (tracker.cursorCol + 1) % tracker.stepCount
+            ev.accepted = true; return
+        }
+        if (ev.key === Qt.Key_Backspace) { root._clearCurrent(); ev.accepted = true; return }
+        if (ev.text === ",") { root._shiftBaseOctave(-5); ev.accepted = true; return }
+        if (ev.text === ".") { root._shiftBaseOctave( 5); ev.accepted = true; return }
+        var ni = root._noteKeyIndex(ev.text)
+        if (ni >= 0) {
+            root._setCellAndMaybeAdvance(root.noteBaseIdx + ni, false)
+            ev.accepted = true
+        }
+    }
+    function _vimAppend(ev) {
+        if (ev.key === Qt.Key_Escape)    { root.vimSubmode = "normal"; ev.accepted = true; return }
+        if (ev.key === Qt.Key_Space)     {
+            tracker.cursorCol = (tracker.cursorCol + 1) % tracker.stepCount
+            ev.accepted = true; return
+        }
+        if (ev.key === Qt.Key_Backspace) {
+            root._clearCurrent()
+            tracker.cursorCol = (tracker.cursorCol - 1 + tracker.stepCount) % tracker.stepCount
+            ev.accepted = true; return
+        }
+        if (ev.text === ",") { root._shiftBaseOctave(-5); ev.accepted = true; return }
+        if (ev.text === ".") { root._shiftBaseOctave( 5); ev.accepted = true; return }
+        var ni = root._noteKeyIndex(ev.text)
+        if (ni >= 0) {
+            root._setCellAndMaybeAdvance(root.noteBaseIdx + ni, true)
+            ev.accepted = true
+        }
+    }
+    function _vimReplace(ev) {
+        if (ev.key === Qt.Key_Escape) { root.vimSubmode = "normal"; ev.accepted = true; return }
+        var ni = root._noteKeyIndex(ev.text)
+        if (ni >= 0)
+            root._setCellAndMaybeAdvance(root.noteBaseIdx + ni, false)
+        root.vimSubmode = "normal"
+        ev.accepted = true
+    }
 
     Keys.onPressed: (ev) => {
         if (ev.key === Qt.Key_F1) {
             helpOverlay.open = !helpOverlay.open
             ev.accepted = true
-        } else if (ev.key === Qt.Key_F12) {
+            return
+        }
+        if (ev.key === Qt.Key_F12) {
             root.vimMode = !root.vimMode
             ev.accepted = true
-        } else if (ev.key === Qt.Key_Escape && helpOverlay.open) {
+            return
+        }
+        if (ev.key === Qt.Key_Escape && helpOverlay.open) {
             helpOverlay.open = false
             ev.accepted = true
+            return
         }
+        if (root.vimMode)
+            root._handleVimKey(ev)
     }
 
     // --- Sample Bank (4 slots, editable live) ------------------------
@@ -344,6 +447,14 @@ Rectangle {
             property bool loop: true
             property int  bpm: 130
             property string presetName: "(user)"
+
+            // Vim cursor — current row/col under the keyboard cursor.
+            property int cursorRow: 0
+            property int cursorCol: 0
+            function moveCursor(dr, dc) {
+                cursorRow = Math.max(0, Math.min(trackCount - 1, cursorRow + dr))
+                cursorCol = Math.max(0, Math.min(stepCount - 1, cursorCol + dc))
+            }
             // tracks[row] = Array(stepCount) of palette indices (0..N-1)
             property var  tracks: [
                 Array(16).fill(0),
@@ -364,6 +475,7 @@ Rectangle {
                 }
                 tracks = all
                 if (step >= newCount) { playing = false; step = -1 }
+                if (cursorCol >= newCount) cursorCol = newCount - 1
             }
 
             function cellSet(row, idx, paletteIdx) {
@@ -784,6 +896,9 @@ Rectangle {
                                         trailWeak: false
                                         beat:      (stepIdx % 4) === 0
                                         bar:       false
+                                        cursor: root.vimMode
+                                                && tracker.cursorRow === parent.rowIdx
+                                                && stepIdx === tracker.cursorCol
                                         MouseArea {
                                             anchors.fill: parent
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -835,7 +950,64 @@ Rectangle {
                     }
                 }
 
-                // Bottom status strip: READY lamp + click-hint
+                // Brief note-position indicator. Shows the just-entered
+                // note's place in the full palette range — fades after
+                // ~700ms. Helps the user learn the keyboard layout.
+                Item {
+                    id: notePosOverlay
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 16
+                    opacity: 0
+                    visible: opacity > 0.01
+
+                    property int currentIdx: 0
+
+                    function show(palIdx) {
+                        currentIdx = palIdx
+                        opacity = 1
+                        hideTimer.restart()
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                    }
+                    Timer {
+                        id: hideTimer
+                        interval: 700
+                        onTriggered: notePosOverlay.opacity = 0
+                    }
+
+                    Text {
+                        id: noteLabelText
+                        anchors.left: parent.left
+                        anchors.leftMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 44
+                        text: tracker.paletteLabels[notePosOverlay.currentIdx]
+                        color: W.Retro.amber
+                        font.family: W.Retro.mono
+                        font.pixelSize: W.Retro.fsValue
+                        font.bold: true
+                    }
+                    Row {
+                        anchors.left: noteLabelText.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+                        Repeater {
+                            model: tracker.palette.length - 1     // skip rest at idx 0
+                            Rectangle {
+                                width: 6; height: 12
+                                radius: 1
+                                color: index === (notePosOverlay.currentIdx - 1)
+                                       ? W.Retro.amber : W.Retro.bevelLo
+                                opacity: index === (notePosOverlay.currentIdx - 1) ? 1.0 : 0.55
+                            }
+                        }
+                    }
+                }
+
+                // Bottom status strip: READY lamp + click-hint OR vim mode
                 Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -865,8 +1037,12 @@ Rectangle {
                     }
                     Text {
                         anchors.centerIn: parent
-                        text: "LEFT CLICK TO EDIT NOTE · RIGHT CLICK TO CLEAR"
-                        color: W.Retro.txtDim
+                        text: root.vimMode
+                              ? ("-- " + root.vimSubmode.toUpperCase() + " --   "
+                                 + "(S" + (tracker.cursorRow + 1) + ", " + (tracker.cursorCol + 1) + ")"
+                                 + "   base: " + tracker.paletteLabels[root.noteBaseIdx])
+                              : "LEFT CLICK TO EDIT NOTE · RIGHT CLICK TO CLEAR"
+                        color: root.vimMode ? W.Retro.cyan : W.Retro.txtDim
                         font.family: W.Retro.mono
                         font.pixelSize: W.Retro.fsLabel
                         font.bold: true
