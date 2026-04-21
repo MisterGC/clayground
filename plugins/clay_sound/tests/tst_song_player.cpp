@@ -171,6 +171,10 @@ void TestSongPlayer::parseErrorKeepsUnloaded()
 
 void TestSongPlayer::hotReloadKeepsPositionAndSwapsFutureEvents()
 {
+#ifdef Q_OS_WIN
+    QSKIP("QFileSystemWatcher on Windows NTFS does not reliably fire "
+          "fileChanged() for two writes in quick succession; see QTBUG-*");
+#endif
     QTemporaryDir dir;
     // First version: three notes across ~2 beats; slow tempo so the
     // test has time to overwrite the file mid-playback.
@@ -230,6 +234,10 @@ void TestSongPlayer::hotReloadKeepsPositionAndSwapsFutureEvents()
 
 void TestSongPlayer::hotReloadWithBadSyntaxKeepsPreviousModel()
 {
+#ifdef Q_OS_WIN
+    QSKIP("QFileSystemWatcher on Windows NTFS does not reliably fire "
+          "fileChanged() for two writes in quick succession; see QTBUG-*");
+#endif
     QTemporaryDir dir;
     const QString path = writeSong(dir, R"({
         "tempo": 120,
