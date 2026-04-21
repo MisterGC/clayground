@@ -7,6 +7,11 @@
 
 namespace clay::sound {
 
+// M_PI is not part of the C++ standard; MSVC omits it unless
+// _USE_MATH_DEFINES is set before <cmath>. Define our own so this
+// file stays portable across compilers.
+static constexpr double kPi = 3.14159265358979323846;
+
 void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
 {
     sampleRate_ = sampleRate;
@@ -61,7 +66,7 @@ double OscillatorVoice::renderSample(int64_t frame)
 
     // Volume LFO shaping of envelope.
     if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0) {
-        const double lfo = std::sin(2.0 * M_PI * t * patch_.lfoRate);
+        const double lfo = std::sin(2.0 * kPi * t * patch_.lfoRate);
         env *= 1.0 - patch_.lfoDepth * 0.5 * (1.0 - lfo);
     }
 
@@ -69,7 +74,7 @@ double OscillatorVoice::renderSample(int64_t frame)
     double wave = 0.0;
     switch (patch_.waveform) {
     case Waveform::Sine:
-        wave = std::sin(2.0 * M_PI * phase_);
+        wave = std::sin(2.0 * kPi * phase_);
         break;
     case Waveform::Square: {
         const double edge = 0.02;
@@ -111,7 +116,7 @@ double OscillatorVoice::renderSample(int64_t frame)
         effFreq *= std::pow(2.0, semis / 12.0);
     }
     if (patch_.lfoRate > 0.0 && patch_.lfoDepth > 0.0 && patch_.lfoTarget == 1) {
-        const double lfo = std::sin(2.0 * M_PI * t * patch_.lfoRate);
+        const double lfo = std::sin(2.0 * kPi * t * patch_.lfoRate);
         effFreq *= std::pow(2.0, lfo * patch_.lfoDepth / 12.0);
     }
 

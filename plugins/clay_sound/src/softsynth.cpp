@@ -262,7 +262,8 @@ void SoftSynth::mixActiveVoices(float *out, int frames, int64_t startFrame)
 
 void SoftSynth::processFilter(float *buffer, int count)
 {
-    double rc = 1.0 / (2.0 * M_PI * filterCutoff_);
+    constexpr double kPi = 3.14159265358979323846;
+    double rc = 1.0 / (2.0 * kPi * filterCutoff_);
     double dt = 1.0 / static_cast<double>(SAMPLE_RATE);
     double alpha = dt / (rc + dt);
 
