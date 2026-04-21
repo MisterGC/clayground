@@ -10,6 +10,8 @@
 
 #ifndef __EMSCRIPTEN__
 
+#include "voice_waveform.h"
+
 #include <QObject>
 #include <QAudioFormat>
 #include <QIODevice>
@@ -18,13 +20,6 @@
 #include <vector>
 
 class QAudioSink;
-
-// Legacy enum kept for callers (chipmood.cpp, chiptracker.cpp) that
-// reference Voice::Waveform symbolically.
-struct Voice
-{
-    enum Waveform { Sine, Square, Triangle, Sawtooth, Noise };
-};
 
 // Per-note input format. Time/duration in seconds.
 struct NoteEvent

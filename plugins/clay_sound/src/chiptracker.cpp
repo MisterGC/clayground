@@ -1,5 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "chiptracker.h"
+#include "voice_waveform.h"
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
