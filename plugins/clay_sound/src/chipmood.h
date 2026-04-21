@@ -9,9 +9,7 @@
 #include <QTimer>
 #include <QVariantMap>
 
-#ifndef __EMSCRIPTEN__
 class SoftSynth;
-#endif
 
 /*!
     \class ChipMood
@@ -188,9 +186,7 @@ private slots:
 private:
     void initAudio();
     void applyConfiguration();
-#ifndef __EMSCRIPTEN__
-    void buildDesktopComposition();
-#endif
+    void buildComposition();
 
     // Core identity
     QVariantMap preset_;
@@ -220,9 +216,7 @@ private:
     QTimer sectionTimer_;
     static int nextInstanceId_;
 
-#ifndef __EMSCRIPTEN__
     SoftSynth *synth_ = nullptr;
-#endif
 };
 
 #endif // CHIPMOOD_H

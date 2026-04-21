@@ -2,8 +2,6 @@
 
 #include "sound.h"
 
-#ifndef __EMSCRIPTEN__
-
 Sound::Sound(QObject *parent)
     : SampleInstrument(parent)
 {
@@ -45,5 +43,3 @@ void Sound::onActiveVoicesChangedInternal()
     if (nowPlaying != wasPlaying)
         emit playingChanged();
 }
-
-#endif // !__EMSCRIPTEN__

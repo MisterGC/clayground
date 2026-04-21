@@ -11,9 +11,7 @@
 #include <QVariantMap>
 #include <QVector>
 
-#ifndef __EMSCRIPTEN__
 class SoftSynth;
-#endif
 
 struct Cell {
     int note = -1;          // scale degree (-1 = empty)
@@ -172,9 +170,7 @@ private:
     int playbackStep_ = -1;
     QTimer stepTimer_;
 
-#ifndef __EMSCRIPTEN__
     SoftSynth *synth_ = nullptr;
-#endif
 };
 
 #endif // CHIPTRACKER_H

@@ -8,8 +8,6 @@
 #ifndef CLAY_SOUND_SOUND_H
 #define CLAY_SOUND_SOUND_H
 
-#ifndef __EMSCRIPTEN__
-
 #include "sample_instrument.h"
 #include <QQmlEngine>
 
@@ -60,5 +58,4 @@ private:
     int  lastActive_  = 0;
 };
 
-#endif // !__EMSCRIPTEN__
 #endif // CLAY_SOUND_SOUND_H

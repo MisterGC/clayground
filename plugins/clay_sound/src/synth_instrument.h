@@ -9,8 +9,6 @@
 #ifndef SYNTH_INSTRUMENT_H
 #define SYNTH_INSTRUMENT_H
 
-#ifndef __EMSCRIPTEN__
-
 #include "engine/engine.h"
 #include "engine/oscillator_voice.h"
 
@@ -169,5 +167,4 @@ private:
     int   lastActive_ = 0;
 };
 
-#endif // !__EMSCRIPTEN__
 #endif // SYNTH_INSTRUMENT_H

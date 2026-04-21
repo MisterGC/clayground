@@ -8,8 +8,6 @@
 #ifndef SAMPLE_INSTRUMENT_H
 #define SAMPLE_INSTRUMENT_H
 
-#ifndef __EMSCRIPTEN__
-
 #include "engine/engine.h"
 #include "engine/sample_voice.h"
 
@@ -143,5 +141,4 @@ private:
     int   lastActive_ = 0;
 };
 
-#endif // !__EMSCRIPTEN__
 #endif // SAMPLE_INSTRUMENT_H

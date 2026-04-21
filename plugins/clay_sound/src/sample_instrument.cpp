@@ -2,8 +2,6 @@
 
 #include "sample_instrument.h"
 
-#ifndef __EMSCRIPTEN__
-
 #include "engine/note_event.h"
 #include "engine/pcm_buffer.h"
 #include "engine/sampler_instrument.h"
@@ -304,5 +302,3 @@ void SampleInstrument::pullBuffer()
         emit activeVoicesChanged();
     }
 }
-
-#endif // !__EMSCRIPTEN__

@@ -1,15 +1,15 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "chiptracker.h"
 #include "voice_waveform.h"
+#include "softsynth.h"
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <algorithm>
 #include <cmath>
 
 #ifndef __EMSCRIPTEN__
-#include "softsynth.h"
 #include <QFileDialog>
-#include <QDir>
-#include <QFile>
 #endif
 
 // Scale definitions (semitone offsets from root)
@@ -53,9 +53,7 @@ static int lfoTargetFromString(const QString &s) {
 ChipTracker::ChipTracker(QObject *parent)
     : QObject(parent)
 {
-#ifndef __EMSCRIPTEN__
     synth_ = new SoftSynth(this);
-#endif
     ready_ = true;
     emit readyChanged();
 
@@ -126,9 +124,7 @@ void ChipTracker::setVolume(qreal volume)
     if (qFuzzyCompare(volume_, volume)) return;
     volume_ = volume;
     emit volumeChanged();
-#ifndef __EMSCRIPTEN__
     if (synth_) synth_->setVolume(volume);
-#endif
 }
 
 void ChipTracker::setSwing(qreal swing)
@@ -146,12 +142,10 @@ void ChipTracker::setBrightness(qreal brightness)
     if (qFuzzyCompare(brightness_, brightness)) return;
     brightness_ = brightness;
     emit brightnessChanged();
-#ifndef __EMSCRIPTEN__
     if (synth_) {
         double filterHz = 4000.0 + brightness_ * 12000.0;
         synth_->setFilterCutoff(filterHz);
     }
-#endif
 }
 
 void ChipTracker::setEchoMix(qreal mix)
@@ -160,9 +154,7 @@ void ChipTracker::setEchoMix(qreal mix)
     if (qFuzzyCompare(echoMix_, mix)) return;
     echoMix_ = mix;
     emit echoMixChanged();
-#ifndef __EMSCRIPTEN__
     if (synth_) synth_->setEchoMix(mix);
-#endif
 }
 
 QVariantList ChipTracker::grid() const
@@ -318,11 +310,9 @@ void ChipTracker::clearAll()
 
 void ChipTracker::play()
 {
-#ifndef __EMSCRIPTEN__
     if (!synth_) return;
     buildNoteEvents();
     synth_->play();
-#endif
     playing_ = true;
     playbackStep_ = 0;
     emit playingChanged();
@@ -332,9 +322,7 @@ void ChipTracker::play()
 
 void ChipTracker::stop()
 {
-#ifndef __EMSCRIPTEN__
     if (synth_) synth_->stop();
-#endif
     stepTimer_.stop();
     playing_ = false;
     playbackStep_ = -1;
@@ -344,7 +332,6 @@ void ChipTracker::stop()
 
 void ChipTracker::updatePlaybackStep()
 {
-#ifndef __EMSCRIPTEN__
     if (!synth_ || !playing_) return;
     double secPerBeat = 60.0 / tempo_;
     double stepDur = secPerBeat * 0.25;
@@ -354,10 +341,7 @@ void ChipTracker::updatePlaybackStep()
         playbackStep_ = step;
         emit playbackStepChanged();
     }
-#endif
 }
-
-#ifndef __EMSCRIPTEN__
 
 void ChipTracker::buildNoteEvents()
 {
@@ -431,11 +415,16 @@ void ChipTracker::exportWav(const QString &path)
 
     QString filePath = path;
     if (filePath.isEmpty()) {
+#ifdef __EMSCRIPTEN__
+        qWarning() << "ChipTracker::exportWav: path is required on WASM";
+        return;
+#else
         QString defaultName = QString("chiptracker_%1_%2bpm.wav")
             .arg(scale_).arg(tempo_);
         filePath = QFileDialog::getSaveFileName(nullptr, "Save WAV",
             QDir::homePath() + "/" + defaultName, "WAV files (*.wav)");
         if (filePath.isEmpty()) return;
+#endif
     }
 
     int totalSamples = static_cast<int>(synth_->loopDuration() * 44100);
@@ -477,5 +466,3 @@ void ChipTracker::exportWav(const QString &path)
     qDebug() << "[ChipTracker] WAV exported to:" << filePath;
     emit exportFinished(filePath);
 }
-
-#endif // !__EMSCRIPTEN__

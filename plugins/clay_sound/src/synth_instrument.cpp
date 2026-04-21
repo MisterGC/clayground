@@ -2,8 +2,6 @@
 
 #include "synth_instrument.h"
 
-#ifndef __EMSCRIPTEN__
-
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
@@ -376,5 +374,3 @@ void SynthInstrument::pullBuffer()
         emit activeVoicesChanged();
     }
 }
-
-#endif // !__EMSCRIPTEN__

@@ -8,8 +8,6 @@
 #ifndef SOFTSYNTH_H
 #define SOFTSYNTH_H
 
-#ifndef __EMSCRIPTEN__
-
 #include "voice_waveform.h"
 
 #include <QObject>
@@ -130,5 +128,4 @@ private:
     double pendingLoopDuration_ = 0.0;
 };
 
-#endif // !__EMSCRIPTEN__
 #endif // SOFTSYNTH_H

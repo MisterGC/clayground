@@ -2,8 +2,6 @@
 
 #include "softsynth.h"
 
-#ifndef __EMSCRIPTEN__
-
 #include "engine/note_event.h"
 #include "engine/oscillator_voice.h"
 
@@ -390,5 +388,3 @@ void SoftSynth::renderOffline(float *output, int sampleCount)
     for (int i = 0; i < sampleCount; ++i)
         output[i] = std::clamp(output[i], -1.0f, 1.0f);
 }
-
-#endif // !__EMSCRIPTEN__

@@ -19,8 +19,6 @@
 #ifndef CLAY_SOUND_SONG_PLAYER_H
 #define CLAY_SOUND_SONG_PLAYER_H
 
-#ifndef __EMSCRIPTEN__
-
 #include "song/song_model.h"
 
 #include <QElapsedTimer>
@@ -134,5 +132,4 @@ signals:
     void hotReloaded();
 };
 
-#endif // !__EMSCRIPTEN__
 #endif // CLAY_SOUND_SONG_PLAYER_H
