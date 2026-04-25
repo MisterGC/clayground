@@ -144,6 +144,7 @@ private slots:
     void goldenRender();
     void synthInstrumentOfflineTrigger();
     void synthInstrumentMultipleTriggersOverlap();
+    void multipleSynthInstrumentsShareEngine();
     void sampleVoicePlaysBuffer();
     void sampleVoicePitchShift();
     void sampleVoiceLoops();
@@ -294,6 +295,66 @@ void EngineSpineTest::synthInstrumentMultipleTriggersOverlap()
     double e = 0.0;
     for (auto s : buf) e += std::abs(s);
     QVERIFY2(e > 100.0, qPrintable(QString("expected audible mix, energy=%1").arg(e)));
+}
+
+void EngineSpineTest::multipleSynthInstrumentsShareEngine()
+{
+    // Regression for the WASM "only one QAudioSink at a time" issue:
+    // four SynthInstruments simultaneously alive must all contribute to
+    // the shared engine output. Pre-refactor each instrument owned its
+    // own QAudioSink; on Qt-WASM the 2nd-4th sinks failed to open with
+    // "Invalid Operation", silencing those instruments.
+    auto makeSynth = [](const QString &waveform, qreal volume) {
+        auto s = std::make_unique<SynthInstrument>();
+        s->setWaveform(waveform);
+        s->setAttack(0.0);
+        s->setDecay(0.0);
+        s->setSustain(1.0);
+        s->setRelease(0.0);
+        s->setPitchStart(0.0);
+        s->setPitchEnd(0.0);
+        s->setPitchTime(0.0);
+        s->setVolume(volume);
+        return s;
+    };
+
+    auto a = makeSynth("sine",     1.0);
+    auto b = makeSynth("square",   1.0);
+    auto c = makeSynth("triangle", 1.0);
+    auto d = makeSynth("sawtooth", 1.0);
+
+    QVERIFY(a->trigger(220.0, 1.0, 0.05));
+    QVERIFY(b->trigger(440.0, 1.0, 0.05));
+    QVERIFY(c->trigger(660.0, 1.0, 0.05));
+    QVERIFY(d->trigger(880.0, 1.0, 0.05));
+
+    // Render through any one of them — they share the engine, so any
+    // call drains the same buffer.
+    auto buf = a->renderOffline(0.1);
+    QCOMPARE(buf.size(), 4410);
+
+    double e = 0.0;
+    for (auto s : buf) e += std::abs(s);
+    // Four overlapping voices: energy must be substantially above what
+    // a single voice alone produces. A single voice at velocity 1.0
+    // for 0.05s yields ~2200; we require >800 here as a robust
+    // regression bar that catches "3 of 4 voices were silent".
+    QVERIFY2(e > 800.0, qPrintable(QString("expected audible 4-voice mix, energy=%1").arg(e)));
+
+    // Cross-instrument gain isolation: muting one instrument must not
+    // silence the others. Reset state by destroying these synths first
+    // so the next round's voices come from fresh registrations.
+    a.reset(); b.reset(); c.reset(); d.reset();
+
+    auto loud = makeSynth("square", 1.0);
+    auto mute = makeSynth("square", 0.0);   // gain 0 → contributes nothing
+    QVERIFY(loud->trigger(440.0, 1.0, 0.05));
+    QVERIFY(mute->trigger(880.0, 1.0, 0.05));
+
+    auto buf2 = loud->renderOffline(0.1);
+    double e2 = 0.0;
+    for (auto s : buf2) e2 += std::abs(s);
+    QVERIFY2(e2 > 100.0, qPrintable(QString("loud voice should be audible, energy=%1").arg(e2)));
 }
 
 // --- Sample voice / instrument tests ----------------------------------

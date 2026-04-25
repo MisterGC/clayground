@@ -2,21 +2,20 @@
 
 #include "synth_instrument.h"
 
+#include "audio_output.h"
+#include "engine/engine.h"
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
 
-#include <QAudioSink>
-#include <QAudioDevice>
-#include <QAudioFormat>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
-#include <QMediaDevices>
 #include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <vector>
 
 namespace cs = clay::sound;
@@ -42,11 +41,13 @@ static int mapLfoTarget(const QString &name)
 SynthInstrument::SynthInstrument(QObject *parent)
     : QObject(parent)
 {
-    // Register an OscillatorInstrument with the engine; keep a raw
-    // pointer so we can push per-event patches.
+    // Register an OscillatorInstrument with the shared AudioOutput;
+    // keep a raw pointer so we can push per-event patches. The engine
+    // owns the instrument and will drop it (plus any active voices)
+    // when we unregister in the destructor.
     auto osc = std::make_unique<cs::OscillatorInstrument>();
     oscInst_ = osc.get();
-    oscInstId_ = engine_.addInstrument(std::move(osc));
+    oscInstId_ = cs::AudioOutput::instance().registerInstrument(std::move(osc));
 
     // Sensible default patch: short organ-like ping.
     patch_.waveform = cs::OscillatorVoice::Waveform::Sine;
@@ -55,13 +56,19 @@ SynthInstrument::SynthInstrument(QObject *parent)
     patch_.sustain  = 0.6;
     patch_.release  = 0.1;
     oscInst_->setDefaultPatch(patch_);
+    oscInst_->setGain(static_cast<float>(volume_));
 
-    connect(&pullTimer_, &QTimer::timeout, this, &SynthInstrument::pullBuffer);
+    connect(&cs::AudioOutput::instance(), &cs::AudioOutput::afterPull,
+            this, &SynthInstrument::onAfterPull);
 }
 
 SynthInstrument::~SynthInstrument()
 {
-    stopSink();
+    if (oscInstId_ >= 0) {
+        cs::AudioOutput::instance().unregisterInstrument(oscInstId_);
+        oscInst_ = nullptr;
+        oscInstId_ = -1;
+    }
 }
 
 // --- property setters --------------------------------------------------
@@ -168,12 +175,24 @@ void SynthInstrument::setVolume(qreal v)
     v = std::clamp(v, 0.0, 1.0);
     if (volume_ == v) return;
     volume_ = v;
+    if (oscInst_) oscInst_->setGain(static_cast<float>(v));
     emit volumeChanged();
 }
 
 int SynthInstrument::activeVoices() const
 {
-    return static_cast<int>(engine_.activeVoices());
+    if (oscInstId_ < 0) return 0;
+    return static_cast<int>(
+        cs::AudioOutput::instance().engine().activeVoices(oscInstId_));
+}
+
+void SynthInstrument::onAfterPull()
+{
+    const int av = activeVoices();
+    if (av != lastActive_) {
+        lastActive_ = av;
+        emit activeVoicesChanged();
+    }
 }
 
 // --- triggering --------------------------------------------------------
@@ -181,17 +200,20 @@ int SynthInstrument::activeVoices() const
 bool SynthInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSeconds)
 {
     if (freqHz <= 0.0 || durationSeconds <= 0.0) return false;
+    if (!oscInst_ || oscInstId_ < 0) return false;
 
-    ensureSinkRunning();
+    auto& output = cs::AudioOutput::instance();
+    output.start(); // idempotent; opens the sink on first triggered note
 
+    auto& eng = output.engine();
     cs::NoteEvent ev;
-    ev.timeFrames     = engine_.currentFrame();  // fire on the next render pass
+    ev.timeFrames     = eng.currentFrame();  // fire on the next render pass
     ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
     ev.freqHz         = freqHz;
     ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
     ev.instrumentId   = oscInstId_;
 
-    const cs::EventId id = engine_.schedule(ev);
+    const cs::EventId id = eng.schedule(ev);
     oscInst_->pushPatch(id, patch_);
     return true;
 }
@@ -207,9 +229,14 @@ QVector<float> SynthInstrument::renderOffline(qreal durationSeconds)
     const int frames = std::max(0, static_cast<int>(std::llround(durationSeconds * SAMPLE_RATE)));
     QVector<float> out(frames, 0.0f);
     if (frames == 0) return out;
-    engine_.renderOffline(out.data(), frames);
-    const float v = static_cast<float>(volume_);
-    for (auto &s : out) s = std::clamp(s * v, -1.0f, 1.0f);
+    // Render the shared engine. Per-instrument gain is already applied
+    // inside the engine; we only need a final master clamp to mirror
+    // what the live sink does. Note: this is destructive — it advances
+    // the shared engine's clock and consumes scheduled events. Intended
+    // for tests and headless preview; production playback goes through
+    // AudioOutput's pull timer, which is the only other caller.
+    cs::AudioOutput::instance().engine().renderOffline(out.data(), frames);
+    for (auto &s : out) s = std::clamp(s, -1.0f, 1.0f);
     return out;
 }
 
@@ -299,78 +326,3 @@ QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocit
     return path;
 }
 
-// --- audio plumbing ----------------------------------------------------
-
-void SynthInstrument::ensureSinkRunning()
-{
-    if (sinkRunning_) return;
-
-    QAudioFormat fmt;
-    fmt.setSampleRate(SAMPLE_RATE);
-    fmt.setChannelCount(1);
-    fmt.setSampleFormat(QAudioFormat::Float);
-
-    QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
-    if (outputDevice.isNull()) {
-        qWarning() << "SynthInstrument: no audio output device";
-        return;
-    }
-
-    delete sink_;
-    sink_ = new QAudioSink(outputDevice, fmt, this);
-    sink_->setBufferSize(SAMPLE_RATE * sizeof(float) / 5); // 200ms
-    device_ = sink_->start();
-    if (!device_) {
-        qWarning() << "SynthInstrument: failed to start audio sink";
-        delete sink_;
-        sink_ = nullptr;
-        return;
-    }
-
-    sinkRunning_ = true;
-    pullTimer_.start(BUFFER_MS);
-}
-
-void SynthInstrument::stopSink()
-{
-    if (!sinkRunning_) return;
-    sinkRunning_ = false;
-    pullTimer_.stop();
-    if (sink_) {
-        sink_->stop();
-        delete sink_;
-        sink_ = nullptr;
-        device_ = nullptr;
-    }
-}
-
-void SynthInstrument::pullBuffer()
-{
-    if (!sinkRunning_ || !sink_ || !device_) return;
-
-    const int bytesFree = sink_->bytesFree();
-    int frames = bytesFree / static_cast<int>(sizeof(float));
-    if (frames <= 0) return;
-    frames = std::min(frames, SAMPLE_RATE); // cap 1s
-
-    QVector<float> buf(frames, 0.0f);
-    engine_.renderOffline(buf.data(), frames);
-
-    const float v = static_cast<float>(volume_);
-    for (auto &s : buf) s = std::clamp(s * v, -1.0f, 1.0f);
-
-    const char *data = reinterpret_cast<const char *>(buf.data());
-    qint64 bytesToWrite = frames * static_cast<qint64>(sizeof(float));
-    qint64 written = 0;
-    while (written < bytesToWrite) {
-        qint64 c = device_->write(data + written, bytesToWrite - written);
-        if (c <= 0) break;
-        written += c;
-    }
-
-    const int av = activeVoices();
-    if (av != lastActive_) {
-        lastActive_ = av;
-        emit activeVoicesChanged();
-    }
-}

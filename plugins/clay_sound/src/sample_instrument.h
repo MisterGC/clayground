@@ -1,27 +1,22 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
 // SampleInstrument — public QML-facing PCM sample player.
-// Mirrors SynthInstrument: owns an Engine + SamplerInstrument (core)
-// + QAudioSink. WAV loaded on source change; one-shot triggers via
-// trigger()/triggerNote()/triggerOneShot().
+// Mirrors SynthInstrument: registers a SamplerInstrument with the
+// shared clay::sound::AudioOutput singleton; WAV loaded on source
+// change; one-shot triggers via trigger()/triggerNote()/triggerOneShot().
 
 #ifndef SAMPLE_INSTRUMENT_H
 #define SAMPLE_INSTRUMENT_H
 
-#include "engine/engine.h"
 #include "engine/sample_voice.h"
 
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
-#include <QTimer>
 #include <QUrl>
 #include <QVector>
 
 #include <memory>
-
-class QAudioSink;
-class QIODevice;
 
 namespace clay::sound {
 struct PcmBuffer;
@@ -109,19 +104,17 @@ signals:
     void playbackFinished();
 
 private slots:
-    void pullBuffer();
+    void onAfterPull();
 
 private:
     static constexpr int SAMPLE_RATE = 44100;
-    static constexpr int BUFFER_MS   = 20;
 
     void loadSource();
     void applyPatchToCore();
-    void ensureSinkRunning();
-    void stopSink();
 
-    clay::sound::Engine engine_{SAMPLE_RATE};
-    clay::sound::SamplerInstrument *core_ = nullptr; // owned by engine
+    // Raw ptr to the SamplerInstrument we registered with the shared
+    // AudioOutput's engine. Owned by the engine.
+    clay::sound::SamplerInstrument *core_ = nullptr;
     int  coreId_ = -1;
 
     std::shared_ptr<const clay::sound::PcmBuffer> buffer_;
@@ -131,11 +124,6 @@ private:
     int     rootMidiNote_ = 60;
     QString error_;
     bool    loaded_ = false;
-
-    QAudioSink *sink_   = nullptr;
-    QIODevice  *device_ = nullptr;
-    QTimer      pullTimer_;
-    bool        sinkRunning_ = false;
 
     qreal volume_     = 1.0;
     int   lastActive_ = 0;

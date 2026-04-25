@@ -1,27 +1,24 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
 // SynthInstrument — public QML-facing oscillator instrument.
-// Owns a clay::sound::Engine + OscillatorInstrument + QAudioSink,
-// exposes a patch via QProperties, and fires one-shot notes via
-// trigger()/triggerNote(). Used for SFX (jumps, pickups, explosions)
-// and simple procedural music beds.
+// Registers a clay::sound::OscillatorInstrument with the shared
+// clay::sound::AudioOutput singleton, exposes a patch via QProperties,
+// and fires one-shot notes via trigger()/triggerNote(). Used for SFX
+// (jumps, pickups, explosions) and simple procedural music beds.
+//
+// Multiple SynthInstruments coexist by sharing the same Engine + sink;
+// each is identified by an instrument id and its voices are mixed
+// together at the engine level scaled by per-instrument gain.
 
 #ifndef SYNTH_INSTRUMENT_H
 #define SYNTH_INSTRUMENT_H
 
-#include "engine/engine.h"
 #include "engine/oscillator_voice.h"
 
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
-#include <QTimer>
 #include <QVector>
-
-#include <memory>
-
-class QAudioSink;
-class QIODevice;
 
 namespace clay::sound { class OscillatorInstrument; }
 
@@ -129,14 +126,11 @@ signals:
     void activeVoicesChanged();
 
 private slots:
-    void pullBuffer();
+    void onAfterPull();
 
 private:
     static constexpr int SAMPLE_RATE = 44100;
-    static constexpr int BUFFER_MS   = 20;
 
-    void ensureSinkRunning();
-    void stopSink();
     // Render one note on a scratch engine using the current patch.
     // Returns a vector of `frames` mono samples (post-volume) so UI
     // previews and bakes share a single code path.
@@ -144,10 +138,9 @@ private:
                                      qreal durationSeconds,
                                      qreal velocity) const;
 
-    // Engine ownership (needs full type for std::unique_ptr).
-    clay::sound::Engine engine_{SAMPLE_RATE};
-    // Raw ptr to the OscillatorInstrument we registered with `engine_`.
-    // Owned by the engine; not deleted here.
+    // Raw ptr to the OscillatorInstrument we registered with the
+    // shared AudioOutput's engine. Owned by the engine; not deleted
+    // here.
     clay::sound::OscillatorInstrument *oscInst_ = nullptr;
     int oscInstId_ = -1;
 
@@ -156,12 +149,6 @@ private:
     clay::sound::OscillatorVoice::Patch patch_{};
     QString waveformName_  = "sine";
     QString lfoTargetName_ = "none";
-
-    // Audio output.
-    QAudioSink *sink_     = nullptr;
-    QIODevice  *device_   = nullptr;
-    QTimer      pullTimer_;
-    bool        sinkRunning_ = false;
 
     qreal volume_ = 0.8;
     int   lastActive_ = 0;

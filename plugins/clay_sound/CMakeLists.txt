@@ -29,6 +29,7 @@ set(ENGINE_SRC
 
 set(CPP_SRC
     src/voice_waveform.h
+    src/audio_output.cpp src/audio_output.h
     src/softsynth.cpp src/softsynth.h
     src/synth_instrument.cpp src/synth_instrument.h
     src/sample_instrument.cpp src/sample_instrument.h
