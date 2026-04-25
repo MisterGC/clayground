@@ -7,6 +7,9 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QVariant>
@@ -25,6 +28,16 @@ QUrl resolveUrl(QObject *ctx, const QUrl &url)
     if (auto *qctx = ctx ? QQmlEngine::contextForObject(ctx) : nullptr)
         return qctx->resolvedUrl(url);
     return url;
+}
+
+bool isLocalScheme(const QUrl &url)
+{
+    if (url.isEmpty()) return true;
+    if (url.isLocalFile()) return true;
+    const auto s = url.scheme();
+    return s.isEmpty()
+        || s == QLatin1String("file")
+        || s == QLatin1String("qrc");
 }
 
 QString urlToLocalPath(const QUrl &url)
@@ -160,6 +173,8 @@ void SongPlayer::tick()
 
 void SongPlayer::reload()
 {
+    cancelInFlightReply();
+
     loaded_ = false;
     schedule_.clear();
     totalBeats_ = 0.0;
@@ -179,74 +194,123 @@ void SongPlayer::reload()
         return;
     }
 
-    const QString path = urlToLocalPath(url);
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        setError(QStringLiteral("cannot open %1").arg(path));
+    if (isLocalScheme(url)) {
+        const QString path = urlToLocalPath(url);
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            setError(QStringLiteral("cannot open %1").arg(path));
+            updateWatchedFile({});
+            emit parseError(error_);
+            emit loadedChanged();
+            return;
+        }
+        applyParsedBytes(f.readAll(), path, /*hot=*/false);
+    } else {
+        // Remote (http/https): async fetch. No filesystem watcher on remote.
         updateWatchedFile({});
-        emit parseError(error_);
-        emit loadedChanged();
-        return;
+        beginRemoteFetch(url, /*hot=*/false);
     }
-    const auto res = clay::sound::SongParser::parse(f.readAll());
-    if (!res.ok) {
-        setError(res.error);
-        updateWatchedFile(path);
-        emit parseError(error_);
-        emit loadedChanged();
-        return;
-    }
-    model_ = res.model;
-    rebuildSchedule();
-    setError(QString());
-    loaded_ = true;
-    updateWatchedFile(path);
-    emit loadedChanged();
-    emit tempoChanged();
-    emit totalBeatsChanged();
-    emit positionChanged();
 }
 
 void SongPlayer::hotReload()
 {
-    // Used when the source file content changed on disk while the
-    // player may be mid-playback. Keep position_, rebuild schedule,
-    // clamp into new range. On parse failure keep the previous model
-    // intact so playback survives typos mid-edit.
+    // Used when the source content changed (file watcher on disk, or a
+    // dev-server SSE push for remote URLs). Keeps position_, rebuilds
+    // schedule, clamps into new range. On parse failure keeps the
+    // previous model intact so playback survives typos mid-edit.
+    cancelInFlightReply();
+
     const QUrl url = resolveUrl(this, source_);
-    const QString path = urlToLocalPath(url);
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        setError(QStringLiteral("cannot open %1").arg(path));
-        emit parseError(error_);
-        return;
+    if (url.isEmpty()) return;
+
+    if (isLocalScheme(url)) {
+        const QString path = urlToLocalPath(url);
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            setError(QStringLiteral("cannot open %1").arg(path));
+            emit parseError(error_);
+            return;
+        }
+        applyParsedBytes(f.readAll(), path, /*hot=*/true);
+    } else {
+        beginRemoteFetch(url, /*hot=*/true);
     }
-    const auto res = clay::sound::SongParser::parse(f.readAll());
+}
+
+bool SongPlayer::applyParsedBytes(const QByteArray &bytes, const QString &watchPath, bool hot)
+{
+    const auto res = clay::sound::SongParser::parse(bytes);
     if (!res.ok) {
         setError(res.error);
+        if (!hot) updateWatchedFile(watchPath);
         emit parseError(error_);
-        return;
+        if (!hot) emit loadedChanged();
+        return false;
     }
+
     const double prevTempo = model_.tempo;
     model_ = res.model;
     rebuildSchedule();
 
-    // Clamp position to the new range; re-seek the cursor.
-    if (position_ > totalBeats_) position_ = totalBeats_;
-    auto it = std::lower_bound(
-        schedule_.begin(), schedule_.end(), position_,
-        [](const ScheduledEvent &e, double b) { return e.beat < b; });
-    nextIdx_ = static_cast<int>(it - schedule_.begin());
+    if (hot) {
+        // Clamp position to the new range; re-seek the cursor.
+        if (position_ > totalBeats_) position_ = totalBeats_;
+        auto it = std::lower_bound(
+            schedule_.begin(), schedule_.end(), position_,
+            [](const ScheduledEvent &e, double b) { return e.beat < b; });
+        nextIdx_ = static_cast<int>(it - schedule_.begin());
+    }
 
     setError(QString());
+    if (!hot) updateWatchedFile(watchPath);
+
     if (!loaded_) {
         loaded_ = true;
+        emit loadedChanged();
+    } else if (!hot) {
+        // Cold reload preserves prior behavior of always emitting.
         emit loadedChanged();
     }
     if (model_.tempo != prevTempo) emit tempoChanged();
     emit totalBeatsChanged();
     emit positionChanged();
-    emit hotReloaded();
+    if (hot) emit hotReloaded();
+    return true;
+}
+
+void SongPlayer::beginRemoteFetch(const QUrl &url, bool hot)
+{
+    if (!nam_) nam_ = new QNetworkAccessManager(this);
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply *reply = nam_->get(req);
+    activeReply_ = reply;
+    connect(reply, &QNetworkReply::finished, this, [this, reply, hot] {
+        // A newer fetch may have superseded this one.
+        if (activeReply_.data() != reply) { reply->deleteLater(); return; }
+        activeReply_.clear();
+        if (reply->error() != QNetworkReply::NoError) {
+            setError(QStringLiteral("network error: %1").arg(reply->errorString()));
+            emit parseError(error_);
+            if (!hot) emit loadedChanged();
+            reply->deleteLater();
+            return;
+        }
+        const QByteArray bytes = reply->readAll();
+        reply->deleteLater();
+        applyParsedBytes(bytes, /*watchPath=*/{}, hot);
+    });
+}
+
+void SongPlayer::cancelInFlightReply()
+{
+    if (activeReply_) {
+        QNetworkReply *r = activeReply_.data();
+        activeReply_.clear();
+        r->abort();
+        r->deleteLater();
+    }
 }
 
 void SongPlayer::onWatchedFileChanged(const QString &path)

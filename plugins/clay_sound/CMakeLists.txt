@@ -4,7 +4,7 @@
 # Unified desktop + WASM build: Qt Multimedia's QAudioSink drives the
 # clay::sound engine on both targets (WASM uses the emscripten backend).
 #
-find_package(Qt6 COMPONENTS Multimedia REQUIRED)
+find_package(Qt6 COMPONENTS Multimedia Network REQUIRED)
 if(NOT EMSCRIPTEN)
     find_package(Qt6 COMPONENTS Widgets REQUIRED)
 endif()
@@ -38,7 +38,7 @@ set(CPP_SRC
     src/chipmood.cpp src/chipmood.h
     ${ENGINE_SRC})
 
-set(EXTRA_LIBS Qt::Multimedia)
+set(EXTRA_LIBS Qt::Multimedia Qt::Network)
 if(NOT EMSCRIPTEN)
     list(APPEND EXTRA_LIBS Qt::Widgets)
 endif()

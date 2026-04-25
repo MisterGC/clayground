@@ -25,12 +25,18 @@
 #include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 #include <QVector>
+
+QT_BEGIN_NAMESPACE
+class QNetworkAccessManager;
+class QNetworkReply;
+QT_END_NAMESPACE
 
 class SongPlayer : public QObject
 {
@@ -106,6 +112,16 @@ private:
     void updateWatchedFile(const QString &path);
     QObject *resolveInstrument(const QString &name) const;
 
+    // Bytes -> model. Returns true on success. `hot` flips between
+    // cold-reload semantics (always emits loadedChanged, watches file)
+    // and hot-reload semantics (preserves model on parse failure,
+    // emits hotReloaded).
+    bool applyParsedBytes(const QByteArray &bytes, const QString &watchPath, bool hot);
+
+    // Async fetch path for http/https (or any non-local) URLs.
+    void beginRemoteFetch(const QUrl &url, bool hot);
+    void cancelInFlightReply();
+
     QUrl             source_;
     QVariantList     instrumentsVar_;
     QHash<QString, QObject *> nameToInstrument_;
@@ -127,6 +143,9 @@ private:
 
     QFileSystemWatcher watcher_;
     QString            watchedPath_;
+
+    QNetworkAccessManager *nam_ = nullptr;     // lazily created on first remote fetch
+    QPointer<QNetworkReply> activeReply_;      // in-flight load; aborted on a newer one
 
 signals:
     void hotReloaded();
