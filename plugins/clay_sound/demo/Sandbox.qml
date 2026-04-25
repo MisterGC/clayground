@@ -19,6 +19,10 @@ Rectangle {
     property color dimTextColor: "#8a8a8a"
     property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
                               Qt.platform.os === "windows" ? "Consolas" : "monospace"
+    // On WASM, "file paths" point into the in-WASM virtual filesystem
+    // (Emscripten MEMFS) — they are NOT host filesystem paths and the
+    // user cannot browse to them. Hide them to avoid false confidence.
+    readonly property bool isWasm: Qt.platform.os === "wasm"
 
     // --- Sound effects (Sound wrapper) -------------------------------
     Sound {
@@ -427,7 +431,9 @@ Rectangle {
                                 var p = bakeSource.bake(69, 0.4, 0.9)
                                 if (!p.length) { statusText.text = "Bake failed"; return }
                                 bakeSample.source = "file://" + p
-                                statusText.text = "Baked: " + p
+                                statusText.text = root.isWasm
+                                    ? "Baked (in-memory cache)"
+                                    : "Baked: " + p
                             }
                         }
                         Button { text: "Trigger baked sample"
@@ -436,7 +442,9 @@ Rectangle {
                     }
                     Text {
                         text: bakeSample.loaded
-                              ? "Sample: " + bakeSample.source
+                              ? (root.isWasm
+                                    ? "Sample: (in-memory; not on host disk)"
+                                    : "Sample: " + bakeSample.source)
                               : "Sample: (bake first)"
                         color: root.dimTextColor
                         font.family: root.monoFont
