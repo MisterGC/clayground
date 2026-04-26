@@ -3,7 +3,7 @@
 
 project = Clayground
 description = Clayground Game Development Framework
-version = 2025.2
+version = 2026.2
 url = https://mistergc.github.io/clayground
 
 # Source directories - all plugins + docs for module declarations
