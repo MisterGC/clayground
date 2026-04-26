@@ -9,13 +9,39 @@
 #include "engine/sampler_instrument.h"
 
 #include <QDebug>
+#include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QQmlContext>
 #include <QQmlEngine>
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace cs = clay::sound;
+
+namespace {
+
+bool isLocalScheme(const QUrl &url)
+{
+    if (url.isEmpty()) return true;
+    if (url.isLocalFile()) return true;
+    const auto s = url.scheme();
+    return s.isEmpty()
+        || s == QLatin1String("file")
+        || s == QLatin1String("qrc");
+}
+
+QString urlToLocalPath(const QUrl &url)
+{
+    if (url.isLocalFile()) return url.toLocalFile();
+    if (url.scheme() == QLatin1String("qrc")) return QStringLiteral(":") + url.path();
+    return url.toString();
+}
+
+} // namespace
 
 SampleInstrument::SampleInstrument(QObject *parent)
     : QObject(parent)
@@ -31,6 +57,7 @@ SampleInstrument::SampleInstrument(QObject *parent)
 
 SampleInstrument::~SampleInstrument()
 {
+    cancelInFlightReply();
     if (coreId_ >= 0) {
         cs::AudioOutput::instance().unregisterInstrument(coreId_);
         core_ = nullptr;
@@ -144,6 +171,8 @@ void SampleInstrument::applyPatchToCore()
 
 void SampleInstrument::loadSource()
 {
+    cancelInFlightReply();
+
     if (source_.isEmpty()) {
         buffer_.reset();
         if (core_) core_->setSource(nullptr);
@@ -151,19 +180,43 @@ void SampleInstrument::loadSource()
         return;
     }
 
-    std::string path = source_.isLocalFile()
-                           ? source_.toLocalFile().toStdString()
-                           : source_.toString().toStdString();
+    if (isLocalScheme(source_)) {
+        // Synchronous file/qrc read keeps prior desktop semantics —
+        // load completes before this function returns.
+        const QString path = urlToLocalPath(source_);
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            buffer_.reset();
+            if (core_) core_->setSource(nullptr);
+            error_ = QStringLiteral("cannot open %1").arg(path);
+            emit errorStringChanged();
+            if (loaded_) { loaded_ = false; emit loadedChanged(); }
+            return;
+        }
+        applyLoadedBytes(f.readAll());
+    } else {
+        // http(s) (or any non-local) — fetch via QNetworkAccessManager.
+        // Required on WASM where the source URL points at the dev/CDN
+        // origin and QFile can't open it. While the fetch is in flight
+        // `loaded_` stays false, mirroring lazyLoading semantics.
+        beginRemoteFetch(source_);
+    }
+}
 
+bool SampleInstrument::applyLoadedBytes(const QByteArray &bytes)
+{
     std::string err;
-    auto buf = cs::PcmBuffer::loadWav(path, &err);
+    auto buf = cs::PcmBuffer::loadWavFromBytes(
+        reinterpret_cast<const std::uint8_t *>(bytes.constData()),
+        static_cast<std::size_t>(bytes.size()),
+        &err);
     if (!buf) {
         buffer_.reset();
         if (core_) core_->setSource(nullptr);
         error_ = QString::fromStdString(err.empty() ? "load failed" : err);
         emit errorStringChanged();
         if (loaded_) { loaded_ = false; emit loadedChanged(); }
-        return;
+        return false;
     }
 
     buffer_ = std::make_shared<cs::PcmBuffer>(std::move(*buf));
@@ -174,6 +227,45 @@ void SampleInstrument::loadSource()
     applyPatchToCore();
     if (!loaded_) { loaded_ = true; emit loadedChanged(); }
     if (!error_.isEmpty()) { error_.clear(); emit errorStringChanged(); }
+    return true;
+}
+
+void SampleInstrument::beginRemoteFetch(const QUrl &url)
+{
+    if (!nam_) nam_ = new QNetworkAccessManager(this);
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply *reply = nam_->get(req);
+    activeReply_ = reply;
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        // A newer fetch (e.g. setSource() called again) may have superseded
+        // this one — drop the stale reply silently.
+        if (activeReply_.data() != reply) { reply->deleteLater(); return; }
+        activeReply_.clear();
+        if (reply->error() != QNetworkReply::NoError) {
+            buffer_.reset();
+            if (core_) core_->setSource(nullptr);
+            error_ = QStringLiteral("network error: %1").arg(reply->errorString());
+            emit errorStringChanged();
+            if (loaded_) { loaded_ = false; emit loadedChanged(); }
+            reply->deleteLater();
+            return;
+        }
+        const QByteArray bytes = reply->readAll();
+        reply->deleteLater();
+        applyLoadedBytes(bytes);
+    });
+}
+
+void SampleInstrument::cancelInFlightReply()
+{
+    if (activeReply_) {
+        QNetworkReply *r = activeReply_.data();
+        activeReply_.clear();
+        r->abort();
+        r->deleteLater();
+    }
 }
 
 // --- triggering --------------------------------------------------------

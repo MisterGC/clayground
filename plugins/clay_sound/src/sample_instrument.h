@@ -10,13 +10,20 @@
 
 #include "engine/sample_voice.h"
 
+#include <QByteArray>
 #include <QObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QString>
 #include <QUrl>
 #include <QVector>
 
 #include <memory>
+
+QT_BEGIN_NAMESPACE
+class QNetworkAccessManager;
+class QNetworkReply;
+QT_END_NAMESPACE
 
 namespace clay::sound {
 struct PcmBuffer;
@@ -110,6 +117,9 @@ private:
     static constexpr int SAMPLE_RATE = 44100;
 
     void loadSource();
+    bool applyLoadedBytes(const QByteArray &bytes);
+    void beginRemoteFetch(const QUrl &url);
+    void cancelInFlightReply();
     void applyPatchToCore();
 
     // Raw ptr to the SamplerInstrument we registered with the shared
@@ -127,6 +137,11 @@ private:
 
     qreal volume_     = 1.0;
     int   lastActive_ = 0;
+
+    // Async fetch path for http/https sources (WASM, hot-reload servers).
+    // Local file:/qrc: sources keep the synchronous QFile path.
+    QNetworkAccessManager *nam_ = nullptr;
+    QPointer<QNetworkReply> activeReply_;
 };
 
 #endif // SAMPLE_INSTRUMENT_H

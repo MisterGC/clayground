@@ -28,6 +28,13 @@ struct PcmBuffer
     static std::optional<PcmBuffer> loadWav(const std::string& path,
                                             std::string* error = nullptr);
 
+    // Parse a WAV file already held in memory (used by callers that
+    // fetched the bytes themselves, e.g. SampleInstrument's HTTP path
+    // on WASM). Same return semantics as loadWav().
+    static std::optional<PcmBuffer> loadWavFromBytes(const std::uint8_t* data,
+                                                     std::size_t size,
+                                                     std::string* error = nullptr);
+
     // Construct in-memory (for tests and synth-to-sample baking).
     static PcmBuffer fromFloats(std::vector<float> mono, int sampleRate);
 

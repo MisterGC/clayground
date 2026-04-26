@@ -66,7 +66,15 @@ std::optional<PcmBuffer> PcmBuffer::loadWav(const std::string& path, std::string
     }
     std::fclose(f);
 
-    const uint8_t* p = data.data();
+    return PcmBuffer::loadWavFromBytes(data.data(), data.size(), error);
+}
+
+std::optional<PcmBuffer> PcmBuffer::loadWavFromBytes(const std::uint8_t* data,
+                                                    std::size_t size,
+                                                    std::string* error)
+{
+    if (size < 44) { setError(error, "buffer too small"); return std::nullopt; }
+    const uint8_t* p = data;
     if (std::memcmp(p, "RIFF", 4) != 0) { setError(error, "not RIFF"); return std::nullopt; }
     if (std::memcmp(p + 8, "WAVE", 4) != 0) { setError(error, "not WAVE"); return std::nullopt; }
 
@@ -75,7 +83,7 @@ std::optional<PcmBuffer> PcmBuffer::loadWav(const std::string& path, std::string
     uint32_t dataBytes = 0;
 
     size_t pos = 12;
-    while (pos + 8 <= data.size()) {
+    while (pos + 8 <= size) {
         const uint8_t* chunk = p + pos;
         const char* id = reinterpret_cast<const char*>(chunk);
         const uint32_t sz = read_u32(chunk + 4);
