@@ -10,6 +10,7 @@ mkdir -p plugins
 # List of plugins
 plugins=(
     "ai"
+    "algorithm"
     "common"
     "storage"
     "text"
@@ -21,6 +22,7 @@ plugins=(
     "behavior"
     "gamecontroller"
     "network"
+    "sound"
 )
 
 # Copy each plugin's README
