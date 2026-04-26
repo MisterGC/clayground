@@ -8,9 +8,16 @@ Uses watchdog for native file system events (macOS FSEvents, Linux inotify)
 with automatic fallback to polling if watchdog is not installed.
 
 Usage:
-    clay-dev-server <project_dir> [port]
+    clay-dev-server <project_dir> [port]            # Plain HTTP (default)
+    clay-dev-server <project_dir> [port] --https    # HTTPS with self-signed cert
     python -m clay_dev_server <project_dir> [port]
+
+HTTP is the default because localhost is a secure context — SharedArrayBuffer,
+COOP/COEP, and ES module imports all work over HTTP for loopback origins.
+HTTPS is needed when the consuming page (e.g. WebDojo on GitHub Pages) is
+itself served over HTTPS and would otherwise hit mixed-content blocks.
 """
+import argparse
 import os
 import json
 import queue
@@ -444,12 +451,22 @@ def kill_existing_server(port):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <project_dir> [port]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        prog='clay-dev-server',
+        description='QML dev server with file watching and SSE live-reload for Clayground WebDojo.',
+    )
+    parser.add_argument('project_dir', help='Path to the QML project directory to serve')
+    parser.add_argument('port', nargs='?', type=int, default=DEFAULT_PORT,
+                        help=f'Port to listen on (default: {DEFAULT_PORT})')
+    parser.add_argument('--https', action='store_true',
+                        help='Serve over HTTPS with a self-signed cert. Default is plain HTTP, '
+                             'which is fine for localhost (a secure context). Use --https when '
+                             'a WebDojo on an HTTPS origin (e.g. GitHub Pages) needs to fetch '
+                             'from this server and would otherwise hit mixed-content blocks.')
+    args = parser.parse_args()
 
-    project_dir = Path(sys.argv[1]).resolve()
-    port = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_PORT
+    project_dir = Path(args.project_dir).resolve()
+    port = args.port
 
     if not project_dir.is_dir():
         print(f"Error: {project_dir} is not a directory")
@@ -459,23 +476,28 @@ def main():
     os.chdir(project_dir)
 
     server = ThreadedHTTPServer(('', port), DevHandler)
-    ensure_cert()
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
-    server.socket = ctx.wrap_socket(server.socket, server_side=True)
+    scheme = 'http'
+    ws_scheme = 'ws'
+    if args.https:
+        ensure_cert()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        scheme = 'https'
+        ws_scheme = 'wss'
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
     hostname = socket.gethostname()
-    print(f"QML dev server at https://localhost:{port}/")
-    print(f"  LAN: https://{hostname}:{port}/")
+    print(f"QML dev server at {scheme}://localhost:{port}/")
+    print(f"  LAN: {scheme}://{hostname}:{port}/")
     print(f"Watching: {project_dir}")
-    print(f"SSE endpoint: https://localhost:{port}/events")
+    print(f"SSE endpoint: {scheme}://localhost:{port}/events")
     if HAS_WSPROTO:
-        print(f"PeerJS signaling: wss://localhost:{port}/peerjs")
+        print(f"PeerJS signaling: {ws_scheme}://localhost:{port}/peerjs")
         local_name = _local_hostname()
         if local_name:
-            print(f"  LAN: wss://{local_name}:{port}/peerjs")
+            print(f"  LAN: {ws_scheme}://{local_name}:{port}/peerjs")
     else:
         print("PeerJS signaling: unavailable (install wsproto)")
 

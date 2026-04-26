@@ -17,6 +17,7 @@ add_subdirectory (clay_svg)
 # clay_network: WebRTC/PeerJS on WASM, TCP/UDP on native
 add_subdirectory (clay_network)
 
+add_subdirectory (clay_algorithm)
 add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)

@@ -1,0 +1,4 @@
+# Song sources are hot-reloaded by SongPlayer itself — don't let
+# dojo trigger a full sandbox reload on edit (that would reset the
+# playhead).
+songs/

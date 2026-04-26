@@ -1,0 +1,25 @@
+{
+  "tempo": 110,
+  "tracks": {
+    "lead": { "instrument": "demoLead" },
+    "bass": { "instrument": "demoBass" }
+  },
+  "patterns": {
+    "A": {
+      "lead": [
+        { "t": 0.0, "note": "C5", "dur": 0.5 },
+        { "t": 0.5, "note": "E5", "dur": 0.5 },
+        { "t": 1.0, "note": "G5", "dur": 0.5 },
+        { "t": 1.5, "note": "E5", "dur": 0.5 },
+        { "t": 2.0, "note": "F5", "dur": 0.5 },
+        { "t": 2.5, "note": "A5", "dur": 0.5 },
+        { "t": 3.0, "note": "G5", "dur": 1.0 }
+      ],
+      "bass": [
+        { "t": 0.0, "note": "C3", "dur": 2.0 },
+        { "t": 2.0, "note": "F3", "dur": 2.0 }
+      ]
+    }
+  },
+  "sections": [ { "pattern": "A", "repeat": 4 } ]
+}

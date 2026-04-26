@@ -91,6 +91,10 @@ Rectangle {
     */
     signal arrived();
 
+    Component.onDestruction: {
+        if (_destWp && _destWp.destroy) _destWp.destroy();
+    }
+
     WorldChangedConnections { world: behavior.world; callback: behavior._adaptConfiguration}
 
     onDestXWuChanged: _adaptConfiguration()
@@ -108,7 +112,7 @@ Rectangle {
         \brief Color for debug visualization (default: "lightblue").
     */
     property color debugColor: "lightblue"
-    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .8;  color: behavior.debugColor; strokeWidth: 5}}
+    Component{id: connector; Canv.Connector{parent: world.room; from: actor; to: _destWp; opacity: .8;  color: behavior.debugColor; strokeWidth: 2; style: ShapePath.DashLine}}
     Loader {sourceComponent: debug ? connector : null}
 
     Component {

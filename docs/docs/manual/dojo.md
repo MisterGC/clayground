@@ -35,6 +35,8 @@ Dojo is the primary development tool for Clayground projects. It monitors your s
 |----------|--------|
 | `Ctrl+G` | Toggle guide overlay |
 | `Ctrl+L` | Toggle logging overlay |
+| `Ctrl+F` | [Flag a moment]({{ site.baseurl }}/docs/manual/inspector/#ctrlf--flag-a-moment) — screenshot + annotation |
+| `Ctrl+T` | [Toggle trace]({{ site.baseurl }}/docs/manual/inspector/#ctrlt--toggle-trace) recording |
 | `Ctrl+1` to `Ctrl+5` | Switch between loaded sandboxes |
 
 ## How Live-Reloading Works
@@ -49,6 +51,50 @@ At the heart of Dojo is a sophisticated hot-reload system. When you save a QML f
 4. Session statistics persist across reloads
 
 The 50ms debounce window catches rapid file changes from editor auto-saves.
+
+## Ignoring Files — `.dojoignore`
+
+Dojo watches the sandbox directory recursively, so **any** file change in
+that tree (including data files your sandbox edits live, song sources,
+generated caches, etc.) triggers a full scene reload. For files that your
+sandbox handles itself at runtime — e.g. a song file being hot-reloaded
+by `SongPlayer` — that full reload is counter-productive: it drags the
+playhead back to zero and throws away the live state you were tuning.
+
+Drop a `.dojoignore` file next to your `Sandbox.qml` to exclude paths
+from the reload trigger. Same spirit as `.gitignore`:
+
+```text
+# ignore a single file, anywhere under the sandbox dir
+notes.txt
+
+# ignore all song sources
+*.song.json
+
+# ignore an entire subdirectory and its contents
+songs/
+
+# anchor to the sandbox dir (exact path)
+data/level1.json
+```
+
+Semantics:
+
+| Pattern                  | Matches                                                        |
+|--------------------------|----------------------------------------------------------------|
+| `name`                   | any file/dir named `name` under the sandbox tree               |
+| `*.ext`                  | basename wildcard, matches in any subdirectory                 |
+| `name/`                  | the directory and everything beneath it                        |
+| `sub/file.txt`           | path-anchored (no match on `other/sub/file.txt`)               |
+| `/file.txt`              | path-anchored (leading `/` optional; same meaning as above)    |
+| `**`                     | any number of path segments                                    |
+
+Comments start with `#`; blank lines are ignored. The file is re-read
+automatically when you save it, so you can add/remove patterns without
+restarting the dojo.
+
+`.dojoignore` only ever *subtracts* from the watched set — it cannot make
+the dojo watch files it would otherwise miss.
 
 ## Dynamic Plugin Development
 
@@ -71,5 +117,6 @@ The format is `--dynplugin <source_dir>,<binary_dir>`. Dojo detects when your pl
 
 ## Next Steps
 
+- Use the [Inspector]({{ site.baseurl }}/docs/manual/inspector/) for structured state snapshots and flagging moments
 - Learn about the [Logging Overlay]({{ site.baseurl }}/docs/manual/logging/)
 - Create your own [plugins]({{ site.baseurl }}/docs/manual/plugin-development/)

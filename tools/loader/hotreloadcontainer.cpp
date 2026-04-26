@@ -101,6 +101,13 @@ QQmlContext* HotReloadContainer::rootContext() const
     return m_engine ? m_engine->rootContext() : nullptr;
 }
 
+QQuickItem* HotReloadContainer::rootObject() const
+{
+    if (m_currentWidget)
+        return m_currentWidget->rootObject();
+    return nullptr;
+}
+
 void HotReloadContainer::hotReload()
 {
     if (m_isReloading || m_source.isEmpty())
@@ -302,18 +309,24 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
                 // Hide loading screen immediately
                 hideLoadingScreen();
             }
+            emit loadSucceeded();
             break;
-            
-        case QQuickWidget::Error:
+
+        case QQuickWidget::Error: {
             qCritical() << "QML loading failed!";
+            QStringList errorLines;
             for (const auto& error : widget->errors()) {
-                qCritical() << error.toString();
+                QString line = error.toString();
+                qCritical() << line;
+                errorLines.append(line);
             }
             if (m_isReloading) {
                 hideLoadingScreen();
             }
+            emit loadFailed(errorLines);
             break;
-            
+        }
+
         default:
             break;
     }

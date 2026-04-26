@@ -4,6 +4,7 @@
 #include <clayfilesysobserver.h>
 #include <utilityfunctions.h>
 
+#include <QElapsedTimer>
 #include <QLoggingCategory>
 #include <QObject>
 #include <QProcess>
@@ -11,6 +12,7 @@
 #include <QTimer>
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -23,6 +25,7 @@ public:
     ClayDojo(QObject* parent = nullptr);
     ~ClayDojo();
     void addDynPluginDepedency(const QString &srcPath, const QString &binPath);
+    void addSandboxDir(const QString& sandboxFile);
 
 public slots:
     void run();
@@ -38,6 +41,13 @@ signals:
     void restarted();
 
 private:
+    void writeDojoState(const QString& phase, int exitCode,
+                       const QString& exitStatus,
+                       bool backingOff, int backoffMs);
+    void writeCrashArtifact(int exitCode, const QString& exitStatus);
+    void appendStderrLine(const QString& line);
+
+private:
     std::timed_mutex mutex_;
     std::condition_variable_any restarterStopped_;
     std::atomic_bool shallStop_;
@@ -47,6 +57,10 @@ private:
     ClayFileSysObserver fileObserver_;
     std::map<QString, QString> sourceToBuildDir_;
     QStringList buildWaitList_;
+    QStringList sandboxDirs_;
+    int generation_ = 0;
+    int rapidCrashCount_ = 0;
+    std::deque<QString> recentStderr_;
     QTimer restart_;
     QLoggingCategory logCat_;
 };

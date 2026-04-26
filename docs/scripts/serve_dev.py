@@ -6,10 +6,12 @@ Serves from _site/ but overlays docs/ for rapid iteration on source files.
 Changes to QML examples, JS, CSS in docs/ are immediately visible without rebuild.
 
 Usage (run from docs/ directory):
-    python3 scripts/serve_dev.py
+    python3 scripts/serve_dev.py            # HTTPS (default, needed for WebDojo dynamic resource loading)
+    python3 scripts/serve_dev.py --http     # Plain HTTP (localhost is a secure context; SharedArrayBuffer works)
 
-Then open: https://localhost:8000/
+Then open: https://localhost:8000/  (or http://localhost:8000/ with --http)
 """
+import argparse
 import datetime
 import email.utils
 import os
@@ -135,16 +137,28 @@ class DevHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Clayground docs dev server')
+    parser.add_argument('--http', action='store_true',
+                        help='Serve over plain HTTP (default is HTTPS with a self-signed cert). '
+                             'HTTP is fine for pure-localhost WASM testing; HTTPS is needed '
+                             'when other HTTPS origins (e.g. WebDojo dev server) fetch resources '
+                             'from this server to avoid mixed-content blocks.')
+    parser.add_argument('--port', type=int, default=PORT, help=f'Port (default: {PORT})')
+    args = parser.parse_args()
+
     kill_existing_server()
-    ensure_cert()
     os.chdir(SITE_DIR)  # Change to _site for default behavior
     hostname = socket.gethostname()
-    server = ThreadingHTTPServer(('', PORT), DevHandler)
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
-    server.socket = ctx.wrap_socket(server.socket, server_side=True)
-    print(f"Development server at https://localhost:{PORT}/")
-    print(f"  LAN: https://{hostname}:{PORT}/")
+    server = ThreadingHTTPServer(('', args.port), DevHandler)
+    scheme = 'http'
+    if not args.http:
+        ensure_cert()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        scheme = 'https'
+    print(f"Development server at {scheme}://localhost:{args.port}/")
+    print(f"  LAN: {scheme}://{hostname}:{args.port}/")
     print(f"  _site/: Built WASM and Jekyll output")
     print(f"  docs/:  Live overlay for {', '.join(DEV_PATHS)}")
     print("Press Ctrl+C to stop.")

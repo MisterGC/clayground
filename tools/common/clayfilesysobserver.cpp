@@ -80,6 +80,8 @@ void ClayFileSysObserver::syncWithDir(const QString& path, bool initial)
     while (it.hasNext()) {
         it.next();
         auto fp = it.filePath();
+        // Skip .clay directory (used by ClayInspector for file-based protocol)
+        if (fp.contains("/.clay/")) continue;
         // Skip if already being watched
         if (allFiles.contains(fp) || allDirs.contains(fp)) continue;
         if (!fo.addPath(fp)) {

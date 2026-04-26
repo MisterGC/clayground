@@ -98,6 +98,9 @@ docs/webdojo-examples/*/
 !docs/webdojo-examples/welcome/
 docs/webdojo-examples/index.json
 
+# Clay Crew inspect/crew session data
+.clay/
+
 # Temp/personal files
 aqtinstall.log
 test_simple.qml

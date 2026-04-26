@@ -7,6 +7,7 @@ clay_plugin( World
     QML_FILES
         Box3DBody.qml
         ClayWorld2d.qml
+        ClayWorld2dCamera.qml
         ClayWorld3d.qml
         ClayWorldBase.qml
         Minimap2d.qml

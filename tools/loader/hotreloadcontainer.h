@@ -24,6 +24,7 @@ public:
     
     QQmlEngine* engine() const;
     QQmlContext* rootContext() const;
+    QQuickItem* rootObject() const;
     
     void hotReload();
     
@@ -33,6 +34,8 @@ signals:
     void engineCreated();
     void loadingStarted();
     void loadingFinished();
+    void loadSucceeded();
+    void loadFailed(const QStringList& errorLines);
     
 protected:
     void resizeEvent(QResizeEvent *event) override;

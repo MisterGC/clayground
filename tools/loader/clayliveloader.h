@@ -2,6 +2,7 @@
 #pragma once
 
 #include <clayfilesysobserver.h>
+#include <dojoignore.h>
 #include <utilityfunctions.h>
 #include <QObject>
 #include <QSqlDatabase>
@@ -60,7 +61,11 @@ private:
     bool restartIfDifferentSbx(const QString &path);
 
 private:
+    void reloadIgnoreFor(const QString &sandboxDir);
+
     ClayFileSysObserver fileObserver_;
+    DojoIgnore ignore_;
+    QString ignoreFile_;
     QVector<QUrl> allSbxs_;
     int sbxIdx_ = USE_NONE_SBX_IDX;
     QSqlDatabase statsDb_;

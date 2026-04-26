@@ -103,9 +103,24 @@ ClayWorldBase {
 
     /*!
         \qmlproperty var ClayWorld2d::observedItem
-        \brief Item the camera follows.
+        \brief Item the camera follows. Ignored when a camera is set.
     */
     property alias observedItem: _theCanvas.observedItem
+
+    /*!
+        \qmlproperty ClayWorld2dCamera ClayWorld2d::camera
+        \brief Optional camera component for advanced observation modes.
+               When set, takes over viewport positioning from observedItem.
+    */
+    property ClayWorld2dCamera camera: null
+    onCameraChanged: _bindCamera()
+    function _bindCamera() {
+        if (camera) {
+            _theCanvas.observedItem = null
+            _theCanvas.viewPortCenterWuX = Qt.binding(function() { return camera.cameraX; })
+            _theCanvas.viewPortCenterWuY = Qt.binding(function() { return camera.cameraY; })
+        }
+    }
 
     // MAP LOADING
     _sceneLoader: SceneLoader2d {
@@ -155,7 +170,7 @@ ClayWorldBase {
 
         showDebugInfo: _world.debugRendering
         anchors.fill: parent
-        Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; world: _physicsWorld }}
+        Component { id: _physDebug; DebugDraw {parent: _theCanvas.coordSys; anchors.fill: parent; world: _physicsWorld; flags: DebugDraw.Shape }}
         Loader { sourceComponent: debugPhysics ? _physDebug : null }
 
         World {
