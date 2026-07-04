@@ -455,6 +455,10 @@ Item {
                 onClicked: parent.parent.speaker.say(Qt.resolvedUrl("hello.wav"))
             }
             Button {
+                text: "Sing"
+                onClicked: parent.parent.speaker.say(Qt.resolvedUrl("sing.wav"))
+            }
+            Button {
                 text: "Stop"
                 enabled: parent.parent.speaker.speaking
                 onClicked: parent.parent.speaker.stopSpeaking()
