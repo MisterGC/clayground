@@ -125,17 +125,11 @@ PerspectiveCamera {
         const y = clampedDistance * Math.sin(pitchRad);
         const z = clampedDistance * Math.cos(yawRad) * Math.cos(pitchRad);
 
-        // Calculate the target lookAt point (character's head position in world coordinates)
-        // Note: Assuming character.head exists and has a 'position' property relative to the character's origin.
-        // If head position is already world, just use character.head.position.
-        // If character.position is the base and head.position is relative, add them.
-        // We need to ensure head is accessible. Let's assume head is an Item3D child.
-        // We might need a more robust way to get the head's world position later.
-        const headLocalPos = character.head ? character.head.position : Qt.vector3d(0, character.height * 0.8, 0); // Default if head not ready
-        // Use direct addition of character position and head local position
-        // to ensure dependency on character.position is explicit for the binding.
-        const headWorldPos = character.position.plus(headLocalPos);
-
+        // Orbit around the head's world position; scenePosition already
+        // accounts for the full body-part hierarchy (torso offset, rotation).
+        const headWorldPos = character.head
+            ? character.head.scenePosition
+            : character.position.plus(Qt.vector3d(0, character.height * 0.8, 0));
 
         // The camera's position is the target lookAt point plus the calculated offset
         return headWorldPos.plus(Qt.vector3d(x, y, z));

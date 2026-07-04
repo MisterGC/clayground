@@ -16,6 +16,7 @@
 
     RatioBasedCharacter {
         name: "toon"
+        bodyHeight: 10.0
         headsTall: 4.7           // Cartoon proportions
         headWidthToHeight: 0.9
         shoulderWidthToHeadWidth: 1.8
@@ -62,6 +63,15 @@ Character {
 
     // Proportion Relations - tune for specific
     // style e.g. comic, realistic or male vs female
+
+    /*!
+        \qmlproperty real RatioBasedCharacter::bodyHeight
+        \brief Total character height in world units.
+
+        All other dimensions are derived from this value via the ratio
+        properties.
+    */
+    property real bodyHeight: 10.0
 
     /*!
         \qmlproperty real RatioBasedCharacter::headsTall
@@ -125,19 +135,29 @@ Character {
     */
     property real footLengthToBodyHeight: 0.15
 
+    // Intermediate values derived from the ratios
+    readonly property real _headHeight: bodyHeight / headsTall
+    readonly property real _headWidth: _headHeight * headWidthToHeight
+    readonly property real _headDepth: _headWidth * headDepthToHeadWidth
+
     // Calculated dimensions based on ratios
-    headHeight: height / headsTall
-    headWidth: headHeight * headWidthToHeight
-    headDepth: headWidth * headDepthToHeadWidth
-    neckHeight: headHeight * neckHeightToHeadHeight
-    shoulderWidth: headWidth * shoulderWidthToHeadWidth
+    upperHeadHeight: _headHeight * 0.6
+    lowerHeadHeight: _headHeight * 0.4
+    upperHeadWidth: _headWidth
+    lowerHeadWidth: _headWidth * 0.9
+    upperHeadDepth: _headDepth
+    lowerHeadDepth: _headDepth * 0.9
+    neckHeight: _headHeight * neckHeightToHeadHeight
+    shoulderWidth: _headWidth * shoulderWidthToHeadWidth
     // TODO: Use waistWidth e.g. for distinct btwn male/female
     waistWidth: shoulderWidth / 1.3
     hipWidth: shoulderWidth * 0.9
-    torsoHeight: headHeight * torsoHeightToHeadHeight
+    hipHeight: _headHeight * 0.5
+    torsoHeight: _headHeight * torsoHeightToHeadHeight
     torsoDepth: shoulderWidth * shoulderWidthToTorsoDepth
     armHeight: torsoHeight * armHeightToTorsoHeight
-    handLength: armHeight / armHeightToHandLength
-    legHeight: height - torsoHeight - neckHeight
-    footLength: height * footLengthToBodyHeight
+    handHeight: armHeight / armHeightToHandLength
+    legHeight: Math.max(0.1, bodyHeight - _headHeight - neckHeight
+                             - torsoHeight - hipHeight - footHeight)
+    footDepth: bodyHeight * footLengthToBodyHeight
 }
