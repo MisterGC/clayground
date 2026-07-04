@@ -1,0 +1,99 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+/*!
+    \qmltype Speech
+    \inqmlmodule Clayground.Character3D
+    \brief Voice output with approximate lip-sync for characters.
+
+    Speech lets a character say things while its mouth moves along.
+    Two kinds of input are supported:
+
+    \list
+    \li Plain text - spoken via text-to-speech when the platform provides
+        an engine (Qt TextToSpeech); the mouth follows a viseme timeline
+        derived from the text's letters. Without a TTS engine the same
+        timeline animates silently.
+    \li Audio files (wav/mp3) - played back while the mouth follows the
+        audio's loudness envelope; a zero-crossing heuristic separates
+        wide "s"-like sounds from open vowels.
+    \endlist
+
+    The mouth shape is published through the continuous properties
+    \l mouthOpen, \l mouthWide and \l mouthRound which \l Head consumes
+    via its \c speechSource property. \l Character wires this up
+    automatically - typically you only call \l {Character::say}{say()}:
+
+    \qml
+    import Clayground.Character3D
+
+    Character {
+        id: hero
+        Component.onCompleted: hero.say("Hello! Welcome to Clayground.")
+    }
+
+    // Or play a recorded line:
+    // hero.say("dialog/intro.wav")
+
+    // Advanced configuration via the speech engine:
+    // hero.speech.rate = 0.2
+    // hero.speech.volume = 0.8
+    \endqml
+
+    \sa Character, Head
+
+    \qmlproperty bool Speech::speaking
+    \readonly
+    \brief True while text or audio speech is in progress.
+
+    \qmlproperty real Speech::mouthOpen
+    \readonly
+    \brief Current jaw/mouth openness (0-1), smoothed at ~60 Hz.
+
+    \qmlproperty real Speech::mouthWide
+    \readonly
+    \brief Current sideways mouth stretch (0-1).
+
+    \qmlproperty real Speech::mouthRound
+    \readonly
+    \brief Current mouth rounding/pucker (0-1).
+
+    \qmlproperty string Speech::currentWord
+    \readonly
+    \brief The word currently being spoken (only with TTS engines that
+    report word progress; empty otherwise).
+
+    \qmlproperty real Speech::volume
+    \brief Output volume for TTS and audio playback (0-1).
+
+    \qmlproperty real Speech::rate
+    \brief Speaking rate from slow (-1) over normal (0) to fast (1).
+    Forwarded to the TTS engine and used to pace silent text timelines.
+
+    \qmlproperty real Speech::pitch
+    \brief TTS voice pitch from low (-1) to high (1). No effect on audio files.
+
+    \qmlproperty bool Speech::ttsAvailable
+    \readonly
+    \brief True when a text-to-speech engine is available at runtime.
+
+    \qmlmethod void Speech::say(string what)
+    \brief Says text or plays an audio file, auto-detected from the string.
+
+    Strings ending in a known audio extension (wav/mp3/ogg/m4a/flac) are
+    treated as file paths or URLs, anything else as text to speak.
+
+    \qmlmethod void Speech::sayText(string text)
+    \brief Speaks the given text (TTS when available, silent lip-sync otherwise).
+
+    \qmlmethod void Speech::sayAudio(url source)
+    \brief Plays the given audio file with lip-sync from audio analysis.
+
+    \qmlmethod void Speech::stop()
+    \brief Interrupts the current speech output.
+
+    \qmlsignal Speech::started()
+    \brief Emitted when speech output begins.
+
+    \qmlsignal Speech::finished()
+    \brief Emitted when speech output ends (also after stop()).
+*/

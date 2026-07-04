@@ -99,6 +99,41 @@ BodyPartsGroup {
     property alias faceActivity: _head.activity
 
     // ============================================================================
+    // SPEECH & LIP-SYNC
+    // ============================================================================
+
+    /*!
+        \qmlproperty Speech Character::speech
+        \brief The character's speech engine for advanced configuration
+               (volume, rate, pitch) and signals (started/finished).
+    */
+    readonly property Speech speech: _speech
+
+    /*!
+        \qmlproperty bool Character::speaking
+        \brief True while the character is speaking (text or audio).
+    */
+    readonly property bool speaking: _speech.speaking
+
+    /*!
+        \qmlmethod void Character::say(string what)
+        \brief Makes the character say something with lip-synced mouth movement.
+
+        Pass either plain text (spoken via text-to-speech when available,
+        otherwise the mouth animates silently) or a path/URL to a wav/mp3
+        file which is played back while the mouth follows the audio.
+    */
+    function say(what) { _speech.say(what) }
+
+    /*!
+        \qmlmethod void Character::stopSpeaking()
+        \brief Interrupts the current speech output.
+    */
+    function stopSpeaking() { _speech.stop() }
+
+    Speech { id: _speech }
+
+    // ============================================================================
     // HEAD PROPERTIES
     // ============================================================================
     /*! Height of the neck section. */
@@ -253,6 +288,7 @@ BodyPartsGroup {
         Head {
             id: _head
             basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
+            speechSource: _speech
         }
 
         // Arms (containing hands)

@@ -226,6 +226,11 @@ Item {
         saveTimer.restart()
     }
 
+    function sayCurrentInput() {
+        if (editTarget && speechInput.text.length > 0)
+            editTarget.say(speechInput.text)
+    }
+
     // Parameter slider component
     component ParamSlider: RowLayout {
         property string label: ""
@@ -546,6 +551,41 @@ Item {
                         highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.Talk
                         onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.Talk
                     }
+                }
+
+                // Speech
+                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
+                Text { text: "Speech"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                TextField {
+                    id: speechInput
+                    Layout.fillWidth: true
+                    placeholderText: "Text or path to wav/mp3..."
+                    font.pixelSize: 11
+                    onAccepted: root.sayCurrentInput()
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Button {
+                        text: "Say"
+                        font.pixelSize: 10
+                        enabled: root.editTarget !== null && speechInput.text.length > 0
+                        onClicked: root.sayCurrentInput()
+                    }
+                    Button {
+                        text: "Stop"
+                        font.pixelSize: 10
+                        enabled: root.editTarget !== null && root.editTarget.speaking
+                        onClicked: root.editTarget.stopSpeaking()
+                    }
+                }
+                Text {
+                    text: root.editTarget && root.editTarget.speech.ttsAvailable
+                          ? "Text is spoken via text-to-speech"
+                          : "No TTS engine - text animates silently"
+                    font.pixelSize: 9
+                    color: "#888"
+                    Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Info

@@ -1,8 +1,20 @@
 include (clayplugin)
 
+# Text-to-speech is optional: when the Qt module is available, spoken text
+# gets real audio; otherwise Speech falls back to silent, timed lip-sync.
+find_package(Qt6 COMPONENTS TextToSpeech QUIET)
+
+set(SPEECH_LIBS Qt::Multimedia)
+if(Qt6TextToSpeech_FOUND)
+    list(APPEND SPEECH_LIBS Qt::TextToSpeech)
+endif()
+
 clay_plugin( Character3D
 
     VERSION 1.0
+
+    SOURCES
+        src/speech.cpp src/speech.h
 
     QML_FILES
         # Core Components
@@ -11,7 +23,7 @@ clay_plugin( Character3D
         ParametricCharacter.qml
         RatioBasedCharacter.qml
         ThoughtBubble.qml
-        
+
         # Body System
         bodyparts/BodyPart.qml
         bodyparts/BodyPartsGroup.qml
@@ -20,7 +32,7 @@ clay_plugin( Character3D
         bodyparts/Leg.qml
         bodyparts/Hand.qml
         bodyparts/Foot.qml
-        
+
         # Animation System
         animation/ProceduralAnim.qml
         animation/WalkAnim.qml
@@ -31,7 +43,7 @@ clay_plugin( Character3D
         animation/PosAnim.qml
         animation/EulerAnim.qml
         animation/PosAndEulerAnim.qml
-        
+
         # Control System
         control/CharacterCamera.qml
         control/CharacterController.qml
@@ -42,4 +54,15 @@ clay_plugin( Character3D
         Qt::Quick
         Qt::Quick3D
         Qt::Qml
+        ${SPEECH_LIBS}
 )
+
+target_include_directories(ClayCharacter3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+if(Qt6TextToSpeech_FOUND)
+    target_compile_definitions(ClayCharacter3D PRIVATE CLAY_CHARACTER3D_HAS_TTS)
+endif()
+
+if(NOT EMSCRIPTEN)
+    add_subdirectory(tests)
+endif()

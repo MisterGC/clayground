@@ -3,8 +3,6 @@ import QtQuick3D
 import Clayground.Canvas3D
 import "../animation"
 
-//pragma ComponentBehavior: Bound
-
 /*!
     \qmltype Head
     \inqmlmodule Clayground.Character3D
@@ -15,9 +13,11 @@ import "../animation"
     hair, eyes, ears, nose, and mouth. It supports animated facial expressions
     including joy, anger, sadness, and talking.
 
-    The head dimensions are derived from its component parts. The upper head
-    contains eyes, ears, and hair, while the lower head contains the mouth
-    and chin.
+    The mouth is driven by a small set of continuous shape parameters
+    (\l mouthOpen, \l mouthWide, \l mouthRound, \l mouthCornerLift). The
+    expression activities animate these parameters; a \l speechSource
+    (typically a \l Speech instance) can take over open/wide/round for
+    lip-synced talking while emotions keep control of the mouth corners.
 
     Example usage:
     \qml
@@ -32,7 +32,7 @@ import "../animation"
     }
     \endqml
 
-    \sa Character, BodyPartsGroup
+    \sa Character, BodyPartsGroup, Speech
 */
 BodyPartsGroup {
     id: _head
@@ -140,6 +140,70 @@ BodyPartsGroup {
         \brief Duration of mouth open/close cycle when talking in milliseconds.
     */
     property int talkDuration: 200
+
+    // ============================================================================
+    // MOUTH SHAPE PARAMETERS
+    // ============================================================================
+
+    /*!
+        \qmlproperty real Head::mouthOpen
+        \brief How far the mouth/jaw is opened (0 = closed, 1 = fully open).
+
+        Driven by the Talk activity or a \l speechSource; can also be set
+        manually for custom facial animation.
+    */
+    property real mouthOpen: speechActive ? speechSource.mouthOpen : _animMouthOpen
+
+    /*!
+        \qmlproperty real Head::mouthWide
+        \brief How far the mouth is stretched sideways (0-1), e.g. for "ee" sounds.
+    */
+    property real mouthWide: speechActive ? speechSource.mouthWide : _animMouthWide
+
+    /*!
+        \qmlproperty real Head::mouthRound
+        \brief How rounded/puckered the mouth is (0-1), e.g. for "oo" sounds.
+    */
+    property real mouthRound: speechActive ? speechSource.mouthRound : _animMouthRound
+
+    /*!
+        \qmlproperty real Head::mouthCornerLift
+        \brief Mouth corner position from frown (-1) over neutral (0) to smile (1).
+
+        Stays under emotion control even while a speechSource drives the
+        other mouth parameters - characters can smile while talking.
+    */
+    property real mouthCornerLift: 0
+
+    /*!
+        \qmlproperty real Head::jawOpenAngle
+        \brief Maximum jaw rotation in degrees when \l mouthOpen is 1.
+    */
+    property real jawOpenAngle: 9
+
+    /*!
+        \qmlproperty var Head::speechSource
+        \brief Optional lip-sync driver, typically a \l Speech instance.
+
+        While speechSource.speaking is true, its mouthOpen/mouthWide/mouthRound
+        values control the mouth.
+    */
+    property var speechSource: null
+
+    /*!
+        \qmlproperty bool Head::speechActive
+        \readonly
+        \brief True while the speechSource is speaking and driving the mouth.
+    */
+    readonly property bool speechActive: speechSource !== null
+                                         && speechSource !== undefined
+                                         && speechSource.speaking === true
+
+    // Values written by the activity animations; the public mouth params
+    // fall back to these whenever no speechSource is driving the mouth.
+    property real _animMouthOpen: 0
+    property real _animMouthWide: 0
+    property real _animMouthRound: 0
 
     /*!
         \qmlproperty enumeration Head::Activity
@@ -304,195 +368,167 @@ BodyPartsGroup {
         }
     }
 
-    // Lower head part containing mouth and chin
-    BodyPart {
-        id: _lowerHead
+    // Jaw joint: the lower head hinges here (top/back of the jaw, roughly
+    // between the ears) so the chin swings down and back when the mouth opens.
+    Node {
+        id: _jawJoint
+        position: Qt.vector3d(0,
+                              _lowerHead.height,
+                              _head.depth * .09 - _lowerHead.depth * 0.35)
+        eulerRotation.x: _head.mouthOpen * _head.jawOpenAngle
 
-        // Default dimensions
-        width: 1.0
-        height: 0.5
-        depth: 1.2
-        showEdges: true
-        edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
-
-        property real chinPointiness: 1.0
-
-        basePos: Qt.vector3d(0, 0, _head.depth * .09)
-        color: _head.skinColor
-
-        // Apply chin pointiness using scaled bottom face
-        scaledFace: Box3DGeometry.BottomFace
-        faceScale: Qt.vector2d(chinPointiness, 1.0)
-
+        // Lower head part containing mouth and chin
         BodyPart {
-            id: _mouthUpper
+            id: _lowerHead
 
-            readonly property int _mouthWidth: .33 * _lowerHead.width
+            // Default dimensions
+            width: 1.0
+            height: 0.5
+            depth: 1.2
+            showEdges: true
+            edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
 
-            color: "black"
-            basePos: Qt.vector3d(0, 0.6*_lowerHead.height, _lowerHead.depth * .5)
-            width: _lowerHead.width * .22 * _head.mouthSize; height: .3 * width; depth: 0.1
+            property real chinPointiness: 1.0
 
-            BodyPart {
-                id: _mouthLeft
-                color: "black"
-                basePos: Qt.vector3d(-0.5*(_mouthUpper.width + width), 0, 0)
-                width: _mouthUpper.height
-            }
-            BodyPart {
-                id: _mouthRight
-                color: "black"
-                basePos: Qt.vector3d(0.5*(_mouthUpper.width + width), 0, 0)
-                width: _mouthUpper.height
-            }
-            BodyPart {
-                id: _mouthLower
-                color: "black"
-                width: _lowerHead.width * .23 * _head.mouthSize; height: .3 * width; depth: 0.1
+            // Compensates the joint offset so the jaw sits exactly where it
+            // would as a direct child (see _jawJoint.position).
+            basePos: Qt.vector3d(0, -height, _lowerHead.depth * 0.35)
+            color: _head.skinColor
+
+            // Apply chin pointiness using scaled bottom face
+            scaledFace: Box3DGeometry.BottomFace
+            faceScale: Qt.vector2d(chinPointiness, 1.0)
+
+            // Mouth on the front of the jaw, built from the continuous
+            // shape parameters (open/wide/round/cornerLift).
+            Node {
+                id: _mouth
+                position: Qt.vector3d(0, 0.6 * _lowerHead.height, _lowerHead.depth * .5)
+
+                readonly property real baseW: _lowerHead.width * .22 * _head.mouthSize
+                readonly property real lineH: .3 * baseW
+                // widened by "ee", narrowed by "oo"
+                readonly property real w: baseW * (1 + 0.5 * _head.mouthWide)
+                                                * (1 - 0.4 * _head.mouthRound)
+                // gap the mouth opens up (in addition to the jaw rotation)
+                readonly property real gap: _head.mouthOpen * _lowerHead.height * 0.45
+
+                // Dark mouth cavity; top edge stays at the mouth line, the
+                // bottom grows downward as the mouth opens.
+                BodyPart {
+                    id: _mouthCavity
+                    color: "#20100c"
+                    width: _mouth.w
+                    height: _mouth.lineH + _mouth.gap
+                    depth: 0.1
+                    showEdges: false
+                    castsShadows: false
+                    basePos: Qt.vector3d(0, -height, _head.mouthRound * 0.05)
+                }
+
+                // Lip line covering the cavity's top edge (keeps the closed
+                // mouth reading as a clean line).
+                BodyPart {
+                    id: _upperLip
+                    color: "black"
+                    width: _mouth.w * 1.02
+                    height: _mouth.lineH * 0.4
+                    depth: 0.11
+                    showEdges: false
+                    castsShadows: false
+                    basePos: Qt.vector3d(0, -height * 0.5, 0)
+                }
+
+                // Mouth corners: lifted for smiles, dropped for frowns.
+                component MouthCorner: BodyPart {
+                    color: "black"
+                    width: _mouth.lineH
+                    showEdges: false
+                    castsShadows: false
+                }
+                MouthCorner {
+                    id: _mouthLeft
+                    basePos: Qt.vector3d(-0.5 * (_mouth.w + width),
+                                         -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
+                                         0)
+                }
+                MouthCorner {
+                    id: _mouthRight
+                    basePos: Qt.vector3d(0.5 * (_mouth.w + width),
+                                         -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
+                                         0)
+                }
             }
         }
     }
 
     // ACTIVITY ANIMATIONS
+    //
+    // Emotions animate the mouth parameters and eyebrows. While a
+    // speechSource is active it overrides open/wide/round (see the
+    // property bindings above); corner lift stays with the emotions.
 
-    ParallelAnimation
-    {
-        id: _sadnessAnimation
-        running: _head.activity == Head.Activity.ShowSadness
-        FrownMouth{}
-        RaiseEyeBrowns{}
+    component MouthParamAnim: NumberAnimation {
+        target: _head
+        duration: _head.toEmotionDuration
+        easing.type: Easing.InOutQuad
     }
 
-    ParallelAnimation
-    {
+    ParallelAnimation {
+        id: _sadnessAnimation
+        running: _head.activity == Head.Activity.ShowSadness
+        MouthParamAnim { property: "mouthCornerLift"; to: -0.8 }
+        MouthParamAnim { property: "_animMouthOpen"; to: 0 }
+        MouthParamAnim { property: "_animMouthWide"; to: 0 }
+        MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        RaiseEyeBrowns {}
+    }
+
+    ParallelAnimation {
         id: _joyAnimation
         running: _head.activity == Head.Activity.ShowJoy
-        SmileMouth{}
-        RaiseEyeBrowns{}
+        MouthParamAnim { property: "mouthCornerLift"; to: 0.8 }
+        MouthParamAnim { property: "_animMouthOpen"; to: 0.1 }
+        MouthParamAnim { property: "_animMouthWide"; to: 0.4 }
+        MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        RaiseEyeBrowns {}
     }
 
     ParallelAnimation {
         id: _angerAnimation
         running: _head.activity == Head.Activity.ShowAnger
-        LowerEyeBrowns{}
-        FrownMouth{}
+        MouthParamAnim { property: "mouthCornerLift"; to: -0.7 }
+        MouthParamAnim { property: "_animMouthOpen"; to: 0.15 }
+        MouthParamAnim { property: "_animMouthWide"; to: 0.3 }
+        MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        LowerEyeBrowns {}
     }
 
     SequentialAnimation {
         id: _talkAnimation
-        running: _head.activity == Head.Activity.Talk
+        running: _head.activity == Head.Activity.Talk && !_head.speechActive
         loops: Animation.Infinite
-        OpenMouth {duration: _head.talkDuration}
-        CloseMouth {duration: _head.talkDuration}
+        ParallelAnimation {
+            MouthParamAnim { property: "_animMouthOpen"; to: 0.65; duration: _head.talkDuration }
+            MouthParamAnim { property: "_animMouthWide"; to: 0.25; duration: _head.talkDuration }
+        }
+        ParallelAnimation {
+            MouthParamAnim { property: "_animMouthOpen"; to: 0.08; duration: _head.talkDuration }
+            MouthParamAnim { property: "_animMouthWide"; to: 0.1; duration: _head.talkDuration }
+        }
     }
 
     ParallelAnimation {
         id: _idleAnimation
         running: _head.activity == Head.Activity.Idle
-        NeutralEyeBrowns{}
-        CloseMouth{}
+        MouthParamAnim { property: "mouthCornerLift"; to: 0 }
+        MouthParamAnim { property: "_animMouthOpen"; to: 0 }
+        MouthParamAnim { property: "_animMouthWide"; to: 0 }
+        MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        NeutralEyeBrowns {}
     }
 
-
-
-    //ANIMATION BUILDING BLOCKS
-
-    component OpenMouth: ParallelAnimation {
-        id: _openMouth
-        property int duration: _head.talkDuration
-        FrownMouth {duration: _openMouth.duration}
-        PosAnim {
-            duration: _openMouth.duration
-            target: _mouthLower
-            to: Qt.vector3d(target.basePos.x,
-                            target.basePos.y - target.width * .45,
-                            target.basePos.z)
-        }
-    }
-
-    component CloseMouth: ParallelAnimation {
-        id: _closeMouth
-        property int duration: _head.talkDuration
-        PosAnim {
-            duration: _closeMouth.duration
-            target: _mouthUpper
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _closeMouth.duration
-            target: _mouthLower
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _closeMouth.duration
-            target: _mouthLeft
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _closeMouth.duration
-            target: _mouthRight
-            to: target.basePos
-        }
-    }
-
-    component SmileMouth: ParallelAnimation {
-        id: _smileMouth
-        property int duration: _head.toEmotionDuration
-        PosAnim {
-            duration: _smileMouth.duration
-            target: _mouthUpper
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _smileMouth.duration
-            target: _mouthLower
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _smileMouth.duration
-            target: _mouthLeft
-            to: Qt.vector3d(target.basePos.x,
-                            target.basePos.y + target.width * .5,
-                            target.basePos.z)
-        }
-        PosAnim {
-            duration: _smileMouth.duration
-            target: _mouthRight
-            to: Qt.vector3d(target.basePos.x,
-                            target.basePos.y + target.width * .5,
-                            target.basePos.z)
-        }
-    }
-
-    component FrownMouth: ParallelAnimation {
-        id: _frownMouth
-        property int duration: _head.toEmotionDuration
-        PosAnim {
-            duration: _frownMouth.duration
-            target: _mouthUpper
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _frownMouth.duration
-            target: _mouthLower
-            to: target.basePos
-        }
-        PosAnim {
-            duration: _frownMouth.duration
-            target: _mouthLeft
-            to: Qt.vector3d(target.basePos.x,
-                            target.basePos.y - target.width * .5,
-                            target.basePos.z)
-        }
-        PosAnim {
-            duration: _frownMouth.duration
-            target: _mouthRight
-            to: Qt.vector3d(target.basePos.x,
-                            target.basePos.y - target.width * .5,
-                            target.basePos.z)
-        }
-
-    }
+    // ANIMATION BUILDING BLOCKS (eyebrows)
 
     component LowerEyeBrowns: ParallelAnimation {
         id: _lowerEyeBrowns

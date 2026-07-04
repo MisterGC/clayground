@@ -19,6 +19,7 @@ import Clayground.Character3D
 - **ParametricCharacter** - High-level parameters (bodyHeight, realism, maturity, femininity, mass) that auto-calculate dimensions
 - **RatioBasedCharacter** - Dimension ratios for fine-tuned proportion control
 - **CharacterEditor** - Visual editor overlay for character customization with persistence
+- **Speech** - Voice output (text-to-speech or wav/mp3) with approximate lip-sync
 - **ThoughtBubble** - Simple text bubble for speech/thought display
 
 ## Usage Examples
@@ -159,6 +160,38 @@ Character {
     }
 }
 ```
+
+### Speech with Lip-Sync
+
+Characters can speak text (via text-to-speech when available) or play
+recorded audio (wav/mp3) - the mouth movement approximates the speech
+in both cases:
+
+```qml
+Character {
+    id: npc
+
+    Component.onCompleted: {
+        // Text: spoken aloud when a TTS engine is available,
+        // otherwise the mouth animates silently at an estimated pace
+        npc.say("Hello! Welcome to Clayground.")
+    }
+}
+
+// Recorded dialog line - mouth follows the audio's loudness envelope
+npc.say("dialog/intro.wav")
+
+// Advanced configuration
+npc.speech.rate = 0.2     // a bit faster
+npc.speech.volume = 0.8
+npc.speech.finished.connect(() => console.log("done talking"))
+```
+
+The mouth itself is driven by continuous shape parameters on `Head`
+(`mouthOpen`, `mouthWide`, `mouthRound`, `mouthCornerLift`) which can
+also be animated manually for custom facial animation. Emotions keep
+control of the mouth corners while speaking, so characters can smile
+and talk at the same time.
 
 ## Best Practices
 
