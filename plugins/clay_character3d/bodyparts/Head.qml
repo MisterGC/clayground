@@ -176,10 +176,15 @@ BodyPartsGroup {
     property real mouthCornerLift: 0
 
     /*!
-        \qmlproperty real Head::jawOpenAngle
-        \brief Maximum jaw rotation in degrees when \l mouthOpen is 1.
+        \qmlproperty real Head::jawDrop
+        \brief How far the jaw slides down when \l mouthOpen is 1, as a
+               fraction of the lower head height.
+
+        The jaw translates straight down (no rotation), which keeps the
+        boxy face reading intact; the seam is backed by a darkened
+        inner-mouth filler so it shows as a crease, not a gap.
     */
-    property real jawOpenAngle: 9
+    property real jawDrop: 0.25
 
     /*!
         \qmlproperty var Head::speechSource
@@ -368,14 +373,28 @@ BodyPartsGroup {
         }
     }
 
-    // Jaw joint: the lower head hinges here (top/back of the jaw, roughly
-    // between the ears) so the chin swings down and back when the mouth opens.
+    // Inner-mouth filler: sits hidden inside the head while the mouth is
+    // closed; when the jaw drops, the opening seam shows this darkened
+    // skin tone instead of a see-through gap.
+    BodyPart {
+        id: _innerMouth
+        color: Qt.darker(_head.skinColor, 1.9)
+        width: _lowerHead.width * 0.95
+        height: _lowerHead.height * 0.5
+        depth: _lowerHead.depth * 0.95
+        showEdges: false
+        castsShadows: false
+        pickable: false
+        basePos: Qt.vector3d(0, _lowerHead.height * 0.55, _head.depth * .09)
+    }
+
+    // Jaw joint: the lower head slides straight down from here when the
+    // mouth opens - a clean chin drop that keeps the boxy face intact
+    // (rotation makes the seam look broken on box geometry).
     Node {
         id: _jawJoint
-        position: Qt.vector3d(0,
-                              _lowerHead.height,
-                              _head.depth * .09 - _lowerHead.depth * 0.35)
-        eulerRotation.x: _head.mouthOpen * _head.jawOpenAngle
+        readonly property real drop: _head.mouthOpen * _head.jawDrop * _lowerHead.height
+        position: Qt.vector3d(0, -drop, 0)
 
         // Lower head part containing mouth and chin
         BodyPart {
@@ -390,9 +409,7 @@ BodyPartsGroup {
 
             property real chinPointiness: 1.0
 
-            // Compensates the joint offset so the jaw sits exactly where it
-            // would as a direct child (see _jawJoint.position).
-            basePos: Qt.vector3d(0, -height, _lowerHead.depth * 0.35)
+            basePos: Qt.vector3d(0, 0, _head.depth * .09)
             color: _head.skinColor
 
             // Apply chin pointiness using scaled bottom face
@@ -403,7 +420,11 @@ BodyPartsGroup {
             // shape parameters (open/wide/round/cornerLift).
             Node {
                 id: _mouth
-                position: Qt.vector3d(0, 0.6 * _lowerHead.height, _lowerHead.depth * .5)
+                // Counteracts the jaw drop so the mouth line (upper lip)
+                // stays fixed on the face while the chin moves away below.
+                position: Qt.vector3d(0,
+                                      0.6 * _lowerHead.height + _jawJoint.drop,
+                                      _lowerHead.depth * .5)
 
                 readonly property real baseW: _lowerHead.width * .22 * _head.mouthSize
                 readonly property real lineH: .3 * baseW
