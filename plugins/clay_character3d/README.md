@@ -181,6 +181,16 @@ Character {
 // Recorded dialog line - mouth follows the audio's loudness envelope
 npc.say("dialog/intro.wav")
 
+// Emotional conversation: colors face, voice (TTS pitch/rate) and -
+// while the character is idle - body language gestures
+npc.say("I lost my favorite shovel...", "sad")
+npc.say("We found the treasure!", "happy")
+npc.say("Give it back right now!", "angry")
+
+// Body language is optional: disable it (or just keep the character
+// walking/fighting) and only face and voice carry the emotion
+npc.speechBodyLanguage = false
+
 // Advanced configuration
 npc.speech.rate = 0.2     // a bit faster
 npc.speech.volume = 0.8

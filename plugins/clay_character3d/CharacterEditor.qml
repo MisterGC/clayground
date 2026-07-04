@@ -226,9 +226,11 @@ Item {
         saveTimer.restart()
     }
 
+    property string speechEmotion: ""
+
     function sayCurrentInput() {
         if (editTarget && speechInput.text.length > 0)
-            editTarget.say(speechInput.text)
+            editTarget.say(speechInput.text, speechEmotion)
     }
 
     // Parameter slider component
@@ -562,6 +564,25 @@ Item {
                     placeholderText: "Text or path to wav/mp3..."
                     font.pixelSize: 11
                     onAccepted: root.sayCurrentInput()
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: [
+                            { label: "Neutral", emotion: "" },
+                            { label: "Happy", emotion: "happy" },
+                            { label: "Sad", emotion: "sad" },
+                            { label: "Angry", emotion: "angry" }
+                        ]
+                        Button {
+                            required property var modelData
+                            text: modelData.label
+                            font.pixelSize: 10
+                            highlighted: root.speechEmotion === modelData.emotion
+                            onClicked: root.speechEmotion = modelData.emotion
+                        }
+                    }
                 }
                 Flow {
                     Layout.fillWidth: true

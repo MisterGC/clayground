@@ -40,6 +40,7 @@ clay_plugin( Character3D
         animation/IdleAnim.qml
         animation/UseAnim.qml
         animation/FightAnim.qml
+        animation/TalkGestureAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
         animation/PosAndEulerAnim.qml

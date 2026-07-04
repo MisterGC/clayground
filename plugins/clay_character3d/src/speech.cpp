@@ -228,6 +228,7 @@ void Speech::sayText(const QString &text)
     ensureTts();
     if (tts_) {
         ttsDrivesClock_ = false;
+        ttsSawSpeaking_ = false;
         tts_->say(text);
         return;
     }
@@ -268,7 +269,13 @@ void Speech::ensureTts()
             [this](QTextToSpeech::State state) {
         if (mode_ != Mode::Text)
             return;
-        if (state == QTextToSpeech::Ready || state == QTextToSpeech::Error)
+        if (state == QTextToSpeech::Speaking)
+            ttsSawSpeaking_ = true;
+        // Only a Ready that follows Speaking of THIS utterance ends the
+        // speech - say() right after a previous utterance can produce a
+        // stale Ready transition that must not cut the new speech short.
+        if ((state == QTextToSpeech::Ready && ttsSawSpeaking_)
+                || state == QTextToSpeech::Error)
             finishSpeaking();
     });
 }
@@ -504,7 +511,9 @@ void Speech::finishSpeaking()
 void Speech::stop()
 {
 #ifdef CLAY_CHARACTER3D_HAS_TTS
-    if (tts_ && mode_ == Mode::Text)
+    // Always silence the engine - it may still be speaking a previous
+    // utterance even when our mode already moved on (e.g. watchdog end).
+    if (tts_)
         tts_->stop();
 #endif
     if (player_ && mode_ == Mode::Audio) {

@@ -139,6 +139,7 @@ private:
     void ensureTts();
     QTextToSpeech *tts_ = nullptr;
     bool ttsDrivesClock_ = false;
+    bool ttsSawSpeaking_ = false;
 #endif
 
     QTimer        ticker_;
