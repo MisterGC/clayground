@@ -187,6 +187,10 @@ npc.say("I lost my favorite shovel...", "sad")
 npc.say("We found the treasure!", "happy")
 npc.say("Give it back right now!", "angry")
 
+// Inline annotations switch the emotion mid-speech
+npc.say("*angry* Get off my ground immediately! " +
+        "*happy* Just a joke - come in and have a cup of tea with me.")
+
 // Body language is optional: disable it (or just keep the character
 // walking/fighting) and only face and voice carry the emotion
 npc.speechBodyLanguage = false

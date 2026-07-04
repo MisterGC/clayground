@@ -111,9 +111,10 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty bool Character::speaking
-        \brief True while the character is speaking (text or audio).
+        \brief True while the character is speaking (text or audio),
+               including between the segments of annotated text.
     */
-    readonly property bool speaking: _speech.speaking
+    readonly property bool speaking: _speech.speaking || _sayQueue.active
 
     /*!
         \qmlproperty bool Character::speechBodyLanguage
@@ -149,20 +150,91 @@ BodyPartsGroup {
         if the character is idle and \l speechBodyLanguage is enabled -
         matching body language. Everything is restored when the speech
         finishes.
+
+        Text may switch the emotion mid-speech with inline annotations:
+        \qml
+        npc.say("*angry* Get off my ground! *happy* Just kidding, come in.")
+        \endqml
+        Recognized annotations are *happy*, *sad*, *angry* and *neutral*
+        (plus the aliases *joy*, *anger*, *sadness* and *calm*); each one
+        applies from where it appears. The emotion argument sets the tone
+        before the first annotation. Unknown annotations are left in the
+        text untouched.
     */
     function say(what, emotion) {
+        _sayQueue.cancel()
         // End any previous speech first: its finished() handling clears
-        // the old emotion, so the new one applied below survives.
+        // the old emotion, so the ones applied by the queue survive.
         _speech.stop()
-        _emotionCtl.apply(emotion === undefined ? "" : emotion)
-        _speech.say(what)
+        _sayQueue.segments = _sayQueue.parse("" + what,
+                                             emotion === undefined ? "" : emotion)
+        _sayQueue.index = 0
+        _sayQueue.next()
     }
 
     /*!
         \qmlmethod void Character::stopSpeaking()
         \brief Interrupts the current speech output.
     */
-    function stopSpeaking() { _speech.stop() }
+    function stopSpeaking() {
+        _sayQueue.cancel()
+        _speech.stop()
+    }
+
+    // Splits annotated text into (emotion, text) segments and speaks
+    // them one after another, re-coloring face/voice/body per segment.
+    QtObject {
+        id: _sayQueue
+        property var segments: []
+        property int index: 0
+        property bool active: false
+
+        function parse(text, baseEmotion) {
+            const known = {
+                happy: "happy", joy: "happy",
+                sad: "sad", sadness: "sad",
+                angry: "angry", anger: "angry",
+                neutral: "", calm: ""
+            }
+            const re = /\*(\w+)\*/g
+            let result = []
+            let emotion = baseEmotion
+            let last = 0
+            let m
+            while ((m = re.exec(text)) !== null) {
+                const e = known[m[1].toLowerCase()]
+                if (e === undefined)
+                    continue // unknown annotation: keep it as spoken text
+                const chunk = text.slice(last, m.index).trim()
+                if (chunk.length > 0)
+                    result.push({ text: chunk, emotion: emotion })
+                emotion = e
+                last = re.lastIndex
+            }
+            const tail = text.slice(last).trim()
+            if (tail.length > 0)
+                result.push({ text: tail, emotion: emotion })
+            return result
+        }
+
+        function next() {
+            if (index >= segments.length) {
+                active = false
+                return
+            }
+            active = true
+            const seg = segments[index]
+            index++
+            _emotionCtl.apply(seg.emotion)
+            _speech.say(seg.text)
+        }
+
+        function cancel() {
+            active = false
+            segments = []
+            index = 0
+        }
+    }
 
     Speech { id: _speech }
 
@@ -214,7 +286,11 @@ BodyPartsGroup {
 
     Connections {
         target: _speech
-        function onFinished() { _emotionCtl.clear() }
+        function onFinished() {
+            _emotionCtl.clear()
+            if (_sayQueue.active)
+                _sayQueue.next()
+        }
     }
 
     TalkGestureAnim {
