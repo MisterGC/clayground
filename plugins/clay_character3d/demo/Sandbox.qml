@@ -424,10 +424,13 @@ Item {
         anchors.bottomMargin: 10
         width: speechRow.width + 20
         height: speechRow.height + 12
-        color: "#f8f8f8"
+        // Follow the system light/dark theme like the native buttons do
+        color: _speechPanelPal.window
         opacity: 0.95
         radius: 8
-        border.color: "#ddd"
+        border.color: Qt.alpha(_speechPanelPal.windowText, 0.2)
+
+        SystemPalette { id: _speechPanelPal }
 
         readonly property var speaker: charEditor.editTarget ?? character
         readonly property var phrases: [

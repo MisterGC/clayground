@@ -79,6 +79,14 @@ Item {
     // Don't render anything when disabled
     visible: enabled
 
+    // Follow the system light/dark theme so the native-styled controls
+    // (buttons, text fields) stay readable on the panel background.
+    SystemPalette { id: _sysPal }
+    readonly property color _panelBg: _sysPal.window
+    readonly property color _panelFg: _sysPal.windowText
+    readonly property color _panelFgDim: Qt.alpha(_panelFg, 0.55)
+    readonly property color _panelLine: Qt.alpha(_panelFg, 0.2)
+
     // Storage for per-character persistence
     KeyValueStore {
         id: store
@@ -247,7 +255,7 @@ Item {
             text: label
             font.pixelSize: 11
             Layout.preferredWidth: 70
-            color: "#333"
+            color: root._panelFg
         }
         Slider {
             id: slider
@@ -262,7 +270,7 @@ Item {
             text: parent.value.toFixed(2)
             font.pixelSize: 10
             Layout.preferredWidth: 35
-            color: "#666"
+            color: root._panelFgDim
         }
     }
 
@@ -287,13 +295,13 @@ Item {
             text: colorPickerRow.label
             font.pixelSize: 11
             Layout.preferredWidth: 70
-            color: "#333"
+            color: root._panelFg
         }
         Rectangle {
             width: 24
             height: 24
             color: colorPickerRow.colorValue
-            border.color: "#999"
+            border.color: root._panelFgDim
             border.width: 1
             radius: 3
 
@@ -320,10 +328,10 @@ Item {
         anchors.right: parent.right
         anchors.margins: 10
         width: 280
-        color: "#f8f8f8"
+        color: root._panelBg
         opacity: 0.95
         radius: 8
-        border.color: "#ddd"
+        border.color: root._panelLine
         border.width: 1
 
         ScrollView {
@@ -343,6 +351,7 @@ Item {
                     text: "Character Editor"
                     font.pixelSize: 14
                     font.bold: true
+                    color: root._panelFg
                     Layout.alignment: Qt.AlignHCenter
                 }
 
@@ -351,32 +360,32 @@ Item {
                         ? "Editing: " + root.editTarget.name
                         : "Click a character to select"
                     font.pixelSize: 11
-                    color: root.hasSelection ? "#2196F3" : "#888"
+                    color: root.hasSelection ? "#2196F3" : root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 Text {
                     text: "WASD: move | Shift: run | Q/E: rotate cam"
                     font.pixelSize: 9
-                    color: "#888"
+                    color: root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Text {
                     text: "R/F: pitch | T/G: zoom | Right-drag: orbit"
                     font.pixelSize: 9
-                    color: "#888"
+                    color: root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Text {
                     text: "Left-click: select | Click ground: deselect"
                     font.pixelSize: 9
-                    color: "#888"
+                    color: root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Body section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Body"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Body"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
 
                 ParamSlider {
                     label: "Height"
@@ -411,8 +420,8 @@ Item {
                 }
 
                 // Face section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Face"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Face"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
 
                 ParamSlider {
                     label: "Face Shape"
@@ -450,8 +459,8 @@ Item {
                 }
 
                 // Colors section
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Colors"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Colors"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
 
                 ColorPicker {
                     label: "Skin"
@@ -475,8 +484,8 @@ Item {
                 }
 
                 // Activity toggle
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Activity"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Activity"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
@@ -518,8 +527,8 @@ Item {
                 }
 
                 // Facial expressions
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Expression"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Expression"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
@@ -556,8 +565,8 @@ Item {
                 }
 
                 // Speech
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
-                Text { text: "Speech"; font.pixelSize: 12; font.bold: true; color: "#555" }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Speech"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
                 TextField {
                     id: speechInput
                     Layout.fillWidth: true
@@ -605,16 +614,16 @@ Item {
                           ? "Text is spoken via text-to-speech"
                           : "No TTS engine - text animates silently"
                     font.pixelSize: 9
-                    color: "#888"
+                    color: root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Info
-                Rectangle { height: 1; color: "#ddd"; Layout.fillWidth: true }
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
                 Text {
                     text: "Settings auto-save per character"
                     font.pixelSize: 9
-                    color: "#888"
+                    color: root._panelFgDim
                     Layout.alignment: Qt.AlignHCenter
                 }
             }
