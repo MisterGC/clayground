@@ -187,11 +187,13 @@ npc.speech.volume = 0.8
 npc.speech.finished.connect(() => console.log("done talking"))
 ```
 
-The mouth itself is driven by continuous shape parameters on `Head`
-(`mouthOpen`, `mouthWide`, `mouthRound`, `mouthCornerLift`) which can
-also be animated manually for custom facial animation. Emotions keep
-control of the mouth corners while speaking, so characters can smile
-and talk at the same time.
+The mouth is driven by continuous shape parameters on `Head`
+(`mouthOpen`, `mouthWide`, `mouthRound` - readonly outputs - plus the
+writable `mouthCornerLift`). Emotions keep control of the mouth corners
+while speaking, so characters can smile and talk at the same time.
+For fully manual mouth control, assign any object with `speaking`,
+`mouthOpen`, `mouthWide` and `mouthRound` properties to
+`head.speechSource`.
 
 ## Best Practices
 

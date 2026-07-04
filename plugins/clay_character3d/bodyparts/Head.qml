@@ -147,24 +147,30 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty real Head::mouthOpen
+        \readonly
         \brief How far the mouth/jaw is opened (0 = closed, 1 = fully open).
 
-        Driven by the Talk activity or a \l speechSource; can also be set
-        manually for custom facial animation.
+        Driven by the facial activity animations or a \l speechSource.
+        Readonly on purpose: assigning it directly would break the binding
+        that lets speech drive the mouth. For fully manual mouth control,
+        set \l speechSource to any object providing \c speaking,
+        \c mouthOpen, \c mouthWide and \c mouthRound.
     */
-    property real mouthOpen: speechActive ? speechSource.mouthOpen : _animMouthOpen
+    readonly property real mouthOpen: speechActive ? speechSource.mouthOpen : _animMouthOpen
 
     /*!
         \qmlproperty real Head::mouthWide
+        \readonly
         \brief How far the mouth is stretched sideways (0-1), e.g. for "ee" sounds.
     */
-    property real mouthWide: speechActive ? speechSource.mouthWide : _animMouthWide
+    readonly property real mouthWide: speechActive ? speechSource.mouthWide : _animMouthWide
 
     /*!
         \qmlproperty real Head::mouthRound
+        \readonly
         \brief How rounded/puckered the mouth is (0-1), e.g. for "oo" sounds.
     */
-    property real mouthRound: speechActive ? speechSource.mouthRound : _animMouthRound
+    readonly property real mouthRound: speechActive ? speechSource.mouthRound : _animMouthRound
 
     /*!
         \qmlproperty real Head::mouthCornerLift
