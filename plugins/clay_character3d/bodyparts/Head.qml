@@ -87,9 +87,12 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty real Head::lowerHeadHeight
-        \brief Height of the lower head (jaw).
+        \brief Height of the lower head (jaw) at rest.
+
+        The rendered jaw may momentarily be taller while the mouth is
+        open (see \l jawDrop).
     */
-    property alias lowerHeadHeight: _lowerHead.height
+    property alias lowerHeadHeight: _lowerHead.baseHeight
 
     /*!
         \qmlproperty real Head::lowerHeadDepth
@@ -183,12 +186,12 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty real Head::jawDrop
-        \brief How far the jaw slides down when \l mouthOpen is 1, as a
+        \brief How far the chin stretches down when \l mouthOpen is 1, as a
                fraction of the lower head height.
 
-        The jaw translates straight down (no rotation), which keeps the
-        boxy face reading intact; the seam is backed by a darkened
-        inner-mouth filler so it shows as a crease, not a gap.
+        The jaw box stretches downward (its top edge stays attached to the
+        upper head), so the chin visibly drops without the face splitting
+        apart - cartoon squash-and-stretch instead of rigid jaw motion.
     */
     property real jawDrop: 0.25
 
@@ -268,7 +271,7 @@ BodyPartsGroup {
 
         showEdges: false
 
-        basePos: Qt.vector3d(0, _lowerHead.height * 0.99, _head.depth * .09)
+        basePos: Qt.vector3d(0, _lowerHead.baseHeight * 0.99, _head.depth * .09)
         color: _head.skinColor
 
         BodyPart {
@@ -379,112 +382,99 @@ BodyPartsGroup {
         }
     }
 
-    // Inner-mouth filler: sits hidden inside the head while the mouth is
-    // closed; when the jaw drops, the opening seam shows this darkened
-    // skin tone instead of a see-through gap.
+    // Lower head part containing mouth and chin. When the mouth opens,
+    // the box stretches downward: the top edge stays attached to the
+    // upper head while the chin extends - no seam, no face split.
     BodyPart {
-        id: _innerMouth
-        color: Qt.darker(_head.skinColor, 1.9)
-        width: _lowerHead.width * 0.95
-        height: _lowerHead.height * 0.5
-        depth: _lowerHead.depth * 0.95
-        showEdges: false
-        castsShadows: false
-        pickable: false
-        basePos: Qt.vector3d(0, _lowerHead.height * 0.55, _head.depth * .09)
-    }
+        id: _lowerHead
 
-    // Jaw joint: the lower head slides straight down from here when the
-    // mouth opens - a clean chin drop that keeps the boxy face intact
-    // (rotation makes the seam look broken on box geometry).
-    Node {
-        id: _jawJoint
-        readonly property real drop: _head.mouthOpen * _head.jawDrop * _lowerHead.height
-        position: Qt.vector3d(0, -drop, 0)
+        // Configured (rest) height; the public lowerHeadHeight alias
+        // targets this so characters set dimensions independent of the
+        // momentary jaw stretch.
+        property real baseHeight: 0.5
+        readonly property real jawStretch: _head.mouthOpen * _head.jawDrop * baseHeight
 
-        // Lower head part containing mouth and chin
-        BodyPart {
-            id: _lowerHead
+        // Default dimensions
+        width: 1.0
+        height: baseHeight + jawStretch
+        depth: 1.2
+        showEdges: true
+        edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
 
-            // Default dimensions
-            width: 1.0
-            height: 0.5
-            depth: 1.2
-            showEdges: true
-            edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
+        property real chinPointiness: 1.0
 
-            property real chinPointiness: 1.0
+        // Box origin is bottom-center: shift down by the stretch so the
+        // top edge stays fixed at the seam to the upper head.
+        basePos: Qt.vector3d(0, -jawStretch, _head.depth * .09)
+        color: _head.skinColor
 
-            basePos: Qt.vector3d(0, 0, _head.depth * .09)
-            color: _head.skinColor
+        // Apply chin pointiness using scaled bottom face
+        scaledFace: Box3DGeometry.BottomFace
+        faceScale: Qt.vector2d(chinPointiness, 1.0)
 
-            // Apply chin pointiness using scaled bottom face
-            scaledFace: Box3DGeometry.BottomFace
-            faceScale: Qt.vector2d(chinPointiness, 1.0)
+        // Mouth on the front of the jaw, built from the continuous
+        // shape parameters (open/wide/round/cornerLift).
+        Node {
+            id: _mouth
+            // Counteracts the jaw stretch (the box origin moved down) so
+            // the mouth line (upper lip) stays fixed on the face while
+            // the chin extends below.
+            position: Qt.vector3d(0,
+                                  0.6 * _lowerHead.baseHeight + _lowerHead.jawStretch,
+                                  _lowerHead.depth * .5)
 
-            // Mouth on the front of the jaw, built from the continuous
-            // shape parameters (open/wide/round/cornerLift).
-            Node {
-                id: _mouth
-                // Counteracts the jaw drop so the mouth line (upper lip)
-                // stays fixed on the face while the chin moves away below.
-                position: Qt.vector3d(0,
-                                      0.6 * _lowerHead.height + _jawJoint.drop,
-                                      _lowerHead.depth * .5)
+            readonly property real baseW: _lowerHead.width * .22 * _head.mouthSize
+            readonly property real lineH: .3 * baseW
+            // widened by "ee", narrowed by "oo"
+            readonly property real w: baseW * (1 + 0.5 * _head.mouthWide)
+                                            * (1 - 0.4 * _head.mouthRound)
+            // gap the mouth opens up toward the stretching chin
+            readonly property real gap: _head.mouthOpen * _lowerHead.baseHeight * 0.45
 
-                readonly property real baseW: _lowerHead.width * .22 * _head.mouthSize
-                readonly property real lineH: .3 * baseW
-                // widened by "ee", narrowed by "oo"
-                readonly property real w: baseW * (1 + 0.5 * _head.mouthWide)
-                                                * (1 - 0.4 * _head.mouthRound)
-                // gap the mouth opens up (in addition to the jaw rotation)
-                readonly property real gap: _head.mouthOpen * _lowerHead.height * 0.45
+            // Dark mouth cavity; top edge stays at the mouth line, the
+            // bottom grows downward as the mouth opens.
+            BodyPart {
+                id: _mouthCavity
+                color: "#20100c"
+                width: _mouth.w
+                height: _mouth.lineH + _mouth.gap
+                depth: 0.1
+                showEdges: false
+                castsShadows: false
+                basePos: Qt.vector3d(0, -height, _head.mouthRound * 0.05)
+            }
 
-                // Dark mouth cavity; top edge stays at the mouth line, the
-                // bottom grows downward as the mouth opens.
-                BodyPart {
-                    id: _mouthCavity
-                    color: "#20100c"
-                    width: _mouth.w
-                    height: _mouth.lineH + _mouth.gap
-                    depth: 0.1
-                    showEdges: false
-                    castsShadows: false
-                    basePos: Qt.vector3d(0, -height, _head.mouthRound * 0.05)
-                }
+            // Lip line covering the cavity's top edge (keeps the closed
+            // mouth reading as a clean line).
+            BodyPart {
+                id: _upperLip
+                color: "black"
+                width: _mouth.w * 1.02
+                height: _mouth.lineH * 0.4
+                depth: 0.11
+                showEdges: false
+                castsShadows: false
+                basePos: Qt.vector3d(0, -height * 0.5, 0)
+            }
 
-                // Lip line covering the cavity's top edge (keeps the closed
-                // mouth reading as a clean line).
-                BodyPart {
-                    id: _upperLip
-                    color: "black"
-                    width: _mouth.w * 1.02
-                    height: _mouth.lineH * 0.4
-                    depth: 0.11
-                    showEdges: false
-                    castsShadows: false
-                    basePos: Qt.vector3d(0, -height * 0.5, 0)
-                }
-
-                // Mouth corners: lifted for smiles, dropped for frowns.
-                component MouthCorner: BodyPart {
-                    color: "black"
-                    width: _mouth.lineH
-                    showEdges: false
-                    castsShadows: false
-                }
-                MouthCorner {
-                    id: _mouthLeft
-                    basePos: Qt.vector3d(-0.5 * (_mouth.w + width),
-                                         -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
-                                         0)
-                }
-                MouthCorner {
-                    id: _mouthRight
-                    basePos: Qt.vector3d(0.5 * (_mouth.w + width),
-                                         -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
-                                         0)
-                }
+            // Mouth corners: lifted for smiles, dropped for frowns.
+            component MouthCorner: BodyPart {
+                color: "black"
+                width: _mouth.lineH
+                showEdges: false
+                castsShadows: false
+            }
+            MouthCorner {
+                id: _mouthLeft
+                basePos: Qt.vector3d(-0.5 * (_mouth.w + width),
+                                     -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
+                                     0)
+            }
+            MouthCorner {
+                id: _mouthRight
+                basePos: Qt.vector3d(0.5 * (_mouth.w + width),
+                                     -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
+                                     0)
             }
         }
     }
