@@ -15,6 +15,22 @@ env:
   EMSDK_VERSION: '4.0.7'
 
 jobs:
+  # Release quality gate (SECURITY.md): a high/critical CVE against the
+  # pinned Qt blocks the runtime upload until Qt is bumped or the CVE id is
+  # explicitly waived via the QT_CVE_WAIVE repository variable.
+  cve-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Qt CVE gate
+        env:
+          QT_CVE_WAIVE: ${{ vars.QT_CVE_WAIVE }}
+        run: |
+          set -o pipefail
+          python3 .github/scripts/qt_cve_check.py \
+            --qt "${{ env.QT_VERSION_WASM }}" --fail-on high | tee -a "$GITHUB_STEP_SUMMARY"
+
   build-wheel:
     runs-on: ubuntu-latest
     steps:
@@ -42,6 +58,7 @@ jobs:
             tools/clay-dev-server/dist/*.whl
 
   build-webdojo:
+    needs: cve-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
