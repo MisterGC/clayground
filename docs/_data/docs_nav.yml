@@ -9,6 +9,8 @@
       url: /docs/getting-started/installation/
     - title: First Sandbox
       url: /docs/getting-started/first-sandbox/
+    - title: Your Game on Your Website
+      url: /docs/getting-started/your-website/
     - title: WASM Builds
       url: /docs/getting-started/wasm-builds/
 
