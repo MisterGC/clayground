@@ -318,6 +318,15 @@ function(clay_website_create_target)
     set(COPY_TARGETS "website-copy-api")
     set(COPY_TARGETS_DEV "website-copy-api-dev")
     foreach(DEMO IN LISTS CLAY_WEBSITE_DEMOS)
+        # webdojo doubles as the Web Runtime: ship the starter bundle next to
+        # it so the playground's "Export site" button can fetch it (issue #118)
+        set(DEMO_EXTRA_FILES "")
+        set(DEMO_EXTRA_DEPS "")
+        if(DEMO STREQUAL "webdojo")
+            set(DEMO_EXTRA_FILES ${CMAKE_BINARY_DIR}/clayground-starter.zip)
+            set(DEMO_EXTRA_DEPS clayground_starter)
+        endif()
+
         # Production copy target
         set(COPY_TARGET website-copy-${DEMO})
         add_custom_target(${COPY_TARGET}
@@ -328,12 +337,13 @@ function(clay_website_create_target)
                 ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.js
                 ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
+                ${DEMO_EXTRA_FILES}
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             # Copy custom HTML from docs/demo (not Qt-generated)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_SOURCE_DIR}/docs/demo/${DEMO}/${DEMO}.html
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
-            DEPENDS ${DEMO} website-jekyll
+            DEPENDS ${DEMO} ${DEMO_EXTRA_DEPS} website-jekyll
             COMMENT "Copying ${DEMO} WASM artifacts to website..."
         )
         list(APPEND COPY_TARGETS ${COPY_TARGET})
@@ -348,12 +358,13 @@ function(clay_website_create_target)
                 ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.js
                 ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
+                ${DEMO_EXTRA_FILES}
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             # Copy custom HTML from docs/demo (not Qt-generated)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_SOURCE_DIR}/docs/demo/${DEMO}/${DEMO}.html
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
-            DEPENDS ${DEMO} website-jekyll-dev
+            DEPENDS ${DEMO} ${DEMO_EXTRA_DEPS} website-jekyll-dev
             COMMENT "Copying ${DEMO} WASM artifacts to website (dev)..."
         )
         list(APPEND COPY_TARGETS_DEV ${COPY_TARGET_DEV})

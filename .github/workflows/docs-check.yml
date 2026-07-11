@@ -113,6 +113,7 @@ jobs:
               gh release download "$tag" \
                 --pattern "clayground.js" \
                 --pattern "clayground.wasm" \
+                --pattern "clayground-starter.zip" \
                 --pattern "webdojo.js" \
                 --pattern "webdojo.wasm" \
                 --pattern "qtloader.js" \
