@@ -73,7 +73,7 @@ jobs:
       if: matrix.qt-target == 'wasm'
       run: |
         sudo apt-get update
-        sudo apt-get install -y ninja-build
+        sudo apt-get install -y ninja-build brotli
 
     - name: Install Windows Dependencies
       if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
@@ -102,7 +102,33 @@ jobs:
 
     - name: Build (WASM)
       if: matrix.qt-target == 'wasm'
-      run: cmake --build build --target voxelworld
+      run: cmake --build build --target voxelworld clayground_starter
+
+    - name: Runtime Size Report (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        WASM=build/bin/clayground.wasm
+        RAW=$(stat -c%s "$WASM")
+        GZ=$(gzip -9 -c "$WASM" | wc -c)
+        BR=$(brotli -q 11 -c "$WASM" | wc -c)
+        mb() { echo "$1" | awk '{printf "%.1f", $1/1048576}'; }
+        {
+          echo "### Clayground Web Runtime size"
+          echo "| raw | gzip -9 | brotli -q11 |"
+          echo "|---|---|---|"
+          echo "| $(mb "$RAW") MB | $(mb "$GZ") MB | $(mb "$BR") MB |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        # Soft budget gate (D9): warn when the raw wasm outgrows 40 MB
+        if [ "$RAW" -gt 41943040 ]; then
+          echo "::warning::clayground.wasm exceeds the 40 MB raw size budget ($(mb "$RAW") MB)"
+        fi
+
+    - name: Runtime Smoke Test (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        pip install playwright
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --screenshot starter-smoke.png
 
     - name: Test
       if: matrix.qt-target == 'desktop'
@@ -120,4 +146,15 @@ jobs:
           build/bin/voxelworld.js
           build/bin/voxelworld.wasm
           build/bin/qtloader.js
+        retention-days: 7
+
+    - name: Upload Starter Bundle
+      if: always() && matrix.qt-target == 'wasm'
+      uses: actions/upload-artifact@v4
+      with:
+        name: clayground-starter
+        path: |
+          build/clayground-starter.zip
+          starter-smoke.png
+        if-no-files-found: ignore
         retention-days: 7

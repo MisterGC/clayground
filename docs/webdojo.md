@@ -167,7 +167,7 @@ JavaScript is required to run the Web Dojo.
 <!-- QML language definition -->
 <script src="{{ site.baseurl }}/assets/js/qml-language.js"></script>
 
-<!-- WebDojo WASM module (version-aware: loads webdojo.js + qtloader.js based on clay-version hash param) -->
+<!-- Clayground Web Runtime (version-aware: loads clayground.js/webdojo.js + qtloader.js based on clay-version hash param) -->
 <script src="{{ site.baseurl }}/assets/js/webdojo-loader.js"></script>
 
 <!-- WebDojo logic -->

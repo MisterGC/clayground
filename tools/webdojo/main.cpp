@@ -14,6 +14,11 @@
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <string>
+
+#ifndef CLAY_RUNTIME_VERSION
+#define CLAY_RUNTIME_VERSION "dev"
+#endif
 
 static QQmlApplicationEngine* g_engine = nullptr;
 static QQuickWindow* g_window = nullptr;
@@ -176,10 +181,17 @@ void loadQmlFromUrl(const std::string& url)
     }
 }
 
+// Runtime version, discoverable from the browser console (Module.claygroundVersion())
+std::string claygroundVersion()
+{
+    return std::string(CLAY_RUNTIME_VERSION) + " (Qt " + qVersion() + ")";
+}
+
 // Emscripten bindings - expose to JavaScript as Module.loadQml, Module.loadQmlFromUrl
 EMSCRIPTEN_BINDINGS(webdojo) {
     emscripten::function("loadQml", &loadQmlFromString);
     emscripten::function("loadQmlFromUrl", &loadQmlFromUrl);
+    emscripten::function("claygroundVersion", &claygroundVersion);
 }
 
 // Also expose as a global function for easy access from playground.js
@@ -197,6 +209,10 @@ int main(int argc, char *argv[])
 
     // Install custom message handler
     qInstallMessageHandler(messageHandler);
+
+    // Boot banner - the version check for support cases
+    emscripten_log(EM_LOG_CONSOLE, "Clayground Web Runtime %s (Qt %s)",
+                   CLAY_RUNTIME_VERSION, qVersion());
 
     QGuiApplication app(argc, argv);
 

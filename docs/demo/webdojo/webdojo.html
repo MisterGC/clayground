@@ -72,7 +72,7 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
                                 exitData.text !== undefined ? ` (${exitData.text})` : '';
                             showUi(spinner);
                         },
-                        entryFunction: window.webdojo_entry,
+                        entryFunction: window.clayground_entry || window.webdojo_entry,
                         containerElements: [screen],
                         
                     }
@@ -83,7 +83,7 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
             }
         }
     </script>
-    <script src="webdojo.js"></script>
+    <script src="clayground.js"></script>
     <script type="text/javascript" src="qtloader.js"></script>
   </body>
 </html>

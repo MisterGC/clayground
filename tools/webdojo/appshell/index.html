@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+    Clayground app shell - the whole skeleton of a deployed game:
+
+      index.html            this file: boots the runtime, then loads ./Main.qml
+      Main.qml              YOUR game - edit this one
+      clayground.wasm/.js   the Clayground Web Runtime (Qt inside)
+      qtloader.js           Qt's WASM loader
+      coi-serviceworker.js  header shim for hosts that can't set COOP/COEP
+
+    Serve these files over HTTP (any static host) and you have a game at
+    your own URL. See README.md for the two commands that do it.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0">
+    <title>My Clayground Game</title>
+    <style>
+        html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #1a1a2e; }
+        #screen { width: 100%; height: 100%; }
+        #loading {
+            position: absolute; inset: 0; display: flex;
+            align-items: center; justify-content: center;
+            color: #8892a0; font: 16px sans-serif;
+        }
+    </style>
+    <!--
+        The runtime needs the page to be "cross-origin isolated"
+        (Cross-Origin-Opener-Policy: same-origin +
+         Cross-Origin-Embedder-Policy: require-corp).
+        This service worker injects those headers on hosts that can't set
+        real HTTP headers (GitHub Pages etc.). If your host sets them for
+        you, delete this line and the file.
+    -->
+    <script src="coi-serviceworker.js"></script>
+</head>
+<body>
+    <div id="loading">Loading&hellip;</div>
+    <div id="screen"></div>
+
+    <script src="clayground.js"></script>
+    <script src="qtloader.js"></script>
+    <script>
+        // The runtime must not start before the page is cross-origin
+        // isolated. On the first visit to a host without real headers,
+        // coi-serviceworker installs itself and reloads the page - wait for
+        // that instead of starting the runtime in a broken context. If its
+        // reload raced the activation, nudge once (session-guarded).
+        async function ensureIsolation(loading) {
+            if (window.crossOriginIsolated)
+                return true;
+            loading.textContent = 'Preparing secure context…';
+            await new Promise(resolve => setTimeout(resolve, 4000));
+            if (window.crossOriginIsolated)
+                return true;
+            const reg = 'serviceWorker' in navigator
+                && await navigator.serviceWorker.getRegistration();
+            if (reg?.active && !navigator.serviceWorker.controller
+                    && !sessionStorage.getItem('clayCoiRetried')) {
+                sessionStorage.setItem('clayCoiRetried', '1');
+                location.reload();
+                return false;
+            }
+            loading.textContent =
+                'Cannot start: this page is not cross-origin isolated ' +
+                '(COOP/COEP headers or coi-serviceworker.js required).';
+            return false;
+        }
+
+        async function boot() {
+            const loading = document.getElementById('loading');
+            const screen = document.getElementById('screen');
+            try {
+                if (!await ensureIsolation(loading))
+                    return;
+
+                // Start the runtime ...
+                const runtime = await qtLoad({
+                    qt: {
+                        entryFunction: window.clayground_entry,
+                        containerElements: [screen],
+                    }
+                });
+                window.clayground = runtime; // console access for debugging
+
+                // ... and hand over to your game. Everything referenced from
+                // Main.qml (images, sounds, more QML) is fetched relative to
+                // it - just put files next to it.
+                runtime.loadQmlFromUrl(new URL('Main.qml', window.location.href).href);
+                loading.style.display = 'none';
+
+                // Keyboard focus fix for Qt WASM (QTBUG-91095): refocus Qt's
+                // hidden input element after pointer interactions.
+                setTimeout(() => {
+                    const qtDiv = Array.from(screen.querySelectorAll('div')).find(d => d.shadowRoot);
+                    const qtInput = qtDiv?.shadowRoot.querySelector('input.qt-window-input-element');
+                    if (qtInput)
+                        screen.addEventListener('pointerup', () => qtInput.focus(), true);
+                }, 100);
+            } catch (e) {
+                loading.textContent = 'Failed to start: ' + e;
+                console.error(e);
+            }
+        }
+        boot();
+    </script>
+</body>
+</html>

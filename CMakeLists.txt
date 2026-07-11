@@ -107,11 +107,14 @@ endif()
 # WEBSITE BUILD
 # ================
 
-# WebDojo is only built for WASM website builds
+# The Clayground Web Runtime (webdojo target, ships as clayground.*) builds
+# for every WASM build - it must not require the website toolchain (Jekyll).
 # (tools/ is excluded from WASM, so we add webdojo separately)
-if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
+if(EMSCRIPTEN)
     add_subdirectory(tools/webdojo)
+endif()
 
+if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     # Register webdojo examples - copied from source locations at build time
     # Auto-detects file vs directory, enabling multi-file examples with relative imports
 

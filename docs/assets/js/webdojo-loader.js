@@ -37,7 +37,10 @@
 
     function loadFrom(base) {
         window.__wasmBasePath = base;
-        return loadScript(base + 'webdojo.js')
+        // The runtime ships as clayground.js since issue #118; older release
+        // tags still carry webdojo.js - try the new name first, fall back.
+        return loadScript(base + 'clayground.js')
+            .catch(function() { return loadScript(base + 'webdojo.js'); })
             .then(function() { return loadScript(base + 'qtloader.js'); })
             .then(function() {
                 window.__wasmScriptsReady = true;

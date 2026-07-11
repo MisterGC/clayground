@@ -1254,7 +1254,7 @@ async function initWebDojo() {
                     if (exitData.text !== undefined) msg += ` (${exitData.text})`;
                     logToConsole(msg, 'error');
                 },
-                entryFunction: window.webdojo_entry,
+                entryFunction: window.clayground_entry || window.webdojo_entry,
                 containerElements: [container],
             }
         });

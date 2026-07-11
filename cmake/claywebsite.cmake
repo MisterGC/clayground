@@ -113,7 +113,9 @@ function(clay_website_check_prerequisites)
 endfunction()
 
 # Register a demo for inclusion in the website
-# The demo target must produce: {name}.html, {name}.js, {name}.wasm
+# The demo target must produce {output_name}.js/.wasm (usually output name =
+# target name; the webdojo target ships as clayground.* per issue #118) and
+# have a custom {name}.html page in docs/demo/{name}/
 function(clay_website_register_demo DEMO_NAME)
     set(CLAY_WEBSITE_DEMOS ${CLAY_WEBSITE_DEMOS} ${DEMO_NAME} CACHE INTERNAL "")
     message(STATUS "Website demo registered: ${DEMO_NAME}")
@@ -323,8 +325,8 @@ function(clay_website_create_target)
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}
             # Copy WASM artifacts (js, wasm, qtloader) from build
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.js
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.wasm
+                ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.js
+                ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             # Copy custom HTML from docs/demo (not Qt-generated)
@@ -343,8 +345,8 @@ function(clay_website_create_target)
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}
             # Copy WASM artifacts (js, wasm, qtloader) from build
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.js
-                ${CMAKE_BINARY_DIR}/bin/${DEMO}.wasm
+                ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.js
+                ${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_BASE_NAME:${DEMO}>.wasm
                 ${CMAKE_BINARY_DIR}/bin/qtloader.js
                 ${CMAKE_SOURCE_DIR}/docs/_site/demo/${DEMO}/
             # Copy custom HTML from docs/demo (not Qt-generated)

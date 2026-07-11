@@ -1,0 +1,11 @@
+{
+    "name": "clayground-web-runtime",
+    "version": "@CLAY_RUNTIME_VERSION@",
+    "qt": "@CLAY_RUNTIME_QT_VERSION@",
+    "emscripten": "@CLAY_RUNTIME_EMSDK_VERSION@",
+    "sources": {
+        "clayground": "https://github.com/MisterGC/clayground",
+        "qt": "https://download.qt.io/archive/qt/"
+    },
+    "licenses": "LICENSES/"
+}
