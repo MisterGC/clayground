@@ -87,7 +87,7 @@ async function resolveVersion(version) {
         // Try same-origin versions manifest first, fall back to GitHub API
         const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
         try {
-            const mResp = await fetch(`${baseUrl}/v/versions.json`);
+            const mResp = await fetch(`${baseUrl}/v/versions.json`, { cache: 'no-store' });
             if (mResp.ok) {
                 const data = await mResp.json();
                 if (data.latest) {
@@ -134,7 +134,7 @@ async function fetchAvailableVersions() {
     // Try same-origin versions manifest first (no rate limits, faster)
     const baseUrl = document.querySelector('meta[name="baseurl"]')?.content || '';
     try {
-        const mResp = await fetch(`${baseUrl}/v/versions.json`);
+        const mResp = await fetch(`${baseUrl}/v/versions.json`, { cache: 'no-store' });
         if (mResp.ok) {
             const data = await mResp.json();
             if (data.versions && data.versions.length > 0) {
