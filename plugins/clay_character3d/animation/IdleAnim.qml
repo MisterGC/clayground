@@ -11,6 +11,18 @@ ProceduralAnim {
             to: Qt.vector3d(0, 0, 0)
         }
 
+        // Reset head and hip (e.g. tilted by UseAnim)
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.head
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.hip
+            to: Qt.vector3d(0, 0, 0)
+        }
+
         // Reset right arm joints
         EulerAnim {
             duration: _idleAnim.duration

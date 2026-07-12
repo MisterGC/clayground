@@ -15,6 +15,22 @@ env:
   EMSDK_VERSION: '4.0.7'
 
 jobs:
+  # Release quality gate (SECURITY.md): a high/critical CVE against the
+  # pinned Qt blocks the runtime upload until Qt is bumped or the CVE id is
+  # explicitly waived via the QT_CVE_WAIVE repository variable.
+  cve-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Qt CVE gate
+        env:
+          QT_CVE_WAIVE: ${{ vars.QT_CVE_WAIVE }}
+        run: |
+          set -o pipefail
+          python3 .github/scripts/qt_cve_check.py \
+            --qt "${{ env.QT_VERSION_WASM }}" --fail-on high | tee -a "$GITHUB_STEP_SUMMARY"
+
   build-wheel:
     runs-on: ubuntu-latest
     steps:
@@ -42,6 +58,7 @@ jobs:
             tools/clay-dev-server/dist/*.whl
 
   build-webdojo:
+    needs: cve-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -96,17 +113,18 @@ jobs:
             -DCLAY_BUILD_WEBSITE=ON \
             -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
 
-      - name: Build WebDojo
-        run: cmake --build build --target webdojo
+      - name: Build Web Runtime + starter bundle
+        run: cmake --build build --target clayground_starter
 
-      - name: Upload WebDojo assets to release
+      - name: Upload Web Runtime assets to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
-            build/bin/webdojo.js \
-            build/bin/webdojo.wasm \
-            build/bin/qtloader.js
+            build/bin/clayground.js \
+            build/bin/clayground.wasm \
+            build/bin/qtloader.js \
+            build/clayground-starter.zip
 
   trigger-docs-rebuild:
     needs: build-webdojo

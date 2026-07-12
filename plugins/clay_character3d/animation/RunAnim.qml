@@ -54,6 +54,28 @@ ProceduralAnim {
             to: Qt.vector3d(torsoLeanAngle, 0, 0)
         }
 
+        // Reset head, hip and hands (e.g. tilted by UseAnim/FightAnim)
+        EulerAnim {
+            target: entity.head
+            duration: _runCycle.duration
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.hip
+            duration: _runCycle.duration
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.rightArm.hand
+            duration: _runCycle.duration
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.leftArm.hand
+            duration: _runCycle.duration
+            to: Qt.vector3d(0, 0, 0)
+        }
+
         // Right leg forward motion
         EulerAnim {
             target: entity.rightLeg.upperLeg

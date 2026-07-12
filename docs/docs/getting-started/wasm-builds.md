@@ -6,6 +6,11 @@ permalink: /docs/getting-started/wasm-builds/
 
 Deploy your Clayground app to the web using WebAssembly (Emscripten).
 
+> **No build step needed for most games:** the prebuilt Web Runtime lets you
+> deploy QML as static files — see
+> [Your Game on Your Website]({{ site.baseurl }}/docs/getting-started/your-website/).
+> Build it yourself only if you need custom C++ plugins.
+
 ## Prerequisites
 
 - **Qt 6.10.1+** with the WebAssembly component (single-threaded recommended)

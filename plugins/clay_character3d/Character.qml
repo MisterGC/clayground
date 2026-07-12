@@ -99,6 +99,217 @@ BodyPartsGroup {
     property alias faceActivity: _head.activity
 
     // ============================================================================
+    // SPEECH & LIP-SYNC
+    // ============================================================================
+
+    /*!
+        \qmlproperty Speech Character::speech
+        \brief The character's speech engine for advanced configuration
+               (volume, rate, pitch) and signals (started/finished).
+    */
+    readonly property Speech speech: _speech
+
+    /*!
+        \qmlproperty bool Character::speaking
+        \brief True while the character is speaking (text or audio),
+               including between the segments of annotated text.
+    */
+    readonly property bool speaking: _speech.speaking || _sayQueue.active
+
+    /*!
+        \qmlproperty bool Character::speechBodyLanguage
+        \brief Whether emotional speech may use body language gestures.
+
+        When true and the character is otherwise idle, saying something
+        with an emotion plays a matching gesture loop (slumped sway when
+        sad, bouncy arms when happy, agitated pumping when angry). The
+        gestures never override other activities - a walking or fighting
+        character keeps its body animation and only face and voice carry
+        the emotion.
+    */
+    property bool speechBodyLanguage: true
+
+    /*!
+        \qmlproperty string Character::speechEmotion
+        \readonly
+        \brief The emotion of the current speech ("happy", "sad", "angry"
+               or empty for neutral).
+    */
+    readonly property string speechEmotion: _emotionCtl.current
+
+    /*!
+        \qmlmethod void Character::say(string what, string emotion)
+        \brief Makes the character say something with lip-synced mouth movement.
+
+        Pass either plain text (spoken via text-to-speech when available,
+        otherwise the mouth animates silently) or a path/URL to a wav/mp3
+        file which is played back while the mouth follows the audio.
+
+        The optional emotion ("happy", "sad" or "angry") colors the
+        conversation: facial expression, voice pitch/rate (for TTS) and -
+        if the character is idle and \l speechBodyLanguage is enabled -
+        matching body language. Everything is restored when the speech
+        finishes.
+
+        Text may switch the emotion mid-speech with inline annotations:
+        \qml
+        npc.say("*angry* Get off my ground! *happy* Just kidding, come in.")
+        \endqml
+        Recognized annotations are *happy*, *sad*, *angry* and *neutral*
+        (plus the aliases *joy*, *anger*, *sadness* and *calm*); each one
+        applies from where it appears. The emotion argument sets the tone
+        before the first annotation. Unknown annotations are left in the
+        text untouched.
+    */
+    function say(what, emotion) {
+        _sayQueue.cancel()
+        // End any previous speech first: its finished() handling clears
+        // the old emotion, so the ones applied by the queue survive.
+        _speech.stop()
+        _sayQueue.segments = _sayQueue.parse("" + what,
+                                             emotion === undefined ? "" : emotion)
+        _sayQueue.index = 0
+        _sayQueue.next()
+    }
+
+    /*!
+        \qmlmethod void Character::stopSpeaking()
+        \brief Interrupts the current speech output.
+    */
+    function stopSpeaking() {
+        _sayQueue.cancel()
+        _speech.stop()
+    }
+
+    // Splits annotated text into (emotion, text) segments and speaks
+    // them one after another, re-coloring face/voice/body per segment.
+    QtObject {
+        id: _sayQueue
+        property var segments: []
+        property int index: 0
+        property bool active: false
+
+        function parse(text, baseEmotion) {
+            const known = {
+                happy: "happy", joy: "happy",
+                sad: "sad", sadness: "sad",
+                angry: "angry", anger: "angry",
+                neutral: "", calm: ""
+            }
+            const re = /\*(\w+)\*/g
+            let result = []
+            let emotion = baseEmotion
+            let last = 0
+            let m
+            while ((m = re.exec(text)) !== null) {
+                const e = known[m[1].toLowerCase()]
+                if (e === undefined)
+                    continue // unknown annotation: keep it as spoken text
+                const chunk = text.slice(last, m.index).trim()
+                if (chunk.length > 0)
+                    result.push({ text: chunk, emotion: emotion })
+                emotion = e
+                last = re.lastIndex
+            }
+            const tail = text.slice(last).trim()
+            if (tail.length > 0)
+                result.push({ text: tail, emotion: emotion })
+            return result
+        }
+
+        function next() {
+            if (index >= segments.length) {
+                active = false
+                return
+            }
+            active = true
+            const seg = segments[index]
+            index++
+            _emotionCtl.apply(seg.emotion)
+            _speech.say(seg.text)
+        }
+
+        function cancel() {
+            active = false
+            segments = []
+            index = 0
+        }
+    }
+
+    Speech { id: _speech }
+
+    // Applies an emotion to face and voice for the duration of one
+    // speech output and restores the previous state afterwards.
+    QtObject {
+        id: _emotionCtl
+        property string current: ""
+        property int savedFace: Head.Activity.Idle
+        property real savedPitch: 0
+        property real savedRate: 0
+
+        function apply(emotion) {
+            clear()
+            emotion = ("" + emotion).toLowerCase()
+            if (emotion === "joy") emotion = "happy"
+            if (emotion === "sadness") emotion = "sad"
+            if (emotion === "anger") emotion = "angry"
+            if (emotion !== "happy" && emotion !== "sad" && emotion !== "angry")
+                return
+            savedFace = _character.faceActivity
+            savedPitch = _speech.pitch
+            savedRate = _speech.rate
+            if (emotion === "happy") {
+                _character.faceActivity = Head.Activity.ShowJoy
+                _speech.pitch = Math.min(1, savedPitch + 0.35)
+                _speech.rate = Math.min(1, savedRate + 0.1)
+            } else if (emotion === "sad") {
+                _character.faceActivity = Head.Activity.ShowSadness
+                _speech.pitch = Math.max(-1, savedPitch - 0.35)
+                _speech.rate = Math.max(-1, savedRate - 0.3)
+            } else {
+                _character.faceActivity = Head.Activity.ShowAnger
+                _speech.pitch = Math.max(-1, savedPitch - 0.15)
+                _speech.rate = Math.min(1, savedRate + 0.25)
+            }
+            current = emotion
+        }
+
+        function clear() {
+            if (current === "")
+                return
+            current = ""
+            _character.faceActivity = savedFace
+            _speech.pitch = savedPitch
+            _speech.rate = savedRate
+        }
+    }
+
+    Connections {
+        target: _speech
+        function onFinished() {
+            _emotionCtl.clear()
+            if (_sayQueue.active)
+                _sayQueue.next()
+        }
+    }
+
+    TalkGestureAnim {
+        id: _talkGestureAnim
+        entity: _character
+        emotion: _emotionCtl.current
+        running: _emotionCtl.current !== ""
+                 && _speech.speaking
+                 && _character.speechBodyLanguage
+                 && _character.activity === Character.Activity.Idle
+        loops: Animation.Infinite
+        // Hand the joints back to the idle pose when the gesture ends
+        onRunningChanged: {
+            if (!running && _character.activity === Character.Activity.Idle)
+                _idleAnim.restart()
+        }
+    }
+
+    // ============================================================================
     // HEAD PROPERTIES
     // ============================================================================
     /*! Height of the neck section. */
@@ -253,6 +464,7 @@ BodyPartsGroup {
         Head {
             id: _head
             basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
+            speechSource: _speech
         }
 
         // Arms (containing hands)

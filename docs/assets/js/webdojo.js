@@ -1254,7 +1254,7 @@ async function initWebDojo() {
                     if (exitData.text !== undefined) msg += ` (${exitData.text})`;
                     logToConsole(msg, 'error');
                 },
-                entryFunction: window.webdojo_entry,
+                entryFunction: window.clayground_entry || window.webdojo_entry,
                 containerElements: [container],
             }
         });
@@ -1563,6 +1563,7 @@ function setupEventHandlers(source, visibility) {
 
     // Share button
     setupShareButton();
+    setupExportSiteButton();
 
     // Standalone button
     setupStandaloneButton();
@@ -1669,6 +1670,48 @@ function buildSourceUrl(source) {
         return `${base}#clay-src=${encoded}`;
     }
     return null;
+}
+
+// Export the current sandbox as a ready-to-deploy website: fetch the
+// starter bundle matching the running runtime version, replace Main.qml
+// with the editor content, hand the zip to the user.
+async function exportSite() {
+    const btn = document.getElementById('export-site-button');
+    if (btn) btn.disabled = true;
+    try {
+        if (typeof JSZip === 'undefined') throw new Error('JSZip not loaded');
+        if (!editor) throw new Error('Editor not ready');
+        const code = editor.getValue();
+        if (!code || !code.trim()) throw new Error('Editor is empty');
+
+        const base = getWasmBasePath(resolvedVersion);
+        logToConsole('Packing your site (fetching runtime bundle)...', 'log');
+        const resp = await fetch(base + 'clayground-starter.zip');
+        if (!resp.ok) {
+            throw new Error('Starter bundle not available for this runtime version '
+                + `(HTTP ${resp.status}) - switch to the latest or dev version`);
+        }
+        const zip = await JSZip.loadAsync(await resp.arrayBuffer());
+        zip.file('Main.qml', code);
+        const blob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'my-clayground-game.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        logToConsole('Site exported - unzip, serve, or push to any static host (see README.md inside)', 'success');
+    } catch (e) {
+        logToConsole(`Export failed: ${e.message}`, 'error');
+    }
+    if (btn) btn.disabled = false;
+}
+
+function setupExportSiteButton() {
+    document.getElementById('export-site-button')?.addEventListener('click', exportSite);
 }
 
 function setupShareButton() {

@@ -105,12 +105,15 @@ jobs:
           downloaded=""
           for tag in $tags; do
             has_wasm=$(gh release view "$tag" --json assets \
-              --jq '[.assets[].name] | if index("webdojo.wasm") then "yes" else "no" end')
+              --jq '[.assets[].name] | if (index("clayground.wasm") or index("webdojo.wasm")) then "yes" else "no" end')
             if [ "$has_wasm" = "yes" ]; then
               echo "Downloading WASM assets for $tag ..."
               dest="docs/_site/v/${tag}/webdojo"
               mkdir -p "$dest"
               gh release download "$tag" \
+                --pattern "clayground.js" \
+                --pattern "clayground.wasm" \
+                --pattern "clayground-starter.zip" \
                 --pattern "webdojo.js" \
                 --pattern "webdojo.wasm" \
                 --pattern "qtloader.js" \

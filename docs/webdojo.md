@@ -20,6 +20,7 @@ permalink: /webdojo/
         <button id="reload-content-button" class="reload-button hidden" aria-label="Reload content" title="Reload content from source">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M7 1a6 6 0 1 0 6 6h-1.5A4.5 4.5 0 1 1 7 2.5V5l3.5-3L7 0z"/></svg>
         </button>
+        <button id="export-site-button" class="share-button" aria-label="Export as website" title="Download your sandbox as a ready-to-deploy website">📦 Export site</button>
         <button id="share-button" class="share-button" aria-label="Share">🔗 Share</button>
         <button id="standalone-button" class="standalone-button" aria-label="Toggle standalone mode">▶ Standalone</button>
         <a href="{{ site.baseurl }}/docs/getting-started/webdojo/" target="_blank"
@@ -167,7 +168,7 @@ JavaScript is required to run the Web Dojo.
 <!-- QML language definition -->
 <script src="{{ site.baseurl }}/assets/js/qml-language.js"></script>
 
-<!-- WebDojo WASM module (version-aware: loads webdojo.js + qtloader.js based on clay-version hash param) -->
+<!-- Clayground Web Runtime (version-aware: loads clayground.js/webdojo.js + qtloader.js based on clay-version hash param) -->
 <script src="{{ site.baseurl }}/assets/js/webdojo-loader.js"></script>
 
 <!-- WebDojo logic -->

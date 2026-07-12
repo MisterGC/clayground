@@ -1,0 +1,67 @@
+name: Security Watch
+
+# Monthly check of the Qt version shipped in the latest Web Runtime release
+# against published CVEs (see SECURITY.md). Findings open a tracker issue;
+# the same script gates releases in release-dev-server.yml.
+
+on:
+  schedule:
+    - cron: '17 6 3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  qt-cve-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine Qt version of latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          qt=""
+          if gh release download --repo "$GITHUB_REPOSITORY" \
+               --pattern "clayground-starter.zip" --dir /tmp/starter 2>/dev/null; then
+            unzip -o -q /tmp/starter/clayground-starter.zip RUNTIME-MANIFEST.json -d /tmp/starter
+            qt=$(jq -r '.qt' /tmp/starter/RUNTIME-MANIFEST.json)
+          fi
+          if [ -z "$qt" ] || [ "$qt" = "null" ]; then
+            # Fallback: the version pinned for the next release
+            qt=$(grep -m1 "QT_VERSION_WASM:" .github/workflows/main.yml | sed "s/.*'\(.*\)'.*/\1/")
+          fi
+          echo "QT_VERSION=$qt" >> "$GITHUB_ENV"
+          echo "Checking Qt $qt"
+
+      - name: Check NVD for CVEs
+        id: cve
+        env:
+          QT_CVE_WAIVE: ${{ vars.QT_CVE_WAIVE }}
+        run: |
+          set +e
+          python3 .github/scripts/qt_cve_check.py --qt "$QT_VERSION" --fail-on high > report.md
+          rc=$?
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          cat report.md
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          [ "$rc" = "1" ] && exit 1
+          exit 0
+
+      - name: Open tracker issue on findings
+        if: steps.cve.outputs.rc == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Security watch: Qt $QT_VERSION has unwaived high/critical CVEs"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$title\" in:title" --json number --jq length)
+          if [ "$existing" = "0" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "$title" --body-file report.md
+          else
+            echo "Open issue already exists, not duplicating."
+          fi

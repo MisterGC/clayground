@@ -416,4 +416,56 @@ Item {
         view3d: view3d
         gameController: gameController
     }
+
+    // Speech demo - the edited character (or player) speaks with lip-sync
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        width: speechRow.width + 20
+        height: speechRow.height + 12
+        // Follow the system light/dark theme like the native buttons do
+        color: _speechPanelPal.window
+        opacity: 0.95
+        radius: 8
+        border.color: Qt.alpha(_speechPanelPal.windowText, 0.2)
+
+        SystemPalette { id: _speechPanelPal }
+
+        readonly property var speaker: charEditor.editTarget ?? character
+        readonly property var phrases: [
+            "Hello! Welcome to Clayground.",
+            "What a wonderful day for a walk.",
+            "I can talk, walk, run and fight!",
+            "Procedural characters are fun."
+        ]
+        property int nextPhrase: 0
+
+        Row {
+            id: speechRow
+            anchors.centerIn: parent
+            spacing: 6
+            Button {
+                text: "Say text"
+                onClicked: {
+                    const p = parent.parent
+                    p.speaker.say(p.phrases[p.nextPhrase])
+                    p.nextPhrase = (p.nextPhrase + 1) % p.phrases.length
+                }
+            }
+            Button {
+                text: "Play hello.wav"
+                onClicked: parent.parent.speaker.say(Qt.resolvedUrl("hello.wav"))
+            }
+            Button {
+                text: "Sing"
+                onClicked: parent.parent.speaker.say(Qt.resolvedUrl("sing.wav"))
+            }
+            Button {
+                text: "Stop"
+                enabled: parent.parent.speaker.speaking
+                onClicked: parent.parent.speaker.stopSpeaking()
+            }
+        }
+    }
 }
