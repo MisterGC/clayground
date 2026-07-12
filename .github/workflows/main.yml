@@ -138,7 +138,7 @@ jobs:
     # Upload WASM artifacts for PRs (testing) and main (docs-check.yml does its own build for deployment)
     - name: Upload WASM Artifacts
       if: matrix.qt-target == 'wasm'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wasm-voxelworld
         path: |
@@ -150,7 +150,7 @@ jobs:
 
     - name: Upload Starter Bundle
       if: always() && matrix.qt-target == 'wasm'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: clayground-starter
         path: |
