@@ -65,7 +65,7 @@
 
         if (version === 'latest') {
             // Fetch versions manifest to resolve latest tag
-            return fetch(baseUrl + '/v/versions.json')
+            return fetch(baseUrl + '/v/versions.json', { cache: 'no-store' })
                 .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
                 .then(function(data) {
                     if (data.latest) {
