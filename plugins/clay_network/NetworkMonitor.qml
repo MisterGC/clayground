@@ -36,8 +36,8 @@ Rectangle {
     */
     property var network: null
 
-    width: 250
-    height: content.height + 16
+    implicitWidth: 250
+    implicitHeight: content.height + 16
     radius: 6
     color: "#CC1a1a2e"
     border.color: "#4A90A4"
