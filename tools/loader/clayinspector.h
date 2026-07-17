@@ -127,6 +127,7 @@ private:
     QString m_inspectDir;
     QString m_crewDir;
     QString m_instanceName;
+    QString m_runId;
     // One auto-flag per reload generation keeps error storms from spamming
     // the inspect dir; reset whenever a new load begins.
     bool m_autoFlagged = false;
@@ -157,6 +158,7 @@ private:
     QTimer* m_traceTimer = nullptr;
     QFile* m_traceFile = nullptr;
     QElapsedTimer m_traceElapsed;
+    qint64 m_traceEpochMs = 0;
     QJsonArray m_traceWatch;
     QString m_traceStopExpr;
     int m_traceTimeout = 0;

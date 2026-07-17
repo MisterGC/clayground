@@ -94,6 +94,8 @@ def run(insp, sandbox_dir, attended):
     check("attach: phase ready", ok, f"phase={st.get('phase')}")
     check("attach: protocolVersion >= 2", st.get("protocolVersion", 0) >= 2,
           f"protocolVersion={st.get('protocolVersion')}")
+    check("attach: runId present", bool(st.get("runId")),
+          f"runId={st.get('runId')}")
 
     # -- 2: baseline + log stream ----------------------------------------
     snap = insp.request({"action": "snapshot"})
@@ -160,10 +162,12 @@ def run(insp, sandbox_dir, attended):
           and px2 is not None and px2 < px1 - 0.5, f"{px1} -> {px2}")
 
     insp.eval(["applyScenario('near-coin')"])
-    insp.request({"action": "trace", "start": True,
-                  "watch": ["player.xWu", "gym.score"],
-                  "interval": 100, "stopWhen": "score > 0",
-                  "timeout": 10000})
+    tstart = insp.request({"action": "trace", "start": True,
+                           "watch": ["player.xWu", "gym.score"],
+                           "interval": 100, "stopWhen": "score > 0",
+                           "timeout": 10000})
+    check("trace: start reports wall-clock epoch",
+          tstart.get("epochMs", 0) > 0, f"epochMs={tstart.get('epochMs')}")
     insp.request({"action": "input",
                   "gamepad": {"axisX": 1.0, "durationMs": 2500}})
 
@@ -180,6 +184,15 @@ def run(insp, sandbox_dir, attended):
     check("trace: stopped by condition (coin collected)",
           tresp.get("stoppedBy") == "condition",
           f"stoppedBy={tresp.get('stoppedBy')}")
+    try:
+        with open(os.path.join(insp.dir, "trace.jsonl")) as f:
+            meta = json.loads(f.readline())
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+    check("trace: jsonl meta line carries matching epoch",
+          meta.get("meta") == "trace_start"
+          and meta.get("epochMs") == tstart.get("epochMs"),
+          f"meta={meta.get('meta')} epochMs={meta.get('epochMs')}")
     score = insp.eval1("gym.score")
     check("input: coin collected via gameplay", score == 1, f"score={score}")
 

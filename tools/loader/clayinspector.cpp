@@ -24,6 +24,7 @@
 #include <QTimer>
 #include <QEventLoop>
 #include <QJSValue>
+#include <QUuid>
 #include <QVector2D>
 #include <QVector3D>
 
@@ -43,6 +44,7 @@ ClayInspector* ClayInspector::current()
 ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
     : QObject(parent)
     , m_container(container)
+    , m_runId(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))
     , m_startedAt(QDateTime::currentDateTime())
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged,
@@ -179,6 +181,7 @@ void ClayInspector::writeState()
 
     QJsonObject state;
     state["protocolVersion"] = 2;
+    state["runId"] = m_runId;
     state["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
     state["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
     if (!m_instanceName.isEmpty())
@@ -216,6 +219,24 @@ void ClayInspector::setSandboxDir(const QString& dir)
         m_inspectDir += "/i/" + m_instanceName;
     m_crewDir = dir + "/.clay/crew";
     ensureInspectDir();
+    // A relaunch under the same instance name must not let drivers latch
+    // onto the previous run: drop the dead run's state/response before the
+    // fresh state (with this process' runId) goes out (issue #141).
+    {
+        QFile staleState(m_inspectDir + "/state.json");
+        if (staleState.exists()) {
+            QJsonDocument doc;
+            if (staleState.open(QIODevice::ReadOnly)) {
+                doc = QJsonDocument::fromJson(staleState.readAll());
+                staleState.close();
+            }
+            auto pid = static_cast<qint64>(doc.object().value("pid").toDouble());
+            if (pid != QCoreApplication::applicationPid()) {
+                staleState.remove();
+                QFile::remove(m_inspectDir + "/response.json");
+            }
+        }
+    }
     startWatching();
     resetEventLog();
     writeState();
@@ -1224,7 +1245,19 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
         m_traceTimer = new QTimer(this);
         connect(m_traceTimer, &QTimer::timeout, this, &ClayInspector::onTraceTick);
         m_traceElapsed.start();
+        m_traceEpochMs = QDateTime::currentMSecsSinceEpoch();
         m_traceTimer->start(interval);
+
+        // Meta first line: absolute time of a sample = epochMs + t, which
+        // lets consumers correlate traces from multiple instances on the
+        // same wall clock (issue #142).
+        QJsonObject meta;
+        meta["meta"] = "trace_start";
+        meta["epochMs"] = m_traceEpochMs;
+        meta["interval"] = interval;
+        meta["watch"] = m_traceWatch;
+        m_traceFile->write(QJsonDocument(meta).toJson(QJsonDocument::Compact) + "\n");
+        m_traceFile->flush();
 
         m_traceRequestId = request.value("id");
 
@@ -1235,12 +1268,14 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
         response["watch"] = m_traceWatch;
         response["interval"] = interval;
         response["timeout"] = m_traceTimeout;
+        response["epochMs"] = m_traceEpochMs;
         emit traceStarted();
 
         QJsonObject payload;
         payload["watch"] = m_traceWatch;
         payload["interval"] = interval;
         payload["timeout"] = m_traceTimeout;
+        payload["epochMs"] = m_traceEpochMs;
         if (!m_traceStopExpr.isEmpty())
             payload["stopWhen"] = m_traceStopExpr;
         appendEvent("trace_start", payload);
