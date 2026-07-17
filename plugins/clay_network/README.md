@@ -149,11 +149,30 @@ This also explains asymmetric connectivity: it can work in one direction but not
 
 ## Message Types
 
-| Method | Signal | Use Case |
-|--------|--------|----------|
-| `broadcast(data)` | `messageReceived` | Chat, game events, reliable state |
-| `broadcastState(data)` | `stateReceived` | Entity positions, real-time updates |
-| `sendTo(nodeId, data)` | `messageReceived` | Direct messages to specific node |
+| Method | Signal | Channel | Use Case |
+|--------|--------|---------|----------|
+| `broadcast(data)` | `messageReceived` | reliable, ordered | Chat, game events, level changes |
+| `broadcastState(data)` | `stateReceived` | unordered, no retransmit, seq-guarded | Entity positions, real-time updates |
+| `sendTo(nodeId, data)` | `messageReceived` | reliable, ordered | Direct messages to specific node |
+
+State updates travel over a dedicated lossy data channel: lost packets are
+never retransmitted and each update carries a per-sender sequence number, so
+receivers drop stale data instead of applying it late. In Star topology the
+host relays state between joiners and propagates the roster, so `nodes` and
+`nodeJoined`/`nodeLeft` cover all participants on every node.
+
+## Multiplayer Helpers
+
+- **`StateInterpolator`** - snapshot-buffer interpolation for remote
+  entities (render a constant `delayMs` in the past, blend between states,
+  bounded extrapolation). Use this instead of `Behavior` animations.
+- **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
+  state rate, state age and stale-drop counts (`network.syncStats` /
+  `network.peerStats` / `network.stateAgeMs(id)` for programmatic access).
+
+See the [Multiplayer Games guide](https://misterGC.github.io/clayground/docs/manual/multiplayer/)
+for the full set of patterns (channel choice, tick rates, host authority,
+shared seeds).
 
 ## Signaling Modes
 

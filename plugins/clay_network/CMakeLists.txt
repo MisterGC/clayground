@@ -17,6 +17,8 @@ set(COMMON_SOURCES
 set(COMMON_QML
     Network.qml
     ClayHttpClient.qml
+    StateInterpolator.qml
+    NetworkMonitor.qml
 )
 
 if(EMSCRIPTEN)
