@@ -3,6 +3,7 @@
 #include <QtTest/QtTest>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QVariant>
 #include <QVariantMap>
 
@@ -23,6 +24,10 @@ private slots:
     void testChatMessageRoundTrip();
     void testNestedObjects();
     void testNumericTypes();
+    void testStateSequenceNumber();
+    void testStaleStateDetection();
+    void testRelayPreservesStatePayload();
+    void testRosterSystemMessage();
 };
 
 void TestNetworkSerialization::testVariantMapToJson()
@@ -162,6 +167,79 @@ void TestNetworkSerialization::testNumericTypes()
     QCOMPARE(decoded["intVal"].toInt(), 42);
     QCOMPARE(decoded["doubleVal"].toDouble(), 3.14159);
     QCOMPARE(decoded["boolVal"].toBool(), true);
+}
+
+void TestNetworkSerialization::testStateSequenceNumber()
+{
+    // State updates carry a per-sender sequence number "q" (uint32 range)
+    QJsonObject msg;
+    msg["t"] = "s";
+    msg["q"] = static_cast<qint64>(4294967295u);
+    msg["d"] = QJsonObject::fromVariantMap({{"x", 1.5}});
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+
+    QJsonObject parsed = QJsonDocument::fromJson(json.toUtf8()).object();
+    QVERIFY(parsed.contains("q"));
+    QCOMPARE(static_cast<quint32>(parsed["q"].toDouble()), 4294967295u);
+}
+
+void TestNetworkSerialization::testStaleStateDetection()
+{
+    // Receiver logic: anything at or behind the newest accepted seq is stale
+    auto isStale = [](quint32 incoming, quint32 newest) {
+        return incoming <= newest;
+    };
+    QVERIFY(isStale(5, 5));
+    QVERIFY(isStale(4, 5));
+    QVERIFY(!isStale(6, 5));
+}
+
+void TestNetworkSerialization::testRelayPreservesStatePayload()
+{
+    // Host relay adds "from" but must leave seq and payload untouched
+    QJsonObject msg;
+    msg["t"] = "s";
+    msg["q"] = 42;
+    msg["d"] = QJsonObject::fromVariantMap({{"x", 7.25}, {"a", -90}});
+
+    QJsonObject relayed = msg;
+    relayed["from"] = "node123";
+    QString json = QString::fromUtf8(QJsonDocument(relayed).toJson(QJsonDocument::Compact));
+
+    QJsonObject parsed = QJsonDocument::fromJson(json.toUtf8()).object();
+    QCOMPARE(parsed["from"].toString(), "node123");
+    QCOMPARE(parsed["q"].toInt(), 42);
+    QCOMPARE(parsed["t"].toString(), "s");
+    QCOMPARE(parsed["d"].toObject()["x"].toDouble(), 7.25);
+    QCOMPARE(parsed["d"].toObject()["a"].toInt(), -90);
+}
+
+void TestNetworkSerialization::testRosterSystemMessage()
+{
+    // Star topology roster: {"t":"y","sys":"roster","nodes":[...]}
+    QJsonObject msg;
+    msg["t"] = "y";
+    msg["sys"] = "roster";
+    msg["nodes"] = QJsonArray{"nodeA", "nodeB"};
+    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+
+    QJsonObject parsed = QJsonDocument::fromJson(json.toUtf8()).object();
+    QCOMPARE(parsed["t"].toString(), "y");
+    QCOMPARE(parsed["sys"].toString(), "roster");
+    QJsonArray nodes = parsed["nodes"].toArray();
+    QCOMPARE(nodes.size(), 2);
+    QCOMPARE(nodes[0].toString(), "nodeA");
+    QCOMPARE(nodes[1].toString(), "nodeB");
+
+    // Incremental variants
+    QJsonObject joined;
+    joined["t"] = "y";
+    joined["sys"] = "node_joined";
+    joined["nodeId"] = "nodeC";
+    QJsonObject reparsed = QJsonDocument::fromJson(
+        QJsonDocument(joined).toJson(QJsonDocument::Compact)).object();
+    QCOMPARE(reparsed["sys"].toString(), "node_joined");
+    QCOMPARE(reparsed["nodeId"].toString(), "nodeC");
 }
 
 QTEST_MAIN(TestNetworkSerialization)
