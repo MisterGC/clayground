@@ -31,6 +31,8 @@ public:
     void addDynPluginDir(const QString& path);
     QString altMessage() const;
     void setAltMessage(const QString &altMessage);
+    QString instanceName() const;
+    void setInstanceName(const QString &name);
     int numRestarts() const;
     void postMessage(const QString& message);
 
@@ -71,5 +73,6 @@ private:
     QSqlDatabase statsDb_;
     QTimer reload_;
     QString altMessage_;
+    QString instanceName_;
     int numRestarts_ = 0;
 };

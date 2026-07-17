@@ -29,6 +29,7 @@ import QtQuick
 pragma Singleton
 Item
 {
+    id: _clayground
     /*!
         \qmlproperty bool Clayground::runsInSandbox
         \readonly
@@ -271,4 +272,49 @@ Item
         }
     }
 
+    // True when the live loader injected its time control bridge.
+    readonly property bool _hasTimeCtrl: typeof ClayTimeCtrl !== 'undefined'
+
+    /*!
+        \qmlproperty real Clayground::timeScale
+        \brief Global simulation speed factor (1.0 = normal).
+
+        ClayWorld2d scales its physics stepping by this factor automatically.
+        Components outside a world can opt in by scaling their own timers and
+        animation durations with it. In the sandbox the value is driven by
+        the Dojo's time control; standalone apps may set it directly.
+    */
+    property real timeScale: _hasTimeCtrl ? ClayTimeCtrl.timeScale : 1.0
+
+    /*!
+        \qmlproperty bool Clayground::paused
+        \brief Global simulation pause flag.
+
+        ClayWorld2d halts its physics world while this is true. Non-world
+        components can opt in via bindings like \c{running: !Clayground.paused}.
+    */
+    property bool paused: _hasTimeCtrl ? ClayTimeCtrl.paused : false
+
+    /*!
+        \qmlsignal Clayground::physicsStep(int frames)
+        \brief Request to advance the simulation by exact frames while paused.
+
+        Emitted by the Dojo's time control; ClayWorld2d performs the steps
+        and acknowledges them. Custom world-like components may handle this
+        signal and call \c Clayground.ackStep(frames) after stepping.
+    */
+    signal physicsStep(int frames)
+
+    /*!
+        \qmlmethod void Clayground::ackStep(int frames)
+        \brief Acknowledge that \a frames physics steps were performed.
+    */
+    function ackStep(frames) {
+        if (_hasTimeCtrl) ClayTimeCtrl.ackStep(frames);
+    }
+
+    Connections {
+        target: _clayground._hasTimeCtrl ? ClayTimeCtrl : null
+        function onStepRequested(frames) { _clayground.physicsStep(frames); }
+    }
 }

@@ -16,6 +16,8 @@ class QTimer;
 class QFile;
 
 class HotReloadContainer;
+class ClayTimeControl;
+class ClayInputControl;
 
 class ClayInspector : public QObject
 {
@@ -39,9 +41,14 @@ public:
     };
 
     void setSandboxDir(const QString& dir);
-    void addLogMessage(const QString& msg);
-    void addWarning(const QString& msg);
-    void addError(const QString& msg);
+    void setControls(ClayTimeControl* timeCtrl, ClayInputControl* inputCtrl);
+    // Must be called before setSandboxDir. A non-empty name scopes the
+    // inspect dir to .clay/inspect/i/<name>/ so several instances of the
+    // same sandbox (e.g. networked games) don't race on request/response.
+    void setInstanceName(const QString& name);
+    void addLogMessage(const QString& msg, const QString& category = QString());
+    void addWarning(const QString& msg, const QString& category = QString());
+    void addError(const QString& msg, const QString& category = QString());
     void clearLogs();
 
     // Phase transitions. Each call rewrites .clay/inspect/state.json atomically.
@@ -78,11 +85,20 @@ private:
     QJsonObject handleTrace(const QJsonObject& request);
     QJsonObject handleReload(const QJsonObject& request);
     QJsonObject handleWaitForRoot(const QJsonObject& request);
+    QJsonObject handleTime(const QJsonObject& request);
+    QJsonObject handleInput(const QJsonObject& request);
+    void applyScenarioToRoot(const QString& name);
     void attachDiagnostics(QJsonObject& response) const;
     void writeState();
     static QString phaseName(Phase p);
     void appendEvent(const QString& type, const QJsonObject& payload = {});
+    void appendJsonlLine(const QString& fileName, QJsonObject line);
+    void appendLogLine(const QString& level, const QString& msg,
+                       const QString& category);
     void resetEventLog();
+    void scheduleAutoFlag(const QString& errorMsg);
+    void writeAutoFlag(const QString& errorMsg);
+    void cleanupOldAutoFlags();
     void onTraceTick();
     void stopTrace(const QString& reason);
     QJsonObject buildTraceSummary();
@@ -104,10 +120,21 @@ private:
     void stopWatching();
 
     HotReloadContainer* m_container = nullptr;
+    ClayTimeControl* m_timeCtrl = nullptr;
+    ClayInputControl* m_inputCtrl = nullptr;
     QFileSystemWatcher m_watcher;
     QString m_sandboxDir;
     QString m_inspectDir;
     QString m_crewDir;
+    QString m_instanceName;
+    QString m_runId;
+    // One auto-flag per reload generation keeps error storms from spamming
+    // the inspect dir; reset whenever a new load begins.
+    bool m_autoFlagged = false;
+    // Scenario checkpoints: pending applies once after the next successful
+    // load; rearm re-applies after every load until explicitly cleared.
+    QString m_pendingScenario;
+    QString m_rearmScenario;
 
     Phase m_phase = Phase::Starting;
     QDateTime m_startedAt;
@@ -131,6 +158,7 @@ private:
     QTimer* m_traceTimer = nullptr;
     QFile* m_traceFile = nullptr;
     QElapsedTimer m_traceElapsed;
+    qint64 m_traceEpochMs = 0;
     QJsonArray m_traceWatch;
     QString m_traceStopExpr;
     int m_traceTimeout = 0;

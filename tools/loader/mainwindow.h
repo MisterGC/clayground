@@ -7,6 +7,8 @@
 class HotReloadContainer;
 class ClayLiveLoader;
 class ClayInspector;
+class ClayTimeControl;
+class ClayInputControl;
 class QQuickWidget;
 class QLabel;
 
@@ -49,6 +51,8 @@ private:
     ClayLiveLoader* m_liveLoader = nullptr;
     HotReloadContainer* m_container = nullptr;
     ClayInspector* m_inspector = nullptr;
+    ClayTimeControl* m_timeCtrl = nullptr;
+    ClayInputControl* m_inputCtrl = nullptr;
     QQuickWidget* m_logOverlay = nullptr;
     QQuickWidget* m_guideOverlay = nullptr;
     QQuickWidget* m_flagOverlay = nullptr;

@@ -56,14 +56,35 @@ Item {
     property real yWu: 0
 
     // Bidirectional updates as phyics item's x-y coords may be controlled by
-    // physics or by canvas world units -> no unidirection binding possible
-    onXWuChanged: x = xWu * pixelPerUnit
-    onYWuChanged: y = parent ? parent.height - yWu * pixelPerUnit : 0
-    onXChanged: xWu = (1/pixelPerUnit) * x;
-    onYChanged: yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
-    onPixelPerUnitChanged: {
+    // physics or by canvas world units -> no unidirection binding possible.
+    // World units are authoritative whenever the pixel frame shifts: the
+    // wu->pixel direction re-runs on completion (initial values fire no
+    // change handlers), on pixelPerUnit changes, and on parent (re)size or
+    // reparenting - otherwise bodies created before the room finished
+    // layouting would keep a stale y-frame and never collide with later
+    // ones. The pixel->wu direction is guarded so a not-yet-laid-out
+    // pixelPerUnit of 0 cannot poison the world units with NaN, and it is
+    // suppressed while a wu-side write is in flight - the float round-trip
+    // otherwise echoes a slightly different value back into xWu/yWu, which
+    // retargets any Behavior animating them and stalls it short of its
+    // target (issue #139).
+    property bool _wuSyncActive: false
+    onXWuChanged: { _wuSyncActive = true; x = xWu * pixelPerUnit; _wuSyncActive = false; }
+    onYWuChanged: { _wuSyncActive = true; y = parent ? parent.height - yWu * pixelPerUnit : 0; _wuSyncActive = false; }
+    onXChanged: if (!_wuSyncActive && pixelPerUnit > 0) xWu = (1/pixelPerUnit) * x;
+    onYChanged: if (!_wuSyncActive && pixelPerUnit > 0) yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
+    onPixelPerUnitChanged: _syncFromWu()
+    onParentChanged: _syncFromWu()
+    Component.onCompleted: _syncFromWu()
+    Connections {
+        target: item.parent
+        function onHeightChanged() { item._syncFromWu(); }
+    }
+    function _syncFromWu() {
+        _wuSyncActive = true;
         x = xWu * pixelPerUnit;
         y = parent ? parent.height - yWu * pixelPerUnit : 0;
+        _wuSyncActive = false;
     }
 
     /*!

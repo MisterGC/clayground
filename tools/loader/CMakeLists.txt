@@ -11,6 +11,8 @@ add_executable(${PROJECT_NAME}
     qmlres.qrc
     clayinspector.cpp
     clayinspector.h
+    claycontrols.cpp
+    claycontrols.h
     clayliveloader.cpp
     clayliveloader.h
     hotreloadcontainer.cpp

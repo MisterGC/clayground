@@ -67,8 +67,7 @@ Rectangle {
         if (!remoteNodes[nodeId]) {
             remoteNodes[nodeId] = remoteNodeComp.createObject(gameArea, { odId: nodeId, nodeName: name })
         }
-        remoteNodes[nodeId].targetX = x
-        remoteNodes[nodeId].targetY = y
+        remoteNodes[nodeId].pushState({ x: x, y: y })
         remoteNodes[nodeId].nodeName = name
     }
 
@@ -187,9 +186,9 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            // Latency indicator (when verbose and connected)
+            // Latency indicator (stats are always on while connected)
             Text {
-                visible: root.diagMode && network.connected && network.latency >= 0
+                visible: network.connected && network.latency >= 0
                 text: network.latency + "ms"
                 font.family: root.monoFont
                 font.pixelSize: 14
@@ -456,18 +455,28 @@ Rectangle {
                 Component {
                     id: remoteNodeComp
                     Rectangle {
+                        id: remoteNode
                         property string odId: ""
                         property string nodeName: ""
-                        property real targetX: 0.5
-                        property real targetY: 0.5
+                        // Snapshot-buffer interpolation instead of Behavior
+                        // animations - smooth even when updates jitter
+                        function pushState(data) { rsync.push(data) }
+                        property real normX: 0.5
+                        property real normY: 0.5
+                        StateInterpolator {
+                            id: rsync
+                            delayMs: 120
+                            onUpdated: {
+                                remoteNode.normX = value.x
+                                remoteNode.normY = value.y
+                            }
+                        }
                         width: 30; height: 30; radius: 15
                         color: "#ff6b35"
                         border.color: "#cc5429"
                         border.width: 2
-                        x: targetX * parent.width - width / 2
-                        y: targetY * parent.height - height / 2
-                        Behavior on x { NumberAnimation { duration: 80 } }
-                        Behavior on y { NumberAnimation { duration: 80 } }
+                        x: normX * parent.width - width / 2
+                        y: normY * parent.height - height / 2
                         Text {
                             anchors.centerIn: parent
                             text: nodeName.substring(0, 4) || odId.substring(0, 2)
@@ -620,27 +629,11 @@ Rectangle {
                         color: "#4ade80"
                     }
 
-                    // Per-peer latency
-                    Repeater {
-                        model: network.connected ? Object.keys(network.peerStats) : []
-                        delegate: Text {
-                            required property string modelData
-                            text: {
-                                let stats = network.peerStats[modelData]
-                                if (!stats) return ""
-                                let lat = stats.latency
-                                return modelData.substring(0, 8) + ": " +
-                                       (lat >= 0 ? lat + "ms" : "?")
-                            }
-                            font.family: root.monoFont
-                            font.pixelSize: 11
-                            color: {
-                                let stats = network.peerStats[modelData]
-                                if (!stats || stats.latency < 0) return root.dimTextColor
-                                return stats.latency < 50 ? "#4ade80" :
-                                       stats.latency < 150 ? "#ffd93d" : "#ef4444"
-                            }
-                        }
+                    // Sync health per node: rtt, state rate in, age of the
+                    // newest state, stale drops - fed by network.syncStats
+                    NetworkMonitor {
+                        network: network
+                        Layout.fillWidth: true
                     }
 
                     // Separator

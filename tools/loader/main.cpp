@@ -43,6 +43,9 @@ void applyCliArgsToLoader(QCommandLineParser& parser, ClayLiveLoader& loader)
 
         auto const idx = parser.value(SBX_INDEX_ARG).toInt();
         loader.setSbxIndex(idx == USE_FIRST_SBX_IDX ? 0 : idx);
+
+        if (parser.isSet(INSTANCE_ARG))
+            loader.setInstanceName(parser.value(INSTANCE_ARG));
     }
     else
         parser.showHelp(1);
@@ -65,21 +68,21 @@ public:
             fileN = fileN.split("/").last().split(".").first();
             fprintf(stderr, "%s (%s::%s)\n", localMsg.constData(), fileN.toUtf8().data(), context.function);
             theLoader->postMessage(msg);
-            if (inspector) inspector->addLogMessage(msg);
+            if (inspector) inspector->addLogMessage(msg, context.category);
         } break;
         case QtInfoMsg:
         {
             fprintf(stderr, "%s\n", localMsg.constData());
             theLoader->postMessage(msg);
-            if (inspector) inspector->addLogMessage(msg);
+            if (inspector) inspector->addLogMessage(msg, context.category);
         } break;
         case QtWarningMsg:
             fprintf(stderr, "WARNING  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-            if (inspector) inspector->addWarning(msg);
+            if (inspector) inspector->addWarning(msg, context.category);
             break;
         case QtCriticalMsg:
             fprintf(stderr, "ERROR  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
-            if (inspector) inspector->addError(msg);
+            if (inspector) inspector->addError(msg, context.category);
             break;
         case QtFatalMsg:
             fprintf(stderr, "FATAL  %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);

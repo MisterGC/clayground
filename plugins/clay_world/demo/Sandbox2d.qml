@@ -5,6 +5,7 @@ import Box2D
 import Clayground.Common
 import Clayground.GameController
 import Clayground.Physics
+import Clayground.World
 
 Item {
     anchors.fill: parent
@@ -35,6 +36,7 @@ Item {
         anchors.fill: parent
         pixelPerUnit: width / (someWorld.xWuMax - someWorld.xWuMin)
         gravity: Qt.point(0,0); timeStep: 1/60.0
+        observedItem: lanternTarget
 
         // Load a map using an svg file - Clayground supports setting properties via
         // JSON data in descriptions of SVG elements (supported by Inkscape for example)
@@ -47,10 +49,20 @@ Item {
         // Don't set the parent -> it will only be automatically added to the space if
         // it's an instance of a known Clayground.Physics component
         //Repeater {model: 10; WoodenBox{}}
-        WoodenBox{color: "lightgreen"}
+        WoodenBox{id: lanternTarget; color: "lightgreen"}
         // Explicitly set the parent and use whichever component is suitable, but be
         // aware that pixelPerUnit and physics world are modified if present
         RectBoxBody {parent: someWorld.room; xWu: 20; yWu: 20; widthWu: 8; heightWu: 8; color: "orange"}
+
+        AnchoredMask {
+            world: someWorld
+            target: lanternTarget
+            innerRadius: 8
+            outerRadius: 22
+            color: "#ffb060"
+            darkness: "#0a0706"
+            flicker: 0.15
+        }
 
         property var _timeStamp
         onMapAboutToBeLoaded: {_timeStamp = new Date()}

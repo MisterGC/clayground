@@ -35,6 +35,7 @@ set(CPP_SRC
     src/sample_instrument.cpp src/sample_instrument.h
     src/song_player.cpp src/song_player.h
     src/sound.cpp src/sound.h
+    src/music.cpp src/music.h
     src/chiptracker.cpp src/chiptracker.h
     src/chipmood.cpp src/chipmood.h
     ${ENGINE_SRC})
@@ -47,7 +48,7 @@ endif()
 clay_plugin(Sound
     VERSION 1.0
     SOURCES ${CPP_SRC}
-    QML_FILES Music.qml MoodPlayer.qml
+    QML_FILES MoodPlayer.qml
     LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS}
 )
 

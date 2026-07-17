@@ -103,8 +103,13 @@ QQmlContext* HotReloadContainer::rootContext() const
 
 QQuickItem* HotReloadContainer::rootObject() const
 {
-    if (m_currentWidget)
+    if (m_currentWidget && m_currentWidget->rootObject())
         return m_currentWidget->rootObject();
+    // During a reload the current widget is already torn down while the next
+    // one is loading — expose the new root as soon as it exists so inspector
+    // requests (eval, scenario apply) don't hit a null window mid-swap.
+    if (m_nextWidget)
+        return m_nextWidget->rootObject();
     return nullptr;
 }
 

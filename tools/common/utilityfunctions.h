@@ -44,6 +44,12 @@ static constexpr const char* MESSAGE_ARG_DESCR =
 static constexpr const char* GUI_STYLE_ARG = "guistyle";
 static constexpr const char* STYLE_ARG_DESCR = "Sets the GUI style of the Qt Quick App.";
 
+static constexpr const char* INSTANCE_ARG = "instance";
+static constexpr const char* INSTANCE_ARG_DESCR =
+                      "Names this loader instance and scopes the inspector "
+                      "protocol to .clay/inspect/i/<name>/ so several "
+                      "instances of the same sandbox can run side by side.";
+
 static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 
 /** Wait this time (in ms) until reacting on file change

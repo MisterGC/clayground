@@ -5,6 +5,8 @@
 #include <QString>
 #include <QVariant>
 #include <QStringList>
+#include <QHash>
+#include <QElapsedTimer>
 #include <qqmlregistration.h>
 
 /*!
@@ -42,6 +44,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
     Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
+    Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
 
 public:
     enum Topology {
@@ -92,6 +95,7 @@ public:
     QVariantMap phaseTiming() const;
     int latency() const;
     QVariantMap peerStats() const;
+    QVariantMap syncStats() const;
 
 public slots:
     void createRoom();
@@ -101,6 +105,7 @@ public slots:
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
     void ping();
+    int stateAgeMs(const QString &nodeId) const;
 
 signals:
     void roomCreated(const QString &networkId);
@@ -129,6 +134,7 @@ signals:
     void phaseTimingChanged();
     void latencyChanged();
     void peerStatsChanged();
+    void syncStatsChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -137,6 +143,7 @@ public:
     void onNodeJoined(const char* nodeId);
     void onNodeLeft(const char* nodeId);
     void onMessage(const char* fromId, const char* data, bool isState);
+    void onSystem(const char* json);
     void onError(const char* errorMsg);
     void onDisconnected();
     void onDiagnostic(const char* phase, const char* detail);
@@ -171,6 +178,15 @@ private:
     QVariantMap phaseTiming_;
     int latency_ = -1;
     QVariantMap peerLatencies_;
+
+    // State sync bookkeeping - keyed by ORIGIN node id
+    void forgetSender(const QString &nodeId);
+    quint32 stateSeqOut_ = 0;
+    QHash<QString, quint32> stateSeqIn_;
+    QHash<QString, qint64> stateLastMs_;
+    QHash<QString, qint64> stateRecvCount_;
+    QHash<QString, qint64> stateDropCount_;
+    QElapsedTimer clock_;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

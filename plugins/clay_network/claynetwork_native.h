@@ -54,6 +54,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
     Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
+    Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
 
 public:
     enum Topology {
@@ -104,6 +105,7 @@ public:
     QVariantMap phaseTiming() const;
     int latency() const;
     QVariantMap peerStats() const;
+    QVariantMap syncStats() const;
 
 public slots:
     void createRoom();
@@ -113,6 +115,7 @@ public slots:
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
     void ping();
+    int stateAgeMs(const QString &nodeId) const;
 
 signals:
     void roomCreated(const QString &networkId);
@@ -141,6 +144,7 @@ signals:
     void phaseTimingChanged();
     void latencyChanged();
     void peerStatsChanged();
+    void syncStatsChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -153,20 +157,32 @@ private:
     struct PeerConn {
         std::shared_ptr<rtc::PeerConnection> pc;
         std::shared_ptr<rtc::DataChannel> dc;
+        // Second, unordered channel with maxRetransmits=0 - carries state
+        // updates so a lost packet can never head-of-line-block newer ones.
+        std::shared_ptr<rtc::DataChannel> dcState;
         QString connectionId;  // PeerJS connection ID (for ANSWER matching)
         bool ready = false;
-        // Per-peer stats (active when verbose)
+        bool stateReady = false;
+        // Per-peer stats (always on - the counters are cheap)
         int latency = -1;
         qint64 msgSent = 0;
         qint64 msgRecv = 0;
         qint64 bytesSent = 0;
         qint64 bytesRecv = 0;
+        qint64 stateSent = 0;
+        qint64 stateRecv = 0;
     };
 
     void setupPeerConnection(const QString &peerId, bool isOfferer);
     void setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
+    void setupStateChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
     void sendToPeer(const QString &peerId, const QString &message);
+    void sendStateToPeer(const QString &peerId, const QString &message);
     void handleDataChannelMessage(const QString &fromId, const std::string &message);
+    void handleSystemMessage(const QJsonObject &obj);
+    void sendRosterTo(const QString &peerId);
+    void hostBroadcastSystem(const QJsonObject &msg, const QString &exceptPeer = QString());
+    void forgetSender(const QString &nodeId);
     void cleanupPeer(const QString &peerId);
     QString generateNetworkCode() const;
     void connectLocalSignaling();
@@ -208,4 +224,13 @@ private:
     qint64 signalingStartMs_ = 0;
     qint64 iceStartMs_ = 0;
     qint64 totalStartMs_ = 0;
+
+    // State sync bookkeeping - keyed by ORIGIN node id (relayed states come
+    // in over the host connection but originate from other nodes).
+    quint32 stateSeqOut_ = 0;
+    QHash<QString, quint32> stateSeqIn_;
+    QHash<QString, qint64> stateLastMs_;
+    QHash<QString, qint64> stateRecvCount_;
+    QHash<QString, qint64> stateDropCount_;
+    QElapsedTimer clock_;
 };

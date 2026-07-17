@@ -153,6 +153,19 @@ Item {
     }
 
     /*!
+        \qmlmethod point ClayCanvas::worldToScene(real xWu, real yWu)
+        \brief Maps a world coordinate to scene (window) coordinates.
+
+        Accounts for the current viewport position and zoom. Useful for
+        overlaying non-canvas items on world positions and for synthesized
+        pointer input targeting world coordinates.
+    */
+    function worldToScene(xWu, yWu) {
+        var p = coordSys.mapToItem(null, xToScreen(xWu), yToScreen(yWu));
+        return {x: p.x, y: p.y};
+    }
+
+    /*!
         \qmlmethod list ClayCanvas::find(object filters)
         \brief Search for items matching filter conditions.
 
