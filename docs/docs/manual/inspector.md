@@ -26,7 +26,7 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 
 The `.clay/` directory is created automatically in the directory where the sandbox QML file lives.
 
-**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 2) so tools can check capabilities before relying on them.
+**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 2) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
 
 **Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default.
 
@@ -87,9 +87,10 @@ Stop manually:
 {"action": "trace", "stop": true}
 ```
 
-While running, the inspector evaluates the watched expressions at the given interval and writes samples to `.clay/inspect/trace.jsonl`:
+While running, the inspector evaluates the watched expressions at the given interval and writes samples to `.clay/inspect/trace.jsonl`. The first line is a meta record carrying the wall-clock start (`epochMs`, also present in the start response); each sample's `t` is milliseconds relative to it, so the absolute time of a sample is `epochMs + t` — this is what makes traces from multiple instances correlatable:
 
 ```
+{"meta":"trace_start","epochMs":1789450123456,"interval":200,"watch":["player.xWu","boss.health","boss.state"]}
 {"t":0,"player.xWu":44.8,"boss.health":500,"boss.state":"idle"}
 {"t":200,"player.xWu":45.1,"boss.health":500,"boss.state":"aggro"}
 {"t":400,"player.xWu":45.5,"boss.health":480,"boss.state":"attacking"}

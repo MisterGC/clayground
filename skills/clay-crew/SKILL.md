@@ -46,6 +46,11 @@ should be gitignored.
    the v2 contract; against an older loader only snapshot/eval/tree/
    trace/reload/waitForRoot exist). Check `pid` refers to a live process
    if you need certainty the loader didn't die.
+   When YOU relaunch a loader under a previously used instance name,
+   don't trust the first `ready` you read: the file may still be the
+   dead run's (the new process clears it at startup, but there is a
+   small spawn window). Either clean the instance dir before launching
+   or record `runId` (unique per process) and wait for it to change.
 2. If `.clay/inspect/dojo.json` exists, a dojo supervisor manages the
    loader: note `generation` — it increments on every child respawn, so
    a response written before a respawn belongs to a dead process.
@@ -84,7 +89,7 @@ without human help. Know these files:
 
 | File | Writer | Content |
 |---|---|---|
-| `state.json` | loader | `protocolVersion`, `pid`, `sandbox`, `phase`, `reloadCount`, `rearmedScenario`, `instanceId`, timestamps |
+| `state.json` | loader | `protocolVersion`, `runId` (unique per process), `pid`, `sandbox`, `phase`, `reloadCount`, `rearmedScenario`, `instanceId`, timestamps |
 | `events.jsonl` (+ `events.rotated.jsonl`) | loader | append-only stream: `session_start`, `phase_change` (with `errorsTail` on load errors), `trace_start`, `trace_stop`, `flag`, `auto_flag`, `scenario_applied`; rotates at 5 MB |
 | `log.jsonl` (+ rotation) | loader | every console/Qt message as `{ts, level, category, text}` — tail this instead of relying on snapshot's 50-line `logTail` |
 | `autoflag_<ts>.json` (+ best-effort PNG) | loader | evidence bundle (trigger, tree, rootProperties, flagInfo, diagnostics) written automatically on the first runtime error per reload generation; last 3 kept |
@@ -189,6 +194,21 @@ summary (numeric: first/last/min/max/changes; string: values/changes).
 Full samples land in `.clay/inspect/trace.jsonl` — do NOT read it while
 the trace runs; wait for the completion response. A red REC indicator is
 shown in the window while tracing; the user can stop a trace with Ctrl+T.
+
+**Timing-sensitive measurements go through trace, never eval polling.**
+A request/response roundtrip over the file protocol costs ~200-500 ms,
+so polling with eval undersamples anything faster than ~1 Hz (a 20 Hz
+state stream will look like 1-2 updates/s and mislead the diagnosis).
+`trace` samples in-process down to ~25 ms intervals. For cadence, lag,
+or jitter measurements: start a trace, drive the system, read the
+samples afterwards.
+
+**Cross-instance correlation:** `trace.jsonl` starts with a meta line
+`{"meta":"trace_start","epochMs":...}` and each sample's `t` is relative
+to it — absolute wall-clock time of a sample is `epochMs + t`. Start one
+trace per instance and align the series via their epochs (e.g. sender's
+`player.xWu` vs receiver's rendered position to measure replication
+lag).
 
 ### reload — request a sandbox reload (optionally into a scenario)
 
