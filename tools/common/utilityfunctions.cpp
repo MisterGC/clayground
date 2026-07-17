@@ -10,4 +10,5 @@ void addCommonArgs(QCommandLineParser &parser)
     parser.addOption({SBX_INDEX_ARG, SBX_INDEX_ARG_DESCR, "index", QString::number(USE_FIRST_SBX_IDX)});
     parser.addOption({MESSAGE_ARG, MESSAGE_ARG_DESCR, "N/A"});
     parser.addOption({GUI_STYLE_ARG, STYLE_ARG_DESCR, "style-name"});
+    parser.addOption({INSTANCE_ARG, INSTANCE_ARG_DESCR, "name"});
 }

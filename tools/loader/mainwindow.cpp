@@ -4,6 +4,7 @@
 #include "hotreloadcontainer.h"
 #include "clayliveloader.h"
 #include "clayinspector.h"
+#include "claycontrols.h"
 #include <QQuickWidget>
 #include <QQmlContext>
 #include <QKeyEvent>
@@ -67,17 +68,27 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
         }
     });
             
+    // Agent control bridges: time (pause/step/scale) and synthetic input.
+    // Injected as context properties so the Clayground singleton and
+    // SyntheticGamepad can bridge them without any hard dependency.
+    m_timeCtrl = new ClayTimeControl(this);
+    m_inputCtrl = new ClayInputControl(this);
+
     // Setup engine context
     auto* context = m_container->rootContext();
     if (context) {
         context->setContextProperty("ClayLiveLoader", m_liveLoader);
+        context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
+        context->setContextProperty("ClayInputCtrl", m_inputCtrl);
     }
-    
+
     // Connect engine recreation
     connect(m_container, &HotReloadContainer::engineCreated, [this]() {
         auto* context = m_container->rootContext();
         if (context) {
             context->setContextProperty("ClayLiveLoader", m_liveLoader);
+            context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
+            context->setContextProperty("ClayInputCtrl", m_inputCtrl);
         }
         
         // Add import paths
@@ -97,6 +108,7 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     
     // Create inspector
     m_inspector = new ClayInspector(m_container, this);
+    m_inspector->setControls(m_timeCtrl, m_inputCtrl);
     connect(m_inspector, &ClayInspector::flagReady,
             this, &MainWindow::onFlagReady);
 
@@ -211,6 +223,7 @@ void MainWindow::onSandboxUrlChanged()
     
     // setSandboxDir must precede setSource so the inspector has a write target
     // when the first load's ready/error signal fires.
+    m_inspector->setInstanceName(m_liveLoader->instanceName());
     m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
     m_container->setSource(url);
     showSandboxName();

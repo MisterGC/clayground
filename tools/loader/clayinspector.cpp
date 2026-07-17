@@ -1,8 +1,13 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "clayinspector.h"
+#include "claycontrols.h"
 #include "hotreloadcontainer.h"
 #include <QCoreApplication>
+#include <QKeyEvent>
+#include <QKeySequence>
+#include <QMouseEvent>
+#include <QQuickWindow>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -72,6 +77,7 @@ void ClayInspector::markReloading()
         return;
     m_phase = Phase::Reloading;
     ++m_reloadCount;
+    m_autoFlagged = false;
     writeState();
     QJsonObject payload;
     payload["phase"] = phaseName(m_phase);
@@ -87,6 +93,12 @@ void ClayInspector::markReady()
     QJsonObject payload;
     payload["phase"] = phaseName(m_phase);
     appendEvent("phase_change", payload);
+
+    QString scenario = !m_pendingScenario.isEmpty() ? m_pendingScenario
+                                                    : m_rearmScenario;
+    m_pendingScenario.clear();
+    if (!scenario.isEmpty())
+        applyScenarioToRoot(scenario);
 }
 
 void ClayInspector::markLoadError()
@@ -110,35 +122,54 @@ void ClayInspector::resetEventLog()
     if (m_inspectDir.isEmpty()) return;
     QFile::remove(m_inspectDir + "/events.jsonl");
     QFile::remove(m_inspectDir + "/events.rotated.jsonl");
+    QFile::remove(m_inspectDir + "/log.jsonl");
+    QFile::remove(m_inspectDir + "/log.rotated.jsonl");
 }
 
-void ClayInspector::appendEvent(const QString& type, const QJsonObject& payload)
+void ClayInspector::appendJsonlLine(const QString& fileName, QJsonObject line)
 {
     if (m_inspectDir.isEmpty()) return;
 
-    QString path = m_inspectDir + "/events.jsonl";
+    QString path = m_inspectDir + "/" + fileName;
 
     // Rotate once we pass the size cap so the active file stays tail-friendly
     // and total disk usage remains bounded.
     QFileInfo fi(path);
     if (fi.exists() && fi.size() > EVENT_LOG_ROTATE_BYTES) {
-        QString rotated = m_inspectDir + "/events.rotated.jsonl";
+        QString rotated = path;
+        rotated.replace(".jsonl", ".rotated.jsonl");
         QFile::remove(rotated);
         QFile::rename(path, rotated);
     }
 
-    QJsonObject ev;
-    ev["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
-    ev["type"] = type;
-    if (!payload.isEmpty())
-        ev["data"] = payload;
+    line["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     QFile f(path);
     if (!f.open(QIODevice::Append | QIODevice::WriteOnly))
         return;
-    f.write(QJsonDocument(ev).toJson(QJsonDocument::Compact));
+    f.write(QJsonDocument(line).toJson(QJsonDocument::Compact));
     f.write("\n");
     f.close();
+}
+
+void ClayInspector::appendEvent(const QString& type, const QJsonObject& payload)
+{
+    QJsonObject ev;
+    ev["type"] = type;
+    if (!payload.isEmpty())
+        ev["data"] = payload;
+    appendJsonlLine("events.jsonl", ev);
+}
+
+void ClayInspector::appendLogLine(const QString& level, const QString& msg,
+                                  const QString& category)
+{
+    QJsonObject line;
+    line["level"] = level;
+    line["text"] = msg;
+    if (!category.isEmpty() && category != "default")
+        line["category"] = category;
+    appendJsonlLine("log.jsonl", line);
 }
 
 void ClayInspector::writeState()
@@ -147,8 +178,11 @@ void ClayInspector::writeState()
         return;
 
     QJsonObject state;
+    state["protocolVersion"] = 2;
     state["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
     state["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
+    if (!m_instanceName.isEmpty())
+        state["instanceId"] = m_instanceName;
     state["phase"] = phaseName(m_phase);
     state["reloadCount"] = m_reloadCount;
     state["startedAt"] = m_startedAt.toString(Qt::ISODateWithMs);
@@ -156,6 +190,8 @@ void ClayInspector::writeState()
         state["lastReadyAt"] = m_lastReadyAt.toString(Qt::ISODateWithMs);
     if (m_lastLoadErrorAt.isValid())
         state["lastLoadErrorAt"] = m_lastLoadErrorAt.toString(Qt::ISODateWithMs);
+    if (!m_rearmScenario.isEmpty())
+        state["rearmedScenario"] = m_rearmScenario;
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     QSaveFile file(m_inspectDir + "/state.json");
@@ -176,6 +212,8 @@ void ClayInspector::setSandboxDir(const QString& dir)
     stopWatching();
     m_sandboxDir = dir;
     m_inspectDir = dir + "/.clay/inspect";
+    if (!m_instanceName.isEmpty())
+        m_inspectDir += "/i/" + m_instanceName;
     m_crewDir = dir + "/.clay/crew";
     ensureInspectDir();
     startWatching();
@@ -185,6 +223,18 @@ void ClayInspector::setSandboxDir(const QString& dir)
     payload["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
     payload["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
     appendEvent("session_start", payload);
+}
+
+void ClayInspector::setInstanceName(const QString& name)
+{
+    m_instanceName = name;
+}
+
+void ClayInspector::setControls(ClayTimeControl* timeCtrl,
+                                ClayInputControl* inputCtrl)
+{
+    m_timeCtrl = timeCtrl;
+    m_inputCtrl = inputCtrl;
 }
 
 void ClayInspector::ensureInspectDir()
@@ -223,25 +273,34 @@ void ClayInspector::stopWatching()
         m_watcher.removePaths(paths);
 }
 
-void ClayInspector::addLogMessage(const QString& msg)
+void ClayInspector::addLogMessage(const QString& msg, const QString& category)
 {
     m_logBuffer.append(msg);
     while (m_logBuffer.size() > MAX_LOG_ENTRIES)
         m_logBuffer.removeFirst();
+    appendLogLine("log", msg, category);
 }
 
-void ClayInspector::addWarning(const QString& msg)
+void ClayInspector::addWarning(const QString& msg, const QString& category)
 {
     m_warningBuffer.append(msg);
     while (m_warningBuffer.size() > MAX_LOG_ENTRIES)
         m_warningBuffer.removeFirst();
+    appendLogLine("warning", msg, category);
+    // Unhandled QML/JS exceptions (TypeError, ReferenceError, ...) surface
+    // as warnings, not criticals — they are runtime errors for our purposes.
+    if (!m_autoFlagged && msg.contains("Error"))
+        scheduleAutoFlag(msg);
 }
 
-void ClayInspector::addError(const QString& msg)
+void ClayInspector::addError(const QString& msg, const QString& category)
 {
     m_errorBuffer.append(msg);
     while (m_errorBuffer.size() > MAX_LOG_ENTRIES)
         m_errorBuffer.removeFirst();
+    appendLogLine("error", msg, category);
+    if (!m_autoFlagged)
+        scheduleAutoFlag(msg);
 }
 
 void ClayInspector::clearLogs()
@@ -294,6 +353,10 @@ void ClayInspector::processRequest(const QJsonObject& request)
         response = handleReload(request);
     else if (action == "waitForRoot")
         response = handleWaitForRoot(request);
+    else if (action == "time")
+        response = handleTime(request);
+    else if (action == "input")
+        response = handleInput(request);
     else {
         response["error"] = QString("Unknown action: %1").arg(action);
     }
@@ -345,6 +408,20 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
     QJsonValue flagInfo = callFlagInfo(root);
     if (!flagInfo.isNull())
         response["flagInfo"] = flagInfo;
+
+    // scenarios() if the sandbox offers checkpoints
+    if (auto* context = QQmlEngine::contextForObject(root)) {
+        QQmlExpression checkExpr(context, root,
+                                 "typeof scenarios === 'function'");
+        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
+            QQmlExpression callExpr(context, root,
+                                    "JSON.stringify(scenarios())");
+            auto doc = QJsonDocument::fromJson(
+                callExpr.evaluate().toString().toUtf8());
+            if (!callExpr.hasError() && doc.isArray())
+                response["scenarios"] = doc.array();
+        }
+    }
 
     // Eval expressions if requested
     if (request.contains("eval")) {
@@ -420,12 +497,204 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
     return response;
 }
 
-QJsonObject ClayInspector::handleReload(const QJsonObject& /*request*/)
+QJsonObject ClayInspector::handleReload(const QJsonObject& request)
 {
-    emit reloadRequested();
     QJsonObject response;
+
+    if (request.contains("scenario")) {
+        QString scenario = request.value("scenario").toString();
+        m_pendingScenario = scenario;
+        if (request.value("rearm").toBool(false))
+            m_rearmScenario = scenario;
+        response["scenario"] = scenario;
+        response["rearm"] = !m_rearmScenario.isEmpty();
+    }
+    if (request.contains("rearm") && !request.value("rearm").toBool()) {
+        m_rearmScenario.clear();
+        response["rearm"] = false;
+    }
+
+    emit reloadRequested();
     response["status"] = "requested";
     response["phase"] = phaseName(m_phase);
+    return response;
+}
+
+void ClayInspector::applyScenarioToRoot(const QString& name)
+{
+    auto* root = m_container ? m_container->rootObject() : nullptr;
+    if (!root)
+        return;
+
+    bool ok = false;
+    if (auto* context = QQmlEngine::contextForObject(root)) {
+        QQmlExpression checkExpr(context, root,
+                                 "typeof applyScenario === 'function'");
+        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
+            QString escaped = name;
+            escaped.replace('\\', "\\\\").replace('\'', "\\'");
+            QQmlExpression callExpr(context, root,
+                QString("applyScenario('%1')").arg(escaped));
+            callExpr.evaluate();
+            ok = !callExpr.hasError();
+        }
+    }
+
+    QJsonObject payload;
+    payload["name"] = name;
+    payload["ok"] = ok;
+    appendEvent("scenario_applied", payload);
+    if (!ok)
+        qWarning() << "ClayInspector: applying scenario" << name
+                   << "failed (no applyScenario() on the sandbox root?)";
+}
+
+QJsonObject ClayInspector::handleTime(const QJsonObject& request)
+{
+    QJsonObject response;
+    if (!m_timeCtrl) {
+        response["error"] = "time control unavailable";
+        return response;
+    }
+
+    if (request.contains("scale"))
+        m_timeCtrl->setTimeScale(request.value("scale").toDouble(1.0));
+    if (request.contains("paused"))
+        m_timeCtrl->setPaused(request.value("paused").toBool());
+    if (request.contains("step")) {
+        // Stepping is defined relative to a frozen simulation.
+        m_timeCtrl->setPaused(true);
+        int frames = request.value("step").toInt(1);
+        int acked = m_timeCtrl->requestStep(frames);
+        response["stepped"] = acked;
+        if (acked == 0)
+            response["error"] =
+                "step: no world consumed the step request "
+                "(sandbox without a ClayWorld2d?)";
+    }
+
+    response["paused"] = m_timeCtrl->paused();
+    response["scale"] = m_timeCtrl->timeScale();
+    return response;
+}
+
+QJsonObject ClayInspector::handleInput(const QJsonObject& request)
+{
+    QJsonObject response;
+    auto* root = m_container ? m_container->rootObject() : nullptr;
+
+    if (request.contains("gamepad")) {
+        if (!m_inputCtrl) {
+            response["error"] = "input control unavailable";
+            return response;
+        }
+        auto gp = request.value("gamepad").toObject();
+        m_inputCtrl->setGamepadState(
+            gp.value("axisX").toDouble(0.0),
+            gp.value("axisY").toDouble(0.0),
+            gp.value("buttonA").toBool(false),
+            gp.value("buttonB").toBool(false),
+            gp.value("durationMs").toInt(0));
+        response["gamepad"] = "applied";
+    }
+
+    if (request.contains("key")) {
+        if (!root) {
+            response["error"] = "No sandbox root item available";
+            return response;
+        }
+        auto k = request.value("key").toObject();
+        auto seq = QKeySequence::fromString(k.value("key").toString());
+        if (seq.isEmpty()) {
+            response["error"] = QString("key: cannot parse '%1'")
+                                    .arg(k.value("key").toString());
+        } else {
+            auto combo = seq[0];
+            auto* win = root->window();
+            QString text;
+            if (combo.key() >= Qt::Key_A && combo.key() <= Qt::Key_Z
+                && combo.keyboardModifiers() == Qt::NoModifier)
+                text = QChar(QLatin1Char(char('a' + combo.key() - Qt::Key_A)));
+            if (k.value("press").toBool(true)) {
+                QKeyEvent press(QEvent::KeyPress, combo.key(),
+                                combo.keyboardModifiers(), text);
+                QCoreApplication::sendEvent(win, &press);
+            }
+            if (k.value("release").toBool(true)) {
+                QKeyEvent release(QEvent::KeyRelease, combo.key(),
+                                  combo.keyboardModifiers(), text);
+                QCoreApplication::sendEvent(win, &release);
+            }
+            response["key"] = "sent";
+        }
+    }
+
+    if (request.contains("click")) {
+        if (!root) {
+            response["error"] = "No sandbox root item available";
+            return response;
+        }
+        auto c = request.value("click").toObject();
+        QPointF scenePos;
+        bool resolved = false;
+
+        if (c.contains("objectName")) {
+            auto name = c.value("objectName").toString();
+            QQuickItem* target = root->objectName() == name
+                ? root : root->findChild<QQuickItem*>(name);
+            if (target) {
+                scenePos = target->mapToScene(
+                    QPointF(target->width() / 2, target->height() / 2));
+                resolved = true;
+            } else {
+                response["error"] =
+                    QString("click: no item with objectName '%1'").arg(name);
+            }
+        } else if (c.contains("xWu") && c.contains("yWu")) {
+            // World units resolve through the sandbox's canvas — the canvas
+            // owns the coordinate system, so ask it (fails cleanly when the
+            // sandbox has no canvas, e.g. a plain QML app).
+            QQmlExpression expr(qmlContext(root), root,
+                QString("canvas.worldToScene(%1, %2)")
+                    .arg(c.value("xWu").toDouble())
+                    .arg(c.value("yWu").toDouble()));
+            QVariant result = expr.evaluate();
+            auto map = result.toMap();
+            if (!expr.hasError() && map.contains("x")) {
+                scenePos = QPointF(map["x"].toDouble(), map["y"].toDouble());
+                resolved = true;
+            } else {
+                response["error"] = "click: world-unit addressing needs a "
+                                    "canvas ('canvas.worldToScene' failed)";
+            }
+        } else if (c.contains("x") && c.contains("y")) {
+            scenePos = QPointF(c.value("x").toDouble(), c.value("y").toDouble());
+            resolved = true;
+        } else {
+            response["error"] =
+                "click: give x/y, xWu/yWu, or objectName";
+        }
+
+        if (resolved) {
+            auto* win = root->window();
+            auto button = c.value("button").toString() == "right"
+                          ? Qt::RightButton : Qt::LeftButton;
+            QPointF globalPos = win->mapToGlobal(scenePos);
+            QMouseEvent press(QEvent::MouseButtonPress, scenePos, globalPos,
+                              button, button, Qt::NoModifier);
+            QCoreApplication::sendEvent(win, &press);
+            QMouseEvent release(QEvent::MouseButtonRelease, scenePos, globalPos,
+                                button, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(win, &release);
+            QJsonObject clickInfo;
+            clickInfo["x"] = scenePos.x();
+            clickInfo["y"] = scenePos.y();
+            response["click"] = clickInfo;
+        }
+    }
+
+    if (response.isEmpty())
+        response["error"] = "input: give gamepad, key, and/or click";
     return response;
 }
 
@@ -1257,6 +1526,83 @@ void ClayInspector::completeFlag(const QString& annotation)
     cleanupOldFlags();
     m_pendingFlagTimestamp.clear();
     m_pendingFlagScreenshot.clear();
+}
+
+void ClayInspector::scheduleAutoFlag(const QString& errorMsg)
+{
+    // Debounce immediately (addError can fire in bursts), then build the
+    // bundle from the main thread via the event loop — the message handler
+    // may run on any thread and bundle building touches QML items.
+    m_autoFlagged = true;
+    QMetaObject::invokeMethod(this, [this, errorMsg]() {
+        writeAutoFlag(errorMsg);
+    }, Qt::QueuedConnection);
+}
+
+void ClayInspector::writeAutoFlag(const QString& errorMsg)
+{
+    if (m_inspectDir.isEmpty())
+        return;
+
+    QString ts = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
+
+    QJsonObject flag;
+    flag["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    flag["trigger"] = errorMsg;
+    flag["phase"] = phaseName(m_phase);
+    flag["reloadCount"] = m_reloadCount;
+
+    auto* root = m_container ? m_container->rootObject() : nullptr;
+    if (root) {
+        flag["rootProperties"] = collectCustomProperties(root);
+        QJsonValue fi = callFlagInfo(root);
+        if (!fi.isNull())
+            flag["flagInfo"] = fi;
+        flag["tree"] = buildItemTree(root, 4, 0, false);
+    }
+    attachDiagnostics(flag);
+
+    QString flagPath = m_inspectDir + "/autoflag_" + ts + ".json";
+    QFile file(flagPath);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(flag).toJson(QJsonDocument::Indented));
+        file.close();
+
+        QJsonObject payload;
+        payload["flagPath"] = flagPath;
+        payload["trigger"] = errorMsg;
+        appendEvent("auto_flag", payload);
+    }
+
+    // Screenshot is best-effort and async; the PNG pairs with the JSON via
+    // the shared timestamp when the grab succeeds.
+    if (root) {
+        auto grabResult = root->grabToImage();
+        if (grabResult) {
+            QString pngPath = m_inspectDir + "/autoflag_" + ts + ".png";
+            connect(grabResult.data(), &QQuickItemGrabResult::ready,
+                    this, [grabResult, pngPath]() {
+                grabResult->saveToFile(pngPath);
+            });
+        }
+    }
+
+    cleanupOldAutoFlags();
+}
+
+void ClayInspector::cleanupOldAutoFlags()
+{
+    static const int MAX_AUTO_FLAGS = 3;
+
+    QDir inspectDir(m_inspectDir);
+    QStringList flags = inspectDir.entryList({"autoflag_*.json"}, QDir::Files, QDir::Name);
+
+    while (flags.size() > MAX_AUTO_FLAGS) {
+        QString oldest = flags.takeFirst();
+        QString baseName = oldest.chopped(5);
+        inspectDir.remove(oldest);
+        inspectDir.remove(baseName + ".png");
+    }
 }
 
 void ClayInspector::cancelFlag()

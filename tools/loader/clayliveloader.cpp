@@ -70,6 +70,16 @@ void ClayLiveLoader::setAltMessage(const QString &altMessage)
     emit altMessageChanged();
 }
 
+QString ClayLiveLoader::instanceName() const
+{
+    return instanceName_;
+}
+
+void ClayLiveLoader::setInstanceName(const QString &name)
+{
+    instanceName_ = name;
+}
+
 int ClayLiveLoader::numRestarts() const
 {
     return numRestarts_;
