@@ -166,15 +166,11 @@ Item {
 
     /*!
         \qmlproperty bool Network::verbose
-        \brief Enable diagnostic output and quality monitoring.
+        \brief Enable diagnostic output via diagnosticMessage.
 
-        When true, enables:
-        \list
-        \li Connection phase tracking (connectionPhase, phaseTiming)
-        \li ICE candidate type reporting via diagnosticMessage
-        \li Periodic ping/pong latency measurement
-        \li Per-peer statistics (peerStats)
-        \endlist
+        Statistics (latency, peerStats, syncStats) are always maintained;
+        verbose additionally enables connection phase reporting and ICE
+        candidate details through the diagnosticMessage signal.
     */
     property bool verbose: false
 
@@ -261,17 +257,33 @@ Item {
         \qmlproperty int Network::latency
         \brief Best RTT across all connected peers in milliseconds. -1 if unknown.
 
-        Updated every 2 seconds when verbose is true.
+        Updated every 2 seconds while connected.
     */
     readonly property int latency: _backend ? _backend.latency : -1
 
     /*!
         \qmlproperty var Network::peerStats
-        \brief Per-peer statistics. Only populated when verbose is true.
+        \brief Per-peer transport statistics, always on.
 
-        Format: { nodeId: { latency, msgSent, msgRecv, bytesSent, bytesRecv } }
+        Format: { nodeId: { latency, msgSent, msgRecv, bytesSent, bytesRecv,
+        stateSent, stateRecv, stateChannel, stateBacklog } }.
+        \c stateChannel is \c "unreliable" once the lossy state channel is
+        negotiated and \c "fallback" while state still travels over the
+        reliable channel.
     */
     readonly property var peerStats: _backend ? _backend.peerStats : ({})
+
+    /*!
+        \qmlproperty var Network::syncStats
+        \brief Per-node state-sync statistics, keyed by ORIGIN node id.
+
+        Unlike \l peerStats this also covers nodes whose state arrives
+        relayed through the host. Format:
+        { nodeId: { seq, recv, dropped, ageMs } } - \c dropped counts stale
+        updates discarded by sequence checks, \c ageMs is the time since the
+        newest accepted state.
+    */
+    readonly property var syncStats: _backend ? _backend.syncStats : ({})
 
     // ========== Signals ==========
 
@@ -365,6 +377,7 @@ Item {
         if (_backend && !connected && networkId && networkId.length > 0) {
             _backend.topology = root.topology
             _backend.autoRelay = root.autoRelay
+            _backend.signalingMode = root.signalingMode
             _backend.signalingUrl = root.signalingUrl
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
@@ -401,7 +414,11 @@ Item {
         \qmlmethod void Network::broadcastState(var data)
         \brief Send a state update to all connected nodes.
 
-        Optimized for high-frequency updates like positions.
+        Optimized for high-frequency updates like positions: travels over an
+        unordered channel without retransmissions (lost packets are simply
+        skipped) and carries a sequence number so receivers drop stale
+        updates instead of applying them late. Use \l broadcast for anything
+        that must arrive (events like attacks, level changes, chat).
     */
     function broadcastState(data) {
         if (_backend && connected) {
@@ -421,6 +438,15 @@ Item {
         }
     }
 
+    /*!
+        \qmlmethod int Network::stateAgeMs(string nodeId)
+        \brief Milliseconds since the newest accepted state from \a nodeId,
+               or -1 if none was received yet.
+    */
+    function stateAgeMs(nodeId) {
+        return _backend ? _backend.stateAgeMs(nodeId) : -1
+    }
+
     // ========== Connection Timeout ==========
 
     Timer {
@@ -436,11 +462,13 @@ Item {
 
     // ========== Ping Timer ==========
 
+    // Always on while connected - keeps latency and the per-node stats
+    // fresh at negligible cost (one tiny message per peer every 2s).
     Timer {
         id: _pingTimer
         interval: 2000
         repeat: true
-        running: root.verbose && root.connected && _backend
+        running: root.connected && _backend
         onTriggered: _backend.ping()
     }
 
