@@ -9,6 +9,8 @@ add_executable(tst_inspector_unit
     tst_inspector_unit.cpp
     ../clayinspector.cpp
     ../clayinspector.h
+    ../claycontrols.cpp
+    ../claycontrols.h
     hotreloadcontainer_stub.cpp
 )
 
@@ -53,3 +55,17 @@ set_tests_properties(inspector_dojo PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 60
 )
+
+# --- Crew Gym (drives the full protocol v2 through the file interface) ---
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    add_test(NAME crew_gym
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/gym/run_gym.py
+                --loader $<TARGET_FILE:clayliveloader>
+    )
+    set_tests_properties(crew_gym PROPERTIES
+        LABELS "inspector;integration;gym"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 180
+    )
+endif()
