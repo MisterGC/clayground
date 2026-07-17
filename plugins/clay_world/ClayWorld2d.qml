@@ -177,12 +177,37 @@ ClayWorldBase {
             id: _physicsWorld
             gravity: Qt.point(0,15*9.81)
             timeStep: 1/60.0
+            timeScale: Clayground.timeScale
             pixelsPerMeter: _theCanvas.pixelPerUnit ? _theCanvas.pixelPerUnit : 1
             running: true
         }
+
+        // Global pause overrides running but restores the user's value when
+        // lifted; single-step advances the frozen simulation frame by frame.
+        Binding {
+            target: _physicsWorld
+            property: "running"
+            value: false
+            when: Clayground.paused
+            restoreMode: Binding.RestoreBindingOrValue
+        }
+        Connections {
+            target: Clayground
+            function onPhysicsStep(frames) {
+                // The step driver derives timeStep from the frame delta while
+                // running; manual stepping fixes it for exact reproducibility.
+                _physicsWorld.timeStep = 1/60.0;
+                for (let i = 0; i < frames; ++i) _physicsWorld.step();
+                Clayground.ackStep(frames);
+            }
+        }
     }
 
-    Component.onCompleted: {_moveToRoomOnDemand(); childrenChanged.connect(_moveToRoomOnDemand); _loadActive.restart();}
+    // _updateRoomContent also runs once here so declaratively room-parented
+    // children get their world/pixelPerUnit wired in worlds without a map
+    // (the room.childrenChanged connection is not active during
+    // instantiation and onMapLoaded never fires without a scene).
+    Component.onCompleted: {_moveToRoomOnDemand(); _updateRoomContent(); childrenChanged.connect(_moveToRoomOnDemand); _loadActive.restart();}
     Timer {id: _loadActive; interval: 1; onTriggered: _sceneLoader2d.active = true;}
     Connections{target: room; function onChildrenChanged(){_updateRoomContent();}}
 
@@ -191,11 +216,18 @@ ClayWorldBase {
 
     function _moveToRoomOnDemand() {
         if (!_world) return;
-        for (let obj of _world.children) {
+        // Snapshot: reparenting mutates _world.children while we iterate,
+        // which would silently skip every other entity.
+        let candidates = Array.from(_world.children);
+        for (let obj of candidates) {
+            // instanceof misses anonymous subtypes (entities that declare
+            // extra properties), so also accept anything with the physics
+            // capability signature.
             let migrate = obj instanceof RectBoxBody  ||
                 obj instanceof VisualizedPolyBody ||
                 obj instanceof ImageBoxBody  ||
-                obj instanceof PhysicsItem;
+                obj instanceof PhysicsItem ||
+                (("world" in obj) && ("xWu" in obj) && ("bodyType" in obj));
 
             if (migrate) {
                 _updatePropertyBindingsOnDemand(obj);

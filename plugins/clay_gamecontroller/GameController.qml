@@ -79,7 +79,13 @@ Item {
 //        source: Qt.platform.os !== "ios" ?  "GamepadWrapper.qml" : null
 //    }
 
+    // Agent-synthesized input (Dojo inspector); inert outside the sandbox.
+    // It writes imperatively like KeyboardGamepad, so it composes with the
+    // humanly selected source instead of replacing it.
+    readonly property bool syntheticActive: synthGamepad.active
+
     Keys.forwardTo: keybGamepad
     KeyboardGamepad { id: keybGamepad; gameController: theController; }
     TouchscreenGamepad { id: vgamepad; gameController: theController; }
+    SyntheticGamepad { id: synthGamepad; gameController: theController; }
 }

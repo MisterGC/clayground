@@ -9,6 +9,7 @@ clay_plugin( GameController
             GameControllerDV.qml
             GamepadWrapper.qml
             KeyboardGamepad.qml
+            SyntheticGamepad.qml
             TouchscreenGamepad.qml
 
     LINK_LIBS
