@@ -113,6 +113,31 @@ Model {
     property alias count: _inst.count
 
     /*!
+        \qmlproperty list LineBatch3D::styles
+        \brief Per-styleId table of dash pattern, cap shape and opacity.
+
+        Each element is an object
+        \c{{ dash: [dashLen, gapLen], capRound: <bool>, opacity: <real> }}
+        where \c dashLen and \c gapLen are in world units (\c{[0, 0]} = solid).
+        A line's \c styleId (set per line via \l lines) selects the row.
+
+        The table is baked into a tiny RGBA32F texture the shader samples per
+        fragment; the dash phase runs continuously along each polyline. Style
+        index 0 always defaults to solid, round-capped and fully opaque, so
+        lines work unchanged when \c styles is left empty.
+
+        Example:
+        \qml
+        styles: [
+            { dash: [0, 0], capRound: true, opacity: 1.0 },   // 0: solid
+            { dash: [12, 8], capRound: false, opacity: 1.0 }, // 1: dashed
+            { dash: [1, 6], capRound: true, opacity: 0.8 }    // 2: dotted
+        ]
+        \endqml
+    */
+    property var styles: []
+
+    /*!
         \qmlmethod void LineBatch3D::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths)
         \brief Fast path for building the batch from packed binary buffers.
 
@@ -143,6 +168,22 @@ Model {
         _inst.updateLinePoints(lineIndex, points)
     }
 
+    /*!
+        \qmlmethod void LineBatch3D::updateEndpointsBulk(ByteArray positions)
+        \brief Rewrites the endpoints of every single-segment line in one pass.
+
+        \a positions is a packed float32 buffer with 6 floats per line
+        (\c{p0.xyz, p1.xyz}) in line order. This is the fast per-frame path used
+        by ConnectorLayer3D: it patches the affected instance entries in place
+        and triggers a single upload, with no geometry rebuild. Lines that are
+        not single-segment (two points) are skipped.
+
+        \sa ConnectorLayer3D
+    */
+    function updateEndpointsBulk(positions) {
+        _inst.updateEndpointsBulk(positions)
+    }
+
     // Instanced shadow bounds are O(n) on the CPU without explicit bounds, so
     // keep shadows off (overlay/map lines are unlit anyway).
     castsShadows: false
@@ -162,9 +203,28 @@ Model {
             id: _mat
             shadingMode: CustomMaterial.Unshaded
             cullMode: Material.NoCulling
+            // Alpha blending lets styles apply an opacity multiplier; fully
+            // opaque lines (the default) render identically. Depth is still
+            // written so lines occlude each other as before.
+            sourceBlend: CustomMaterial.SrcAlpha
+            destinationBlend: CustomMaterial.OneMinusSrcAlpha
+            depthDrawMode: Material.AlwaysDepthDraw
             property vector2d viewportSize: root.viewportSize
             property real widthMode: root.widthUnits
             property real depthBias: root.depthBias
+            property real styleCount: _styleData.styleCount
+            property TextureInput styleTable: TextureInput {
+                texture: Texture {
+                    minFilter: Texture.Nearest
+                    magFilter: Texture.Nearest
+                    tilingModeHorizontal: Texture.ClampToEdge
+                    tilingModeVertical: Texture.ClampToEdge
+                    textureData: LineStyleTextureData {
+                        id: _styleData
+                        styles: root.styles
+                    }
+                }
+            }
             vertexShader: "line_batch.vert"
             fragmentShader: "line_batch.frag"
         }

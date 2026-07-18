@@ -2,6 +2,7 @@
 
 import QtQuick
 import QtQuick3D
+import Clayground.Canvas3D
 
 /*!
     \qmltype Line3D
@@ -9,8 +10,9 @@ import QtQuick3D
     \brief A simple 3D line connecting multiple points.
 
     Line3D provides an easy way to draw a single connected line through
-    a series of 3D points. It wraps MultiLine3D for convenience when
-    only a single line path is needed.
+    a series of 3D points. It wraps \l MultiLine3D for convenience when
+    only a single line path is needed, and therefore renders through the
+    instanced \l LineBatch3D backend.
 
     Example usage:
     \qml
@@ -27,9 +29,9 @@ import QtQuick3D
     }
     \endqml
 
-    \sa MultiLine3D, BoxLine3D
+    \sa MultiLine3D, BoxLine3D, LineBatch3D
 */
-Model {
+Node {
     id: _line
 
     /*!

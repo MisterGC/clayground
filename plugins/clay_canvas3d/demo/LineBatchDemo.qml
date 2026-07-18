@@ -135,6 +135,31 @@ Item {
             widthUnits: widthSwitch.checked ? LineBatch3D.World : LineBatch3D.Pixel
             depthBias: 0
         }
+
+        // Styled showcase: a stack of horizontal lines mixing solid, dashed,
+        // dotted and translucent styles at various widths. Style rows are baked
+        // into the batch's style table; each line selects a row via styleId.
+        LineBatch3D {
+            id: styledBatch
+            viewportSize: Qt.vector2d(view3D.width, view3D.height)
+            widthUnits: LineBatch3D.World
+            depthBias: 2
+            visible: styledSwitch.checked
+            styles: [
+                { dash: [0, 0],   capRound: true,  opacity: 1.0 },  // 0 solid
+                { dash: [55, 35], capRound: false, opacity: 1.0 },  // 1 dashed
+                { dash: [6, 34],  capRound: true,  opacity: 1.0 },  // 2 dotted
+                { dash: [0, 0],   capRound: true,  opacity: 0.35 }  // 3 translucent
+            ]
+            lines: [
+                { points: [Qt.vector3d(-600, 780, 0), Qt.vector3d(600, 780, 0)], color: "#00d9ff", width: 8,  styleId: 0 },
+                { points: [Qt.vector3d(-600, 700, 0), Qt.vector3d(600, 700, 0)], color: "#0f9d9a", width: 14, styleId: 1 },
+                { points: [Qt.vector3d(-600, 620, 0), Qt.vector3d(600, 620, 0)], color: "#ff3366", width: 10, styleId: 2 },
+                { points: [Qt.vector3d(-600, 540, 0), Qt.vector3d(600, 540, 0)], color: "#ffd93d", width: 22, styleId: 1 },
+                { points: [Qt.vector3d(-600, 460, 0), Qt.vector3d(600, 460, 0)], color: "#00d9ff", width: 28, styleId: 3 },
+                { points: [Qt.vector3d(-600, 380, 0), Qt.vector3d(600, 380, 0)], color: "#ffffff", width: 6,  styleId: 2 }
+            ]
+        }
     }
 
     // Forces extended render-stat collection (drawCallCount / drawVertexCount)
@@ -238,6 +263,20 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Animate subset (" + rootItem.animBase.length + " lines)"
+                    color: "#eaeaea"
+                    font.pixelSize: 12
+                }
+            }
+
+            Row {
+                spacing: 8
+                Switch {
+                    id: styledSwitch
+                    checked: true
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Styled showcase"
                     color: "#eaeaea"
                     font.pixelSize: 12
                 }

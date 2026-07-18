@@ -216,6 +216,10 @@ void LineBatchInstancing::updateLinePoints(int lineIndex, const QVariantList &po
 void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
 {
     const int segments = line.points.size() > 1 ? line.points.size() - 1 : 0;
+    // Accumulated path distance at each segment start, packed into
+    // INSTANCE_DATA.z so the fragment shader can flow a dash pattern
+    // continuously across the segments of one polyline.
+    float pathDist = 0.0f;
     for (int s = 0; s < segments; ++s) {
         const QVector3D &p0 = line.points[s];
         const QVector3D &p1 = line.points[s + 1];
@@ -228,10 +232,48 @@ void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
         e.row1 = QVector4D(p1.y() - p0.y(), 0.0f, 0.0f, p0.y());
         e.row2 = QVector4D(p1.z() - p0.z(), 0.0f, 0.0f, p0.z());
         e.color = line.color;
-        e.instanceData = QVector4D(line.width, static_cast<float>(line.styleId), 0.0f, 0.0f);
+        e.instanceData = QVector4D(line.width, static_cast<float>(line.styleId),
+                                   pathDist, 0.0f);
 
         std::memcpy(dst + static_cast<qsizetype>(s) * kEntrySize, &e, kEntrySize);
+        pathDist += (p1 - p0).length();
     }
+}
+
+/*!
+    \qmlmethod void LineBatchInstancing::updateEndpointsBulk(ByteArray positions)
+    \brief Rewrites the endpoints of every single-segment line in one pass.
+
+    \a positions is a packed float32 buffer with 6 floats per line
+    (\c{p0.xyz, p1.xyz}) in line order. This is the fast per-frame path used by
+    ConnectorLayer3D: it patches only the affected instance entries in place,
+    recomputes the batch bounds once and triggers a single instance-table
+    upload. Lines that do not have exactly one segment are skipped.
+*/
+void LineBatchInstancing::updateEndpointsBulk(const QByteArray &positions)
+{
+    if (m_data.isEmpty() || m_lines.isEmpty())
+        return;
+
+    const int floatsPerLine = 6;
+    const auto *pos = reinterpret_cast<const float *>(positions.constData());
+    const int available = static_cast<int>(positions.size() / (floatsPerLine * sizeof(float)));
+    const int n = qMin(available, static_cast<int>(m_lines.size()));
+
+    char *base = m_data.data();
+    for (int i = 0; i < n; ++i) {
+        Line &line = m_lines[i];
+        if (line.instanceCount != 1 || line.points.size() != 2)
+            continue;
+
+        const float *src = pos + static_cast<qsizetype>(i) * floatsPerLine;
+        line.points[0] = QVector3D(src[0], src[1], src[2]);
+        line.points[1] = QVector3D(src[3], src[4], src[5]);
+        writeLineEntries(base + static_cast<qsizetype>(line.instanceStart) * kEntrySize, line);
+    }
+
+    updateBounds();
+    markDirty();
 }
 
 void LineBatchInstancing::rebuild()

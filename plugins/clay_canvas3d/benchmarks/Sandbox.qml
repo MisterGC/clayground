@@ -50,6 +50,7 @@ Rectangle {
                     model: [
                         { name: "Lines - Static", component: "BenchLinesStatic.qml" },
                         { name: "Lines - Dynamic", component: "BenchLinesDynamic.qml" },
+                        { name: "Connectors - Moving", component: "BenchConnectors.qml" },
                         { name: "Voxel - Edit Storm", component: "BenchVoxelEdit.qml" },
                         { name: "Voxel - Churn", component: "BenchVoxelChurn.qml" }
                     ]
