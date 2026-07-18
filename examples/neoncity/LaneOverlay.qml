@@ -27,8 +27,10 @@ LineBatch3D {
     // continuously along each polyline).
     styles: LaneGen.shaderStyles()
     // Pull the overlay toward the camera so it wins the depth fight with the
-    // road surface / ground plate just beneath it.
-    depthBias: 6
+    // road surface just beneath it. The paint now floats only ~0.1u above the
+    // asphalt (it reads as painted on), so the bias is larger to keep it from
+    // z-fighting the matte band at grazing angles.
+    depthBias: 12
 
     function rebuild() {
         if (!laneModel) return

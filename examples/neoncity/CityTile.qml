@@ -42,8 +42,14 @@ Node {
     property var cityData: null
     property var laneModel: null
 
-    // Elevation of the lane overlay (world units), just above the road glow.
-    readonly property real laneY: 1.8
+    // Elevation of the flat matte asphalt band and of everything that rides on
+    // the road surface. Defined here so the lane paint and the cars both key off
+    // the SAME road height (see laneOverlayY / CarSystem.roadY below).
+    readonly property real asphaltY: 0.6
+
+    // Lane paint sits a hair above the asphalt so it reads as painted ON the road
+    // (not floating): a 0.1u physical gap the overlay's depthBias closes visually.
+    readonly property real laneOverlayY: asphaltY + 0.1
 
     // ---- palette ----
     readonly property var bodyColors: ["#14142a", "#1b1b34", "#22203c", "#0f1a2a", "#271a34"]
@@ -130,10 +136,6 @@ Node {
         }
     }
 
-    // Elevation of the flat asphalt band (just above the ground plate, below
-    // the lane overlay at laneY).
-    readonly property real asphaltY: 0.6
-
     // Dark matte asphalt: one instanced draw call per tile, all roads as flat
     // low-saturation quads. High roughness, no emissive - the synthwave energy
     // lives in the building accents and the lane overlay, so the overlay pops.
@@ -187,7 +189,7 @@ Node {
     CarSystem {
         id: carSystem
         cityData: tile.cityData
-        laneY: tile.laneY
+        roadY: tile.asphaltY
         carCount: tile.carsPerTile
         showCars: tile.showCars
         connectorLayer: tile.connectorLayer
@@ -209,7 +211,7 @@ Node {
     }
 
     function buildLanes(data) {
-        var lm = LaneGen.generateLaneModel(data, tile.laneY)
+        var lm = LaneGen.generateLaneModel(data, tile.laneOverlayY)
         tile.laneModel = lm
         tile._laneLineCount = lm.lineCount
         tile._lanePointCount = lm.pointCount
