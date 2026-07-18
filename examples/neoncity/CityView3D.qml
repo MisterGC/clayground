@@ -10,6 +10,7 @@ import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
 import "lanegen.js" as LaneGen
+import "lidar.js" as Lidar
 
 Item {
     id: root
@@ -32,6 +33,28 @@ Item {
     property int carCount: 200
     readonly property int _tilesWide: 2 * streamRadius + 1
     readonly property int carsPerTile: Math.max(0, Math.round(carCount / (_tilesWide * _tilesWide)))
+    // Global traffic-speed multiplier (default calm cruise), tunable from the HUD.
+    property real carSpeedFactor: 0.4
+
+    // ---- lidar inspection ----
+    property bool lidarOn: false
+    property string lidarQuality: "med"      // low / med / high
+    property var selection: null             // { carSystem, index } or null
+    // profiling readouts (see stepLidar / benchLidar)
+    property real lidarStepMs: 0
+    property int lidarPoints: 0
+    property int lidarRaysFrame: 0
+
+    // scan state (plain vars, not reactive)
+    property var _scanner: null
+    property var _scene: null
+    property var _staticBoxes: null
+    property var _cfg: null
+    property bool _rebuildStatic: false
+    property int _msFrames: 0
+    property double _msStart: 0
+
+    onCarCountChanged: deselect()
 
     // ---- live readouts (mirrored from the streaming manager) ----
     readonly property int currentTileX: tileManager.currentTileX
@@ -62,6 +85,178 @@ Item {
         else if (e.key === Qt.Key_C) { root.showConnections = !root.showConnections; e.accepted = true }
         else if (e.key === Qt.Key_K) { root.showCars = !root.showCars; e.accepted = true }
         else if (e.key === Qt.Key_E) { root.exportLanes(); e.accepted = true }
+        else if (e.key === Qt.Key_I) { root.toggleLidar(); e.accepted = true }
+    }
+
+    // ---- lidar inspection controller -----------------------------------------
+    // Click selects the nearest car to the ground hit; a spinning scanner then
+    // sweeps the neighbourhood each frame and the PiP shows the car-local cloud.
+
+    function toggleLidar() {
+        lidarOn = !lidarOn
+        if (lidarOn && selection) _initScanner()
+        forceActiveFocus()
+    }
+
+    function cycleQuality() {
+        lidarQuality = lidarQuality === "low" ? "med"
+                     : lidarQuality === "med" ? "high" : "low"
+        forceActiveFocus()
+    }
+    onLidarQualityChanged: if (selection) _initScanner()
+
+    // Click -> ground pick -> nearest car within radius (else deselect).
+    function selectAt(px, py) {
+        forceActiveFocus()
+        var res = view.pick(px, py)
+        if (!res || !res.objectHit) { deselect(); return }
+        var p = res.scenePosition
+        var sel = tileManager.pickNearestCar(p.x, p.z, 24.0)
+        if (sel) setSelection(sel); else deselect()
+    }
+
+    function setSelection(sel) {
+        selection = sel
+        lidarPanel.carLabel = sel.index
+        var pose = sel.carSystem.carPose(sel.index)
+        if (pose) { lidarPanel.carW = pose.w; lidarPanel.carL = pose.l; lidarPanel.carH = pose.h }
+        if (!lidarOn) lidarOn = true          // auto-open on selection
+        _initScanner()
+    }
+
+    function deselect() {
+        selection = null
+        marker.visible = false
+        _scanner = null; _scene = null
+        if (typeof lidarPanel !== "undefined") lidarPanel.clearCloud()
+    }
+
+    function _initScanner() {
+        if (!selection) return
+        var cfg = Lidar.quality(lidarQuality)
+        _cfg = cfg
+        _scanner = Lidar.createScanner(cfg)
+        var ib = Lidar.initBuffers(_scanner)
+        lidarPanel.initCloud(ib.positions, ib.starts, ib.colors, ib.widths)
+        _rebuildStatic = true
+    }
+
+    // One scan slice per frame: advance the sweep, repack the cloud, upload it.
+    function stepLidar() {
+        var sel = selection
+        if (!sel || !_scanner) return
+        var cs = sel.carSystem
+        var pose = null
+        try { pose = cs.carPose(sel.index) } catch (e) { pose = null }
+        if (!pose) { deselect(); return }
+
+        var ox = pose.x, oz = pose.z, yaw = pose.yaw
+        var oy = pose.y + pose.h * 0.5        // scanner ~ car roof height
+
+        marker.position = Qt.vector3d(ox, oy + 6.0, oz)
+        marker.visible = true
+
+        if (_rebuildStatic || !_scene) {
+            var datas = tileManager.nearbyCityData(ox, oz, _cfg.range)
+            _staticBoxes = []
+            for (var i = 0; i < datas.length; ++i) Lidar.tileBoxes(datas[i], _staticBoxes)
+            _scene = Lidar.buildStatic(_staticBoxes, ox, oz, _cfg.range)
+            _rebuildStatic = false
+        }
+        var carBoxes = tileManager.carBoxesNear(ox, oz, _cfg.range, cs, sel.index)
+
+        var revs = Lidar.advance(_scanner, _scene, carBoxes, ox, oy, oz, yaw, _cfg.azPerFrame)
+        lidarPanel.patchCloud(_scanner.posBuf.buffer)
+
+        // Once per revolution the car has moved: refresh the static candidate set.
+        if (revs > 0) _rebuildStatic = true
+
+        lidarPoints = _scanner.visible
+        lidarRaysFrame = _scanner.raysThisAdvance
+        _measureStep()
+        lidarPanel.statsText = "pts " + count + "   rays/f " + lidarRaysFrame +
+                               "   " + lidarStepMs.toFixed(2) + " ms   q:" + lidarQuality
+    }
+
+    // Averages the full step cost over 30 frames (Date.now resolution is coarse
+    // for a single sub-ms slice; benchLidar() gives a precise breakdown).
+    function _measureStep() {
+        if (_msFrames === 0) _msStart = Date.now()
+        _msFrames++
+        if (_msFrames >= 30) {
+            lidarStepMs = (Date.now() - _msStart) / 30
+            _msFrames = 0
+        }
+    }
+
+    // On-demand precise profiling: runs `iters` scan slices back to back and
+    // logs total/per-slice ms plus a fill-only figure. Call from the inspector.
+    function benchLidar(iters) {
+        if (!selection || !_scanner) { console.log("neoncity/lidar: select a car first"); return }
+        var sel = selection, cs = sel.carSystem
+        var pose = cs.carPose(sel.index)
+        var ox = pose.x, oz = pose.z, yaw = pose.yaw, oy = pose.y + pose.h * 0.5
+        var datas = tileManager.nearbyCityData(ox, oz, _cfg.range)
+        var boxes = []
+        for (var i = 0; i < datas.length; ++i) Lidar.tileBoxes(datas[i], boxes)
+        var scene = Lidar.buildStatic(boxes, ox, oz, _cfg.range)
+        var carBoxes = tileManager.carBoxesNear(ox, oz, _cfg.range, cs, sel.index)
+        var n = iters || 300
+
+        var t0 = Date.now()
+        var rays = 0
+        for (i = 0; i < n; ++i) {
+            Lidar.advance(_scanner, scene, carBoxes, ox, oy, oz, yaw, _cfg.azPerFrame)
+            rays += _scanner.raysThisAdvance
+        }
+        var tAdv = Date.now() - t0
+
+        // patch cost: rewrite the whole fixed instance table via the no-rebuild
+        // fast path (what runs every real frame after advance()).
+        var t1 = Date.now()
+        for (i = 0; i < n; ++i) lidarPanel.patchCloud(_scanner.posBuf.buffer)
+        var tPatch = Date.now() - t1
+
+        var revRays = _cfg.channels * _cfg.azSteps
+        console.log("neoncity/lidar bench q=" + lidarQuality +
+                    " boxes=" + scene.boxes.length + " cars=" + carBoxes.length +
+                    " | advance " + (tAdv / n).toFixed(3) + " ms/slice (" + (rays / n).toFixed(0) + " rays)" +
+                    " | patch " + (tPatch / n).toFixed(3) + " ms/slice" +
+                    " | pts/rev " + revRays + " visible " + _scanner.visible)
+        return { advMsPerSlice: tAdv / n, patchMsPerSlice: tPatch / n, raysPerSlice: rays / n,
+                 pointsPerRev: revRays, visible: _scanner.visible }
+    }
+
+    // Determinism proof: two fresh scanners fed the identical pose + obstacle
+    // set over the identical number of slices must produce byte-identical clouds
+    // (lidar.js is pure - no Math.random, no time). Returns {match, slots, diffs}.
+    function lidarDeterminismCheck(slices) {
+        if (!selection) return { match: false, note: "no selection" }
+        var cs = selection.carSystem, pose = cs.carPose(selection.index)
+        var ox = pose.x, oz = pose.z, yaw = pose.yaw, oy = pose.y + pose.h * 0.5
+        var datas = tileManager.nearbyCityData(ox, oz, _cfg.range)
+        var boxes = []
+        for (var i = 0; i < datas.length; ++i) Lidar.tileBoxes(datas[i], boxes)
+        var scA = Lidar.buildStatic(boxes, ox, oz, _cfg.range)
+        var scB = Lidar.buildStatic(boxes, ox, oz, _cfg.range)
+        var carBoxes = tileManager.carBoxesNear(ox, oz, _cfg.range, cs, selection.index)
+        var a = Lidar.createScanner(_cfg), b = Lidar.createScanner(_cfg)
+        var n = slices || 200
+        for (i = 0; i < n; ++i) {
+            Lidar.advance(a, scA, carBoxes, ox, oy, oz, yaw, _cfg.azPerFrame)
+            Lidar.advance(b, scB, carBoxes, ox, oy, oz, yaw, _cfg.azPerFrame)
+        }
+        var pa = a.posBuf, pb = b.posBuf, diffs = 0
+        for (i = 0; i < pa.length; ++i) if (pa[i] !== pb[i]) diffs++
+        var r = { match: diffs === 0, slots: a.channels * a.azSteps, visible: a.visible, diffs: diffs }
+        console.log("neoncity/lidar determinism: " + JSON.stringify(r))
+        return r
+    }
+
+    FrameAnimation {
+        id: lidarClock
+        running: root.lidarOn && root.selection !== null
+        onTriggered: root.stepLidar()
     }
 
     // Places the fly camera at street level over a given tile (demo/verification aid).
@@ -280,8 +475,30 @@ Item {
             showCars: root.showCars
             showConnections: root.showConnections
             carsPerTile: root.carsPerTile
+            carSpeedFactor: root.carSpeedFactor
             connectorLayer: connectorLayer
             viewportSize: Qt.vector2d(view.width, view.height)
+        }
+
+        // ---- selected-car highlight: a gold beacon hovering over the car ----
+        Model {
+            id: marker
+            visible: false
+            source: "#Cone"
+            eulerRotation.x: 180
+            scale: Qt.vector3d(3.2 / 100, 5.0 / 100, 3.2 / 100)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColor: "#ffd93d"
+            }
+        }
+
+        // Tap (click without drag) selects a car; drag still flies the camera
+        // via the WasdController, since a TapHandler ignores drags.
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            gesturePolicy: TapHandler.WithinBounds
+            onTapped: (ep) => root.selectAt(ep.position.x, ep.position.y)
         }
     }
 
@@ -293,6 +510,18 @@ Item {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 12
+    }
+
+    // ---- lidar inspection PiP (bottom-right, ~35% width) ----
+    LidarPanel {
+        id: lidarPanel
+        visible: root.lidarOn
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 12
+        width: Math.round(parent.width * 0.35)
+        height: Math.round(parent.height * 0.42)
+        onCloseRequested: root.lidarOn = false
     }
 
     // ---- info HUD ----
@@ -424,9 +653,99 @@ Item {
                 }
             }
 
+            // ---- car-speed factor (-/+) ----
+            Row {
+                spacing: 6
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "speed"
+                    color: "#8a8a9a"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+                Repeater {
+                    model: ["-", "+"]
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: 20; height: 18; radius: 4
+                        color: Qt.rgba(0.12, 0.13, 0.18, 0.9)
+                        border.color: "#0f9d9a"; border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData
+                            color: "#c8c8d4"
+                            font.family: root.monoFont
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var f = root.carSpeedFactor + (parent.index === 0 ? -0.1 : 0.1)
+                                root.carSpeedFactor = Math.max(0.1, Math.min(2.0, Math.round(f * 10) / 10))
+                                root.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.carSpeedFactor.toFixed(1) + "x"
+                    color: "#ffd93d"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+            }
+
+            // ---- lidar toggle + quality ----
+            Row {
+                spacing: 6
+                Rectangle {
+                    width: lidTxt.implicitWidth + 14
+                    height: lidTxt.implicitHeight + 8
+                    radius: 5
+                    color: root.lidarOn ? "#0f9d9a" : Qt.rgba(0.12, 0.13, 0.18, 0.9)
+                    border.color: "#0f9d9a"; border.width: 1
+                    Text {
+                        id: lidTxt
+                        anchors.centerIn: parent
+                        text: "Lidar (I)"
+                        color: root.lidarOn ? "#04121a" : "#c8c8d4"
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                        font.bold: root.lidarOn
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: root.toggleLidar() }
+                }
+                Rectangle {
+                    width: qTxt.implicitWidth + 14
+                    height: qTxt.implicitHeight + 8
+                    radius: 5
+                    color: Qt.rgba(0.12, 0.13, 0.18, 0.9)
+                    border.color: "#00d9ff"; border.width: 1
+                    Text {
+                        id: qTxt
+                        anchors.centerIn: parent
+                        text: "q:" + root.lidarQuality
+                        color: "#00d9ff"
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: root.cycleQuality() }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.selection ? ("car #" + root.selection.index) : "click a car"
+                    color: "#8a8a9a"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+            }
+
             Text {
                 text: root.lastExportInfo !== "" ? root.lastExportInfo
-                      : "WASD+drag fly   O overview   P perf"
+                      : "WASD+drag fly   O overview   P perf   I lidar"
                 color: "#8a8a9a"
                 font.family: root.monoFont
                 font.pixelSize: 11

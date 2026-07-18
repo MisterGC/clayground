@@ -26,8 +26,12 @@ Node {
     property bool showCars: true
     property bool showConnections: true
     property int carsPerTile: 8
+    property real carSpeedFactor: 0.4   // global traffic-speed multiplier
     property var connectorLayer: null   // shared ConnectorLayer3D (scene root)
     property var manager: null          // TileManager (transmitter registry)
+
+    // Exposed so the selection / lidar path can query this tile's traffic.
+    readonly property alias carSystem: carSystem
 
     // ---- readouts ----
     readonly property int buildingCount: _buildingCount
@@ -155,9 +159,65 @@ Node {
         }
     }
 
+    // ---- roadside foliage: trees (trunk + canopy) as two instanced Models ----
+    // A dark trunk cylinder and a teal canopy cone, one instanced draw call each
+    // for the whole tile. They also serve as lidar obstacles (see citygen data).
+    Component {
+        id: treeTrunkComp
+        Model {
+            property var entries: []
+            source: "#Cylinder"
+            castsShadows: true
+            receivesShadows: true
+            instancing: InstanceList { instances: entries }
+            materials: PrincipledMaterial { baseColor: "#1c1526"; roughness: 1.0 }
+        }
+    }
+    Component {
+        id: treeCanopyComp
+        Model {
+            property var entries: []
+            source: "#Cone"
+            castsShadows: true
+            receivesShadows: true
+            instancing: InstanceList { instances: entries }
+            materials: PrincipledMaterial { baseColor: "#0f5a54"; roughness: 0.9 }
+        }
+    }
+
+    // ---- lamp posts: thin dark pole + small gold emissive head ----
+    Component {
+        id: lampPoleComp
+        Model {
+            property var entries: []
+            source: "#Cylinder"
+            castsShadows: false
+            receivesShadows: false
+            instancing: InstanceList { instances: entries }
+            materials: PrincipledMaterial { baseColor: "#15121c"; roughness: 1.0 }
+        }
+    }
+    Component {
+        id: lampHeadComp
+        Model {
+            property var entries: []
+            source: "#Cube"
+            castsShadows: false
+            receivesShadows: false
+            instancing: InstanceList { instances: entries }
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColor: "#ffd93d"
+            }
+        }
+    }
+
     // ---- per-tile ground plate ----
+    // pickable so the click-to-inspect ray lands a world point on the ground
+    // (the nearest-car search then keys off that hit position).
     Model {
         source: "#Rectangle"
+        pickable: true
         eulerRotation.x: -90
         position: Qt.vector3d(tile.tileX * tile.tileSize + tile.tileSize / 2, 0,
                               tile.tileZ * tile.tileSize + tile.tileSize / 2)
@@ -191,6 +251,7 @@ Node {
         cityData: tile.cityData
         roadY: tile.asphaltY
         carCount: tile.carsPerTile
+        carSpeedFactor: tile.carSpeedFactor
         showCars: tile.showCars
         connectorLayer: tile.connectorLayer
         manager: tile.manager
@@ -207,7 +268,39 @@ Node {
         buildRoads(data)
         buildParks(data)
         buildLandmarks(data)
+        buildFoliage(data)
         buildLanes(data)
+    }
+
+    // Trees + lamp posts, each part a single instanced draw call for the tile.
+    function buildFoliage(data) {
+        var trunkE = [], canopyE = [], poleE = [], headE = []
+        for (var i = 0; i < data.trees.length; ++i) {
+            var t = data.trees[i]
+            trunkE.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(t.x, t.trunkH / 2, t.z),
+                scale: Qt.vector3d(t.trunkR / 50, t.trunkH / 100, t.trunkR / 50)
+            }))
+            canopyE.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(t.x, t.trunkH + t.canopyH / 2, t.z),
+                scale: Qt.vector3d(t.canopyR / 50, t.canopyH / 100, t.canopyR / 50)
+            }))
+        }
+        for (i = 0; i < data.lamps.length; ++i) {
+            var lp = data.lamps[i]
+            poleE.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(lp.x, lp.h / 2, lp.z),
+                scale: Qt.vector3d(0.3 / 50, lp.h / 100, 0.3 / 50)
+            }))
+            headE.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(lp.x, lp.h + 0.4, lp.z),
+                scale: Qt.vector3d(1.1 / 100, 1.1 / 100, 1.1 / 100)
+            }))
+        }
+        if (trunkE.length > 0) treeTrunkComp.createObject(tile, { entries: trunkE })
+        if (canopyE.length > 0) treeCanopyComp.createObject(tile, { entries: canopyE })
+        if (poleE.length > 0) lampPoleComp.createObject(tile, { entries: poleE })
+        if (headE.length > 0) lampHeadComp.createObject(tile, { entries: headE })
     }
 
     function buildLanes(data) {

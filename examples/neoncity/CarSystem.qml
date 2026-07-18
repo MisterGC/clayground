@@ -41,6 +41,9 @@ Node {
     property real roadY: 0.6
     property int carCount: 8
     property real baseSpeed: 34.0
+    // Global traffic-speed multiplier (1.0 = raw baseSpeed). Default cruises the
+    // fleet at a calmer ~0.4x so the city reads and cars are easy to inspect.
+    property real carSpeedFactor: 0.4
     property bool showCars: true
     property var connectorLayer: null   // shared ConnectorLayer3D (scene root)
     property var manager: null          // transmitter registry + provider
@@ -380,7 +383,7 @@ Node {
     // wide turn's entry). This keeps the heading tangent to the road at all times.
     function _advanceDrive(car) {
         var r = _routes[car.route]
-        car.t += car.speed * frameDt
+        car.t += car.speed * carSpeedFactor * frameDt
 
         if (!car.plan && car.t >= r.len - _planDist) {
             var rand = _junctionRand(car)
@@ -417,7 +420,7 @@ Node {
     // exit, resuming on the next route from the arc position where the turn left
     // it, carrying any leftover arc length forward.
     function _advanceTurn(car) {
-        car.ct += (car.speed * frameDt) / car.clen
+        car.ct += (car.speed * carSpeedFactor * frameDt) / car.clen
         if (car.ct < 1.0) return
         var over = (car.ct - 1.0) * car.clen
         var nx = car.cnext
@@ -463,6 +466,48 @@ Node {
             if (_anchors[idx].target !== best) _anchors[idx].target = best
         }
         _nearestCursor = (_nearestCursor + batch) % n
+    }
+
+    // ---- selection + lidar query helpers -------------------------------------
+    // Current world pose (position + smoothed heading) of car i.
+    function carPose(i) {
+        if (i < 0 || i >= _cars.length) return null
+        var car = _cars[i]
+        var s = _sample(car)
+        return { x: s.x, y: roadY + _carH * 0.5, z: s.z, yaw: car.yaw,
+                 w: _carW, h: _carH, l: _carL }
+    }
+
+    // Index of the car nearest to (wx,wz) within radius r (world units), or -1.
+    // Returns { index, d2 } so callers can compare across tiles.
+    function nearestCar(wx, wz, r) {
+        var best = -1, bestD = r * r
+        for (var i = 0; i < _cars.length; ++i) {
+            var s = _sample(_cars[i])
+            var dx = s.x - wx, dz = s.z - wz
+            var d2 = dx * dx + dz * dz
+            if (d2 < bestD) { bestD = d2; best = i }
+        }
+        return { index: best, d2: bestD }
+    }
+
+    // Oriented boxes for every car whose center lies within `range` of (wx,wz),
+    // excluding car `exclude`. Each box: { cx,cy,cz, hx,hy,hz, yaw } in world.
+    // Fed to the lidar as the moving obstacles it must scan.
+    function carBoxesInRange(wx, wz, range, exclude) {
+        var out = []
+        var r2 = range * range
+        var hx = _carW * 0.5, hy = _carH * 0.5, hz = _carL * 0.5
+        var cy = roadY + hy
+        for (var i = 0; i < _cars.length; ++i) {
+            if (i === exclude) continue
+            var s = _sample(_cars[i])
+            var dx = s.x - wx, dz = s.z - wz
+            if (dx * dx + dz * dz > r2) continue
+            out.push({ cx: s.x, cy: cy, cz: s.z, hx: hx, hy: hy, hz: hz,
+                       yaw: _cars[i].yaw })
+        }
+        return out
     }
 
     FrameAnimation {

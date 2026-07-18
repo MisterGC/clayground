@@ -44,8 +44,20 @@
 //
 //   landmarks: [                               // voxel hero buildings
 //     { x, z, footprint, height, kind }, ...   // kind: "tower"
-//   ]
+//   ],
+//
+//   trees: [                                   // low-poly street/park trees
+//     { x, z,                                  // trunk center (world)
+//       trunkH, trunkR,                        // trunk box (dark)
+//       canopyH, canopyR }, ...                // canopy cone (teal), on trunk
+//   ],
+//
+//   lamps: [ { x, z, h }, ... ]                // lamp posts: pole height h,
+//                                              // small gold head at the top
 // }
+//
+// Trees and lamps double as LIDAR obstacles: their world footprints are pure
+// data here so lidar.js can box them without touching any QML.
 //
 // EDGE DETERMINISM (why roads connect across tile borders):
 // A tile's road crossings on each of its four edges are derived from an
@@ -101,6 +113,7 @@ var SALT_H_EDGE  = 0x484F5249; // "HORI" - crossings on a constant-Z boundary
 var SALT_V_EDGE  = 0x56455254; // "VERT" - crossings on a constant-X boundary
 var SALT_TILE    = 0x54494C45; // "TILE" - per-tile interior variation
 var SALT_LMK     = 0x4C4D4B21; // "LMK!" - landmark placement
+var SALT_FOLIAGE = 0x464F4C49; // "FOLI" - trees + lamp posts (lidar targets)
 
 // ---- public: per-tile seed ------------------------------------------------
 
@@ -143,6 +156,72 @@ function distSqToSeg(px, pz, x1, z1, x2, z2) {
     var cx = x1 + t * dx, cz = z1 + t * dz;
     var ex = px - cx, ez = pz - cz;
     return ex * ex + ez * ez;
+}
+
+// ---- roadside foliage + lamps (deterministic, also lidar obstacles) -------
+//
+// Walks every road and drops lamp posts at a fixed spacing, offset to the curb
+// and alternating sides, plus a sparse scatter of trees in the same curb band.
+// Parks get a small deterministic tree cluster. Everything keys off a foliage
+// salt so it never disturbs the building/road/car streams (lane export stays
+// byte-identical). No Math.random - pure function of (seed, road/park index).
+function generateFoliage(seed, roads, parks, bounds) {
+    var trees = [];
+    var lamps = [];
+
+    var LAMP_SP = 30.0;        // world units between lamp posts along a road
+    var CURB = 2.5;            // gap from the carriageway edge to the pole
+    var TREE_OUT = 2.0;        // trees sit a touch further out than the lamps
+
+    for (var i = 0; i < roads.length; ++i) {
+        var r = roads[i];
+        var cl = r.centerline;
+        var a = cl[0], b = cl[cl.length - 1];
+        var dx = b.x - a.x, dz = b.z - a.z;
+        var len = Math.sqrt(dx * dx + dz * dz);
+        if (len < LAMP_SP) continue;
+        var ux = dx / len, uz = dz / len;
+        var pex = uz, pez = -ux;                 // unit perpendicular (right)
+        var half = r.width * 0.5;
+        var rng = rngFrom(hashN(seed, SALT_FOLIAGE, r.id));
+        var n = Math.floor(len / LAMP_SP);
+        for (var k = 1; k < n; ++k) {
+            var s = k * LAMP_SP;
+            var side = (k % 2 === 0) ? 1 : -1;
+            var lx = a.x + ux * s + pex * side * (half + CURB);
+            var lz = a.z + uz * s + pez * side * (half + CURB);
+            lamps.push({ x: lx, z: lz, h: 9.0 + rng() * 1.5 });
+            // Sparse trees on the opposite curb, so they never sit under a lamp.
+            if (rng() < 0.45) {
+                var tx = a.x + ux * s - pex * side * (half + CURB + TREE_OUT);
+                var tz = a.z + uz * s - pez * side * (half + CURB + TREE_OUT);
+                trees.push(_makeTree(tx, tz, rng));
+            }
+        }
+    }
+
+    // Park clusters: a handful of trees jittered inside each green parcel.
+    for (i = 0; i < parks.length; ++i) {
+        var pk = parks[i];
+        var prng = rngFrom(hashN(seed, SALT_FOLIAGE, 0x50524B00 + i)); // "PRK"
+        var cnt = 2 + Math.floor(prng() * 3);    // 2..4
+        for (var j = 0; j < cnt; ++j) {
+            var jx = pk.x + (prng() - 0.5) * pk.w * 0.7;
+            var jz = pk.z + (prng() - 0.5) * pk.d * 0.7;
+            trees.push(_makeTree(jx, jz, prng));
+        }
+    }
+
+    return { trees: trees, lamps: lamps };
+}
+
+function _makeTree(x, z, rng) {
+    var scale = 0.85 + rng() * 0.5;
+    return {
+        x: x, z: z,
+        trunkH: 3.0 * scale, trunkR: 0.55 * scale,
+        canopyH: 6.0 * scale, canopyR: 2.4 * scale
+    };
 }
 
 // ---- main generator -------------------------------------------------------
@@ -281,6 +360,8 @@ function generateTile(globalSeed, tileX, tileZ, tileSize) {
         }
     }
 
+    var foliage = generateFoliage(seed, roads, parks, { xmin: xmin, zmin: zmin, xmax: xmax, zmax: zmax });
+
     return {
         tileX: tileX, tileZ: tileZ, tileSize: tileSize, seed: seed,
         bounds: { xmin: xmin, zmin: zmin, xmax: xmax, zmax: zmax },
@@ -288,6 +369,8 @@ function generateTile(globalSeed, tileX, tileZ, tileSize) {
         intersections: intersections,
         buildings: buildings,
         parks: parks,
-        landmarks: landmarks
+        landmarks: landmarks,
+        trees: foliage.trees,
+        lamps: foliage.lamps
     };
 }

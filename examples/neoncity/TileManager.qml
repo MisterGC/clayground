@@ -22,6 +22,7 @@ Node {
     property bool showCars: true
     property bool showConnections: true
     property int carsPerTile: 8
+    property real carSpeedFactor: 0.4
     property var connectorLayer: null
     property vector2d viewportSize: Qt.vector2d(1920, 1080)
 
@@ -50,6 +51,50 @@ Node {
     function loadedTiles() {
         var out = []
         for (var k in _tiles) out.push(_tiles[k])
+        return out
+    }
+
+    // ---- selection + lidar aggregation across streamed tiles ----------------
+    // Nearest car to a world point within `radius`, searched across every loaded
+    // tile's traffic. Returns { carSystem, index } or null.
+    function pickNearestCar(wx, wz, radius) {
+        var best = null, bestD = radius * radius
+        for (var k in _tiles) {
+            var cs = _tiles[k].carSystem
+            if (!cs) continue
+            var r = cs.nearestCar(wx, wz, radius)
+            if (r.index >= 0 && r.d2 < bestD) { bestD = r.d2; best = { carSystem: cs, index: r.index } }
+        }
+        return best
+    }
+
+    // City data of tiles whose footprint lies within `range` of (wx,wz) - the
+    // lidar's static obstacle sources (buildings/trees/lamps/landmarks).
+    function nearbyCityData(wx, wz, range) {
+        var out = []
+        var reach = range + 8
+        for (var k in _tiles) {
+            var d = _tiles[k].cityData
+            if (!d) continue
+            var b = d.bounds
+            var nx = Math.max(b.xmin, Math.min(wx, b.xmax))
+            var nz = Math.max(b.zmin, Math.min(wz, b.zmax))
+            var dx = nx - wx, dz = nz - wz
+            if (dx * dx + dz * dz <= reach * reach) out.push(d)
+        }
+        return out
+    }
+
+    // Oriented boxes of all cars within `range`, excluding the selected car.
+    function carBoxesNear(wx, wz, range, exclCs, exclIdx) {
+        var out = []
+        for (var k in _tiles) {
+            var cs = _tiles[k].carSystem
+            if (!cs) continue
+            var ex = (cs === exclCs) ? exclIdx : -1
+            var arr = cs.carBoxesInRange(wx, wz, range, ex)
+            for (var i = 0; i < arr.length; ++i) out.push(arr[i])
+        }
         return out
     }
 
@@ -91,6 +136,7 @@ Node {
             t.showCars = Qt.binding(function () { return mgr.showCars })
             t.showConnections = Qt.binding(function () { return mgr.showConnections })
             t.carsPerTile = Qt.binding(function () { return mgr.carsPerTile })
+            t.carSpeedFactor = Qt.binding(function () { return mgr.carSpeedFactor })
             t.viewportSize = Qt.binding(function () { return mgr.viewportSize })
             _tiles[kk] = t
             delete _incubators[kk]
