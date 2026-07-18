@@ -102,13 +102,65 @@ Canvas3D provides several components for drawing lines in 3D space:
   (either declared inside one, or via an explicit `layer` reference for
   `Repeater3D` delegates). N connectors cost one draw call.
 
+#### Styled bulk lines with LineBatch3D
+
+Give each line its own colour, width and dash style, all in one instanced draw
+call. The `styles` table holds dash/cap/opacity rows; a line's `styleId` selects
+one:
+
+```qml
+LineBatch3D {
+    viewportSize: Qt.vector2d(view.width, view.height)
+    widthUnits: LineBatch3D.Pixel   // or LineBatch3D.World
+    styles: [
+        { dash: [0, 0],  capRound: true,  opacity: 1.0 },  // 0: solid
+        { dash: [12, 8], capRound: false, opacity: 1.0 }   // 1: dashed
+    ]
+    lines: [
+        { points: [Qt.vector3d(0,0,0), Qt.vector3d(100,0,0)], color: "#00d9ff", width: 2, styleId: 0 },
+        { points: [Qt.vector3d(0,0,0), Qt.vector3d(0,0,100)], color: "#ff3366", width: 2, styleId: 1 }
+    ]
+}
+```
+
+For very large sets, skip the per-object `lines` list and push packed binary
+buffers via `setBulk(positions, startIndices, colors, widths, styleIds)` — the
+optional fifth `styleIds` (uint16 per line) is backward-compatible; omit it and
+every line renders solid. Move lines cheaply per frame with
+`updateLinePoints(lineIndex, points)` or `updateEndpointsBulk(positions)` — both
+patch the instance table in place instead of rebuilding geometry.
+
+```qml
+// N moving links as a single instanced batch, endpoints patched each frame.
+ConnectorLayer3D {
+    id: links
+    viewportSize: Qt.vector2d(view.width, view.height)
+    widthUnits: LineBatch3D.Pixel
+    color: "#00d9ff"; width: 1.5
+}
+Repeater3D {
+    model: satellites
+    delegate: Node {
+        required property int index
+        Connector3D { layer: links; from: this; to: hubs[index % hubs.length] }
+    }
+}
+```
+
 ### Voxel Maps
 
-Voxel maps create 3D structures composed of cubic voxels with support for both
-dynamic updates and static optimization.
+Voxel maps create 3D structures composed of cubic voxels. Both backends share a
+compact **palette-index store** (8-bit per voxel, auto-upgraded to 16-bit past
+255 distinct colours) with an incrementally-maintained (**O(1)**) solid count —
+no per-change recount.
 
-- **DynamicVoxelMap**: Best for voxel maps that change frequently
-- **StaticVoxelMap**: Optimized for large, static voxel structures using greedy meshing
+- **StaticVoxelMap**: greedy-meshed triangle geometry, chunked and remeshed
+  **off the main thread**. A single `set()` dirties only its ~32³ chunk, which is
+  remeshed on a worker; the call returns immediately. Best for large maps, and —
+  since the remesh no longer blocks — now perfectly usable under frequent edits.
+- **DynamicVoxelMap**: GPU-instanced cubes; each `set()` marks the instance table
+  dirty and the rebuild lands at render time. Best for maps that churn (full
+  clear+refill) or need per-voxel instance semantics.
 
 ## Toon Shading
 
@@ -198,14 +250,56 @@ StaticVoxelMap {
 
 ### Choosing Voxel Map Types
 
-- **DynamicVoxelMap**: Frequent updates, smaller maps (< 50^3 voxels)
-- **StaticVoxelMap**: Static content, large maps, performance-critical applications
+- **StaticVoxelMap**: large maps and edit-heavy scenes alike — chunked
+  off-thread greedy meshing means a single voxel edit only remeshes its chunk on
+  a worker thread (per-edit cost is effectively free on the main thread). It even
+  outperforms `DynamicVoxelMap` for a single-edit-per-frame storm.
+- **DynamicVoxelMap**: full clear+refill churn, or when you need per-voxel
+  instanced cubes rather than meshed geometry.
+
+### Edit costs
+
+- A single `set()` on `StaticVoxelMap` dirties ~one chunk; the greedy remesh runs
+  on a `QtConcurrent` worker, so it does not stall the frame.
+- `model.commit()` after a batch (e.g. `fillBox`/`fillSphere`) dispatches the
+  full build to the worker too — it schedules rather than blocks.
+- Still prefer the **batch** path (`fillBox` + one `commit()`) over thousands of
+  individual `set()` calls when generating terrain: it is a single build instead
+  of one per dirtied chunk.
 
 ### Optimization Tips
 
 - **Batch Operations**: Call `model.commit()` once after multiple voxel changes
 - **Edge Control**: Disable `showEdges` for large voxel maps
 - **Shadow Quality**: Balance shadow settings with performance needs
+
+## Instrumentation & Benchmarks
+
+Two helper types measure real render cost from QML:
+
+- **PerfHud**: a compact always-on-top overlay for a `View3D` (`view3D:` +
+  optional `extended: true`) showing fps and frame time — drop it into any scene
+  while tuning.
+- **BenchLogger**: samples a `View3D`'s `renderStats` at a fixed `intervalMs` and
+  writes a CSV to `outputPath`; `extra` adds custom columns and `annotate(key,
+  value)` tags the next sample (e.g. step boundaries).
+
+```qml
+PerfHud   { view3D: view; anchors.right: parent.right }
+BenchLogger {
+    view3D: view
+    outputPath: "file:///tmp/mybench.csv"
+    intervalMs: 250
+    running: true
+}
+```
+
+The `benchmarks/` directory holds four stepped, auto-running scenarios
+(`Sandbox.qml` loads them) covering static/dynamic lines, moving connectors, and
+voxel edit-storm/churn. Recorded results, the baseline, and the optimized-vs-
+baseline comparison live in `benchmarks/results/` — see
+`results/COMPARISON-2026-07-18.md` for the headline numbers (the chunked
+off-thread voxel mesher takes the static edit-storm from ~16 fps to ~107 fps).
 
 ## Examples
 

@@ -92,8 +92,10 @@ Item {
 
     /*!
         \qmlmethod void BenchLogger::annotate(string key, var value)
-        \brief Adds a one-shot \c key=value note to the next sample's note
-        column. Multiple notes before a sample are joined with ';'.
+        \brief Adds a one-shot note to the next sample's note column.
+
+        Records \a key = \a value as a \c key=value note on the next sample.
+        Multiple notes before a sample are joined with ';'.
     */
     function annotate(key, value) {
         _pendingNote.push(key + "=" + value)

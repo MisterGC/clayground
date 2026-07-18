@@ -185,9 +185,10 @@ void LineBatchInstancing::setBulk(const QByteArray &positions,
     \qmlmethod void LineBatchInstancing::updateLinePoints(int lineIndex, list points)
     \brief Patches only the given line's instance-table region and re-uploads.
 
-    When the new point count keeps the same number of segments, only that
-    line's entries are rewritten in place (no rebuild of other lines). If the
-    segment count changes, the whole table is rebuilt.
+    Rewrites line \a lineIndex from \a points. When the new point count keeps
+    the same number of segments, only that line's entries are rewritten in
+    place (no rebuild of other lines). If the segment count changes, the whole
+    table is rebuilt.
 */
 void LineBatchInstancing::updateLinePoints(int lineIndex, const QVariantList &points)
 {

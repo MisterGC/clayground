@@ -127,13 +127,13 @@ Model {
         lines work unchanged when \c styles is left empty.
 
         Example:
-        \qml
+        \code
         styles: [
             { dash: [0, 0], capRound: true, opacity: 1.0 },   // 0: solid
             { dash: [12, 8], capRound: false, opacity: 1.0 }, // 1: dashed
             { dash: [1, 6], capRound: true, opacity: 0.8 }    // 2: dotted
         ]
-        \endqml
+        \endcode
     */
     property var styles: []
 
@@ -165,9 +165,9 @@ Model {
         \qmlmethod void LineBatch3D::updateLinePoints(int lineIndex, list points)
         \brief Moves a single line by patching only its instance-table region.
 
-        \a points is a list of Qt.vector3d. When the point count keeps the same
-        number of segments, only that line's entries are rewritten; otherwise
-        the whole table is rebuilt.
+        Rewrites line \a lineIndex from \a points (a list of Qt.vector3d). When
+        the point count keeps the same number of segments, only that line's
+        entries are rewritten; otherwise the whole table is rebuilt.
     */
     function updateLinePoints(lineIndex, points) {
         _inst.updateLinePoints(lineIndex, points)
