@@ -226,17 +226,10 @@ QByteArray VoxelMapInstancing::getInstanceBuffer(int *instanceCount)
     if (m_dirty)
         updateInstanceData();
 
-    // Count non-transparent voxels from m_data.
-    int count = 0;
-    for (int z = 0; z < m_data.voxelCountZ(); ++z) {
-        for (int y = 0; y < m_data.voxelCountY(); ++y) {
-            for (int x = 0; x < m_data.voxelCountX(); ++x) {
-                if (m_data.voxel(x, y, z).alpha() != 0)
-                    ++count;
-            }
-        }
-    }
-    *instanceCount = count;
+    // Solid-voxel count is maintained incrementally by VoxelMapData, so no
+    // per-call O(X*Y*Z) rescan is needed. updateInstanceData() emits exactly
+    // one instance per non-transparent voxel, matching this count.
+    *instanceCount = m_data.solidCount();
     return m_instanceData;
 }
 

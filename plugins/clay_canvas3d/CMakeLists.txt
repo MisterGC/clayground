@@ -19,6 +19,8 @@ clay_plugin( Canvas3D
         src/linebatchinstancing.h
         src/voxelmapdata.cpp
         src/voxelmapdata.h
+        src/voxelchunk.cpp
+        src/voxelchunk.h
         src/voxelmapgeometry.cpp
         src/voxelmapgeometry.h
         src/voxelmapinstancing.cpp
@@ -53,6 +55,7 @@ clay_plugin( Canvas3D
         Qt::Quick
         Qt::Quick3D
         Qt::Qml
+        Qt::Concurrent
 )
 
 # Add src directory to include paths for the generated code
