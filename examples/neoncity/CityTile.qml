@@ -130,6 +130,29 @@ Node {
         }
     }
 
+    // Elevation of the flat asphalt band (just above the ground plate, below
+    // the lane overlay at laneY).
+    readonly property real asphaltY: 0.6
+
+    // Dark matte asphalt: one instanced draw call per tile, all roads as flat
+    // low-saturation quads. High roughness, no emissive - the synthwave energy
+    // lives in the building accents and the lane overlay, so the overlay pops.
+    Component {
+        id: asphaltComp
+        Model {
+            property var entries: []
+            source: "#Rectangle"
+            castsShadows: false
+            receivesShadows: true
+            instancing: InstanceList { instances: entries }
+            materials: PrincipledMaterial {
+                baseColor: "#0d0d14"
+                roughness: 1.0
+                metalness: 0.0
+            }
+        }
+    }
+
     // ---- per-tile ground plate ----
     Model {
         source: "#Rectangle"
@@ -141,11 +164,15 @@ Node {
         materials: PrincipledMaterial { baseColor: tile.groundColor; roughness: 1.0 }
     }
 
-    // ---- road glow ----
+    // ---- subtle curb / edge glow ----
+    // A thin, dim strip along the road outer edges. Shown only when the lane
+    // overlay is OFF, so it never competes with the overlay's crisp curb lines.
     LineBatch3D {
         id: roads
-        widthUnits: LineBatch3D.World
-        depthBias: 0
+        widthUnits: LineBatch3D.Pixel
+        viewportSize: tile.viewportSize
+        depthBias: 3
+        visible: !tile.showLanes
     }
 
     // ---- detailed lane model overlay (Phase 5 headline) ----
@@ -221,34 +248,52 @@ Node {
         var n = rs.length
         if (n === 0) return
 
-        var totalPts = 0
-        for (var i = 0; i < n; ++i) totalPts += rs[i].centerline.length
-
-        var positions = new Float32Array(totalPts * 3)
-        var starts = new Uint32Array(n + 1)
-        var colors = new Uint8Array(n * 4)
-        var widths = new Float32Array(n)
-
-        var glowY = 1.2
-        var p = 0
-        for (i = 0; i < n; ++i) {
-            starts[i] = p
+        // ---- flat matte asphalt bands (one instanced draw call) ----
+        var asphalt = []
+        for (var i = 0; i < n; ++i) {
             var cl = rs[i].centerline
-            for (var j = 0; j < cl.length; ++j) {
-                positions[p * 3 + 0] = cl[j].x
-                positions[p * 3 + 1] = glowY
-                positions[p * 3 + 2] = cl[j].z
-                p++
-            }
-            // Spines glow pink, feeders glow cyan.
-            var spine = rs[i].kind === "spine"
-            colors[i * 4 + 0] = spine ? 255 : 0
-            colors[i * 4 + 1] = spine ? 51 : 217
-            colors[i * 4 + 2] = spine ? 102 : 255
-            colors[i * 4 + 3] = 255
-            widths[i] = spine ? 3.5 : 2.2
+            var horiz = rs[i].axis === "h"
+            var a0 = cl[0], a1 = cl[cl.length - 1]
+            var cx = (a0.x + a1.x) * 0.5, cz = (a0.z + a1.z) * 0.5
+            var len = (horiz ? Math.abs(a1.x - a0.x) : Math.abs(a1.z - a0.z)) + rs[i].width
+            var sx = (horiz ? len : rs[i].width) / 100
+            var sz = (horiz ? rs[i].width : len) / 100
+            asphalt.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(cx, tile.asphaltY, cz),
+                scale: Qt.vector3d(sx, sz, 1),
+                eulerRotation: Qt.vector3d(-90, 0, 0)
+            }))
         }
-        starts[n] = p
+        asphaltComp.createObject(tile, { entries: asphalt })
+
+        // ---- subtle curb / edge glow (two dim lines per road at +-half) ----
+        var totalPts = n * 4 // two 2-point edges per road
+        var positions = new Float32Array(totalPts * 3)
+        var starts = new Uint32Array(2 * n + 1)
+        var colors = new Uint8Array(2 * n * 4)
+        var widths = new Float32Array(2 * n)
+
+        var glowY = 0.8
+        var p = 0, li = 0
+        for (i = 0; i < n; ++i) {
+            var r = rs[i]
+            var h = r.width * 0.5
+            var pe = r.axis === "h" ? { x: 0, z: 1 } : { x: -1, z: 0 }
+            var c0 = r.centerline[0], c1 = r.centerline[r.centerline.length - 1]
+            for (var s = -1; s <= 1; s += 2) {
+                starts[li] = p
+                positions[p * 3 + 0] = c0.x + pe.x * s * h; positions[p * 3 + 1] = glowY
+                positions[p * 3 + 2] = c0.z + pe.z * s * h; p++
+                positions[p * 3 + 0] = c1.x + pe.x * s * h; positions[p * 3 + 1] = glowY
+                positions[p * 3 + 2] = c1.z + pe.z * s * h; p++
+                // Dim teal curb strip - reads as a faint edge, not a lane line.
+                colors[li * 4 + 0] = 20; colors[li * 4 + 1] = 90
+                colors[li * 4 + 2] = 96; colors[li * 4 + 3] = 255
+                widths[li] = 1.3
+                li++
+            }
+        }
+        starts[2 * n] = p
 
         roads.setBulk(positions.buffer, starts.buffer, colors.buffer, widths.buffer)
     }
