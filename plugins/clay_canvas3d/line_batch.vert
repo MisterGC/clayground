@@ -11,12 +11,16 @@
 //   viewportSize        = View3D pixel size (vec2)
 //   widthMode           = 0.0 -> Pixel width, 1.0 -> World width
 //   depthBias           = pulls the line toward the camera to win z-fights
+//   depthJitter         = 1.0 in opaque mode -> tiny per-instance depth offset
+//                         (deterministic table-order tie-break for coplanar
+//                          lines), 0.0 otherwise
 
 VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = coordinate along segment axis, y = coordinate across
 VARYING vec2 vCap;  // x = segment length, y = half width (segment-space units)
 VARYING vec2 vDash; // x = path distance at segment start, y = world segment length
-VARYING float vStyleId; // constant per segment (same for all 4 quad vertices)
+VARYING float vStyleId;   // constant per segment (same for all 4 quad vertices)
+VARYING float vCapFlags;  // constant per segment: bit0 = start cap, bit1 = end cap
 
 void MAIN()
 {
@@ -28,6 +32,14 @@ void MAIN()
 
     float width = INSTANCE_DATA.x;
     float halfW = 0.5 * width;
+
+    // Cap flags decide which ends grow a longitudinal cap extension. Interior
+    // (non-flagged) ends stay flush at the segment endpoint so joints are not
+    // shaded twice; the neighbouring segment's end cap fills the joint.
+    int capFlagsI = int(INSTANCE_DATA.w + 0.5);
+    bool startCap = (capFlagsI & 1) != 0;
+    bool endCap = (capFlagsI & 2) != 0;
+    bool endFlagged = (t < 0.5) ? startCap : endCap;
 
     // Base-space segment endpoints.
     vec4 base0 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -45,6 +57,7 @@ void MAIN()
 
     vec4 clipPos = mix(clip0, clip1, t);
     float segLen;
+    float capExt;   // longitudinal cap extension for THIS end (segment-space)
 
     if (widthMode < 0.5) {
         // Pixel mode: constant on-screen width regardless of distance.
@@ -54,7 +67,10 @@ void MAIN()
         segLen = length(dScreen);
         vec2 dir = segLen > 1e-6 ? dScreen / segLen : vec2(1.0, 0.0);
         vec2 perp = vec2(-dir.y, dir.x);
-        vec2 offPx = perp * side * halfW + dir * capDir * halfW;
+        // Grow only flagged ends (halfW for the round cap + ~1px AA headroom);
+        // flush (0) on interior joint ends.
+        capExt = endFlagged ? (halfW + 1.0) : 0.0;
+        vec2 offPx = perp * side * halfW + dir * capDir * capExt;
         clipPos.xy += offPx * (2.0 / viewportSize) * clipPos.w;
     } else {
         // World mode: billboarded ribbon of constant world width.
@@ -66,20 +82,33 @@ void MAIN()
         vec3 sideDir = cross(dir, camDir);
         float sl = length(sideDir);
         sideDir = sl > 1e-6 ? sideDir / sl : vec3(0.0, 1.0, 0.0);
-        vec3 offset = sideDir * side * halfW + dir * capDir * halfW;
+        // Grow only flagged ends (halfW + a small world-space epsilon); flush
+        // (0) on interior joint ends.
+        capExt = endFlagged ? (halfW * 1.02) : 0.0;
+        vec3 offset = sideDir * side * halfW + dir * capDir * capExt;
         clipPos = VIEWPROJECTION_MATRIX * vec4(Pc + offset, 1.0);
     }
 
     // Segment-space coordinates for the capsule SDF in the fragment shader.
-    // Along-axis runs from -halfW (start cap) to segLen+halfW (end cap).
-    vUV = vec2(t * segLen + capDir * halfW, side * halfW);
+    // Along-axis runs from -capExt (start end) to segLen+capExt (end end); the
+    // fragment shader still rounds against radius halfW, so the extra margin is
+    // just discard headroom on flagged ends and zero on flush joint ends.
+    vUV = vec2(t * segLen + capDir * capExt, side * halfW);
     vCap = vec2(segLen, halfW);
     vDash = vec2(INSTANCE_DATA.z, worldSegLen);
     vStyleId = INSTANCE_DATA.y;
+    vCapFlags = INSTANCE_DATA.w;
 
     // Depth bias: shift toward the camera so overlay lines win the depth
     // fight without a separate render pass. depthBias > 0 pulls closer.
     clipPos.z -= depthBias * clipPos.w * 0.0001;
+
+    // Opaque mode (depthJitter == 1): add a tiny, bounded, table-order depth
+    // offset so coplanar same-depth lines resolve deterministically by instance
+    // index instead of shimmering with GPU-order ties. Negligible (<=2e-4) and
+    // fully off (0) in the blended path.
+    float jitter = float(INSTANCE_INDEX % 1024) * 2.0e-7;
+    clipPos.z -= depthJitter * jitter * clipPos.w;
 
     POSITION = clipPos;
 }

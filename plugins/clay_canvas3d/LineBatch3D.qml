@@ -106,6 +106,35 @@ Model {
     property vector2d viewportSize: Qt.vector2d(1920, 1080)
 
     /*!
+        \qmlproperty bool LineBatch3D::opaque
+        \brief Renders the batch as opaque geometry with early depth rejection.
+
+        When \c false (the default) the batch draws alpha-blended: a style's
+        \c opacity multiplier applies and overlapping lines composite by draw
+        order. When \c true the batch draws \e without alpha blending and with
+        depth writes, so overlapping lines resolve by depth (the nearer line
+        wins) instead of blending. This lets the GPU reject occluded fragments
+        early and cuts overdraw where many opaque lines stack up (dense lane
+        overlays, road networks).
+
+        Visual semantics in opaque mode:
+        \list
+        \li No translucency: a style's \c opacity below 1.0 does not fade the
+            line; the line draws fully opaque (dash gaps still cut out via
+            discard, and round caps/joints are unchanged).
+        \li Overlap resolves by depth, not by blending. For lines that are
+            coplanar and truly coincident in depth, draw resolves in instance
+            table order (a tiny deterministic per-instance depth offset breaks
+            same-depth ties so the result does not shimmer frame to frame).
+        \endlist
+
+        Leave \c false for translucent or additive styling; set \c true for
+        dense opaque overlays where depth-correct occlusion and lower overdraw
+        matter more than per-line opacity.
+    */
+    property bool opaque: false
+
+    /*!
         \qmlproperty int LineBatch3D::count
         \readonly
         \brief The number of lines currently in the batch.
@@ -208,15 +237,21 @@ Model {
             id: _mat
             shadingMode: CustomMaterial.Unshaded
             cullMode: Material.NoCulling
-            // Alpha blending lets styles apply an opacity multiplier; fully
-            // opaque lines (the default) render identically. Depth is still
-            // written so lines occlude each other as before.
-            sourceBlend: CustomMaterial.SrcAlpha
-            destinationBlend: CustomMaterial.OneMinusSrcAlpha
+            // Default (opaque == false): alpha blending lets styles apply an
+            // opacity multiplier; overlapping lines composite by draw order.
+            // Depth is still written so lines occlude other geometry.
+            // opaque == true: no blending + depth write, so overlapping opaque
+            // lines resolve by depth and the GPU can early-reject occluded
+            // fragments (lower overdraw). Cap/dash cutouts still discard.
+            sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
+            destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
             depthDrawMode: Material.AlwaysDepthDraw
             property vector2d viewportSize: root.viewportSize
             property real widthMode: root.widthUnits
             property real depthBias: root.depthBias
+            // 1.0 in opaque mode enables the deterministic per-instance depth
+            // tie-break in the vertex shader; 0.0 disables it when blending.
+            property real depthJitter: root.opaque ? 1.0 : 0.0
             property real styleCount: _styleData.styleCount
             property TextureInput styleTable: TextureInput {
                 texture: Texture {

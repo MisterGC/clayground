@@ -10,7 +10,8 @@ VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = along-axis coordinate, y = across coordinate
 VARYING vec2 vCap;  // x = segment length, y = half width
 VARYING vec2 vDash; // x = path distance at segment start, y = world segment length
-VARYING float vStyleId; // constant per segment (same for all 4 quad vertices)
+VARYING float vStyleId;   // constant per segment (same for all 4 quad vertices)
+VARYING float vCapFlags;  // constant per segment: bit0 = start cap, bit1 = end cap
 
 void MAIN()
 {
@@ -28,16 +29,28 @@ void MAIN()
     bool roundCap = style.b >= 0.5;
     float opacity = style.a;
 
-    if (roundCap) {
-        // Capsule SDF: seamless round caps that also close joint gaps.
-        float dist = length(vec2(u - uc, v));
-        if (dist > halfW)
+    // Per-end cap flags: an end is rounded only when it is flagged AND the style
+    // is round-capped. Interior (non-flagged) ends are flush butt edges (the
+    // neighbouring segment's end cap fills the joint), so the joint region is
+    // shaded once instead of twice.
+    int capFlagsI = int(vCapFlags + 0.5);
+    bool startRound = roundCap && ((capFlagsI & 1) != 0);
+    bool endRound = roundCap && ((capFlagsI & 2) != 0);
+
+    // Across-axis bound (rectangle body and the capsule's straight part).
+    if (abs(v) > halfW)
+        discard;
+
+    if (u < 0.0) {
+        // Before the segment start: only kept as a rounded start cap.
+        if (!startRound || length(vec2(u, v)) > halfW)
             discard;
-    } else {
-        // Square (butt) caps: reject the longitudinal cap extension.
-        if (u < 0.0 || u > segLen || abs(v) > halfW)
+    } else if (u > segLen) {
+        // Past the segment end: only kept as a rounded end cap.
+        if (!endRound || length(vec2(u - segLen, v)) > halfW)
             discard;
     }
+    // else: within the segment body, already bounded across by |v| <= halfW.
 
     // Dash pattern, measured in world units continuously along the polyline.
     float period = dashLen + gapLen;

@@ -230,6 +230,15 @@ void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
         const QVector3D &p0 = line.points[s];
         const QVector3D &p1 = line.points[s + 1];
 
+        // Cap flags packed into INSTANCE_DATA.w (bit0 = draw start cap,
+        // bit1 = draw end cap). Only the polyline's first segment draws a
+        // start cap (its free start end); every segment draws an end cap.
+        // The end cap doubles as the round joint filler for the next segment,
+        // so interior joints stay round and gap-free with a single cap instead
+        // of the two overlapping caps the old scheme drew. A single-segment
+        // line (segments == 1, s == 0) therefore gets both caps (flags == 3).
+        const int capFlags = (s == 0 ? 1 : 0) | 2;
+
         // Affine transform mapping base-space (0,0,0)->P0 and (1,0,0)->P1.
         // Columns 1 and 2 are zero; translation is P0. Stored row-major as
         // three vec4 rows (row.xyz = matrix row, row.w = translation).
@@ -239,7 +248,7 @@ void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
         e.row2 = QVector4D(p1.z() - p0.z(), 0.0f, 0.0f, p0.z());
         e.color = line.color;
         e.instanceData = QVector4D(line.width, static_cast<float>(line.styleId),
-                                   pathDist, 0.0f);
+                                   pathDist, static_cast<float>(capFlags));
 
         std::memcpy(dst + static_cast<qsizetype>(s) * kEntrySize, &e, kEntrySize);
         pathDist += (p1 - p0).length();
