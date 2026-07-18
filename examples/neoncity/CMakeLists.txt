@@ -21,9 +21,11 @@ clay_app( neoncity
         LaneOverlay.qml
         CarSystem.qml
         Transmitter.qml
+        LidarPanel.qml
         citygen.js
         lanegen.js
         cargen.js
+        lidar.js
 )
 
 if(CLAY_BUILD_WEBSITE)
