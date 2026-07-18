@@ -9,6 +9,7 @@ import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
 import "citygen.js" as CityGen
+import "lanegen.js" as LaneGen
 
 Node {
     id: tile
@@ -19,9 +20,30 @@ Node {
     property real tileSize: 200
     property int globalSeed: 42
 
+    // ---- overlay controls (bound live from CityView3D) ----
+    property vector2d viewportSize: Qt.vector2d(1920, 1080)
+    property bool showLanes: true
+    property bool showCars: true
+    property bool showConnections: true
+    property int carsPerTile: 8
+    property var connectorLayer: null   // shared ConnectorLayer3D (scene root)
+    property var manager: null          // TileManager (transmitter registry)
+
     // ---- readouts ----
     readonly property int buildingCount: _buildingCount
     property int _buildingCount: 0
+    readonly property int laneLineCount: _laneLineCount
+    readonly property int lanePointCount: _lanePointCount
+    property int _laneLineCount: 0
+    property int _lanePointCount: 0
+
+    // Kept so LaneOverlay / cars / the exporter can read the tile without
+    // regenerating: city graph + derived detailed lane model.
+    property var cityData: null
+    property var laneModel: null
+
+    // Elevation of the lane overlay (world units), just above the road glow.
+    readonly property real laneY: 1.8
 
     // ---- palette ----
     readonly property var bodyColors: ["#14142a", "#1b1b34", "#22203c", "#0f1a2a", "#271a34"]
@@ -126,16 +148,44 @@ Node {
         depthBias: 0
     }
 
+    // ---- detailed lane model overlay (Phase 5 headline) ----
+    LaneOverlay {
+        id: laneOverlay
+        laneModel: tile.laneModel
+        viewportSize: tile.viewportSize
+        visible: tile.showLanes
+    }
+
+    // ---- cars + transmitters + connectors ----
+    CarSystem {
+        id: carSystem
+        cityData: tile.cityData
+        laneY: tile.laneY
+        carCount: tile.carsPerTile
+        showCars: tile.showCars
+        connectorLayer: tile.connectorLayer
+        manager: tile.manager
+    }
+
     Component.onCompleted: build()
 
     function build() {
         var data = CityGen.generateTile(tile.globalSeed, tile.tileX, tile.tileZ, tile.tileSize)
+        tile.cityData = data
         tile._buildingCount = data.buildings.length
 
         buildBuildings(data)
         buildRoads(data)
         buildParks(data)
         buildLandmarks(data)
+        buildLanes(data)
+    }
+
+    function buildLanes(data) {
+        var lm = LaneGen.generateLaneModel(data, tile.laneY)
+        tile.laneModel = lm
+        tile._laneLineCount = lm.lineCount
+        tile._lanePointCount = lm.pointCount
     }
 
     function buildBuildings(data) {

@@ -9,6 +9,7 @@ import QtQuick.Controls
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
+import "lanegen.js" as LaneGen
 
 Item {
     id: root
@@ -21,11 +22,24 @@ Item {
     property int streamRadius: 2
     property bool perfHud: false
 
+    // ---- overlay toggles ----
+    property bool showLanes: true
+    property bool showCars: true
+    property bool showConnections: true
+
+    // ---- traffic ----
+    // Target total car count; split across the (2r+1)^2 streamed tiles.
+    property int carCount: 200
+    readonly property int _tilesWide: 2 * streamRadius + 1
+    readonly property int carsPerTile: Math.max(0, Math.round(carCount / (_tilesWide * _tilesWide)))
+
     // ---- live readouts (mirrored from the streaming manager) ----
     readonly property int currentTileX: tileManager.currentTileX
     readonly property int currentTileZ: tileManager.currentTileZ
     readonly property int loadedCount: tileManager.loadedCount
     readonly property int buildingCount: tileManager.buildingCount
+    readonly property int laneLineCount: tileManager.laneLineCount
+    readonly property int lanePointCount: tileManager.lanePointCount
 
     // Render metrics (bound for trace-based benchmarking).
     readonly property real perfFps: view.renderStats.fps
@@ -44,6 +58,10 @@ Item {
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_P) { root.perfHud = !root.perfHud; e.accepted = true }
         else if (e.key === Qt.Key_O) { root.toggleOverview(); e.accepted = true }
+        else if (e.key === Qt.Key_L) { root.showLanes = !root.showLanes; e.accepted = true }
+        else if (e.key === Qt.Key_C) { root.showConnections = !root.showConnections; e.accepted = true }
+        else if (e.key === Qt.Key_K) { root.showCars = !root.showCars; e.accepted = true }
+        else if (e.key === Qt.Key_E) { root.exportLanes(); e.accepted = true }
     }
 
     // Places the fly camera at street level over a given tile (demo/verification aid).
@@ -53,6 +71,87 @@ Item {
                                       tileSize * 0.42,
                                       tz * tileSize + tileSize * 1.35)
         camera.eulerRotation = Qt.vector3d(-16, 0, 0)
+    }
+
+    // ---- lane-data export (contract for the deck.gl twin) ----
+    property string lastExportInfo: ""
+
+    BenchCsvWriter { id: laneWriter }
+
+    function _round2(v) { return Math.round(v * 100) / 100 }
+
+    // Exports every loaded tile's LOGICAL lane model (one polyline per lane
+    // line, dash carried via styleId) to /tmp/neoncity-lane-export.json in the
+    // frozen deck.gl-twin format. Streamed line-by-line so no giant string is
+    // ever built.
+    function exportLanes() {
+        var tiles = tileManager.loadedTiles()
+        var tileCoords = []
+        var minX = 1e30, minZ = 1e30, maxX = -1e30, maxZ = -1e30
+        var total = 0
+        for (var i = 0; i < tiles.length; ++i) {
+            var t = tiles[i]
+            if (!t.laneModel) continue
+            tileCoords.push([t.tileX, t.tileZ])
+            var b = t.cityData.bounds
+            if (b.xmin < minX) minX = b.xmin
+            if (b.zmin < minZ) minZ = b.zmin
+            if (b.xmax > maxX) maxX = b.xmax
+            if (b.zmax > maxZ) maxZ = b.zmax
+            total += t.laneModel.lineCount
+        }
+        if (tileCoords.length === 0) { lastExportInfo = "export: no tiles loaded"; return }
+
+        var meta = {
+            generator: "neoncity",
+            globalSeed: root.globalSeed,
+            tileSize: root.tileSize,
+            tiles: tileCoords,
+            center: [_round2((minX + maxX) / 2), _round2((minZ + maxZ) / 2)],
+            extent: [_round2(minX), _round2(minZ), _round2(maxX), _round2(maxZ)],
+            lineCount: total,
+            widthUnits: "pixels"
+        }
+
+        var path = "/tmp/neoncity-lane-export.json"
+        if (!laneWriter.open(path)) { lastExportInfo = "export: open failed"; return }
+        laneWriter.writeLine("{")
+        laneWriter.writeLine("\"meta\": " + JSON.stringify(meta) + ",")
+        laneWriter.writeLine("\"styles\": " + JSON.stringify(LaneGen.styles()) + ",")
+        laneWriter.writeLine("\"lines\": [")
+
+        var first = true
+        for (i = 0; i < tiles.length; ++i) {
+            var lm = tiles[i].laneModel
+            if (!lm) continue
+            var lines = lm.lines
+            for (var j = 0; j < lines.length; ++j) {
+                var l = lines[j]
+                var pts = []
+                for (var k = 0; k < l.p.length; ++k)
+                    pts.push([_round2(l.p[k][0]), _round2(l.p[k][1]), _round2(l.p[k][2])])
+                var obj = { p: pts, c: l.c, w: l.w, s: l.s }
+                var s = JSON.stringify(obj)
+                laneWriter.writeLine(first ? s : ("," + s))
+                first = false
+            }
+        }
+        laneWriter.writeLine("]")
+        laneWriter.writeLine("}")
+        laneWriter.close()
+
+        lastExportInfo = "export: " + total + " lines -> " + path
+        console.log("neoncity:", lastExportInfo)
+    }
+
+    // Tight, pitched-down look at the central intersection of a tile - shows
+    // the turn fans clearly (verification aid).
+    function inspectIntersection(tx, tz) {
+        overview = false
+        camera.position = Qt.vector3d(tx * tileSize + tileSize * 0.5,
+                                      tileSize * 0.85,
+                                      tz * tileSize + tileSize * 0.95)
+        camera.eulerRotation = Qt.vector3d(-52, 0, 0)
     }
 
     function toggleOverview() {
@@ -159,12 +258,30 @@ Item {
             running: root.benchmark
         }
 
+        // Shared batch: every car->transmitter link is one instance here, so
+        // all connections across all tiles cost a single draw call.
+        ConnectorLayer3D {
+            id: connectorLayer
+            color: "#00d9ff"
+            width: 1.4
+            widthUnits: LineBatch3D.Pixel
+            viewportSize: Qt.vector2d(view.width, view.height)
+            depthBias: 4
+            visible: root.showCars && root.showConnections
+        }
+
         TileManager {
             id: tileManager
             camera: camera
             tileSize: root.tileSize
             globalSeed: root.globalSeed
             streamRadius: root.streamRadius
+            showLanes: root.showLanes
+            showCars: root.showCars
+            showConnections: root.showConnections
+            carsPerTile: root.carsPerTile
+            connectorLayer: connectorLayer
+            viewportSize: Qt.vector2d(view.width, view.height)
         }
     }
 
@@ -218,7 +335,98 @@ Item {
                 font.pixelSize: 12
             }
             Text {
-                text: "WASD+drag fly   O overview   P perf"
+                text: "lanes " + (root.showLanes ? "on" : "off") +
+                      "   lines " + tileManager.laneLineCount +
+                      "   pts " + tileManager.lanePointCount
+                color: "#00d9ff"
+                font.family: root.monoFont
+                font.pixelSize: 12
+            }
+            Text {
+                text: "cars " + (root.showCars ? "on" : "off") +
+                      " (" + root.carCount + ")   links " +
+                      (root.showConnections ? "on" : "off") +
+                      "   tx " + tileManager.transmitters.length
+                color: "#ff3366"
+                font.family: root.monoFont
+                font.pixelSize: 12
+            }
+
+            // ---- clickable toggles + export ----
+            Row {
+                spacing: 6
+                Repeater {
+                    model: [
+                        { label: "Lanes (L)", on: root.showLanes },
+                        { label: "Cars (K)", on: root.showCars },
+                        { label: "Links (C)", on: root.showConnections },
+                        { label: "Export (E)", on: false }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: btnTxt.implicitWidth + 14
+                        height: btnTxt.implicitHeight + 8
+                        radius: 5
+                        color: modelData.on ? "#0f9d9a" : Qt.rgba(0.12, 0.13, 0.18, 0.9)
+                        border.color: "#0f9d9a"
+                        border.width: 1
+                        Text {
+                            id: btnTxt
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: modelData.on ? "#04121a" : "#c8c8d4"
+                            font.family: root.monoFont
+                            font.pixelSize: 11
+                            font.bold: modelData.on
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (index === 0) root.showLanes = !root.showLanes
+                                else if (index === 1) root.showCars = !root.showCars
+                                else if (index === 2) root.showConnections = !root.showConnections
+                                else root.exportLanes()
+                                root.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- car-count slider (0 / 100 / 200 / 500 / 1000 / 2000) ----
+            Row {
+                spacing: 8
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "cars"
+                    color: "#8a8a9a"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+                Slider {
+                    id: carSlider
+                    width: 150
+                    from: 0
+                    to: 5
+                    stepSize: 1
+                    snapMode: Slider.SnapAlways
+                    readonly property var stops: [0, 100, 200, 500, 1000, 2000]
+                    value: 2   // default -> 200
+                    onMoved: { root.carCount = stops[value]; root.forceActiveFocus() }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: carSlider.stops[carSlider.value]
+                    color: "#ffd93d"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+            }
+
+            Text {
+                text: root.lastExportInfo !== "" ? root.lastExportInfo
+                      : "WASD+drag fly   O overview   P perf"
                 color: "#8a8a9a"
                 font.family: root.monoFont
                 font.pixelSize: 11

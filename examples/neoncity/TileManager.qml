@@ -17,11 +17,41 @@ Node {
     property int streamRadius: 2                       // (2r+1)^2 neighborhood
     property int unloadRadius: streamRadius + 1        // hysteresis margin
 
+    // ---- overlay controls (forwarded to every tile as live bindings) ----
+    property bool showLanes: true
+    property bool showCars: true
+    property bool showConnections: true
+    property int carsPerTile: 8
+    property var connectorLayer: null
+    property vector2d viewportSize: Qt.vector2d(1920, 1080)
+
+    // ---- global transmitter registry (cars pick the nearest across tiles) ----
+    property var transmitters: []
+    function registerTransmitter(n) {
+        var a = transmitters.slice()
+        a.push(n)
+        transmitters = a
+    }
+    function unregisterTransmitter(n) {
+        var a = transmitters.slice()
+        var i = a.indexOf(n)
+        if (i >= 0) { a.splice(i, 1); transmitters = a }
+    }
+
     // ---- live readouts (polled by the HUD) ----
     property int currentTileX: 0
     property int currentTileZ: 0
     property int loadedCount: 0
     property int buildingCount: 0
+    property int laneLineCount: 0
+    property int lanePointCount: 0
+
+    // Snapshot of currently loaded tiles (for the exporter / car system).
+    function loadedTiles() {
+        var out = []
+        for (var k in _tiles) out.push(_tiles[k])
+        return out
+    }
 
     // Regenerating on these changes keeps the demo honest when seed/size move.
     onGlobalSeedChanged: rebuild()
@@ -53,7 +83,16 @@ Node {
         }, Qt.Asynchronous)
 
         function onReady() {
-            _tiles[kk] = inc.object
+            var t = inc.object
+            t.manager = mgr
+            t.connectorLayer = mgr.connectorLayer
+            // Live bindings so runtime toggles / resizes reach every tile.
+            t.showLanes = Qt.binding(function () { return mgr.showLanes })
+            t.showCars = Qt.binding(function () { return mgr.showCars })
+            t.showConnections = Qt.binding(function () { return mgr.showConnections })
+            t.carsPerTile = Qt.binding(function () { return mgr.carsPerTile })
+            t.viewportSize = Qt.binding(function () { return mgr.viewportSize })
+            _tiles[kk] = t
             delete _incubators[kk]
             console.log("neoncity: tile loaded", kk, "loaded=" + Object.keys(_tiles).length)
             recount()
@@ -73,10 +112,17 @@ Node {
     }
 
     function recount() {
-        var c = 0, b = 0
-        for (var k in _tiles) { c++; b += _tiles[k].buildingCount }
+        var c = 0, b = 0, ll = 0, lp = 0
+        for (var k in _tiles) {
+            c++
+            b += _tiles[k].buildingCount
+            ll += _tiles[k].laneLineCount
+            lp += _tiles[k].lanePointCount
+        }
         loadedCount = c
         buildingCount = b
+        laneLineCount = ll
+        lanePointCount = lp
     }
 
     function update() {

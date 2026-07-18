@@ -17,7 +17,12 @@ clay_app( neoncity
         CityView3D.qml
         TileManager.qml
         CityTile.qml
+        LaneOverlay.qml
+        CarSystem.qml
+        Transmitter.qml
         citygen.js
+        lanegen.js
+        cargen.js
 )
 
 if(CLAY_BUILD_WEBSITE)
