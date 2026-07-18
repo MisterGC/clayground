@@ -60,7 +60,8 @@ Rectangle {
                     model: [
                         { name: "Box3D Examples", component: "Box3DDemo.qml" },
                         { name: "Line Examples", component: "LineDemo.qml" },
-                        { name: "Voxel Examples", component: "VoxelDemo.qml" }
+                        { name: "Voxel Examples", component: "VoxelDemo.qml" },
+                        { name: "Performance", component: "PerfDemo.qml" }
                     ]
 
                     Rectangle {

@@ -11,6 +11,8 @@
 #include <QSequentialAnimationGroup>
 #include <QParallelAnimationGroup>
 #include <QResizeEvent>
+#include <QQuickWindow>
+#include <QQuickGraphicsConfiguration>
 
 HotReloadContainer::HotReloadContainer(QWidget *parent)
     : QWidget(parent)
@@ -296,8 +298,17 @@ void HotReloadContainer::setupQuickWidget(QQuickWidget* widget)
 {
     widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    
-    connect(widget, &QQuickWidget::statusChanged, 
+
+    // Enable GPU timestamp collection before the scene graph initializes so
+    // QQuick3DRenderStats can report lastCompletedGpuTime for the Canvas3D
+    // PerfHud / BenchLogger instrumentation.
+    if (auto* qw = widget->quickWindow()) {
+        auto cfg = qw->graphicsConfiguration();
+        cfg.setTimestamps(true);
+        qw->setGraphicsConfiguration(cfg);
+    }
+
+    connect(widget, &QQuickWidget::statusChanged,
             this, &HotReloadContainer::onQuickWidgetStatusChanged);
 }
 

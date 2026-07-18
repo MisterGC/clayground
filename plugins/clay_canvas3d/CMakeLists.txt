@@ -19,6 +19,8 @@ clay_plugin( Canvas3D
         src/voxelmapgeometry.h
         src/voxelmapinstancing.cpp
         src/voxelmapinstancing.h
+        src/benchcsvwriter.cpp
+        src/benchcsvwriter.h
 
     RESOURCES
         custom_line.frag
@@ -36,6 +38,8 @@ clay_plugin( Canvas3D
         VoxelMap.qml
         DynamicVoxelMap.qml
         StaticVoxelMap.qml
+        PerfHud.qml
+        BenchLogger.qml
 
     LINK_LIBS
         Qt::Core
