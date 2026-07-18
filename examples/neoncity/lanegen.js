@@ -116,6 +116,17 @@ var TAPER_PCT   = 55;   // ~this many percent of eligible spines get a taper
 var TAPER_STEPS = 8;    // curve samples across the taper
 var SOLID_NEAR  = 7.0;  // half-length of the solid divider run around a junction
 
+// ---- close-junction window tuning ----------------------------------------
+//
+// When two DISTINCT junctions sit closer than ~2x the intersection radius,
+// their trim disks overlap and clip away the whole stretch between them - the
+// road ends up with stop lines but no centerlines/boundaries. MIN_VISIBLE is
+// the minimum painted length we insist on keeping between two such junctions;
+// WINDOW_MIN_SEP guards against reopening across duplicate/degenerate junction
+// pairs (their centers coincide, so there is no real stretch to recover).
+var MIN_VISIBLE    = 10.0; // min painted length kept between two close junctions
+var WINDOW_MIN_SEP = 6.0;  // junction centers must be at least this far apart
+
 // ---- small vector helpers (XZ plane) -------------------------------------
 
 // Unit direction of a road along its axis (constant per road, axis-aligned).
@@ -209,17 +220,36 @@ function intersectionRadius(arms) {
 // polylines (needed for tapered, curved lane centers), returning the maximal
 // stretches that lie outside every disk.
 
-function clipPolyline(pts, disks) {
+// Cut the open interval (w0, w1) out of a sorted, non-overlapping list of
+// [lo, hi] intervals, returning the remaining pieces (used to punch a visible
+// window back through overlapping trim disks).
+function subtractInterval(intervals, w0, w1, eps) {
+    var out = [];
+    for (var i = 0; i < intervals.length; ++i) {
+        var lo = intervals[i][0], hi = intervals[i][1];
+        if (w1 <= lo + eps || w0 >= hi - eps) { out.push([lo, hi]); continue; }
+        if (w0 > lo + eps) out.push([lo, w0]);
+        if (w1 < hi - eps) out.push([w1, hi]);
+    }
+    return out;
+}
+
+function clipPolyline(pts, disks, minGap) {
     var runs = [];
     var cur = [];
     var eps = 1e-4;
+    var gap = (minGap === undefined) ? 0 : minGap;
     for (var i = 0; i + 1 < pts.length; ++i) {
         var a = pts[i], b = pts[i + 1];
         var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
         var segXZ2 = dx * dx + dz * dz;
         if (segXZ2 < 1e-9) continue;
-        // Blocked t-intervals contributed by each disk (XZ chord math).
+        var segLen = Math.sqrt(segXZ2);
+        // Blocked t-intervals contributed by each disk (XZ chord math). `hits`
+        // keeps each disk's along-segment projection + world centre so we can
+        // reopen a window between two close-but-distinct junctions.
         var blocked = [];
+        var hits = [];
         for (var k = 0; k < disks.length; ++k) {
             var cx = disks[k].x - a[0], cz = disks[k].z - a[2];
             var R = disks[k].r;
@@ -227,10 +257,11 @@ function clipPolyline(pts, disks) {
             var px = proj * dx, pz = proj * dz;
             var perp2 = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
             if (perp2 >= R * R) continue;
-            var half = Math.sqrt(R * R - perp2) / Math.sqrt(segXZ2);
+            var half = Math.sqrt(R * R - perp2) / segLen;
             var t0 = proj - half, t1 = proj + half;
             if (t1 <= 0 || t0 >= 1) continue;
             blocked.push([Math.max(0, t0), Math.min(1, t1)]);
+            hits.push({ proj: proj, t0: t0, t1: t1, x: disks[k].x, z: disks[k].z });
         }
         blocked.sort(function (p, q) { return p[0] - q[0]; });
         var merged = [];
@@ -238,6 +269,27 @@ function clipPolyline(pts, disks) {
             if (merged.length && blocked[k][0] <= merged[merged.length - 1][1] + eps)
                 merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], blocked[k][1]);
             else merged.push(blocked[k].slice());
+        }
+
+        // Reopen a central window wherever two DISTINCT junctions overlap and
+        // would otherwise leave less than `gap` of painted line between them.
+        if (gap > 0 && hits.length > 1) {
+            hits.sort(function (p, q) { return p.proj - q.proj; });
+            var windows = [];
+            for (k = 0; k + 1 < hits.length; ++k) {
+                var hA = hits[k], hB = hits[k + 1];
+                var sep = Math.sqrt((hA.x - hB.x) * (hA.x - hB.x) +
+                                    (hA.z - hB.z) * (hA.z - hB.z));
+                if (sep < WINDOW_MIN_SEP) continue;          // duplicate junctions
+                if ((hB.t0 - hA.t1) * segLen >= gap) continue; // already visible
+                var mid = 0.5 * (hA.proj + hB.proj);
+                var halfW = (gap * 0.5) / segLen;
+                var w0 = Math.max(0, Math.max(hA.proj, mid - halfW));
+                var w1 = Math.min(1, Math.min(hB.proj, mid + halfW));
+                if (w1 > w0 + eps) windows.push([w0, w1]);
+            }
+            for (var wi = 0; wi < windows.length; ++wi)
+                merged = subtractInterval(merged, windows[wi][0], windows[wi][1], eps);
         }
         function lerp(t) { return [a[0] + dx * t, a[1] + dy * t, a[2] + dz * t]; }
         // Visible complements of the blocked intervals, in order.
@@ -340,7 +392,7 @@ function generateLaneModel(tileData, laneY) {
 
     // Emit a solid line: clip to pieces, emit each with styleId 0.
     function emitSolid(poly, disks, color, width, tag) {
-        var pieces = clipPolyline(poly, disks);
+        var pieces = clipPolyline(poly, disks, MIN_VISIBLE);
         for (var pc = 0; pc < pieces.length; ++pc) emit(pieces[pc], color, width, 0, tag);
     }
 
@@ -349,7 +401,7 @@ function generateLaneModel(tileData, laneY) {
     // DASHED (styleId 1) in between. This is the boundary-run / marking-change
     // concept: a divider becomes solid as it approaches an intersection.
     function emitDivider(poly, disks, color, width) {
-        var pieces = clipPolyline(poly, disks);
+        var pieces = clipPolyline(poly, disks, MIN_VISIBLE);
         for (var pc = 0; pc < pieces.length; ++pc)
             splitDividerAlong(pieces[pc], color, width);
     }

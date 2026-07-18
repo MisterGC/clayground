@@ -14,6 +14,7 @@ clay_app( neoncity
     QML_FILES
         Main.qml
         Sandbox.qml
+        CarPreviewSandbox.qml
         CityView3D.qml
         TileManager.qml
         CityTile.qml
