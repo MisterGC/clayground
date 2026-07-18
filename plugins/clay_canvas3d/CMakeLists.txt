@@ -13,6 +13,10 @@ clay_plugin( Canvas3D
         src/line3dgeometry.h
         src/line3dinstancing.cpp
         src/line3dinstancing.h
+        src/linebatchgeometry.cpp
+        src/linebatchgeometry.h
+        src/linebatchinstancing.cpp
+        src/linebatchinstancing.h
         src/voxelmapdata.cpp
         src/voxelmapdata.h
         src/voxelmapgeometry.cpp
@@ -23,6 +27,8 @@ clay_plugin( Canvas3D
     RESOURCES
         custom_line.frag
         custom_line.vert
+        line_batch.frag
+        line_batch.vert
         voxel_map.frag
         voxel_map.vert
         box3d.frag
@@ -32,6 +38,7 @@ clay_plugin( Canvas3D
         Box3D.qml
         BoxLine3D.qml
         Line3D.qml
+        LineBatch3D.qml
         MultiLine3D.qml
         VoxelMap.qml
         DynamicVoxelMap.qml
