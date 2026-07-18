@@ -29,10 +29,13 @@ public:
     QVector3D boundsMax() const;
 
     // Fast bulk path for generators. See LineBatch3D::setBulk documentation.
+    // styleIds is optional (uint16 per line); when empty every line is solid
+    // (styleId 0), so the four-argument call behaves exactly as before.
     Q_INVOKABLE void setBulk(const QByteArray &positions,
                              const QByteArray &startIndices,
                              const QByteArray &colors,
-                             const QByteArray &widths);
+                             const QByteArray &widths,
+                             const QByteArray &styleIds = QByteArray());
 
     // Patches only the given line's instance-table region, then re-uploads.
     Q_INVOKABLE void updateLinePoints(int lineIndex, const QVariantList &points);

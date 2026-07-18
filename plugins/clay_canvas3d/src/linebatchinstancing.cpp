@@ -109,7 +109,7 @@ QVector3D LineBatchInstancing::boundsMax() const
 }
 
 /*!
-    \qmlmethod void LineBatchInstancing::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths)
+    \qmlmethod void LineBatchInstancing::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths, ByteArray styleIds)
     \brief Fast path for building the batch from packed binary buffers.
 
     \list
@@ -120,14 +120,17 @@ QVector3D LineBatchInstancing::boundsMax() const
         uses points \c{[startIndices[i], startIndices[i+1])}.
     \li \a colors - rgba8 (4 bytes) per line.
     \li \a widths - float32 per line.
+    \li \a styleIds - optional uint16 style index per line, selecting a row of
+        LineBatch3D::styles (dash pattern, cap, opacity). When omitted or empty
+        every line uses styleId 0 (solid), so the four-argument call behaves
+        exactly as before.
     \endlist
-
-    styleId defaults to 0 for every line on the bulk path.
 */
 void LineBatchInstancing::setBulk(const QByteArray &positions,
                                   const QByteArray &startIndices,
                                   const QByteArray &colors,
-                                  const QByteArray &widths)
+                                  const QByteArray &widths,
+                                  const QByteArray &styleIds)
 {
     m_lines.clear();
 
@@ -147,6 +150,8 @@ void LineBatchInstancing::setBulk(const QByteArray &positions,
     const int numColors = static_cast<int>(colors.size() / 4);
     const auto *wid = reinterpret_cast<const float *>(widths.constData());
     const int numWidths = static_cast<int>(widths.size() / sizeof(float));
+    const auto *sid = reinterpret_cast<const quint16 *>(styleIds.constData());
+    const int numStyleIds = static_cast<int>(styleIds.size() / sizeof(quint16));
 
     m_lines.reserve(numLines);
     for (int i = 0; i < numLines; ++i) {
@@ -167,7 +172,7 @@ void LineBatchInstancing::setBulk(const QByteArray &positions,
             line.color = QVector4D(1.0f, 1.0f, 1.0f, 1.0f);
         }
         line.width = (i < numWidths) ? wid[i] : 1.0f;
-        line.styleId = 0;
+        line.styleId = (i < numStyleIds) ? static_cast<int>(sid[i]) : 0;
         m_lines.append(line);
     }
 

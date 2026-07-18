@@ -138,7 +138,7 @@ Model {
     property var styles: []
 
     /*!
-        \qmlmethod void LineBatch3D::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths)
+        \qmlmethod void LineBatch3D::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths, ByteArray styleIds)
         \brief Fast path for building the batch from packed binary buffers.
 
         \list
@@ -148,12 +148,17 @@ Model {
             \c{[startIndices[i], startIndices[i+1])}.
         \li \a colors - rgba8 (4 bytes) per line.
         \li \a widths - float32 per line.
+        \li \a styleIds - optional uint16 style index per line, selecting a row
+            of \l styles (dash pattern, cap, opacity). Omit the argument (or
+            pass an empty buffer) to render every line solid (styleId 0); the
+            four-argument call is unchanged.
         \endlist
-
-        styleId defaults to 0 for every line on this path.
     */
-    function setBulk(positions, startIndices, colors, widths) {
-        _inst.setBulk(positions, startIndices, colors, widths)
+    function setBulk(positions, startIndices, colors, widths, styleIds) {
+        if (styleIds === undefined)
+            _inst.setBulk(positions, startIndices, colors, widths)
+        else
+            _inst.setBulk(positions, startIndices, colors, widths, styleIds)
     }
 
     /*!
