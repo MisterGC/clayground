@@ -37,6 +37,12 @@ public:
     // Patches only the given line's instance-table region, then re-uploads.
     Q_INVOKABLE void updateLinePoints(int lineIndex, const QVariantList &points);
 
+    // Fast per-frame path for connectors: rewrites the endpoints of every
+    // single-segment line from a packed float32 buffer (6 floats per line:
+    // p0.xyz, p1.xyz), recomputes bounds once and triggers a single upload.
+    // Lines that do not have exactly one segment are left untouched.
+    Q_INVOKABLE void updateEndpointsBulk(const QByteArray &positions);
+
 signals:
     void linesChanged();
     void countChanged();

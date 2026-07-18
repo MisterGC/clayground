@@ -81,11 +81,26 @@ Box3D {
 
 ### Lines
 
-Canvas3D provides three components for drawing lines in 3D space:
+Canvas3D provides several components for drawing lines in 3D space:
 
-- **Line3D**: Simple wrapper for drawing a single line
-- **MultiLine3D**: Efficient component for drawing multiple lines in a single draw call
+- **LineBatch3D**: Instanced renderer for very large sets of independently
+  styled polylines in a single draw call. Supports pixel- or world-width
+  ribbons with round caps, a per-line `styleId` selecting a row of the `styles`
+  table (dash pattern in world units, cap shape, opacity), and cheap per-frame
+  updates via `updateLinePoints` / `updateEndpointsBulk`.
+- **Line3D**: Simple wrapper for drawing a single line (batched backend)
+- **MultiLine3D**: Draws multiple line paths with one color/width (batched backend)
 - **BoxLine3D**: Creates a line using connected box segments for thicker, more visible lines
+
+#### Dynamic Connectors
+
+- **ConnectorLayer3D**: Owns one `LineBatch3D` and draws all of its connectors
+  as a single instanced draw call, patching only the endpoints that moved each
+  frame.
+- **Connector3D**: A declarative link between two scene nodes (`from`/`to`);
+  it follows their scene positions and registers into a `ConnectorLayer3D`
+  (either declared inside one, or via an explicit `layer` reference for
+  `Repeater3D` delegates). N connectors cost one draw call.
 
 ### Voxel Maps
 

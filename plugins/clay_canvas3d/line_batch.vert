@@ -5,7 +5,8 @@
 // (VERTEX.y, -1 or +1). Per-line style rides in the instance attributes:
 //   INSTANCE_COLOR      = line color
 //   INSTANCE_DATA.x     = line width (pixels in Pixel mode, world in World mode)
-//   INSTANCE_DATA.y     = styleId (reserved, unused for now)
+//   INSTANCE_DATA.y     = styleId (row in the style-table texture)
+//   INSTANCE_DATA.z     = accumulated path distance at this segment's start
 // Material uniforms (bound from LineBatch3D):
 //   viewportSize        = View3D pixel size (vec2)
 //   widthMode           = 0.0 -> Pixel width, 1.0 -> World width
@@ -14,6 +15,8 @@
 VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = coordinate along segment axis, y = coordinate across
 VARYING vec2 vCap;  // x = segment length, y = half width (segment-space units)
+VARYING vec2 vDash; // x = path distance at segment start, y = world segment length
+VARYING float vStyleId; // constant per segment (same for all 4 quad vertices)
 
 void MAIN()
 {
@@ -29,6 +32,12 @@ void MAIN()
     // Base-space segment endpoints.
     vec4 base0 = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 base1 = vec4(1.0, 0.0, 0.0, 1.0);
+
+    // World-space endpoints. Dash distance is measured in world units in both
+    // width modes so the pattern stays consistent when zooming.
+    vec3 wP0 = (INSTANCE_MODEL_MATRIX * base0).xyz;
+    vec3 wP1 = (INSTANCE_MODEL_MATRIX * base1).xyz;
+    float worldSegLen = length(wP1 - wP0);
 
     // Clip-space endpoints of the segment.
     vec4 clip0 = INSTANCE_MODELVIEWPROJECTION_MATRIX * base0;
@@ -49,13 +58,10 @@ void MAIN()
         clipPos.xy += offPx * (2.0 / viewportSize) * clipPos.w;
     } else {
         // World mode: billboarded ribbon of constant world width.
-        vec3 P0 = (INSTANCE_MODEL_MATRIX * base0).xyz;
-        vec3 P1 = (INSTANCE_MODEL_MATRIX * base1).xyz;
-        vec3 Pc = mix(P0, P1, t);
-        vec3 axis = P1 - P0;
-        float wlen = length(axis);
-        segLen = wlen;
-        vec3 dir = wlen > 1e-6 ? axis / wlen : vec3(1.0, 0.0, 0.0);
+        vec3 Pc = mix(wP0, wP1, t);
+        vec3 axis = wP1 - wP0;
+        segLen = worldSegLen;
+        vec3 dir = worldSegLen > 1e-6 ? axis / worldSegLen : vec3(1.0, 0.0, 0.0);
         vec3 camDir = normalize(CAMERA_POSITION - Pc);
         vec3 sideDir = cross(dir, camDir);
         float sl = length(sideDir);
@@ -68,6 +74,8 @@ void MAIN()
     // Along-axis runs from -halfW (start cap) to segLen+halfW (end cap).
     vUV = vec2(t * segLen + capDir * halfW, side * halfW);
     vCap = vec2(segLen, halfW);
+    vDash = vec2(INSTANCE_DATA.z, worldSegLen);
+    vStyleId = INSTANCE_DATA.y;
 
     // Depth bias: shift toward the camera so overlay lines win the depth
     // fight without a separate render pass. depthBias > 0 pulls closer.
