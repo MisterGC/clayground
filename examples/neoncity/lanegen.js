@@ -96,11 +96,12 @@ function shaderStyles() {
 
 // ---- palette (synthwave / erdblick-like) ---------------------------------
 
-var COL_CENTER   = "#00d9ff"; // lane center lines: cyan
+var COL_CENTER   = "#00d9ff"; // lane-center guide lines (map-data overlay): cyan
 var COL_TURN     = "#0f9d9a"; // turn fans: dimmer teal-cyan
-var COL_EDGE     = "#ff9933"; // solid road edges / center divider: orange
+var COL_EDGE     = "#f2f4f7"; // solid outer road edge lines: white
+var COL_CENTERDIV= "#ffd93d"; // direction-separating centre divider: yellow
 var COL_DIVIDER  = "#ffffff"; // dashed lane dividers: white
-var COL_STOP     = "#eaf6ff"; // stop / waiting lines: near-white cyan
+var COL_STOP     = "#f4f8fc"; // stop / waiting lines: near-white
 
 var W_CENTER  = 2.2;
 var W_TURN    = 1.4;
@@ -126,6 +127,14 @@ var SOLID_NEAR  = 7.0;  // half-length of the solid divider run around a junctio
 // pairs (their centers coincide, so there is no real stretch to recover).
 var MIN_VISIBLE    = 10.0; // min painted length kept between two close junctions
 var WINDOW_MIN_SEP = 6.0;  // junction centers must be at least this far apart
+
+// A stop bar sits at the junction box edge (radius R from the center). If the
+// approaching road ENDS almost immediately past the box - a spine/feeder tail
+// that pokes only a hair beyond its last junction - the trim disk eats that
+// stub's lane lines entirely, leaving the bar floating alone in the void (the
+// "lonely stop line"). An arm must keep at least this much road past the box to
+// still paint a visible lane stub leading to its bar; shorter tails drop the bar.
+var STOP_MIN_STUB  = 6.0;
 
 // ---- small vector helpers (XZ plane) -------------------------------------
 
@@ -497,10 +506,11 @@ function generateLaneModel(tileData, laneY) {
         emitSolid(ptLine(rr,  h, y), disks, COL_EDGE, W_EDGE, "boundary");
 
         if (r.kind === "spine") {
-            // Double solid center divider: TWO parallel boundary objects.
+            // Double YELLOW center divider separating the two travel
+            // directions: TWO parallel boundary objects (classic road marking).
             var dc = Math.min(0.6, h * 0.14);
-            emitSolid(ptLine(rr, -dc, y), disks, COL_EDGE, W_EDGE, "boundary");
-            emitSolid(ptLine(rr,  dc, y), disks, COL_EDGE, W_EDGE, "boundary");
+            emitSolid(ptLine(rr, -dc, y), disks, COL_CENTERDIV, W_EDGE, "boundary");
+            emitSolid(ptLine(rr,  dc, y), disks, COL_CENTERDIV, W_EDGE, "boundary");
 
             var t = taperFor(r);
             for (var sgn = -1; sgn <= 1; sgn += 2) {
@@ -522,10 +532,11 @@ function generateLaneModel(tileData, laneY) {
                 }
             }
         } else {
-            // Feeder: one lane per direction, shared dashed center divider.
+            // Feeder: one lane per direction, split by a solid YELLOW centre
+            // divider (the two directions of a two-way road).
             emitSolid(ptLine(rr, -0.5 * h, y), disks, COL_CENTER, W_CENTER, "center");
             emitSolid(ptLine(rr,  0.5 * h, y), disks, COL_CENTER, W_CENTER, "center");
-            emitDivider(ptLine(rr, 0, y), disks, COL_DIVIDER, W_DIVIDER);
+            emitSolid(ptLine(rr, 0, y), disks, COL_CENTERDIV, W_DIVIDER, "boundary");
         }
     }
 
@@ -552,6 +563,22 @@ function generateLaneModel(tileData, laneY) {
         for (var pa = 0; pa < arms2.length; ++pa)
             if (!arms2[pa].through) { pure2 = false; break; }
 
+        // Per-arm "dead tail" test. A road that ENDS right after the junction (a
+        // spine/feeder tail poking only a hair past its last junction) leaves no
+        // visible lane there once the trim disk of radius R2 eats it. Such an arm
+        // must contribute NOTHING to the junction: no stop bar (it would float
+        // alone - the "lonely stop line") and no turn fans (they would arc off
+        // toward the dead stub with no lanes around them - the "fragmentary
+        // intersection" of orphaned arcs). Both reported symptoms share this one
+        // cause: an arm with no real road behind the box.
+        var armDead = [];
+        for (var da = 0; da < arms2.length; ++da) {
+            var Ad = arms2[da], rrd = roadRange(Ad.road);
+            var jAlongD = Ad.road.axis === "h" ? info2.x : info2.z;
+            var endD = ((Ad.road.axis === "h" ? Ad.dir.x : Ad.dir.z) > 0) ? rrd.hi : rrd.lo;
+            armDead.push((Math.abs(endD - jAlongD) - R2) < STOP_MIN_STUB);
+        }
+
         for (var ai = 0; ai < arms2.length; ++ai) {
             var A = arms2[ai];
             var inDir = { x: -A.dir.x, z: -A.dir.z };  // travel INTO the junction
@@ -560,14 +587,20 @@ function generateLaneModel(tileData, laneY) {
 
             // Stop / waiting line: transverse bar across the approach lanes at
             // the junction box edge (a road-surface marking, not lane topology).
-            var sSign = apA.right >= 0 ? 1 : -1;
-            var bx = info2.x + A.dir.x * R2, bz = info2.z + A.dir.z * R2;
-            var hA = A.road.width * 0.5;
-            emit([[bx, y, bz], [bx + peA.x * sSign * hA, y, bz + peA.z * sSign * hA]],
-                 COL_STOP, W_STOP, 0, "stop");
+            // Skipped for a dead-tail arm so no bar is left floating alone.
+            if (!armDead[ai]) {
+                var sSign = apA.right >= 0 ? 1 : -1;
+                var bx = info2.x + A.dir.x * R2, bz = info2.z + A.dir.z * R2;
+                var hA = A.road.width * 0.5;
+                emit([[bx, y, bz], [bx + peA.x * sSign * hA, y, bz + peA.z * sSign * hA]],
+                     COL_STOP, W_STOP, 0, "stop");
+            }
 
             for (var bi = 0; bi < arms2.length; ++bi) {
                 if (ai === bi) continue;
+                // A maneuver needs a real approach AND a real exit road; skip any
+                // fan that starts from or lands on a dead-tail arm.
+                if (armDead[ai] || armDead[bi]) continue;
                 var B = arms2[bi];
                 var outDir = B.dir;
                 var dotd = inDir.x * outDir.x + inDir.z * outDir.z;

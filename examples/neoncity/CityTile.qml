@@ -55,11 +55,13 @@ Node {
     // (not floating): a 0.1u physical gap the overlay's depthBias closes visually.
     readonly property real laneOverlayY: asphaltY + 0.1
 
-    // ---- palette ----
-    readonly property var bodyColors: ["#14142a", "#1b1b34", "#22203c", "#0f1a2a", "#271a34"]
-    readonly property var accentColors: ["#00d9ff", "#0f9d9a", "#ff3366", "#ffd93d"]
-    readonly property color groundColor: "#0a0a16"
-    readonly property color parkColor: "#0f2e2c"
+    // ---- palette (bright daylight archviz) ----
+    // White / very pale blue-grey building bodies with occasional pale pastel.
+    readonly property var bodyColors: ["#eef2f6", "#dde6ee", "#e7ecf1", "#d6e2df", "#e8e2ee"]
+    // Soft, NON-emissive pastel facade accents (pale teal / green / blue / sand).
+    readonly property var accentColors: ["#9fc6c2", "#b7d3ac", "#c3d2df", "#e0d6a8"]
+    readonly property color groundColor: "#c6cad0"
+    readonly property color parkColor: "#bcd9ad"
 
     // ---- reusable factories ----
     Component { id: entryComp; InstanceListEntry {} }
@@ -84,15 +86,18 @@ Node {
     Component {
         id: accentBucketComp
         Model {
-            property color accentColor: "#00d9ff"
+            property color accentColor: "#9fc6c2"
             property var entries: []
             source: "#Cube"
-            castsShadows: false
-            receivesShadows: false
+            castsShadows: true
+            receivesShadows: true
             instancing: InstanceList { instances: entries }
+            // Lit (not emissive) so the roof accents read as pastel facade
+            // detail in daylight rather than glowing neon caps.
             materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
                 baseColor: accentColor
+                roughness: 0.85
+                metalness: 0.0
             }
         }
     }
@@ -129,20 +134,21 @@ Node {
                 var ny = voxelCountY
                 fill([
                     { box: { pos: Qt.vector3d(1, 0, 1), width: cols - 2, height: ny - 5, depth: cols - 2,
-                             colors: [{ color: "#1a1a30", weight: 0.7 }, { color: "#22203c", weight: 0.3 }] } },
+                             colors: [{ color: "#e3e8ee", weight: 0.7 }, { color: "#d2dae2", weight: 0.3 }] } },
                     { box: { pos: Qt.vector3d(2, ny - 5, 2), width: cols - 4, height: 3, depth: cols - 4,
-                             colors: [{ color: "#00d9ff", weight: 1.0 }] } },
+                             colors: [{ color: "#8fc3bd", weight: 1.0 }] } },
                     { box: { pos: Qt.vector3d(cols / 2 - 1, ny - 2, cols / 2 - 1), width: 2, height: 2, depth: 2,
-                             colors: [{ color: "#ff3366", weight: 1.0 }] } }
+                             colors: [{ color: "#e0917f", weight: 1.0 }] } }
                 ])
                 model.commit()
             }
         }
     }
 
-    // Dark matte asphalt: one instanced draw call per tile, all roads as flat
-    // low-saturation quads. High roughness, no emissive - the synthwave energy
-    // lives in the building accents and the lane overlay, so the overlay pops.
+    // Mid-grey matte asphalt: one instanced draw call per tile, all roads as
+    // flat quads. High roughness, no emissive. Reads clearly as a road surface
+    // in daylight - a touch darker than the light-grey ground so the white and
+    // yellow painted markings pop on top.
     Component {
         id: asphaltComp
         Model {
@@ -152,7 +158,7 @@ Node {
             receivesShadows: true
             instancing: InstanceList { instances: entries }
             materials: PrincipledMaterial {
-                baseColor: "#0d0d14"
+                baseColor: "#6a6d73"
                 roughness: 1.0
                 metalness: 0.0
             }
@@ -170,7 +176,7 @@ Node {
             castsShadows: true
             receivesShadows: true
             instancing: InstanceList { instances: entries }
-            materials: PrincipledMaterial { baseColor: "#1c1526"; roughness: 1.0 }
+            materials: PrincipledMaterial { baseColor: "#6b5a45"; roughness: 1.0 }
         }
     }
     Component {
@@ -181,7 +187,7 @@ Node {
             castsShadows: true
             receivesShadows: true
             instancing: InstanceList { instances: entries }
-            materials: PrincipledMaterial { baseColor: "#0f5a54"; roughness: 0.9 }
+            materials: PrincipledMaterial { baseColor: "#4f9e57"; roughness: 0.9 }
         }
     }
 
@@ -194,7 +200,7 @@ Node {
             castsShadows: false
             receivesShadows: false
             instancing: InstanceList { instances: entries }
-            materials: PrincipledMaterial { baseColor: "#15121c"; roughness: 1.0 }
+            materials: PrincipledMaterial { baseColor: "#5a5e66"; roughness: 0.7; metalness: 0.3 }
         }
     }
     Component {
@@ -205,9 +211,11 @@ Node {
             castsShadows: false
             receivesShadows: false
             instancing: InstanceList { instances: entries }
+            // Lit muted lamp housing (daylight): not a glowing neon head.
             materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColor: "#ffd93d"
+                baseColor: "#4a4d54"
+                roughness: 0.6
+                metalness: 0.2
             }
         }
     }
@@ -281,8 +289,11 @@ Node {
                 position: Qt.vector3d(t.x, t.trunkH / 2, t.z),
                 scale: Qt.vector3d(t.trunkR / 50, t.trunkH / 100, t.trunkR / 50)
             }))
+            // #Cone origin sits at its BASE (local y 0..100), unlike the
+            // center-origin #Cube/#Cylinder, so the canopy base rides exactly on
+            // the trunk top (trunkH) - no half-canopy gap above the trunk.
             canopyE.push(entryComp.createObject(tile, {
-                position: Qt.vector3d(t.x, t.trunkH + t.canopyH / 2, t.z),
+                position: Qt.vector3d(t.x, t.trunkH, t.z),
                 scale: Qt.vector3d(t.canopyR / 50, t.canopyH / 100, t.canopyR / 50)
             }))
         }

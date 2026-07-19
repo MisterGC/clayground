@@ -364,15 +364,14 @@ Item {
         }
     }
 
-    // ---- dusk gradient backdrop (behind the transparent View3D) ----
+    // ---- bright daylight sky backdrop (behind the transparent View3D) ----
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#140a24" }
-            GradientStop { position: 0.52; color: "#3d1a54" }
-            GradientStop { position: 0.70; color: "#c02a6e" }
-            GradientStop { position: 0.80; color: "#43122f" }
-            GradientStop { position: 1.0; color: "#0a0a16" }
+            GradientStop { position: 0.0; color: "#a9cdea" }
+            GradientStop { position: 0.55; color: "#cfe0ee" }
+            GradientStop { position: 0.82; color: "#e7eef4" }
+            GradientStop { position: 1.0; color: "#eef2f5" }
         }
     }
 
@@ -392,8 +391,8 @@ Item {
             antialiasingQuality: SceneEnvironment.High
             fog: Fog {
                 enabled: true
-                color: "#5a1e5c"
-                density: 0.9
+                color: "#dce6ef"
+                density: 0.55
                 depthEnabled: true
                 depthNear: root.tileSize * 2.0
                 depthFar: root.tileSize * 7.5
@@ -418,27 +417,28 @@ Item {
             rightSpeed: 3.0
         }
 
-        // Toon key light (matches the Canvas3D demos).
+        // Daylight sun: warm-white key with soft shadows and a bright ambient
+        // fill so nothing is crushed to black (archviz daylight read).
         DirectionalLight {
-            eulerRotation.x: -35
-            eulerRotation.y: -60
-            color: Qt.rgba(1.0, 0.92, 0.98, 1.0)
-            brightness: 0.85
-            ambientColor: Qt.rgba(0.22, 0.20, 0.32, 1.0)
+            eulerRotation.x: -42
+            eulerRotation.y: -55
+            color: Qt.rgba(1.0, 0.97, 0.90, 1.0)
+            brightness: 1.15
+            ambientColor: Qt.rgba(0.52, 0.55, 0.60, 1.0)
             castsShadow: true
-            shadowFactor: 78
+            shadowFactor: 55
             shadowMapQuality: Light.ShadowMapQualityHigh
             csmNumSplits: 2
-            pcfFactor: 2
+            pcfFactor: 4
             shadowBias: 12
         }
 
-        // Cool fill from the pink horizon side.
+        // Cool sky fill from the opposite side (soft blue bounce).
         DirectionalLight {
-            eulerRotation.x: -12
+            eulerRotation.x: -18
             eulerRotation.y: 130
-            color: "#ff3366"
-            brightness: 0.18
+            color: "#9fc0e0"
+            brightness: 0.35
             castsShadow: false
         }
 

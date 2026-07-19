@@ -317,6 +317,7 @@ Node {
         var baseY = roadY
         var yawDeg = yaw * 180.0 / Math.PI
         var rotV = rot ? Qt.vector3d(0, yawDeg, 0) : null
+        if (rot) car.rotYaw = yaw   // remember what was baked into the instances
 
         // Rotate a car-local offset (lx,ly,lz) into world and lift to baseY.
         // Ry maps local +Z -> (sin,cos), local +X -> (cos,-sin).
@@ -364,9 +365,17 @@ Node {
             var s = _sample(car)
             var target = Math.atan2(s.hx, s.hz)
             if (!car.yawInit) { car.yaw = target; car.yawInit = true }
-            var prevYaw = car.yaw
             car.yaw = _lerpAngle(car.yaw, target, steer)
-            var rot = Math.abs(_angDiff(car.yaw, prevYaw)) > 0.0008
+            // Re-push the per-instance rotation whenever the heading has drifted
+            // from the value LAST WRITTEN to the instances - not merely when it
+            // changed since the previous frame. A respawn/reseed (_seedYaw at a
+            // tile edge) sets car.yaw discontinuously and the very next tick has
+            // no per-frame delta, so a frame-delta gate would leave the previous
+            // road's rotation baked into the instance and the car renders
+            // crosswise to its new lane. Comparing against the last written yaw
+            // catches those jumps yet still skips writes once the heading settled.
+            var rot = (car.rotYaw === undefined) ||
+                      Math.abs(_angDiff(car.yaw, car.rotYaw)) > 0.0008
             _writeCar(i, rot, s)
         }
 
