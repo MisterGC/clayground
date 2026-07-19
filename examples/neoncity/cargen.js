@@ -225,6 +225,7 @@ function initCars(seed, routes, count, baseSpeed) {
             plan: null, curve: null, ct: 0,
             lat: 0,                              // lateral offset from lane centre
             otCool: 0,                           // overtake / lane-change cooldown
+            holdBox: false,                      // held at a junction bar this frame
             yaw: 0, yawInit: false
         });
     }

@@ -608,12 +608,26 @@ Node {
 
         if (car.mode === 0) {
             var r = _routes[car.route]
-            var stopT = 0
-            if (_mustStop(r)) {
-                stopT = Math.max(0, r.len - r.endRadius)
-                // front of the car should halt just shy of the stop bar
-                var vBar = _safeSpeed(stopT - car.t - _carL * 0.5, 0, 0.4)
-                if (vBar < v) v = vBar
+            car.holdBox = false
+            if (r.endIsJunction) {
+                var barPos = Math.max(0, r.len - r.endRadius)
+                var hold = _mustStop(r)
+                // Keep the box clear (anti-gridlock): even on green, do NOT roll
+                // into the junction unless there is room on the FAR side to fully
+                // clear it. If a slow/stopped leader sits inside or just past the
+                // box, hold at the bar so the box stays free for cross traffic.
+                // Box-blocking is what turns congestion into a permanent lock;
+                // this rule removes it (a red light alone does not).
+                if (!hold && car.t < barPos && lead.gap < _LOOKAHEAD && lead.vLead < 2.0) {
+                    var pastBar = lead.gap - (barPos - car.t)   // clear road beyond the bar
+                    if (pastBar < 2 * r.endRadius + _carL + _minGap) hold = true
+                }
+                car.holdBox = hold
+                if (hold) {
+                    // front of the car should halt just shy of the stop bar
+                    var vBar = _safeSpeed(barPos - car.t - _carL * 0.5, 0, 0.4)
+                    if (vBar < v) v = vBar
+                }
             }
             car.speed = _approach(car.speed, v, sdt)
             car.t += car.speed * sdt
@@ -653,9 +667,10 @@ Node {
         }
 
         // Begin the planned turn only once allowed to cross the stop bar. Until
-        // then hold at the bar (never roll a red into the box).
+        // then hold at the bar - never roll a red, and never enter a box we
+        // cannot clear (car.holdBox, set in _control, folds in both cases).
         if (car.plan && car.t >= car.plan.startT) {
-            if (_mustStop(r)) {
+            if (car.holdBox) {
                 var stopT = Math.max(0, r.len - r.endRadius)
                 if (car.t > stopT) car.t = stopT
                 return

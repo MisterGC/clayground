@@ -732,6 +732,51 @@ Item {
                 }
             }
 
+            // ---- stream radius: live max-tiles control for scalability tests ----
+            Row {
+                spacing: 6
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "tiles r"
+                    color: "#8a8a9a"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+                Repeater {
+                    model: ["-", "+"]
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: 20; height: 18; radius: 4
+                        color: Qt.rgba(0.12, 0.13, 0.18, 0.9)
+                        border.color: "#0f9d9a"; border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData
+                            color: "#c8c8d4"
+                            font.family: root.monoFont
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var rNew = root.streamRadius + (parent.index === 0 ? -1 : 1)
+                                root.streamRadius = Math.max(0, Math.min(6, rNew))
+                                root.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.streamRadius + "  (" + (root._tilesWide * root._tilesWide) + " tiles)"
+                    color: "#ffd93d"
+                    font.family: root.monoFont
+                    font.pixelSize: 11
+                }
+            }
+
             // ---- lidar toggle + quality ----
             Row {
                 spacing: 6
