@@ -52,6 +52,7 @@ Rectangle {
                         { name: "Lines - Dynamic", component: "BenchLinesDynamic.qml" },
                         { name: "Lines - Batch Overdraw", component: "BenchLinesBatch.qml" },
                         { name: "Connectors - Moving", component: "BenchConnectors.qml" },
+                        { name: "Instances - Orbiting", component: "BenchInstances.qml" },
                         { name: "Voxel - Edit Storm", component: "BenchVoxelEdit.qml" },
                         { name: "Voxel - Churn", component: "BenchVoxelChurn.qml" }
                     ]

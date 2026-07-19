@@ -7,6 +7,10 @@ clay_plugin( Canvas3D
     SOURCES
         src/box3dgeometry.cpp
         src/box3dgeometry.h
+        src/dynamicinstancing.cpp
+        src/dynamicinstancing.h
+        src/perfregistry.cpp
+        src/perfregistry.h
         src/line3dinstancing.cpp
         src/line3dinstancing.h
         src/linebatchgeometry.cpp

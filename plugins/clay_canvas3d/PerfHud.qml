@@ -2,6 +2,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick3D.Helpers
+import Clayground.Canvas3D
 
 /*!
     \qmltype PerfHud
@@ -78,6 +79,17 @@ Item {
         return (v === undefined || v === null || isNaN(v)) ? "-" : Number(v).toFixed(digits)
     }
 
+    // Live PerfRegistry rows (section averages + counter rates), refreshed at
+    // ~2 Hz and shown beneath the render stats only when any exist. Costs
+    // nothing until code actually instruments a section or counter.
+    property var perfRows: []
+    Timer {
+        interval: 500
+        repeat: true
+        running: true
+        onTriggered: root.perfRows = PerfRegistry.snapshot()
+    }
+
     Rectangle {
         id: panel
         width: grid.width + 20
@@ -143,6 +155,47 @@ Item {
 
                 Label { text: "verts" }
                 Value { text: root.stats ? root.stats.drawVertexCount : "-"; color: root.clayCyan }
+            }
+
+            // Thin separator + PerfRegistry rows, only when instrumented.
+            Rectangle {
+                visible: root.perfRows.length > 0
+                width: grid.width
+                height: 1
+                color: Qt.rgba(0.35, 0.42, 0.5, 0.6)
+            }
+
+            Column {
+                id: perfGrid
+                visible: root.perfRows.length > 0
+                spacing: 2
+
+                Repeater {
+                    model: root.perfRows
+                    delegate: Row {
+                        id: perfRow
+                        required property var modelData
+                        spacing: 12
+                        Text {
+                            width: grid.width - 74
+                            text: perfRow.modelData.name
+                            font.family: root.monoFont
+                            font.pixelSize: 11
+                            color: "#9fb0c0"
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            width: 62
+                            horizontalAlignment: Text.AlignRight
+                            font.family: root.monoFont
+                            font.pixelSize: 11
+                            color: perfRow.modelData.kind === "counter" ? root.clayCyan : root.clayTeal
+                            text: perfRow.modelData.kind === "counter"
+                                  ? root.fmt(perfRow.modelData.rate, 0) + "/s"
+                                  : root.fmt(perfRow.modelData.avgMs, 2) + "ms"
+                        }
+                    }
+                }
             }
         }
     }

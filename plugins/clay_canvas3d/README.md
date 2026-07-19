@@ -162,6 +162,49 @@ no per-change recount.
   dirty and the rebuild lands at render time. Best for maps that churn (full
   clear+refill) or need per-voxel instance semantics.
 
+### Dynamic Instancing
+
+`DynamicInstances3D` renders many copies of one base mesh (cars, crowds,
+projectiles) through a single GPU instance table whose per-entry transforms are
+updated **every frame from a packed binary buffer** — no per-instance QObject and
+no CPU table rebuild on the hot path. It is the C++-backed alternative to a
+declarative `InstanceList` of `InstanceListEntry` objects, which pays a property
+write per entry per changed field and a full table rebuild.
+
+- Set per-entry statics once with `setBulk(scales, colors, customData)` — one
+  `vector3d` scale and one `color` per entry.
+- Push movement each frame with `updatePoses(first, poses)`, where `poses` is a
+  reused `Float32Array` of `[x, y, z, yawRad]` per entry (pass `.buffer`). The
+  transform is `translate(x,y,z) * rotateY(yaw) * scale`, so the base mesh's
+  local **+Z** axis points along `yaw` — matching an `InstanceListEntry` with
+  `eulerRotation (0, yawDeg, 0)`, so migrations keep their orientation.
+- `setEntryColor(i, c)` recolors a single entry; `setExtents(min, max)` declares
+  the roaming volume so the table skips the per-upload bounds rescan.
+- Read-only `count`, `bytesLastUpload`, `packMsLast`, `uploadsPerSecond` feed a
+  HUD.
+
+```qml
+Model {
+    source: "#Cube"
+    instancing: DynamicInstances3D {
+        id: fleet
+        Component.onCompleted: {
+            var scales = [], colors = []
+            for (var i = 0; i < 500; ++i) { scales.push(Qt.vector3d(0.02, 0.01, 0.03)); colors.push("#00d9ff") }
+            setBulk(scales, colors)
+            setExtents(Qt.vector3d(-200, 0, -200), Qt.vector3d(200, 10, 200))
+        }
+    }
+    materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting }
+}
+
+// per frame, from a reused Float32Array poseBuf (4 floats per entry):
+fleet.updatePoses(0, poseBuf.buffer)
+```
+
+The neoncity demo drives its whole car fleet (body + cabin + window + 4 wheels =
+four tables) this way.
+
 ## Toon Shading
 
 Canvas3D implements cartoon-style rendering using a half-lambert lighting
@@ -275,11 +318,19 @@ StaticVoxelMap {
 
 ## Instrumentation & Benchmarks
 
-Two helper types measure real render cost from QML:
+Three helper types measure real cost from QML:
 
 - **PerfHud**: a compact always-on-top overlay for a `View3D` (`view3D:` +
   optional `extended: true`) showing fps and frame time — drop it into any scene
-  while tuning.
+  while tuning. It automatically appends any `PerfRegistry` section averages and
+  counter rates beneath the render stats.
+- **PerfRegistry**: an app-wide singleton for timing named code sections and
+  counting events, independent of the renderer. Wrap a block with
+  `PerfRegistry.begin("name")` / `PerfRegistry.end("name")` for a rolling-average
+  section time, or call `PerfRegistry.tick("name")` for a per-second rate;
+  `snapshot()` returns the current readings. Cheap when unused. The neoncity car
+  sim instruments `"carSim"` (control logic) and `"carPack"` (pose packing +
+  upload) so the HUD shows the split.
 - **BenchLogger**: samples a `View3D`'s `renderStats` at a fixed `intervalMs` and
   writes a CSV to `outputPath`; `extra` adds custom columns and `annotate(key,
   value)` tags the next sample (e.g. step boundaries).
@@ -294,12 +345,13 @@ BenchLogger {
 }
 ```
 
-The `benchmarks/` directory holds four stepped, auto-running scenarios
-(`Sandbox.qml` loads them) covering static/dynamic lines, moving connectors, and
-voxel edit-storm/churn. Recorded results, the baseline, and the optimized-vs-
-baseline comparison live in `benchmarks/results/` — see
-`results/COMPARISON-2026-07-18.md` for the headline numbers (the chunked
-off-thread voxel mesher takes the static edit-storm from ~16 fps to ~107 fps).
+The `benchmarks/` directory holds stepped, auto-running scenarios
+(`Sandbox.qml` loads them) covering static/dynamic lines, moving connectors,
+animated instances (`InstanceList` vs `DynamicInstances3D`), and voxel
+edit-storm/churn. Recorded results, the baseline, and the optimized-vs-baseline
+comparison live in `benchmarks/results/` — see `results/COMPARISON-2026-07-18.md`
+for the line/voxel headline numbers and `results/instances-2026-07-19.md` for the
+instancing comparison.
 
 ## Examples
 

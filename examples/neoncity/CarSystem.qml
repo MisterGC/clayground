@@ -85,11 +85,14 @@ Node {
     readonly property real _OT_FRONT: 14.0  // ... and ahead
     readonly property real _OT_COOLDOWN: 3.0 // min dwell between lane changes (sim s)
     readonly property real _latRate: 2.6    // lateral merge easing rate
-    property var _bodyE: []         // InstanceListEntry, one body per car
-    property var _cabinE: []        // InstanceListEntry, one cabin per car
-    property var _winE: []          // InstanceListEntry, one window per car
-    property var _wheelE: []        // InstanceListEntry, four wheels per car
+    // Per-frame pose buffers, one Float32Array per instance table: 4 floats
+    // (x, y, z, yawRad) per entry, reused every frame (allocated in rebuildCars).
+    property var _bodyBuf: null     // one body per car
+    property var _cabinBuf: null    // one cabin per car
+    property var _winBuf: null      // one window per car
+    property var _wheelBuf: null    // four wheels per car
     property var _anchors: []       // Node, one per car (connector endpoint)
+    property var _sampleCache: []   // per-frame position/heading samples (reused)
     property var _transmitters: []  // Transmitter nodes owned by this tile
     property int _nearestCursor: 0
     property bool _coreBuilt: false        // routes + cars built (needs cityData)
@@ -111,7 +114,6 @@ Node {
     readonly property real _yawRate: 9.0
 
     // ---- factories ----
-    Component { id: entryComp; InstanceListEntry {} }
     Component { id: txComp; Transmitter {} }
     // A traffic-signal head: a small emissive quad on a thin dark post, colour
     // driven live from the junction phase (green = go, red = stop). Junctions are
@@ -163,6 +165,10 @@ Node {
     }
 
     // ---- car visuals: four instanced Models = four draw calls total ----
+    // Each part is a DynamicInstances3D table: per-car scale + colour are set
+    // once in rebuildCars() (setBulk); the per-frame movement is packed into a
+    // reused Float32Array and pushed with a single updatePoses() per table (see
+    // _packAll), so the hot path costs no per-instance QObject writes.
     // Body: per-instance palette colour (material white, colour rides the table).
     Model {
         id: bodyModel
@@ -170,7 +176,7 @@ Node {
         visible: carSys.showCars
         castsShadows: false
         receivesShadows: false
-        instancing: InstanceList { instances: carSys._bodyE }
+        instancing: DynamicInstances3D { id: bodyInst }
         materials: PrincipledMaterial {
             lighting: PrincipledMaterial.NoLighting
             baseColor: "white"
@@ -183,20 +189,21 @@ Node {
         visible: carSys.showCars
         castsShadows: false
         receivesShadows: false
-        instancing: InstanceList { instances: carSys._cabinE }
+        instancing: DynamicInstances3D { id: cabinInst }
         materials: PrincipledMaterial {
             lighting: PrincipledMaterial.NoLighting
             baseColor: "white"
         }
     }
-    // Front window: uniform cyan glass accent.
+    // Front window: uniform cyan glass accent (instance colour white, tint from
+    // the material so the look matches the pre-migration InstanceList table).
     Model {
         id: windowModel
         source: "#Cube"
         visible: carSys.showCars
         castsShadows: false
         receivesShadows: false
-        instancing: InstanceList { instances: carSys._winE }
+        instancing: DynamicInstances3D { id: winInst }
         materials: PrincipledMaterial {
             lighting: PrincipledMaterial.NoLighting
             baseColor: "#8ff6ff"
@@ -209,7 +216,7 @@ Node {
         visible: carSys.showCars
         castsShadows: false
         receivesShadows: false
-        instancing: InstanceList { instances: carSys._wheelE }
+        instancing: DynamicInstances3D { id: wheelInst }
         materials: PrincipledMaterial {
             lighting: PrincipledMaterial.NoLighting
             baseColor: "#111111"
@@ -344,13 +351,9 @@ Node {
 
     function rebuildCars() {
         if (_paletteDark.length === 0) _buildDarkPalette()
-        // Tear down previous car objects.
+        // Tear down previous anchors; the instance tables are refilled below.
         for (var i = 0; i < _anchors.length; ++i) _anchors[i].destroy()
-        for (i = 0; i < _bodyE.length; ++i) _bodyE[i].destroy()
-        for (i = 0; i < _cabinE.length; ++i) _cabinE[i].destroy()
-        for (i = 0; i < _winE.length; ++i) _winE[i].destroy()
-        for (i = 0; i < _wheelE.length; ++i) _wheelE[i].destroy()
-        _bodyE = []; _cabinE = []; _winE = []; _wheelE = []; _anchors = []
+        _anchors = []
 
         var seed = cityData ? cityData.seed : 0
         _cars = CarGen.initCars(seed, _routes, carCount, baseSpeed)
@@ -373,21 +376,53 @@ Node {
         var winScale = Qt.vector3d(lay.winScale[0], lay.winScale[1], lay.winScale[2])
         var wheelScale = Qt.vector3d(lay.wheelScale[0], lay.wheelScale[1], lay.wheelScale[2])
 
-        var bodyE = [], cabinE = [], winE = [], wheelE = [], anchors = []
-        for (i = 0; i < _cars.length; ++i) {
+        // Per-entry statics for each table: window/wheel instance colour is white
+        // so their material tint (cyan glass / near-black) shows unchanged.
+        var white = Qt.rgba(1, 1, 1, 1)
+        var n = _cars.length
+        var bodyScales = [], bodyColors = []
+        var cabScales = [], cabColors = []
+        var winScales = [], winColors = []
+        var wheelScales = [], wheelColors = []
+        var anchors = []
+        for (i = 0; i < n; ++i) {
             var car = _cars[i]
             _seedYaw(car)
-            var pc = _palette[car.paint % _palette.length]
+            var pc = Qt.color(_palette[car.paint % _palette.length])
             var dc = _paletteDark[car.paint % _paletteDark.length]
-            bodyE.push(entryComp.createObject(carSys, { scale: bodyScale, color: pc }))
-            cabinE.push(entryComp.createObject(carSys, { scale: cabScale, color: dc }))
-            winE.push(entryComp.createObject(carSys, { scale: winScale }))
-            for (var w = 0; w < 4; ++w)
-                wheelE.push(entryComp.createObject(carSys, { scale: wheelScale }))
+            bodyScales.push(bodyScale); bodyColors.push(pc)
+            cabScales.push(cabScale); cabColors.push(dc)
+            winScales.push(winScale); winColors.push(white)
+            for (var w = 0; w < 4; ++w) { wheelScales.push(wheelScale); wheelColors.push(white) }
             anchors.push(anchorComp.createObject(carSys, {}))
         }
-        _bodyE = bodyE; _cabinE = cabinE; _winE = winE; _wheelE = wheelE
         _anchors = anchors
+
+        bodyInst.setBulk(bodyScales, bodyColors)
+        cabinInst.setBulk(cabScales, cabColors)
+        winInst.setBulk(winScales, winColors)
+        wheelInst.setBulk(wheelScales, wheelColors)
+
+        // Reused per-frame pose buffers: 4 floats (x, y, z, yaw) per entry.
+        _bodyBuf = new Float32Array(n * 4)
+        _cabinBuf = new Float32Array(n * 4)
+        _winBuf = new Float32Array(n * 4)
+        _wheelBuf = new Float32Array(n * 4 * 4)
+        _sampleCache = new Array(n)
+
+        // Declare the tile's roaming volume so the tables skip the per-upload
+        // bounds rescan (cars stay within the tile bounds, plus a car-length pad
+        // for edge respawns).
+        if (cityData && cityData.bounds) {
+            var b = cityData.bounds
+            var mn = Qt.vector3d(b.xmin - _carL, roadY - _carH, b.zmin - _carL)
+            var mx = Qt.vector3d(b.xmax + _carL, roadY + _carH * 2, b.zmax + _carL)
+            bodyInst.setExtents(mn, mx)
+            cabinInst.setExtents(mn, mx)
+            winInst.setExtents(mn, mx)
+            wheelInst.setExtents(mn, mx)
+        }
+
         _nearestCursor = 0
         _writeAll()
     }
@@ -417,45 +452,53 @@ Node {
         car.yawInit = true
     }
 
-    // Write the full instance table for every car once (used after a rebuild).
+    // Pack every car once and upload (used after a rebuild).
     function _writeAll() {
-        for (var i = 0; i < _cars.length; ++i) _writeCar(i, true, _sample(_cars[i]))
+        if (!_bodyBuf) return
+        for (var i = 0; i < _cars.length; ++i) _packCar(i, _sample(_cars[i]))
+        _uploadPoses()
     }
 
-    // Push a single car's transform into all four part tables + its anchor,
-    // given its current sample `s` (position + heading). `rot` forces the
-    // rotation write; callers pass false to skip it when the heading did not
-    // meaningfully change this frame. Kept allocation-light: it is the per-frame
-    // hot path for every car part (7 instances/car).
-    function _writeCar(i, rot, s) {
-        var car = _cars[i]
+    // One updatePoses() per instance table: the single upload that replaces the
+    // per-instance property writes of the old InstanceList tables.
+    function _uploadPoses() {
+        bodyInst.updatePoses(0, _bodyBuf.buffer)
+        cabinInst.updatePoses(0, _cabinBuf.buffer)
+        winInst.updatePoses(0, _winBuf.buffer)
+        wheelInst.updatePoses(0, _wheelBuf.buffer)
+    }
+
+    // Pack a single car's part poses (position + yaw) into all four table
+    // buffers + move its anchor, given its current sample `s` (position +
+    // heading). Kept allocation-light: it is the per-frame hot path for every
+    // car part (7 entries/car). The C++ table rebuilds each entry's rotation
+    // from yaw, so only the part centre + yaw are written here.
+    function _packCar(i, s) {
         var bx = s.x, bz = s.z
         var lay = _lay
-        var yaw = car.yaw
+        var yaw = _cars[i].yaw
         var cy = Math.cos(yaw), sy = Math.sin(yaw)
         var baseY = roadY
-        var yawDeg = yaw * 180.0 / Math.PI
-        var rotV = rot ? Qt.vector3d(0, yawDeg, 0) : null
-        if (rot) car.rotYaw = yaw   // remember what was baked into the instances
 
         // Rotate a car-local offset (lx,ly,lz) into world and lift to baseY.
-        // Ry maps local +Z -> (sin,cos), local +X -> (cos,-sin).
-        function place(entry, off) {
-            var lx = off[0], ly = off[1], lz = off[2]
-            entry.position = Qt.vector3d(bx + lx * cy + lz * sy,
-                                         baseY + ly,
-                                         bz - lx * sy + lz * cy)
-            if (rotV) entry.eulerRotation = rotV
+        // Ry maps local +Z -> (sin,cos), local +X -> (cos,-sin) - the same
+        // mapping the C++ table applies from yaw, so parts stay aligned.
+        function put(buf, idx, off) {
+            var o = idx * 4
+            buf[o]     = bx + off[0] * cy + off[2] * sy
+            buf[o + 1] = baseY + off[1]
+            buf[o + 2] = bz - off[0] * sy + off[2] * cy
+            buf[o + 3] = yaw
         }
 
-        place(_bodyE[i], lay.bodyOff)
-        place(_cabinE[i], lay.cabOff)
-        place(_winE[i], lay.winOff)
-        var base = i * 4
-        place(_wheelE[base + 0], lay.wheelOff[0])
-        place(_wheelE[base + 1], lay.wheelOff[1])
-        place(_wheelE[base + 2], lay.wheelOff[2])
-        place(_wheelE[base + 3], lay.wheelOff[3])
+        put(_bodyBuf, i, lay.bodyOff)
+        put(_cabinBuf, i, lay.cabOff)
+        put(_winBuf, i, lay.winOff)
+        var wb = i * 4
+        put(_wheelBuf, wb + 0, lay.wheelOff[0])
+        put(_wheelBuf, wb + 1, lay.wheelOff[1])
+        put(_wheelBuf, wb + 2, lay.wheelOff[2])
+        put(_wheelBuf, wb + 3, lay.wheelOff[3])
 
         // Anchor rides at the cabin roof so connectors spring from the car body.
         _anchors[i].position = Qt.vector3d(bx, baseY + _carH * 0.9, bz)
@@ -474,6 +517,8 @@ Node {
         if (n === 0 || _routes.length === 0) return
         if (!_lay) _refreshLayout()
 
+        // ---- control logic ------------------------------------------------
+        PerfRegistry.begin("carSim")
         // Advance the shared clock scaled by carSpeedFactor, then refresh the
         // per-junction light phase + box occupancy this whole frame keys off.
         var sdt = dt * carSpeedFactor
@@ -484,7 +529,7 @@ Node {
         // Longitudinal control (car-following + lights) then mode advance.
         for (var i = 0; i < n; ++i) _control(_cars[i], i, sdt)
 
-        // Heading + instance write.
+        // Heading smoothing; cache each car's fresh sample for the pack pass.
         var steer = 1.0 - Math.exp(-_yawRate * dt)
         for (i = 0; i < n; ++i) {
             var car = _cars[i]
@@ -492,18 +537,18 @@ Node {
             var target = Math.atan2(s.hx, s.hz)
             if (!car.yawInit) { car.yaw = target; car.yawInit = true }
             car.yaw = _lerpAngle(car.yaw, target, steer)
-            // Re-push the per-instance rotation whenever the heading has drifted
-            // from the value LAST WRITTEN to the instances - not merely when it
-            // changed since the previous frame. A respawn/reseed (_seedYaw at a
-            // tile edge) sets car.yaw discontinuously and the very next tick has
-            // no per-frame delta, so a frame-delta gate would leave the previous
-            // road's rotation baked into the instance and the car renders
-            // crosswise to its new lane. Comparing against the last written yaw
-            // catches those jumps yet still skips writes once the heading settled.
-            var rot = (car.rotYaw === undefined) ||
-                      Math.abs(_angDiff(car.yaw, car.rotYaw)) > 0.0008
-            _writeCar(i, rot, s)
+            _sampleCache[i] = s
         }
+        PerfRegistry.end("carSim")
+
+        // ---- pose packing + upload ---------------------------------------
+        // Every entry's rotation is rebuilt in C++ from the packed yaw, so a
+        // reseed at a tile edge (discontinuous car.yaw) always lands correctly
+        // without the last-written-yaw gate the InstanceList path needed.
+        PerfRegistry.begin("carPack")
+        for (i = 0; i < n; ++i) _packCar(i, _sampleCache[i])
+        _uploadPoses()
+        PerfRegistry.end("carPack")
 
         _updateLights()
         updateNearestBatch()
