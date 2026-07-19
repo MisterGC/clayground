@@ -268,6 +268,27 @@ Item {
         camera.eulerRotation = Qt.vector3d(-16, 0, 0)
     }
 
+    // Aim the camera top-down at a car currently mid lane-change (diagnostic).
+    function focusOvertake(height) {
+        var tiles = tileManager.loadedTiles()
+        for (var i = 0; i < tiles.length; ++i) {
+            var cs = tiles[i].carSystem
+            if (!cs) continue
+            var p = cs.activeLaneChangePos()
+            if (p) { topDown(p.x, p.z, height === undefined ? 26 : height); return p.x.toFixed(1) + "," + p.z.toFixed(1) }
+        }
+        return "none"
+    }
+
+    // Cumulative overtaking lane changes across all loaded tiles (diagnostic).
+    function totalLaneChanges() {
+        var tiles = tileManager.loadedTiles()
+        var n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.laneChanges
+        return n
+    }
+
     // ---- lane-data export (contract for the deck.gl twin) ----
     property string lastExportInfo: ""
 
@@ -293,7 +314,7 @@ Item {
             if (b.zmin < minZ) minZ = b.zmin
             if (b.xmax > maxX) maxX = b.xmax
             if (b.zmax > maxZ) maxZ = b.zmax
-            total += t.laneModel.lineCount
+            total += t.laneModel.lineCount + (t.laneMarkings ? t.laneMarkings.lineCount : 0)
         }
         if (tileCoords.length === 0) { lastExportInfo = "export: no tiles loaded"; return }
 
@@ -316,19 +337,24 @@ Item {
         laneWriter.writeLine("\"lines\": [")
 
         var first = true
+        // Export both painted markings and the detailed lane model, in the same
+        // frozen { p, c, w, s } line shape (styles table is shared).
         for (i = 0; i < tiles.length; ++i) {
-            var lm = tiles[i].laneModel
-            if (!lm) continue
-            var lines = lm.lines
-            for (var j = 0; j < lines.length; ++j) {
-                var l = lines[j]
-                var pts = []
-                for (var k = 0; k < l.p.length; ++k)
-                    pts.push([_round2(l.p[k][0]), _round2(l.p[k][1]), _round2(l.p[k][2])])
-                var obj = { p: pts, c: l.c, w: l.w, s: l.s }
-                var s = JSON.stringify(obj)
-                laneWriter.writeLine(first ? s : ("," + s))
-                first = false
+            var models = [tiles[i].laneMarkings, tiles[i].laneModel]
+            for (var mi = 0; mi < models.length; ++mi) {
+                var lm = models[mi]
+                if (!lm) continue
+                var lines = lm.lines
+                for (var j = 0; j < lines.length; ++j) {
+                    var l = lines[j]
+                    var pts = []
+                    for (var k = 0; k < l.p.length; ++k)
+                        pts.push([_round2(l.p[k][0]), _round2(l.p[k][1]), _round2(l.p[k][2])])
+                    var obj = { p: pts, c: l.c, w: l.w, s: l.s }
+                    var s = JSON.stringify(obj)
+                    laneWriter.writeLine(first ? s : ("," + s))
+                    first = false
+                }
             }
         }
         laneWriter.writeLine("]")
@@ -337,6 +363,14 @@ Item {
 
         lastExportInfo = "export: " + total + " lines -> " + path
         console.log("neoncity:", lastExportInfo)
+    }
+
+    // Straight top-down look centred on world (cx,cz) at a given height - shows
+    // block structure / lane paint plan-view (verification aid).
+    function topDown(cx, cz, height) {
+        overview = false
+        camera.position = Qt.vector3d(cx, height, cz)
+        camera.eulerRotation = Qt.vector3d(-90, 0, 0)
     }
 
     // Tight, pitched-down look at the central intersection of a tile - shows

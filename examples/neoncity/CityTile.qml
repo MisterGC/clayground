@@ -42,8 +42,9 @@ Node {
     property int _lanePointCount: 0
 
     // Kept so LaneOverlay / cars / the exporter can read the tile without
-    // regenerating: city graph + derived detailed lane model.
+    // regenerating: city graph + derived painted markings + detailed lane model.
     property var cityData: null
+    property var laneMarkings: null
     property var laneModel: null
 
     // Elevation of the flat matte asphalt band and of everything that rides on
@@ -234,18 +235,19 @@ Node {
         materials: PrincipledMaterial { baseColor: tile.groundColor; roughness: 1.0 }
     }
 
-    // ---- subtle curb / edge glow ----
-    // A thin, dim strip along the road outer edges. Shown only when the lane
-    // overlay is OFF, so it never competes with the overlay's crisp curb lines.
-    LineBatch3D {
-        id: roads
-        widthUnits: LineBatch3D.Pixel
+    // ---- painted road markings (real furniture, ALWAYS drawn) ----
+    // White edge / lane lines, double-yellow avenue centres and stop bars. This
+    // is road paint, not map data, so it is never gated by the lane toggle.
+    LaneOverlay {
+        id: markings
+        laneModel: tile.laneMarkings
         viewportSize: tile.viewportSize
-        depthBias: 3
-        visible: !tile.showLanes
+        visible: true
     }
 
-    // ---- detailed lane model overlay (Phase 5 headline) ----
+    // ---- detailed lane model overlay (toggleable teal map layer) ----
+    // Only the per-direction lane centerlines + junction connectors; governed by
+    // the HUD "Lanes (L)" toggle.
     LaneOverlay {
         id: laneOverlay
         laneModel: tile.laneModel
@@ -315,6 +317,7 @@ Node {
     }
 
     function buildLanes(data) {
+        tile.laneMarkings = LaneGen.generateMarkings(data, tile.laneOverlayY)
         var lm = LaneGen.generateLaneModel(data, tile.laneOverlayY)
         tile.laneModel = lm
         tile._laneLineCount = lm.lineCount
@@ -354,7 +357,10 @@ Node {
         var n = rs.length
         if (n === 0) return
 
-        // ---- flat matte asphalt bands (one instanced draw call) ----
+        // ---- flat matte asphalt: road bands + junction patches ----
+        // All roads and crossings share ONE instanced draw call. Each road is a
+        // band along its length; each junction adds a square patch so the corners
+        // of a crossing are fully paved (no unpaved notches at the box).
         var asphalt = []
         for (var i = 0; i < n; ++i) {
             var cl = rs[i].centerline
@@ -370,38 +376,16 @@ Node {
                 eulerRotation: Qt.vector3d(-90, 0, 0)
             }))
         }
-        asphaltComp.createObject(tile, { entries: asphalt })
-
-        // ---- subtle curb / edge glow (two dim lines per road at +-half) ----
-        var totalPts = n * 4 // two 2-point edges per road
-        var positions = new Float32Array(totalPts * 3)
-        var starts = new Uint32Array(2 * n + 1)
-        var colors = new Uint8Array(2 * n * 4)
-        var widths = new Float32Array(2 * n)
-
-        var glowY = 0.8
-        var p = 0, li = 0
-        for (i = 0; i < n; ++i) {
-            var r = rs[i]
-            var h = r.width * 0.5
-            var pe = r.axis === "h" ? { x: 0, z: 1 } : { x: -1, z: 0 }
-            var c0 = r.centerline[0], c1 = r.centerline[r.centerline.length - 1]
-            for (var s = -1; s <= 1; s += 2) {
-                starts[li] = p
-                positions[p * 3 + 0] = c0.x + pe.x * s * h; positions[p * 3 + 1] = glowY
-                positions[p * 3 + 2] = c0.z + pe.z * s * h; p++
-                positions[p * 3 + 0] = c1.x + pe.x * s * h; positions[p * 3 + 1] = glowY
-                positions[p * 3 + 2] = c1.z + pe.z * s * h; p++
-                // Dim teal curb strip - reads as a faint edge, not a lane line.
-                colors[li * 4 + 0] = 20; colors[li * 4 + 1] = 90
-                colors[li * 4 + 2] = 96; colors[li * 4 + 3] = 255
-                widths[li] = 1.3
-                li++
-            }
+        var inters = data.intersections
+        for (i = 0; i < inters.length; ++i) {
+            var side = inters[i].radius * 2.0
+            asphalt.push(entryComp.createObject(tile, {
+                position: Qt.vector3d(inters[i].x, tile.asphaltY - 0.01, inters[i].z),
+                scale: Qt.vector3d(side / 100, side / 100, 1),
+                eulerRotation: Qt.vector3d(-90, 0, 0)
+            }))
         }
-        starts[2 * n] = p
-
-        roads.setBulk(positions.buffer, starts.buffer, colors.buffer, widths.buffer)
+        asphaltComp.createObject(tile, { entries: asphalt })
     }
 
     function buildParks(data) {

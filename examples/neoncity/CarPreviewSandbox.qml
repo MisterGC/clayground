@@ -3,9 +3,9 @@
 // Verification-only sandbox: renders a handful of the real neoncity cars
 // (CarSystem) on a minimal two-road graph so the low-poly car model - body,
 // rear cabin, cyan front window, four wheels, varied palette - can be inspected
-// up close without the streaming city. A feeder dead-ends into a spine at the
-// origin, so feeder cars MUST turn onto the spine there (turning evidence)
-// while spine cars pass straight through. Not part of the shipped demo.
+// up close without the streaming city. A local street dead-ends into an avenue
+// at the origin, so local cars MUST turn onto the avenue there (turning
+// evidence) while avenue cars pass straight through. Not part of the shipped demo.
 
 import QtQuick
 import QtQuick3D
@@ -20,10 +20,18 @@ Item {
     readonly property var cityData: ({
         seed: 7,
         roads: [
-            { id: 0, kind: "spine", axis: "h", width: 9.0,
+            { id: 0, kind: "avenue", axis: "h", width: 12.0, lanes: 2,
               centerline: [{ x: -60, z: 0 }, { x: 60, z: 0 }] },
-            { id: 1, kind: "feeder", axis: "v", width: 5.6,
+            { id: 1, kind: "local", axis: "v", width: 7.0, lanes: 1,
               centerline: [{ x: 0, z: -60 }, { x: 0, z: 0 }] }
+        ],
+        intersections: [
+            { x: 0, z: 0, roadIds: [0, 1], radius: 8.5,
+              legs: [
+                  { roadId: 0, dir: { x: -1, z: 0 }, width: 12.0, lanes: 2 },
+                  { roadId: 0, dir: { x: 1, z: 0 }, width: 12.0, lanes: 2 },
+                  { roadId: 1, dir: { x: 0, z: -1 }, width: 7.0, lanes: 1 }
+              ] }
         ]
     })
 

@@ -1,73 +1,40 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
-// Detailed lane model for the neoncity demo (Phase 5).
+// Road paint + detailed lane model for the neoncity demo.
 //
-// This module is PURE and DETERMINISTIC: it consumes the road/intersection
-// graph produced by citygen.js and layers an independent, high-detail lane
-// model on top. It NEVER re-derives city geometry - it reads roads[] and
-// intersections[] and offsets/curves lane lines from that.
+// This module is PURE and DETERMINISTIC. It consumes the road / junction graph
+// produced by citygen.js and emits TWO independent line sets:
 //
-// ============================================================================
-// DETAILED-LANE-MODEL CONCEPTS (what this demo mirrors vs. simplifies)
-// ============================================================================
-// The model is inspired by real automotive lane models. It is INDEPENDENT of
-// any proprietary spec - it just borrows the structural CONCEPTS below.
+//   generateMarkings(tileData, y)  -> real painted road markings. This is road
+//       FURNITURE, always drawn (grey asphalt, classic paint): a solid white
+//       edge line on both carriageway edges of every road; on avenues a dashed
+//       white divider between same-direction lanes and a DOUBLE solid yellow
+//       centre between the two directions; on local streets a single dashed
+//       white centre line; white stop bars at every junction approach. All
+//       markings are trimmed at the junction boxes, so no paint runs through the
+//       middle of a crossing.
 //
-// MIRRORED:
-//  * Road groups are curb-to-curb and hold BOTH travel directions in one
-//    ordered set of lanes (see the per-road emission: -half .. +half).
-//  * Boundaries are first-class lines BETWEEN lanes and are SHARED by the two
-//    lanes they separate: N side-by-side lanes -> N+1 boundary lines, each
-//    emitted ONCE (a divider is not duplicated per lane).
-//  * A double line (the center of a spine) is TWO parallel boundary objects,
-//    not one thick line.
-//  * A boundary run is CUT where its marking changes: dashed lane dividers turn
-//    SOLID as they approach an intersection (the boundary-set / element-range
-//    idea in miniature - see splitDividerAlong()).
-//  * Lane-count TRANSITIONS are modeled explicitly: a tapering lane is a lane
-//    that terminates while its neighbour continues (the "major" lane). Its
-//    centerline curves into the neighbour and the shared divider closes off
-//    (see the spine taper). The road group is effectively re-segmented there.
-//  * Intersections carry PER-MANEUVER turn lanes (approach lane -> compatible
-//    exit lane), drawn dashed/thin inside the junction box; through lanes are
-//    trimmed at the box; stop lines are transverse surface markings at each
-//    approach (kept separate from lane topology, as in the real model).
-//  * Tile-border continuity is structural: only interior spines change lane
-//    count; feeders that reach a tile edge keep a constant, edge-deterministic
-//    lane count, so neighbouring tiles agree one-to-one at the seam.
+//   generateLaneModel(tileData, y) -> the toggleable "detailed lane model" map
+//       overlay (teal / cyan). ONLY the per-direction lane centerlines - the
+//       tracks cars actually drive along, offset to the RIGHT half of the road
+//       for right-hand traffic - plus junction maneuver curves (bezier fans)
+//       connecting each incoming right-hand lane to the legal outgoing lanes.
+//       It carries NO boundary / edge lines; those live in the markings set.
 //
-// DELIBERATELY SIMPLIFIED / OMITTED:
-//  * No explicit group/lane/boundary ID graph, no predecessor/successor
-//    connector lists or split/merge priorities - connectivity stays implicit
-//    and geometric.
-//  * No traversability ranges, no marking material/color taxonomy, no
-//    logical/physical divider families - only painted solid vs. dashed.
-//  * Lane-count changes are restricted to interior spines; feeders never
-//    change count, so no border/fork groups or zero-length connector lanes are
-//    needed to pad a seam mismatch.
-//  * Intersections use a geometric maneuver fan, not an unordered intersection
-//    group with pairwise lane relations; stop lines are drawn geometrically.
-//  * No elevation-stacked crossings, no coarse "artificial" coverage groups.
+// Both sets share the frozen STYLES table and the render-buffer builder below,
+// so either can be pushed straight into a LineBatch3D.
 //
-// ============================================================================
-// OUTPUT of generateLaneModel(tileData, laneY):
+// OUTPUT of both:
 // {
 //   tileX, tileZ, tileSize, seed,
-//   lines: [                                   // the detailed lane model
-//     { p:  [[x,y,z], ...],                    // polyline (world coords)
-//       c:  "#rrggbb",                         // color
-//       w:  <real>,                            // width (pixels)
-//       s:  <int>,                             // styleId -> STYLES[s]
-//       t:  "center"|"boundary"|"turn"|"stop" },// semantic tag (debug/report)
-//     ...
-//   ],
+//   lines: [ { p:[[x,y,z],...], c:"#rrggbb", w:<real>, s:<int styleId>,
+//              t:<semantic tag> }, ... ],
 //   lineCount, pointCount
 // }
 //
-// STYLES (index == styleId) is the frozen style table shared with the export:
-//   0 -> solid            (dash null)
-//   1 -> dashed           (dash [DASH_LEN, DASH_GAP], world units)
-// ============================================================================
+// STYLES (index == styleId), shared with the export contract:
+//   0 -> solid    (dash null)
+//   1 -> dashed   (dash [DASH_LEN, DASH_GAP], world units)
 
 .pragma library
 
@@ -85,8 +52,7 @@ var STYLES = [
 function styles() { return STYLES; }
 
 // Same table in the shape LineBatch3D's style texture expects
-// ({ dash: [len, gap], capRound, opacity }; [0,0] == solid). This is what the
-// LaneOverlay binds so styleIds render as real dashes on the GPU.
+// ({ dash: [len, gap], capRound, opacity }; [0,0] == solid).
 function shaderStyles() {
     return [
         { dash: [0, 0],               capRound: true,  opacity: 1.0 }, // 0 solid
@@ -94,560 +60,358 @@ function shaderStyles() {
     ];
 }
 
-// ---- palette (synthwave / erdblick-like) ---------------------------------
+// ---- palette --------------------------------------------------------------
 
-var COL_CENTER   = "#00d9ff"; // lane-center guide lines (map-data overlay): cyan
-var COL_TURN     = "#0f9d9a"; // turn fans: dimmer teal-cyan
-var COL_EDGE     = "#f2f4f7"; // solid outer road edge lines: white
-var COL_CENTERDIV= "#ffd93d"; // direction-separating centre divider: yellow
-var COL_DIVIDER  = "#ffffff"; // dashed lane dividers: white
-var COL_STOP     = "#f4f8fc"; // stop / waiting lines: near-white
+var COL_EDGE   = "#ffffff"; // solid white carriageway edge lines
+var COL_DIVIDE = "#ffffff"; // dashed white lane dividers / local centre
+var COL_CENTER = "#ffd93d"; // double solid yellow centre (between directions)
+var COL_STOP   = "#ffffff"; // white stop bars at junction approaches
 
-var W_CENTER  = 2.2;
-var W_TURN    = 1.4;
-var W_EDGE    = 1.9;
-var W_DIVIDER = 1.5;
-var W_STOP    = 3.2;
+var COL_LANE   = "#00d9ff"; // lane-model centerlines + junction connectors: cyan
 
-// ---- taper / boundary-run tuning -----------------------------------------
+var W_EDGE   = 2.0;
+var W_DIVIDE = 1.6;
+var W_CENTER = 2.0;
+var W_STOP   = 3.4;
+var W_LANE   = 2.2;
 
-var TAPER_LEN   = 16.0; // world length over which a lane merges/appears
-var MIN_GAP     = 34.0; // a junction-free span must exceed this to host a taper
-var TAPER_PCT   = 55;   // ~this many percent of eligible spines get a taper
-var TAPER_STEPS = 8;    // curve samples across the taper
-var SOLID_NEAR  = 7.0;  // half-length of the solid divider run around a junction
+// ---- small helpers (XZ plane, axis-aligned roads) -------------------------
 
-// ---- close-junction window tuning ----------------------------------------
-//
-// When two DISTINCT junctions sit closer than ~2x the intersection radius,
-// their trim disks overlap and clip away the whole stretch between them - the
-// road ends up with stop lines but no centerlines/boundaries. MIN_VISIBLE is
-// the minimum painted length we insist on keeping between two such junctions;
-// WINDOW_MIN_SEP guards against reopening across duplicate/degenerate junction
-// pairs (their centers coincide, so there is no real stretch to recover).
-var MIN_VISIBLE    = 10.0; // min painted length kept between two close junctions
-var WINDOW_MIN_SEP = 6.0;  // junction centers must be at least this far apart
-
-// A stop bar sits at the junction box edge (radius R from the center). If the
-// approaching road ENDS almost immediately past the box - a spine/feeder tail
-// that pokes only a hair beyond its last junction - the trim disk eats that
-// stub's lane lines entirely, leaving the bar floating alone in the void (the
-// "lonely stop line"). An arm must keep at least this much road past the box to
-// still paint a visible lane stub leading to its bar; shorter tails drop the bar.
-var STOP_MIN_STUB  = 6.0;
-
-// ---- small vector helpers (XZ plane) -------------------------------------
-
-// Unit direction of a road along its axis (constant per road, axis-aligned).
-function axisDir(road) {
-    return road.axis === "h" ? { x: 1, z: 0 } : { x: 0, z: 1 };
-}
-// Left-hand perpendicular (used to offset lanes to either side).
-function perp(road) {
-    // For axis "h" (runs +X) perpendicular is +Z; for "v" (runs +Z) it is -X.
-    return road.axis === "h" ? { x: 0, z: 1 } : { x: -1, z: 0 };
-}
-
-// Along-axis description of a straight, axis-aligned road.
 function roadRange(road) {
     var cl = road.centerline;
     var horiz = road.axis === "h";
     var a0 = horiz ? cl[0].x : cl[0].z;
-    var a1 = horiz ? cl[cl.length - 1].x : cl[cl.length - 1].z;
+    var a1 = horiz ? cl[1].x : cl[1].z;
     var cross = horiz ? cl[0].z : cl[0].x;
-    return { horiz: horiz, a0: a0, a1: a1, cross: cross,
-             lo: Math.min(a0, a1), hi: Math.max(a0, a1) };
+    return { horiz: horiz, lo: Math.min(a0, a1), hi: Math.max(a0, a1), cross: cross };
 }
 
-// World point at along-position `along` and lateral offset `off` (perp units).
-function ptA(rr, along, off, y) {
-    return rr.horiz ? [along, y, rr.cross + off]   // perp("h") = +Z
-                    : [rr.cross - off, y, along];   // perp("v") = -X
+function axisPoint(rr, along) {
+    return rr.horiz ? { x: along, z: rr.cross } : { x: rr.cross, z: along };
 }
 
-function smooth(t) { return t * t * (3.0 - 2.0 * t); }
-
-// Deterministic 32-bit hash of two integers (reload-stable per tile).
-function hash2(a, b) {
-    var h = (u32(a) ^ 0x9e3779b9) >>> 0;
-    h = Math.imul(h ^ (u32(b) + 0x85ebca6b), 0x27d4eb2f) >>> 0;
-    h ^= h >>> 15;
-    return h >>> 0;
+// Lane centre offsets (world units off the centreline) for one carriageway half.
+function laneDists(width, lanes) {
+    var h = width * 0.5;
+    return lanes >= 2 ? [0.25 * h, 0.75 * h] : [0.5 * h];
 }
-function u32(x) { return x >>> 0; }
-
-// ---- intersection analysis -----------------------------------------------
-//
-// citygen leaves intersection.roadIds empty, so arms are recovered from
-// geometry: a road passes an intersection I if I sits on its centerline; the
-// road then contributes one arm per direction it extends away from I.
-
-function segReach(road, ix, iz) {
-    // Returns { on, plus, minus } - whether the centerline passes through I and
-    // whether it extends in the +axis / -axis direction beyond I.
-    var cl = road.centerline;
-    var lateralTol = 0.75;   // world units off the centerline still counts as "on"
-    var endTol = 0.5;
-    var horiz = road.axis === "h";
-    // Constant coordinate of an axis-aligned centerline.
-    var c0 = horiz ? cl[0].z : cl[0].x;
-    if (Math.abs((horiz ? iz : ix) - c0) > lateralTol) return { on: false };
-    var a = horiz ? cl[0].x : cl[0].z;
-    var b = horiz ? cl[cl.length - 1].x : cl[cl.length - 1].z;
-    var lo = Math.min(a, b), hi = Math.max(a, b);
-    var along = horiz ? ix : iz;
-    if (along < lo - endTol || along > hi + endTol) return { on: false };
-    return { on: true, plus: along < hi - endTol, minus: along > lo + endTol };
-}
-
-// Build the list of arms at intersection I. Each arm: { road, dir:{x,z} }.
-function armsAt(roads, ix, iz) {
-    var arms = [];
-    for (var i = 0; i < roads.length; ++i) {
-        var r = roads[i];
-        var reach = segReach(r, ix, iz);
-        if (!reach.on) continue;
-        var d = axisDir(r);
-        var through = reach.plus && reach.minus;
-        if (reach.plus)  arms.push({ road: r, dir: { x: d.x, z: d.z }, through: through });
-        if (reach.minus) arms.push({ road: r, dir: { x: -d.x, z: -d.z }, through: through });
-    }
-    return arms;
-}
-
-function intersectionRadius(arms) {
-    var maxHalf = 3.0;
-    for (var i = 0; i < arms.length; ++i)
-        maxHalf = Math.max(maxHalf, arms[i].road.width * 0.5);
-    return maxHalf * 2.2 + 2.0;
-}
-
-// ---- polyline clipping against intersection disks ------------------------
-//
-// A lane line is trimmed so it stops short of the intersection disks it
-// crosses, leaving a clean gap the turn fans span. Works on arbitrary
-// polylines (needed for tapered, curved lane centers), returning the maximal
-// stretches that lie outside every disk.
-
-// Cut the open interval (w0, w1) out of a sorted, non-overlapping list of
-// [lo, hi] intervals, returning the remaining pieces (used to punch a visible
-// window back through overlapping trim disks).
-function subtractInterval(intervals, w0, w1, eps) {
+// Disks a road is trimmed against: every junction box the road passes through.
+function disksForRoad(road, inters) {
     var out = [];
-    for (var i = 0; i < intervals.length; ++i) {
-        var lo = intervals[i][0], hi = intervals[i][1];
-        if (w1 <= lo + eps || w0 >= hi - eps) { out.push([lo, hi]); continue; }
-        if (w0 > lo + eps) out.push([lo, w0]);
-        if (w1 < hi - eps) out.push([w1, hi]);
-    }
+    for (var k = 0; k < inters.length; ++k)
+        if (inters[k].roadIds.indexOf(road.id) >= 0)
+            out.push({ x: inters[k].x, z: inters[k].z, r: inters[k].radius });
     return out;
 }
 
-function clipPolyline(pts, disks, minGap) {
-    var runs = [];
-    var cur = [];
-    var eps = 1e-4;
-    var gap = (minGap === undefined) ? 0 : minGap;
-    for (var i = 0; i + 1 < pts.length; ++i) {
-        var a = pts[i], b = pts[i + 1];
-        var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-        var segXZ2 = dx * dx + dz * dz;
-        if (segXZ2 < 1e-9) continue;
-        var segLen = Math.sqrt(segXZ2);
-        // Blocked t-intervals contributed by each disk (XZ chord math). `hits`
-        // keeps each disk's along-segment projection + world centre so we can
-        // reopen a window between two close-but-distinct junctions.
-        var blocked = [];
-        var hits = [];
-        for (var k = 0; k < disks.length; ++k) {
-            var cx = disks[k].x - a[0], cz = disks[k].z - a[2];
-            var R = disks[k].r;
-            var proj = (cx * dx + cz * dz) / segXZ2;
-            var px = proj * dx, pz = proj * dz;
-            var perp2 = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
-            if (perp2 >= R * R) continue;
-            var half = Math.sqrt(R * R - perp2) / segLen;
-            var t0 = proj - half, t1 = proj + half;
-            if (t1 <= 0 || t0 >= 1) continue;
-            blocked.push([Math.max(0, t0), Math.min(1, t1)]);
-            hits.push({ proj: proj, t0: t0, t1: t1, x: disks[k].x, z: disks[k].z });
-        }
-        blocked.sort(function (p, q) { return p[0] - q[0]; });
-        var merged = [];
-        for (k = 0; k < blocked.length; ++k) {
-            if (merged.length && blocked[k][0] <= merged[merged.length - 1][1] + eps)
-                merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], blocked[k][1]);
-            else merged.push(blocked[k].slice());
-        }
-
-        // Reopen a central window wherever two DISTINCT junctions overlap and
-        // would otherwise leave less than `gap` of painted line between them.
-        if (gap > 0 && hits.length > 1) {
-            hits.sort(function (p, q) { return p.proj - q.proj; });
-            var windows = [];
-            for (k = 0; k + 1 < hits.length; ++k) {
-                var hA = hits[k], hB = hits[k + 1];
-                var sep = Math.sqrt((hA.x - hB.x) * (hA.x - hB.x) +
-                                    (hA.z - hB.z) * (hA.z - hB.z));
-                if (sep < WINDOW_MIN_SEP) continue;          // duplicate junctions
-                if ((hB.t0 - hA.t1) * segLen >= gap) continue; // already visible
-                var mid = 0.5 * (hA.proj + hB.proj);
-                var halfW = (gap * 0.5) / segLen;
-                var w0 = Math.max(0, Math.max(hA.proj, mid - halfW));
-                var w1 = Math.min(1, Math.min(hB.proj, mid + halfW));
-                if (w1 > w0 + eps) windows.push([w0, w1]);
-            }
-            for (var wi = 0; wi < windows.length; ++wi)
-                merged = subtractInterval(merged, windows[wi][0], windows[wi][1], eps);
-        }
-        function lerp(t) { return [a[0] + dx * t, a[1] + dy * t, a[2] + dz * t]; }
-        // Visible complements of the blocked intervals, in order.
-        var visible = [];
-        var cursor = 0;
-        for (k = 0; k < merged.length; ++k) {
-            if (merged[k][0] > cursor + eps) visible.push([cursor, merged[k][0]]);
-            cursor = merged[k][1];
-        }
-        if (cursor < 1 - eps) visible.push([cursor, 1]);
-        if (merged.length === 0) visible = [[0, 1]];
-
-        for (var v = 0; v < visible.length; ++v) {
-            var t0v = visible[v][0], t1v = visible[v][1];
-            var sp = t0v <= eps ? a : lerp(t0v);
-            var ep = t1v >= 1 - eps ? b : lerp(t1v);
-            if (cur.length && t0v <= eps) {
-                cur.push(ep);
-            } else {
-                if (cur.length >= 2) runs.push(cur);
-                cur = [sp, ep];
-            }
-            if (t1v < 1 - eps) {            // blocked region follows -> break run
-                if (cur.length >= 2) runs.push(cur);
-                cur = [];
-            }
-        }
+// Clip one straight segment (p0->p1, XZ) against a set of disks, returning the
+// visible sub-segments as [ [ptA, ptB], ... ] (world 3-tuples, y preserved).
+function clipSegment(p0, p1, disks) {
+    var dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
+    var L2 = dx * dx + dz * dz;
+    if (L2 < 1e-9) return [];
+    var segLen = Math.sqrt(L2);
+    var blocked = [];
+    for (var k = 0; k < disks.length; ++k) {
+        var cx = disks[k].x - p0[0], cz = disks[k].z - p0[2];
+        var proj = (cx * dx + cz * dz) / L2;
+        var px = proj * dx, pz = proj * dz;
+        var perp2 = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+        var R = disks[k].r;
+        if (perp2 >= R * R) continue;
+        var halfT = Math.sqrt(R * R - perp2) / segLen;
+        var t0 = proj - halfT, t1 = proj + halfT;
+        if (t1 <= 0 || t0 >= 1) continue;
+        blocked.push([Math.max(0, t0), Math.min(1, t1)]);
     }
-    if (cur.length >= 2) runs.push(cur);
-    return runs;
+    blocked.sort(function (a, b) { return a[0] - b[0]; });
+    var merged = [];
+    for (k = 0; k < blocked.length; ++k) {
+        if (merged.length && blocked[k][0] <= merged[merged.length - 1][1] + 1e-4)
+            merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], blocked[k][1]);
+        else merged.push(blocked[k].slice());
+    }
+    function lerp(t) { return [p0[0] + dx * t, p0[1] + dy * t, p0[2] + dz * t]; }
+    var out = [];
+    var cursor = 0, eps = 1e-4;
+    for (k = 0; k < merged.length; ++k) {
+        if (merged[k][0] > cursor + eps)
+            out.push([cursor <= eps ? p0 : lerp(cursor),
+                      lerp(merged[k][0])]);
+        cursor = merged[k][1];
+    }
+    if (cursor < 1 - eps) out.push([cursor <= eps ? p0 : lerp(cursor), p1]);
+    return out;
 }
 
-// ---- quadratic Bezier (turn fans) -----------------------------------------
-
-function bezierQuad(p0, ctrl, p2, n, y) {
+// ---- cubic Bezier (junction connectors) -----------------------------------
+//
+// A connector is a cubic Bezier whose control points lie ALONG the incoming and
+// outgoing track tangents, so it flows out of one lane centerline and into the
+// next with no kink. p0/p3 are the exact recorded track endpoints; d0/d3 are the
+// unit travel directions there.
+function connectorCurve(p0, d0, p3, d3, y) {
+    var dx = p3[0] - p0[0], dz = p3[2] - p0[2];
+    var span = Math.sqrt(dx * dx + dz * dz);
+    var k = Math.max(2.0, span * 0.42);
+    var c1 = { x: p0[0] + d0.x * k, z: p0[2] + d0.z * k };
+    var c2 = { x: p3[0] - d3.x * k, z: p3[2] - d3.z * k };
+    // Sample finely (~1 world unit / segment) so the curve stays smooth at a
+    // close-up junction zoom - never 3-4 straight chords.
+    var n = Math.max(14, Math.min(64, Math.ceil(span * 1.4)));
     var out = [];
     for (var i = 0; i <= n; ++i) {
         var t = i / n, u = 1 - t;
-        var x = u * u * p0.x + 2 * u * t * ctrl.x + t * t * p2.x;
-        var z = u * u * p0.z + 2 * u * t * ctrl.z + t * t * p2.z;
+        var x = u * u * u * p0[0] + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p3[0];
+        var z = u * u * u * p0[2] + 3 * u * u * t * c1.z + 3 * u * t * t * c2.z + t * t * t * p3[2];
         out.push([x, y, z]);
     }
     return out;
 }
 
-// ---- lane offset selection ------------------------------------------------
-//
-// Offsets are signed multiples of the road half-width so they scale with the
-// carriageway. `right`/`left` are relative to travel direction.
-
-function approachLanes(road, inDir) {
-    var rx = inDir.z, rz = -inDir.x;           // right-of-travel vector
-    var pe = perp(road);
-    var sign = (rx * pe.x + rz * pe.z) >= 0 ? 1 : -1; // which perp side is "right"
-    var h = road.width * 0.5;
-    return road.kind === "spine"
-        ? { right: sign * 0.25 * h, left: sign * 0.75 * h }
-        : { right: sign * 0.5 * h,  left: sign * 0.5 * h };
+// A direction arrowhead: two short segments forming a V that OPENS against the
+// travel direction, tip AT `tip`, sized `size`, appended as two separate lines.
+function pushArrow(lines, tip, dir, size, color, width, tag) {
+    var px = dir.z, pz = -dir.x;                 // perpendicular
+    var bx = tip[0] - dir.x * size, bz = tip[2] - dir.z * size;
+    var wy = tip[1];
+    var half = size * 0.6;
+    lines.push({ p: [[tip[0], wy, tip[2]], [bx + px * half, wy, bz + pz * half]],
+                 c: color, w: width, s: 0, t: tag });
+    lines.push({ p: [[tip[0], wy, tip[2]], [bx - px * half, wy, bz - pz * half]],
+                 c: color, w: width, s: 0, t: tag });
 }
 
-// ---- main -----------------------------------------------------------------
+// ===========================================================================
+// MARKINGS - real painted road furniture, ALWAYS drawn
+// ===========================================================================
+
+function generateMarkings(tileData, laneY) {
+    var y = (laneY === undefined) ? 1.8 : laneY;
+    var roads = tileData.roads;
+    var inters = tileData.intersections;
+
+    var lines = [];
+    function emit(pts, c, w, s, t) { if (pts.length >= 2) lines.push({ p: pts, c: c, w: w, s: s, t: t }); }
+
+    // Emit a straight offset line, trimmed at every junction box it passes.
+    function emitOffset(rr, off, disks, color, width, styleId, tag) {
+        var pe = rr.horiz ? { x: 0, z: 1 } : { x: 1, z: 0 };
+        var lo = axisPoint(rr, rr.lo), hi = axisPoint(rr, rr.hi);
+        var p0 = [lo.x + pe.x * off, y, lo.z + pe.z * off];
+        var p1 = [hi.x + pe.x * off, y, hi.z + pe.z * off];
+        var pieces = clipSegment(p0, p1, disks);
+        for (var i = 0; i < pieces.length; ++i) emit(pieces[i], color, width, styleId, tag);
+    }
+
+    for (var i = 0; i < roads.length; ++i) {
+        var r = roads[i];
+        var h = r.width * 0.5;
+        var rr = roadRange(r);
+        var disks = disksForRoad(r, inters);
+
+        // Solid white edge lines on both carriageway edges (every road).
+        emitOffset(rr, -h, disks, COL_EDGE, W_EDGE, 0, "edge");
+        emitOffset(rr,  h, disks, COL_EDGE, W_EDGE, 0, "edge");
+
+        if (r.lanes >= 2) {
+            // Dashed white divider between the two same-direction lanes, one per
+            // carriageway half (at +-0.5h).
+            emitOffset(rr, -0.5 * h, disks, COL_DIVIDE, W_DIVIDE, 1, "divider");
+            emitOffset(rr,  0.5 * h, disks, COL_DIVIDE, W_DIVIDE, 1, "divider");
+            // Double solid yellow centre between the two travel directions.
+            var dc = Math.min(0.7, h * 0.12);
+            emitOffset(rr, -dc, disks, COL_CENTER, W_CENTER, 0, "center");
+            emitOffset(rr,  dc, disks, COL_CENTER, W_CENTER, 0, "center");
+        } else {
+            // Single dashed white centre line splitting the two directions.
+            emitOffset(rr, 0, disks, COL_DIVIDE, W_DIVIDE, 1, "center");
+        }
+    }
+
+    // Stop bars: a transverse white bar across each junction approach's lanes,
+    // sitting at the junction-box edge.
+    for (i = 0; i < inters.length; ++i) {
+        var node = inters[i];
+        var legs = node.legs;
+        for (var li = 0; li < legs.length; ++li) {
+            var leg = legs[li];
+            var d = leg.dir;                          // points AWAY from the node
+            var inx = -d.x, inz = -d.z;               // approaching-travel direction
+            var rvx = -inz, rvz = inx;                // right of the approach (right-hand traffic)
+            var ex = node.x + d.x * node.radius, ez = node.z + d.z * node.radius;
+            var half = leg.width * 0.5;
+            emit([[ex, y, ez], [ex + rvx * half, y, ez + rvz * half]],
+                 COL_STOP, W_STOP, 0, "stop");
+        }
+    }
+
+    var pointCount = 0;
+    for (i = 0; i < lines.length; ++i) pointCount += lines[i].p.length;
+    return { tileX: tileData.tileX, tileZ: tileData.tileZ,
+             tileSize: tileData.tileSize, seed: tileData.seed,
+             lines: lines, lineCount: lines.length, pointCount: pointCount };
+}
+
+// ===========================================================================
+// LANE MODEL - toggleable teal map overlay (lane centerlines + maneuvers)
+// ===========================================================================
+
+var CHEVRON_SP = 30.0;   // spacing of open-road direction chevrons (world units)
 
 function generateLaneModel(tileData, laneY) {
     var y = (laneY === undefined) ? 1.8 : laneY;
     var roads = tileData.roads;
     var inters = tileData.intersections;
-    var seed = tileData.seed;
-
-    // Precompute arms + radius for every intersection.
-    var interInfo = [];
-    for (var i = 0; i < inters.length; ++i) {
-        var arms = armsAt(roads, inters[i].x, inters[i].z);
-        var R = intersectionRadius(arms);
-        interInfo.push({ x: inters[i].x, z: inters[i].z, arms: arms, r: R });
-    }
 
     var lines = [];
-    function emit(pts, c, w, s, t) {
-        if (pts.length >= 2) lines.push({ p: pts, c: c, w: w, s: s, t: t });
+    function emit(pts, c, w, s, t) { if (pts.length >= 2) lines.push({ p: pts, c: c, w: w, s: s, t: t }); }
+
+    // A stable per-node key (coordinate based) so a track names the EXACT
+    // junction at each end - never an object coerced to "[object Object]".
+    function keyOf(nd) { return Math.round(nd.x) + "," + Math.round(nd.z); }
+    function nodeOnRoad(roadId, horiz, along) {
+        for (var k = 0; k < inters.length; ++k) {
+            if (inters[k].roadIds.indexOf(roadId) < 0) continue;
+            var a = horiz ? inters[k].x : inters[k].z;
+            if (Math.abs(a - along) < 1.0) return inters[k];
+        }
+        return null;
     }
 
-    // Disks a road is trimmed against. A THROUGH road is only trimmed at pure
-    // crossings (all arms through), so spines flow continuously through minor
-    // T-junctions with feeders.
-    function disksForRoad(road) {
-        var out = [];
-        for (var k = 0; k < interInfo.length; ++k) {
-            var info = interInfo[k];
-            var reach = segReach(road, info.x, info.z);
-            if (!reach.on) continue;
-            var terminatesHere = !(reach.plus && reach.minus);
-            var pureCrossing = true;
-            for (var aa = 0; aa < info.arms.length; ++aa)
-                if (!info.arms[aa].through) { pureCrossing = false; break; }
-            if (terminatesHere || pureCrossing)
-                out.push({ x: info.x, z: info.z, r: info.r });
-        }
-        return out;
-    }
-
-    // Emit a solid line: clip to pieces, emit each with styleId 0.
-    function emitSolid(poly, disks, color, width, tag) {
-        var pieces = clipPolyline(poly, disks, MIN_VISIBLE);
-        for (var pc = 0; pc < pieces.length; ++pc) emit(pieces[pc], color, width, 0, tag);
-    }
-
-    // Emit a lane divider: clip to pieces, then cut each piece into runs -
-    // SOLID (styleId 0) within SOLID_NEAR of every junction the piece passes,
-    // DASHED (styleId 1) in between. This is the boundary-run / marking-change
-    // concept: a divider becomes solid as it approaches an intersection.
-    function emitDivider(poly, disks, color, width) {
-        var pieces = clipPolyline(poly, disks, MIN_VISIBLE);
-        for (var pc = 0; pc < pieces.length; ++pc)
-            splitDividerAlong(pieces[pc], color, width);
-    }
-
-    function splitDividerAlong(piece, color, width) {
-        var A = piece[0], B = piece[piece.length - 1];
-        var dx = B[0] - A[0], dy = B[1] - A[1], dz = B[2] - A[2];
-        var L2 = dx * dx + dz * dz;
-        var L = Math.sqrt(L2 + dy * dy);
-        if (L < 1e-3) { emit(piece, color, width, 1, "boundary"); return; }
-        function pt(d) { var t = d / L; return [A[0] + dx * t, A[1] + dy * t, A[2] + dz * t]; }
-        // Solid windows around each junction the piece runs near.
-        var win = [];
-        for (var k = 0; k < interInfo.length; ++k) {
-            var info = interInfo[k];
-            var cx = info.x - A[0], cz = info.z - A[2];
-            var proj = L2 > 1e-9 ? (cx * dx + cz * dz) / L2 : 0;
-            if (proj < -0.05 || proj > 1.05) continue;
-            var px = proj * dx, pz = proj * dz;
-            var perp2 = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
-            if (perp2 > info.r * info.r) continue;
-            var d = Math.max(0, Math.min(1, proj)) * L;
-            win.push([Math.max(0, d - SOLID_NEAR), Math.min(L, d + SOLID_NEAR)]);
-        }
-        win.sort(function (p, q) { return p[0] - q[0]; });
-        var merged = [];
-        for (k = 0; k < win.length; ++k) {
-            if (merged.length && win[k][0] <= merged[merged.length - 1][1] + 1e-3)
-                merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], win[k][1]);
-            else merged.push(win[k].slice());
-        }
-        var cursor = 0;
-        for (k = 0; k < merged.length; ++k) {
-            if (merged[k][0] > cursor + 1e-3) emit([pt(cursor), pt(merged[k][0])], color, width, 1, "boundary");
-            emit([pt(merged[k][0]), pt(merged[k][1])], color, width, 0, "boundary");
-            cursor = merged[k][1];
-        }
-        if (cursor < L - 1e-3) emit([pt(cursor), pt(L)], color, width, 1, "boundary");
-    }
-
-    // ---- lane-count taper decision (spines only, junction-free spans) ----
-    //
-    // Find the widest span between consecutive junctions on the spine; if it is
-    // long enough, host a taper there so the merging geometry never collides
-    // with a junction. Deterministic per tile via the tile seed + spine offset.
-    function taperFor(road) {
-        if (road.kind !== "spine") return null;
-        var rr = roadRange(road);
-        var marks = [rr.lo, rr.hi];
-        for (var k = 0; k < interInfo.length; ++k) {
-            var info = interInfo[k];
-            if (!segReach(road, info.x, info.z).on) continue;
-            marks.push(rr.horiz ? info.x : info.z);
-        }
-        marks.sort(function (p, q) { return p - q; });
-        var g0 = 0, g1 = 0, best = 0;
-        for (k = 0; k + 1 < marks.length; ++k) {
-            var gap = marks[k + 1] - marks[k];
-            if (gap > best) { best = gap; g0 = marks[k]; g1 = marks[k + 1]; }
-        }
-        if (best < MIN_GAP) return null;
-        var hsh = hash2(seed, Math.round(rr.cross));
-        if ((hsh % 100) >= TAPER_PCT) return null;
-        var mid = 0.5 * (g0 + g1);
-        return { side: ((hsh >>> 8) & 1) ? 1 : -1, // which carriageway half drops
-                 tStart: mid - TAPER_LEN * 0.5,
-                 tEnd:   mid + TAPER_LEN * 0.5 };
-    }
-
-    // Sample a lane center that shifts from offset `o0` to `o1` across the taper
-    // window, staying straight outside it. `endAt` truncates the line (a lane
-    // that terminates at the merge point).
-    function taperedCenter(rr, o0, o1, t, endAt, y) {
-        var pts = [ptA(rr, rr.lo, o0, y), ptA(rr, t.tStart, o0, y)];
-        for (var s = 1; s <= TAPER_STEPS; ++s) {
-            var f = smooth(s / TAPER_STEPS);
-            var along = t.tStart + (t.tEnd - t.tStart) * (s / TAPER_STEPS);
-            pts.push(ptA(rr, along, o0 + (o1 - o0) * f, y));
-        }
-        if (!endAt) pts.push(ptA(rr, rr.hi, o1, y));
-        return pts;
-    }
-
-    // ---- lane lines per road ----
-    for (i = 0; i < roads.length; ++i) {
+    // ---- STEP 1: trimmed, directed lane tracks (recorded with endpoints) ----
+    // Each road is split at its junctions; every lane/direction becomes a track
+    // trimmed back to the junction-box circle at both ends. We RECORD each
+    // track's junction-side endpoints + travel direction so connectors are built
+    // purely from these, never re-derived from road geometry.
+    var tracks = [];
+    for (var i = 0; i < roads.length; ++i) {
         var r = roads[i];
-        var h = r.width * 0.5;
+        var horiz = r.axis === "h";
         var rr = roadRange(r);
-        var disks = disksForRoad(r);
+        var dists = laneDists(r.width, r.lanes);
+        var nLanes = dists.length;
 
-        // Outer curbs (orange, solid) - shared outermost boundaries.
-        emitSolid(ptLine(rr, -h, y), disks, COL_EDGE, W_EDGE, "boundary");
-        emitSolid(ptLine(rr,  h, y), disks, COL_EDGE, W_EDGE, "boundary");
+        var breaks = [rr.lo, rr.hi];
+        for (var j = 0; j < inters.length; ++j) {
+            if (inters[j].roadIds.indexOf(r.id) < 0) continue;
+            var av = horiz ? inters[j].x : inters[j].z;
+            if (av > rr.lo + 1e-3 && av < rr.hi - 1e-3) breaks.push(av);
+        }
+        breaks.sort(function (p, q) { return p - q; });
 
-        if (r.kind === "spine") {
-            // Double YELLOW center divider separating the two travel
-            // directions: TWO parallel boundary objects (classic road marking).
-            var dc = Math.min(0.6, h * 0.14);
-            emitSolid(ptLine(rr, -dc, y), disks, COL_CENTERDIV, W_EDGE, "boundary");
-            emitSolid(ptLine(rr,  dc, y), disks, COL_CENTERDIV, W_EDGE, "boundary");
+        for (var bi = 0; bi + 1 < breaks.length; ++bi) {
+            var s0 = breaks[bi], s1 = breaks[bi + 1];
+            if (s1 - s0 < 4.0) continue;
+            var n0 = nodeOnRoad(r.id, horiz, s0);
+            var n1 = nodeOnRoad(r.id, horiz, s1);
+            var R0 = n0 ? n0.radius : 0;
+            var R1 = n1 ? n1.radius : 0;
 
-            var t = taperFor(r);
-            for (var sgn = -1; sgn <= 1; sgn += 2) {
-                if (t && sgn === t.side) {
-                    // Tapered half: two lanes merge into one centered lane.
-                    // Surviving lane center shifts 0.25h -> 0.5h, continues.
-                    emitSolid(taperedCenter(rr, sgn * 0.25 * h, sgn * 0.5 * h, t, false, y),
-                              disks, COL_CENTER, W_CENTER, "center");
-                    // Vanishing outer lane center 0.75h -> 0.5h, terminates.
-                    emitSolid(taperedCenter(rr, sgn * 0.75 * h, sgn * 0.5 * h, t, true, y),
-                              disks, COL_CENTER, W_CENTER, "center");
-                    // Shared divider between them exists only before the merge.
-                    emitDivider(ptSpan(rr, rr.lo, t.tStart, sgn * 0.5 * h, y), disks, COL_DIVIDER, W_DIVIDER);
-                } else {
-                    // Normal half: two lanes, three boundaries already shared.
-                    emitSolid(ptLine(rr, sgn * 0.25 * h, y), disks, COL_CENTER, W_CENTER, "center");
-                    emitSolid(ptLine(rr, sgn * 0.75 * h, y), disks, COL_CENTER, W_CENTER, "center");
-                    emitDivider(ptLine(rr, sgn * 0.5 * h, y), disks, COL_DIVIDER, W_DIVIDER);
+            for (var d = 0; d < nLanes; ++d) {
+                var dist = dists[d];
+                // Trim each end to where this lane crosses the box circle.
+                var cut0 = R0 > dist ? Math.sqrt(R0 * R0 - dist * dist) : 0;
+                var cut1 = R1 > dist ? Math.sqrt(R1 * R1 - dist * dist) : 0;
+                var a0 = s0 + cut0, a1 = s1 - cut1;
+                if (a1 - a0 < 2.0) continue;
+
+                for (var sgn = -1; sgn <= 1; sgn += 2) {
+                    var dir = horiz ? { x: sgn, z: 0 } : { x: 0, z: sgn };
+                    var rvx = -dir.z, rvz = dir.x;   // right of travel (right-hand traffic)
+                    // Entry is the up-travel end, exit the down-travel end.
+                    var entAlong = sgn > 0 ? a0 : a1;
+                    var exAlong  = sgn > 0 ? a1 : a0;
+                    var entNode  = sgn > 0 ? n0 : n1;
+                    var exNode   = sgn > 0 ? n1 : n0;
+                    var ep = axisPoint(rr, entAlong), xp = axisPoint(rr, exAlong);
+                    var entry = [ep.x + rvx * dist, y, ep.z + rvz * dist];
+                    var exit  = [xp.x + rvx * dist, y, xp.z + rvz * dist];
+                    emit([entry, exit], COL_LANE, W_LANE, 0, "lane");
+                    _pushChevrons(lines, entry, exit, dir, r, y);
+                    tracks.push({ entry: entry, exit: exit, dir: dir, laneIdx: d,
+                                  nLanes: nLanes, roadId: r.id,
+                                  entKey: entNode ? keyOf(entNode) : null,
+                                  exKey:  exNode ? keyOf(exNode) : null,
+                                  width: r.width, lanes: r.lanes });
                 }
             }
-        } else {
-            // Feeder: one lane per direction, split by a solid YELLOW centre
-            // divider (the two directions of a two-way road).
-            emitSolid(ptLine(rr, -0.5 * h, y), disks, COL_CENTER, W_CENTER, "center");
-            emitSolid(ptLine(rr,  0.5 * h, y), disks, COL_CENTER, W_CENTER, "center");
-            emitSolid(ptLine(rr, 0, y), disks, COL_CENTERDIV, W_DIVIDER, "boundary");
         }
     }
 
-    // Straight full-length line at constant offset.
-    function ptLine(rr, off, y) {
-        return [ptA(rr, rr.lo, off, y), ptA(rr, rr.hi, off, y)];
+    // ---- STEP 2: connectors purely from recorded track endpoints ----
+    // Group incoming (tracks EXITING at a node) and outgoing (tracks ENTERING a
+    // node), then fan every incoming lane out to each legal outgoing lane.
+    var incoming = {}, outgoing = {};
+    for (i = 0; i < tracks.length; ++i) {
+        var t = tracks[i];
+        if (t.exKey)  (incoming[t.exKey]  || (incoming[t.exKey]  = [])).push(t);
+        if (t.entKey) (outgoing[t.entKey] || (outgoing[t.entKey] = [])).push(t);
     }
-    // Straight partial line between two along-positions at constant offset.
-    function ptSpan(rr, a0, a1, off, y) {
-        return [ptA(rr, a0, off, y), ptA(rr, a1, off, y)];
-    }
-
-    // ---- per-maneuver turn lanes + stop lines per intersection ----
-    for (i = 0; i < interInfo.length; ++i) {
-        var info2 = interInfo[i];
-        var arms2 = info2.arms;
-        if (arms2.length < 2) continue;
-        var R2 = info2.r;
-
-        // Pure crossing (no arm terminates) trims all through lanes, so the
-        // straight-through maneuver is needed to bridge the gap; at a T with a
-        // continuous spine the through lane already covers it and is skipped.
-        var pure2 = true;
-        for (var pa = 0; pa < arms2.length; ++pa)
-            if (!arms2[pa].through) { pure2 = false; break; }
-
-        // Per-arm "dead tail" test. A road that ENDS right after the junction (a
-        // spine/feeder tail poking only a hair past its last junction) leaves no
-        // visible lane there once the trim disk of radius R2 eats it. Such an arm
-        // must contribute NOTHING to the junction: no stop bar (it would float
-        // alone - the "lonely stop line") and no turn fans (they would arc off
-        // toward the dead stub with no lanes around them - the "fragmentary
-        // intersection" of orphaned arcs). Both reported symptoms share this one
-        // cause: an arm with no real road behind the box.
-        var armDead = [];
-        for (var da = 0; da < arms2.length; ++da) {
-            var Ad = arms2[da], rrd = roadRange(Ad.road);
-            var jAlongD = Ad.road.axis === "h" ? info2.x : info2.z;
-            var endD = ((Ad.road.axis === "h" ? Ad.dir.x : Ad.dir.z) > 0) ? rrd.hi : rrd.lo;
-            armDead.push((Math.abs(endD - jAlongD) - R2) < STOP_MIN_STUB);
-        }
-
-        for (var ai = 0; ai < arms2.length; ++ai) {
-            var A = arms2[ai];
-            var inDir = { x: -A.dir.x, z: -A.dir.z };  // travel INTO the junction
-            var apA = approachLanes(A.road, inDir);
-            var peA = perp(A.road);
-
-            // Stop / waiting line: transverse bar across the approach lanes at
-            // the junction box edge (a road-surface marking, not lane topology).
-            // Skipped for a dead-tail arm so no bar is left floating alone.
-            if (!armDead[ai]) {
-                var sSign = apA.right >= 0 ? 1 : -1;
-                var bx = info2.x + A.dir.x * R2, bz = info2.z + A.dir.z * R2;
-                var hA = A.road.width * 0.5;
-                emit([[bx, y, bz], [bx + peA.x * sSign * hA, y, bz + peA.z * sSign * hA]],
-                     COL_STOP, W_STOP, 0, "stop");
-            }
-
-            for (var bi = 0; bi < arms2.length; ++bi) {
-                if (ai === bi) continue;
-                // A maneuver needs a real approach AND a real exit road; skip any
-                // fan that starts from or lands on a dead-tail arm.
-                if (armDead[ai] || armDead[bi]) continue;
-                var B = arms2[bi];
-                var outDir = B.dir;
-                var dotd = inDir.x * outDir.x + inDir.z * outDir.z;
-                var cr = inDir.x * outDir.z - inDir.z * outDir.x;
-
-                var straight = dotd > 0.7;
-                var sameRoadStraight = A.road === B.road &&
-                    A.dir.x === -B.dir.x && A.dir.z === -B.dir.z;
-                if (sameRoadStraight && !pure2) continue; // through lane covers it
-
-                // Pick approach lane by maneuver: right turn from the rightmost
-                // lane, left turn from the leftmost, straight from the through
-                // (right) lane.
-                var srcOff = straight ? apA.right : (cr > 0 ? apA.left : apA.right);
-                var apB = approachLanes(B.road, outDir); // exit lane offsets
-                var dstOff = straight ? apB.right : (cr > 0 ? apB.left : apB.right);
-                var peB = perp(B.road);
-
-                var p0 = { x: info2.x + A.dir.x * R2 + peA.x * srcOff,
-                           z: info2.z + A.dir.z * R2 + peA.z * srcOff };
-                var p2 = { x: info2.x + B.dir.x * R2 + peB.x * dstOff,
-                           z: info2.z + B.dir.z * R2 + peB.z * dstOff };
-                var ctrl = { x: info2.x, z: info2.z };
-                emit(bezierQuad(p0, ctrl, p2, 12, y), COL_TURN, W_TURN, 1, "turn");
+    for (var key in incoming) {
+        var inc = incoming[key], outs = outgoing[key] || [];
+        for (var ii = 0; ii < inc.length; ++ii) {
+            var A = inc[ii];
+            for (var oo = 0; oo < outs.length; ++oo) {
+                var B = outs[oo];
+                var dot = A.dir.x * B.dir.x + A.dir.z * B.dir.z;
+                var cr = A.dir.x * B.dir.z - A.dir.z * B.dir.x;  // >0 right, <0 left
+                if (A.roadId === B.roadId && dot < -0.7) continue;   // U-turn: never
+                // Right-hand-traffic lane selection: straight stays in-lane, a
+                // right turn uses the kerb-side (outer) lanes, a left turn the
+                // centre-side (inner) lanes. One connector per legal outgoing
+                // road, so each incoming lane fans left/straight/right cleanly.
+                if (dot > 0.7) {
+                    if (A.laneIdx !== B.laneIdx) continue;       // straight: same lane
+                } else if (dot > -0.3) {
+                    if (cr > 0) {                                // right turn
+                        if (A.laneIdx !== A.nLanes - 1 || B.laneIdx !== B.nLanes - 1) continue;
+                    } else {                                     // left turn
+                        if (A.laneIdx !== 0 || B.laneIdx !== 0) continue;
+                    }
+                } else {
+                    continue;                                    // too sharp to be legal
+                }
+                // A connector IS a lane track: same cyan colour, same width, same
+                // solid style - only the curvature + arrowhead differ.
+                var curve = connectorCurve(A.exit, A.dir, B.entry, B.dir, y);
+                emit(curve, COL_LANE, W_LANE, 0, "lane");
+                var laneW = B.lanes >= 2 ? 0.25 * B.width : 0.5 * B.width;
+                var tip = curve[curve.length - 1];
+                pushArrow(lines, tip, B.dir, laneW * 0.5, COL_LANE, W_LANE, "arrow");
             }
         }
     }
 
     var pointCount = 0;
     for (i = 0; i < lines.length; ++i) pointCount += lines[i].p.length;
+    return { tileX: tileData.tileX, tileZ: tileData.tileZ,
+             tileSize: tileData.tileSize, seed: tileData.seed,
+             lines: lines, lineCount: lines.length, pointCount: pointCount };
+}
 
-    return {
-        tileX: tileData.tileX, tileZ: tileData.tileZ,
-        tileSize: tileData.tileSize, seed: tileData.seed,
-        lines: lines,
-        lineCount: lines.length,
-        pointCount: pointCount
-    };
+// Sparse direction chevrons along an open-road lane track (subtle, every
+// ~CHEVRON_SP world units), each a small V pointing in the travel direction.
+function _pushChevrons(lines, entry, exit, dir, road, y) {
+    var dx = exit[0] - entry[0], dz = exit[2] - entry[2];
+    var len = Math.sqrt(dx * dx + dz * dz);
+    if (len < CHEVRON_SP) return;
+    var laneW = road.lanes >= 2 ? 0.25 * road.width : 0.5 * road.width;
+    var size = laneW * 0.4;
+    var start = CHEVRON_SP * 0.5;
+    for (var s = start; s < len - 2.0; s += CHEVRON_SP) {
+        var f = s / len;
+        var tip = [entry[0] + dx * f, y, entry[2] + dz * f];
+        pushArrow(lines, tip, dir, size, COL_LANE, W_LANE * 0.8, "chevron");
+    }
 }
 
 // ---- render-buffer builder (bulk path) ------------------------------------
 //
-// Each logical lane line maps to exactly ONE render polyline; the per-line
-// styleId rides in a parallel uint16 buffer, so dashes are drawn by the GPU
-// style texture (no dash-chopping into short solid segments). Returns typed
-// arrays ready for LineBatch3D.setBulk(positions, starts, colors, widths,
-// styleIds).
+// Each logical line maps to exactly ONE render polyline; the per-line styleId
+// rides in a parallel uint16 buffer, so dashes are drawn by the GPU style
+// texture. Returns typed arrays ready for
+// LineBatch3D.setBulk(positions, starts, colors, widths, styleIds).
 
 function hexToRgba(c) {
     var s = c.charAt(0) === "#" ? c.substring(1) : c;
@@ -658,8 +422,8 @@ function hexToRgba(c) {
     return [r, g, b, a];
 }
 
-function buildBulkArrays(laneModel) {
-    var src = laneModel.lines;
+function buildBulkArrays(model) {
+    var src = model.lines;
     var n = src.length;
     var totalPts = 0;
     for (var i = 0; i < n; ++i) totalPts += src[i].p.length;

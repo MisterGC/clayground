@@ -31,54 +31,167 @@ function hash2(a, b) {
     return h >>> 0;
 }
 
-// Right-hand travel-lane offset magnitude for a road (world units off the
-// centerline). It lands the car ON a lane center that lanegen actually paints:
-// a spine has two lanes per carriageway half (centers at 0.25h and 0.75h), so
-// the outer right lane is 0.75h; a feeder has one lane per half at 0.5h.
-function rightMag(road) {
+// Right-hand travel-lane offsets (world units off the centerline) for a road.
+// They land the car ON a lane center that lanegen actually paints: a 2-lane
+// road has lanes per carriageway half at 0.25h and 0.75h; a 1-lane road has a
+// single lane per half at 0.5h. Multiple offsets => cars may pick either
+// same-direction lane on an avenue.
+function laneDists(road) {
     var h = road.width * 0.5;
-    return road.kind === "spine" ? 0.75 * h : 0.5 * h;
+    return road.lanes >= 2 ? [0.25 * h, 0.75 * h] : [0.5 * h];
 }
 
-// Width of one travel lane on a road (world units). A spine half-carriageway
-// (h) holds two lanes; a feeder half holds one - so cars can be sized to the
+// Width of one travel lane on a road (world units) - cars are sized to the
 // narrowest lane they may ever drive and still fit with margin.
 function laneWidth(road) {
-    return road.kind === "spine" ? 0.25 * road.width : 0.5 * road.width;
+    return road.lanes >= 2 ? 0.25 * road.width : 0.5 * road.width;
 }
 
-// Build both directional right-lane routes for every straight road segment.
+// Build the directional right-lane routes. Each road is SPLIT at its junction
+// points so every route ends at a junction, where the car re-plans (straight
+// on / turn / respawn) - this is what makes cars turn at interior crossings of
+// the new grid rather than only at road ends. One route per lane per direction.
 function buildRoutes(cityData, laneY) {
     var y = (laneY === undefined) ? 1.8 : laneY;
     var routes = [];
     var roads = cityData.roads;
+    var inters = cityData.intersections || [];
+    var MIN_SEG = 4.0;
+
     for (var i = 0; i < roads.length; ++i) {
         var r = roads[i];
+        var horiz = r.axis === "h";
         var cl = r.centerline;
-        // citygen roads are single straight segments; use first/last point.
-        var a = cl[0], b = cl[cl.length - 1];
-        var dx = b.x - a.x, dz = b.z - a.z;
-        var len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 1e-3) continue;
-        var ux = dx / len, uz = dz / len;
-        var mag = rightMag(r);
-        var lw = laneWidth(r);
+        var cross = horiz ? cl[0].z : cl[0].x;
+        var a0 = horiz ? cl[0].x : cl[0].z;
+        var a1 = horiz ? cl[1].x : cl[1].z;
+        var lo = Math.min(a0, a1), hi = Math.max(a0, a1);
+        if (hi - lo < 1e-3) continue;
 
-        // Forward (A->B): right = (uz, -ux).
-        var rx = uz, rz = -ux;
-        routes.push({
-            sx: a.x + rx * mag, sz: a.z + rz * mag,
-            ex: b.x + rx * mag, ez: b.z + rz * mag,
-            dx: ux, dz: uz, len: len, y: y, roadId: r.id, laneW: lw
-        });
-        // Backward (B->A): right = (-uz, ux).
-        routes.push({
-            sx: b.x - rx * mag, sz: b.z - rz * mag,
-            ex: a.x - rx * mag, ez: a.z - rz * mag,
-            dx: -ux, dz: -uz, len: len, y: y, roadId: r.id, laneW: lw
-        });
+        // Break points: road ends plus every junction along the road.
+        var breaks = [lo, hi];
+        for (var j = 0; j < inters.length; ++j) {
+            if (inters[j].roadIds.indexOf(r.id) < 0) continue;
+            var along = horiz ? inters[j].x : inters[j].z;
+            if (along > lo + 1e-3 && along < hi - 1e-3) breaks.push(along);
+        }
+        breaks.sort(function (p, q) { return p - q; });
+
+        var lw = laneWidth(r);
+        var dists = laneDists(r);
+        var nLanes = dists.length;
+        var axisTag = horiz ? "h" : "v";
+        for (var bi = 0; bi + 1 < breaks.length; ++bi) {
+            var s0 = breaks[bi], s1 = breaks[bi + 1];
+            if (s1 - s0 < MIN_SEG) continue;
+            var len = s1 - s0;
+            // Endpoints (world) of this sub-segment at the centerline.
+            var ax = horiz ? s0 : cross, az = horiz ? cross : s0;
+            var bx = horiz ? s1 : cross, bz = horiz ? cross : s1;
+            var ux = (bx - ax) / len, uz = (bz - az) / len;
+            for (var d = 0; d < nLanes; ++d) {
+                var mag = dists[d];
+                var rx = -uz, rz = ux;                    // right of forward travel (right-hand traffic)
+                routes.push({
+                    sx: ax + rx * mag, sz: az + rz * mag,
+                    ex: bx + rx * mag, ez: bz + rz * mag,
+                    dx: ux, dz: uz, len: len, y: y, roadId: r.id, laneW: lw,
+                    axis: axisTag, laneIdx: d, nLanes: nLanes, width: r.width,
+                    segLo: s0, segHi: s1,
+                    sibling: -1, endJunc: -1, endIsJunction: false,
+                    endRadius: 0, endNodeX: 0, endNodeZ: 0, inbound: false
+                });
+                routes.push({
+                    sx: bx - rx * mag, sz: bz - rz * mag,
+                    ex: ax - rx * mag, ez: az - rz * mag,
+                    dx: -ux, dz: -uz, len: len, y: y, roadId: r.id, laneW: lw,
+                    axis: axisTag, laneIdx: d, nLanes: nLanes, width: r.width,
+                    segLo: s0, segHi: s1,
+                    sibling: -1, endJunc: -1, endIsJunction: false,
+                    endRadius: 0, endNodeX: 0, endNodeZ: 0, inbound: false
+                });
+            }
+        }
     }
+
+    annotateRoutes(routes, inters, cityData.bounds);
     return routes;
+}
+
+// Derive the per-route driving metadata the live sim needs (kept here so the
+// generator stays the single source of truth and the QML sim carries no road
+// geometry knowledge):
+//   sibling         - the same-direction lane on the SAME sub-segment (a car may
+//                     lane-change to it to overtake); -1 if the road is 1-lane.
+//   endJunc / endIsJunction / endRadius / endNodeX,Z - the junction this route
+//                     ends at (if any); a car holds at that junction's stop bar
+//                     on a red light and re-plans there.
+//   inbound         - route STARTS at a tile edge pointing INTO the tile: a
+//                     legal fresh entry lane a despawned car re-enters on (this
+//                     replaces the old mid-road "instance swap" respawn).
+function annotateRoutes(routes, inters, bounds) {
+    var EDGE_TOL = 1.5;
+
+    // --- sibling lanes: group by road + direction + sub-segment ---
+    var groups = {};
+    for (var i = 0; i < routes.length; ++i) {
+        var rt = routes[i];
+        var dsign = rt.axis === "h" ? (rt.dx > 0 ? 1 : -1) : (rt.dz > 0 ? 1 : -1);
+        var gk = rt.roadId + "|" + rt.axis + "|" + dsign + "|" +
+                 Math.round(rt.segLo) + "|" + Math.round(rt.segHi);
+        (groups[gk] || (groups[gk] = [])).push(i);
+    }
+    for (var gkey in groups) {
+        var arr = groups[gkey];
+        if (arr.length === 2) {
+            routes[arr[0]].sibling = arr[1];
+            routes[arr[1]].sibling = arr[0];
+        }
+    }
+
+    // --- end junction + inbound edge classification ---
+    for (i = 0; i < routes.length; ++i) {
+        rt = routes[i];
+        var horiz = rt.axis === "h";
+        var endAlong = horiz ? rt.ex : rt.ez;
+        for (var j = 0; j < inters.length; ++j) {
+            if (inters[j].roadIds.indexOf(rt.roadId) < 0) continue;
+            var nodeAlong = horiz ? inters[j].x : inters[j].z;
+            if (Math.abs(nodeAlong - endAlong) < EDGE_TOL) {
+                rt.endJunc = j; rt.endIsJunction = true;
+                rt.endRadius = inters[j].radius;
+                rt.endNodeX = inters[j].x; rt.endNodeZ = inters[j].z;
+                break;
+            }
+        }
+        if (bounds) {
+            var startAlong = horiz ? rt.sx : rt.sz;
+            if (horiz) {
+                if (Math.abs(startAlong - bounds.xmin) < EDGE_TOL && rt.dx > 0) rt.inbound = true;
+                else if (Math.abs(startAlong - bounds.xmax) < EDGE_TOL && rt.dx < 0) rt.inbound = true;
+            } else {
+                if (Math.abs(startAlong - bounds.zmin) < EDGE_TOL && rt.dz > 0) rt.inbound = true;
+                else if (Math.abs(startAlong - bounds.zmax) < EDGE_TOL && rt.dz < 0) rt.inbound = true;
+            }
+        }
+    }
+}
+
+// Deterministic per-junction signal phase from a shared clock. The two axes get
+// alternating green windows separated by an all-red clearance gap so the box
+// empties before cross traffic is released. A per-node phase offset (hashed from
+// the rounded node coords) keeps neighbouring junctions out of lockstep.
+// Returns { green: "h" | "v" | "none", allRed: bool }.
+function lightPhase(clock, nodeX, nodeZ, green, clear) {
+    var half = green + clear;          // one axis green + its clearance
+    var cycle = 2 * half;
+    var off = (hash2(Math.round(nodeX), Math.round(nodeZ)) % 100000) / 100000 * cycle;
+    var t = (clock + off) % cycle;
+    if (t < 0) t += cycle;
+    if (t < green) return { green: "v", allRed: false };
+    if (t < half)  return { green: "none", allRed: true };
+    if (t < half + green) return { green: "h", allRed: false };
+    return { green: "none", allRed: true };
 }
 
 // Narrowest travel lane across all routes (used to size the cars once).
@@ -99,15 +212,19 @@ function initCars(seed, routes, count, baseSpeed) {
     if (routes.length === 0) return cars;
     for (var i = 0; i < count; ++i) {
         var ri = Math.floor(rng() * routes.length);
+        var cruise = bs * (0.7 + 0.6 * rng());  // desired free-flow speed (u/s)
         cars.push({
             route: ri,
             t: rng() * routes[ri].len,          // arc position along the route
-            speed: bs * (0.7 + 0.6 * rng()),    // world units / second
+            cruise: cruise,                      // free-flow target speed
+            speed: cruise,                       // current dynamic speed (u/s)
             paint: Math.floor(rng() * 8),       // body palette index
             hash: u32(Math.floor(rng() * 4294967296)),
             mode: 0,                             // 0 = driving, 1 = turning
             turns: 0,                            // junctions crossed (RNG salt)
             plan: null, curve: null, ct: 0,
+            lat: 0,                              // lateral offset from lane centre
+            otCool: 0,                           // overtake / lane-change cooldown
             yaw: 0, yawInit: false
         });
     }

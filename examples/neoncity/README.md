@@ -20,24 +20,28 @@ Run it in the Dojo:
   `unloadRadius` (= `streamRadius + 1`, a hysteresis margin so the boundary
   doesn't thrash) are destroyed. Fly in any direction and the city is endless.
 - **Seed determinism** — the same `globalSeed` (default `42`) always yields the
-  identical city. Roads stay seamless across every tile border: interior spines
-  may change lane count, but feeders reaching a tile edge keep an
-  edge-deterministic lane count, so neighbouring tiles agree one-to-one at the
-  seam. Toggle-independent generation means the deck.gl twin (below) can be fed
-  byte-identical geometry.
-- **Detailed lane overlay** — a high-detail lane model layered on the
-  road/intersection graph (`lanegen.js`). It is a generic model inspired by
-  real automotive lane concepts, not any proprietary spec: road groups are
-  curb-to-curb and hold both travel directions; boundaries are first-class lines
-  shared between adjacent lanes (N side-by-side lanes → N+1 dividers, each
-  emitted once); a road's double center line is two parallel boundaries; dashed
-  lane dividers turn solid as they approach an intersection; lane-count
-  transitions are explicit tapers where a terminating lane curves into its
-  neighbour; and each intersection carries per-maneuver turn lanes plus
-  transverse stop lines at every approach. Solid vs. dashed is carried per line
-  by a `styleId` into `LineBatch3D`'s frozen style table — the whole model is
-  one instanced batch.
-- **Traffic + connectors** — cars drive the lanes and each links to its nearest
+  identical city. The road network is a continuous arterial GRID: one avenue per
+  tile column and one per tile row, each keyed only to that column/row so it runs
+  unbroken across every tile border and the two cross in a real 4-way per tile.
+  Local streets subdivide the blocks under a minimum parallel spacing and either
+  run edge-to-edge or T-terminate at an avenue (a 3-way) — keyed to the shared
+  boundary identity, so neighbours always agree at the seam and no road ever ends
+  in open ground. Toggle-independent generation means the deck.gl twin (below)
+  can be fed byte-identical geometry.
+- **Road paint + lane model** — every road carries real painted markings that
+  are ALWAYS drawn (road furniture, not map data): a solid white edge line on
+  both carriageway edges, a dashed white lane divider and double solid yellow
+  centre on the two-lane avenues, a single dashed white centre on the one-lane
+  local streets, and white stop bars at every junction approach — all trimmed at
+  the paved junction boxes so no paint runs through a crossing. Over that sits a
+  toggleable teal *lane model* (`lanegen.js`, the map-data overlay): the
+  per-direction lane centerlines offset to the right for right-hand traffic, plus
+  junction connectors — continuous cyan tracks that flow tangent-smooth out of
+  each incoming lane into every legal outgoing lane, with direction arrowheads
+  and open-road chevrons. Solid vs. dashed rides per line as a `styleId` into
+  `LineBatch3D`'s frozen style table — each layer is one instanced batch.
+- **Traffic + connectors** — cars drive the right-hand lane centerlines and steer
+  through the junction connectors of the graph, and each links to its nearest
   transmitter through the shared `ConnectorLayer3D`; N car→transmitter links are
   one draw call, with only the moved endpoints patched per frame.
 - **Synthwave look** — a dusk gradient backdrop behind a transparent, toon-lit
@@ -50,10 +54,10 @@ Run it in the Dojo:
 | **WASD + mouse drag** | fly the camera (`WasdController`) |
 | **O** | toggle overview (top-down) vs. street-level camera |
 | **P** | toggle the `PerfHud` performance overlay |
-| **L** | toggle the lane overlay |
+| **L** | toggle the teal lane-model overlay (painted markings stay on) |
 | **K** | toggle cars |
 | **C** | toggle car→transmitter link lines |
-| **E** | export the loaded lane model to `/tmp/neoncity-lane-export.json` |
+| **E** | export the loaded painted markings + lane model to `/tmp/neoncity-lane-export.json` |
 | **car slider** | target car count: 0 / 100 / 200 / 500 / 1000 / 2000 (split across loaded tiles) |
 | on-screen buttons | the same Lanes / Cars / Links / Export toggles, clickable |
 
