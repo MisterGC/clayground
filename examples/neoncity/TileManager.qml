@@ -21,6 +21,7 @@ Node {
     property bool showLanes: true
     property bool showCars: true
     property bool showConnections: true
+    property real laneFlowTime: 0        // shared chevron-flow clock (see CityView3D)
     property int carsPerTile: 8
     property real carSpeedFactor: 0.4
     property var connectorLayer: null
@@ -133,6 +134,7 @@ Node {
             t.connectorLayer = mgr.connectorLayer
             // Live bindings so runtime toggles / resizes reach every tile.
             t.showLanes = Qt.binding(function () { return mgr.showLanes })
+            t.laneFlowTime = Qt.binding(function () { return mgr.laneFlowTime })
             t.showCars = Qt.binding(function () { return mgr.showCars })
             t.showConnections = Qt.binding(function () { return mgr.showConnections })
             t.carsPerTile = Qt.binding(function () { return mgr.carsPerTile })

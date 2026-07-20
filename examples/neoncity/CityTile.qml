@@ -25,6 +25,7 @@ Node {
     property bool showLanes: true
     property bool showCars: true
     property bool showConnections: true
+    property real laneFlowTime: 0        // drives the lane-model chevron flow
     property int carsPerTile: 8
     property real carSpeedFactor: 0.4   // global traffic-speed multiplier
     property var connectorLayer: null   // shared ConnectorLayer3D (scene root)
@@ -253,6 +254,7 @@ Node {
         laneModel: tile.laneModel
         viewportSize: tile.viewportSize
         visible: tile.showLanes
+        flowTime: tile.laneFlowTime
     }
 
     // ---- cars + transmitters + connectors ----

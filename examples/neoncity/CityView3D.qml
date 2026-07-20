@@ -28,6 +28,11 @@ Item {
     property bool showCars: true
     property bool showConnections: true
 
+    // ---- lane-chevron flow animation (off by default; never self-ticks the
+    // scene while off - the clock below only runs while flowLanes is true) ----
+    property bool flowLanes: false
+    property real laneFlowTime: 0
+
     // ---- traffic ----
     // Target total car count; split across the (2r+1)^2 streamed tiles.
     property int carCount: 200
@@ -86,6 +91,14 @@ Item {
         else if (e.key === Qt.Key_K) { root.showCars = !root.showCars; e.accepted = true }
         else if (e.key === Qt.Key_E) { root.exportLanes(); e.accepted = true }
         else if (e.key === Qt.Key_I) { root.toggleLidar(); e.accepted = true }
+        else if (e.key === Qt.Key_F) { root.flowLanes = !root.flowLanes; e.accepted = true }
+    }
+
+    // Drives the lane chevrons' flow. Runs ONLY while flowLanes is on, so the
+    // scene is never forced into continuous rendering when flow is off.
+    FrameAnimation {
+        running: root.flowLanes
+        onTriggered: root.laneFlowTime = elapsedTime
     }
 
     // ---- lidar inspection controller -----------------------------------------
@@ -508,6 +521,7 @@ Item {
             showLanes: root.showLanes
             showCars: root.showCars
             showConnections: root.showConnections
+            laneFlowTime: root.laneFlowTime
             carsPerTile: root.carsPerTile
             carSpeedFactor: root.carSpeedFactor
             connectorLayer: connectorLayer
@@ -599,6 +613,7 @@ Item {
             }
             Text {
                 text: "lanes " + (root.showLanes ? "on" : "off") +
+                      "   flow " + (root.flowLanes ? "on" : "off") +
                       "   lines " + tileManager.laneLineCount +
                       "   pts " + tileManager.lanePointCount
                 color: "#00d9ff"
@@ -824,7 +839,7 @@ Item {
 
             Text {
                 text: root.lastExportInfo !== "" ? root.lastExportInfo
-                      : "WASD+drag fly   O overview   P perf   I lidar"
+                      : "WASD+drag fly   O overview   P perf   F flow   I lidar"
                 color: "#8a8a9a"
                 font.family: root.monoFont
                 font.pixelSize: 11

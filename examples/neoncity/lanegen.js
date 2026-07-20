@@ -35,6 +35,13 @@
 // STYLES (index == styleId), shared with the export contract:
 //   0 -> solid    (dash null)
 //   1 -> dashed   (dash [DASH_LEN, DASH_GAP], world units)
+//   2 -> chevron  (native direction glyphs marching in travel direction)
+//   3 -> arrowhead (native end arrowhead on a single-segment connector tip)
+//
+// Styles 2 + 3 use LineBatch3D's native pattern/head styling (no hand-built
+// glyph geometry). The deck.gl twin only understands the `dash` field, so the
+// EXPORTED table (styles()) maps chevron -> a dash so it still renders as a
+// direction-hint dashed line, and the arrowhead tip -> solid (a tiny segment).
 
 .pragma library
 
@@ -43,20 +50,44 @@
 var DASH_LEN = 4.0;
 var DASH_GAP = 4.0;
 
+// Native chevron direction glyphs: period (world units) and flow speed. Flow is
+// only visible while the batch's flowTime is advanced (Flow toggle); with a
+// static clock the chevrons sit still and just point in the travel direction.
+var CHEV_LEN  = 10.0;   // glyph extent along the path (world units)
+var CHEV_GAP  = 22.0;   // gap between glyphs (world units) -> ~32u period
+var CHEV_FLOW = 18.0;   // march speed (world units / s of flowTime)
+var W_CHEV    = 11.0;   // chevron ribbon width (screen px) so the V reads clearly
+
+// Native arrowhead on the connector tip segment. head = [length, width] in
+// multiples of the tip line's width; length is generous so the whole (short)
+// tip segment becomes the triangle.
+var HEAD_LEN_M = 40.0;
+var HEAD_WID_M = 4.2;
+var W_HEADTIP  = 3.4;   // tip segment width (screen px)
+var HEAD_TIP_WORLD = 6.0; // tip segment length (world units) == arrowhead length
+
 // Kept as plain data so the exporter can emit it verbatim (frozen contract).
+// The twin reads only `dash`, so chevron exports as a dashed direction line and
+// the arrowhead tip exports as a plain solid segment.
 var STYLES = [
-    { dash: null,               opacity: 1.0 },   // 0: solid
-    { dash: [DASH_LEN, DASH_GAP], opacity: 1.0 }  // 1: dashed
+    { dash: null,                 opacity: 1.0 },  // 0: solid
+    { dash: [DASH_LEN, DASH_GAP], opacity: 1.0 },  // 1: dashed
+    { dash: [CHEV_LEN, CHEV_GAP], opacity: 1.0 },  // 2: chevron -> dashed in twin
+    { dash: null,                 opacity: 1.0 }   // 3: arrowhead -> solid in twin
 ];
 
 function styles() { return STYLES; }
 
 // Same table in the shape LineBatch3D's style texture expects
-// ({ dash: [len, gap], capRound, opacity }; [0,0] == solid).
+// ({ dash: [len, gap], capRound, opacity, ... }; [0,0] == solid).
 function shaderStyles() {
     return [
         { dash: [0, 0],               capRound: true,  opacity: 1.0 }, // 0 solid
-        { dash: [DASH_LEN, DASH_GAP], capRound: false, opacity: 1.0 }  // 1 dashed
+        { dash: [DASH_LEN, DASH_GAP], capRound: false, opacity: 1.0 }, // 1 dashed
+        { dash: [CHEV_LEN, CHEV_GAP], capRound: true,  opacity: 1.0,   // 2 chevron
+          pattern: "chevron", flow: CHEV_FLOW },
+        { dash: [0, 0],               capRound: true,  opacity: 1.0,   // 3 arrowhead
+          head: [HEAD_LEN_M, HEAD_WID_M] }
     ];
 }
 
@@ -169,17 +200,15 @@ function connectorCurve(p0, d0, p3, d3, y) {
     return out;
 }
 
-// A direction arrowhead: two short segments forming a V that OPENS against the
-// travel direction, tip AT `tip`, sized `size`, appended as two separate lines.
-function pushArrow(lines, tip, dir, size, color, width, tag) {
-    var px = dir.z, pz = -dir.x;                 // perpendicular
-    var bx = tip[0] - dir.x * size, bz = tip[2] - dir.z * size;
-    var wy = tip[1];
-    var half = size * 0.6;
-    lines.push({ p: [[tip[0], wy, tip[2]], [bx + px * half, wy, bz + pz * half]],
-                 c: color, w: width, s: 0, t: tag });
-    lines.push({ p: [[tip[0], wy, tip[2]], [bx - px * half, wy, bz - pz * half]],
-                 c: color, w: width, s: 0, t: tag });
+// A native end arrowhead: a single dedicated tip SEGMENT ending AT `tip` and
+// pointing in `dir`, styled with styleId 3 (head). LineBatch3D renders the
+// arrowhead triangle over this segment (heads are single-segment only), so the
+// whole short segment becomes the arrow tip. `tip` is [x, y, z].
+function emitArrowTip(lines, tip, dir) {
+    var bx = tip[0] - dir.x * HEAD_TIP_WORLD;
+    var bz = tip[2] - dir.z * HEAD_TIP_WORLD;
+    lines.push({ p: [[bx, tip[1], bz], [tip[0], tip[1], tip[2]]],
+                 c: COL_LANE, w: W_HEADTIP, s: 3, t: "arrow" });
 }
 
 // ===========================================================================
@@ -257,8 +286,6 @@ function generateMarkings(tileData, laneY) {
 // LANE MODEL - toggleable teal map overlay (lane centerlines + maneuvers)
 // ===========================================================================
 
-var CHEVRON_SP = 30.0;   // spacing of open-road direction chevrons (world units)
-
 function generateLaneModel(tileData, laneY) {
     var y = (laneY === undefined) ? 1.8 : laneY;
     var roads = tileData.roads;
@@ -328,7 +355,7 @@ function generateLaneModel(tileData, laneY) {
                     var entry = [ep.x + rvx * dist, y, ep.z + rvz * dist];
                     var exit  = [xp.x + rvx * dist, y, xp.z + rvz * dist];
                     emit([entry, exit], COL_LANE, W_LANE, 0, "lane");
-                    _pushChevrons(lines, entry, exit, dir, r, y);
+                    emitChevronLine(lines, entry, exit);
                     tracks.push({ entry: entry, exit: exit, dir: dir, laneIdx: d,
                                   nLanes: nLanes, roadId: r.id,
                                   entKey: entNode ? keyOf(entNode) : null,
@@ -376,9 +403,11 @@ function generateLaneModel(tileData, laneY) {
                 // solid style - only the curvature + arrowhead differ.
                 var curve = connectorCurve(A.exit, A.dir, B.entry, B.dir, y);
                 emit(curve, COL_LANE, W_LANE, 0, "lane");
-                var laneW = B.lanes >= 2 ? 0.25 * B.width : 0.5 * B.width;
+                // Native chevron direction glyphs along the maneuver curve.
+                if (curve.length >= 2) lines.push({ p: curve, c: COL_LANE, w: W_CHEV, s: 2, t: "chevron" });
+                // Native arrowhead at the connector tip (single dedicated segment).
                 var tip = curve[curve.length - 1];
-                pushArrow(lines, tip, B.dir, laneW * 0.5, COL_LANE, W_LANE, "arrow");
+                emitArrowTip(lines, tip, B.dir);
             }
         }
     }
@@ -390,20 +419,14 @@ function generateLaneModel(tileData, laneY) {
              lines: lines, lineCount: lines.length, pointCount: pointCount };
 }
 
-// Sparse direction chevrons along an open-road lane track (subtle, every
-// ~CHEVRON_SP world units), each a small V pointing in the travel direction.
-function _pushChevrons(lines, entry, exit, dir, road, y) {
-    var dx = exit[0] - entry[0], dz = exit[2] - entry[2];
-    var len = Math.sqrt(dx * dx + dz * dz);
-    if (len < CHEVRON_SP) return;
-    var laneW = road.lanes >= 2 ? 0.25 * road.width : 0.5 * road.width;
-    var size = laneW * 0.4;
-    var start = CHEVRON_SP * 0.5;
-    for (var s = start; s < len - 2.0; s += CHEVRON_SP) {
-        var f = s / len;
-        var tip = [entry[0] + dx * f, y, entry[2] + dz * f];
-        pushArrow(lines, tip, dir, size, COL_LANE, W_LANE * 0.8, "chevron");
-    }
+// Native direction chevrons along a straight lane track: one chevron-patterned
+// overlay line (styleId 2) sharing the track's path. The glyphs point in the
+// travel direction and march when the batch's flowTime is advanced. Skipped for
+// stubs too short to carry a single glyph.
+function emitChevronLine(lines, a, b) {
+    var dx = b[0] - a[0], dz = b[2] - a[2];
+    if (Math.sqrt(dx * dx + dz * dz) < CHEV_LEN + CHEV_GAP) return;
+    lines.push({ p: [a, b], c: COL_LANE, w: W_CHEV, s: 2, t: "chevron" });
 }
 
 // ---- render-buffer builder (bulk path) ------------------------------------

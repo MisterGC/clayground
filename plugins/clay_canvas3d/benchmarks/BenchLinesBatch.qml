@@ -10,12 +10,15 @@
 // vsync-capped and reports gpu_ms/draw_calls as 0, so the overdraw win only
 // surfaces once the GPU drops below vsync (the 100k/200k steps with fat lines).
 //
-// Runs in FOUR configs across builds (see benchmarks/results/overdraw-*.csv):
+// Runs in several configs across builds (see benchmarks/results/overdraw-*.csv):
 //   baseline    - pre-change shaders (both caps on every segment)
 //   steps12     - cap flags + tighter quads
 //   opaque-off  - step 3 build, blended path (opaque=false)
 //   opaque-on   - step 3 build, early-z path (opaque=true)
-// Only benchOpaque distinguishes the last two; flip it for the opaque-on run.
+// benchOpaque distinguishes the two opaque runs; flip it for the opaque-on run.
+// benchConfig selects the style-cost scenario: "mixed" (default, solid/dashed),
+// "pattern-mix" (adds dot + chevron procedural patterns) and "flow-on" (animated
+// flowing glow chevrons, flowTime advanced every frame).
 
 import QtQuick
 import QtQuick3D
@@ -39,6 +42,13 @@ View3D {
     // Flip to true for the opaque-on config run. Assigned to the batch only when
     // true, so the benchmark still loads against builds without the property.
     property bool benchOpaque: false
+
+    // Style-cost config, selectable like benchOpaque:
+    //   "mixed"       - solid/dashed mix (default, byte-comparable with earlier runs)
+    //   "pattern-mix" - solid/dashed/dot/chevron mix (procedural pattern SDF cost)
+    //   "flow-on"     - static + flowing glow chevrons, flowTime advanced every
+    //                   frame (per-frame flow uniform + animated pattern phase)
+    property string benchConfig: "mixed"
 
     // --- driver state ---
     property int stepIndex: -1
@@ -70,9 +80,16 @@ View3D {
         widthUnits: LineBatch3D.Pixel
         viewportSize: Qt.vector2d(view3D.width, view3D.height)
         styles: [
-            { dash: [0, 0], capRound: true, opacity: 1.0 },    // 0: solid
-            { dash: [10, 6], capRound: true, opacity: 1.0 }    // 1: dashed
+            { dash: [0, 0], capRound: true, opacity: 1.0 },                 // 0: solid
+            { dash: [10, 6], capRound: true, opacity: 1.0 },                 // 1: dashed
+            { dash: [6, 12], pattern: "dot" },                               // 2: dots
+            { dash: [12, 20], pattern: "chevron" },                          // 3: chevrons
+            { dash: [12, 20], pattern: "chevron", flow: 60, glow: 0.4 }      // 4: flowing chevrons
         ]
+
+        // flow-on config advances flowTime every frame so flowing styles animate;
+        // off for every other config so the batch is never needlessly self-ticking.
+        flowAutoPlay: view3D.benchConfig === "flow-on"
 
         // Static batch within a step, so the View3D would render once and idle.
         // A slow deterministic yaw forces continuous re-rendering of the SAME
@@ -104,6 +121,7 @@ View3D {
         extra: ({
             "line_count": function() { return view3D.currentN },
             "opaque": function() { return view3D.benchOpaque ? 1 : 0 },
+            "config": function() { return view3D.benchConfig },
             "build_ms": function() { return view3D.lastBuildMs.toFixed(1) }
         })
         running: false
@@ -156,7 +174,15 @@ View3D {
             // only surfaces (fps drops below vsync) when the batch is fragment-
             // bound rather than vsync/CPU-bound. Kept identical across configs.
             widths[i] = 40.0 + rng() * 80.0        // 40..120 px
-            styleIds[i] = (rng() < 0.5) ? 0 : 1    // mixed solid/dashed
+            // One rng() draw per line regardless of config, so the "mixed" run
+            // stays byte-comparable with earlier CSVs.
+            var r = rng()
+            if (view3D.benchConfig === "pattern-mix")
+                styleIds[i] = Math.floor(r * 4)    // solid/dashed/dot/chevron
+            else if (view3D.benchConfig === "flow-on")
+                styleIds[i] = (r < 0.5) ? 4 : 3    // flowing + static chevrons
+            else
+                styleIds[i] = (r < 0.5) ? 0 : 1    // mixed solid/dashed
         }
         starts[n] = ptCount
 
@@ -180,7 +206,7 @@ View3D {
         bench.annotate("step_start", currentN)
         stepStartMs = Date.now()
         console.log("BENCH STEP lines-batch N=" + currentN + " build_ms=" + lastBuildMs
-                    + " opaque=" + benchOpaque)
+                    + " opaque=" + benchOpaque + " config=" + benchConfig)
     }
 
     function finish() {
@@ -194,7 +220,8 @@ View3D {
 
     function flagInfo() {
         return { scenario: "lines-batch", step: stepIndex, lineCount: currentN,
-                 opaque: benchOpaque, buildMs: lastBuildMs, done: benchDone }
+                 opaque: benchOpaque, config: benchConfig, buildMs: lastBuildMs,
+                 done: benchDone }
     }
 
     Timer {
