@@ -143,28 +143,80 @@ Model {
 
     /*!
         \qmlproperty list LineBatch3D::styles
-        \brief Per-styleId table of dash pattern, cap shape and opacity.
+        \brief Per-styleId table of pattern, cap shape, opacity and effects.
 
-        Each element is an object
-        \c{{ dash: [dashLen, gapLen], capRound: <bool>, opacity: <real> }}
-        where \c dashLen and \c gapLen are in world units (\c{[0, 0]} = solid).
-        A line's \c styleId (set per line via \l lines) selects the row.
+        Each element is an object. Only \c dash / \c capRound / \c opacity are
+        required; every other key is optional and defaults to the plain solid
+        or dashed behaviour, so existing style lists keep rendering unchanged.
 
-        The table is baked into a tiny RGBA32F texture the shader samples per
-        fragment; the dash phase runs continuously along each polyline. Style
+        \list
+        \li \c dash - \c{[dashLen, gapLen]} in world units (\c{[0, 0]} = solid).
+            Also sets the repeat period for \c dot and \c chevron patterns.
+        \li \c capRound - round caps when true (default), square when false.
+        \li \c opacity - opacity multiplier (blended mode only).
+        \li \c pattern - \c "solid"/"dash" (default), \c "dot" (round dots) or
+            \c "chevron" (V glyphs pointing from a line's start to its end).
+        \li \c patternUnits - \c "world" (default) or \c "screen": whether the
+            pattern period is measured in world units or in screen pixels
+            (zoom-stable, for HUD/overlay lines).
+        \li \c flow - marches the pattern along the line; the on-screen speed is
+            \c flow scaled by \l flowTime (0 = static, the default).
+        \li \c glow - soft edge falloff across the ribbon instead of a hard edge
+            (0 = hard, the default; ~0.3-1.0 for a neon look).
+        \li \c pulse - opacity oscillation driven by \l flowTime (0 = none).
+        \li \c head - \c{[length, width]} arrowhead at the line's flagged end(s),
+            in multiples of line width; absent = no head.
+        \endlist
+
+        The table is baked into a small RGBA32F texture the shader samples per
+        fragment; the pattern phase runs continuously along each polyline. Style
         index 0 always defaults to solid, round-capped and fully opaque, so
         lines work unchanged when \c styles is left empty.
 
         Example:
         \code
         styles: [
-            { dash: [0, 0], capRound: true, opacity: 1.0 },   // 0: solid
-            { dash: [12, 8], capRound: false, opacity: 1.0 }, // 1: dashed
-            { dash: [1, 6], capRound: true, opacity: 0.8 }    // 2: dotted
+            { dash: [0, 0], capRound: true, opacity: 1.0 },              // 0: solid
+            { dash: [12, 8], capRound: false, opacity: 1.0 },            // 1: dashed
+            { dash: [6, 34], pattern: "dot" },                           // 2: round dots
+            { dash: [10, 30], pattern: "chevron", flow: 40, glow: 0.5 }, // 3: flowing chevrons
+            { dash: [0, 0], glow: 0.8, head: [3.0, 2.5] }                // 4: glowing arrow
         ]
         \endcode
+
+        \sa flowTime, flowAutoPlay
     */
     property var styles: []
+
+    /*!
+        \qmlproperty real LineBatch3D::flowTime
+        \brief Animation clock (seconds) driving every flowing/pulsing style.
+
+        A single value shared by the whole batch: each style's \c flow scales it
+        to march its pattern, and \c pulse oscillates its opacity from it. The
+        batch never ticks itself (rendering stays on-demand); bind this to your
+        own clock (typically a \c FrameAnimation's \c elapsedTime) or set
+        \l flowAutoPlay to true for the built-in one. Set it explicitly for
+        deterministic, frame-exact inspection.
+    */
+    property real flowTime: 0
+
+    /*!
+        \qmlproperty bool LineBatch3D::flowAutoPlay
+        \brief Convenience clock that advances \l flowTime automatically.
+
+        When true, an internal \c FrameAnimation drives \l flowTime so flowing
+        and pulsing styles animate without any external clock. Defaults to
+        false so a batch is never self-animating (Qt renders on demand); leave
+        it off and drive \l flowTime yourself when you need to pause, timescale
+        or inspect deterministically.
+    */
+    property bool flowAutoPlay: false
+
+    FrameAnimation {
+        running: root.flowAutoPlay
+        onTriggered: root.flowTime = elapsedTime
+    }
 
     /*!
         \qmlmethod void LineBatch3D::setBulk(ByteArray positions, ByteArray startIndices, ByteArray colors, ByteArray widths, ByteArray styleIds)
@@ -218,6 +270,30 @@ Model {
         _inst.updateEndpointsBulk(positions)
     }
 
+    /*!
+        \qmlmethod real LineBatch3D::pathLength(int lineId)
+        \brief Returns the total length of line \a lineId in world units.
+
+        Read-only query over the batch geometry (0 for an unknown index or a
+        line with fewer than two points). Together with \l positionAt this lets
+        objects and labels ride along a line without duplicating its geometry.
+    */
+    function pathLength(lineId) {
+        return _inst.pathLength(lineId)
+    }
+
+    /*!
+        \qmlmethod vector3d LineBatch3D::positionAt(int lineId, real distance)
+        \brief Returns the point \a distance world units along line \a lineId.
+
+        The distance is clamped to the line, so 0 gives its first point and any
+        value past \l pathLength gives its last. Unknown indices return
+        \c{Qt.vector3d(0, 0, 0)}.
+    */
+    function positionAt(lineId, distance) {
+        return _inst.positionAt(lineId, distance)
+    }
+
     // Instanced shadow bounds are O(n) on the CPU without explicit bounds, so
     // keep shadows off (overlay/map lines are unlit anyway).
     castsShadows: false
@@ -249,6 +325,8 @@ Model {
             property vector2d viewportSize: root.viewportSize
             property real widthMode: root.widthUnits
             property real depthBias: root.depthBias
+            // Shared animation clock for flowing/pulsing styles (seconds).
+            property real flowTime: root.flowTime
             // 1.0 in opaque mode enables the deterministic per-instance depth
             // tie-break in the vertex shader; 0.0 disables it when blending.
             property real depthJitter: root.opaque ? 1.0 : 0.0

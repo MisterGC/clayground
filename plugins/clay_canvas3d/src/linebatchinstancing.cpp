@@ -291,6 +291,57 @@ void LineBatchInstancing::updateEndpointsBulk(const QByteArray &positions)
     markDirty();
 }
 
+/*!
+    \qmlmethod real LineBatchInstancing::pathLength(int lineIndex)
+    \brief Returns the total length of line \a lineIndex in world units.
+
+    Returns 0 for an out-of-range index or a line with fewer than two points.
+    This is the same accumulated distance the shader uses to run patterns
+    continuously along the polyline.
+*/
+qreal LineBatchInstancing::pathLength(int lineIndex) const
+{
+    if (lineIndex < 0 || lineIndex >= m_lines.size())
+        return 0.0;
+    const Line &line = m_lines[lineIndex];
+    qreal total = 0.0;
+    for (int s = 0; s + 1 < line.points.size(); ++s)
+        total += (line.points[s + 1] - line.points[s]).length();
+    return total;
+}
+
+/*!
+    \qmlmethod vector3d LineBatchInstancing::positionAt(int lineIndex, real distance)
+    \brief Returns the point \a distance world units along line \a lineIndex.
+
+    The distance is clamped to the line's extent, so 0 yields the first point
+    and any distance past the total length yields the last point. Out-of-range
+    indices and empty lines return the zero vector.
+*/
+QVector3D LineBatchInstancing::positionAt(int lineIndex, qreal distance) const
+{
+    if (lineIndex < 0 || lineIndex >= m_lines.size())
+        return QVector3D();
+    const Line &line = m_lines[lineIndex];
+    if (line.points.isEmpty())
+        return QVector3D();
+    if (line.points.size() == 1 || distance <= 0.0)
+        return line.points.first();
+
+    qreal remaining = distance;
+    for (int s = 0; s + 1 < line.points.size(); ++s) {
+        const QVector3D &p0 = line.points[s];
+        const QVector3D &p1 = line.points[s + 1];
+        const float segLen = (p1 - p0).length();
+        if (segLen <= 0.0f)
+            continue;
+        if (remaining <= segLen)
+            return p0 + (p1 - p0) * static_cast<float>(remaining / segLen);
+        remaining -= segLen;
+    }
+    return line.points.last();
+}
+
 void LineBatchInstancing::rebuild()
 {
     // Assign instance ranges and total segment count.

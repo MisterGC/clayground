@@ -46,6 +46,12 @@ public:
     // Lines that do not have exactly one segment are left untouched.
     Q_INVOKABLE void updateEndpointsBulk(const QByteArray &positions);
 
+    // Read-only path queries (the same accumulated distances the shader uses).
+    // pathLength returns the total length of a line; positionAt returns the
+    // point a given distance along it (clamped to the line's ends).
+    Q_INVOKABLE qreal pathLength(int lineIndex) const;
+    Q_INVOKABLE QVector3D positionAt(int lineIndex, qreal distance) const;
+
 signals:
     void linesChanged();
     void countChanged();

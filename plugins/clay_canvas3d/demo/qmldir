@@ -2,6 +2,7 @@ Box3DDemo 1.0 Box3DDemo.qml
 Box3D_Example 1.0 Box3D_Example.qml
 LineDemo 1.0 LineDemo.qml
 LineBatchDemo 1.0 LineBatchDemo.qml
+LineStylesShowcase 1.0 LineStylesShowcase.qml
 ConnectorDemo 1.0 ConnectorDemo.qml
 VoxelDemo 1.0 VoxelDemo.qml
 PerfDemo 1.0 PerfDemo.qml
