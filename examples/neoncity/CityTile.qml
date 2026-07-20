@@ -244,6 +244,9 @@ Node {
         laneModel: tile.laneMarkings
         viewportSize: tile.viewportSize
         visible: true
+        // Road paint is world geometry: marking widths are emitted in world
+        // units (proportional to lane width), unlike the pixel-width map layer.
+        widthUnits: LineBatch3D.World
     }
 
     // ---- detailed lane model overlay (toggleable teal map layer) ----

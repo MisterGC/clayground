@@ -14,11 +14,16 @@ Node {
     // Distance from the rooftop up to the tip (world units).
     property real mastHeight: 44
 
-    // Thin galvanised mast, drawn from the rooftop (-mastHeight) up to the tip.
+    // The mast root sinks this far past the nominal rooftop, so quantized
+    // roof shapes (voxel towers render up to ~2 voxel rows below their data
+    // height) never leave the mast floating in the air.
+    readonly property real rootSink: 14
+
+    // Thin galvanised mast, drawn from inside the roof up to the tip.
     Model {
         source: "#Cylinder"
-        scale: Qt.vector3d(0.018, tx.mastHeight / 100, 0.018)
-        y: -tx.mastHeight / 2
+        scale: Qt.vector3d(0.018, (tx.mastHeight + tx.rootSink) / 100, 0.018)
+        y: -(tx.mastHeight + tx.rootSink) / 2
         castsShadows: false
         receivesShadows: false
         materials: PrincipledMaterial {

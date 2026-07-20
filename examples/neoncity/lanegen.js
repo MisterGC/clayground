@@ -56,13 +56,14 @@ var DASH_GAP = 4.0;
 var CHEV_LEN  = 10.0;   // glyph extent along the path (world units)
 var CHEV_GAP  = 22.0;   // gap between glyphs (world units) -> ~32u period
 var CHEV_FLOW = 18.0;   // march speed (world units / s of flowTime)
-var W_CHEV    = 11.0;   // chevron ribbon width (screen px) so the V reads clearly
+var W_CHEV    = 7.0;    // chevron ribbon width (screen px) so the V reads clearly
 
 // Native arrowhead on the connector tip segment. head = [length, width] in
-// multiples of the tip line's width; length is generous so the whole (short)
-// tip segment becomes the triangle.
+// multiples of the tip line's width; the engine caps length to classic arrow
+// proportions (<= 2x head width) and scales the whole head down gracefully on
+// short segments, so a large length request just means "as long as allowed".
 var HEAD_LEN_M = 40.0;
-var HEAD_WID_M = 4.2;
+var HEAD_WID_M = 3.0;
 var W_HEADTIP  = 3.4;   // tip segment width (screen px)
 var HEAD_TIP_WORLD = 6.0; // tip segment length (world units) == arrowhead length
 
@@ -100,11 +101,20 @@ var COL_STOP   = "#ffffff"; // white stop bars at junction approaches
 
 var COL_LANE   = "#00d9ff"; // lane-model centerlines + junction connectors: cyan
 
-var W_EDGE   = 2.0;
-var W_DIVIDE = 1.6;
-var W_CENTER = 2.0;
-var W_STOP   = 3.4;
+// Painted-marking widths are WORLD units, proportional to the lane width they
+// belong to (real stripes are ~0.10-0.15 m on a 3.5 m lane, stop bars ~0.4 m),
+// so the paint keeps believable proportions against road and cars at any zoom.
+// The cyan lane-model overlay stays a pixel-width map layer (W_LANE).
+var F_EDGE   = 0.045;
+var F_DIVIDE = 0.040;
+var F_CENTER = 0.045;
+var F_STOP   = 0.14;
 var W_LANE   = 2.2;
+
+// Travel-lane width of a road/leg (total width spans both directions).
+function oneLaneWidth(width, lanes) {
+    return width / (2 * Math.max(1, lanes));
+}
 
 // ---- small helpers (XZ plane, axis-aligned roads) -------------------------
 
@@ -239,22 +249,24 @@ function generateMarkings(tileData, laneY) {
         var rr = roadRange(r);
         var disks = disksForRoad(r, inters);
 
+        var laneW = oneLaneWidth(r.width, r.lanes);
+
         // Solid white edge lines on both carriageway edges (every road).
-        emitOffset(rr, -h, disks, COL_EDGE, W_EDGE, 0, "edge");
-        emitOffset(rr,  h, disks, COL_EDGE, W_EDGE, 0, "edge");
+        emitOffset(rr, -h, disks, COL_EDGE, F_EDGE * laneW, 0, "edge");
+        emitOffset(rr,  h, disks, COL_EDGE, F_EDGE * laneW, 0, "edge");
 
         if (r.lanes >= 2) {
             // Dashed white divider between the two same-direction lanes, one per
             // carriageway half (at +-0.5h).
-            emitOffset(rr, -0.5 * h, disks, COL_DIVIDE, W_DIVIDE, 1, "divider");
-            emitOffset(rr,  0.5 * h, disks, COL_DIVIDE, W_DIVIDE, 1, "divider");
+            emitOffset(rr, -0.5 * h, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "divider");
+            emitOffset(rr,  0.5 * h, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "divider");
             // Double solid yellow centre between the two travel directions.
             var dc = Math.min(0.7, h * 0.12);
-            emitOffset(rr, -dc, disks, COL_CENTER, W_CENTER, 0, "center");
-            emitOffset(rr,  dc, disks, COL_CENTER, W_CENTER, 0, "center");
+            emitOffset(rr, -dc, disks, COL_CENTER, F_CENTER * laneW, 0, "center");
+            emitOffset(rr,  dc, disks, COL_CENTER, F_CENTER * laneW, 0, "center");
         } else {
             // Single dashed white centre line splitting the two directions.
-            emitOffset(rr, 0, disks, COL_DIVIDE, W_DIVIDE, 1, "center");
+            emitOffset(rr, 0, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "center");
         }
     }
 
@@ -271,7 +283,7 @@ function generateMarkings(tileData, laneY) {
             var ex = node.x + d.x * node.radius, ez = node.z + d.z * node.radius;
             var half = leg.width * 0.5;
             emit([[ex, y, ez], [ex + rvx * half, y, ez + rvz * half]],
-                 COL_STOP, W_STOP, 0, "stop");
+                 COL_STOP, F_STOP * oneLaneWidth(leg.width, leg.lanes), 0, "stop");
         }
     }
 
