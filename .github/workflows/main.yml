@@ -9,6 +9,9 @@ on:
   # otherwise gets no CI) — kept opt-in to avoid burning runners on every PR.
   workflow_dispatch:
 
+# Builds are ccache/sccache-accelerated (see "Setup compiler cache" below);
+# warm runs reuse cached objects so only changed sources recompile.
+
 # Prevent multiple runs of the same workflow on the same ref
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
