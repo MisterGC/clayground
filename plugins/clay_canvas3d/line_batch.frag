@@ -101,29 +101,60 @@ void MAIN()
     float aa = glow > 0.0 ? glow * halfW : 0.0;
     float across = abs(v);
 
-    float headLenLocal = vHead.x;
-    float headHalfW = vHead.y;
-    float headBaseU = segLen - headLenLocal;
-    bool inHead = headActive && (u >= headBaseU);
+    if (headActive) {
+        // Classic triangular arrowhead. A shaft rectangle (half width halfW)
+        // meets a wider triangle head (base 2*headHalfW, tip exactly at
+        // u == segLen) at a clean shoulder. Both parts carry ~1px edge
+        // anti-aliasing that is independent of glow; glow only widens the soft
+        // edge on top. vHead is (head length, head half width) in segment space.
+        float headLen = vHead.x;
+        float headHalfW = vHead.y;
+        float headBaseU = segLen - headLen;
+        // The shaft overlaps the head up to uMid - the point where the triangle
+        // has narrowed to exactly the shaft width - so the shoulder has no seam
+        // and the shaft can never poke out past the triangle sides.
+        float uMid = segLen - headLen * (halfW / max(headHalfW, 1e-6));
 
-    // Ribbon + cap coverage (mirrors the legacy discards when aa == 0). Over the
-    // arrowhead region the ribbon becomes a triangle narrowing to a tip at the
-    // segment end; the rest of the segment is the normal body clipped to halfW.
-    float bodyCov;
-    float patCov = 1.0;
-    if (inHead) {
-        if (u > segLen)
-            discard;
-        float taper = clamp((segLen - u) / max(headLenLocal, 1e-6), 0.0, 1.0);
-        bodyCov = coverage(across - headHalfW * taper, aa);
-        if (bodyCov <= 0.0)
-            discard;
-        float alphaHead = vColor.a * opacity * bodyCov;
+        // ~1px AA expressed in segment-space units (world mode converts through
+        // the screen scale), widened to the glow falloff when glow is set.
+        float pxToSeg = (widthMode < 0.5) ? 1.0 : 1.0 / max(vScreenScale, 1e-6);
+        float aaHead = max(1.3 * pxToSeg, aa);
+
+        // Shaft: rounded/butt-capped rectangle from the start to the crossover.
+        float shaftStart;
+        if (u < 0.0)
+            shaftStart = startRound ? (length(vec2(u, v)) - halfW) : (-u);
+        else
+            shaftStart = -1e6;
+        float shaftDist = max(max(across - halfW, u - uMid), shaftStart);
+        float shaftCov = uMid > 0.0 ? coverage(shaftDist, aaHead) : 0.0;
+
+        // Head triangle as an intersection of half-planes: the outward diagonal
+        // edge, the flat base (shoulder) and the tip end plane.
+        float Le = sqrt(headLen * headLen + headHalfW * headHalfW);
+        float invLe = 1.0 / max(Le, 1e-6);
+        float dEdge = ((u - headBaseU) * headHalfW
+                       + (across - headHalfW) * headLen) * invLe;
+        float headDist = max(max(dEdge, headBaseU - u), u - segLen);
+        float headCov = coverage(headDist, aaHead);
+
+        float cov = max(shaftCov, headCov);
+        // Pulse composes on the head exactly like on the body.
+        float pulseMulH = 1.0;
+        if (pulse > 0.0) {
+            float oscH = 0.5 + 0.5 * sin(flowTime * 3.0);
+            pulseMulH = mix(1.0, oscH, pulse);
+        }
+        float alphaHead = vColor.a * opacity * pulseMulH * cov;
         if (alphaHead < 0.003)
             discard;
         FRAGCOLOR = vec4(vColor.rgb, alphaHead);
         return;
     }
+
+    // Ribbon + cap coverage (mirrors the legacy discards when aa == 0).
+    float bodyCov;
+    float patCov = 1.0;
     if (u < 0.0) {
         bodyCov = startRound ? coverage(length(vec2(u, v)) - halfW, aa) : 0.0;
     } else if (u > segLen) {
@@ -169,11 +200,17 @@ void MAIN()
     } else if (glyph == PATTERN_CHEVRON) {
         if (period > 0.0) {
             // ">" glyph per period, tip toward the path end (start -> end).
+            // ALL along-axis geometry derives from the style's dash slot (the
+            // glyph length, pattern units); the ribbon width enters only as a
+            // normalized across ratio. Width is screen-anchored in Pixel mode,
+            // so width-derived along geometry would wrap the period zoomed out,
+            // distort mid-zoom, and thin to invisibility zoomed in.
             float local = patternDist - floor(patternDist / period) * period;
-            float a = abs(vPat);
-            float tip = period - halfWPat * 0.5;
-            float lead = tip - a;                 // 45-degree arm
-            float th = halfWPat * 0.55;           // stroke half-thickness
+            float glyphLen = clamp(dashLen, 1e-3, period * 0.7);
+            float across01 = clamp(abs(vPat) / max(halfWPat, 1e-6), 0.0, 1.0);
+            float tip = period - 0.5 * glyphLen;
+            float lead = tip - across01 * 0.62 * glyphLen;  // arm sweep
+            float th = 0.19 * glyphLen;                     // stroke half-thickness
             patCov = coverage(abs(local - lead) - th, aaPat);
         }
     } else { // PATTERN_DASH (also the flowing-dash case)

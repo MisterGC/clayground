@@ -165,7 +165,17 @@ Model {
             (0 = hard, the default; ~0.3-1.0 for a neon look).
         \li \c pulse - opacity oscillation driven by \l flowTime (0 = none).
         \li \c head - \c{[length, width]} arrowhead at the line's flagged end(s),
-            in multiples of line width; absent = no head.
+            in multiples of line width; absent = no head. Drawn as a classic
+            triangle with a real shoulder. The proportions are regulated so the
+            head stays arrow-like whatever the request: \c width is clamped to
+            \c{[1.5, 8]} (base is always wider than the shaft) and the effective
+            \c length is \c{min(request, 2 x head width, segment length)},
+            defaulting to \c{~1.1 x head width} when \c length is 0 or invalid.
+            On a segment shorter than the head the whole head scales down with
+            its proportions preserved, so an over-large fill-the-segment length
+            (e.g. \c 40) still yields a well-formed head rather than a needle.
+            The tip sits exactly at the segment end and the diagonal edges are
+            anti-aliased at every zoom (composes with \c glow and \c pulse).
         \endlist
 
         The table is baked into a small RGBA32F texture the shader samples per

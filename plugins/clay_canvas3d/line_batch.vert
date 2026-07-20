@@ -46,17 +46,32 @@ void MAIN()
     bool endFlagged = (t < 0.5) ? startCap : endCap;
 
     // Arrowhead params live in style-table row 2 (b = length, a = width, both
-    // in line-width multiples). Heads are a single-segment feature in v1
-    // (capFlags == 3), so a widened quad only appears where it is a real end.
+    // as raw line-width multiples straight from the style). Heads are a
+    // single-segment feature (capFlags == 3), so a widened quad only appears
+    // where it is a real end.
     float styleCol = (INSTANCE_DATA.y + 0.5) / max(styleCount, 1.0);
     vec4 headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
-    float headWidM = headRow.a;
-    float headLenM = headRow.b;
+    float headWidM = headRow.a;   // requested head base width (shaft-width mult)
+    float headLenM = headRow.b;   // requested head length (shaft-width mult)
     bool headActive = (headWidM > 0.0) && (capFlagsI == 3);
-    // The quad widens to the head width for the whole segment when a head is
-    // active, so the triangle base fits; the fragment shader clips the body
-    // back to halfW and shades the triangle only over the head region.
-    float drawHalfW = headActive ? max(halfW, 0.5 * headWidM * width) : halfW;
+
+    // Resolve arrowhead proportions - the geometry model. The head is a clean
+    // triangle: its base is clamped to a real shoulder (>= 1.5x the shaft) and
+    // its length is bounded so it can never turn into a needle - length defaults
+    // to ~1.1x base width, is capped at 2x base width, and is floored at 0.6x so
+    // it never degenerates to a stub. A consumer that over-requests length (e.g.
+    // 40x to fill a short tip segment) collapses onto the 2x cap here, then the
+    // whole head scales to the segment below.
+    float baseWidM = clamp(headWidM, 1.5, 8.0);
+    float lenM = headLenM > 0.0 ? headLenM : 1.1 * baseWidM;
+    lenM = clamp(lenM, 0.6 * baseWidM, 2.0 * baseWidM);
+    float headBaseHalfW = 0.5 * baseWidM * width; // unscaled head half width
+    float headLenReq = lenM * width;              // unscaled head length
+
+    // The quad widens to the (unscaled) head base so the triangle base always
+    // fits; the fragment shader clips the shaft back to halfW and shades the
+    // triangle only over the head region.
+    float drawHalfW = headActive ? max(halfW, headBaseHalfW) : halfW;
 
     // Base-space segment endpoints.
     vec4 base0 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -115,9 +130,19 @@ void MAIN()
     vDash = vec2(INSTANCE_DATA.z, worldSegLen);
     vStyleId = INSTANCE_DATA.y;
     vCapFlags = INSTANCE_DATA.w;
-    // Head length clamped to the segment (v1: heads never exceed their segment).
-    float headLenLocal = headActive ? min(headLenM * width, segLen) : 0.0;
-    vHead = vec2(headLenLocal, headActive ? drawHalfW : 0.0);
+    // Head length is min(proportion-capped request, segment length); on segments
+    // shorter than the head the WHOLE head scales down (proportions preserved),
+    // so a short tip segment still yields a well-formed arrow rather than one
+    // clipped to a sliver. vHead carries (head length, head half width) in
+    // segment-space units for the fragment shader.
+    float headLen = headLenReq;
+    float headHalfW = headBaseHalfW;
+    if (headActive && headLenReq > segLen) {
+        float s = segLen / max(headLenReq, 1e-6);
+        headLen = segLen;
+        headHalfW = headBaseHalfW * s;
+    }
+    vHead = headActive ? vec2(headLen, headHalfW) : vec2(0.0, 0.0);
 
     // Screen-space length of this segment (pixels), so the fragment shader can
     // express a pattern period in screen pixels as well as world units.
