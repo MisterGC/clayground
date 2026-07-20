@@ -118,7 +118,14 @@ jobs:
 
     - name: Build (WASM)
       if: matrix.qt-target == 'wasm'
-      run: cmake --build build --target voxelworld clayground_starter
+      # emsdk installs to a per-run temp path, so ccache's default mtime compiler
+      # check treats emcc as "new" every run and misses. Hash the compiler content
+      # instead, and normalize paths, so warm runs actually hit.
+      env:
+        CCACHE_COMPILERCHECK: content
+        CCACHE_BASEDIR: ${{ github.workspace }}
+        CCACHE_SLOPPINESS: time_macros,include_file_mtime,include_file_ctime,system_headers,pch_defines
+      run: cmake --build build --target clayground_starter
 
     - name: Runtime Size Report (WASM)
       if: matrix.qt-target == 'wasm'
@@ -152,19 +159,6 @@ jobs:
       if: matrix.qt-target == 'desktop'
       working-directory: build
       run: ctest --output-on-failure
-
-    # Upload WASM artifacts for PRs (testing) and main (docs-check.yml does its own build for deployment)
-    - name: Upload WASM Artifacts
-      if: matrix.qt-target == 'wasm'
-      uses: actions/upload-artifact@v7
-      with:
-        name: wasm-voxelworld
-        path: |
-          build/bin/voxelworld.html
-          build/bin/voxelworld.js
-          build/bin/voxelworld.wasm
-          build/bin/qtloader.js
-        retention-days: 7
 
     - name: Upload Starter Bundle
       if: always() && matrix.qt-target == 'wasm'
