@@ -47,6 +47,13 @@ function laneWidth(road) {
     return road.lanes >= 2 ? 0.25 * road.width : 0.5 * road.width;
 }
 
+// Quantize a travel direction to one of four cardinal legs (0:+x 1:+z 2:-x 3:-z).
+// A junction crossing's movement is identified by (approachLeg, exitLeg), which
+// keys its reservation and its cached conflict verdicts.
+function dirQuant(dx, dz) {
+    return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 0 : 2) : (dz > 0 ? 1 : 3);
+}
+
 // Build the directional right-lane routes. Each road is SPLIT at its junction
 // points so every route ends at a junction, where the car re-plans (straight
 // on / turn / respawn) - this is what makes cars turn at interior crossings of
@@ -226,6 +233,11 @@ function initCars(seed, routes, count, baseSpeed) {
             lat: 0,                              // lateral offset from lane centre
             otCool: 0,                           // overtake / lane-change cooldown
             holdBox: false,                      // held at a junction bar this frame
+            // ---- movement-reservation state (issue #154) ----
+            // res: null, or { junc, sig } while this car owns a box crossing; its
+            // path is the single arbiter that keeps two streams out of a junction.
+            res: null,
+            stallT: 0,                           // sim-seconds stopped while NOT red-held
             yaw: 0, yawInit: false
         });
     }
@@ -308,17 +320,31 @@ function planTurn(routes, fromIdx, toIdx) {
         ctrl = { x: p0.x + s * from.dx, z: p0.z + s * from.dz };
     }
 
-    // Arc length by sampling.
+    // Arc length + path samples (used for the box-conflict test) by sampling.
     var len = 0, prev = p0;
+    var samples = [{ x: p0.x, z: p0.z }];
     for (var k = 1; k <= 8; ++k) {
         var t = k / 8, u = 1 - t;
         var x = u * u * p0.x + 2 * u * t * ctrl.x + t * t * p2.x;
         var z = u * u * p0.z + 2 * u * t * ctrl.z + t * t * p2.z;
         len += Math.sqrt((x - prev.x) * (x - prev.x) + (z - prev.z) * (z - prev.z));
         prev = { x: x, z: z };
+        samples.push({ x: x, z: z });
     }
+
+    // Movement classification for the reservation model (issue #154): the
+    // approach/exit legs form the movement signature `sig`; `kind` distinguishes
+    // a left turn (crosses oncoming traffic) from straight/right. Right-hand
+    // traffic here has +z to the right of +x-heading, so a left turn has cross<0.
+    var dot = from.dx * to.dx + from.dz * to.dz;
+    var cross = from.dx * to.dz - from.dz * to.dx;
+    var kind = dot > 0.7 ? "straight" : (cross < 0 ? "left" : "right");
+    var sig = dirQuant(from.dx, from.dz) * 4 + dirQuant(to.dx, to.dz);
+
     return { p0: p0, ctrl: ctrl, p2: p2, len: Math.max(0.5, len),
-             toIdx: toIdx, joinTexit: joinArc, startT: startArc };
+             toIdx: toIdx, joinTexit: joinArc, startT: startArc,
+             junc: from.endJunc, boxR: from.endRadius, axis: from.axis,
+             kind: kind, sig: sig, samples: samples };
 }
 
 // Point on a quadratic Bezier turn curve at parameter t in [0,1].

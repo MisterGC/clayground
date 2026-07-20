@@ -26,7 +26,9 @@ Item {
     // ---- overlay toggles ----
     property bool showLanes: true
     property bool showCars: true
-    property bool showConnections: true
+    // Car-transmitter links are an on-demand layer (C): off by default so the
+    // base scene stays free of overlay noise.
+    property bool showConnections: false
 
     // ---- lane-chevron flow animation (off by default; never self-ticks the
     // scene while off - the clock below only runs while flowLanes is true) ----
@@ -311,6 +313,79 @@ Item {
         for (var i = 0; i < tiles.length; ++i)
             if (tiles[i].carSystem) n += tiles[i].carSystem.laneChanges
         return n
+    }
+
+    // ---- traffic-health metrics, summed across streamed tiles (issue #154) ----
+    // Individual accessors kept trace-friendly (one number each); trafficStats()
+    // bundles them for the inspector snapshot / flagInfo.
+    function trafficStalled() {
+        var tiles = tileManager.loadedTiles(), n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.stalledCars
+        return n
+    }
+    function trafficOverlap() {
+        var tiles = tileManager.loadedTiles(), n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.overlapCount
+        return n
+    }
+    function trafficRespawns() {
+        var tiles = tileManager.loadedTiles(), n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.unstuckRespawns
+        return n
+    }
+    function trafficCrossings() {
+        var tiles = tileManager.loadedTiles(), n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.crossings
+        return n
+    }
+    function trafficActiveCars() {
+        var tiles = tileManager.loadedTiles(), n = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) n += tiles[i].carSystem.activeCars
+        return n
+    }
+    // Highest sim-clock across tiles (they run near-identically); the crossings
+    // rate = trafficCrossings() / trafficSimClock() * 60 gives crossings/sim-min.
+    function trafficSimClock() {
+        var tiles = tileManager.loadedTiles(), m = 0
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem && tiles[i].carSystem.simClock > m)
+                m = tiles[i].carSystem.simClock
+        return m
+    }
+    // Diagnostic: toggle overtaking lane changes across all tiles (isolates the
+    // junction reservation model from merge-transient interpenetration).
+    function setLaneChanges(on) {
+        var tiles = tileManager.loadedTiles()
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) tiles[i].carSystem.enableLaneChanges = on
+    }
+    // Diagnostic: stuck-car descriptors across all tiles (see CarSystem.stuckReport).
+    function stuckReport(thr) {
+        var tiles = tileManager.loadedTiles(), out = []
+        for (var i = 0; i < tiles.length; ++i)
+            if (tiles[i].carSystem) {
+                var a = tiles[i].carSystem.stuckReport(thr === undefined ? 10 : thr)
+                for (var k = 0; k < a.length; ++k) out.push(a[k])
+            }
+        return out
+    }
+    function trafficStats() {
+        var sc = trafficSimClock()
+        return {
+            cars: trafficActiveCars(),
+            stalled: trafficStalled(),
+            overlap: trafficOverlap(),
+            respawns: trafficRespawns(),
+            crossings: trafficCrossings(),
+            simClock: Math.round(sc * 10) / 10,
+            crossingsPerMin: sc > 1 ? Math.round(trafficCrossings() / sc * 60) : 0,
+            frameMs: Math.round(perfFrameMs * 100) / 100
+        }
     }
 
     // ---- lane-data export (contract for the deck.gl twin) ----

@@ -45,6 +45,9 @@ Node {
     // fleet at a calmer ~0.4x so the city reads and cars are easy to inspect.
     property real carSpeedFactor: 0.4
     property bool showCars: true
+    // Diagnostic toggle: overtaking lane changes on 2-lane avenues. Off isolates
+    // the junction reservation model from merge-transient interpenetration.
+    property bool enableLaneChanges: true
     property var connectorLayer: null   // shared ConnectorLayer3D (scene root)
     property var manager: null          // transmitter registry + provider
 
@@ -55,12 +58,33 @@ Node {
     // readout so behaviour can be confirmed without eyeballing a single frame).
     property int laneChanges: 0
 
+    // ---- traffic-health metrics (issue #154 acceptance gates) ----
+    // Cars stopped >8 s while NOT legitimately red-held (a green-but-held or a
+    // mid-box stop counts; waiting at a red bar does not). Refreshed each frame.
+    property int stalledCars: 0
+    // Car pairs whose centres are closer than 0.8*carL - two cars sharing metal.
+    // Recomputed over a rotating slice (~one full sweep every _cars.length frames)
+    // so it stays cheap; published when a sweep completes.
+    property int overlapCount: 0
+    // Cumulative safety-valve respawns of cars wedged inside a box >30 s. After
+    // the reservation fix this must be a near-dead path, not a crutch.
+    property int unstuckRespawns: 0
+    // Cumulative junction crossings (a car passing its stop bar into the box).
+    property int crossings: 0
+
     // ---- state ----
     property var _routes: []
     property var _cars: []
     property var _inters: []        // cityData.intersections (junction graph)
     property var _phase: []         // per-junction light phase this frame
-    property var _occ: []           // per-junction box occupancy axis this frame
+    // Movement reservations (issue #154), the single arbiter of the junction box:
+    //   _res          - per-junction list of active reservation refs { junc, sig }
+    //   _movPathCache  - "junc:sig" -> the movement's sampled box path (8+1 points)
+    //   _confCache     - "junc:sigLo-sigHi" -> cached conflict verdict (bool)
+    property var _res: []
+    property var _movPathCache: ({})
+    property var _confCache: ({})
+    property real _laneWConf: 2.5   // one lane width; the box-conflict distance
     property var _lights: []        // signal-head visuals (one per junction leg)
     // Shared sim clock (scaled by carSpeedFactor so cars AND lights slow together
     // for inspection). Lights are derived from this so every car agrees on the
@@ -95,6 +119,8 @@ Node {
     property var _sampleCache: []   // per-frame position/heading samples (reused)
     property var _transmitters: []  // Transmitter nodes owned by this tile
     property int _nearestCursor: 0
+    property int _ovCursor: 0       // rotating overlap-scan cursor
+    property int _ovAccum: 0        // pairs counted during the in-flight sweep
     property bool _coreBuilt: false        // routes + cars built (needs cityData)
     property bool _txBuilt: false          // transmitters built + registered
 
@@ -362,6 +388,8 @@ Node {
 
         // Size cars to fit the narrowest lane, robust to tileSize.
         var lw = CarGen.minLaneWidth(_routes)
+        _laneWConf = lw                    // box-conflict = paths closer than a lane
+        _movPathCache = ({}); _confCache = ({})
         _carW = 0.60 * lw
         _carL = 2.30 * _carW
         _carH = 0.85 * _carW
@@ -514,6 +542,81 @@ Node {
         return (CarGen.hash2(car.hash, car.turns) >>> 0) / 4294967296
     }
 
+    // ---- traffic-health metrics (issue #154) --------------------------------
+
+    // Accumulate a car's stall clock: sim-time spent below crawl speed while it
+    // is NOT legitimately held at a red bar. Waiting at a red (or all-red) bar is
+    // legitimate and does NOT count; a green-but-held bar wait or any mid-box
+    // stop DOES. Resets to zero the moment the car moves or is red-held.
+    function _updateStall(car, r, sdt) {
+        var moving = car.speed >= 0.5
+        var legit = false
+        // Legitimately waiting: not yet in a box (res === null) and the end
+        // junction is red/all-red - this covers the whole queue behind the bar, not
+        // just the front car. A green-but-stopped approach, an in-box stop
+        // (res !== null) or a stopped mid-turn is NOT legitimate: those are the
+        // real problems the metric must expose.
+        if (!moving && car.mode === 0 && car.res === null && r && r.endIsJunction) {
+            var ph = _phase[r.endJunc]
+            if (ph && (ph.allRed || ph.green !== r.axis)) legit = true
+        }
+        if (moving || legit) car.stallT = 0
+        else car.stallT += sdt
+    }
+
+    // Do two cars' oriented footprints (width x length rectangles at their
+    // headings) overlap? Separating-axis test on the 4 box axes. This is true
+    // metal-sharing interpenetration - unlike a plain centre-distance test it does
+    // NOT flag opposing cars passing side by side on a narrow lane (they are
+    // laterally offset, their boxes never touch).
+    function _obbOverlap(ax, az, afx, afz, bx, bz, bfx, bfz, hw, hl) {
+        var arx = afz, arz = -afx          // right = (fz,-fx) for this yaw convention
+        var brx = bfz, brz = -bfx
+        var dx = bx - ax, dz = bz - az
+        var axes = [afx, afz, arx, arz, bfx, bfz, brx, brz]
+        for (var q = 0; q < 8; q += 2) {
+            var lx = axes[q], lz = axes[q + 1]
+            var dist = Math.abs(dx * lx + dz * lz)
+            var ra = hl * Math.abs(afx * lx + afz * lz) + hw * Math.abs(arx * lx + arz * lz)
+            var rb = hl * Math.abs(bfx * lx + bfz * lz) + hw * Math.abs(brx * lx + brz * lz)
+            if (dist > ra + rb) return false
+        }
+        return true
+    }
+
+    // Rotating-slice interpenetration scan: each frame test a batch of cars (as
+    // the lower index of a pair) against every higher-index nearby car with the
+    // oriented-box test. When the cursor wraps, publish the full-sweep tally.
+    // Per-tile car counts are small, so this is a few dozen tests per frame.
+    function _updateOverlap() {
+        var n = _cars.length
+        if (n < 2) { overlapCount = 0; _ovAccum = 0; _ovCursor = 0; return }
+        var hw = _carW * 0.5, hl = _carL * 0.5
+        var near2 = _carL * _carL            // broad-phase reject before the SAT test
+        var batch = Math.max(1, Math.ceil(n / 30))
+        for (var k = 0; k < batch; ++k) {
+            var i = (_ovCursor + k) % n
+            var si = _sample(_cars[i])
+            for (var j = i + 1; j < n; ++j) {
+                var sj = _sample(_cars[j])
+                var dx = sj.x - si.x, dz = sj.z - si.z
+                if (dx * dx + dz * dz > near2) continue
+                if (_obbOverlap(si.x, si.z, si.hx, si.hz, sj.x, sj.z, sj.hx, sj.hz, hw, hl))
+                    _ovAccum++
+            }
+        }
+        var next = (_ovCursor + batch) % n
+        if (next <= _ovCursor) { overlapCount = _ovAccum; _ovAccum = 0 }
+        _ovCursor = next
+    }
+
+    // Count cars whose stall clock has passed the 8 s threshold.
+    function _countStalled() {
+        var c = 0
+        for (var i = 0; i < _cars.length; ++i) if (_cars[i].stallT > 8.0) c++
+        stalledCars = c
+    }
+
     function advance(dt) {
         var n = _cars.length
         if (n === 0 || _routes.length === 0) return
@@ -522,14 +625,18 @@ Node {
         // ---- control logic ------------------------------------------------
         PerfRegistry.begin("carSim")
         // Advance the shared clock scaled by carSpeedFactor, then refresh the
-        // per-junction light phase + box occupancy this whole frame keys off.
+        // per-junction light phase + box reservations this whole frame keys off.
         var sdt = dt * carSpeedFactor
         simClock += sdt
         _computePhases()
-        _computeOccupancy()
+        _computeReservations()
 
         // Longitudinal control (car-following + lights) then mode advance.
         for (var i = 0; i < n; ++i) _control(_cars[i], i, sdt)
+
+        // Traffic-health metrics (cheap: a rotating overlap slice + a stall count).
+        _updateOverlap()
+        _countStalled()
 
         // Heading smoothing; cache each car's fresh sample for the pack pass.
         var steer = 1.0 - Math.exp(-_yawRate * dt)
@@ -569,26 +676,174 @@ Node {
         _phase = ph
     }
 
-    // Record which travel axis currently occupies each junction box, so a car may
-    // only enter a box that has no conflicting (perpendicular-axis) car in it -
-    // the belt-and-braces guarantee that two streams never share the box.
-    function _computeOccupancy() {
-        var occ = []
-        for (var j = 0; j < _inters.length; ++j) occ[j] = null
+    // Rebuild the per-junction active-reservation set from the cars that own one.
+    // A reservation is held from the stop bar until the car has cleared the box on
+    // its exit lane; while held, its movement path is the arbiter that keeps
+    // conflicting streams out. Cars that begin their crossing later THIS frame push
+    // themselves in via _acquire, so arbitration among same-frame arrivals is
+    // deterministic by car index (no Math.random anywhere).
+    function _computeReservations() {
+        var res = []
+        for (var j = 0; j < _inters.length; ++j) res[j] = []
         for (var i = 0; i < _cars.length; ++i) {
-            var car = _cars[i]
-            var s = _sample(car)
-            var ax
-            if (car.mode === 1) ax = Math.abs(s.hx) > Math.abs(s.hz) ? "h" : "v"
-            else ax = _routes[car.route].axis
-            for (j = 0; j < _inters.length; ++j) {
-                var nd = _inters[j]
-                var dx = s.x - nd.x, dz = s.z - nd.z
-                if (dx * dx + dz * dz < nd.radius * nd.radius)
-                    occ[j] = (occ[j] === null || occ[j] === ax) ? ax : "both"
+            var c = _cars[i]
+            if (c.res !== null) res[c.res.junc].push(c.res)
+        }
+        _res = res
+    }
+
+    // Squared minimum distance between two 2D segments p1p2 and p3p4 (closest
+    // points; crossing segments give 0). Used so a box conflict is detected even
+    // when the true nearest approach falls between path sample points - a
+    // point-to-point test would miss a clean crossing and let two streams overlap.
+    function _segSegDist2(p1, p2, p3, p4) {
+        var d1x = p2.x - p1.x, d1z = p2.z - p1.z
+        var d2x = p4.x - p3.x, d2z = p4.z - p3.z
+        var rx = p1.x - p3.x, rz = p1.z - p3.z
+        var a = d1x * d1x + d1z * d1z
+        var e = d2x * d2x + d2z * d2z
+        var f = d2x * rx + d2z * rz
+        var s = 0, t = 0
+        if (a <= 1e-9 && e <= 1e-9) { return rx * rx + rz * rz }
+        if (a <= 1e-9) { t = Math.min(1, Math.max(0, f / e)) }
+        else {
+            var c = d1x * rx + d1z * rz
+            if (e <= 1e-9) { s = Math.min(1, Math.max(0, -c / a)) }
+            else {
+                var b = d1x * d2x + d1z * d2z
+                var denom = a * e - b * b
+                s = denom > 1e-9 ? Math.min(1, Math.max(0, (b * f - c * e) / denom)) : 0
+                t = (b * s + f) / e
+                if (t < 0) { t = 0; s = Math.min(1, Math.max(0, -c / a)) }
+                else if (t > 1) { t = 1; s = Math.min(1, Math.max(0, (b - c) / a)) }
             }
         }
-        _occ = occ
+        var cx1 = p1.x + d1x * s, cz1 = p1.z + d1z * s
+        var cx2 = p3.x + d2x * t, cz2 = p3.z + d2z * t
+        var dx = cx1 - cx2, dz = cz1 - cz2
+        return dx * dx + dz * dz
+    }
+
+    // Do two movement paths pass within a lane width anywhere? Segment-to-segment
+    // so a crossing is caught exactly; parallel offset lanes (opposing through
+    // traffic) stay a lane-separation apart and are not flagged.
+    function _pathsClose(pa, pb) {
+        var thr2 = _laneWConf * _laneWConf
+        for (var a = 0; a + 1 < pa.length; ++a)
+            for (var b = 0; b + 1 < pb.length; ++b)
+                if (_segSegDist2(pa[a], pa[a + 1], pb[b], pb[b + 1]) < thr2) return true
+        return false
+    }
+
+    // Conflict verdict between two movements (by signature) at junction j. Same
+    // approach leg never conflicts (those cars share an incoming lane group and
+    // are resolved by car-following, not the box). Verdicts are cached per pair.
+    function _conflict(j, sigA, sigB) {
+        if (sigA === sigB) return false
+        if ((sigA >> 2) === (sigB >> 2)) return false   // same approach leg -> queue
+        var lo = Math.min(sigA, sigB), hi = Math.max(sigA, sigB)
+        var key = j + ":" + lo + "-" + hi
+        var v = _confCache[key]
+        if (v !== undefined) return v
+        var pa = _movPathCache[j + ":" + sigA], pb = _movPathCache[j + ":" + sigB]
+        if (!pa || !pb) return false                    // path not seen yet -> allow
+        v = _pathsClose(pa, pb)
+        _confCache[key] = v
+        return v
+    }
+
+    // Approach guard so a left-turner never darts across oncoming traffic: an
+    // oncoming through/right car that is within stopping distance of its own bar
+    // and still moving is treated as conflicting even before it reserves. Opposing
+    // LEFT turns do not block each other (they pass left-to-left).
+    function _oncomingBlocks(car, plan) {
+        var j = plan.junc
+        var oncoming = (((plan.sig >> 2) + 2) & 3)       // opposite approach leg
+        for (var i = 0; i < _cars.length; ++i) {
+            var c = _cars[i]
+            if (c === car || c.res !== null || c.mode !== 0) continue
+            var rc = _routes[c.route]
+            if (!rc.endIsJunction || rc.endJunc !== j) continue
+            if (CarGen.dirQuant(rc.dx, rc.dz) !== oncoming) continue
+            if (!c.plan || c.plan.respawn || c.plan.kind === "left") continue
+            var barPos = Math.max(0, rc.len - rc.endRadius)
+            var distToBar = barPos - c.t
+            var stopDist = (c.speed * c.speed) / (2 * _DECEL) + _carL
+            if (c.speed > 0.5 && distToBar <= stopDist && distToBar > -_carL) return true
+        }
+        return false
+    }
+
+    // Is the movement's EXIT lane too full to fully clear the box? Replaces the
+    // straight-ahead keep-clear for turners: measure the free room on the TARGET
+    // route just beyond the join point. If a car sits within that reach, holding
+    // at the bar keeps the box from becoming a permanent blockage.
+    function _exitBlocked(plan) {
+        var jn = plan.joinTexit
+        var need = plan.boxR + 2 * _carL + _minGap       // room to rest clear of box
+        for (var i = 0; i < _cars.length; ++i) {
+            var c = _cars[i]
+            if (c.mode === 0 && c.route === plan.toIdx) {
+                var ahead = c.t - jn
+                if (ahead >= -_carL && ahead < need) return true
+            } else if (c.mode === 1 && c.cnext === plan.toIdx) {
+                // Another car is already turning onto the same exit lane near our
+                // join point - two streams must not converge on one lane.
+                if (Math.abs(c.cjoin - jn) < need) return true
+            }
+        }
+        return false
+    }
+
+    // May this car cross its stop bar into the box now? Green for its axis AND no
+    // active reservation conflicts with its movement AND (left-turn) no oncoming
+    // car is bearing down AND its exit lane has room to clear the box.
+    function _grantGate(car, plan) {
+        var ph = _phase[plan.junc]
+        if (!ph) return true
+        if (ph.allRed) return false
+        if (ph.green !== plan.axis) return false
+        var active = _res[plan.junc]
+        for (var k = 0; k < active.length; ++k)
+            if (_conflict(plan.junc, plan.sig, active[k].sig)) return false
+        if (plan.kind === "left" && _oncomingBlocks(car, plan)) return false
+        if (_exitBlocked(plan)) return false
+        return true
+    }
+
+    // Acquire the box reservation at the bar: register the movement path and
+    // publish the reservation (visible to later cars this frame too, so same-frame
+    // arrivals arbitrate deterministically by car index). Released in
+    // _releaseIfCleared once the car has driven clear of the box.
+    function _acquire(car, plan) {
+        _movPathCache[plan.junc + ":" + plan.sig] = plan.samples
+        car.res = { junc: plan.junc, sig: plan.sig }
+        if (_res[plan.junc]) _res[plan.junc].push(car.res)
+        crossings += 1
+    }
+
+    // Release a reservation once the car has physically left the box (its centre
+    // is more than a car length beyond the box edge). Geometric, not route-based,
+    // so it is robust to short blocks where the exit lane ends at the next
+    // junction before a route-position release would fire - otherwise a stale
+    // reservation would skip the next junction's gate and block the old box.
+    function _releaseIfCleared(car) {
+        if (car.res === null) return
+        var nd = _inters[car.res.junc]
+        var s = _sample(car)
+        var dx = s.x - nd.x, dz = s.z - nd.z
+        var clear = nd.radius + _carL
+        if (dx * dx + dz * dz > clear * clear) car.res = null
+    }
+
+    // Safety valve: a car wedged inside a box (holds a reservation) and stalled
+    // >30 s is respawned at a tile edge. After the reservation fix this should be a
+    // near-dead path; the counter proves it.
+    function _safetyValve(car) {
+        if (car.res !== null && car.stallT > 30.0) {
+            _respawn(car)
+            unstuckRespawns += 1
+        }
     }
 
     // Safe speed that can still stop within `dist` behind an obstacle moving at
@@ -632,21 +887,25 @@ Node {
         return { gap: bestF, vLead: vLead }
     }
 
-    // Does the light (and box occupancy) require this route's car to hold at its
-    // end junction right now?
-    function _mustStop(r) {
-        if (!r.endIsJunction) return false
-        var ph = _phase[r.endJunc]
-        if (!ph) return false
-        if (ph.allRed) return true
-        if (ph.green !== r.axis) return true
-        var occ = _occ[r.endJunc]
-        if (occ && occ !== r.axis) return true   // conflicting stream still in box
-        return false
+    // Create the junction plan (turn / straight / respawn) before the stop bar, so
+    // the reservation gate always has a movement to evaluate at the bar. The
+    // movement's box path is registered up front so a conflict test can find it
+    // even before the car reserves.
+    function _ensurePlan(car, r) {
+        if (car.plan) return
+        var barPos = r.endIsJunction ? Math.max(0, r.len - r.endRadius) : r.len
+        var trig = Math.min(r.len - _planDist, barPos - _carL)
+        if (car.t < trig) return
+        var rand = _junctionRand(car)
+        var pick = CarGen.chooseNext(_routes, r.ex, r.ez, car.route, rand)
+        car.turns = (car.turns + 1) >>> 0
+        car.plan = pick >= 0 ? CarGen.planTurn(_routes, car.route, pick) : { respawn: true }
+        if (!car.plan.respawn)
+            _movPathCache[car.plan.junc + ":" + car.plan.sig] = car.plan.samples
     }
 
-    // Per-car longitudinal control: compute a target speed from the leader and
-    // any red-light stop bar, integrate the speed, advance the mode.
+    // Per-car longitudinal control: leader-following + the reservation stop-bar
+    // gate, integrate the speed, advance the mode.
     function _control(car, i, sdt) {
         if (car.otCool > 0) car.otCool = Math.max(0, car.otCool - sdt)
 
@@ -655,56 +914,52 @@ Node {
 
         if (car.mode === 0) {
             var r = _routes[car.route]
+            _ensurePlan(car, r)
             car.holdBox = false
-            if (r.endIsJunction) {
+            // Reservation gate: a car may pass its stop bar only when its crossing
+            // is granted (green + no conflicting reservation + oncoming clear for a
+            // left + exit lane has room). Until then it holds at the bar. Once
+            // granted it owns the box (car.res) and the turn begins in _driveLogic.
+            if (r.endIsJunction && car.plan && !car.plan.respawn && car.res === null) {
                 var barPos = Math.max(0, r.len - r.endRadius)
-                var hold = _mustStop(r)
-                // Keep the box clear (anti-gridlock): even on green, do NOT roll
-                // into the junction unless there is room on the FAR side to fully
-                // clear it. If a slow/stopped leader sits inside or just past the
-                // box, hold at the bar so the box stays free for cross traffic.
-                // Box-blocking is what turns congestion into a permanent lock;
-                // this rule removes it (a red light alone does not).
-                if (!hold && car.t < barPos && lead.gap < _LOOKAHEAD && lead.vLead < 2.0) {
-                    var pastBar = lead.gap - (barPos - car.t)   // clear road beyond the bar
-                    if (pastBar < 2 * r.endRadius + _carL + _minGap) hold = true
-                }
-                car.holdBox = hold
-                if (hold) {
-                    // front of the car should halt just shy of the stop bar
+                if (_grantGate(car, car.plan)) {
+                    _acquire(car, car.plan)
+                } else {
+                    car.holdBox = true
                     var vBar = _safeSpeed(barPos - car.t - _carL * 0.5, 0, 0.4)
                     if (vBar < v) v = vBar
                 }
             }
             car.speed = _approach(car.speed, v, sdt)
             car.t += car.speed * sdt
+            if (car.holdBox) {
+                var bp = Math.max(0, r.len - r.endRadius)
+                if (car.t > bp) car.t = bp     // never roll past the bar ungranted
+            }
             if (car.lat !== 0) {
                 var k = Math.exp(-_latRate * sdt)
                 car.lat *= k
                 if (Math.abs(car.lat) < 0.02) car.lat = 0
             }
+            _releaseIfCleared(car)
             _driveLogic(car, i)
+            _updateStall(car, r, sdt)
         } else {
             car.speed = _approach(car.speed, v, sdt)
             car.ct += (car.speed * sdt) / car.clen
             _turnLogic(car)
+            _updateStall(car, null, sdt)
         }
+        _safetyValve(car)
     }
 
-    // Plan / begin turns, respawn at tile edges, consider overtaking. The car has
-    // ALREADY been advanced this frame; this only handles mode transitions.
+    // Handle mode transitions: overtaking, tile-edge respawn, and beginning a
+    // granted turn. The car has ALREADY been advanced this frame.
     function _driveLogic(car, i) {
         var r = _routes[car.route]
 
-        if (car.otCool === 0 && Math.abs(car.lat) < 0.05)
+        if (enableLaneChanges && car.otCool === 0 && Math.abs(car.lat) < 0.05)
             _considerLaneChange(car, i, r)
-
-        if (!car.plan && car.t >= r.len - _planDist) {
-            var rand = _junctionRand(car)
-            var pick = CarGen.chooseNext(_routes, r.ex, r.ez, car.route, rand)
-            car.turns = (car.turns + 1) >>> 0
-            car.plan = pick >= 0 ? CarGen.planTurn(_routes, car.route, pick) : { respawn: true }
-        }
 
         // Tile-edge end: re-enter as a fresh car at an inbound edge lane rather
         // than teleporting onto an unrelated track mid-road.
@@ -713,17 +968,11 @@ Node {
             return
         }
 
-        // Begin the planned turn only once allowed to cross the stop bar. Until
-        // then hold at the bar - never roll a red, and never enter a box we
-        // cannot clear (car.holdBox, set in _control, folds in both cases).
-        if (car.plan && car.t >= car.plan.startT) {
-            if (car.holdBox) {
-                var stopT = Math.max(0, r.len - r.endRadius)
-                if (car.t > stopT) car.t = stopT
-                return
-            }
+        // Begin the granted turn once the arc's start position is reached. The
+        // grant (car.res, taken at the bar) - not startT - is what lets the car
+        // move, so a small box whose startT lies before the bar never rolls a red.
+        if (car.res !== null && car.plan && car.t >= car.plan.startT)
             _beginTurn(car)
-        }
     }
 
     function _beginTurn(car) {
@@ -766,6 +1015,7 @@ Node {
         car.mode = 0
         car.plan = null; car.curve = null; car.ct = 0
         car.lat = 0; car.otCool = 0
+        car.res = null; car.stallT = 0
         car.t = Math.min(0, bestClear - _spawnGap)
         car.speed = Math.min(car.speed, car.cruise)
         _seedYaw(car)
@@ -864,6 +1114,28 @@ Node {
             if (_anchors[idx].target !== best) _anchors[idx].target = best
         }
         _nearestCursor = (_nearestCursor + batch) % n
+    }
+
+    // Diagnostic: descriptors of cars stalled beyond `thr` seconds - their mode,
+    // whether they hold a box reservation, and their distance to the nearest
+    // junction centre (in box-radius units). Used to locate residual wedges.
+    function stuckReport(thr) {
+        var out = []
+        for (var i = 0; i < _cars.length; ++i) {
+            var c = _cars[i]
+            if (c.stallT < thr) continue
+            var s = _sample(c)
+            var bj = -1, bd = 1e30, br = 1
+            for (var j = 0; j < _inters.length; ++j) {
+                var nd = _inters[j]
+                var dx = s.x - nd.x, dz = s.z - nd.z
+                var d = Math.sqrt(dx * dx + dz * dz)
+                if (d < bd) { bd = d; bj = j; br = nd.radius }
+            }
+            out.push({ mode: c.mode, hasRes: c.res !== null, stallT: Math.round(c.stallT),
+                       distBoxR: Math.round(bd / br * 100) / 100, speed: Math.round(c.speed * 10) / 10 })
+        }
+        return out
     }
 
     // ---- selection + lidar query helpers -------------------------------------

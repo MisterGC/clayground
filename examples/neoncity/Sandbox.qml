@@ -30,7 +30,8 @@ Item {
             tileSize: root.tileSize,
             tile: { x: cityView.currentTileX, z: cityView.currentTileZ },
             loadedTiles: cityView.loadedCount,
-            buildings: cityView.buildingCount
+            buildings: cityView.buildingCount,
+            traffic: cityView.trafficStats()
         }
     }
 }
