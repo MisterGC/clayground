@@ -10,7 +10,8 @@ on:
   workflow_dispatch:
 
 # Builds are ccache/sccache-accelerated (see "Setup compiler cache" below);
-# warm runs reuse cached objects so only changed sources recompile.
+# warm runs reuse cached objects so only changed sources recompile. The WASM
+# job additionally hashes emcc by content (emsdk lives at a per-run temp path).
 
 # Prevent multiple runs of the same workflow on the same ref
 concurrency:
