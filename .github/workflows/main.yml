@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Manual on-demand runs (e.g. to validate a PR into a release branch, which
+  # otherwise gets no CI) — kept opt-in to avoid burning runners on every PR.
+  workflow_dispatch:
 
 # Prevent multiple runs of the same workflow on the same ref
 concurrency:
@@ -62,6 +65,7 @@ jobs:
         arch: ${{ matrix.qt-arch }}
         modules: ${{ env.QT_MODULES }}
         aqtversion: ${{ env.AQT_VERSION }}
+        cache: true
 
     - name: Install Linux Dependencies
       if: runner.os == 'Linux' && matrix.qt-target == 'desktop'
@@ -84,15 +88,24 @@ jobs:
       if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
       uses: ilammy/msvc-dev-cmd@v1
 
+    # ccache on Linux/WASM, sccache on Windows (better MSVC support).
+    # Wired into the build via CMAKE_<LANG>_COMPILER_LAUNCHER below.
+    - name: Setup compiler cache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+        key: ${{ matrix.os }}-${{ matrix.qt-target }}
+        max-size: 1G
+
     - name: Configure CMake (Desktop)
       if: matrix.qt-target == 'desktop'
       run: |
-        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} .
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} .
 
     - name: Configure CMake (WASM)
       if: matrix.qt-target == 'wasm'
       run: |
-        "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} .
+        "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .
 
     - name: Build (Desktop)
       if: matrix.qt-target == 'desktop'
@@ -110,11 +123,13 @@ jobs:
         WASM=build/bin/clayground.wasm
         RAW=$(stat -c%s "$WASM")
         GZ=$(gzip -9 -c "$WASM" | wc -c)
-        BR=$(brotli -q 11 -c "$WASM" | wc -c)
+        # -q9 instead of -q11: nearly identical ratio for a size estimate, but
+        # seconds instead of ~90s on a ~30 MB wasm. The gate below is on raw size.
+        BR=$(brotli -q 9 -c "$WASM" | wc -c)
         mb() { echo "$1" | awk '{printf "%.1f", $1/1048576}'; }
         {
           echo "### Clayground Web Runtime size"
-          echo "| raw | gzip -9 | brotli -q11 |"
+          echo "| raw | gzip -9 | brotli -q9 |"
           echo "|---|---|---|"
           echo "| $(mb "$RAW") MB | $(mb "$GZ") MB | $(mb "$BR") MB |"
         } >> "$GITHUB_STEP_SUMMARY"

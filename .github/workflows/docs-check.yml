@@ -78,10 +78,17 @@ jobs:
           bundler-cache: true
           working-directory: ./docs
 
+      - name: Setup compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: ccache
+          key: docs-website
+          max-size: 1G
+
       - name: Configure CMake
         run: |
           # QT_HOST_PATH points to desktop Qt for host tools like QDoc
-          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" .
+          "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCLAY_BUILD_WEBSITE=ON -DQT_HOST_PATH="${{ runner.temp }}/qt-desktop/Qt/${{ env.QT_VERSION_HOST }}/gcc_64" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .
 
       - name: Build Website
         run: cmake --build build --target website
