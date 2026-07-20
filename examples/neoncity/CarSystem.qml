@@ -159,7 +159,9 @@ Node {
                 from: an
                 to: an.target
                 color: an.connColor
-                width: 1.4
+                // Wider than a plain link so the flowing glow dots (see the
+                // connector layer's data-flow style) read as data transfer.
+                width: 3.0
             }
         }
     }

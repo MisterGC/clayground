@@ -100,6 +100,39 @@ Node {
     property var styles: []
 
     /*!
+        \qmlproperty real ConnectorLayer3D::flowTime
+        \brief Animation clock forwarded to the batch, see \l LineBatch3D::flowTime.
+
+        Drive it from your own clock (typically a \c FrameAnimation's
+        \c elapsedTime) to march flowing/pulsing connector styles. Gate that clock
+        on the layer's visibility so idle connectors cost nothing.
+    */
+    property real flowTime: 0
+
+    /*!
+        \qmlproperty int ConnectorLayer3D::segmentsPerLink
+        \brief Number of straight segments each connector is drawn with.
+
+        The default \c 1 draws every connector as a single straight segment and
+        keeps the fast endpoint-only per-frame path unchanged. A value \c{> 1}
+        samples each connector as a quadratic bezier arc (lifted by \l arcHeight)
+        with \c segmentsPerLink segments, so flowing patterns curve along a
+        mail-style arc while the whole layer stays one draw call. Changing this at
+        runtime rebuilds the batch.
+    */
+    property int segmentsPerLink: 1
+
+    /*!
+        \qmlproperty real ConnectorLayer3D::arcHeight
+        \brief Arc lift as a fraction of link length (only when \l segmentsPerLink > 1).
+
+        The bezier control point sits at the link midpoint raised by
+        \c{arcHeight * linkLength} along world +Y, so longer links bow higher.
+        Ignored while \l segmentsPerLink is \c 1 (straight links).
+    */
+    property real arcHeight: 0.18
+
+    /*!
         \qmlproperty int ConnectorLayer3D::count
         \readonly
         \brief The number of connectors currently drawn in the batch.
@@ -135,7 +168,15 @@ Node {
     property var _connectors: []
     property bool _membershipDirty: false
     property var _posBuf: null
+    // Curved-link state: _endptBuf holds the current from/to positions (6 floats
+    // per link) for the move test; _sampleBuf holds the sampled arc points
+    // (segmentsPerLink+1 points per link) uploaded via updatePolylinesBulk.
+    property var _endptBuf: null
+    property var _sampleBuf: null
     readonly property real _eps: 1e-4
+
+    onSegmentsPerLinkChanged: _scheduleRebuild()
+    onArcHeightChanged: _scheduleRebuild()
 
     function _scheduleRebuild() {
         _membershipDirty = true
@@ -146,8 +187,32 @@ Node {
         return node ? node.scenePosition : Qt.vector3d(0, 0, 0)
     }
 
+    // Write a quadratic bezier arc (p0 -> ctrl -> p2, ctrl = midpoint lifted by
+    // arcHeight * linkLength along +Y) sampled at pts points into buf at off.
+    function _writeArc(p0x, p0y, p0z, p2x, p2y, p2z, pts, buf, off) {
+        var dx = p2x - p0x, dy = p2y - p0y, dz = p2z - p0z
+        var linkLen = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        var cx = (p0x + p2x) * 0.5
+        var cy = (p0y + p2y) * 0.5 + root.arcHeight * linkLen
+        var cz = (p0z + p2z) * 0.5
+        var last = pts - 1
+        for (var k = 0; k < pts; ++k) {
+            var t = k / last
+            var u = 1 - t
+            var b0 = u * u, b1 = 2 * u * t, b2 = t * t
+            var o = off + k * 3
+            buf[o]     = b0 * p0x + b1 * cx + b2 * p2x
+            buf[o + 1] = b0 * p0y + b1 * cy + b2 * p2y
+            buf[o + 2] = b0 * p0z + b1 * cz + b2 * p2z
+        }
+    }
+
     function _rebuild() {
         _membershipDirty = false
+        if (segmentsPerLink > 1) {
+            _rebuildCurved()
+            return
+        }
         var n = _connectors.length
         var arr = new Array(n)
         var buf = new Float32Array(n * 6)
@@ -172,6 +237,10 @@ Node {
     }
 
     function _tick() {
+        if (segmentsPerLink > 1) {
+            _tickCurved()
+            return
+        }
         if (_membershipDirty || !_posBuf)
             return
         var n = _connectors.length
@@ -199,12 +268,82 @@ Node {
             _batch.updateEndpointsBulk(buf.buffer)
     }
 
+    // --- curved-link path (segmentsPerLink > 1) ----------------------------
+
+    function _rebuildCurved() {
+        var n = _connectors.length
+        var pts = segmentsPerLink + 1
+        var stride = pts * 3
+        var arr = new Array(n)
+        var endpts = new Float32Array(n * 6)
+        var samples = new Float32Array(n * stride)
+        for (var i = 0; i < n; ++i) {
+            var c = _connectors[i]
+            var hasBoth = c.from && c.to
+            var p0 = _pos(c.from)
+            var p2 = _pos(c.to)
+            var e = i * 6
+            endpts[e] = p0.x; endpts[e + 1] = p0.y; endpts[e + 2] = p0.z
+            endpts[e + 3] = p2.x; endpts[e + 4] = p2.y; endpts[e + 5] = p2.z
+            var off = i * stride
+            _writeArc(p0.x, p0.y, p0.z, p2.x, p2.y, p2.z, pts, samples, off)
+            var linePoints = new Array(pts)
+            for (var k = 0; k < pts; ++k) {
+                var o = off + k * 3
+                linePoints[k] = Qt.vector3d(samples[o], samples[o + 1], samples[o + 2])
+            }
+            arr[i] = {
+                points: linePoints,
+                color: c.color,
+                // Unbound connectors are hidden until both endpoints exist.
+                width: hasBoth ? c.width : 0,
+                styleId: c.styleId
+            }
+        }
+        _endptBuf = endpts
+        _sampleBuf = samples
+        _batch.lines = arr
+    }
+
+    function _tickCurved() {
+        if (_membershipDirty || !_sampleBuf)
+            return
+        var n = _connectors.length
+        if (n === 0)
+            return
+        var pts = segmentsPerLink + 1
+        var stride = pts * 3
+        var endpts = _endptBuf
+        var samples = _sampleBuf
+        var eps = _eps
+        var moved = false
+        for (var i = 0; i < n; ++i) {
+            var c = _connectors[i]
+            if (!c.from || !c.to)
+                continue
+            var p0 = c.from.scenePosition
+            var p2 = c.to.scenePosition
+            var e = i * 6
+            if (Math.abs(endpts[e] - p0.x) > eps || Math.abs(endpts[e + 1] - p0.y) > eps ||
+                Math.abs(endpts[e + 2] - p0.z) > eps || Math.abs(endpts[e + 3] - p2.x) > eps ||
+                Math.abs(endpts[e + 4] - p2.y) > eps || Math.abs(endpts[e + 5] - p2.z) > eps) {
+                endpts[e] = p0.x; endpts[e + 1] = p0.y; endpts[e + 2] = p0.z
+                endpts[e + 3] = p2.x; endpts[e + 4] = p2.y; endpts[e + 5] = p2.z
+                _writeArc(p0.x, p0.y, p0.z, p2.x, p2.y, p2.z, pts, samples, i * stride)
+                moved = true
+            }
+        }
+        if (moved)
+            _batch.updatePolylinesBulk(samples.buffer, pts)
+    }
+
     LineBatch3D {
         id: _batch
         widthUnits: root.widthUnits
         viewportSize: root.viewportSize
         depthBias: root.depthBias
         styles: root.styles
+        flowTime: root.flowTime
     }
 
     // Endpoint tracking. Runs every frame but only uploads when a position

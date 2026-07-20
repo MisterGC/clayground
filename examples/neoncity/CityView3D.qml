@@ -33,6 +33,10 @@ Item {
     property bool flowLanes: false
     property real laneFlowTime: 0
 
+    // ---- data-flow animation clock for the car->transmitter links; only ticks
+    // while the links are actually shown (see the FrameAnimation below) ----
+    property real connectorFlowTime: 0
+
     // ---- traffic ----
     // Target total car count; split across the (2r+1)^2 streamed tiles.
     property int carCount: 200
@@ -99,6 +103,13 @@ Item {
     FrameAnimation {
         running: root.flowLanes
         onTriggered: root.laneFlowTime = elapsedTime
+    }
+
+    // Drives the flowing data dots on the links. Runs ONLY while the links are
+    // shown, so a hidden links layer costs nothing (no clock, no batch churn).
+    FrameAnimation {
+        running: root.showCars && root.showConnections
+        onTriggered: root.connectorFlowTime = elapsedTime
     }
 
     // ---- lidar inspection controller -----------------------------------------
@@ -510,6 +521,18 @@ Item {
             viewportSize: Qt.vector2d(view.width, view.height)
             depthBias: 4
             visible: root.showCars && root.showConnections
+            // Mail-style arcs so a link reads as a data path lifting off the
+            // street toward the transmitter tip, without hiding the city.
+            segmentsPerLink: 9
+            arcHeight: 0.22
+            // Style 1: glow dots (screen-spaced, so spacing reads at any zoom)
+            // flowing from car -> transmitter (positive flow marches to the end).
+            styleId: 1
+            styles: [
+                { dash: [0, 0], capRound: true, opacity: 1.0 },
+                { dash: [9, 22], pattern: "dot", patternUnits: "screen", flow: 60, glow: 0.9 }
+            ]
+            flowTime: root.connectorFlowTime
         }
 
         TileManager {

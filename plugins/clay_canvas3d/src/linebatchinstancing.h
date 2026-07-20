@@ -46,6 +46,13 @@ public:
     // Lines that do not have exactly one segment are left untouched.
     Q_INVOKABLE void updateEndpointsBulk(const QByteArray &positions);
 
+    // Fast per-frame path for uniform-topology polylines: rewrites every line's
+    // points from a packed float32 buffer (pointsPerLine * 3 floats per line, in
+    // line order), recomputing per-segment path distances so patterns stay
+    // continuous along the new curve. Lines whose topology does not match
+    // (instanceCount != pointsPerLine - 1) are left untouched.
+    Q_INVOKABLE void updatePolylinesBulk(const QByteArray &positions, int pointsPerLine);
+
     // Read-only path queries (the same accumulated distances the shader uses).
     // pathLength returns the total length of a line; positionAt returns the
     // point a given distance along it (clamped to the line's ends).

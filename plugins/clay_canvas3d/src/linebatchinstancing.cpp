@@ -292,6 +292,47 @@ void LineBatchInstancing::updateEndpointsBulk(const QByteArray &positions)
 }
 
 /*!
+    \qmlmethod void LineBatchInstancing::updatePolylinesBulk(ByteArray positions, int pointsPerLine)
+    \brief Rewrites the points of every uniform-topology line in one pass.
+
+    \a positions is a packed float32 buffer with \c{pointsPerLine * 3} floats per
+    line (\c{p0.xyz, p1.xyz, ...}) in line order. This is the fast per-frame path
+    used by ConnectorLayer3D for curved connectors: it rewrites each matching
+    line's points, recomputes its instance entries (including the per-segment
+    accumulated path distance, so dot/chevron patterns run continuously along the
+    new curve), recomputes the batch bounds once and triggers a single
+    instance-table upload. A line is patched only when its topology matches the
+    buffer (\c{instanceCount == pointsPerLine - 1} and \c{points.size() ==
+    pointsPerLine}); other lines are skipped.
+*/
+void LineBatchInstancing::updatePolylinesBulk(const QByteArray &positions, int pointsPerLine)
+{
+    if (m_data.isEmpty() || m_lines.isEmpty() || pointsPerLine < 2)
+        return;
+
+    const int floatsPerLine = pointsPerLine * 3;
+    const int expectedSegments = pointsPerLine - 1;
+    const auto *pos = reinterpret_cast<const float *>(positions.constData());
+    const int available = static_cast<int>(positions.size() / (floatsPerLine * sizeof(float)));
+    const int n = qMin(available, static_cast<int>(m_lines.size()));
+
+    char *base = m_data.data();
+    for (int i = 0; i < n; ++i) {
+        Line &line = m_lines[i];
+        if (line.instanceCount != expectedSegments || line.points.size() != pointsPerLine)
+            continue;
+
+        const float *src = pos + static_cast<qsizetype>(i) * floatsPerLine;
+        for (int p = 0; p < pointsPerLine; ++p)
+            line.points[p] = QVector3D(src[p * 3 + 0], src[p * 3 + 1], src[p * 3 + 2]);
+        writeLineEntries(base + static_cast<qsizetype>(line.instanceStart) * kEntrySize, line);
+    }
+
+    updateBounds();
+    markDirty();
+}
+
+/*!
     \qmlmethod real LineBatchInstancing::pathLength(int lineIndex)
     \brief Returns the total length of line \a lineIndex in world units.
 

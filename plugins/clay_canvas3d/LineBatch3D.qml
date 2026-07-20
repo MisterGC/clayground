@@ -271,6 +271,24 @@ Model {
     }
 
     /*!
+        \qmlmethod void LineBatch3D::updatePolylinesBulk(ByteArray positions, int pointsPerLine)
+        \brief Rewrites the points of every uniform-topology line in one pass.
+
+        \a positions is a packed float32 buffer with \c{pointsPerLine * 3} floats
+        per line (\c{p0.xyz, p1.xyz, ...}) in line order. This is the fast
+        per-frame path used by ConnectorLayer3D for curved connectors: it rewrites
+        the matching lines' points and re-uploads once, recomputing per-segment
+        path distances so patterns stay continuous along the new curve. Lines
+        whose topology does not match (\c{instanceCount != pointsPerLine - 1}) are
+        skipped.
+
+        \sa ConnectorLayer3D
+    */
+    function updatePolylinesBulk(positions, pointsPerLine) {
+        _inst.updatePolylinesBulk(positions, pointsPerLine)
+    }
+
+    /*!
         \qmlmethod real LineBatch3D::pathLength(int lineId)
         \brief Returns the total length of line \a lineId in world units.
 
