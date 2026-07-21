@@ -67,6 +67,23 @@ Model {
     enum WidthUnits { Pixel, World }
 
     /*!
+        \qmlproperty enumeration LineBatch3D::orientation
+        \brief How a World-width ribbon is oriented in space.
+
+        \value LineBatch3D.Billboard The ribbon faces the camera (default,
+               constant apparent width from any view). This is the historic
+               behaviour and the right choice for free-floating lines.
+        \value LineBatch3D.Flat The ribbon lies flat in the world \c +Y ground
+               plane, so its across axis stays perpendicular to the path within
+               that plane and never shears. Use it for ground overlays (road
+               markings, lane direction glyphs): a billboarded ribbon tilts its
+               across axis out of the ground plane at oblique/top-down views,
+               which shears filled pattern glyphs. Only affects World width;
+               Pixel-width batches already use the true screen perpendicular.
+    */
+    enum Orientation { Billboard, Flat }
+
+    /*!
         \qmlproperty list LineBatch3D::lines
         \brief Declarative list of styled polylines (convenience path).
 
@@ -84,6 +101,14 @@ Model {
         Defaults to LineBatch3D.Pixel.
     */
     property int widthUnits: LineBatch3D.Pixel
+
+    /*!
+        \qmlproperty int LineBatch3D::orientation
+        \brief The active ribbon orientation, one of the Orientation values.
+
+        Defaults to LineBatch3D.Billboard. Only applies in World width mode.
+    */
+    property int orientation: LineBatch3D.Billboard
 
     /*!
         \qmlproperty real LineBatch3D::depthBias
@@ -154,8 +179,12 @@ Model {
             Also sets the repeat period for \c dot and \c chevron patterns.
         \li \c capRound - round caps when true (default), square when false.
         \li \c opacity - opacity multiplier (blended mode only).
-        \li \c pattern - \c "solid"/"dash" (default), \c "dot" (round dots) or
-            \c "chevron" (V glyphs pointing from a line's start to its end).
+        \li \c pattern - \c "solid"/"dash" (default), \c "dot" (round dots),
+            \c "chevron" (V glyphs pointing from a line's start to its end) or
+            \c "triangle" (filled isoceles direction glyphs, tip toward the end).
+        \li \c glyphWidth - for the \c triangle pattern, the base width as a
+            fraction of the ribbon width, range \c{(0, 1]}; \c 0 or absent means
+            the full ribbon width. Ignored by the other patterns.
         \li \c patternUnits - \c "world" (default) or \c "screen": whether the
             pattern period is measured in world units or in screen pixels
             (zoom-stable, for HUD/overlay lines).
@@ -352,6 +381,7 @@ Model {
             depthDrawMode: Material.AlwaysDepthDraw
             property vector2d viewportSize: root.viewportSize
             property real widthMode: root.widthUnits
+            property real orientationMode: root.orientation
             property real depthBias: root.depthBias
             // Shared animation clock for flowing/pulsing styles (seconds).
             property real flowTime: root.flowTime

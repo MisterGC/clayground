@@ -17,7 +17,8 @@ public:
     // the fragment shader hard-codes the same height, so bumping the format
     // means bumping this constant and the matching literal in line_batch.frag.
     //   row 0: dashLen, gapLen, capRound, opacity        (v1 layout, frozen)
-    //   row 1: patternId (glyph enum | screen-units bit), param0, param1, flow
+    //   row 1: patternId (glyph enum | screen-units bit), param0 (triangle
+    //          base-width fraction), param1, flow
     //   row 2: glow, pulse, headLength, headWidth
     static constexpr int kTableRows = 3;
 

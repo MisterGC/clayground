@@ -10,6 +10,8 @@
 // Material uniforms (bound from LineBatch3D):
 //   viewportSize        = View3D pixel size (vec2)
 //   widthMode           = 0.0 -> Pixel width, 1.0 -> World width
+//   orientationMode     = 0.0 -> Billboard (face camera), 1.0 -> Flat (world +Y
+//                         plane); World width only, ignored in Pixel mode
 //   depthBias           = pulls the line toward the camera to win z-fights
 //   depthJitter         = 1.0 in opaque mode -> tiny per-instance depth offset
 //                         (deterministic table-order tie-break for coplanar
@@ -105,13 +107,28 @@ void MAIN()
         vec2 offPx = perp * side * drawHalfW + dir * capDir * capExt;
         clipPos.xy += offPx * (2.0 / viewportSize) * clipPos.w;
     } else {
-        // World mode: billboarded ribbon of constant world width.
+        // World mode: ribbon of constant world width, oriented either toward the
+        // camera (Billboard, default) or laid flat in the ground plane (Flat).
         vec3 Pc = mix(wP0, wP1, t);
         vec3 axis = wP1 - wP0;
         segLen = worldSegLen;
         vec3 dir = worldSegLen > 1e-6 ? axis / worldSegLen : vec3(1.0, 0.0, 0.0);
         vec3 camDir = normalize(CAMERA_POSITION - Pc);
-        vec3 sideDir = cross(dir, camDir);
+        vec3 billboardSide = cross(dir, camDir);
+        vec3 sideDir;
+        if (orientationMode >= 0.5) {
+            // Flat: the across axis lies in the plane whose normal is world +Y,
+            // so it stays perpendicular to the path IN the ground plane and never
+            // shears for a ground overlay (the billboard tilts the across axis out
+            // of the plane, shearing filled glyphs). Only +Y for now; a
+            // configurable plane normal would be a future extension. A vertical
+            // line (dir ~ +/-Y) has no in-plane perpendicular, so fall back to the
+            // billboard vector there.
+            vec3 flatSide = cross(dir, vec3(0.0, 1.0, 0.0));
+            sideDir = length(flatSide) > 1e-4 ? flatSide : billboardSide;
+        } else {
+            sideDir = billboardSide;
+        }
         float sl = length(sideDir);
         sideDir = sl > 1e-6 ? sideDir / sl : vec3(0.0, 1.0, 0.0);
         // Grow only flagged ends (halfW + a small world-space epsilon); flush

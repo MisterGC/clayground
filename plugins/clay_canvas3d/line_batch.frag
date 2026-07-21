@@ -6,7 +6,8 @@
 // take the resolution-independent SDF path below.
 //   styleTable is styleCount columns wide and 3 rows tall (see
 //   LineStyleTextureData::kTableRows). Row 0: dash, gap, capRound, opacity.
-//   Row 1: patternId (glyph enum | screen-units bit 8), param0, param1, flow.
+//   Row 1: patternId (glyph enum | screen-units bit 8), param0 (triangle
+//   base-width fraction, 0 = full width), param1 (reserved), flow.
 //   Row 2: glow, pulse, headLength, headWidth (heads are handled in the
 //   vertex/fragment arrow path).
 
@@ -22,6 +23,7 @@ VARYING vec2 vHead; // x = arrowhead length (segment-space), y = head half width
 const int PATTERN_DASH = 0;
 const int PATTERN_DOT = 1;
 const int PATTERN_CHEVRON = 2;
+const int PATTERN_TRIANGLE = 3;
 const int SCREEN_UNITS_BIT = 8;
 
 // Coverage from a signed distance (dist < 0 is inside). aa <= 0 gives a hard
@@ -56,6 +58,7 @@ void MAIN()
     int patternId = int(row1.r + 0.5);
     int glyph = patternId & 7;
     bool screenUnits = (patternId & SCREEN_UNITS_BIT) != 0;
+    float param0 = row1.g; // triangle base-width fraction (0 = full ribbon width)
     float flowSpeed = row1.a;
     float glow = row2.r;
     float pulse = row2.g;
@@ -212,6 +215,34 @@ void MAIN()
             float lead = tip - across01 * 0.62 * glyphLen;  // arm sweep
             float th = 0.19 * glyphLen;                     // stroke half-thickness
             patCov = coverage(abs(local - lead) - th, aaPat);
+        }
+    } else if (glyph == PATTERN_TRIANGLE) {
+        if (period > 0.0) {
+            // Filled isoceles triangle per period, tip toward the path end, base
+            // across the ribbon (same direction convention as the chevron). As
+            // with the chevron, ALL along-axis geometry derives from the dash
+            // slot (pattern units); the ribbon width enters only through the
+            // across coordinate, so the glyph stays zoom-stable. param0 is the
+            // base-width fraction of the ribbon width (0 -> full width).
+            float centerAlong = (floor(patternDist / period) + 0.5) * period;
+            float la = patternDist - centerAlong;   // along axis, tip at +halfLen
+            float glyphLen = clamp(dashLen, 1e-3, period * 0.7);
+            float halfLen = 0.5 * glyphLen;
+            float baseFrac = param0 > 0.0 ? param0 : 1.0;
+            float baseHalf = baseFrac * halfWPat;    // base half-width (pattern units)
+            float ax = abs(vPat);
+            // Solid fill from an intersection of half-planes (like the terminal
+            // arrowhead): the two slanted edges (base corners -> tip), the base
+            // plane and the tip plane.
+            float Le = sqrt(glyphLen * glyphLen + baseHalf * baseHalf);
+            float invLe = 1.0 / max(Le, 1e-6);
+            float dEdge = ((la + halfLen) * baseHalf + (ax - baseHalf) * glyphLen) * invLe;
+            float dTri = max(max(dEdge, -halfLen - la), la - halfLen);
+            // Always-on ~1px edge AA (pattern units) so the filled edges stay
+            // crisp even without glow; widened to the glow falloff when set.
+            float pxToPat = screenUnits ? 1.0 : (1.0 / sc);
+            float aaTri = max(1.2 * pxToPat, aaPat);
+            patCov = coverage(dTri, aaTri);
         }
     } else { // PATTERN_DASH (also the flowing-dash case)
         if (period > 0.0) {

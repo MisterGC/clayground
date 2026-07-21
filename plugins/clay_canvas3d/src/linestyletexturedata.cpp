@@ -21,9 +21,10 @@
         \c B round-cap flag (1 = round, 0 = square), \c A opacity multiplier.
         This is the frozen v1 layout: a bare \c{{ dash, capRound, opacity }}
         style leaves rows 1 and 2 all-zero and renders exactly as before.
-    \li \b{row 1} - \c R pattern glyph id (0 dash, 1 dot, 2 chevron; bit 8 set
-        means the pattern period is measured in screen pixels instead of world
-        units), \c G / \c B generic per-glyph params (reserved), \c A flow speed.
+    \li \b{row 1} - \c R pattern glyph id (0 dash, 1 dot, 2 chevron, 3 triangle;
+        bit 8 set means the pattern period is measured in screen pixels instead
+        of world units), \c G triangle base-width fraction (0 = full ribbon
+        width), \c B generic per-glyph param (reserved), \c A flow speed.
     \li \b{row 2} - \c R glow edge softness, \c G pulse depth,
         \c B arrowhead length, \c A arrowhead width (both in line-width units).
     \endlist
@@ -86,6 +87,7 @@ void LineStyleTextureData::rebuild()
     constexpr int kGlyphDash = 0;
     constexpr int kGlyphDot = 1;
     constexpr int kGlyphChevron = 2;
+    constexpr int kGlyphTriangle = 3;
     constexpr int kScreenUnitsBit = 8;
 
     // Row-major RGBA32F: all columns of row 0, then row 1, then row 2.
@@ -99,6 +101,7 @@ void LineStyleTextureData::rebuild()
 
         int glyph = kGlyphDash;
         bool screenUnits = false;
+        float glyphWidth = 0.0f; // triangle base-width fraction (0 = full width)
         float flow = 0.0f;
         float glow = 0.0f;
         float pulse = 0.0f;
@@ -120,7 +123,17 @@ void LineStyleTextureData::rebuild()
                 glyph = kGlyphDot;
             else if (pattern == QStringLiteral("chevron"))
                 glyph = kGlyphChevron;
+            else if (pattern == QStringLiteral("triangle"))
+                glyph = kGlyphTriangle;
             // "solid", "dash" and absent all keep the dash glyph (period 0 = solid).
+
+            // Triangle base-width as a fraction of the ribbon width, clamped to
+            // (0, 1]; 0 (or absent) means the shader default of the full width.
+            glyphWidth = m.value(QStringLiteral("glyphWidth"), 0.0).toFloat();
+            if (glyphWidth < 0.0f)
+                glyphWidth = 0.0f;
+            if (glyphWidth > 1.0f)
+                glyphWidth = 1.0f;
 
             screenUnits = m.value(QStringLiteral("patternUnits")).toString().toLower()
                           == QStringLiteral("screen");
@@ -145,7 +158,7 @@ void LineStyleTextureData::rebuild()
         pixels[0 * rowStride + i * 4 + 3] = opacity;
         // row 1
         pixels[1 * rowStride + i * 4 + 0] = patternId;
-        pixels[1 * rowStride + i * 4 + 1] = 0.0f; // param0 (reserved)
+        pixels[1 * rowStride + i * 4 + 1] = glyphWidth; // param0: triangle base-width fraction
         pixels[1 * rowStride + i * 4 + 2] = 0.0f; // param1 (reserved)
         pixels[1 * rowStride + i * 4 + 3] = flow;
         // row 2
