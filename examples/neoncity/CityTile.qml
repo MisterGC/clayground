@@ -247,17 +247,44 @@ Node {
         // Road paint is world geometry: marking widths are emitted in world
         // units (proportional to lane width), unlike the pixel-width map layer.
         widthUnits: LineBatch3D.World
+        // Lie flat on the ground so stripes never billboard-shear at oblique
+        // views (subtle for thin paint, but keeps it perfectly on the road).
+        orientation: LineBatch3D.Flat
     }
 
     // ---- detailed lane model overlay (toggleable teal map layer) ----
-    // Only the per-direction lane centerlines + junction connectors; governed by
-    // the HUD "Lanes (L)" toggle.
+    // The cyan lane centerlines + junction connectors + arrowhead tips; governed
+    // by the HUD "Lanes (L)" toggle. Pixel-width map layer. The direction glyphs
+    // (styleId 2) are excluded here and drawn by directionGlyphs below in a
+    // world-units batch so they keep world proportions at every zoom.
     LaneOverlay {
         id: laneOverlay
         laneModel: tile.laneModel
         viewportSize: tile.viewportSize
         visible: tile.showLanes
         flowTime: tile.laneFlowTime
+        styleFilter: function(s) { return s !== 2 }
+    }
+
+    // ---- direction glyphs (filled triangles, styleId 2) ----
+    // Same lane model, but ONLY the direction-glyph lines, rendered in a
+    // WORLD-units batch: their width (TRI_WID) is a world measure, so the filled
+    // triangle keeps its proportions when zooming in (a screen-px width pinned
+    // the ribbon while the world period stretched, degenerating the glyph). Part
+    // of the lane overlay layer, so it shares the "Lanes (L)" toggle and the flow
+    // clock.
+    LaneOverlay {
+        id: directionGlyphs
+        laneModel: tile.laneModel
+        viewportSize: tile.viewportSize
+        visible: tile.showLanes
+        flowTime: tile.laneFlowTime
+        widthUnits: LineBatch3D.World
+        // Lie flat in the ground plane: a billboarded world-width ribbon tilts
+        // its across axis out of the plane at top-down/oblique views, shearing
+        // the filled triangles. Flat keeps them symmetric on the road.
+        orientation: LineBatch3D.Flat
+        styleFilter: function(s) { return s === 2 }
     }
 
     // ---- cars + transmitters + connectors ----

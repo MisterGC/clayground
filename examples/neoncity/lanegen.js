@@ -35,12 +35,12 @@
 // STYLES (index == styleId), shared with the export contract:
 //   0 -> solid    (dash null)
 //   1 -> dashed   (dash [DASH_LEN, DASH_GAP], world units)
-//   2 -> chevron  (native direction glyphs marching in travel direction)
+//   2 -> triangle (native filled direction glyphs marching in travel direction)
 //   3 -> arrowhead (native end arrowhead on a single-segment connector tip)
 //
 // Styles 2 + 3 use LineBatch3D's native pattern/head styling (no hand-built
 // glyph geometry). The deck.gl twin only understands the `dash` field, so the
-// EXPORTED table (styles()) maps chevron -> a dash so it still renders as a
+// EXPORTED table (styles()) maps triangle -> a dash so it still renders as a
 // direction-hint dashed line, and the arrowhead tip -> solid (a tiny segment).
 
 .pragma library
@@ -50,13 +50,24 @@
 var DASH_LEN = 4.0;
 var DASH_GAP = 4.0;
 
-// Native chevron direction glyphs: period (world units) and flow speed. Flow is
-// only visible while the batch's flowTime is advanced (Flow toggle); with a
-// static clock the chevrons sit still and just point in the travel direction.
-var CHEV_LEN  = 10.0;   // glyph extent along the path (world units)
-var CHEV_GAP  = 22.0;   // gap between glyphs (world units) -> ~32u period
-var CHEV_FLOW = 18.0;   // march speed (world units / s of flowTime)
-var W_CHEV    = 7.0;    // chevron ribbon width (screen px) so the V reads clearly
+// Native filled-triangle direction glyphs: period (world units), flow speed and
+// ribbon width. Flow is only visible while the batch's flowTime is advanced
+// (Flow toggle); with a static clock the triangles sit still and just point in
+// the travel direction. These lines render in a WORLD-units batch (see
+// CityTile.qml / LaneOverlay), so TRI_WID is the ribbon width AND the triangle
+// base width (glyphWidth defaults to 1.0). Lanes are ~3.5 world units wide and
+// cars ~2.2, so base ~2.2 / length ~5.5 reads as a clear arrow without
+// dominating the lane. A world width also keeps the glyph proportionate at every
+// zoom - a screen-px width would stretch the period but pin the ribbon, so the
+// glyph degenerated and vanished when zoomed in.
+var TRI_WID  = 1.75;   // triangle ribbon + base width (world units); < lane (~3.5)
+                       // and car (~2.2) so the arrow stays subordinate
+// Equilateral glyph: an equilateral triangle's height is 0.866 (= sqrt(3)/2) of
+// its base, so along-path length = 0.866 * TRI_WID for all three sides equal.
+var TRI_LEN  = 1.5;    // ~= 0.866 * TRI_WID -> equilateral (world units along path)
+var TRI_GAP  = 26.0;   // gap between glyphs (world units) -> ~27.5u period,
+                       // roughly the cadence of painted road arrows
+var TRI_FLOW = 18.0;   // march speed (world units / s of flowTime)
 
 // Native arrowhead on the connector tip segment. head = [length, width] in
 // multiples of the tip line's width; the engine caps length to classic arrow
@@ -68,12 +79,12 @@ var W_HEADTIP  = 3.4;   // tip segment width (screen px)
 var HEAD_TIP_WORLD = 6.0; // tip segment length (world units) == arrowhead length
 
 // Kept as plain data so the exporter can emit it verbatim (frozen contract).
-// The twin reads only `dash`, so chevron exports as a dashed direction line and
+// The twin reads only `dash`, so triangle exports as a dashed direction line and
 // the arrowhead tip exports as a plain solid segment.
 var STYLES = [
     { dash: null,                 opacity: 1.0 },  // 0: solid
     { dash: [DASH_LEN, DASH_GAP], opacity: 1.0 },  // 1: dashed
-    { dash: [CHEV_LEN, CHEV_GAP], opacity: 1.0 },  // 2: chevron -> dashed in twin
+    { dash: [TRI_LEN, TRI_GAP],   opacity: 1.0 },  // 2: triangle -> dashed in twin
     { dash: null,                 opacity: 1.0 }   // 3: arrowhead -> solid in twin
 ];
 
@@ -85,8 +96,8 @@ function shaderStyles() {
     return [
         { dash: [0, 0],               capRound: true,  opacity: 1.0 }, // 0 solid
         { dash: [DASH_LEN, DASH_GAP], capRound: false, opacity: 1.0 }, // 1 dashed
-        { dash: [CHEV_LEN, CHEV_GAP], capRound: true,  opacity: 1.0,   // 2 chevron
-          pattern: "chevron", flow: CHEV_FLOW },
+        { dash: [TRI_LEN, TRI_GAP],   capRound: true,  opacity: 1.0,   // 2 triangle
+          pattern: "triangle", flow: TRI_FLOW },
         { dash: [0, 0],               capRound: true,  opacity: 1.0,   // 3 arrowhead
           head: [HEAD_LEN_M, HEAD_WID_M] }
     ];
@@ -367,7 +378,7 @@ function generateLaneModel(tileData, laneY) {
                     var entry = [ep.x + rvx * dist, y, ep.z + rvz * dist];
                     var exit  = [xp.x + rvx * dist, y, xp.z + rvz * dist];
                     emit([entry, exit], COL_LANE, W_LANE, 0, "lane");
-                    emitChevronLine(lines, entry, exit);
+                    emitTriangleLine(lines, entry, exit);
                     tracks.push({ entry: entry, exit: exit, dir: dir, laneIdx: d,
                                   nLanes: nLanes, roadId: r.id,
                                   entKey: entNode ? keyOf(entNode) : null,
@@ -415,8 +426,13 @@ function generateLaneModel(tileData, laneY) {
                 // solid style - only the curvature + arrowhead differ.
                 var curve = connectorCurve(A.exit, A.dir, B.entry, B.dir, y);
                 emit(curve, COL_LANE, W_LANE, 0, "lane");
-                // Native chevron direction glyphs along the maneuver curve.
-                if (curve.length >= 2) lines.push({ p: curve, c: COL_LANE, w: W_CHEV, s: 2, t: "chevron" });
+                // No marching triangles inside the junction box: every incoming
+                // lane fans to several outgoing lanes, so the connector curves
+                // cross and glyphs on them would pile into an overlapping mess.
+                // The connector stays a plain thin lane line (style 0). Direction
+                // is still read from the approach arrows: the last triangle on
+                // each incoming lane track before its stop bar, plus the tip
+                // arrowhead below.
                 // Native arrowhead at the connector tip (single dedicated segment).
                 var tip = curve[curve.length - 1];
                 emitArrowTip(lines, tip, B.dir);
@@ -431,14 +447,14 @@ function generateLaneModel(tileData, laneY) {
              lines: lines, lineCount: lines.length, pointCount: pointCount };
 }
 
-// Native direction chevrons along a straight lane track: one chevron-patterned
-// overlay line (styleId 2) sharing the track's path. The glyphs point in the
-// travel direction and march when the batch's flowTime is advanced. Skipped for
-// stubs too short to carry a single glyph.
-function emitChevronLine(lines, a, b) {
+// Native filled-triangle direction glyphs along a straight lane track: one
+// triangle-patterned overlay line (styleId 2) sharing the track's path. The
+// glyphs point in the travel direction and march when the batch's flowTime is
+// advanced. Skipped for stubs too short to carry a single glyph.
+function emitTriangleLine(lines, a, b) {
     var dx = b[0] - a[0], dz = b[2] - a[2];
-    if (Math.sqrt(dx * dx + dz * dz) < CHEV_LEN + CHEV_GAP) return;
-    lines.push({ p: [a, b], c: COL_LANE, w: W_CHEV, s: 2, t: "chevron" });
+    if (Math.sqrt(dx * dx + dz * dz) < TRI_LEN + TRI_GAP) return;
+    lines.push({ p: [a, b], c: COL_LANE, w: TRI_WID, s: 2, t: "triangle" });
 }
 
 // ---- render-buffer builder (bulk path) ------------------------------------
@@ -457,8 +473,16 @@ function hexToRgba(c) {
     return [r, g, b, a];
 }
 
-function buildBulkArrays(model) {
-    var src = model.lines;
+// Optional `keep` predicate keep(styleId) -> bool selects which lines are baked
+// into the buffers (default: keep all). This lets one lane model feed several
+// LineBatch3D instances with different width units - e.g. the cyan lanes in a
+// pixel-width batch and the world-width direction triangles in another.
+function buildBulkArrays(model, keep) {
+    var all = model.lines;
+    var src = [];
+    for (var si = 0; si < all.length; ++si) {
+        if (!keep || keep(all[si].s)) src.push(all[si]);
+    }
     var n = src.length;
     var totalPts = 0;
     for (var i = 0; i < n; ++i) totalPts += src[i].p.length;
