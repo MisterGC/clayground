@@ -147,6 +147,50 @@ Repeater3D {
 }
 ```
 
+### Labels
+
+Two components put readable text into a 3D scene the way technical illustrations
+and maps do. Both render unlit (never toon-shaded, never shadow-casting) and stay
+crisp under the camera.
+
+- **Label3D**: a camera-facing callout - a rounded "pill" with optional icon -
+  anchored to a moving `anchorNode` or a fixed `anchorPosition`. It billboards to
+  the camera every frame and, by default, holds a constant on-screen size
+  (`sizeMode: Label3D.Screen`); switch to `Label3D.World` to scale with the scene.
+  An optional `showLeader` draws a thin line from the pill to the anchor - the
+  offset-callout look. A single shared per-view ticker (via `Label3DRegistry`)
+  drives all labels in one pass and skips the work entirely while the camera and
+  anchors are still, so many labels stay cheap and hidden ones are dormant.
+
+```qml
+Label3D {
+    view: view
+    anchorNode: reactor
+    text: "REACTOR CORE"
+    labelOffset: Qt.vector3d(0, 40, 0)
+    showLeader: true
+}
+```
+
+- **PathLabel3D**: street-name style text laid flat on the ground along a line of
+  a `LineBatch3D`, the way a map paints a road name. It splits the text into words
+  placed tangent to the path, makes one flip-to-read decision per placement so
+  text never appears upside-down, and `repeatEvery` stamps the name at a fixed
+  spacing along a long road. The words ride 2x-oversampled textures that stay
+  crisp under the top-down/tactical cameras these labels are made for.
+
+```qml
+LineBatch3D { id: roads /* ... */ }
+
+PathLabel3D {
+    lines: roads
+    lineId: 0
+    text: "CLAY STREET"
+    worldHeight: 30
+    repeatEvery: 900
+}
+```
+
 ### Voxel Maps
 
 Voxel maps create 3D structures composed of cubic voxels. Both backends share a

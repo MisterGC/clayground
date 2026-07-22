@@ -241,19 +241,35 @@ Node {
 
     // --- on-demand rendering tick ------------------------------------------
     // A billboard/scale binding returns the same value while the camera is
-    // static and so never marks the View3D dirty; a visibility-gated frame tick
-    // drives re-evaluation, and nothing ticks while the label is hidden.
+    // static and so never marks the View3D dirty; a frame tick drives
+    // re-evaluation. The tick is not a per-label FrameAnimation: Label3DRegistry
+    // owns one shared ticker per view and calls _applyTick() on this label only
+    // while it is visible and only when the camera or this label's anchor moved,
+    // so N labels cost one animation and a still scene costs nothing.
     property real _tick: 0
     // Cached pill logical height, updated imperatively when the content resizes.
     // The scale binding reads this value instead of _pill.implicitHeight live, so
     // scaling the carrier does not form a dependency cycle through the Item2D.
     property real _pillLogicalHeight: 0
-    FrameAnimation {
-        running: root.visible
-        onTriggered: {
-            root._tick = elapsedTime
-            root._maybeUpdateLeader()
-        }
+
+    // Bumps the frame tick (re-evaluating the tick-dependent bindings) and keeps
+    // the leader in step. Called by the registry's shared per-view ticker.
+    function _applyTick(elapsed) {
+        root._tick = elapsed
+        root._maybeUpdateLeader()
+    }
+
+    // Cheap movement probe the shared ticker uses to skip still labels: reports
+    // whether the anchor's scene position changed since the last pass (a moving
+    // anchorNode must keep tracking even when the camera is static).
+    property var _anchorCache: null
+    function _anchorMoved() {
+        var a = root.anchorNode ? root.anchorNode.scenePosition : root.anchorPosition
+        var c = root._anchorCache
+        if (c && c.x === a.x && c.y === a.y && c.z === a.z)
+            return false
+        root._anchorCache = { x: a.x, y: a.y, z: a.z }
+        return true
     }
 
     // --- billboard + sizing helpers ----------------------------------------
@@ -461,9 +477,11 @@ Node {
         }
     }
 
-    // --- per-view registry hook (D7) ---------------------------------------
-    // Auto-register with the per-View3D registry so a future declutter manager
-    // can enumerate a view's labels. No declutter logic here.
+    // --- per-view registry hook (D7) + shared ticker ----------------------
+    // Auto-register with the per-View3D registry: it enumerates a view's labels
+    // (for a future declutter manager) and drives the shared frame ticker. The
+    // label also reports its visibility so a hidden label is dropped from the
+    // ticker pass (fully dormant) and the ticker stops when a view has none.
     property var _registeredView: null
     function _syncRegistration() {
         if (_registeredView === root.view)
@@ -471,10 +489,16 @@ Node {
         if (_registeredView)
             Label3DRegistry.unregister(_registeredView, root)
         _registeredView = root.view
-        if (_registeredView)
+        if (_registeredView) {
             Label3DRegistry.register(_registeredView, root)
+            Label3DRegistry.setVisible(_registeredView, root, root.visible)
+        }
     }
     onViewChanged: _syncRegistration()
+    onVisibleChanged: {
+        if (_registeredView)
+            Label3DRegistry.setVisible(_registeredView, root, root.visible)
+    }
 
     Component.onCompleted: {
         _syncRegistration()
