@@ -1,5 +1,9 @@
 include (clayplugin)
 
+# Needs to be told first otherwise clay_plugin / qt_add_qml_module don't
+# generate the singleton instructions in the qmldir.
+set_source_files_properties(Label3DRegistry.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 clay_plugin( Canvas3D
 
     VERSION 1.0
@@ -43,6 +47,8 @@ clay_plugin( Canvas3D
         BoxLine3D.qml
         Connector3D.qml
         ConnectorLayer3D.qml
+        Label3D.qml
+        Label3DRegistry.qml
         Line3D.qml
         LineBatch3D.qml
         MultiLine3D.qml

@@ -62,6 +62,7 @@ Rectangle {
                         { name: "Line Examples", component: "LineDemo.qml" },
                         { name: "LineBatch3D", component: "LineBatchDemo.qml" },
                         { name: "Line Styles", component: "LineStylesShowcase.qml" },
+                        { name: "Label Showcase", component: "LabelShowcase.qml" },
                         { name: "Connectors", component: "ConnectorDemo.qml" },
                         { name: "Voxel Examples", component: "VoxelDemo.qml" },
                         { name: "Performance", component: "PerfDemo.qml" }
