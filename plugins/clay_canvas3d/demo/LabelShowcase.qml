@@ -55,12 +55,19 @@ Item {
             playing: root.playing,
             // Proves the per-view registry hook: every Label3D self-registered.
             registered: Label3DRegistry.labelsFor(view).length,
+            // Unique word textures per path label (shared across repeats).
+            pathTextures: {
+                "CLAY STREET": streetLabel.uniqueTextureCount,
+                "TEAL AVENUE": avenueLabel.uniqueTextureCount,
+                "LOOP ROAD": loopLabel.uniqueTextureCount
+            },
             fps: view.renderStats ? view.renderStats.fps : -1
         }
     }
 
     function scenarios() {
-        return ["overview", "angled", "near", "far", "readability", "leader"]
+        return ["overview", "angled", "near", "far", "readability", "leader",
+                "paths-top", "paths-near", "paths-flip"]
     }
 
     function applyScenario(name) {
@@ -71,7 +78,29 @@ Item {
         case "far":         root.camDist = 1800; root.orbitYaw = 0;   root.orbitPitch = -14; break
         case "readability": root.camDist = 620;  root.orbitYaw = -30; root.orbitPitch = -10; break
         case "leader":      root.camDist = 620;  root.orbitYaw = 0;   root.orbitPitch = -16; break
+        // Path-label views look straight down at the road area (z ~ +600).
+        case "paths-top":   root.camDist = 1200; root.orbitYaw = 0;   root.orbitPitch = -88; root.camTargetZ = 600; break
+        case "paths-near":  root.camDist = 520;  root.orbitYaw = 0;   root.orbitPitch = -80; root.camTargetZ = 520; break
+        case "paths-flip":  root.camDist = 780;  root.orbitYaw = 0;   root.orbitPitch = -88; root.camTargetZ = 760; break
         }
+    }
+
+    // The road area sits south of the callouts; the orbit rig can slide its look
+    // target along Z so the top-down path scenarios frame it without overlap.
+    property real camTargetZ: 0
+
+    // Sampled bezier-ish polylines for the road network. A cubic through four
+    // control points, sampled into a smooth polyline the labels can ride.
+    function bezier(p0, p1, p2, p3, segs) {
+        var pts = []
+        for (var i = 0; i <= segs; ++i) {
+            var t = i / segs
+            var u = 1 - t
+            var a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
+            pts.push(Qt.vector3d(a * p0.x + b * p1.x + c * p2.x + d * p3.x, 0.4,
+                                 a * p0.z + b * p1.z + c * p2.z + d * p3.z))
+        }
+        return pts
     }
 
     View3D {
@@ -86,17 +115,21 @@ Item {
             antialiasingQuality: SceneEnvironment.High
         }
 
-        // Orbit rig: yaw pivot -> pitch pivot -> camera at local +Z, looking at
-        // the origin. Repositioning it (inspector) exercises the billboard path.
+        // Orbit rig: look-target pivot -> yaw -> pitch -> camera at local +Z.
+        // The look target slides along Z (camTargetZ) so the top-down path
+        // scenarios can frame the road area without moving the callout section.
         Node {
-            eulerRotation.y: root.orbitYaw
+            z: root.camTargetZ
             Node {
-                eulerRotation.x: root.orbitPitch
-                PerspectiveCamera {
-                    id: cam
-                    position: Qt.vector3d(0, 0, root.camDist)
-                    clipFar: 20000
-                    clipNear: 1
+                eulerRotation.y: root.orbitYaw
+                Node {
+                    eulerRotation.x: root.orbitPitch
+                    PerspectiveCamera {
+                        id: cam
+                        position: Qt.vector3d(0, 0, root.camDist)
+                        clipFar: 20000
+                        clipNear: 1
+                    }
                 }
             }
         }
@@ -235,6 +268,75 @@ Item {
                 labelStyle.borderColor: rowCell.modelData.c
                 labelStyle.fontSize: 18
             }
+        }
+
+        // ==================================================================
+        // PathLabel3D road area (south of the callouts, best seen top-down via
+        // the "paths-top" / "paths-near" / "paths-flip" scenarios).
+        // ==================================================================
+        // Dark tarmac slab under the roads for contrast.
+        Model {
+            source: "#Rectangle"
+            eulerRotation.x: -90
+            y: 0.1
+            z: 640
+            scale: Qt.vector3d(19, 11, 1)
+            materials: PrincipledMaterial { baseColor: "#0d1020"; lighting: PrincipledMaterial.NoLighting }
+        }
+
+        // Three roads drawn as subtly-styled polylines; each carries a name.
+        LineBatch3D {
+            id: roads
+            viewportSize: Qt.vector2d(view.width, view.height)
+            widthUnits: LineBatch3D.World
+            styles: [{ dash: [0, 0], capRound: true, opacity: 0.9, color: "#0f9d9a" }]
+            Component.onCompleted: {
+                roads.lines = [
+                    // 0: gently curved arterial -> single centered street name
+                    { points: root.bezier(Qt.vector3d(-780, 0, 380), Qt.vector3d(-300, 0, 300),
+                                          Qt.vector3d(240, 0, 560), Qt.vector3d(760, 0, 460), 32),
+                      color: "#0f9d9a", width: 26, styleId: 0 },
+                    // 1: long straightish avenue -> repeated name
+                    { points: root.bezier(Qt.vector3d(-780, 0, 720), Qt.vector3d(-260, 0, 660),
+                                          Qt.vector3d(260, 0, 700), Qt.vector3d(780, 0, 640), 32),
+                      color: "#0f9d9a", width: 22, styleId: 0 },
+                    // 2: doubled-back hairpin -> flip-to-read proof
+                    { points: root.bezier(Qt.vector3d(-560, 0, 900), Qt.vector3d(360, 0, 840),
+                                          Qt.vector3d(360, 0, 1000), Qt.vector3d(-560, 0, 960), 40),
+                      color: "#0f9d9a", width: 22, styleId: 0 }
+                ]
+            }
+        }
+
+        // Road 0: one street name centered on the curve.
+        PathLabel3D {
+            id: streetLabel
+            lines: roads
+            lineId: 0
+            text: "CLAY STREET"
+            worldHeight: 34
+            labelStyle.textColor: "#00d9ff"
+        }
+        // Road 1: the same name stamped repeatedly along a long avenue.
+        PathLabel3D {
+            id: avenueLabel
+            lines: roads
+            lineId: 1
+            text: "TEAL AVENUE"
+            worldHeight: 30
+            repeatEvery: 620
+            labelStyle.textColor: "#ffd93d"
+        }
+        // Road 2: hairpin that doubles back - repeated so each leg is its own
+        // placement and flips independently, proving text never goes upside-down.
+        PathLabel3D {
+            id: loopLabel
+            lines: roads
+            lineId: 2
+            text: "LOOP ROAD"
+            worldHeight: 30
+            repeatEvery: 700
+            labelStyle.textColor: "#ff3366"
         }
     }
 

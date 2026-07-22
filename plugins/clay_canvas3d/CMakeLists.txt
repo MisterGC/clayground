@@ -49,6 +49,7 @@ clay_plugin( Canvas3D
         ConnectorLayer3D.qml
         Label3D.qml
         Label3DRegistry.qml
+        PathLabel3D.qml
         Line3D.qml
         LineBatch3D.qml
         MultiLine3D.qml

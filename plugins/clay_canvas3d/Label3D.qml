@@ -168,6 +168,17 @@ Node {
     property bool showLeader: false
 
     /*!
+        \qmlproperty int Label3D::priority
+        \brief Ordering hint for the future declutter manager; higher wins.
+
+        No behaviour is attached yet: the property is shipped now so scenes can
+        express relative label importance before the manager exists. When it
+        arrives it will greedily keep non-overlapping labels highest-priority
+        first, hiding lower-priority labels that would collide.
+    */
+    property int priority: 0
+
+    /*!
         \qmlproperty QtObject Label3D::labelStyle
         \brief Grouped pill styling: colors, radius, padding, halo and font.
 
