@@ -333,7 +333,8 @@ Node {
             var mast = 44
             var node = txComp.createObject(carSys, {
                 position: Qt.vector3d(s.x, s.top + mast, s.z),
-                mastHeight: mast
+                mastHeight: mast,
+                txId: CarGen.transmitterLabel(s.x, s.z)
             })
             arr.push(node)
             if (manager && manager.registerTransmitter) manager.registerTransmitter(node)

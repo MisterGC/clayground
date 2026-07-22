@@ -25,6 +25,7 @@ Node {
     property bool showLanes: true
     property bool showCars: true
     property bool showConnections: true
+    property bool showStreetNames: false // real-map-style road names, opt-in (N)
     property real laneFlowTime: 0        // drives the lane-model chevron flow
     property int carsPerTile: 8
     property real carSpeedFactor: 0.4   // global traffic-speed multiplier
@@ -47,6 +48,10 @@ Node {
     property var cityData: null
     property var laneMarkings: null
     property var laneModel: null
+
+    // Street-name placement: one entry per named road { lineId, name, worldH },
+    // where lineId indexes the invisible nameLines carrier below.
+    property var streetNameModel: []
 
     // Elevation of the flat matte asphalt band and of everything that rides on
     // the road surface. Defined here so the lane paint and the cars both key off
@@ -287,6 +292,43 @@ Node {
         styleFilter: function(s) { return s === 2 }
     }
 
+    // ---- street-name centerlines (invisible carrier for the name labels) ----
+    // PathLabel3D rides a LineBatch3D's geometry; this batch exists only to feed
+    // pathLength()/positionAt() with one centerline per named road. It is never
+    // drawn (visible:false) - the visible cyan lane centerlines belong to the
+    // lane-model overlay above and would fight the name text if reused. The path
+    // geometry is CPU-side, so pathLength() stays valid even undrawn.
+    LineBatch3D {
+        id: nameLines
+        visible: false
+        viewportSize: tile.viewportSize
+        widthUnits: LineBatch3D.World
+        styles: [{ dash: [0, 0], capRound: true, opacity: 0 }]
+    }
+
+    // ---- street names (real-map-style, flat on the road) ----
+    // One name per road, painted along its centerline the way a map paints a
+    // street name. Governed by the HUD "Names (N)" toggle and, being tile
+    // content, streams in and out with the tile. Dark ink + light casing reads
+    // on the mid-grey asphalt without shouting over the lane paint.
+    Repeater3D {
+        // Gated on the toggle: with names off (the default) no PathLabel3D exists
+        // and no word textures rasterize as tiles stream, so the layer is free
+        // until switched on. Toggling on builds the labels for loaded tiles.
+        model: tile.showStreetNames ? tile.streetNameModel : []
+        delegate: PathLabel3D {
+            id: nameLabel
+            required property var modelData
+            lines: nameLines
+            lineId: nameLabel.modelData.lineId
+            text: nameLabel.modelData.name
+            worldHeight: nameLabel.modelData.worldH
+            groundOffset: tile.laneOverlayY + 0.25
+            labelStyle.textColor: "#12141c"
+            labelStyle.haloColor: "#f2f4f8"
+        }
+    }
+
     // ---- cars + transmitters + connectors ----
     CarSystem {
         id: carSystem
@@ -312,6 +354,30 @@ Node {
         buildLandmarks(data)
         buildFoliage(data)
         buildLanes(data)
+        buildStreetNames(data)
+    }
+
+    // Feeds the invisible nameLines carrier one straight centerline per named
+    // road and builds the matching label model. Text height is proportional to
+    // the carriageway width so avenues read larger than side streets.
+    function buildStreetNames(data) {
+        var roads = data.roads
+        var lines = []
+        var model = []
+        for (var i = 0; i < roads.length; ++i) {
+            var r = roads[i]
+            if (!r.name) continue
+            var cl = r.centerline
+            lines.push({
+                points: [Qt.vector3d(cl[0].x, tile.laneOverlayY, cl[0].z),
+                         Qt.vector3d(cl[1].x, tile.laneOverlayY, cl[1].z)],
+                color: "#ffffff", width: 1, styleId: 0
+            })
+            model.push({ lineId: lines.length - 1, name: r.name,
+                         worldH: Math.max(5, r.width * 0.7) })
+        }
+        nameLines.lines = lines
+        tile.streetNameModel = model
     }
 
     // Trees + lamp posts, each part a single instanced draw call for the tile.

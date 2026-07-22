@@ -29,6 +29,9 @@ Item {
     // Car-transmitter links are an on-demand layer (C): off by default so the
     // base scene stays free of overlay noise.
     property bool showConnections: false
+    // Real-map-style street names painted on the roads: an opt-in visual layer
+    // (N), off by default like the links layer.
+    property bool showStreetNames: false
 
     // ---- lane-chevron flow animation (off by default; never self-ticks the
     // scene while off - the clock below only runs while flowLanes is true) ----
@@ -70,6 +73,9 @@ Item {
     // ---- live readouts (mirrored from the streaming manager) ----
     readonly property int currentTileX: tileManager.currentTileX
     readonly property int currentTileZ: tileManager.currentTileZ
+    // Live transmitter registry (masts across streamed tiles), surfaced for the
+    // callout layer's inspection and framing.
+    readonly property var transmitters: tileManager.transmitters
     readonly property int loadedCount: tileManager.loadedCount
     readonly property int buildingCount: tileManager.buildingCount
     readonly property int laneLineCount: tileManager.laneLineCount
@@ -95,6 +101,7 @@ Item {
         else if (e.key === Qt.Key_L) { root.showLanes = !root.showLanes; e.accepted = true }
         else if (e.key === Qt.Key_C) { root.showConnections = !root.showConnections; e.accepted = true }
         else if (e.key === Qt.Key_K) { root.showCars = !root.showCars; e.accepted = true }
+        else if (e.key === Qt.Key_N) { root.showStreetNames = !root.showStreetNames; e.accepted = true }
         else if (e.key === Qt.Key_E) { root.exportLanes(); e.accepted = true }
         else if (e.key === Qt.Key_I) { root.toggleLidar(); e.accepted = true }
         else if (e.key === Qt.Key_F) { root.flowLanes = !root.flowLanes; e.accepted = true }
@@ -619,11 +626,36 @@ Item {
             showLanes: root.showLanes
             showCars: root.showCars
             showConnections: root.showConnections
+            showStreetNames: root.showStreetNames
             laneFlowTime: root.laneFlowTime
             carsPerTile: root.carsPerTile
             carSpeedFactor: root.carSpeedFactor
             connectorLayer: connectorLayer
             viewportSize: Qt.vector2d(view.width, view.height)
+        }
+
+        // ---- transmitter callouts (Label3D) ----
+        // A small screen-sized id pinned to each mast tip, explaining the link
+        // targets. Anchored at the scene root (untransformed) so the callout
+        // tracks the transmitter's scene position. Shown only while the links
+        // layer is on - the mast itself is the pointer, so no leader - and it
+        // rides the same gate as the connectors, costing nothing when off.
+        Repeater3D {
+            // Gated on the links layer: with links off (the default) no callout
+            // Label3D exists, so masts streaming in and out cost nothing. Turning
+            // links on builds the callouts for the visible masts.
+            model: (root.showCars && root.showConnections) ? tileManager.transmitters : []
+            delegate: Label3D {
+                id: txCallout
+                required property var modelData
+                view: view
+                camera: camera
+                anchorNode: txCallout.modelData
+                text: txCallout.modelData ? txCallout.modelData.txId : ""
+                labelOffset: Qt.vector3d(0, 7, 0)
+                screenHeight: 18
+                labelStyle.borderColor: "#00d9ff"
+            }
         }
 
         // ---- selected-car highlight: a gold beacon hovering over the car ----
@@ -722,6 +754,7 @@ Item {
                 text: "cars " + (root.showCars ? "on" : "off") +
                       " (" + root.carCount + ")   links " +
                       (root.showConnections ? "on" : "off") +
+                      "   names " + (root.showStreetNames ? "on" : "off") +
                       "   tx " + tileManager.transmitters.length
                 color: "#ff3366"
                 font.family: root.monoFont
@@ -736,6 +769,7 @@ Item {
                         { label: "Lanes (L)", on: root.showLanes },
                         { label: "Cars (K)", on: root.showCars },
                         { label: "Links (C)", on: root.showConnections },
+                        { label: "Names (N)", on: root.showStreetNames },
                         { label: "Export (E)", on: false }
                     ]
                     delegate: Rectangle {
@@ -762,6 +796,7 @@ Item {
                                 if (index === 0) root.showLanes = !root.showLanes
                                 else if (index === 1) root.showCars = !root.showCars
                                 else if (index === 2) root.showConnections = !root.showConnections
+                                else if (index === 3) root.showStreetNames = !root.showStreetNames
                                 else root.exportLanes()
                                 root.forceActiveFocus()
                             }
@@ -937,7 +972,7 @@ Item {
 
             Text {
                 text: root.lastExportInfo !== "" ? root.lastExportInfo
-                      : "WASD+drag fly   O overview   P perf   F flow   I lidar"
+                      : "WASD+drag fly   O overview   P perf   F flow   N names   I lidar"
                 color: "#8a8a9a"
                 font.family: root.monoFont
                 font.pixelSize: 11

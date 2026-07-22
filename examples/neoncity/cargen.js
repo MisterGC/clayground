@@ -31,6 +31,14 @@ function hash2(a, b) {
     return h >>> 0;
 }
 
+// Short stable callout id for a transmitter, keyed to its world position so it
+// is reload-stable and independent of tile load order (e.g. "TX 07"). The
+// callout explains a link target; a rare 2-digit collision is harmless.
+function transmitterLabel(x, z) {
+    var n = hash2(Math.round(x), Math.round(z)) % 100;
+    return "TX " + (n < 10 ? "0" + n : "" + n);
+}
+
 // Right-hand travel-lane offsets (world units off the centerline) for a road.
 // They land the car ON a lane center that lanegen actually paints: a 2-lane
 // road has lanes per carriageway half at 0.25h and 0.75h; a 1-lane road has a

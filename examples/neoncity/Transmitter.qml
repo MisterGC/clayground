@@ -14,6 +14,10 @@ Node {
     // Distance from the rooftop up to the tip (world units).
     property real mastHeight: 44
 
+    // Short stable callout id (e.g. "TX 07"), set at creation from the site
+    // position; a Label3D at the scene root anchors its callout to this tip.
+    property string txId: ""
+
     // The mast root sinks this far past the nominal rooftop, so quantized
     // roof shapes (voxel towers render up to ~2 voxel rows below their data
     // height) never leave the mast floating in the air.

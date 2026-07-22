@@ -21,6 +21,7 @@ Node {
     property bool showLanes: true
     property bool showCars: true
     property bool showConnections: true
+    property bool showStreetNames: false // real-map-style road names (HUD "N")
     property real laneFlowTime: 0        // shared chevron-flow clock (see CityView3D)
     property int carsPerTile: 8
     property real carSpeedFactor: 0.4
@@ -137,6 +138,7 @@ Node {
             t.laneFlowTime = Qt.binding(function () { return mgr.laneFlowTime })
             t.showCars = Qt.binding(function () { return mgr.showCars })
             t.showConnections = Qt.binding(function () { return mgr.showConnections })
+            t.showStreetNames = Qt.binding(function () { return mgr.showStreetNames })
             t.carsPerTile = Qt.binding(function () { return mgr.carsPerTile })
             t.carSpeedFactor = Qt.binding(function () { return mgr.carSpeedFactor })
             t.viewportSize = Qt.binding(function () { return mgr.viewportSize })

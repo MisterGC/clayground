@@ -55,6 +55,7 @@
 //       axis:      "h" | "v",                  // h = runs along X, v = along Z
 //       width:     <real>,                     // full carriageway width (world)
 //       lanes:     <int>,                      // travel lanes PER DIRECTION
+//       name:      <string>,                   // stable street name (per col/row)
 //       centerline:[ {x,z}, {x,z} ]            // straight polyline, 2 points
 //     }, ...
 //   ],
@@ -132,6 +133,32 @@ var SALT_HXB     = 0x48584220; // "HXB " - horizontal local crossing an X-bounda
 var SALT_TILE    = 0x54494C45; // "TILE" - per-tile interior variation
 var SALT_LMK     = 0x4C4D4B21; // "LMK!" - landmark placement
 var SALT_FOLIAGE = 0x464F4C49; // "FOLI" - trees + lamp posts (lidar targets)
+var SALT_NAME    = 0x4E414D45; // "NAME" - deterministic street names
+
+// ---- street names ---------------------------------------------------------
+//
+// A road carries a stable, deterministic name. Names are keyed to the same
+// COLUMN (vertical roads) / ROW (horizontal roads) index the road geometry is
+// keyed to, so a road keeps the identical name in every tile it passes through
+// and the name is stable across reloads for a given globalSeed.
+
+var NAME_WORDS = ["CLAY", "NEON", "AZURE", "EMBER", "COBALT", "JADE", "VIOLET",
+                  "SOLAR", "CHROME", "QUARTZ", "LUNAR", "PRISM", "CRIMSON",
+                  "AMBER", "ONYX", "ECHO", "VAPOR", "NOVA", "ZENITH", "GLASS",
+                  "HARBOR", "MARKET", "DELTA", "VERGE", "RIDGE", "VISTA",
+                  "CREST", "DRIFT", "SPIRE", "GRID"];
+var AVE_SUFFIX = ["AVENUE", "BOULEVARD"];
+var LOC_SUFFIX = ["STREET", "ROAD", "ROW", "WAY", "LANE"];
+
+// A short thematic name like "NEON AVENUE" derived from (globalSeed, salt, idx);
+// avenues get grand suffixes, side streets get modest ones.
+function roadName(g, salt, idx, kind) {
+    var h = hashN(g, SALT_NAME, salt, idx);
+    var word = NAME_WORDS[h % NAME_WORDS.length];
+    var suffixes = kind === "avenue" ? AVE_SUFFIX : LOC_SUFFIX;
+    var suffix = suffixes[(h >>> 8) % suffixes.length];
+    return word + " " + suffix;
+}
 
 // ---- grid tuning ----------------------------------------------------------
 
@@ -197,14 +224,19 @@ function buildRoads(g, tileX, tileZ, tileSize) {
 
     var roads = [];
     var nextId = 0;
-    function addRoad(kind, axis, width, lanes, x0, z0, x1, z1) {
+    function addRoad(kind, axis, width, lanes, x0, z0, x1, z1, name) {
         roads.push({ id: nextId++, kind: kind, axis: axis, width: width, lanes: lanes,
+                     name: name,
                      centerline: [{ x: x0, z: z0 }, { x: x1, z: z1 }] });
     }
 
-    // Avenues (always present, edge-to-edge, 2 lanes per direction).
-    addRoad("avenue", "v", avW, 2, avenueX, zmin, avenueX, zmax);
-    addRoad("avenue", "h", avW, 2, xmin, avenueZ, xmax, avenueZ);
+    // Avenues (always present, edge-to-edge, 2 lanes per direction). Names key
+    // to the column (vertical) / row (horizontal) so the avenue reads the same
+    // in every tile it spans.
+    addRoad("avenue", "v", avW, 2, avenueX, zmin, avenueX, zmax,
+            roadName(g, SALT_AVE_V, tileX, "avenue"));
+    addRoad("avenue", "h", avW, 2, xmin, avenueZ, xmax, avenueZ,
+            roadName(g, SALT_AVE_H, tileZ, "avenue"));
 
     // Vertical local street: x keyed to the column, so it is identical for every
     // row and its two tiles agree at the shared boundary.
@@ -216,7 +248,8 @@ function buildRoads(g, tileX, tileZ, tileSize) {
             var z0 = vTop ? zmin : avenueZ;
             var z1 = vBot ? zmax : avenueZ;
             if (z1 - z0 > minSep * 0.5)
-                addRoad("local", "v", loW, 1, localX, z0, localX, z1);
+                addRoad("local", "v", loW, 1, localX, z0, localX, z1,
+                        roadName(g, SALT_LOC_V, tileX, "local"));
         }
     }
 
@@ -229,7 +262,8 @@ function buildRoads(g, tileX, tileZ, tileSize) {
             var x0 = hLeft  ? xmin : avenueX;
             var x1 = hRight ? xmax : avenueX;
             if (x1 - x0 > minSep * 0.5)
-                addRoad("local", "h", loW, 1, x0, localZ, x1, localZ);
+                addRoad("local", "h", loW, 1, x0, localZ, x1, localZ,
+                        roadName(g, SALT_LOC_H, tileZ, "local"));
         }
     }
 
