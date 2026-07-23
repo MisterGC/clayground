@@ -112,7 +112,108 @@ Item {
         txLabels.setLabels(out)
     }
     onTransmittersChanged: _rebuildTxLabels()
-    onShowLabelsChanged: _rebuildTxLabels()
+    onShowLabelsChanged: { _rebuildTxLabels(); _syncLinkTags() }
+
+    // ---- car<->transmitter link tags (LabelBatch3D) ----
+    // Floating callouts at the apex of each active connector arc, showing the
+    // pairing + a distance quantized to _linkTagStep metres (e.g. "TX 07 · 140m").
+    // They are labels ON the links layer: shown only when BOTH the global labels
+    // layer (N) and the links layer (C) are on. The set is (re)shaped rarely -
+    // only when the LINK SET or a quantized distance actually changes (see
+    // _tickLinkTags); every connector tick otherwise moves the tags positions-only
+    // via updatePositionsBulk with the freshly computed arc apexes.
+    readonly property real _linkTagStep: 5     // distance quantization (metres)
+    readonly property int _linkTagTextMs: 1500 // min ms between distance-text reshapes
+    property string _linkTagKey: ""            // pairing signature of the shaped set
+    property var _linkTagBuf: null             // reused Float32Array of apex positions
+    property var _linkTagDists: null           // quantized distances as last shaped
+    property double _linkTagShapedAt: 0        // wall clock of the last reshape
+    property int linkTagRebuilds: 0            // cumulative setLabels reshapes (diagnostic)
+    readonly property int linkTagCount: linkTags.count
+    readonly property bool _linkTagsOn: root.showCars && root.showConnections && root.showLabels
+
+    onShowConnectionsChanged: _syncLinkTags()
+    onShowCarsChanged: _syncLinkTags()
+
+    // Master gate: with any of the three toggles off, empty the batch (zero glyph
+    // instances) so a hidden layer costs nothing; otherwise populate immediately
+    // so the tags appear without waiting for the next connector tick.
+    function _syncLinkTags() {
+        if (!_linkTagsOn) {
+            linkTags.setLabels([])
+            _linkTagKey = ""
+            _linkTagBuf = null
+            _linkTagDists = null
+            return
+        }
+        _tickLinkTags()
+    }
+
+    // One connector-tick pass: gather active links across loaded tiles in a stable
+    // order and compute each arc apex (quadratic bezier at t=0.5 -> the midpoint
+    // lifted by 0.5 * arcHeight * linkLength, matching ConnectorLayer3D) plus the
+    // quantized distance. Reshape policy: the PAIRING signature (which car talks
+    // to which mast) reshapes immediately - stale tags on link churn would be
+    // wrong; a mere distance-step change only marks the text dirty and is flushed
+    // in one reshape at most every _linkTagTextMs (with 200 moving cars SOME link
+    // crosses a 5m step almost every frame, so keying the reshape on distances
+    // would degenerate to a per-frame reshape). Everything else is a positions-only
+    // bulk upload.
+    function _tickLinkTags() {
+        if (!_linkTagsOn) return
+        var links = []
+        var tiles = tileManager.loadedTiles()
+        for (var i = 0; i < tiles.length; ++i) {
+            var cs = tiles[i].carSystem
+            if (cs) cs.appendActiveLinks(links)
+        }
+        var n = links.length
+        var ah = connectorLayer.arcHeight
+        var step = root._linkTagStep
+        if (!_linkTagBuf || _linkTagBuf.length !== n * 3)
+            _linkTagBuf = new Float32Array(n * 3)
+        var buf = _linkTagBuf
+        var key = ""
+        var distsDirty = false
+        var haveDists = _linkTagDists && _linkTagDists.length === n
+        for (i = 0; i < n; ++i) {
+            var L = links[i]
+            var dx = L.x2 - L.x0, dy = L.y2 - L.y0, dz = L.z2 - L.z0
+            var linkLen = Math.sqrt(dx * dx + dy * dy + dz * dz)
+            var o = i * 3
+            // apex.x/z reduce to the endpoint midpoint; only y is lifted.
+            buf[o]     = (L.x0 + L.x2) * 0.5
+            buf[o + 1] = (L.y0 + L.y2) * 0.5 + 0.5 * ah * linkLen
+            buf[o + 2] = (L.z0 + L.z2) * 0.5
+            var qd = Math.round(linkLen / step) * step
+            L._qd = qd
+            key += L.txId + "|"
+            if (haveDists && _linkTagDists[i] !== qd)
+                distsDirty = true
+        }
+        var now = Date.now()
+        var pairingChanged = key !== _linkTagKey
+        if (pairingChanged || !haveDists
+                || (distsDirty && now - _linkTagShapedAt >= root._linkTagTextMs)) {
+            var entries = new Array(n)
+            var dists = new Array(n)
+            for (i = 0; i < n; ++i) {
+                var b = i * 3
+                var LL = links[i]
+                entries[i] = { position: Qt.vector3d(buf[b], buf[b + 1], buf[b + 2]),
+                               text: LL.txId + " · " + LL._qd + "m",
+                               color: "#dbe8f4", size: 14 }
+                dists[i] = LL._qd
+            }
+            linkTags.setLabels(entries)
+            _linkTagKey = key
+            _linkTagDists = dists
+            _linkTagShapedAt = now
+            linkTagRebuilds += 1
+        } else if (n > 0) {
+            linkTags.updatePositionsBulk(buf.buffer, 0)
+        }
+    }
 
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_P) { root.perfHud = !root.perfHud; e.accepted = true }
@@ -138,6 +239,15 @@ Item {
     FrameAnimation {
         running: root.showCars && root.showConnections
         onTriggered: root.connectorFlowTime = elapsedTime
+    }
+
+    // Moves the link tags to the live arc apexes every frame while all three
+    // gating toggles are on. Runs ONLY then, so an off layer costs nothing (no
+    // gather, no upload). The per-frame work is positions-only; a reshape happens
+    // inside _tickLinkTags only on link-set or quantized-distance changes.
+    FrameAnimation {
+        running: root._linkTagsOn
+        onTriggered: root._tickLinkTags()
     }
 
     // ---- lidar inspection controller -----------------------------------------
@@ -672,6 +782,27 @@ Item {
             visible: root.showLabels
             pill: true
             pillColor: "#dc0a1018"
+            halo: true
+        }
+
+        // ---- link tags (LabelBatch3D) ----
+        // ONE instanced text batch floats a small callout at every active
+        // car->transmitter arc apex ("TX 07 · 140m"): the pairing plus a
+        // 5m-quantized distance. Screen-sized so it stays a constant ~14px and
+        // billboards toward the camera; a slightly more transparent HUD pill than
+        // the TX callouts keeps the tags reading as secondary to the mast ids.
+        // Driven by root._tickLinkTags(): (re)shaped only on link-set or
+        // quantized-distance changes, moved positions-only every connector tick.
+        // Pay-per-use: gated on labels(N) AND links(C) AND cars - with any off the
+        // batch is hidden and fed an empty set (see _syncLinkTags), zero cost.
+        LabelBatch3D {
+            id: linkTags
+            viewportSize: Qt.vector2d(view.width, view.height)
+            sizeMode: LabelBatch3D.Screen
+            orientation: LabelBatch3D.Billboard
+            visible: root._linkTagsOn
+            pill: true
+            pillColor: "#b40a1018"
             halo: true
         }
 

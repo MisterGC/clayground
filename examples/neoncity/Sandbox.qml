@@ -33,6 +33,7 @@ Item {
             buildings: cityView.buildingCount,
             labels: cityView.showLabels,
             links: cityView.showConnections,
+            linkTags: cityView.linkTagCount,
             traffic: cityView.trafficStats()
         }
     }

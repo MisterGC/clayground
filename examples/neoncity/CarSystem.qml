@@ -1162,6 +1162,26 @@ Node {
         return null
     }
 
+    // Append this tile's ACTIVE car->transmitter links to `out`: one entry per
+    // car whose nearest-transmitter anchor is currently bound (both arc endpoints
+    // exist). Each entry carries the two arc endpoints in SCENE coordinates (the
+    // anchor tip the connector springs from and the transmitter tip it draws to,
+    // exactly what ConnectorLayer3D reads) plus the target's callout id, so the
+    // link-tag layer can float a tag at the arc apex without querying line
+    // geometry. Cheap and allocation-bounded (<= car count), called once per tile
+    // per connector tick.
+    function appendActiveLinks(out) {
+        for (var i = 0; i < _anchors.length; ++i) {
+            var a = _anchors[i]
+            if (!a || !a.target) continue
+            var p0 = a.scenePosition
+            var p2 = a.target.scenePosition
+            out.push({ x0: p0.x, y0: p0.y, z0: p0.z,
+                       x2: p2.x, y2: p2.y, z2: p2.z,
+                       txId: a.target.txId })
+        }
+    }
+
     // Index of the car nearest to (wx,wz) within radius r (world units), or -1.
     // Returns { index, d2 } so callers can compare across tiles.
     function nearestCar(wx, wz, r) {
