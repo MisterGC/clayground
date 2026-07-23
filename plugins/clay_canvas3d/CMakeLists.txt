@@ -23,6 +23,10 @@ clay_plugin( Canvas3D
         src/linebatchinstancing.h
         src/linestyletexturedata.cpp
         src/linestyletexturedata.h
+        src/labelglyphatlas.cpp
+        src/labelglyphatlas.h
+        src/labelbatchinstancing.cpp
+        src/labelbatchinstancing.h
         src/voxelmapdata.cpp
         src/voxelmapdata.h
         src/voxelchunk.cpp
@@ -37,6 +41,10 @@ clay_plugin( Canvas3D
     RESOURCES
         line_batch.frag
         line_batch.vert
+        label_batch.frag
+        label_batch.vert
+        label_pill.frag
+        label_pill.vert
         voxel_map.frag
         voxel_map.vert
         box3d.frag
@@ -49,6 +57,7 @@ clay_plugin( Canvas3D
         ConnectorLayer3D.qml
         Label3D.qml
         Label3DRegistry.qml
+        LabelBatch3D.qml
         PathLabel3D.qml
         Line3D.qml
         LineBatch3D.qml
