@@ -87,6 +87,11 @@ void MAIN()
     // Small built-in bias toward the camera so labels sit above coplanar
     // geometry; depthBias (0 by default) adds a caller-tunable shift so a ground
     // decal can out-bias a line it lies on. depthBias == 0 keeps the old value.
-    clipPos.z -= (0.00005 + depthBias) * clipPos.w;
+    // In pill mode the glyphs are pulled a notch closer than the pill (which
+    // biases 0.00004) so the two coincident Models get a deterministic depth
+    // split: whichever draws first, inked text ends up nearer than the pill and
+    // survives (see LabelBatch3D pill fix). Non-pill base stays 0.00005 exactly.
+    float biasBase = (pillMode > 0.5) ? 0.00010 : 0.00005;
+    clipPos.z -= (biasBase + depthBias) * clipPos.w;
     POSITION = clipPos;
 }

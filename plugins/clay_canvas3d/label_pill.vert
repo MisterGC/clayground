@@ -52,7 +52,10 @@ void MAIN()
         clipPos = VIEWPROJECTION_MATRIX * vec4(wpos, 1.0);
     }
 
-    // Sit just behind the glyphs (glyphs get a stronger camera bias).
-    clipPos.z -= 0.00003 * clipPos.w;
+    // Sit just behind the glyphs, which pull to 0.00010 in pill mode. The pill
+    // writes depth too (AlwaysDepthDraw), so this smaller bias makes the pill
+    // depth-fail exactly on inked text pixels when it happens to draw after the
+    // glyphs - the text stays readable regardless of transparent-pass order.
+    clipPos.z -= 0.00004 * clipPos.w;
     POSITION = clipPos;
 }

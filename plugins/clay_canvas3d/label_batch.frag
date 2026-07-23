@@ -28,7 +28,13 @@ void MAIN()
     float haloA = haloCov * haloColor.a;
     float textA = textCov * vColor.a;
     float a = max(textA, haloA) * vOpacity * labelOpacity;
-    if (a < 0.003)
+    // In pill mode the glyph writes depth so the pill fails on inked pixels; a
+    // low cutoff would let near-invisible AA/halo-tail texels write depth and
+    // punch see-through speckles into the pill where it draws after the glyph.
+    // Raise the cutoff in pill mode so only firmly-inked texels write depth (and
+    // color). Non-pill path keeps the old 0.003 AA cutoff bit-for-bit.
+    float cutoff = (pillMode > 0.5) ? 0.1 : 0.003;
+    if (a < cutoff)
         discard;
 
     FRAGCOLOR = vec4(rgb, a);

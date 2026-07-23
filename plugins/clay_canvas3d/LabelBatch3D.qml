@@ -365,7 +365,13 @@ Node {
                 cullMode: Material.NoCulling
                 sourceBlend: CustomMaterial.SrcAlpha
                 destinationBlend: CustomMaterial.OneMinusSrcAlpha
-                depthDrawMode: Material.NeverDepthDraw
+                // The pill writes depth (it only ever draws when pill is on): it
+                // fills the whole rounded rect with depth at a slightly weaker
+                // camera bias than the glyphs, so wherever it draws after the
+                // glyphs it depth-fails on inked text and never covers it. Both
+                // Models writing depth is what makes the transparent-pass draw
+                // order between these two coincident Models stop mattering.
+                depthDrawMode: Material.AlwaysDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real baseSize: _atlas.baseSize
                 property real sizeMode: root.sizeMode
@@ -403,12 +409,20 @@ Node {
                 // sit on). writesDepth enables AlwaysDepthDraw for ground decals:
                 // inked fragments write depth (gaps discard), so the label draws
                 // above a coplanar line deterministically. See writesDepth.
-                depthDrawMode: root.writesDepth ? Material.AlwaysDepthDraw : Material.NeverDepthDraw
+                // pill also forces depth writes: the glyph must write depth on
+                // inked pixels so the coincident pill Model depth-fails there
+                // and can never blend over the text, whatever the draw order.
+                depthDrawMode: (root.writesDepth || root.pill) ? Material.AlwaysDepthDraw : Material.NeverDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real baseSize: _atlas.baseSize
                 property real sizeMode: root.sizeMode
                 property real orientationMode: root.orientation
                 property real depthBias: root.depthBias
+                // 1.0 when a pill is drawn behind these glyphs: the vert pulls
+                // the glyph depth a notch closer than the pill and the frag
+                // raises its alpha cutoff so only firmly-inked texels write
+                // depth. 0.0 (no pill) leaves both shaders bit-identical.
+                property real pillMode: root.pill ? 1.0 : 0.0
                 property color haloColor: root.halo ? root.haloColor : Qt.rgba(0, 0, 0, 0)
                 property real haloWidth: root.halo ? root.haloWidth : 0.0
                 property real labelOpacity: root.batchOpacity
