@@ -1,9 +1,12 @@
 #!/bin/bash
 # Convert plugin README.md files to styled HTML for API docs
 
+# This script lives in docs/scripts, so the repo root is two levels up and the
+# generated pages must land in docs/api/readme (where the docs target and the
+# website expect them).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGINS_DIR="$SCRIPT_DIR/../plugins"
-OUTPUT_DIR="$SCRIPT_DIR/api/readme"
+PLUGINS_DIR="$SCRIPT_DIR/../../plugins"
+OUTPUT_DIR="$SCRIPT_DIR/../api/readme"
 
 # HTML header with dark theme styling
 HTML_HEADER='<!DOCTYPE html>
