@@ -25,7 +25,7 @@ Node {
     property bool showLanes: true
     property bool showCars: true
     property bool showConnections: true
-    property bool showStreetNames: false // real-map-style road names, opt-in (N)
+    property bool showLabels: false      // global label layer: street names (N)
     property real laneFlowTime: 0        // drives the lane-model chevron flow
     property int carsPerTile: 8
     property real carSpeedFactor: 0.4   // global traffic-speed multiplier
@@ -315,7 +315,7 @@ Node {
         // Gated on the toggle: with names off (the default) no PathLabel3D exists
         // and no word textures rasterize as tiles stream, so the layer is free
         // until switched on. Toggling on builds the labels for loaded tiles.
-        model: tile.showStreetNames ? tile.streetNameModel : []
+        model: tile.showLabels ? tile.streetNameModel : []
         delegate: PathLabel3D {
             id: nameLabel
             required property var modelData

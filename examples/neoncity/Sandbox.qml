@@ -31,7 +31,7 @@ Item {
             tile: { x: cityView.currentTileX, z: cityView.currentTileZ },
             loadedTiles: cityView.loadedCount,
             buildings: cityView.buildingCount,
-            streetNames: cityView.showStreetNames,
+            labels: cityView.showLabels,
             links: cityView.showConnections,
             traffic: cityView.trafficStats()
         }
