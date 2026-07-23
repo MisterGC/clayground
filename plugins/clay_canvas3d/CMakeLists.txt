@@ -45,6 +45,8 @@ clay_plugin( Canvas3D
         label_batch.vert
         label_pill.frag
         label_pill.vert
+        path_word.frag
+        path_word.vert
         voxel_map.frag
         voxel_map.vert
         box3d.frag

@@ -31,6 +31,11 @@ class LabelGlyphAtlas : public QQuick3DTextureData
     Q_PROPERTY(int atlasWidth READ atlasWidth NOTIFY atlasChanged)
     Q_PROPERTY(int atlasHeight READ atlasHeight NOTIFY atlasChanged)
     Q_PROPERTY(int glyphCount READ glyphCount NOTIFY atlasChanged)
+    // Font metrics in base-size pixels, for callers that map a world text height
+    // onto the shader's size parameter (e.g. PathLabel3D glyph placement).
+    Q_PROPERTY(qreal capHeightPx READ capHeightPxQml NOTIFY fontChanged)
+    Q_PROPERTY(qreal ascentPx READ ascentPxQml NOTIFY fontChanged)
+    Q_PROPERTY(qreal descentPx READ descentPxQml NOTIFY fontChanged)
 
 public:
     // Per-glyph metrics in atlas-normalized UV and label-local base pixels.
@@ -75,6 +80,11 @@ public:
     float ascent() const { return static_cast<float>(m_ascent); }
     float descent() const { return static_cast<float>(m_descent); }
     float baseSizeF() const { return static_cast<float>(m_baseSize); }
+
+    // Same metrics as QML-friendly qreal accessors.
+    qreal capHeightPxQml() const { return m_capHeight; }
+    qreal ascentPxQml() const { return m_ascent; }
+    qreal descentPxQml() const { return m_descent; }
 
 signals:
     void fontChanged();

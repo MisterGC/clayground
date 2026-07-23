@@ -149,18 +149,33 @@ Repeater3D {
 
 ### Labels
 
-Two components put readable text into a 3D scene the way technical illustrations
-and maps do. Both render unlit (never toon-shaded, never shadow-casting) and stay
-crisp under the camera.
+Three components put readable text into a 3D scene the way technical
+illustrations and maps do. All render unlit (never toon-shaded, never
+shadow-casting) and stay crisp under the camera. Pick by role:
 
-- **Label3D**: a camera-facing callout - a rounded "pill" with optional icon -
-  anchored to a moving `anchorNode` or a fixed `anchorPosition`. It billboards to
-  the camera every frame and, by default, holds a constant on-screen size
-  (`sizeMode: Label3D.Screen`); switch to `Label3D.World` to scale with the scene.
-  An optional `showLeader` draws a thin line from the pill to the anchor - the
-  offset-callout look. A single shared per-view ticker (via `Label3DRegistry`)
-  drives all labels in one pass and skips the work entirely while the camera and
-  anchors are still, so many labels stay cheap and hidden ones are dormant.
+- **Label3D** - a camera-facing callout pill anchored to a thing. Reach for it to
+  annotate individual entities or points - dozens - with rich, always-readable
+  UI-style tags, optionally with a leader line.
+- **PathLabel3D** - text laid flat along a line, the street-name look. Reach for
+  it to paint a name onto a road or route from a `LineBatch3D`, read from above.
+- **LabelBatch3D** - thousands of instanced SDF text labels. Reach for it when you
+  need many cheap, uniform world-anchored labels (map features, data points,
+  particle tags) in a couple of draw calls.
+
+They compose: `Label3D` is the rich end (one QObject per label), `LabelBatch3D`
+is the mass-scale end (one GPU instance per glyph), and `PathLabel3D` sits on top
+of `LineBatch3D` for the flat-on-ground case.
+
+#### Label3D - anchored callouts
+
+A rounded "pill" with optional icon, anchored to a moving `anchorNode` or a fixed
+`anchorPosition`. It billboards to the camera every frame and, by default, holds a
+constant on-screen size (`sizeMode: Label3D.Screen`); switch to `Label3D.World` to
+scale with the scene. An optional `showLeader` draws a thin line from the pill to
+the anchor - the offset-callout look. A single shared per-view ticker (via
+`Label3DRegistry`) drives all labels in one pass and skips the work entirely while
+the camera and anchors are still, so many labels stay cheap and hidden ones are
+dormant.
 
 ```qml
 Label3D {
@@ -172,12 +187,30 @@ Label3D {
 }
 ```
 
-- **PathLabel3D**: street-name style text laid flat on the ground along a line of
-  a `LineBatch3D`, the way a map paints a road name. It splits the text into words
-  placed tangent to the path, makes one flip-to-read decision per placement so
-  text never appears upside-down, and `repeatEvery` stamps the name at a fixed
-  spacing along a long road. The words ride 2x-oversampled textures that stay
-  crisp under the top-down/tactical cameras these labels are made for.
+#### PathLabel3D - names along a line
+
+Street-name style text laid flat on the ground along a line of a `LineBatch3D`,
+the way a map paints a road name. Placement rides the line via `pathLength()` /
+`positionAt()`: the label centers on `at` (or the path middle), one flip-to-read
+decision per placement keeps text from ever appearing upside-down, and
+`repeatEvery` stamps the name at a fixed spacing along a long road.
+
+It offers two carriers, chosen with `glyphPlacement`:
+
+- **Word mode (default, `glyphPlacement: false`)**: each word rides its own
+  2x-oversampled texture quad tangent to the path. Cheap; bends happen at word
+  boundaries. Crisp down to roughly the oversample factor.
+- **Glyph mode (`glyphPlacement: true`)**: the text is shaped once and each glyph
+  is placed and rotated individually along the curve (maplibre's model), so the
+  baseline hugs tight bends smoothly and the whole name - not just each word -
+  reads correctly on a doubling-back leg. Rendering routes through an internal
+  `LabelBatch3D` created **lazily on first use**, so word-mode labels pay for no
+  SDF atlas (pay-per-use). Being SDF-baked, glyph mode stays crisp at any zoom. A
+  curvature guard skips a placement whose baseline would wrap too sharp an arc
+  (`skippedPlacements` reports how many); a background pill is not supported in
+  glyph mode v1. As a ground decal the glyphs write depth with a small
+  toward-camera bias so they draw above the line they sit on from any camera -
+  the layering contract is lines first, labels above.
 
 ```qml
 LineBatch3D { id: roads /* ... */ }
@@ -188,6 +221,31 @@ PathLabel3D {
     text: "CLAY STREET"
     worldHeight: 30
     repeatEvery: 900
+    glyphPlacement: true   // per-glyph text-on-curve; omit for cheap word mode
+}
+```
+
+#### LabelBatch3D - mass-scale SDF labels
+
+Draws very large sets of short labels - tens of thousands - as instanced
+signed-distance-field glyphs over a shared atlas (deck.gl's TextLayer model): N
+labels cost one draw call for the glyphs plus one for the optional pills. Each
+label is a world-anchored point with its own text, color and size; glyphs stay
+crisp at any zoom. `sizeMode` picks screen-constant (billboard) or world units,
+`orientation` picks billboard or flat-on-ground, and moving labels can be repositioned
+without re-shaping via `updatePositionsBulk`. It is the mass-scale sibling of
+`Label3D`, not a replacement - rich per-label content, icons and leaders stay
+`Label3D`'s job.
+
+```qml
+LabelBatch3D {
+    viewportSize: Qt.vector2d(view.width, view.height)
+    sizeMode: LabelBatch3D.Screen
+    halo: true
+    labels: [
+        { position: Qt.vector3d(0, 0, 0),  text: "ALPHA", color: "#00d9ff", size: 22 },
+        { position: Qt.vector3d(80, 0, 0), text: "BETA",  color: "#ff3366", size: 22 }
+    ]
 }
 ```
 

@@ -168,6 +168,36 @@ Node {
     property real pillRadius: 12
 
     /*!
+        \qmlproperty real LabelBatch3D::depthBias
+        \brief Shifts the glyph depth toward the camera (0..~0.001). Default 0.
+
+        Positive values pull the rendered depth toward the near plane, the same
+        sense as \l{LineBatch3D::depthBias}{LineBatch3D.depthBias}. Combined with
+        \l writesDepth it lets ground-decal labels win the depth fight against a
+        coplanar line they sit on. Default 0 leaves the built-in bias untouched,
+        so an unset batch renders exactly as before.
+    */
+    property real depthBias: 0
+
+    /*!
+        \qmlproperty bool LabelBatch3D::writesDepth
+        \brief Whether inked glyph fragments write depth. Default false.
+
+        \list
+        \li \c false (default): glyphs never write depth (NeverDepthDraw) - the
+            mass-label default; labels never punch holes into geometry beneath
+            them and order among transparent objects is by draw order.
+        \li \c true: each glyph fragment that survives the alpha cutoff writes
+            depth (transparent gaps still discard, so no holes), making the label
+            occlude coplanar blended geometry - notably a \l LineBatch3D the label
+            sits on - deterministically from any camera. This is the ground-decal
+            layering contract used by \l PathLabel3D's glyph mode: lines first,
+            labels above.
+        \endlist
+    */
+    property bool writesDepth: false
+
+    /*!
         \qmlproperty real LabelBatch3D::batchOpacity
         \brief Batch-wide opacity multiplier (0..1). Default 1.
 
@@ -197,6 +227,28 @@ Node {
         \brief Wall-clock milliseconds spent shaping on the last \l setLabels.
     */
     property alias shapeMsLast: _inst.shapeMsLast
+
+    /*!
+        \qmlproperty real LabelBatch3D::ascentPx
+        \readonly
+        \brief Font ascent in atlas base pixels (for mapping a world text height
+        onto \l setCurvedLabels sizes).
+    */
+    property alias ascentPx: _atlas.ascentPx
+
+    /*!
+        \qmlproperty real LabelBatch3D::descentPx
+        \readonly
+        \brief Font descent in atlas base pixels.
+    */
+    property alias descentPx: _atlas.descentPx
+
+    /*!
+        \qmlproperty real LabelBatch3D::capHeightPx
+        \readonly
+        \brief Font cap height in atlas base pixels.
+    */
+    property alias capHeightPx: _atlas.capHeightPx
 
     /*!
         \qmlproperty int LabelBatch3D::atlasWidth
@@ -254,6 +306,35 @@ Node {
     */
     function priorities() {
         return _inst.priorities()
+    }
+
+    /*!
+        \qmlmethod list LabelBatch3D::glyphAdvances(string text, real size)
+        \brief Per-code-point advance widths of \a text in world units at render
+        \a size.
+
+        Returns one advance per Unicode code point (spaces included), each equal
+        to \c{advanceBasePx * size / baseSize}. \l PathLabel3D uses this to lay
+        glyphs along a curve; missing glyphs are baked into the atlas first.
+    */
+    function glyphAdvances(text, size) {
+        return _inst.glyphAdvances(text, size)
+    }
+
+    /*!
+        \qmlmethod void LabelBatch3D::setCurvedLabels(list labels)
+        \brief Sets pre-placed per-glyph labels (text-on-curve, maplibre's model).
+
+        Each element is
+        \c{{ text, color, size, opacity, positions: [vector3d per code point],
+        angles: [real radians per code point] }}. Every inking glyph is drawn at
+        its own world anchor rotated by its angle (\c INSTANCE_DATA.z), so text
+        can hug an arbitrary curve. This is the carrier behind \l PathLabel3D's
+        \l{PathLabel3D::glyphPlacement}{glyphPlacement} mode; no background pill
+        is drawn in curved mode.
+    */
+    function setCurvedLabels(labels) {
+        _inst.setCurvedLabels(labels)
     }
 
     // Shared SDF glyph atlas: handed to both the shaper and the glyph material's
@@ -318,11 +399,16 @@ Node {
                 cullMode: Material.NoCulling
                 sourceBlend: CustomMaterial.SrcAlpha
                 destinationBlend: CustomMaterial.OneMinusSrcAlpha
-                depthDrawMode: Material.NeverDepthDraw
+                // NeverDepthDraw by default (mass labels never occlude what they
+                // sit on). writesDepth enables AlwaysDepthDraw for ground decals:
+                // inked fragments write depth (gaps discard), so the label draws
+                // above a coplanar line deterministically. See writesDepth.
+                depthDrawMode: root.writesDepth ? Material.AlwaysDepthDraw : Material.NeverDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real baseSize: _atlas.baseSize
                 property real sizeMode: root.sizeMode
                 property real orientationMode: root.orientation
+                property real depthBias: root.depthBias
                 property color haloColor: root.halo ? root.haloColor : Qt.rgba(0, 0, 0, 0)
                 property real haloWidth: root.halo ? root.haloWidth : 0.0
                 property real labelOpacity: root.batchOpacity

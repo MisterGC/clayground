@@ -28,9 +28,12 @@ import QtQuick3D
     then stays put. There is no per-frame tick: the quads are static geometry
     until \l lines, \l lineId, \l at, \l text or a sizing property changes.
 
-    \note v1 places one quad per word. Per-glyph curve stepping (each glyph on its
-    own short tangent, for tight bends) is a named follow-up and would refine this
-    component internally without changing its API.
+    By default PathLabel3D places one texture quad per word (cheap, bends at word
+    boundaries). Set \l glyphPlacement to \c true for per-glyph text-on-curve
+    (maplibre's model): the text is shaped once and each glyph is placed and
+    rotated individually so the baseline hugs tight bends, rendered through an
+    internal \l LabelBatch3D that is created lazily so word-mode labels pay for no
+    SDF atlas.
 
     Example usage:
     \qml
@@ -50,7 +53,7 @@ import QtQuick3D
     }
     \endqml
 
-    \sa LineBatch3D, Label3D
+    \sa LineBatch3D, Label3D, LabelBatch3D
 */
 Node {
     id: root
@@ -163,8 +166,59 @@ Node {
 
         One oversampled texture is shared by every placement of the same word, so
         a repeated "CLAY STREET" costs two textures, not two per repeat.
+
+        \note Only meaningful in the default per-word texture mode; it is 0 in
+        \l glyphPlacement mode, which draws no word textures.
     */
     readonly property int uniqueTextureCount: root._wordGroups.length
+
+    /*!
+        \qmlproperty bool PathLabel3D::glyphPlacement
+        \brief Selects per-glyph text-on-curve placement instead of per-word quads.
+
+        \list
+        \li \c false (default): each whitespace-separated word is drawn as one
+            flat 2x-oversampled texture quad tangent to the path - the classic,
+            cheap street-name look. Bends happen at word boundaries only.
+        \li \c true: the text is shaped once into glyphs and each glyph is placed
+            and rotated individually along the curve (maplibre's model), so the
+            baseline hugs tight bends smoothly. Rendering routes through an
+            internal \l LabelBatch3D created lazily on first use - with
+            \c glyphPlacement \c false no glyph batch or SDF atlas is ever
+            allocated (pay-per-use).
+        \endlist
+
+        The two modes share \l at, \l repeatEvery and auto-centering semantics
+        exactly. \l worldHeight, \l groundOffset and the \l labelStyle text color
+        and halo carry across; a background pill (\c labelStyle.background) is not
+        supported in glyph mode v1.
+
+        \note Magnification differs by carrier: word mode packs each word into a
+        2x-oversampled raster texture, crisp down to roughly that oversample;
+        glyph mode bakes an SDF atlas once and stays crisp at any zoom, at the
+        cost of one atlas plus a per-glyph instance.
+    */
+    property bool glyphPlacement: false
+
+    /*!
+        \qmlproperty int PathLabel3D::skippedPlacements
+        \brief Number of placements skipped by the curvature guard (read-only).
+
+        In \l glyphPlacement mode a placement whose baseline would wrap too sharp
+        an arc (a hairpin tighter than the label can follow) is dropped rather
+        than drawn mirrored or overlapping; this counts how many were skipped on
+        the last rebuild.
+    */
+    readonly property int skippedPlacements: root._skipped
+
+    /*!
+        \qmlproperty bool PathLabel3D::glyphBatchActive
+        \brief Whether the lazy internal glyph batch currently exists (read-only).
+
+        \c false whenever \l glyphPlacement is \c false - proof that word-mode
+        labels allocate no glyph batch or atlas (the pay-per-use guarantee).
+    */
+    readonly property bool glyphBatchActive: _glyphRepeater.count > 0
 
     // Lean ground-paint style. Inline component so the sub-property set is
     // statically known (grouped assignment and qmllint both resolve it).
@@ -198,6 +252,21 @@ Node {
     property var _wordGroups: []
     property int _retries: 0
 
+    // --- glyph-mode state -------------------------------------------------
+    // The lazily-created internal batch (set from the Repeater3D delegate) and
+    // the last computed curved placements. _skipped feeds skippedPlacements.
+    property var _glyphBatch: null
+    property var _curvedPlacements: []
+    property int _skipped: 0
+    // Max total absolute tangent turn (radians) a single placement's baseline
+    // may accumulate before the curvature guard drops it. Tuned so each straight
+    // leg of a hairpin passes but a label wrapping a tight U is skipped.
+    readonly property real _curvatureLimit: 2.4
+    // Toward-camera depth bias handed to the internal glyph batch so the ground
+    // decal draws above the (depth-writing, blended) line it sits on from any
+    // camera. Small enough not to lift the text visibly off the ground.
+    readonly property real groundDepthBias: 0.00015
+
     // Hidden metrics probe: measures each word's advance without laying out an
     // item, so placement never depends on live carrier sizes (no binding cycle).
     TextMetrics { id: _metrics }
@@ -208,7 +277,7 @@ Node {
     */
     function rebuild() {
         var lb = root.lines
-        if (!lb) { root._wordGroups = []; return }
+        if (!lb) { root._wordGroups = []; root._curvedPlacements = []; return }
         var total = lb.pathLength(root.lineId)
         if (!(total > 0)) {
             // Geometry may upload a frame after this component completes; defer a
@@ -218,6 +287,44 @@ Node {
         }
         root._retries = 0
 
+        if (root.glyphPlacement) { root._rebuildGlyphs(lb, total); return }
+        root._rebuildWords(lb, total)
+    }
+
+    // Placement centers along the path, shared by both modes so at / repeatEvery
+    // / auto-center behave identically. blockWidth is the total world length of
+    // the laid-out text (words+gaps, or the glyph advance run).
+    function _placementCenters(total, blockWidth) {
+        var centers = []
+        if (root.repeatEvery > 0) {
+            var startC = root.at >= 0 ? root.at : blockWidth * 0.5
+            for (var d0 = startC; d0 <= total - blockWidth * 0.5 + 1e-3; d0 += root.repeatEvery)
+                centers.push(d0)
+            if (centers.length === 0) centers.push(Math.min(total * 0.5, total - blockWidth * 0.5))
+        } else {
+            centers.push(root.at >= 0 ? root.at : total * 0.5)
+        }
+        return centers
+    }
+
+    // One flip-to-read decision for a placement (maplibre model): the chord from
+    // the block's first to last point gives the dominant direction; fall back to
+    // the center tangent when the block nearly closes on itself. Returns true if
+    // the text should be flipped 180 degrees so it reads the right way up.
+    function _flipFor(lb, total, startD, blockWidth, eps) {
+        var pS = lb.positionAt(root.lineId, Math.max(0, startD))
+        var pE = lb.positionAt(root.lineId, Math.min(total, startD + blockWidth))
+        var domX = pE.x - pS.x, domZ = pE.z - pS.z
+        if (domX * domX + domZ * domZ < 1e-3) {
+            var mc = Math.max(0, Math.min(total, startD + blockWidth * 0.5))
+            var ma = lb.positionAt(root.lineId, Math.max(0, mc - eps))
+            var mb = lb.positionAt(root.lineId, Math.min(total, mc + eps))
+            domX = mb.x - ma.x; domZ = mb.z - ma.z
+        }
+        return (domX * root.readingDirection.x + domZ * root.readingDirection.y) < 0
+    }
+
+    function _rebuildWords(lb, total) {
         var raw = root.text.trim()
         if (raw.length === 0) { root._wordGroups = []; return }
         var words = raw.split(/\s+/)
@@ -244,16 +351,7 @@ Node {
         }
         blockWidth += gap * (words.length - 1)
 
-        // Placement centers along the path.
-        var centers = []
-        if (root.repeatEvery > 0) {
-            var startC = root.at >= 0 ? root.at : blockWidth * 0.5
-            for (var d0 = startC; d0 <= total - blockWidth * 0.5 + 1e-3; d0 += root.repeatEvery)
-                centers.push(d0)
-            if (centers.length === 0) centers.push(Math.min(total * 0.5, total - blockWidth * 0.5))
-        } else {
-            centers.push(root.at >= 0 ? root.at : total * 0.5)
-        }
+        var centers = root._placementCenters(total, blockWidth)
 
         var byWord = {}
         var order = []
@@ -268,22 +366,7 @@ Node {
         var eps = Math.max(2, root.worldHeight * 0.15)
         for (var c = 0; c < centers.length; ++c) {
             var startD = centers[c] - blockWidth * 0.5
-
-            // One flip-to-read decision for the whole placement (maplibre model):
-            // an individually-flipped word would mirror on an S-curve. The chord
-            // from the block's first to last point gives the dominant direction;
-            // fall back to the center tangent when the block nearly closes on
-            // itself (a placement that doubles back within its own span).
-            var pS = lb.positionAt(root.lineId, Math.max(0, startD))
-            var pE = lb.positionAt(root.lineId, Math.min(total, startD + blockWidth))
-            var domX = pE.x - pS.x, domZ = pE.z - pS.z
-            if (domX * domX + domZ * domZ < 1e-3) {
-                var mc = Math.max(0, Math.min(total, centers[c]))
-                var ma = lb.positionAt(root.lineId, Math.max(0, mc - eps))
-                var mb = lb.positionAt(root.lineId, Math.min(total, mc + eps))
-                domX = mb.x - ma.x; domZ = mb.z - ma.z
-            }
-            var flip = (domX * root.readingDirection.x + domZ * root.readingDirection.y) < 0
+            var flip = root._flipFor(lb, total, startD, blockWidth, eps)
 
             var d = startD
             for (var k = 0; k < wm.length; ++k) {
@@ -312,6 +395,105 @@ Node {
         root._wordGroups = groups
     }
 
+    // Per-glyph text-on-curve placement (maplibre's model). Shape once for the
+    // advances, then place each glyph at its advance-center along the path with
+    // the angle from the local tangent; flip decided once per placement; the
+    // curvature guard drops a placement whose baseline turns too sharply.
+    function _rebuildGlyphs(lb, total) {
+        root._wordGroups = []
+        var batch = root._glyphBatch
+        if (!batch) return // batch not created yet; its onCompleted reschedules
+
+        var str = root.text
+        if (str.trim().length === 0) {
+            root._curvedPlacements = []; root._skipped = 0
+            batch.setCurvedLabels([])
+            return
+        }
+
+        // Map the desired world text height onto the shader's size parameter so a
+        // glyph run of ascent+descent equals worldHeight (matches word-mode box).
+        var textPx = batch.ascentPx + batch.descentPx
+        if (!(textPx > 0)) textPx = batch.font.baseSize
+        var size = root.worldHeight * batch.font.baseSize / textPx
+
+        // Per-code-point advances in world units; positions/angles index-align.
+        var adv = batch.glyphAdvances(str, size)
+        var n = adv.length
+        if (n === 0) { root._curvedPlacements = []; root._skipped = 0; batch.setCurvedLabels([]); return }
+
+        var cumBefore = []
+        var acc = 0
+        for (var i = 0; i < n; ++i) { cumBefore.push(acc); acc += adv[i] }
+        var blockWidth = acc
+
+        var centers = root._placementCenters(total, blockWidth)
+        var eps = Math.max(2, root.worldHeight * 0.15)
+
+        function clampD(x) { return Math.max(0, Math.min(total, x)) }
+        function tangentAt(d) {
+            var pa = lb.positionAt(root.lineId, Math.max(0, d - eps))
+            var pb = lb.positionAt(root.lineId, Math.min(total, d + eps))
+            return { x: pb.x - pa.x, z: pb.z - pa.z }
+        }
+
+        var placements = []
+        var skipped = 0
+        for (var c = 0; c < centers.length; ++c) {
+            var startD = centers[c] - blockWidth * 0.5
+
+            // Curvature guard: sample the tangent angle across the block and sum
+            // the absolute turn; a placement over too sharp an arc is dropped.
+            var samples = Math.max(n, 8)
+            var prevA = null, totalTurn = 0
+            for (var s = 0; s <= samples; ++s) {
+                var dd = clampD(startD + blockWidth * (s / samples))
+                var tg = tangentAt(dd)
+                var a = Math.atan2(tg.z, tg.x)
+                if (prevA !== null) {
+                    var delta = a - prevA
+                    while (delta > Math.PI) delta -= 2 * Math.PI
+                    while (delta < -Math.PI) delta += 2 * Math.PI
+                    totalTurn += Math.abs(delta)
+                }
+                prevA = a
+            }
+            if (totalTurn > root._curvatureLimit) { skipped++; continue }
+
+            var flip = root._flipFor(lb, total, startD, blockWidth, eps)
+
+            var positions = []
+            var angles = []
+            for (var g = 0; g < n; ++g) {
+                var glyphAdvCenter = cumBefore[g] + adv[g] * 0.5
+                // Flip reverses the walk direction along the path so glyph order
+                // and facing both reverse together (no mirrored / reversed text).
+                var gd = clampD(flip ? (startD + blockWidth - glyphAdvCenter)
+                                     : (startD + glyphAdvCenter))
+                var p = lb.positionAt(root.lineId, gd)
+                var t = tangentAt(gd)
+                // Flat mode maps glyph local +x -> world (cos, -sin) in (X, Z),
+                // so the reading axis follows the tangent when angle = atan2(-tz, tx).
+                var ang = Math.atan2(-t.z, t.x)
+                if (flip) ang += Math.PI
+                positions.push(Qt.vector3d(p.x, root.groundOffset, p.z))
+                angles.push(ang)
+            }
+            placements.push({
+                text: str,
+                color: root.labelStyle.textColor,
+                size: size,
+                opacity: 1.0,
+                positions: positions,
+                angles: angles
+            })
+        }
+
+        root._skipped = skipped
+        root._curvedPlacements = placements
+        batch.setCurvedLabels(placements)
+    }
+
     // On-demand contract: coalesce every input change into one deferred rebuild
     // (Qt.callLater dedups within the frame). No FrameAnimation - the quads are
     // static once placed.
@@ -326,7 +508,35 @@ Node {
     onGroundOffsetChanged: root._schedule()
     onOversampleChanged: root._schedule()
     onReadingDirectionChanged: root._schedule()
+    onGlyphPlacementChanged: root._schedule()
     Component.onCompleted: root._schedule()
+
+    // --- lazy internal glyph batch (glyphPlacement mode only) --------------
+    // Repeater3D with a 0/1 model is the Node-compatible lazy loader: with
+    // glyphPlacement false there is no delegate, hence no LabelBatch3D and no SDF
+    // atlas at all (pay-per-use). The batch renders World-sized, Flat glyphs; the
+    // placement feeds it via setCurvedLabels once it completes.
+    Repeater3D {
+        id: _glyphRepeater
+        model: root.glyphPlacement ? 1 : 0
+        delegate: LabelBatch3D {
+            id: _glyphBatchItem
+            sizeMode: LabelBatch3D.World
+            orientation: LabelBatch3D.Flat
+            halo: root.labelStyle.halo
+            haloColor: root.labelStyle.haloColor
+            font.family: root.labelStyle.fontFamily
+            font.weight: root.labelStyle.bold ? 700 : 400
+            // Ground-decal layering contract: the glyphs write depth and carry a
+            // small toward-camera bias so they draw above the line they sit on
+            // from any camera (the LineBatch3D writes depth and blends, so plain
+            // draw-order sorting is not reliable). Lines first, labels above.
+            writesDepth: true
+            depthBias: root.groundDepthBias
+            Component.onCompleted: { root._glyphBatch = _glyphBatchItem; root._schedule() }
+            Component.onDestruction: { if (root._glyphBatch === _glyphBatchItem) root._glyphBatch = null }
+        }
+    }
 
     // --- rendering: one shared texture per word, quads per placement -------
     // Outer level = distinct words: each owns exactly one oversampled Texture.
@@ -368,18 +578,27 @@ Node {
                             // #Rectangle is a 100x100 plane; scale to world size.
                             scale: Qt.vector3d(root.worldHeight * grp.modelData.aspect / 100,
                                                root.worldHeight / 100, 1)
-                            materials: PrincipledMaterial {
-                                lighting: PrincipledMaterial.NoLighting
-                                alphaMode: PrincipledMaterial.Blend
-                                baseColorMap: grp.wordTex
-                                // A word quad is mostly transparent (glyphs on a
-                                // clear ground). Without this it still writes the
-                                // depth buffer across its whole rectangle, so the
-                                // bright line underneath fails the depth test and
-                                // the transparent gaps punch a dark hole in it.
-                                // As ground paint the quad must never occlude what
-                                // it lies on - never write depth.
-                                depthDrawMode: PrincipledMaterial.NeverDepthDraw
+                            materials: CustomMaterial {
+                                // Ground-decal contract ("lines first, labels
+                                // above"), same mechanism as the glyph batch:
+                                // inked texels blend and write depth (with a
+                                // small camera bias, so the word wins against
+                                // the coplanar depth-writing line no matter the
+                                // blended-pass order), transparent texels are
+                                // discarded and can never punch holes into the
+                                // line. PrincipledMaterial cannot express this
+                                // split, hence the custom shaders.
+                                shadingMode: CustomMaterial.Unshaded
+                                cullMode: Material.NoCulling
+                                sourceBlend: CustomMaterial.SrcAlpha
+                                destinationBlend: CustomMaterial.OneMinusSrcAlpha
+                                depthDrawMode: Material.AlwaysDepthDraw
+                                property real depthBias: 0.00020
+                                property TextureInput wordTex: TextureInput {
+                                    texture: grp.wordTex
+                                }
+                                vertexShader: "path_word.vert"
+                                fragmentShader: "path_word.frag"
                             }
                         }
                     }

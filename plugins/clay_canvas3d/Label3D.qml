@@ -46,7 +46,7 @@ import Clayground.Canvas3D
     }
     \endqml
 
-    \sa ConnectorLayer3D
+    \sa PathLabel3D, LabelBatch3D, ConnectorLayer3D
 */
 Node {
     id: root

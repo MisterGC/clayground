@@ -7,6 +7,10 @@
 //   col0 (M*(1,0,0,0))        = (offX, offY, size)   label-local base px, y-up
 //   col1 (M*(0,1,0,0))        = (u0, v0, u1)          atlas UV (v0 = top)
 //   col2 (M*(0,0,1,0))        = (v1, glyphW, glyphH)
+//   INSTANCE_DATA.z           = per-glyph yaw about the quad normal (radians)
+// INSTANCE_DATA.z is 0 for every straight-baseline label (setLabels), so the
+// rotation below is a guarded no-op there and the output stays byte-identical.
+// Only curved labels (setCurvedLabels / PathLabel3D glyph placement) set it.
 // Material uniforms:
 //   viewportSize     = View3D pixel size (vec2)
 //   baseSize         = atlas rasterization size in px (size / baseSize scales
@@ -41,6 +45,19 @@ void MAIN()
 
     float lx = offX + corner.x * glyphW;
     float ly = offY + corner.y * glyphH;
+
+    // Per-glyph rotation about the quad normal (curved labels only). Guarded so
+    // the zero-angle straight path is left exactly untouched.
+    float glyphAngle = INSTANCE_DATA.z;
+    if (glyphAngle != 0.0) {
+        float ca = cos(glyphAngle);
+        float sa = sin(glyphAngle);
+        float rlx = lx * ca - ly * sa;
+        float rly = lx * sa + ly * ca;
+        lx = rlx;
+        ly = rly;
+    }
+
     float k = size / max(baseSize, 1.0);
 
     vec4 clipPos;
@@ -67,7 +84,9 @@ void MAIN()
         clipPos = VIEWPROJECTION_MATRIX * vec4(wpos, 1.0);
     }
 
-    // Small bias toward the camera so labels sit above coplanar geometry.
-    clipPos.z -= 0.00005 * clipPos.w;
+    // Small built-in bias toward the camera so labels sit above coplanar
+    // geometry; depthBias (0 by default) adds a caller-tunable shift so a ground
+    // decal can out-bias a line it lies on. depthBias == 0 keeps the old value.
+    clipPos.z -= (0.00005 + depthBias) * clipPos.w;
     POSITION = clipPos;
 }

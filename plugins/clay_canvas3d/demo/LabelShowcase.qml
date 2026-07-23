@@ -61,13 +61,27 @@ Item {
                 "TEAL AVENUE": avenueLabel.uniqueTextureCount,
                 "LOOP ROAD": loopLabel.uniqueTextureCount
             },
+            // Glyph-mode comparison labels. glyphBatchActive proves pay-per-use:
+            // word-mode labels above allocate no glyph batch (all false here only
+            // for those); the three glyph labels below each own a lazy batch.
+            glyph: {
+                streetActive: streetGlyph.glyphBatchActive,
+                loopActive: loopGlyph.glyphBatchActive,
+                tightActive: tightGlyph.glyphBatchActive,
+                tightSkipped: tightGlyph.skippedPlacements,
+                streetSkipped: streetGlyph.skippedPlacements,
+                loopSkipped: loopGlyph.skippedPlacements,
+                // Word-mode labels must never spin up a glyph batch.
+                wordStreetActive: streetLabel.glyphBatchActive
+            },
             fps: view.renderStats ? view.renderStats.fps : -1
         }
     }
 
     function scenarios() {
         return ["overview", "angled", "near", "far", "readability", "leader",
-                "paths-top", "paths-near", "paths-flip"]
+                "paths-top", "paths-near", "paths-flip",
+                "glyph-street", "glyph-loop", "glyph-tight"]
     }
 
     function applyScenario(name) {
@@ -82,6 +96,11 @@ Item {
         case "paths-top":   root.camDist = 1200; root.orbitYaw = 0;   root.orbitPitch = -88; root.camTargetZ = 600; break
         case "paths-near":  root.camDist = 520;  root.orbitYaw = 0;   root.orbitPitch = -80; root.camTargetZ = 520; break
         case "paths-flip":  root.camDist = 780;  root.orbitYaw = 0;   root.orbitPitch = -88; root.camTargetZ = 760; break
+        // Word vs glyph comparison views (each frames a word road and its glyph
+        // twin one lane below).
+        case "glyph-street": root.camDist = 620;  root.orbitYaw = 0;  root.orbitPitch = -88; root.camTargetZ = 470; break
+        case "glyph-loop":   root.camDist = 760;  root.orbitYaw = 0;  root.orbitPitch = -88; root.camTargetZ = 1000; break
+        case "glyph-tight":  root.camDist = 520;  root.orbitYaw = 0;  root.orbitPitch = -88; root.camTargetZ = 1120; break
         }
     }
 
@@ -279,8 +298,8 @@ Item {
             source: "#Rectangle"
             eulerRotation.x: -90
             y: 0.1
-            z: 640
-            scale: Qt.vector3d(19, 11, 1)
+            z: 720
+            scale: Qt.vector3d(20, 15, 1)
             materials: PrincipledMaterial { baseColor: "#0d1020"; lighting: PrincipledMaterial.NoLighting }
         }
 
@@ -303,7 +322,19 @@ Item {
                     // 2: doubled-back hairpin -> flip-to-read proof
                     { points: root.bezier(Qt.vector3d(-560, 0, 900), Qt.vector3d(360, 0, 840),
                                           Qt.vector3d(360, 0, 1000), Qt.vector3d(-560, 0, 960), 40),
-                      color: "#0f9d9a", width: 22, styleId: 0 }
+                      color: "#0f9d9a", width: 22, styleId: 0 },
+                    // 3: S-curve twin of road 0, one lane below -> glyph CLAY STREET
+                    { points: root.bezier(Qt.vector3d(-780, 0, 470), Qt.vector3d(-300, 0, 390),
+                                          Qt.vector3d(240, 0, 650), Qt.vector3d(760, 0, 550), 32),
+                      color: "#0f9d9a", width: 26, styleId: 0 },
+                    // 4: hairpin below road 2 -> glyph LOOP ROAD, correct on both legs
+                    { points: root.bezier(Qt.vector3d(-540, 0, 1060), Qt.vector3d(420, 0, 1060),
+                                          Qt.vector3d(420, 0, 1210), Qt.vector3d(-540, 0, 1210), 44),
+                      color: "#0f9d9a", width: 22, styleId: 0 },
+                    // 5: tight teardrop loop -> curvature guard skips the placement
+                    { points: root.bezier(Qt.vector3d(-10, 0, 1340), Qt.vector3d(180, 0, 1250),
+                                          Qt.vector3d(180, 0, 1430), Qt.vector3d(10, 0, 1340), 40),
+                      color: "#ff3366", width: 18, styleId: 0 }
                 ]
             }
         }
@@ -337,6 +368,42 @@ Item {
             worldHeight: 30
             repeatEvery: 700
             labelStyle.textColor: "#ff3366"
+        }
+
+        // ---- glyph-placement twins (per-glyph text-on-curve) ----
+        // Road 3: same S-curve as road 0, one lane below. Compare directly with
+        // streetLabel above: glyph mode hugs the curve per glyph, not per word.
+        PathLabel3D {
+            id: streetGlyph
+            lines: roads
+            lineId: 3
+            text: "CLAY STREET"
+            worldHeight: 34
+            glyphPlacement: true
+            labelStyle.textColor: "#00d9ff"
+        }
+        // Road 4: hairpin. Each leg is its own placement (repeatEvery) and must
+        // read "LOOP ROAD" upright and in correct word order on BOTH legs.
+        PathLabel3D {
+            id: loopGlyph
+            lines: roads
+            lineId: 4
+            text: "LOOP ROAD"
+            worldHeight: 30
+            repeatEvery: 900
+            glyphPlacement: true
+            labelStyle.textColor: "#ff3366"
+        }
+        // Road 5: a tight half-loop. The curvature guard drops the placement
+        // rather than drawing it wrapped; skippedPlacements reports it.
+        PathLabel3D {
+            id: tightGlyph
+            lines: roads
+            lineId: 5
+            text: "TIGHT BEND"
+            worldHeight: 28
+            glyphPlacement: true
+            labelStyle.textColor: "#ffd93d"
         }
     }
 

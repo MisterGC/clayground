@@ -80,6 +80,8 @@ QVariantList LabelBatchInstancing::labels() const
 
 void LabelBatchInstancing::setLabels(const QVariantList &labels)
 {
+    m_curvedMode = false;
+    m_curvedLabels.clear();
     m_labels.clear();
     m_labels.reserve(labels.size());
     for (const QVariant &entry : labels) {
@@ -93,6 +95,62 @@ void LabelBatchInstancing::setLabels(const QVariantList &labels)
         l.opacity = m.value(QStringLiteral("opacity"), 1.0).toFloat();
         l.priority = m.value(QStringLiteral("priority"), 0).toInt();
         m_labels.append(l);
+    }
+    reshape();
+    emit labelsChanged();
+}
+
+/*!
+    \qmlmethod list LabelBatchInstancing::glyphAdvances(string text, real size)
+    \brief Per-code-point advance widths of \a text in world units at render
+    \a size (\c{advanceBasePx * size / baseSize}). Bakes missing glyphs first.
+*/
+QVariantList LabelBatchInstancing::glyphAdvances(const QString &text, qreal size) const
+{
+    QVariantList out;
+    if (!m_atlas)
+        return out;
+    m_atlas->ensureString(text);
+    const float scale = static_cast<float>(size) / qMax(m_atlas->baseSizeF(), 1.0f);
+    const QVector<uint> ucs = text.toUcs4();
+    out.reserve(ucs.size());
+    for (uint ch : ucs)
+        out.append(m_atlas->glyph(ch).advance * scale);
+    return out;
+}
+
+/*!
+    \qmlmethod void LabelBatchInstancing::setCurvedLabels(list labels)
+    \brief Switches the table into per-glyph curved mode (text-on-curve).
+
+    Each element is
+    \c{{ text, color, size, opacity, positions: [vector3d per code point],
+    angles: [real per code point] }}. Every inking glyph is emitted at its own
+    world anchor rotated by its angle; no pill table is produced.
+*/
+void LabelBatchInstancing::setCurvedLabels(const QVariantList &labels)
+{
+    m_curvedMode = true;
+    m_labels.clear();
+    m_curvedLabels.clear();
+    m_curvedLabels.reserve(labels.size());
+    for (const QVariant &entry : labels) {
+        const QVariantMap m = entry.toMap();
+        CurvedLabel l;
+        l.text = m.value(QStringLiteral("text")).toString();
+        const QColor c = m.value(QStringLiteral("color"), QColor(Qt::white)).value<QColor>();
+        l.color = QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF());
+        l.size = m.value(QStringLiteral("size"), 24.0).toFloat();
+        l.opacity = m.value(QStringLiteral("opacity"), 1.0).toFloat();
+        const QVariantList pos = m.value(QStringLiteral("positions")).toList();
+        const QVariantList ang = m.value(QStringLiteral("angles")).toList();
+        l.positions.reserve(pos.size());
+        for (const QVariant &p : pos)
+            l.positions.append(p.value<QVector3D>());
+        l.angles.reserve(ang.size());
+        for (const QVariant &a : ang)
+            l.angles.append(a.toFloat());
+        m_curvedLabels.append(l);
     }
     reshape();
     emit labelsChanged();
@@ -116,6 +174,11 @@ void LabelBatchInstancing::reshape()
         m_dirty = true;
         markDirty();
         emit pillDataChanged();
+        return;
+    }
+
+    if (m_curvedMode) {
+        reshapeCurved();
         return;
     }
 
@@ -219,6 +282,91 @@ void LabelBatchInstancing::reshape()
     }
 
     if (m_labels.isEmpty()) {
+        bmin = QVector3D(0, 0, 0);
+        bmax = QVector3D(0, 0, 0);
+    } else {
+        const QVector3D margin(maxWorldExtent, maxWorldExtent, maxWorldExtent);
+        bmin -= margin;
+        bmax += margin;
+    }
+    m_boundsMin = bmin;
+    m_boundsMax = bmax;
+
+    m_shapeMsLast = timer.nsecsElapsed() / 1.0e6;
+    m_dirty = true;
+    markDirty();
+    emit boundsChanged();
+    emit pillDataChanged();
+}
+
+// Curved mode: every glyph carries an explicit world anchor and yaw supplied by
+// the placement (PathLabel3D). We reuse the frozen 80-byte layout - the only
+// differences from the straight path are that offX centers the glyph on its own
+// advance box (each glyph is its own anchor) and INSTANCE_DATA.z carries the
+// per-glyph angle. No pill table is built.
+void LabelBatchInstancing::reshapeCurved()
+{
+    QElapsedTimer timer;
+    timer.start();
+
+    for (const CurvedLabel &l : m_curvedLabels)
+        m_atlas->ensureString(l.text);
+
+    const float vShift = -0.5f * m_atlas->capHeight();
+    const float base = m_atlas->baseSizeF();
+
+    int total = 0;
+    for (const CurvedLabel &l : m_curvedLabels) {
+        const QVector<uint> ucs = l.text.toUcs4();
+        for (uint ch : ucs)
+            if (!m_atlas->glyph(ch).blank)
+                ++total;
+    }
+    m_glyphCount = total;
+    m_glyphData.resize(static_cast<qsizetype>(total) * kEntrySize);
+    m_pillData.clear();
+
+    float maxF = std::numeric_limits<float>::max();
+    QVector3D bmin(maxF, maxF, maxF), bmax(-maxF, -maxF, -maxF);
+    float maxWorldExtent = 0.0f;
+
+    char *gdst = m_glyphData.data();
+    int gi = 0;
+    for (const CurvedLabel &l : m_curvedLabels) {
+        const QVector<uint> ucs = l.text.toUcs4();
+        for (int ci = 0; ci < ucs.size(); ++ci) {
+            const LabelGlyphAtlas::GlyphInfo &info = m_atlas->glyph(ucs[ci]);
+            if (info.blank)
+                continue;
+            const QVector3D pos = ci < l.positions.size() ? l.positions[ci] : QVector3D();
+            const float angle = ci < l.angles.size() ? l.angles[ci] : 0.0f;
+            // Center the glyph on its own advance box so the yaw pivots about the
+            // glyph's center-on-path (maplibre places each glyph at its advance
+            // center along the line).
+            const float offX = info.leftRel - 0.5f * info.advance;
+            const float offY = info.offY + vShift;
+
+            Entry e;
+            e.row0 = QVector4D(offX, info.u0, info.v1, pos.x());
+            e.row1 = QVector4D(offY, info.v0, info.w, pos.y());
+            e.row2 = QVector4D(l.size, info.u1, info.h, pos.z());
+            e.color = l.color;
+            e.instanceData = QVector4D(0.0f, l.opacity, angle, 0.0f);
+            std::memcpy(gdst + static_cast<qsizetype>(gi) * kEntrySize, &e, kEntrySize);
+            ++gi;
+
+            bmin.setX(qMin(bmin.x(), pos.x()));
+            bmin.setY(qMin(bmin.y(), pos.y()));
+            bmin.setZ(qMin(bmin.z(), pos.z()));
+            bmax.setX(qMax(bmax.x(), pos.x()));
+            bmax.setY(qMax(bmax.y(), pos.y()));
+            bmax.setZ(qMax(bmax.z(), pos.z()));
+            const float worldExtent = qMax(info.w, info.h) * l.size / qMax(base, 1.0f);
+            maxWorldExtent = qMax(maxWorldExtent, worldExtent);
+        }
+    }
+
+    if (total == 0) {
         bmin = QVector3D(0, 0, 0);
         bmax = QVector3D(0, 0, 0);
     } else {
