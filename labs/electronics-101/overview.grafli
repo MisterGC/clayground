@@ -1,0 +1,39 @@
+#!grafli v1
+# Electronics 101 — concept overview
+# Companion board to paper.md; how a wired board becomes light.
+
+# ── entry / meta ──
+@ box paper "Paper →︎\nthe full model" 60,60 220x80 %soft &link:./paper.md
+@ box viewState "viewState persistence\nelements + wires + switch\nstates survive a reload\n(user's board wins)" 320,50 260x120 %plum &link:./paper.md#run-it
+@ note legend 1010,60 """
+left →︎ right: build →︎ solve →︎ show
+colours mark pipeline stages
+""" ~small
+
+# ── pipeline (build → solve) ──
+@ box parts "palette / parts\nbattery · switch · resistor\nLED · bulb · ammeter · voltmeter" 60,300 266x130 %teal &link:./paper.md#stated-simplifications
+@ box nets "wires →︎ nets\nunion-find merges\nterminals into nodes" 380,300 240x130 %primary &link:./paper.md#the-solver
+@ box solver "DC nodal solver\nG v = i   (KCL)\nNorton stamps + Gaussian elim\nLEDs iterated to a fixed point" 700,285 290x160 %clay &link:./paper.md#the-solver
+@ box perel "per-element V, I\npower = |V · I|" 1070,300 240x130 %primary &link:./paper.md#measured-results
+
+# ── outputs (show) ──
+@ box probes "probes + Plot2D\niBattery · iLed · power\nR records CSV" 700,530 270x120 %rose &link:./paper.md#run-it
+@ box visuals "visuals\nLED glow ∝︎ current\nbulb glow ∝︎ power\nmeter pills read V / mA" 1070,520 270x140 %highlight &link:./paper.md#measured-results
+
+# ── scenarios ──
+@ note scen 60,520 """
+scenarios (keys 1-4)
+1 led-basic - resistor tames an LED
+2 series - two dim bulbs, 360 mA
+3 parallel - two bright bulbs, 1282 mA
+4 metering - ammeter in, voltmeter across
+""" ~small &link:./paper.md#measured-results
+
+# ── arrows ──
+@ arrow parts -> nets
+@ arrow nets -> solver "nodes"
+@ arrow solver -> perel "v solved"
+@ arrow perel -> visuals "drives"
+@ arrow perel -> probes "sampled"
+@ arrow scen -> parts "build"
+@ arrow viewState -> parts "restores board" !dashed
