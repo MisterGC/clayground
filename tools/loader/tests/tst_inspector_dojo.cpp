@@ -23,6 +23,8 @@ private slots:
 
     void testSnapshotRootProperties();
     void testSnapshotFlagInfo();
+    void snapshotIncludesViewState();
+    void viewStateSurvivesReload();
     void testSnapshotLogTail();
     void testSnapshotEval();
     void testEvalAction();
@@ -186,6 +188,73 @@ void TestInspectorDojo::testSnapshotFlagInfo()
     QCOMPARE(fi["playerY"].toDouble(), 100.0);
     QCOMPARE(fi["enemyCount"].toInt(), 3);
     QCOMPARE(fi["seed"].toInt(), 12345);
+}
+
+void TestInspectorDojo::snapshotIncludesViewState()
+{
+    // A fresh load exposes viewState() with the sandbox's declared defaults.
+    QJsonObject req;
+    req["action"] = "snapshot";
+    QVERIFY(writeRequest(req));
+
+    auto resp = waitForResponse();
+    QVERIFY2(!resp.isEmpty(), "No response received");
+
+    QVERIFY2(resp.contains("viewState"), "viewState missing from snapshot");
+    auto vs = resp["viewState"].toObject();
+    QVERIFY(qAbs(vs["camX"].toDouble() - 12.5) < 0.01);
+    QVERIFY(qAbs(vs["camY"].toDouble() - 34.5) < 0.01);
+    QVERIFY(qAbs(vs["zoom"].toDouble() - 1.5) < 0.01);
+}
+
+void TestInspectorDojo::viewStateSurvivesReload()
+{
+    // Move the user's "place" to non-default values, then force a reload.
+    // The outgoing root's viewState() is captured before the reload and
+    // re-applied to the new root once it is ready — the changed values must
+    // come back, proving capture + restore across a full reload cycle.
+    QJsonObject evalReq;
+    evalReq["action"] = "eval";
+    evalReq["eval"] = QJsonArray({"camX = 111", "camY = 222", "zoom = 3.5"});
+    QVERIFY(writeRequest(evalReq));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for eval mutation");
+
+    QJsonObject reloadReq;
+    reloadReq["action"] = "reload";
+    QVERIFY(writeRequest(reloadReq));
+    auto reloadResp = waitForResponse();
+    QVERIFY2(!reloadResp.isEmpty(), "No response for reload");
+    QCOMPARE(reloadResp["status"].toString(), "requested");
+
+    QJsonObject waitReq;
+    waitReq["action"] = "waitForRoot";
+    waitReq["timeoutMs"] = 8000;
+    QVERIFY(writeRequest(waitReq));
+    auto waitResp = waitForResponse(12000);
+    QVERIFY2(!waitResp.isEmpty(), "No response for waitForRoot");
+
+    // Give markReady()'s restore a moment to settle before snapshotting.
+    QTest::qWait(200);
+
+    QJsonObject snapReq;
+    snapReq["action"] = "snapshot";
+    QVERIFY(writeRequest(snapReq));
+    auto resp = waitForResponse();
+    QVERIFY2(!resp.isEmpty(), "No response for post-reload snapshot");
+
+    // Restored values, not the sandbox defaults.
+    auto props = resp["rootProperties"].toObject();
+    QVERIFY2(qAbs(props["camX"].toDouble() - 111.0) < 0.01,
+             qPrintable(QString("camX not restored: %1").arg(props["camX"].toDouble())));
+    QVERIFY(qAbs(props["camY"].toDouble() - 222.0) < 0.01);
+    QVERIFY(qAbs(props["zoom"].toDouble() - 3.5) < 0.01);
+
+    // And the snapshot's own viewState key reflects the restored state.
+    QVERIFY2(resp.contains("viewState"), "viewState missing after reload");
+    auto vs = resp["viewState"].toObject();
+    QVERIFY(qAbs(vs["camX"].toDouble() - 111.0) < 0.01);
+    QVERIFY(qAbs(vs["camY"].toDouble() - 222.0) < 0.01);
+    QVERIFY(qAbs(vs["zoom"].toDouble() - 3.5) < 0.01);
 }
 
 void TestInspectorDojo::testSnapshotLogTail()

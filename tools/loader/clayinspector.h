@@ -88,6 +88,7 @@ private:
     QJsonObject handleTime(const QJsonObject& request);
     QJsonObject handleInput(const QJsonObject& request);
     void applyScenarioToRoot(const QString& name);
+    void applyViewStateToRoot(const QJsonValue& state);
     void attachDiagnostics(QJsonObject& response) const;
     void writeState();
     static QString phaseName(Phase p);
@@ -109,6 +110,7 @@ private:
     QString sourceFileName(QQuickItem* item);
     static bool isInternalType(const QString& className);
     QJsonValue callFlagInfo(QQuickItem* root);
+    QJsonValue callViewState(QQuickItem* root);
     QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions);
     QJsonObject buildItemTree(QQuickItem* item, int maxDepth = -1,
                               int depth = 0, bool fullDetail = false,
@@ -135,6 +137,11 @@ private:
     // load; rearm re-applies after every load until explicitly cleared.
     QString m_pendingScenario;
     QString m_rearmScenario;
+    // View state captured from the outgoing root right before a reload and
+    // re-applied once the next load succeeds, so the user keeps their place
+    // (camera, params, sim time) across agent fixes. A failed capture keeps
+    // the previous one alive - a fix after a load error still restores.
+    QJsonValue m_capturedViewState;
 
     Phase m_phase = Phase::Starting;
     QDateTime m_startedAt;

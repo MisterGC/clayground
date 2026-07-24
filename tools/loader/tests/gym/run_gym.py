@@ -196,6 +196,23 @@ def run(insp, sandbox_dir, attended):
     score = insp.eval1("gym.score")
     check("input: coin collected via gameplay", score == 1, f"score={score}")
 
+    # -- 5b: view state survives a reload --------------------------------
+    # Move the user's camera/zoom, then force a reload. The outgoing root's
+    # viewState() is captured and re-applied (after the rearmed scenario) once
+    # the new root is ready, so the user keeps their place across agent fixes.
+    insp.eval(["camX = 123", "camY = 456", "zoom = 2.5"])
+    insp.request({"action": "reload"})
+    insp.request({"action": "waitForRoot", "timeoutMs": 8000}, timeout=12)
+    insp.wait_phase("ready", timeout=10)
+    snap = insp.request({"action": "snapshot"})
+    vs = snap.get("viewState")
+    check("view_state_restore: snapshot carries viewState key",
+          isinstance(vs, dict) and "camX" in vs, f"viewState={vs}")
+    check("view_state_restore: camera restored after reload",
+          isinstance(vs, dict) and vs.get("camX") == 123
+          and vs.get("camY") == 456 and vs.get("zoom") == 2.5,
+          f"viewState={vs}")
+
     # -- 6: rearm across a real file-watch reload ------------------------
     if attended:
         print("SKIP  rearm-on-edit (attended mode leaves your files alone)")

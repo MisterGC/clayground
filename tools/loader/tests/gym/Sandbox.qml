@@ -21,6 +21,22 @@ ClayWorld2d {
 
     property int score: 0
 
+    // The user's viewpoint (camera + zoom). It has nothing to do with the
+    // scenario state, so it must survive reloads via viewState/applyViewState.
+    property real camX: 1
+    property real camY: 2
+    property real zoom: 1
+
+    function viewState() {
+        return { camX: gym.camX, camY: gym.camY, zoom: gym.zoom }
+    }
+
+    function applyViewState(s) {
+        gym.camX = s.camX;
+        gym.camY = s.camY;
+        gym.zoom = s.zoom;
+    }
+
     function flagInfo() {
         return {
             player: { x: player.xWu, y: player.yWu },

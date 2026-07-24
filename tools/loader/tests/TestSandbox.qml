@@ -16,6 +16,12 @@ Rectangle {
     // Private property (should be skipped by inspector)
     property int _internalCounter: 99
 
+    // View state — the user's place (camera, zoom) that must survive a reload.
+    // Distinctive defaults make it obvious when capture+restore ran.
+    property real camX: 12.5
+    property real camY: 34.5
+    property real zoom: 1.5
+
     function flagInfo() {
         return {
             playerX: player.x,
@@ -23,6 +29,16 @@ Rectangle {
             enemyCount: enemyRepeater.count,
             seed: 12345
         };
+    }
+
+    function viewState() {
+        return { camX: root.camX, camY: root.camY, zoom: root.zoom };
+    }
+
+    function applyViewState(s) {
+        root.camX = s.camX;
+        root.camY = s.camY;
+        root.zoom = s.zoom;
     }
 
     Rectangle {
