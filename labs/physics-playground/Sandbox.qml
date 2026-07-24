@@ -145,6 +145,18 @@ ClayWorld2d {
     }
     function flagInfo() { return labInfo() }
 
+    // View-state for the dojo reload convention. The clock is world-driven
+    // (Box2D), so sim time cannot be re-stepped synchronously - on reload the
+    // captured scenario simply restarts with the user's parameter values.
+    function viewState() {
+        return Object.assign(Lab.viewState(), { recording: recorder.recording })
+    }
+    function applyViewState(s) {
+        if (s.scenario) applyScenario(s.scenario)
+        recorder.recording = !!s.recording
+        Lab.applyViewState(s)
+    }
+
     Component.onCompleted: applyScenario("tower")
 
     Keys.onPressed: (ev) => {

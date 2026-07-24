@@ -121,6 +121,26 @@ Item {
     }
     function flagInfo() { return labInfo() }
 
+    // View-state for the dojo reload convention.
+    function viewState() {
+        return Object.assign(Lab.viewState(), {
+            followCam: followCam,
+            tunnelOn: tunnelOn,
+            lidarOn: _lidarOn
+        })
+    }
+    // Ordering matters for a bit-identical restore: (1) scenario apply resets
+    // clock + RNG, (2) set the toggles the sensors read, (3) Lab.applyViewState
+    // re-steps the world-less clock, replaying sensors + Kalman deterministically,
+    // (4) restore the camera mode (view-only, no effect on the sim).
+    function applyViewState(s) {
+        if (s.scenario) applyScenario(s.scenario)
+        if (s.tunnelOn !== undefined) tunnelOn = s.tunnelOn
+        if (s.lidarOn !== undefined) _lidarOn = s.lidarOn
+        Lab.applyViewState(s)
+        if (s.followCam !== undefined) followCam = s.followCam
+    }
+
     Keys.onPressed: (ev) => {
         if (ev.key === Qt.Key_1) applyScenario("open-sky")
         else if (ev.key === Qt.Key_2) applyScenario("tunnel")

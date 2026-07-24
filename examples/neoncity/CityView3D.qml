@@ -94,6 +94,11 @@ Item {
     property bool overview: false
     property bool benchmark: false
 
+    // Fly-camera pose, exposed so the Sandbox can capture/restore it across a
+    // dojo reload (traffic is not deterministic - camera + toggles is the point).
+    property alias cameraPosition: camera.position
+    property alias cameraRotation: camera.eulerRotation
+
     Component.onCompleted: forceActiveFocus()
 
     // Rebuild the mast-tip id batch from the live transmitter registry. Called

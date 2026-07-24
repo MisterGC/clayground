@@ -162,4 +162,47 @@ QtObject {
             probes: probeSummary()
         }
     }
+
+    /*!
+        \qmlmethod var Lab::viewState()
+        \brief JSON-serializable lab state for the live-loader reload convention.
+
+        Returns \c {{ scenario, time, params }}: the current scenario name (key
+        omitted while empty), the sim-clock time and every registered parameter
+        value. Sandbox roots merge their own camera/toggle state on top and hand
+        the result to the dojo, which re-applies it after the next reload.
+
+        \sa applyViewState
+    */
+    function viewState() {
+        const params = {}
+        for (const n of paramNames) params[n] = _params[n].value
+        const s = { time: clock ? clock.time : 0, params: params }
+        if (scenario !== "") s.scenario = scenario
+        return s
+    }
+
+    /*!
+        \qmlmethod void Lab::applyViewState(var s)
+        \brief Restores parameters and, for world-less clocks, re-steps sim time.
+
+        Sets every parameter in \c s.params through the clamped set(), then -
+        only when a SimClock exists, is world-less and s.time > 0 -
+        deterministically re-steps it to s.time in fixed 1/60 s increments.
+
+        Ordering contract: the Sandbox root MUST apply \c s.scenario BEFORE
+        calling this. The scenario apply resets the clock + RNG, so the re-step
+        here replays the exact causal chain (takeSamples -> sampled ->
+        sensors/filter), restoring bit-identical sim state. World-driven (Box2D)
+        clocks cannot be synchronously re-stepped and are left untouched.
+
+        \sa viewState
+    */
+    function applyViewState(s) {
+        if (!s) return
+        if (s.params) for (const n in s.params) set(n, s.params[n])
+        if (clock && (clock.world === null || clock.world === undefined) && s.time > 0) {
+            while (clock.time < s.time - 1e-9) clock._advance(1 / 60)
+        }
+    }
 }
