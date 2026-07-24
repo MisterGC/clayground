@@ -149,13 +149,14 @@ Item {
             position: Qt.vector3d(0, 52, 62)
             eulerRotation: Qt.vector3d(-42, 0, 0)
         }
-        // close-up camera translating with the true car, fixed viewing angle
-        // (top-level, not nested in a rig: Label3D sizing reads camera.position
-        // in world space)
-        PerspectiveCamera {
-            id: camFollow
-            position: Qt.vector3d(root.carPose.x, 13, root.carPose.y + 17)
-            eulerRotation: Qt.vector3d(-36, 0, 0)
+        // close-up rig translating with the true car, fixed viewing angle
+        Node {
+            position: Qt.vector3d(root.carPose.x, 0, root.carPose.y)
+            PerspectiveCamera {
+                id: camFollow
+                position: Qt.vector3d(0, 13, 17)
+                eulerRotation: Qt.vector3d(-36, 0, 0)
+            }
         }
         DirectionalLight {
             eulerRotation.x: -35
@@ -209,7 +210,7 @@ Item {
 
         // callout labels tracking the three cars, live values inline
         Label3D {
-            view: view3d; camera: view3d.camera; anchorNode: carTruth
+            view: view3d; anchorNode: carTruth
             labelOffset: Qt.vector3d(0, 4.5, 0)
             text: "TRUTH"
             labelStyle.borderColor: "#ffd93d"
@@ -217,7 +218,7 @@ Item {
             leaderStyle.color: "#ffffff"; leaderStyle.width: 1.5
         }
         Label3D {
-            view: view3d; camera: view3d.camera; anchorNode: carOdo
+            view: view3d; anchorNode: carOdo
             labelOffset: Qt.vector3d(-4, 7, 0)
             text: "ODOMETRY  drift " + root._dist(odo.estX, odo.estY).toFixed(1) + " m"
             labelStyle.borderColor: "#889099"
@@ -225,7 +226,7 @@ Item {
             leaderStyle.color: "#ffffff"; leaderStyle.width: 1.5
         }
         Label3D {
-            view: view3d; camera: view3d.camera; anchorNode: carFused
+            view: view3d; anchorNode: carFused
             labelOffset: Qt.vector3d(4, 9, 0)
             text: "FUSED  ±" + Math.hypot(kf.sigmaX, kf.sigmaY).toFixed(1) + " m"
             labelStyle.borderColor: "#00d9ff"
@@ -233,7 +234,7 @@ Item {
             leaderStyle.color: "#ffffff"; leaderStyle.width: 1.5
         }
         Label3D {
-            view: view3d; camera: view3d.camera
+            view: view3d
             visible: root.tunnelOn && root.carInTunnel
             anchorPosition: Qt.vector3d(0, 4, -14)
             labelOffset: Qt.vector3d(0, 5, 0)
