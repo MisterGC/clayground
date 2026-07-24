@@ -1,0 +1,35 @@
+# Sensor Fusion 101 — concept overview
+# Companion board to paper.md; mirrors the in-lab tour.
+
+# ── entry ──
+@ box paper "Paper →" 60,60 200x80 %soft &link:./paper.md
+@ note legend 900,60 "colors match the lab:\ngold truth · cyan estimate\ngray odometry · pink GPS" ~small
+
+# ── truth ──
+@ box truth "true pose\n(gold car on track)" 60,260 220x110 %highlight
+
+# ── sensors ──
+@ box gps "GPS\nunbiased, noisy σ≈3m\ndies in tunnel" 400,140 240x110 %rose &link:./paper.md#stated-simplifications
+@ box odo "odometry\nsmooth, drifts\n(gray baseline car)" 400,290 240x110 %muted &link:./paper.md#stated-simplifications
+@ box lidar "lidar vs landmarks\nprecise σ≈0.5m\nneeds range" 400,440 240x110 %teal &link:./paper.md#stated-simplifications
+
+# ── fusion ──
+@ box kf "Kalman filter\nweighs by uncertainty\nK = PHᵀ(HPHᵀ+R)⁻¹" 760,215 250x120 %primary &link:./paper.md#the-estimator
+@ box est "fused estimate\n+ 1σ disc (cyan)" 760,440 250x110 %clay &link:./paper.md#measured-results
+
+# ── arrows ──
+@ arrow truth -> gps "sensed"
+@ arrow truth -> odo
+@ arrow truth -> lidar
+@ arrow gps -> kf "z, σ=3"
+@ arrow lidar -> kf "z, σ=0.5"
+@ arrow kf -> est
+@ arrow odo -> est "contrast only" !dashed
+
+# ── scenarios ──
+@ note scen 60,480 """
+scenarios (paper: measured results)
+1 open-sky - fused 4-5x better
+2 tunnel - blackout, σ breathes
+3 lidar-out - GPS-only wobble
+""" ~small &link:./paper.md#measured-results
