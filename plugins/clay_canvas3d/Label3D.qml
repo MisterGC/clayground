@@ -247,6 +247,8 @@ Node {
     // while it is visible and only when the camera or this label's anchor moved,
     // so N labels cost one animation and a still scene costs nothing.
     property real _tick: 0
+    property bool _warnedNoCamera: false
+
     // Cached pill logical height, updated imperatively when the content resizes.
     // The scale binding reads this value instead of _pill.implicitHeight live, so
     // scaling the carrier does not form a dependency cycle through the Item2D.
@@ -291,6 +293,16 @@ Node {
             return 0.001
         if (root.sizeMode === Label3D.World)
             return root.worldHeight / l
+        if (!root.camera) {
+            // Screen sizing needs a camera; stay readable and say why (#159)
+            // instead of scaling by the 1000-unit distance fallback.
+            if (!root._warnedNoCamera) {
+                root._warnedNoCamera = true
+                console.warn("Label3D: no camera resolvable (set view or camera) - " +
+                             "falling back to world sizing for '" + root.text + "'")
+            }
+            return root.worldHeight / l
+        }
         var target = root.screenHeight
         if (root.minScreenSize > 0)
             target = Math.max(target, root.minScreenSize)
