@@ -271,10 +271,12 @@ function generateMarkings(tileData, laneY) {
             // carriageway half (at +-0.5h).
             emitOffset(rr, -0.5 * h, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "divider");
             emitOffset(rr,  0.5 * h, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "divider");
-            // Double solid yellow centre between the two travel directions.
-            var dc = Math.min(0.7, h * 0.12);
-            emitOffset(rr, -dc, disks, COL_CENTER, F_CENTER * laneW, 0, "center");
-            emitOffset(rr,  dc, disks, COL_CENTER, F_CENTER * laneW, 0, "center");
+            // Double solid yellow centre between the two travel directions,
+            // hugging the centerline: stroke gap == one stroke width, so the
+            // pair reads as one double line, not a phantom median.
+            var wc = F_CENTER * laneW;
+            emitOffset(rr, -wc, disks, COL_CENTER, wc, 0, "center");
+            emitOffset(rr,  wc, disks, COL_CENTER, wc, 0, "center");
         } else {
             // Single dashed white centre line splitting the two directions.
             emitOffset(rr, 0, disks, COL_DIVIDE, F_DIVIDE * laneW, 1, "center");
