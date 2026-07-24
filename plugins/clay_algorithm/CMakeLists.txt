@@ -6,6 +6,7 @@ clay_plugin(Algorithm
 
     QML_FILES
         GridPathfinder.qml
+        KalmanFilter2D.qml
 
     LINK_LIBS
         Qt::Core
