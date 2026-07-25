@@ -51,39 +51,38 @@ Node {
         }
     }
 
-    // --- selection frame ----------------------------------------------------
-    // A flat outline on the paper, like a selection rect on a canvas. It
-    // turns with the part, so it doubles as the rotation indicator.
+    // --- hover / selection frame --------------------------------------------
+    // One shape, two strengths: hovering draws a thin quiet outline, selecting
+    // draws the full one plus a nose mark. Same language as the terminals,
+    // which light up on hover and go blue while wiring.
     Node {
-        visible: root.selected
+        id: frame
+        visible: root.selected || root.hovered
         y: 0.14
+        // hover and selection speak the same blue as the terminals do; the
+        // weight (and the nose mark) is what tells them apart
+        readonly property color tone: LabTheme.secondary
+        readonly property real bar: root.selected ? 0.38 : 0.22
+        opacity: root.selected ? 1.0 : 0.55
         Repeater3D {
-            model: [{ x: 0, z: -3.9, w: 10.4, d: 0.38 },
-                    { x: 0, z: 3.9, w: 10.4, d: 0.38 },
-                    { x: -5.2, z: 0, w: 0.38, d: 8.2 },
-                    { x: 5.2, z: 0, w: 0.38, d: 8.2 }]
+            model: [{ x: 0, z: -3.9, along: true },
+                    { x: 0, z: 3.9, along: true },
+                    { x: -5.2, z: 0, along: false },
+                    { x: 5.2, z: 0, along: false }]
             Marker {
+                tint: frame.tone
                 position: Qt.vector3d(modelData.x, 0, modelData.z)
-                scale: Qt.vector3d(modelData.w / 100, 0.0014, modelData.d / 100)
+                scale: modelData.along
+                    ? Qt.vector3d(0.104, 0.0014, frame.bar / 100)
+                    : Qt.vector3d(frame.bar / 100, 0.0014, 0.082)
             }
         }
         Marker {  // nose mark: shows which way the part faces after a rotation
+            visible: root.selected
             tint: LabTheme.accent
             position: Qt.vector3d(6.2, 0, 0)
             scale: Qt.vector3d(0.013, 0.0014, 0.013)
             eulerRotation.y: 45
-        }
-    }
-
-    // --- hover ring ---------------------------------------------------------
-    Model {
-        source: "#Cylinder"
-        position: Qt.vector3d(0, -0.9, 0)
-        scale: Qt.vector3d(0.11, 0.006, 0.09)
-        visible: root.hovered && !root.selected
-        materials: PrincipledMaterial {
-            baseColor: LabTheme.muted
-            lighting: PrincipledMaterial.NoLighting
         }
     }
 

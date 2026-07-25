@@ -415,29 +415,6 @@ Item {
         const b = terminalPos(w.b[0], w.b[1])
         return Qt.vector3d((a.x + b.x) / 2, 3.0 + (idx % 3) * 0.8, (a.z + b.z) / 2)
     }
-    // --- shadows ----------------------------------------------------------
-    // Shadows are projected, not shadow-mapped: the key light direction is
-    // known, so anything above the board can be flattened onto it directly.
-    // A shadow map turns 0.55-unit wire ribbons into noise; a projected copy
-    // of the same curve is clean, cheap and stays subtle by construction.
-    readonly property vector3d lightDir: Qt.vector3d(0.346, -0.574, -0.742)
-    readonly property real shadowY: 0.09
-
-    // where a point h units above a surface lands on it
-    function shadowShift(h) {
-        const k = h / -lightDir.y
-        return Qt.vector2d(lightDir.x * k, lightDir.z * k)
-    }
-    function shadowPath(w, idx) {
-        const pts = wirePath(w, idx)[0]
-        const out = []
-        for (const v of pts) {
-            const o = shadowShift(v.y - shadowY)
-            out.push(Qt.vector3d(v.x + o.x, shadowY, v.z + o.y))
-        }
-        return [out]
-    }
-
     function wirePath(w, idx) {
         const a = terminalPos(w.a[0], w.a[1])
         const b = terminalPos(w.b[0], w.b[1])
@@ -472,25 +449,15 @@ Item {
         Model {  // the table the board lies on: grounds the view from any angle
             source: "#Cube"
             position: Qt.vector3d(0, -4.2, 0)
-            scale: Qt.vector3d(6.0, 0.02, 4.4)
+            // deliberately modest: the shadow volume grows with the scene, and
+            // a table the size of the horizon would starve the shadow map
+            scale: Qt.vector3d(2.4, 0.02, 1.9)
+            castsShadows: false
             materials: PrincipledMaterial {
                 baseColor: LabTheme.paper
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
-        Model {  // the board's own shadow on the table
-            source: "#Cube"
-            position: {
-                const o = root.shadowShift(2.4)
-                return Qt.vector3d(o.x, -4.1, o.y)
-            }
-            scale: Qt.vector3d(1.12, 0.004, 0.72)
-            materials: PrincipledMaterial {
-                baseColor: "#d9d3c9"
-                lighting: PrincipledMaterial.NoLighting
-            }
-        }
-
         // Orbit rig: the camera hangs off a yaw node at the pivot, so it can
         // never look anywhere but at the setup.
         Node {
@@ -512,12 +479,28 @@ Item {
         // Three soft lights instead of one hard one: key with shadows, side
         // fill, and a low camera-side fill so unlit faces still separate.
         // Nothing in the scene is glossy, so depth comes from value, not glare.
+        //
+        // The shadows are real (GPU shadow map), kept legible by keeping the
+        // shadow volume small: shadowMapFar bounds it to the table instead of
+        // the horizon and the cascades spend their texels near the camera.
+        // That is what lets a 0.55-unit wire cast a readable shadow.
         DirectionalLight {
             id: keyLight
             eulerRotation.x: -35
             eulerRotation.y: -25
             brightness: 0.9
-            // no shadow map - see the projected shadows further down
+            castsShadow: true
+            shadowFactor: 62          // present, not dramatic
+            shadowMapQuality: Light.ShadowMapQualityVeryHigh
+            // far enough to still cover the setup at maximum zoom-out (the
+            // range is measured from the camera), with cascades spending the
+            // texels near it; a small bias - 10+ pushes thin shadows off the
+            // board entirely, 0 turns the whole board into acne
+            shadowMapFar: 250
+            csmNumSplits: 2
+            shadowBias: 3
+            softShadowQuality: Light.PCF4
+            pcfFactor: 1
         }
         DirectionalLight {
             eulerRotation.x: -60
@@ -555,6 +538,7 @@ Item {
             model: root.cols * root.rows
             Model {
                 source: root.snapToGrid ? "#Cube" : "#Cylinder"
+                castsShadows: false   // they are print on the board, not objects
                 position: Qt.vector3d(root.cellX(index % root.cols), 0.05,
                                       root.cellZ(Math.floor(index / root.cols)))
                 scale: root.snapToGrid ? Qt.vector3d(0.006, 0.0008, 0.006)
@@ -563,57 +547,6 @@ Item {
                     baseColor: LabTheme.grid
                     lighting: PrincipledMaterial.NoLighting
                 }
-            }
-        }
-
-        // Part shadows: two stacked quads (tight and dark, wide and faint) so
-        // the edge falls off instead of ending in a hard line.
-        Repeater3D {
-            model: root.elements
-            Node {
-                id: shadowNode
-                readonly property var e: {
-                    root.elemRev
-                    return root.elemAt(modelData.id)
-                }
-                visible: e !== null
-                position: {
-                    if (!e) return Qt.vector3d(0, 0, 0)
-                    const o = root.shadowShift(1.7)
-                    return Qt.vector3d(root.cellX(e.col) + o.x, root.shadowY,
-                                       root.cellZ(e.row) + o.y)
-                }
-                eulerRotation.y: e ? (e.rot || 0) : 0
-                // Round parts get a round shadow, boxes a rectangular one.
-                // Opaque paper-shadow tones rather than blended ink: the tones
-                // are picked against the board, so the result is predictable
-                // and overlapping shadows never pile up into a dark blot.
-                readonly property bool roundBody:
-                    ["led", "bulb", "ammeter", "voltmeter"].indexOf(modelData.type) !== -1
-                Repeater3D {
-                    model: [{ f: 1.0, c: "#cbc4b8" }, { f: 1.34, c: "#d5cfc5" }]
-                    Model {
-                        readonly property bool r: shadowNode.roundBody
-                        source: r ? "#Cylinder" : "#Cube"
-                        y: -0.012 * index
-                        scale: r
-                            ? Qt.vector3d(0.052 * modelData.f, 0.0004, 0.052 * modelData.f)
-                            : Qt.vector3d(0.070 * modelData.f, 0.0004, 0.048 * modelData.f)
-                        materials: PrincipledMaterial {
-                            baseColor: modelData.c
-                            lighting: PrincipledMaterial.NoLighting
-                        }
-                    }
-                }
-            }
-        }
-
-        Repeater3D {  // wire shadows: the same curve, flattened onto the board
-            model: root.wires
-            MultiLine3D {
-                coords: { root.elemRev; return root.shadowPath(modelData, index) }
-                color: "#d0c9be"
-                width: 0.75
             }
         }
 
@@ -671,10 +604,10 @@ Item {
         Repeater3D {  // wires
             model: root.wires
             Node {
-                MultiLine3D {
-                    coords: { root.elemRev; return root.wirePath(modelData, index) }
+                Wire3D {
+                    points: { root.elemRev; return root.wirePath(modelData, index)[0] }
                     color: root.wireColors[index % root.wireColors.length]
-                    width: 0.55
+                    radius: 0.3
                 }
                 Model {  // grab/erase handle at the apex
                     source: "#Sphere"

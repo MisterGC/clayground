@@ -172,9 +172,10 @@ wire, click a switch to flip it, click a resistor to cycle its ohms, drag
 a part to move it. Every preset starts with the switch **open** — flipping
 it is the invitation.
 
-Clicking a part **selects** it: a frame is drawn around it on the paper
-(with a nose mark showing which way it faces) and a card reports its
-voltage and current. `R` or a right-click turns it in 90° steps — wires
+Hovering a part draws a thin blue outline around it on the paper, the same
+blue the terminals light up in; clicking **selects** it, which thickens that
+outline, adds a nose mark showing which way the part faces, and opens a card
+reporting its voltage and current. `R` or a right-click turns it in 90° steps — wires
 follow the terminals. Moving is grid-snapped by default, exactly like
 grafli's grid mode: the pegs are drawn as small squares while snapping and
 as round dots when parts move freely, `#` cycles the mode and holding `Alt`
@@ -182,14 +183,24 @@ inverts it for one drag. The peg raster is 5 world units — half a part
 width — so snapped parts can still be nudged in fine steps; `cellFree`
 therefore keeps two pegs of clearance around every part.
 
-Shadows are **projected, not shadow-mapped**. The key light direction is a
-constant, so anything above the board can be flattened onto it: each part
-drops two stacked quads (tight and dark, wide and faint, round for round
-parts) and each wire drops a copy of its own curve. The tones are opaque
-and picked against the board, so shadows never pile up into a dark blot and
-never dither — a shadow map turns a 0.55-unit wire ribbon into noise, while
-its projected curve is clean, cheap and subtle by construction. The board
-drops the same kind of shadow onto the table.
+Shadows are **real** — a GPU shadow map on the key light, so they follow
+whatever you move. Two things make them legible at this scale:
+
+- **A small shadow volume.** `shadowMapFar` bounds the map to the board and
+  the table instead of the horizon (a table the size of the horizon starves
+  the map), and two cascades spend their texels near the camera. The far
+  plane still has to cover the setup at full zoom-out, since the range is
+  measured from the camera, not from the light.
+- **A small bias.** `shadowBias` at 3 works; at 10 and up thin shadows are
+  pushed off the board entirely and at 0 the whole board turns to acne. It
+  was worth measuring rather than eyeballing — the failure at both ends
+  looks identical from a distance ("no shadows").
+
+Wires are drawn as **tube geometry** (`labs/kits/circuit/Wire3D.qml`, one
+cylinder per polyline segment) rather than with `MultiLine3D`. A line batch
+is far cheaper, but its ribbons are camera-facing quads with an unshaded
+custom material, and the shadow pass skips those — a batched line can never
+drop a shadow. Real tubes also hold up when the camera goes low.
 
 The view is an orbit cam on a leash. Dragging the empty board circles the
 setup, the wheel zooms, `F` frames the selected part and `0` reframes the

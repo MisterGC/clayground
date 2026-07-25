@@ -351,11 +351,12 @@ Model {
         return _inst.positionAt(lineId, distance)
     }
 
-    // Shadows are off by default: overlay/map lines are unlit, and instanced
-    // shadow bounds cost O(n) on the CPU. Small batches that want to drop a
-    // shadow (a handful of wires or cables in a scene) can just assign
-    // castsShadows: true on the instance - the geometry reports explicit
-    // bounds, so the shadow pass has what it needs.
+    // Shadows are off and cannot meaningfully be turned on: the lines are
+    // camera-facing ribbons expanded in an unshaded custom material's vertex
+    // shader, and the shadow pass skips unshaded custom materials - setting
+    // castsShadows on an instance produces no shadow. Lines that must drop
+    // one need real mesh geometry (see labs/kits/circuit/Wire3D.qml, which
+    // walks a path with cylinder segments for exactly that reason).
     castsShadows: false
     receivesShadows: false
 
