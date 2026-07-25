@@ -176,9 +176,20 @@ Clicking a part **selects** it: a frame is drawn around it on the paper
 (with a nose mark showing which way it faces) and a card reports its
 voltage and current. `R` or a right-click turns it in 90° steps — wires
 follow the terminals. Moving is grid-snapped by default, exactly like
-grafli's grid mode: the pegs are drawn as small crosses while snapping and
-as dots when parts move freely, `#` cycles the mode and holding `Alt`
-inverts it for one drag.
+grafli's grid mode: the pegs are drawn as small squares while snapping and
+as round dots when parts move freely, `#` cycles the mode and holding `Alt`
+inverts it for one drag. The peg raster is 5 world units — half a part
+width — so snapped parts can still be nudged in fine steps; `cellFree`
+therefore keeps two pegs of clearance around every part.
+
+Shadows are **projected, not shadow-mapped**. The key light direction is a
+constant, so anything above the board can be flattened onto it: each part
+drops two stacked quads (tight and dark, wide and faint, round for round
+parts) and each wire drops a copy of its own curve. The tones are opaque
+and picked against the board, so shadows never pile up into a dark blot and
+never dither — a shadow map turns a 0.55-unit wire ribbon into noise, while
+its projected curve is clean, cheap and subtle by construction. The board
+drops the same kind of shadow onto the table.
 
 The view is an orbit cam on a leash. Dragging the empty board circles the
 setup, the wheel zooms, `F` frames the selected part and `0` reframes the

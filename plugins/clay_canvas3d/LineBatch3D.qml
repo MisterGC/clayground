@@ -351,8 +351,11 @@ Model {
         return _inst.positionAt(lineId, distance)
     }
 
-    // Instanced shadow bounds are O(n) on the CPU without explicit bounds, so
-    // keep shadows off (overlay/map lines are unlit anyway).
+    // Shadows are off by default: overlay/map lines are unlit, and instanced
+    // shadow bounds cost O(n) on the CPU. Small batches that want to drop a
+    // shadow (a handful of wires or cables in a scene) can just assign
+    // castsShadows: true on the instance - the geometry reports explicit
+    // bounds, so the shadow pass has what it needs.
     castsShadows: false
     receivesShadows: false
 

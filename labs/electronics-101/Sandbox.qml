@@ -63,9 +63,11 @@ Item {
     property var sim: ({ ok: true, perElement: {}, shorted: false, iterations: 0 })
     property int elemRev: 0          // bumped on moves so positions rebind
 
-    readonly property int cols: 10
-    readonly property int rows: 6
-    readonly property real cell: 10
+    // Peg raster: 5 world units, so a part can be nudged half a part-width.
+    // A part body is ~9 units wide, hence the two-peg keep-out in cellFree.
+    readonly property int cols: 20
+    readonly property int rows: 12
+    readonly property real cell: 5
 
     function cellX(col) { return (col - (cols - 1) / 2) * cell }
     function cellZ(row) { return (row - (rows - 1) / 2) * cell }
@@ -98,10 +100,11 @@ Item {
     }
     Connections { target: pBatteryV; function onValueChanged() { root.resolve() } }
 
+    // Two pegs of clearance: parts are wider than one raster step
     function cellFree(col, row, ignoreId) {
         for (const el of elements)
-            if (el.id !== ignoreId && Math.abs(el.col - col) < 0.6
-                && Math.abs(el.row - row) < 0.6) return false
+            if (el.id !== ignoreId && Math.abs(el.col - col) < 1.6
+                && Math.abs(el.row - row) < 1.6) return false
         return true
     }
     function nearestFreeCell(col, row) {
@@ -118,8 +121,8 @@ Item {
     }
 
     function addElement(type, col, row) {
-        const spot = nearestFreeCell(col === undefined ? 5 : col,
-                                     row === undefined ? 3 : row)
+        const spot = nearestFreeCell(col === undefined ? 10 : col,
+                                     row === undefined ? 6 : row)
         if (!spot) return -1
         const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
                      value: type === "resistor" ? 470 : 0, on: false }
@@ -294,10 +297,10 @@ Item {
             name: "led-basic"
             script: () => {
                 root.clearBoard()
-                const bat = root.addElement("battery", 3, 1)
-                const sw = root.addElement("switch", 6, 1)
-                const res = root.addElement("resistor", 3, 4)
-                const led = root.addElement("led", 6, 4)
+                const bat = root.addElement("battery", 6, 2)
+                const sw = root.addElement("switch", 12, 2)
+                const res = root.addElement("resistor", 6, 8)
+                const led = root.addElement("led", 12, 8)
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [led, 1])
                 root.addWire([led, 0], [res, 1])
@@ -308,10 +311,10 @@ Item {
             name: "series"
             script: () => {
                 root.clearBoard()
-                const bat = root.addElement("battery", 2, 1)
-                const sw = root.addElement("switch", 5, 1)
-                const b1 = root.addElement("bulb", 8, 1)
-                const b2 = root.addElement("bulb", 8, 4)
+                const bat = root.addElement("battery", 4, 2)
+                const sw = root.addElement("switch", 10, 2)
+                const b1 = root.addElement("bulb", 16, 2)
+                const b2 = root.addElement("bulb", 16, 8)
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [b1, 0])
                 root.addWire([b1, 1], [b2, 1])
@@ -322,10 +325,10 @@ Item {
             name: "parallel"
             script: () => {
                 root.clearBoard()
-                const bat = root.addElement("battery", 2, 1)
-                const sw = root.addElement("switch", 5, 1)
-                const b1 = root.addElement("bulb", 8, 1)
-                const b2 = root.addElement("bulb", 8, 4)
+                const bat = root.addElement("battery", 4, 2)
+                const sw = root.addElement("switch", 10, 2)
+                const b1 = root.addElement("bulb", 16, 2)
+                const b2 = root.addElement("bulb", 16, 8)
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [b1, 0])
                 root.addWire([sw, 1], [b2, 0])
@@ -337,12 +340,12 @@ Item {
             name: "metering"
             script: () => {
                 root.clearBoard()
-                const bat = root.addElement("battery", 2, 1)
-                const sw = root.addElement("switch", 5, 1)
-                const amp = root.addElement("ammeter", 8, 1)
-                const res = root.addElement("resistor", 2, 4)
-                const led = root.addElement("led", 5, 4)
-                const volt = root.addElement("voltmeter", 8, 4)
+                const bat = root.addElement("battery", 4, 2)
+                const sw = root.addElement("switch", 10, 2)
+                const amp = root.addElement("ammeter", 16, 2)
+                const res = root.addElement("resistor", 4, 8)
+                const led = root.addElement("led", 10, 8)
+                const volt = root.addElement("voltmeter", 16, 8)
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [amp, 1])
                 root.addWire([amp, 0], [led, 1])
@@ -412,6 +415,29 @@ Item {
         const b = terminalPos(w.b[0], w.b[1])
         return Qt.vector3d((a.x + b.x) / 2, 3.0 + (idx % 3) * 0.8, (a.z + b.z) / 2)
     }
+    // --- shadows ----------------------------------------------------------
+    // Shadows are projected, not shadow-mapped: the key light direction is
+    // known, so anything above the board can be flattened onto it directly.
+    // A shadow map turns 0.55-unit wire ribbons into noise; a projected copy
+    // of the same curve is clean, cheap and stays subtle by construction.
+    readonly property vector3d lightDir: Qt.vector3d(0.346, -0.574, -0.742)
+    readonly property real shadowY: 0.09
+
+    // where a point h units above a surface lands on it
+    function shadowShift(h) {
+        const k = h / -lightDir.y
+        return Qt.vector2d(lightDir.x * k, lightDir.z * k)
+    }
+    function shadowPath(w, idx) {
+        const pts = wirePath(w, idx)[0]
+        const out = []
+        for (const v of pts) {
+            const o = shadowShift(v.y - shadowY)
+            out.push(Qt.vector3d(v.x + o.x, shadowY, v.z + o.y))
+        }
+        return [out]
+    }
+
     function wirePath(w, idx) {
         const a = terminalPos(w.a[0], w.a[1])
         const b = terminalPos(w.b[0], w.b[1])
@@ -452,6 +478,18 @@ Item {
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
+        Model {  // the board's own shadow on the table
+            source: "#Cube"
+            position: {
+                const o = root.shadowShift(2.4)
+                return Qt.vector3d(o.x, -4.1, o.y)
+            }
+            scale: Qt.vector3d(1.12, 0.004, 0.72)
+            materials: PrincipledMaterial {
+                baseColor: "#d9d3c9"
+                lighting: PrincipledMaterial.NoLighting
+            }
+        }
 
         // Orbit rig: the camera hangs off a yaw node at the pivot, so it can
         // never look anywhere but at the setup.
@@ -475,12 +513,11 @@ Item {
         // fill, and a low camera-side fill so unlit faces still separate.
         // Nothing in the scene is glossy, so depth comes from value, not glare.
         DirectionalLight {
+            id: keyLight
             eulerRotation.x: -35
             eulerRotation.y: -25
             brightness: 0.9
-            castsShadow: true
-            shadowFactor: 60
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
+            // no shadow map - see the projected shadows further down
         }
         DirectionalLight {
             eulerRotation.x: -60
@@ -510,36 +547,73 @@ Item {
             color: LabTheme.ink
             useToonShading: true
         }
-        // Peg marks: dots when parts move freely, small crosses while the
-        // grid snaps - the board itself tells you which mode you are in
-        // (that cue is borrowed from grafli's grid modes).
+        // Peg marks: round dots when parts move freely, crisp squares while
+        // the grid snaps - the board itself tells you which mode you are in
+        // (that cue is borrowed from grafli's grid modes). One model per peg,
+        // so the denser raster stays cheap.
         Repeater3D {
             model: root.cols * root.rows
-            Node {
+            Model {
+                source: root.snapToGrid ? "#Cube" : "#Cylinder"
                 position: Qt.vector3d(root.cellX(index % root.cols), 0.05,
                                       root.cellZ(Math.floor(index / root.cols)))
-                Model {
-                    source: "#Cylinder"
-                    visible: !root.snapToGrid
-                    scale: Qt.vector3d(0.008, 0.001, 0.008)
-                    materials: PrincipledMaterial {
-                        baseColor: LabTheme.grid
-                        lighting: PrincipledMaterial.NoLighting
-                    }
+                scale: root.snapToGrid ? Qt.vector3d(0.006, 0.0008, 0.006)
+                                       : Qt.vector3d(0.005, 0.001, 0.005)
+                materials: PrincipledMaterial {
+                    baseColor: LabTheme.grid
+                    lighting: PrincipledMaterial.NoLighting
                 }
+            }
+        }
+
+        // Part shadows: two stacked quads (tight and dark, wide and faint) so
+        // the edge falls off instead of ending in a hard line.
+        Repeater3D {
+            model: root.elements
+            Node {
+                id: shadowNode
+                readonly property var e: {
+                    root.elemRev
+                    return root.elemAt(modelData.id)
+                }
+                visible: e !== null
+                position: {
+                    if (!e) return Qt.vector3d(0, 0, 0)
+                    const o = root.shadowShift(1.7)
+                    return Qt.vector3d(root.cellX(e.col) + o.x, root.shadowY,
+                                       root.cellZ(e.row) + o.y)
+                }
+                eulerRotation.y: e ? (e.rot || 0) : 0
+                // Round parts get a round shadow, boxes a rectangular one.
+                // Opaque paper-shadow tones rather than blended ink: the tones
+                // are picked against the board, so the result is predictable
+                // and overlapping shadows never pile up into a dark blot.
+                readonly property bool roundBody:
+                    ["led", "bulb", "ammeter", "voltmeter"].indexOf(modelData.type) !== -1
                 Repeater3D {
-                    model: 2
+                    model: [{ f: 1.0, c: "#cbc4b8" }, { f: 1.34, c: "#d5cfc5" }]
                     Model {
-                        source: "#Cube"
-                        visible: root.snapToGrid
-                        scale: index === 0 ? Qt.vector3d(0.016, 0.0008, 0.0035)
-                                           : Qt.vector3d(0.0035, 0.0008, 0.016)
+                        readonly property bool r: shadowNode.roundBody
+                        source: r ? "#Cylinder" : "#Cube"
+                        y: -0.012 * index
+                        scale: r
+                            ? Qt.vector3d(0.052 * modelData.f, 0.0004, 0.052 * modelData.f)
+                            : Qt.vector3d(0.070 * modelData.f, 0.0004, 0.048 * modelData.f)
                         materials: PrincipledMaterial {
-                            baseColor: LabTheme.grid
+                            baseColor: modelData.c
                             lighting: PrincipledMaterial.NoLighting
                         }
                     }
                 }
+            }
+        }
+
+        Repeater3D {  // wire shadows: the same curve, flattened onto the board
+            model: root.wires
+            MultiLine3D {
+                coords: { root.elemRev; return root.shadowPath(modelData, index) }
+                color: "#d0c9be"
+                width: 0.75
             }
         }
 
