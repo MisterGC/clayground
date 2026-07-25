@@ -173,6 +173,24 @@ a part to move it, and click a wire anywhere along its length to branch off
 it (the eraser removes wires, junctions and parts alike). Every preset starts with the switch **open** — flipping
 it is the invitation.
 
+Parts try to say what they are without a legend. The palette shows each
+part's **schematic symbol** (IEC 60617) next to its colour, because the
+palette is the one place a kit can teach *this lump is that squiggle* for
+free. On the board, several parts are **printed with Qt Quick items rendered
+to textures**: a battery carries its polarity and its voltage on a paper
+label, a switch prints `ON`/`OFF` (a tilted lever is hard to read from
+straight above), and each meter has a real dial — scale, needle, and an
+auto-selected range, so an ammeter reading 5 mA switches itself to a 10 mA
+scale and says so. A resistor needs no print: its bands are the actual
+colour code, two significant digits plus a decade, so they change with the
+value the way a bought resistor's do.
+
+Values are set where the part is, not in a global panel. Selecting a
+resistor puts a slider on its card that walks the **E12 series** — the
+values a shop actually sells — and selecting a battery gives it its own
+volts; the `batteryV` slider in the parameter panel stays as a master that
+moves every cell at once.
+
 Wires meet at **junctions**: click any wire and a solder dot is dropped
 where you clicked, splitting it in two and starting a branch from that point
 — which is what makes a real parallel circuit buildable instead of a star of

@@ -95,11 +95,31 @@ Item {
     function resolve() {
         const els = elements.map(el => ({
             id: el.id, type: el.type, on: el.on,
-            value: el.type === "battery" ? pBatteryV.value : el.value
+            // a battery carries its own volts; the panel slider is a master
+            // that moves them all at once
+            value: el.type === "battery" ? (el.value || pBatteryV.value) : el.value
         }))
         sim = Circuit.solve(els, wires)
     }
-    Connections { target: pBatteryV; function onValueChanged() { root.resolve() } }
+    // the panel slider is the master cell voltage: it moves every battery
+    Connections {
+        target: pBatteryV
+        function onValueChanged() {
+            for (const el of root.elements)
+                if (el.type === "battery") el.value = pBatteryV.value
+            root.elemRev++
+            root.resolve()
+        }
+    }
+    function setBatteryVolts(id, v) {
+        const el = elemAt(id)
+        if (!el || el.type !== "battery") return
+        const nv = Math.round(Math.max(1.5, Math.min(12, v)) * 2) / 2
+        if (nv === el.value) return
+        el.value = nv
+        elemRev++
+        resolve()
+    }
 
     // Two pegs of clearance for real parts; junctions are dots and need one
     function cellFree(col, row, ignoreId, type) {
@@ -128,7 +148,8 @@ Item {
                                      row === undefined ? 6 : row, type)
         if (!spot) return -1
         const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
-                     value: type === "resistor" ? 470 : 0, on: false }
+                     value: type === "resistor" ? 470
+                          : (type === "battery" ? pBatteryV.value : 0), on: false }
         elements = elements.concat([el])
         resolve()
         return el.id
@@ -199,11 +220,31 @@ Item {
         elemRev++
         resolve()
     }
-    function cycleResistor(id) {
+    // Resistance runs over the real E12 series, the values a shop actually
+    // sells - which is also what makes the colour bands honest, since a band
+    // code encodes two significant digits and a decade.
+    readonly property var resistorSteps: {
+        const e12 = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82]
+        const out = []
+        for (let dec = 1; dec <= 100; dec *= 10)
+            for (const v of e12) out.push(v * dec)
+        out.push(10000)
+        return out
+    }
+    function resistorStepOf(ohms) {
+        let best = 0, bd = Infinity
+        for (let i = 0; i < resistorSteps.length; ++i) {
+            const d = Math.abs(Math.log(resistorSteps[i]) - Math.log(Math.max(1, ohms)))
+            if (d < bd) { bd = d; best = i }
+        }
+        return best
+    }
+    function setResistanceStep(id, step) {
         const el = elemAt(id)
         if (!el || el.type !== "resistor") return
-        const steps = [100, 220, 470, 1000]
-        el.value = steps[(steps.indexOf(el.value) + 1) % steps.length]
+        const v = resistorSteps[Math.max(0, Math.min(resistorSteps.length - 1, step))]
+        if (v === el.value) return
+        el.value = v
         elemRev++
         resolve()
     }
@@ -618,7 +659,7 @@ Item {
         }
         Box3D {  // rim
             width: 112; height: 1.6; depth: 72
-            position: Qt.vector3d(0, -3.0, 0)
+            position: Qt.vector3d(0, -3.8, 0)
             color: LabTheme.ink
             useToonShading: true
         }
@@ -705,12 +746,14 @@ Item {
             flowAutoPlay: false
             styles: [
                 { dash: [0, 0], capRound: true, opacity: 1.0 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 3 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 6 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 10 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 15 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 21 },
-                { dash: [1.4, 3.2], pattern: "chevron", flow: 28 }
+                // deliberately unhurried: the flow is there to be read, not
+                // to make the board feel busy
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.0 },
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.8 },
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 2.8 },
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 4.0 },
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 5.4 },
+                { dash: [1.4, 3.4], pattern: "chevron", flow: 7.0 }
             ]
             lines: {
                 root.elemRev; root.sim; root.hoverHit; root.eraser
@@ -844,7 +887,7 @@ Item {
             if (dragElem && !dragged) {
                 const el = root.elemAt(dragElem)
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
-                else if (el && el.type === "resistor") root.cycleResistor(dragElem)
+                // a resistor is set with the slider on its selection card
             }
             dragElem = null; dragged = false; orbiting = false
         }
@@ -852,9 +895,9 @@ Item {
 
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
-        { type: "battery", label: "Battery", hint: "voltage from the slider", color: "#3e9b92" },
+        { type: "battery", label: "Battery", hint: "select it to set volts", color: "#3e9b92" },
         { type: "switch", label: "Switch", hint: "click to flip", color: "#c56c54" },
-        { type: "resistor", label: "Resistor", hint: "click cycles Ω", color: "#d9c9a0" },
+        { type: "resistor", label: "Resistor", hint: "select it to set Ω", color: "#d9c9a0" },
         { type: "led", label: "LED", hint: "gold foot = +", color: "#e05a40" },
         { type: "bulb", label: "Bulb", hint: "brightness = power", color: "#d4ba6a" },
         { type: "ammeter", label: "Ammeter", hint: "wire it in series", color: "#3f7a57" },
@@ -864,7 +907,7 @@ Item {
     Rectangle {
         id: palette
         x: 12; y: 12
-        width: 168
+        width: 208
         height: paletteCol.height + 20
         radius: 8
         color: LabTheme.panel
@@ -888,15 +931,22 @@ Item {
             Repeater {
                 model: root.partCatalog
                 Rectangle {
-                    width: 148; height: 40; radius: 6
+                    width: 188; height: 40; radius: 6
                     color: partArea.containsMouse ? "#ffffff" : LabTheme.paper
                     border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
-                    Rectangle {
-                        x: 8; y: 11; width: 18; height: 18; radius: 4
+                    Rectangle {  // the part's colour on the board
+                        x: 6; y: 15; width: 10; height: 10; radius: 3
                         color: modelData.color
                     }
+                    // and its schematic symbol: the palette is where a kit can
+                    // teach "this lump is that squiggle" for free
+                    SymbolIcon {
+                        x: 20; anchors.verticalCenter: parent.verticalCenter
+                        type: modelData.type
+                        ink: LabTheme.inkSoft
+                    }
                     Column {
-                        x: 34; anchors.verticalCenter: parent.verticalCenter
+                        x: 60; anchors.verticalCenter: parent.verticalCenter
                         Text { text: modelData.label; color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
                         Text { text: modelData.hint; color: LabTheme.inkFaint; font.pixelSize: 12; font.family: LabTheme.handFont }
                     }
@@ -921,7 +971,7 @@ Item {
             }
             Item { width: 1; height: 6 }
             Rectangle {
-                width: 148; height: 34; radius: 6
+                width: 188; height: 34; radius: 6
                 color: root.eraser ? LabTheme.clay : LabTheme.paper
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
@@ -933,7 +983,7 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
             }
             Rectangle {
-                width: 148; height: 30; radius: 6
+                width: 188; height: 30; radius: 6
                 color: LabTheme.paper
                 border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
@@ -945,7 +995,7 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
             }
             Rectangle {
-                width: 148; height: 30; radius: 6
+                width: 188; height: 30; radius: 6
                 color: LabTheme.paper
                 border.color: root.snapToGrid ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
@@ -957,7 +1007,7 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: root.snapToGrid = !root.snapToGrid }
             }
             Rectangle {
-                width: 148; height: 30; radius: 6
+                width: 188; height: 30; radius: 6
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
@@ -968,7 +1018,7 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
             }
             Rectangle {
-                width: 148; height: 30; radius: 6
+                width: 188; height: 30; radius: 6
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
@@ -1157,8 +1207,10 @@ Item {
         // below the viewport
         x: Math.max(8, Math.min(root.width - width - 8, screenAt.x - width / 2))
         y: Math.max(8, Math.min(root.height - height - 44, screenAt.y + 6))
-        width: selCol.width + 20
+        width: Math.max(selCol.width + 20, (isResistor || isBattery) ? 196 : 0)
         height: selCol.height + 14
+        readonly property bool isResistor: el !== null && el.type === "resistor"
+        readonly property bool isBattery: el !== null && el.type === "battery"
         radius: LabTheme.radius
         color: LabTheme.panel
         border.color: LabTheme.secondary
@@ -1170,10 +1222,18 @@ Item {
             spacing: 1
             Text {
                 text: {
+                    // elemRev per binding: `el` hands back the same object
+                    // every time, and re-assigning an identical reference is
+                    // not a change as far as QML is concerned
+                    root.elemRev
                     if (!selCard.el) return ""
                     const e = selCard.el
-                    if (e.type === "resistor") return "RESISTOR  " + e.value + " Ω"
-                    if (e.type === "battery") return "BATTERY  " + pBatteryV.value.toFixed(1) + " V"
+                    if (e.type === "resistor")
+                        return "RESISTOR  " + (e.value >= 1000
+                            ? (e.value / 1000).toFixed(e.value % 1000 ? 1 : 0) + " kΩ"
+                            : e.value + " Ω")
+                    if (e.type === "battery")
+                        return "BATTERY  " + (e.value || pBatteryV.value).toFixed(1) + " V"
                     if (e.type === "switch") return "SWITCH  " + (e.on ? "closed" : "open")
                     return e.type.toUpperCase()
                 }
@@ -1182,6 +1242,7 @@ Item {
             }
             Text {
                 text: {
+                    root.elemRev
                     if (!selCard.el) return ""
                     const s = root.simOf(selCard.el.id)
                     return s.v.toFixed(2) + " V   " + (s.i * 1000).toFixed(1) + " mA"
@@ -1189,8 +1250,66 @@ Item {
                 color: LabTheme.inkSoft; font.pixelSize: 11
                 font.family: LabTheme.monoFont
             }
+            // Resistance slider: drag it and the colour bands on the part
+            // change with the value, because the bands are the real code.
+            Item {
+                visible: selCard.isResistor || selCard.isBattery
+                width: selCard.width - 20
+                height: visible ? 22 : 0
+
+                Item {
+                    id: rSlider
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width; height: 16
+                    readonly property int steps: selCard.isBattery
+                        ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
+                    readonly property real ratio: {
+                        root.elemRev
+                        if (!selCard.el) return 0
+                        if (selCard.isBattery)
+                            return ((selCard.el.value || pBatteryV.value) - 1.5) / 10.5
+                        return steps > 0 ? root.resistorStepOf(selCard.el.value) / steps : 0
+                    }
+
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width; height: 4; radius: 2
+                        color: LabTheme.panelEdge
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: rSlider.ratio * parent.width
+                        height: 4; radius: 2
+                        color: LabTheme.secondary
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: rSlider.ratio * (parent.width - width)
+                        width: 12; height: 12; radius: 6
+                        color: LabTheme.panel
+                        border.color: LabTheme.ink; border.width: 2
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        function applyAt(mx) {
+                            if (!selCard.el) return
+                            const t = Math.max(0, Math.min(1, (mx + 6) / rSlider.width))
+                            if (selCard.isBattery)
+                                root.setBatteryVolts(selCard.el.id, 1.5 + t * 10.5)
+                            else
+                                root.setResistanceStep(selCard.el.id,
+                                                       Math.round(t * rSlider.steps))
+                        }
+                        onPressed: (mouse) => applyAt(mouse.x)
+                        onPositionChanged: (mouse) => { if (pressed) applyAt(mouse.x) }
+                    }
+                }
+            }
             Text {
-                text: "R turn · Del remove · drag to move"
+                text: selCard.isResistor ? "drag to set Ω · R turn · Del remove"
+                     : selCard.isBattery ? "drag to set volts · R turn · Del remove"
+                     : "R turn · Del remove · drag to move"
                 color: LabTheme.inkFaint; font.pixelSize: 12
                 font.family: LabTheme.handFont
             }
@@ -1236,7 +1355,7 @@ Item {
                     return "R turns the part · Del removes it · drag moves it"
                     + (root.snapToGrid ? " (Alt places freely)" : " (Alt snaps)")
                     + " · F frames it"
-                return "click two gold pads to wire · click a wire to branch off it · V shows all values · drag the empty board to look around · wheel zooms"
+                return "click two gold pads to wire · click a wire to branch off it · select a resistor to set its Ω · V shows all values · drag to look around"
             }
         }
     }

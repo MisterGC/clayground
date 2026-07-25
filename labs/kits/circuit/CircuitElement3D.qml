@@ -124,7 +124,7 @@ Node {
         visible: root.type === "battery"
         Part {
             width: 5.2; height: 3.6; depth: 3.6
-            position: Qt.vector3d(0, 1.8, 0)
+            position: Qt.vector3d(0, 0, 0)
             color: root.shorted ? "#b04434" : LabTheme.teal
             SequentialAnimation on opacity {
                 running: root.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
@@ -134,19 +134,47 @@ Node {
         }
         Part {  // + cap
             width: 0.8; height: 1.0; depth: 1.6
-            position: Qt.vector3d(-2.9, 2.0, 0); color: LabTheme.highlight
+            position: Qt.vector3d(-2.9, 1.5, 0); color: LabTheme.highlight
         }
-        Part {  // + glyph above the anode cap
-            width: 1.3; height: 0.3; depth: 0.3
-            position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
-        }
-        Part {
-            width: 0.3; height: 0.3; depth: 1.3
-            position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
-        }
-        Part {  // - glyph
-            width: 1.3; height: 0.3; depth: 0.3
-            position: Qt.vector3d(2.4, 4.1, 0); color: LabTheme.panel
+        // One printed label instead of three little 3D glyphs: it carries the
+        // voltage and the polarity, and both point at the pad they belong to.
+        Model {
+            // sunk into the cell so only the printed face shows: a cube maps
+            // the same texture onto its sides, which would read as a smear
+            position: Qt.vector3d(0, 3.45, 0)
+            source: "#Cube"
+            scale: Qt.vector3d(0.046, 0.004, 0.03)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: Texture {
+                    flipU: true
+                    flipV: true
+                    sourceItem: Item {
+                        width: 300; height: 190
+                        Rectangle { anchors.fill: parent; color: LabTheme.panel }
+                        Text {
+                            x: 26; anchors.verticalCenter: parent.verticalCenter
+                            text: "+"; color: LabTheme.clay
+                            font.pixelSize: 58; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            anchors.right: parent.right; anchors.rightMargin: 30
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "–"; color: LabTheme.ink
+                            font.pixelSize: 58; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.value.toFixed(1) + " V"
+                            color: LabTheme.ink
+                            font.pixelSize: 52; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -156,20 +184,29 @@ Node {
         visible: root.type === "resistor"
         Part {
             width: 4.4; height: 1.9; depth: 1.9
-            position: Qt.vector3d(0, 1.0, 0); color: "#d9c9a0"
+            position: Qt.vector3d(0, 0.05, 0); color: "#d9c9a0"
         }
-        // color bands encode the value (100 220 470 1000)
+        // The real resistor colour code, not a lookup of four presets: two
+        // significant digits plus a decade multiplier, so the bands change
+        // with the value the way a bought resistor's do.
+        readonly property var codeColors: ["#1a1a1a", "#7a4a21", "#c0392b", "#d35400",
+                                           "#f1c40f", "#27ae60", "#2b6cb0", "#7d3c98",
+                                           "#7f8c8d", "#ecf0f1"]
         readonly property var bands: {
-            if (root.value <= 100) return ["#7a4a21", "#1a1a1a", "#7a4a21"]
-            if (root.value <= 220) return ["#c0392b", "#c0392b", "#7a4a21"]
-            if (root.value <= 470) return ["#ffd93d", "#7d3c98", "#7a4a21"]
-            return ["#7a4a21", "#1a1a1a", "#c0392b"]
+            // normalized by division, not by log10: log10(1000) lands just
+            // under 3 in floating point and would mis-colour the decade
+            let sig = Math.round(Math.max(10, root.value || 470))
+            let exp = 0
+            while (sig >= 100) { sig = Math.round(sig / 10); ++exp }
+            return [codeColors[Math.floor(sig / 10)],
+                    codeColors[sig % 10],
+                    codeColors[Math.min(9, exp)]]
         }
         Repeater3D {
             model: 3
             Part {
                 width: 0.45; height: 1.95; depth: 1.95
-                position: Qt.vector3d(-1.0 + index * 1.0, 1.0, 0)
+                position: Qt.vector3d(-1.0 + index * 1.0, 0.02, 0)
                 color: _res.bands[index]
                 showEdges: false
             }
@@ -210,7 +247,7 @@ Node {
         }
         Part {  // anode marker: gold foot toward terminal 0
             width: 1.6; height: 0.3; depth: 0.7
-            position: Qt.vector3d(-1.4, 0.5, 0); color: LabTheme.highlight
+            position: Qt.vector3d(-1.4, 0.35, 0); color: LabTheme.highlight
         }
         PointLight {  // a pool of light on the paper, not room lighting
             visible: root.lit
@@ -271,14 +308,14 @@ Node {
         visible: root.type === "switch"
         Part {
             width: 4.6; height: 1.3; depth: 3.0
-            position: Qt.vector3d(0, 0.7, 0)
+            position: Qt.vector3d(0, 0.05, 0)
             color: "#8a8378"
         }
         Node {  // lever pivots at the left contact
             position: Qt.vector3d(-1.6, 1.6, 0)
             Part {
                 width: 3.4; height: 0.65; depth: 1.5
-                position: Qt.vector3d(1.6, 0, 0)
+                position: Qt.vector3d(1.6, -0.32, 0)
                 color: root.switchOn ? LabTheme.forest : LabTheme.clay
             }
             eulerRotation.z: root.switchOn ? 0 : 28
@@ -293,24 +330,122 @@ Node {
                 materials: Matte { baseColor: LabTheme.highlight }
             }
         }
+        Model {  // printed state: a lever is hard to read from straight above
+            position: Qt.vector3d(0, 1.1, 0.85)
+            source: "#Cube"
+            scale: Qt.vector3d(0.028, 0.004, 0.012)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: Texture {
+                    flipU: true
+                    flipV: true
+                    sourceItem: Item {
+                        width: 200; height: 92
+                        Rectangle { anchors.fill: parent; color: LabTheme.panel }
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.switchOn ? "ON" : "OFF"
+                            color: root.switchOn ? LabTheme.forest : LabTheme.clay
+                            font.pixelSize: 60; font.bold: true
+                            font.letterSpacing: 4
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    // --- meters (ammeter forest ring, voltmeter plum ring) -------------------
+    // --- meters: a real dial, printed onto the part -------------------------
+    // The face is a Qt Quick item rendered to a texture, so the instrument
+    // shows what it measures the way an instrument does: a scale, a range and
+    // a needle that swings. It also makes an ammeter unmistakably an ammeter
+    // from across the board, which a coloured ring never did.
     Node {
         id: _meter
         visible: root.type === "ammeter" || root.type === "voltmeter"
-        readonly property color ring: root.type === "ammeter" ? LabTheme.forest : LabTheme.plum
-        Model {  // face
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 1.2, 0)
-            scale: Qt.vector3d(0.05, 0.014, 0.05)
-            materials: Matte { baseColor: LabTheme.panel }
+        readonly property bool isAmp: root.type === "ammeter"
+        readonly property color ring: isAmp ? LabTheme.forest : LabTheme.plum
+        readonly property real reading: Math.abs(isAmp ? root.simI : root.simV)
+        // instruments have ranges: pick the smallest that still fits
+        readonly property real fullScale: {
+            const scales = isAmp ? [0.01, 0.1, 1, 10] : [1, 5, 12, 60]
+            for (const s of scales) if (reading <= s) return s
+            return scales[scales.length - 1]
         }
-        Model {  // ring
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 1.05, 0)
-            scale: Qt.vector3d(0.058, 0.012, 0.058)
-            materials: Matte { baseColor: _meter.ring }
+        readonly property string rangeLabel: isAmp
+            ? (fullScale < 1 ? (fullScale * 1000) + " mA" : fullScale + " A")
+            : fullScale + " V"
+
+        Part {  // case (Box3D sits on its y: bottom-centre origin)
+            width: 7.0; height: 1.4; depth: 5.6
+            position: Qt.vector3d(0, 0, 0)
+            color: _meter.ring
+        }
+        Model {  // dial plate on top: its up face carries the rendered face
+            source: "#Cube"
+            position: Qt.vector3d(0, 1.55, 0)
+            scale: Qt.vector3d(0.062, 0.004, 0.048)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting   // keep the print crisp
+                baseColorMap: Texture {
+                    // the cube's up face maps U mirrored: flip both so the
+                    // print reads the right way round
+                    flipU: true
+                    flipV: true
+                    sourceItem: Item {
+                        width: 260; height: 200
+                        Rectangle {
+                            anchors.fill: parent
+                            color: LabTheme.panel
+                        }
+                        Text {  // what it measures
+                            x: 14; y: 10
+                            text: _meter.isAmp ? "A" : "V"
+                            color: _meter.ring
+                            font.pixelSize: 44; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {  // the range this dial is showing
+                            anchors.right: parent.right; anchors.rightMargin: 14
+                            y: 22
+                            text: "0 – " + _meter.rangeLabel
+                            color: LabTheme.inkFaint
+                            font.pixelSize: 22
+                            font.family: LabTheme.monoFont
+                        }
+                        Item {  // needle pivot, bottom centre
+                            x: 130; y: 176
+                            Repeater {
+                                model: 11
+                                Item {
+                                    transformOrigin: Item.TopLeft
+                                    rotation: -75 + index * 15
+                                    Rectangle {
+                                        x: -2; y: -128
+                                        width: 4; height: index % 5 === 0 ? 22 : 12
+                                        color: index % 5 === 0 ? LabTheme.ink : LabTheme.inkFaint
+                                    }
+                                }
+                            }
+                            Item {
+                                transformOrigin: Item.TopLeft
+                                rotation: -75 + 150 * Math.max(0, Math.min(1,
+                                              _meter.reading / _meter.fullScale))
+                                Behavior on rotation { NumberAnimation { duration: 260 } }
+                                Rectangle {
+                                    x: -3; y: -122; width: 6; height: 122; radius: 3
+                                    color: LabTheme.clay
+                                }
+                            }
+                            Rectangle {
+                                x: -11; y: -11; width: 22; height: 22; radius: 11
+                                color: LabTheme.ink
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
