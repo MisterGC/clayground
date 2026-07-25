@@ -163,18 +163,40 @@ the core physical lesson of the lab.
 ```
 
 Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
-`E` eraser · `C` clear · `Esc` cancel wiring/eraser · `R` record CSV.
+`E` eraser · `C` clear · `#` grid mode · `R` turn the selected part ·
+`Del` remove it · `F` frame it · `0` reset the view · `Esc` cancel ·
+`Shift+R` record CSV.
+
 Drag parts from the palette onto the board, click two gold terminals to
 wire, click a switch to flip it, click a resistor to cycle its ohms, drag
 a part to move it. Every preset starts with the switch **open** — flipping
 it is the invitation.
 
+Clicking a part **selects** it: a frame is drawn around it on the paper
+(with a nose mark showing which way it faces) and a card reports its
+voltage and current. `R` or a right-click turns it in 90° steps — wires
+follow the terminals. Moving is grid-snapped by default, exactly like
+grafli's grid mode: the pegs are drawn as small crosses while snapping and
+as dots when parts move freely, `#` cycles the mode and holding `Alt`
+inverts it for one drag.
+
+The view is an orbit cam on a leash. Dragging the empty board circles the
+setup, the wheel zooms, `F` frames the selected part and `0` reframes the
+whole setup — which is also what happens when a preset is applied, so each
+scenario arrives properly framed. Two rules keep you oriented: the camera
+always looks at the setup (there is no free-flying pivot), and it must stay
+at least 9 units above the board plane, so flattening the angle backs the
+rig off instead of letting it dive through the parts. The compass under the
+palette shows the board turning against a fixed marker for you, and the
+table under the board gives a horizon at low angles.
+
 Agents attach via `.clay/inspect/` (`Lab.labInfo()` reports the element
 counts, net count, iteration count and short flag; probes `iBattery`,
 `iLed` and `power` are plotted live and CSV-recordable). The entire
-circuit — elements, wires, positions, switch states — rides in the dojo
-`viewState`, so the board you built survives a QML reload untouched; a
-user's board even wins over a scenario preset on reload.
+circuit — elements, wires, positions, rotations, switch states — plus the
+camera pose rides in the dojo `viewState`, so the board you built and the
+angle you were watching from both survive a QML reload untouched; a user's
+board even wins over a scenario preset on reload.
 
 ## Source map
 

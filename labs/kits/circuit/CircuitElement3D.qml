@@ -8,6 +8,11 @@ import Clayground.Lab
 // One circuit part on the pegboard: body by type, two gold terminals at
 // x = -/+ termOffset. Purely visual - the Sandbox owns state, hit testing
 // and the solver; this node just renders what it is told.
+//
+// Shading is deliberately flat: toon-shaded boxes with ink edges and fully
+// matte round parts, so shapes read by silhouette and value, never by
+// glare. Only the emitters (LED dome, bulb filament) are allowed to be
+// bright.
 Node {
     id: root
 
@@ -20,18 +25,64 @@ Node {
     property real simPower: 0        // watts dissipated
     property bool shorted: false     // battery over-current
     property bool hovered: false
+    property bool selected: false
     property int wiringTerminal: -1  // terminal glowing during wiring, -1 none
 
     readonly property real termOffset: 3.5
+
+    // flat, glare-free body material for the round parts
+    component Matte: PrincipledMaterial {
+        roughness: 1.0
+        metalness: 0.0
+        specularAmount: 0.0
+    }
+    // toon-shaded box with darkened ink edges
+    component Part: Box3D {
+        useToonShading: true
+        edgeColorFactor: 0.55
+    }
+    // constant-color marker (2D-style UI drawn inside the 3D scene)
+    component Marker: Model {
+        property color tint: LabTheme.secondary
+        source: "#Cube"
+        materials: PrincipledMaterial {
+            baseColor: tint
+            lighting: PrincipledMaterial.NoLighting
+        }
+    }
+
+    // --- selection frame ----------------------------------------------------
+    // A flat outline on the paper, like a selection rect on a canvas. It
+    // turns with the part, so it doubles as the rotation indicator.
+    Node {
+        visible: root.selected
+        y: 0.14
+        Repeater3D {
+            model: [{ x: 0, z: -3.9, w: 10.4, d: 0.38 },
+                    { x: 0, z: 3.9, w: 10.4, d: 0.38 },
+                    { x: -5.2, z: 0, w: 0.38, d: 8.2 },
+                    { x: 5.2, z: 0, w: 0.38, d: 8.2 }]
+            Marker {
+                position: Qt.vector3d(modelData.x, 0, modelData.z)
+                scale: Qt.vector3d(modelData.w / 100, 0.0014, modelData.d / 100)
+            }
+        }
+        Marker {  // nose mark: shows which way the part faces after a rotation
+            tint: LabTheme.accent
+            position: Qt.vector3d(6.2, 0, 0)
+            scale: Qt.vector3d(0.013, 0.0014, 0.013)
+            eulerRotation.y: 45
+        }
+    }
 
     // --- hover ring ---------------------------------------------------------
     Model {
         source: "#Cylinder"
         position: Qt.vector3d(0, -0.9, 0)
         scale: Qt.vector3d(0.11, 0.006, 0.09)
-        visible: root.hovered
+        visible: root.hovered && !root.selected
         materials: PrincipledMaterial {
-            baseColor: LabTheme.secondary; emissiveFactor: Qt.vector3d(0, 0.25, 0.5)
+            baseColor: LabTheme.muted
             lighting: PrincipledMaterial.NoLighting
         }
     }
@@ -43,11 +94,10 @@ Node {
             source: "#Sphere"
             position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.9, 0)
             scale: Qt.vector3d(0.02, 0.02, 0.02)
-            materials: PrincipledMaterial {
+            materials: Matte {
                 baseColor: root.wiringTerminal === index ? LabTheme.secondary : LabTheme.highlight
                 emissiveFactor: root.wiringTerminal === index
-                                ? Qt.vector3d(0, 0.45, 0.9) : Qt.vector3d(0.12, 0.1, 0.02)
-                roughness: 0.35
+                                ? Qt.vector3d(0, 0.3, 0.6) : Qt.vector3d(0, 0, 0)
             }
         }
     }
@@ -58,14 +108,14 @@ Node {
             source: "#Cylinder"
             position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.4, 0)
             scale: Qt.vector3d(0.008, 0.011, 0.008)
-            materials: PrincipledMaterial { baseColor: "#9a8a5a"; roughness: 0.5 }
+            materials: Matte { baseColor: "#9a8a5a" }
         }
     }
 
     // --- battery ------------------------------------------------------------
     Node {
         visible: root.type === "battery"
-        Box3D {
+        Part {
             width: 5.2; height: 3.6; depth: 3.6
             position: Qt.vector3d(0, 1.8, 0)
             color: root.shorted ? "#b04434" : LabTheme.teal
@@ -75,19 +125,19 @@ Node {
                 NumberAnimation { to: 1.0; duration: 240 }
             }
         }
-        Box3D {  // + cap
+        Part {  // + cap
             width: 0.8; height: 1.0; depth: 1.6
             position: Qt.vector3d(-2.9, 2.0, 0); color: LabTheme.highlight
         }
-        Box3D {  // + glyph above the anode cap
+        Part {  // + glyph above the anode cap
             width: 1.3; height: 0.3; depth: 0.3
             position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
         }
-        Box3D {
+        Part {
             width: 0.3; height: 0.3; depth: 1.3
             position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
         }
-        Box3D {  // - glyph
+        Part {  // - glyph
             width: 1.3; height: 0.3; depth: 0.3
             position: Qt.vector3d(2.4, 4.1, 0); color: LabTheme.panel
         }
@@ -97,7 +147,7 @@ Node {
     Node {
         id: _res
         visible: root.type === "resistor"
-        Box3D {
+        Part {
             width: 4.4; height: 1.9; depth: 1.9
             position: Qt.vector3d(0, 1.0, 0); color: "#d9c9a0"
         }
@@ -110,10 +160,11 @@ Node {
         }
         Repeater3D {
             model: 3
-            Box3D {
+            Part {
                 width: 0.45; height: 1.95; depth: 1.95
                 position: Qt.vector3d(-1.0 + index * 1.0, 1.0, 0)
                 color: _res.bands[index]
+                showEdges: false
             }
         }
         // lead wires to the terminals
@@ -124,7 +175,7 @@ Node {
                 position: Qt.vector3d(index === 0 ? -2.8 : 2.8, 1.0, 0)
                 eulerRotation.z: 90
                 scale: Qt.vector3d(0.003, 0.014, 0.003)
-                materials: PrincipledMaterial { baseColor: LabTheme.muted; roughness: 0.4 }
+                materials: Matte { baseColor: LabTheme.muted }
             }
         }
     }
@@ -139,19 +190,18 @@ Node {
             source: "#Sphere"
             position: Qt.vector3d(0, 2.4, 0)
             scale: Qt.vector3d(0.034, 0.034, 0.034)
-            materials: PrincipledMaterial {
+            materials: Matte {
                 baseColor: root.lit ? "#e05a40" : "#9a5244"
                 emissiveFactor: Qt.vector3d(2.2, 0.55, 0.35).times(_led.glow)
-                roughness: 0.25
             }
         }
         Model {  // socket
             source: "#Cylinder"
             position: Qt.vector3d(0, 0.7, 0)
             scale: Qt.vector3d(0.026, 0.014, 0.026)
-            materials: PrincipledMaterial { baseColor: "#6b655c"; roughness: 0.6 }
+            materials: Matte { baseColor: "#6b655c" }
         }
-        Box3D {  // anode marker: gold foot toward terminal 0
+        Part {  // anode marker: gold foot toward terminal 0
             width: 1.6; height: 0.3; depth: 0.7
             position: Qt.vector3d(-1.4, 0.5, 0); color: LabTheme.highlight
         }
@@ -175,8 +225,8 @@ Node {
             position: Qt.vector3d(0, 3.0, 0)
             scale: Qt.vector3d(0.042, 0.042, 0.042)
             opacity: 0.42
-            materials: PrincipledMaterial {
-                baseColor: "#e7e4da"; roughness: 0.05
+            materials: Matte {
+                baseColor: "#e7e4da"
                 alphaMode: PrincipledMaterial.Blend
             }
         }
@@ -194,7 +244,7 @@ Node {
             source: "#Cylinder"
             position: Qt.vector3d(0, 0.8, 0)
             scale: Qt.vector3d(0.022, 0.016, 0.022)
-            materials: PrincipledMaterial { baseColor: "#8a95a1"; roughness: 0.35; metalness: 0.6 }
+            materials: Matte { baseColor: "#8a95a1" }
         }
         PointLight {
             visible: root.lit
@@ -208,14 +258,14 @@ Node {
     // --- switch -------------------------------------------------------------
     Node {
         visible: root.type === "switch"
-        Box3D {
+        Part {
             width: 4.6; height: 1.3; depth: 3.0
             position: Qt.vector3d(0, 0.7, 0)
             color: "#8a8378"
         }
         Node {  // lever pivots at the left contact
             position: Qt.vector3d(-1.6, 1.6, 0)
-            Box3D {
+            Part {
                 width: 3.4; height: 0.65; depth: 1.5
                 position: Qt.vector3d(1.6, 0, 0)
                 color: root.switchOn ? LabTheme.forest : LabTheme.clay
@@ -229,12 +279,12 @@ Node {
                 source: "#Cylinder"
                 position: Qt.vector3d(index === 0 ? -1.6 : 1.6, 1.65, 0)
                 scale: Qt.vector3d(0.009, 0.005, 0.009)
-                materials: PrincipledMaterial { baseColor: LabTheme.highlight; roughness: 0.3 }
+                materials: Matte { baseColor: LabTheme.highlight }
             }
         }
     }
 
-    // --- meters (ammeter teal ring, voltmeter pink ring) ---------------------
+    // --- meters (ammeter forest ring, voltmeter plum ring) -------------------
     Node {
         id: _meter
         visible: root.type === "ammeter" || root.type === "voltmeter"
@@ -243,13 +293,13 @@ Node {
             source: "#Cylinder"
             position: Qt.vector3d(0, 1.2, 0)
             scale: Qt.vector3d(0.05, 0.014, 0.05)
-            materials: PrincipledMaterial { baseColor: LabTheme.panel; roughness: 0.55 }
+            materials: Matte { baseColor: LabTheme.panel }
         }
         Model {  // ring
             source: "#Cylinder"
             position: Qt.vector3d(0, 1.05, 0)
             scale: Qt.vector3d(0.058, 0.012, 0.058)
-            materials: PrincipledMaterial { baseColor: _meter.ring; roughness: 0.5 }
+            materials: Matte { baseColor: _meter.ring }
         }
     }
 }

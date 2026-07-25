@@ -84,16 +84,32 @@ Rectangle {
             const pad = (vMax - vMin) * 0.08
             vMin -= pad; vMax += pad
 
+            // Legend band on top, axis gutter on the left: the curves get a
+            // rect of their own so a spike can never run through a label.
+            ctx.font = "10px " + LabTheme.monoFont
+            // a flat-zero series must not read as "-0.00"
+            const fmt = v => (Math.abs(v) < 5e-3 ? 0 : v).toFixed(2)
+            const ticks = [vMax, (vMax + vMin) / 2, vMin].map(fmt)
+            let gutter = 0
+            for (const tk of ticks) gutter = Math.max(gutter, ctx.measureText(tk).width)
+            gutter += 8
+
+            const padT = 16, padB = 6, padR = 4
+            const pw = Math.max(1, width - gutter - padR)
+            const ph = Math.max(1, height - padT - padB)
+
             ctx.strokeStyle = LabTheme.grid.toString()
             ctx.lineWidth = 1
-            for (let i = 1; i < 4; ++i) {
-                const y = height * i / 4
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke()
+            for (let i = 0; i <= 2; ++i) {
+                const y = Math.round(padT + ph * i / 2) + 0.5
+                ctx.beginPath(); ctx.moveTo(gutter, y); ctx.lineTo(gutter + pw, y); ctx.stroke()
             }
 
-            const xOf = t => (t - t0) / (t1 - t0) * width
-            const yOf = v => height - (v - vMin) / (vMax - vMin) * height
+            const xOf = t => gutter + (t - t0) / (t1 - t0) * pw
+            const yOf = v => padT + ph - (v - vMin) / (vMax - vMin) * ph
 
+            ctx.save()
+            ctx.beginPath(); ctx.rect(gutter, padT, pw, ph); ctx.clip()
             for (let i = 0; i < series.length; ++i) {
                 const s = series[i]
                 if (s.pts.length < 2) continue
@@ -105,17 +121,25 @@ Rectangle {
                     ctx.lineTo(xOf(s.pts[k].t), yOf(s.pts[k].v))
                 ctx.stroke()
             }
+            ctx.restore()
 
-            ctx.font = "10px Menlo, monospace"
             ctx.fillStyle = LabTheme.inkFaint.toString()
-            ctx.fillText(vMax.toFixed(2), 4, 12)
-            ctx.fillText(vMin.toFixed(2), 4, height - 4)
+            for (let i = 0; i <= 2; ++i) {
+                const y = padT + ph * i / 2
+                ctx.fillText(ticks[i], gutter - 6 - ctx.measureText(ticks[i]).width,
+                             y + (i === 0 ? 8 : (i === 2 ? 0 : 4)))
+            }
+
+            let lx = gutter
             for (let i = 0; i < series.length; ++i) {
                 const s = series[i]
                 const last = s.pts.length ? s.pts[s.pts.length - 1].v : 0
+                const txt = s.name + ": " + last.toFixed(2) + (s.unit ? " " + s.unit : "")
+                const w = ctx.measureText(txt).width
+                if (lx + w > width - padR) break
                 ctx.fillStyle = _plot.seriesColors[i % _plot.seriesColors.length]
-                ctx.fillText(s.name + ": " + last.toFixed(2) + (s.unit ? " " + s.unit : ""),
-                             70 + i * 150, 12)
+                ctx.fillText(txt, lx, 11)
+                lx += w + 16
             }
         }
     }

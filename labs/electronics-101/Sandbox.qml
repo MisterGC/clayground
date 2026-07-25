@@ -11,7 +11,9 @@ import "../kits/circuit/circuit.js" as Circuit
 // switch, resistor, LED, bulb and meters, wired freely by clicking
 // terminals. A DC nodal solver lights things up in real time.
 // Keys: 1 led-basic · 2 series · 3 parallel · 4 metering · C clear ·
-// E eraser · Esc cancel · R record.
+// E eraser · # grid mode · R turn selected · Del remove selected ·
+// Shift+R record · Esc cancel. View: drag the empty board to orbit,
+// wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -53,7 +55,8 @@ Item {
     DataRecorder { id: recorder; destination: "electronics-101-run.csv" }
 
     // --- circuit state ---------------------------------------------------
-    // elements: {id, type, col, row, value, on} - wires: {id, a:[el,ti], b:[el,ti]}
+    // elements: {id, type, col, row, rot, value, on} - col/row are fractional
+    // cell coordinates (snapping rounds them) - wires: {id, a:[el,ti], b:[el,ti]}
     property var elements: []
     property var wires: []
     property int nextId: 1
@@ -78,7 +81,12 @@ Item {
         elemRev
         const el = elemAt(elId)
         if (!el) return Qt.vector3d(0, 0, 0)
-        return Qt.vector3d(cellX(el.col) + (ti === 0 ? -3.5 : 3.5), 1.9, cellZ(el.row))
+        // local (+/-3.5, 0) turned by the part's yaw (Qt rotates y ccw seen
+        // from above: x' = x*cos, z' = -x*sin)
+        const off = ti === 0 ? -3.5 : 3.5
+        const a = (el.rot || 0) * Math.PI / 180
+        return Qt.vector3d(cellX(el.col) + off * Math.cos(a), 1.9,
+                           cellZ(el.row) - off * Math.sin(a))
     }
 
     function resolve() {
@@ -92,7 +100,8 @@ Item {
 
     function cellFree(col, row, ignoreId) {
         for (const el of elements)
-            if (el.id !== ignoreId && el.col === col && el.row === row) return false
+            if (el.id !== ignoreId && Math.abs(el.col - col) < 0.6
+                && Math.abs(el.row - row) < 0.6) return false
         return true
     }
     function nearestFreeCell(col, row) {
@@ -112,7 +121,7 @@ Item {
         const spot = nearestFreeCell(col === undefined ? 5 : col,
                                      row === undefined ? 3 : row)
         if (!spot) return -1
-        const el = { id: nextId++, type: type, col: spot.col, row: spot.row,
+        const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
                      value: type === "resistor" ? 470 : 0, on: false }
         elements = elements.concat([el])
         resolve()
@@ -121,15 +130,28 @@ Item {
     function removeElement(id) {
         wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
         elements = elements.filter(el => el.id !== id)
+        if (selectedId === id) selectedId = -1
         resolve()
     }
-    function moveElement(id, col, row) {
+    // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
+    // follows the cursor freely and may sit anywhere on the board
+    function moveElement(id, col, row, snap) {
         const el = elemAt(id)
         if (!el) return
-        col = Math.max(0, Math.min(cols - 1, Math.round(col)))
-        row = Math.max(0, Math.min(rows - 1, Math.round(row)))
-        if (!cellFree(col, row, id)) return
+        col = Math.max(0, Math.min(cols - 1, col))
+        row = Math.max(0, Math.min(rows - 1, row))
+        if (snap) {
+            col = Math.round(col); row = Math.round(row)
+            if (!cellFree(col, row, id)) return
+        }
         el.col = col; el.row = row
+        elemRev++
+    }
+    // 90 degree steps, kept unbounded so the animation always turns forward
+    function rotateElement(id) {
+        const el = elemAt(id)
+        if (!el) return
+        el.rot = (el.rot || 0) + 90
         elemRev++
     }
     function toggleSwitch(id) {
@@ -164,7 +186,68 @@ Item {
     function clearBoard() {
         elements = []; wires = []
         wiringFrom = null
+        selectedId = -1
         resolve()
+    }
+
+    // --- camera -----------------------------------------------------------
+    // An orbit cam on a leash: it always looks at the setup, always stays
+    // above the board and outside the parts, and it reframes itself for the
+    // scenario that is on the board. You can circle it and zoom in, but you
+    // cannot fly into a part or end up lost under the table.
+    property real camYaw: 0        // degrees around the setup
+    property real camPitch: 48     // degrees above the board plane
+    property real camDist: 80      // distance to the pivot
+    property var camPivot: Qt.vector3d(0, 2, 0)
+
+    readonly property real camPitchMin: 22   // never skim along the board
+    readonly property real camPitchMax: 84   // never flip over the top
+    readonly property real camDistMin: 20    // clears a single part
+    readonly property real camDistMax: 170
+    readonly property real camHeightMin: 9   // taller than anything on the board
+
+    // The leash: pitch and distance are bounded, and on top of that the
+    // camera must stay at least camHeightMin above the pivot plane. That one
+    // rule is what makes clipping into a part impossible - flatten the angle
+    // and the rig backs off instead of diving through the setup.
+    function clampCam() {
+        camPitch = Math.max(camPitchMin, Math.min(camPitchMax, camPitch))
+        let d = Math.max(camDistMin, Math.min(camDistMax, camDist))
+        const sinP = Math.sin(camPitch * Math.PI / 180)
+        d = Math.max(d, camHeightMin / Math.max(0.05, sinP))
+        camDist = Math.min(d, camDistMax)
+    }
+    function orbitBy(dYaw, dPitch) {
+        camYaw += dYaw
+        camPitch -= dPitch
+        clampCam()
+    }
+    function zoomBy(f) { camDist *= f; clampCam() }
+
+    // Frame a set of cells: pivot on their centre, back off far enough to
+    // hold them all in view. With no argument it frames the whole setup.
+    function frameCells(cells) {
+        if (!cells || !cells.length) {
+            camPivot = Qt.vector3d(0, 2, 0)
+            camDist = camDistMax
+            clampCam()
+            return
+        }
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity
+        for (const c of cells) {
+            const x = cellX(c.col), z = cellZ(c.row)
+            x0 = Math.min(x0, x); x1 = Math.max(x1, x)
+            z0 = Math.min(z0, z); z1 = Math.max(z1, z)
+        }
+        camPivot = Qt.vector3d((x0 + x1) / 2, 2, (z0 + z1) / 2)
+        const r = Math.max(9, Math.hypot(x1 - x0, z1 - z0) / 2 + 7)
+        camDist = r * 1.7 + 20
+        clampCam()
+    }
+    function frameSetup() { frameCells(elements) }
+    function frameSelection() {
+        const el = elemAt(selectedId)
+        frameCells(el ? [el] : elements)
     }
 
     // --- serialization (survives reloads via the viewState convention) ---
@@ -174,21 +257,33 @@ Item {
                  nextId: nextId }
     }
     function loadCircuit(s) {
-        elements = s.elements.map(el => Object.assign({}, el))
+        elements = s.elements.map(el => Object.assign({ rot: 0 }, el))
         wires = s.wires.map(w => ({ id: w.id, a: w.a.slice(), b: w.b.slice() }))
         nextId = s.nextId
         wiringFrom = null
+        selectedId = -1
         resolve()
     }
 
     function viewState() {
-        return Object.assign(Lab.viewState(), { circuit: circuitState() })
+        return Object.assign(Lab.viewState(), {
+            circuit: circuitState(),
+            cam: { yaw: camYaw, pitch: camPitch, dist: camDist,
+                   px: camPivot.x, pz: camPivot.z }
+        })
     }
     // The user's board wins over the scenario preset: with a circuit payload
     // the scenario is NOT re-applied, the exact board comes back instead.
+    // The viewpoint is restored last, so a rearmed scenario cannot yank the
+    // camera away from where the user was looking.
     function applyViewState(s) {
         if (s.circuit) loadCircuit(s.circuit)
         else if (s.scenario) applyScenario(s.scenario)
+        if (s.cam) {
+            camPivot = Qt.vector3d(s.cam.px, 2, s.cam.pz)
+            camYaw = s.cam.yaw; camPitch = s.cam.pitch; camDist = s.cam.dist
+            clampCam()
+        }
         Lab.applyViewState(s)
     }
 
@@ -259,7 +354,11 @@ Item {
         }
     }
     function scenarios() { return scenarioSet.names() }
-    function applyScenario(n) { return scenarioSet.apply(n) }
+    function applyScenario(n) {
+        const r = scenarioSet.apply(n)
+        frameSetup()   // every preset arrives properly framed
+        return r
+    }
 
     function labInfo() {
         const info = Lab.labInfo()
@@ -268,6 +367,7 @@ Item {
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
                          iterations: sim.iterations }
+        info.ui = { selected: selectedId, snap: snapToGrid }
         return info
     }
     function flagInfo() { return labInfo() }
@@ -278,6 +378,8 @@ Item {
     property var hoverHit: null         // last hit under the cursor
     property var cursorW: Qt.vector3d(0, 1.9, 0)
     property string paletteDrag: ""     // element type while dragging from GUI
+    property int selectedId: -1         // -1 = nothing selected
+    property bool snapToGrid: true      // grafli-style grid mode, # toggles it
 
     // world-space hit test against the data model (no per-model picking)
     function hitAt(wx, wz) {
@@ -290,7 +392,11 @@ Item {
             }
         for (const el of elements) {
             const x = cellX(el.col), z = cellZ(el.row)
-            if (Math.abs(x - wx) < 4.6 && Math.abs(z - wz) < 3.4)
+            // body box turned by the part's yaw -> axis-aligned bound of it
+            const a = (el.rot || 0) * Math.PI / 180
+            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
+            if (Math.abs(x - wx) < 4.6 * c + 3.4 * s
+                && Math.abs(z - wz) < 4.6 * s + 3.4 * c)
                 return { kind: "element", el: el.id, type: el.type }
         }
         for (let i = 0; i < wires.length; ++i) {
@@ -330,28 +436,61 @@ Item {
         camera: cam
 
         environment: SceneEnvironment {
-            clearColor: LabTheme.paper
+            // slightly lighter than the table below, so that a horizon line
+            // appears at low camera angles - the eye keeps a reference
+            clearColor: "#f2eee7"
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
         }
 
-        PerspectiveCamera {
-            id: cam
-            position: Qt.vector3d(0, 60, 54)
-            eulerRotation: Qt.vector3d(-47, 0, 0)
+        Model {  // the table the board lies on: grounds the view from any angle
+            source: "#Cube"
+            position: Qt.vector3d(0, -4.2, 0)
+            scale: Qt.vector3d(6.0, 0.02, 4.4)
+            materials: PrincipledMaterial {
+                baseColor: LabTheme.paper
+                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
+            }
         }
 
+        // Orbit rig: the camera hangs off a yaw node at the pivot, so it can
+        // never look anywhere but at the setup.
+        Node {
+            position: root.camPivot
+            eulerRotation.y: root.camYaw
+            Behavior on position { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
+            Node {
+                eulerRotation.x: -root.camPitch
+                PerspectiveCamera {
+                    id: cam
+                    position: Qt.vector3d(0, 0, root.camDist)
+                    clipNear: 1
+                    clipFar: 900
+                    Behavior on position { Vector3dAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                }
+            }
+        }
+
+        // Three soft lights instead of one hard one: key with shadows, side
+        // fill, and a low camera-side fill so unlit faces still separate.
+        // Nothing in the scene is glossy, so depth comes from value, not glare.
         DirectionalLight {
             eulerRotation.x: -35
             eulerRotation.y: -25
+            brightness: 0.9
             castsShadow: true
-            shadowFactor: 78
+            shadowFactor: 60
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
         }
         DirectionalLight {
             eulerRotation.x: -60
             eulerRotation.y: 140
             brightness: 0.35
+        }
+        DirectionalLight {
+            eulerRotation.x: -25
+            eulerRotation.y: 20
+            brightness: 0.28
         }
 
         Model {  // pegboard - the only pickable model; everything maps through it
@@ -360,23 +499,46 @@ Item {
             pickable: true
             position: Qt.vector3d(0, -2, 0)
             scale: Qt.vector3d(1.06, 0.04, 0.66)
-            materials: PrincipledMaterial { baseColor: LabTheme.paperDeep; roughness: 0.9 }
+            materials: PrincipledMaterial {
+                baseColor: LabTheme.paperDeep
+                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
+            }
         }
         Box3D {  // rim
             width: 112; height: 1.6; depth: 72
             position: Qt.vector3d(0, -3.0, 0)
             color: LabTheme.ink
+            useToonShading: true
         }
-        Repeater3D {  // peg dots mark the cells
+        // Peg marks: dots when parts move freely, small crosses while the
+        // grid snaps - the board itself tells you which mode you are in
+        // (that cue is borrowed from grafli's grid modes).
+        Repeater3D {
             model: root.cols * root.rows
-            Model {
-                source: "#Cylinder"
+            Node {
                 position: Qt.vector3d(root.cellX(index % root.cols), 0.05,
                                       root.cellZ(Math.floor(index / root.cols)))
-                scale: Qt.vector3d(0.008, 0.001, 0.008)
-                materials: PrincipledMaterial {
-                    baseColor: LabTheme.grid
-                    lighting: PrincipledMaterial.NoLighting
+                Model {
+                    source: "#Cylinder"
+                    visible: !root.snapToGrid
+                    scale: Qt.vector3d(0.008, 0.001, 0.008)
+                    materials: PrincipledMaterial {
+                        baseColor: LabTheme.grid
+                        lighting: PrincipledMaterial.NoLighting
+                    }
+                }
+                Repeater3D {
+                    model: 2
+                    Model {
+                        source: "#Cube"
+                        visible: root.snapToGrid
+                        scale: index === 0 ? Qt.vector3d(0.016, 0.0008, 0.0035)
+                                           : Qt.vector3d(0.0035, 0.0008, 0.016)
+                        materials: PrincipledMaterial {
+                            baseColor: LabTheme.grid
+                            lighting: PrincipledMaterial.NoLighting
+                        }
+                    }
                 }
             }
         }
@@ -396,7 +558,14 @@ Item {
                     return e ? Qt.vector3d(root.cellX(e.col), 0, root.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
                 }
+                eulerRotation.y: {
+                    root.elemRev
+                    const e = root.elemAt(modelData.id)
+                    return e ? (e.rot || 0) : 0
+                }
+                Behavior on eulerRotation.y { NumberAnimation { duration: 150 } }
                 type: modelData.type
+                selected: root.selectedId === modelData.id
                 value: {
                     root.elemRev
                     const e = root.elemAt(modelData.id)
@@ -467,9 +636,17 @@ Item {
         id: boardMouse
         anchors.fill: parent
         hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         property var dragElem: null
         property bool dragged: false
         property var pressW: null
+        property bool orbiting: false
+        property real lastX: 0
+        property real lastY: 0
+        // Alt inverts the current grid mode for the length of one drag
+        function snapping(mods) {
+            return root.snapToGrid !== ((mods & Qt.AltModifier) !== 0)
+        }
 
         function worldAt(mx, my) {
             const res = view3d.pick(mx, my)
@@ -477,7 +654,14 @@ Item {
             return null
         }
 
+        onWheel: (wheel) => root.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
+
         onPositionChanged: (mouse) => {
+            if (pressed && orbiting) {
+                root.orbitBy((mouse.x - lastX) * 0.32, (mouse.y - lastY) * 0.22)
+                lastX = mouse.x; lastY = mouse.y
+                return
+            }
             const w = worldAt(mouse.x, mouse.y)
             if (!w) return
             root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
@@ -487,7 +671,8 @@ Item {
                 if (dragged)
                     root.moveElement(dragElem,
                                      w.x / root.cell + (root.cols - 1) / 2,
-                                     w.z / root.cell + (root.rows - 1) / 2)
+                                     w.z / root.cell + (root.rows - 1) / 2,
+                                     snapping(mouse.modifiers))
             } else {
                 root.hoverHit = root.hitAt(w.x, w.z)
             }
@@ -495,10 +680,23 @@ Item {
         onPressed: (mouse) => {
             root.forceActiveFocus()
             const w = worldAt(mouse.x, mouse.y)
-            if (!w) return
             pressW = w; dragged = false; dragElem = null
-            const hit = root.hitAt(w.x, w.z)
-            if (!hit) { if (!root.eraser) root.wiringFrom = null; return }
+            orbiting = false; lastX = mouse.x; lastY = mouse.y
+            const hit = w ? root.hitAt(w.x, w.z) : null
+            if (mouse.button === Qt.RightButton) {
+                if (hit && (hit.kind === "element" || hit.kind === "terminal")) {
+                    root.selectedId = hit.el
+                    root.rotateElement(hit.el)
+                }
+                return
+            }
+            // empty board (or off-board): the drag turns the view instead
+            if (!hit) {
+                root.selectedId = -1
+                if (!root.eraser) root.wiringFrom = null
+                orbiting = true
+                return
+            }
             if (root.eraser) {
                 if (hit.kind === "wire") root.removeWire(hit.wire)
                 else if (hit.kind === "element" || hit.kind === "terminal")
@@ -515,8 +713,10 @@ Item {
                 }
                 return
             }
-            if (hit.kind === "element")
+            if (hit.kind === "element") {
+                root.selectedId = hit.el
                 dragElem = hit.el
+            }
         }
         onReleased: {
             if (dragElem && !dragged) {
@@ -524,7 +724,7 @@ Item {
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
                 else if (el && el.type === "resistor") root.cycleResistor(dragElem)
             }
-            dragElem = null; dragged = false
+            dragElem = null; dragged = false; orbiting = false
         }
     }
 
@@ -612,6 +812,18 @@ Item {
             }
             Rectangle {
                 width: 148; height: 30; radius: 6
+                color: LabTheme.paper
+                border.color: root.snapToGrid ? LabTheme.secondary : LabTheme.panelEdge
+                Text {
+                    anchors.centerIn: parent
+                    text: root.snapToGrid ? "Grid: snap  (#)" : "Grid: free  (#)"
+                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    font.family: LabTheme.monoFont
+                }
+                MouseArea { anchors.fill: parent; onClicked: root.snapToGrid = !root.snapToGrid }
+            }
+            Rectangle {
+                width: 148; height: 30; radius: 6
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
@@ -621,6 +833,47 @@ Item {
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
             }
+            Rectangle {
+                width: 148; height: 30; radius: 6
+                color: LabTheme.paper; border.color: LabTheme.panelEdge
+                Text {
+                    anchors.centerIn: parent
+                    text: "View " + Math.round(((root.camYaw % 360) + 360) % 360)
+                          + "°   reset (0)"
+                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    font.family: LabTheme.monoFont
+                }
+                MouseArea { anchors.fill: parent; onClicked: root.frameSetup() }
+            }
+        }
+    }
+
+    // --- compass: which way the board faces while you circle it ------------
+    Rectangle {
+        x: 12; y: palette.y + palette.height + 10
+        width: 72; height: 72; radius: 36
+        color: LabTheme.panel
+        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
+
+        Rectangle {  // the board, seen from above, turning with the view
+            anchors.centerIn: parent
+            width: 40; height: 26; radius: 3
+            color: LabTheme.paperDeep
+            border.color: LabTheme.ink; border.width: 1.5
+            rotation: -root.camYaw
+            Rectangle {  // front edge marker
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: 14; height: 3
+                color: LabTheme.accent
+            }
+        }
+        Rectangle {  // you: fixed at the bottom, the board turns instead
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 4
+            width: 8; height: 8; radius: 4
+            color: LabTheme.secondary
         }
     }
 
@@ -655,7 +908,8 @@ Item {
             readonly property bool isMeter: modelData.type === "ammeter"
                                             || modelData.type === "voltmeter"
             readonly property var screenAt: {
-                root.elemRev
+                // re-project whenever the part moves OR the camera does
+                root.elemRev; cam.scenePosition; cam.sceneRotation
                 const e = root.elemAt(modelData.id)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return view3d.mapFrom3DScene(Qt.vector3d(
@@ -669,8 +923,8 @@ Item {
                 return s.v.toFixed(2) + " V"
             }
             visible: isMeter && screenAt.z > 0
-            x: screenAt.x - width / 2
-            y: screenAt.y - height
+            x: Math.max(4, Math.min(root.width - width - 4, screenAt.x - width / 2))
+            y: Math.max(4, Math.min(root.height - height - 4, screenAt.y - height))
             width: readingText.width + 18
             height: 24
             radius: 12
@@ -683,6 +937,64 @@ Item {
                 text: (modelData.type === "ammeter" ? "A " : "V ") + parent.reading
                 color: LabTheme.ink; font.pixelSize: 13; font.bold: true
                 font.family: LabTheme.monoFont
+            }
+        }
+    }
+
+    // --- selection card (what is selected, what it reads, what you can do) -
+    Rectangle {
+        id: selCard
+        readonly property var el: {
+            root.elemRev
+            return root.selectedId === -1 ? null : root.elemAt(root.selectedId)
+        }
+        readonly property var screenAt: {
+            root.elemRev; cam.scenePosition; cam.sceneRotation
+            if (!el) return Qt.vector3d(0, 0, 0)
+            return view3d.mapFrom3DScene(Qt.vector3d(root.cellX(el.col), 0,
+                                                     root.cellZ(el.row) + 5.5))
+        }
+        visible: el !== null && screenAt.z > 0
+        // kept inside the window: zoomed in, the anchor point can sit far
+        // below the viewport
+        x: Math.max(8, Math.min(root.width - width - 8, screenAt.x - width / 2))
+        y: Math.max(8, Math.min(root.height - height - 44, screenAt.y + 6))
+        width: selCol.width + 20
+        height: selCol.height + 14
+        radius: LabTheme.radius
+        color: LabTheme.panel
+        border.color: LabTheme.secondary
+        border.width: LabTheme.borderWidth
+
+        Column {
+            id: selCol
+            x: 10; y: 7
+            spacing: 1
+            Text {
+                text: {
+                    if (!selCard.el) return ""
+                    const e = selCard.el
+                    if (e.type === "resistor") return "RESISTOR  " + e.value + " Ω"
+                    if (e.type === "battery") return "BATTERY  " + pBatteryV.value.toFixed(1) + " V"
+                    if (e.type === "switch") return "SWITCH  " + (e.on ? "closed" : "open")
+                    return e.type.toUpperCase()
+                }
+                color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+                font.letterSpacing: 1.0; font.family: LabTheme.monoFont
+            }
+            Text {
+                text: {
+                    if (!selCard.el) return ""
+                    const s = root.simOf(selCard.el.id)
+                    return s.v.toFixed(2) + " V   " + (s.i * 1000).toFixed(1) + " mA"
+                }
+                color: LabTheme.inkSoft; font.pixelSize: 11
+                font.family: LabTheme.monoFont
+            }
+            Text {
+                text: "R turn · Del remove · drag to move"
+                color: LabTheme.inkFaint; font.pixelSize: 12
+                font.family: LabTheme.handFont
             }
         }
     }
@@ -722,7 +1034,11 @@ Item {
             text: {
                 if (root.eraser) return "eraser: click parts or wire knots to remove · E exits"
                 if (root.wiringFrom) return "click a second terminal to connect · Esc cancels"
-                return "wire: click two gold terminals · click switch to flip · click resistor to change Ω · drag to move · 1-4 presets"
+                if (root.selectedId !== -1)
+                    return "R turns the part · Del removes it · drag moves it"
+                    + (root.snapToGrid ? " (Alt places freely)" : " (Alt snaps)")
+                    + " · F frames it"
+                return "click two gold terminals to wire · click a part to select · drag the empty board to look around · wheel zooms · 0 resets the view"
             }
         }
     }
@@ -744,7 +1060,24 @@ Item {
         else if (ev.key === Qt.Key_4) applyScenario("metering")
         else if (ev.key === Qt.Key_C) clearBoard()
         else if (ev.key === Qt.Key_E) eraser = !eraser
-        else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false }
-        else if (ev.key === Qt.Key_R) recorder.recording = !recorder.recording
+        else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false; selectedId = -1 }
+        else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
+            snapToGrid = !snapToGrid
+        else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace) {
+            if (selectedId !== -1) removeElement(selectedId)
+        }
+        else if (ev.key === Qt.Key_R) {
+            if (ev.modifiers & Qt.ShiftModifier) recorder.recording = !recorder.recording
+            else if (selectedId !== -1) rotateElement(selectedId)
+        }
+        // --- view ---
+        else if (ev.key === Qt.Key_Left) orbitBy(-6, 0)
+        else if (ev.key === Qt.Key_Right) orbitBy(6, 0)
+        else if (ev.key === Qt.Key_Up) orbitBy(0, 4)
+        else if (ev.key === Qt.Key_Down) orbitBy(0, -4)
+        else if (ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) zoomBy(0.88)
+        else if (ev.key === Qt.Key_Minus) zoomBy(1.14)
+        else if (ev.key === Qt.Key_F) frameSelection()
+        else if (ev.key === Qt.Key_0 || ev.key === Qt.Key_Home) frameSetup()
     }
 }
