@@ -63,22 +63,23 @@ Node {
         // weight (and the nose mark) is what tells them apart
         readonly property color tone: LabTheme.secondary
         readonly property real bar: root.selected ? 0.38 : 0.22
+        readonly property real hw: root.type === "junction" ? 2.0 : 5.2
+        readonly property real hd: root.type === "junction" ? 2.0 : 3.9
         opacity: root.selected ? 1.0 : 0.55
         Repeater3D {
-            model: [{ x: 0, z: -3.9, along: true },
-                    { x: 0, z: 3.9, along: true },
-                    { x: -5.2, z: 0, along: false },
-                    { x: 5.2, z: 0, along: false }]
+            model: [{ along: true, s: -1 }, { along: true, s: 1 },
+                    { along: false, s: -1 }, { along: false, s: 1 }]
             Marker {
                 tint: frame.tone
-                position: Qt.vector3d(modelData.x, 0, modelData.z)
+                position: modelData.along ? Qt.vector3d(0, 0, modelData.s * frame.hd)
+                                          : Qt.vector3d(modelData.s * frame.hw, 0, 0)
                 scale: modelData.along
-                    ? Qt.vector3d(0.104, 0.0014, frame.bar / 100)
-                    : Qt.vector3d(frame.bar / 100, 0.0014, 0.082)
+                    ? Qt.vector3d((frame.hw * 2) / 100, 0.0014, frame.bar / 100)
+                    : Qt.vector3d(frame.bar / 100, 0.0014, (frame.hd * 2) / 100)
             }
         }
         Marker {  // nose mark: shows which way the part faces after a rotation
-            visible: root.selected
+            visible: root.selected && root.type !== "junction"
             tint: LabTheme.accent
             position: Qt.vector3d(6.2, 0, 0)
             scale: Qt.vector3d(0.013, 0.0014, 0.013)
@@ -86,28 +87,35 @@ Node {
         }
     }
 
+    // --- junction: a solder dot where wires meet ----------------------------
+    Model {
+        visible: root.type === "junction"
+        source: "#Sphere"
+        position: Qt.vector3d(0, 0.5, 0)
+        scale: Qt.vector3d(0.02, 0.013, 0.02)
+        materials: Matte {
+            baseColor: root.wiringTerminal >= 0 ? LabTheme.secondary : LabTheme.ink
+            emissiveFactor: root.wiringTerminal >= 0
+                            ? Qt.vector3d(0, 0.3, 0.6) : Qt.vector3d(0, 0, 0)
+        }
+    }
+
     // --- terminals ----------------------------------------------------------
+    // Contact pads sunk into the board rather than balls on posts: the wires
+    // lie flat on the paper, so they have to meet the terminals at board
+    // level. A low dome still catches the light and reads as a solder blob.
     Repeater3D {
         model: 2
         Model {
+            visible: root.type !== "junction"   // the dot is its own pad
             source: "#Sphere"
-            position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.9, 0)
-            scale: Qt.vector3d(0.02, 0.02, 0.02)
+            position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.62, 0)
+            scale: Qt.vector3d(0.022, 0.012, 0.022)
             materials: Matte {
                 baseColor: root.wiringTerminal === index ? LabTheme.secondary : LabTheme.highlight
                 emissiveFactor: root.wiringTerminal === index
                                 ? Qt.vector3d(0, 0.3, 0.6) : Qt.vector3d(0, 0, 0)
             }
-        }
-    }
-    // terminal posts down to the board
-    Repeater3D {
-        model: 2
-        Model {
-            source: "#Cylinder"
-            position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.4, 0)
-            scale: Qt.vector3d(0.008, 0.011, 0.008)
-            materials: Matte { baseColor: "#9a8a5a" }
         }
     }
 
@@ -204,12 +212,14 @@ Node {
             width: 1.6; height: 0.3; depth: 0.7
             position: Qt.vector3d(-1.4, 0.5, 0); color: LabTheme.highlight
         }
-        PointLight {
+        PointLight {  // a pool of light on the paper, not room lighting
             visible: root.lit
             position: Qt.vector3d(0, 3.2, 0)
             color: "#e8785e"
-            brightness: 1.6 * _led.glow
-            quadraticFade: 0.02
+            brightness: 1.5 * _led.glow
+            constantFade: 1.0
+            linearFade: 0.2
+            quadraticFade: 0.9
         }
     }
 
@@ -245,12 +255,14 @@ Node {
             scale: Qt.vector3d(0.022, 0.016, 0.022)
             materials: Matte { baseColor: "#8a95a1" }
         }
-        PointLight {
+        PointLight {  // bright bulbs must not wash the whole board yellow
             visible: root.lit
             position: Qt.vector3d(0, 3.8, 0)
             color: "#e8cf8a"
-            brightness: 2.2 * _bulb.glow
-            quadraticFade: 0.015
+            brightness: 1.6 * _bulb.glow
+            constantFade: 1.0
+            linearFade: 0.25
+            quadraticFade: 1.2
         }
     }
 

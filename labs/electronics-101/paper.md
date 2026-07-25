@@ -12,7 +12,7 @@ never show is *why* — why two bulbs in series glow dim while the same two
 in parallel blaze, why a resistor tames an LED, why one careless wire
 from plus to minus is a short. This lab puts the kit on a 3D pegboard and
 runs a real circuit solver underneath it: you drag parts out of the
-palette, wire terminals by clicking two gold spheres, flip the switch,
+palette, wire terminals by clicking two gold pads, flip the switch,
 and every LED, bulb and meter answers with the number Kirchhoff's laws
 demand. The board is a toy; the physics is not.
 
@@ -169,8 +169,24 @@ Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
 
 Drag parts from the palette onto the board, click two gold terminals to
 wire, click a switch to flip it, click a resistor to cycle its ohms, drag
-a part to move it. Every preset starts with the switch **open** — flipping
+a part to move it, and click a wire anywhere along its length to branch off
+it (the eraser removes wires, junctions and parts alike). Every preset starts with the switch **open** — flipping
 it is the invitation.
+
+Wires meet at **junctions**: click any wire and a solder dot is dropped
+where you clicked, splitting it in two and starting a branch from that point
+— which is what makes a real parallel circuit buildable instead of a star of
+wires from one terminal. A junction is electrically neutral (a short between
+its two coincident terminals), so inserting one never changes a reading. The
+`parallel` preset is built from them and is laid out as a ladder — two rungs
+between two rails, source at the bottom — because a parallel circuit that
+looks like a tangle teaches the wrong thing.
+
+`V` toggles **value labels**: every part shows its current and voltage and
+every wire its current. That one toggle is the lab's whole argument, made
+readable: in series the same current appears on every wire while the
+voltages divide; in parallel the same voltage sits across both rungs while
+the current splits and re-joins at the junctions.
 
 Hovering a part draws a thin blue outline around it on the paper, the same
 blue the terminals light up in; clicking **selects** it, which thickens that
@@ -196,11 +212,25 @@ whatever you move. Two things make them legible at this scale:
   was worth measuring rather than eyeballing — the failure at both ends
   looks identical from a distance ("no shadows").
 
-Wires are drawn as **tube geometry** (`labs/kits/circuit/Wire3D.qml`, one
-cylinder per polyline segment) rather than with `MultiLine3D`. A line batch
-is far cheaper, but its ribbons are camera-facing quads with an unshaded
-custom material, and the shadow pass skips those — a batched line can never
-drop a shadow. Real tubes also hold up when the camera goes low.
+Wires lie **flat on the board** and are drawn as one instanced line batch
+(`LineBatch3D` in `Flat` orientation), which is what buys the current
+animation: each wire is an ink line with a chevron pattern marching along it,
+speed bucketed by current magnitude, pointing the way the current actually
+runs. No current, no chevrons — so an open switch or a backwards LED is
+visible at a glance instead of only in the numbers. Parts are sunk slightly
+into the board and their terminals are near-flush pads, so the wires meet
+them at board level. Nobody expects a shadow from a line lying on paper, so
+shadows are now a question only for the parts, where they work.
+
+Giving each wire a direction needs a little care. A wire cannot be oriented
+by voltage: in this model a wire **is** the net (ideal, zero resistance), so
+both of its ends sit at exactly the same potential by construction. What is
+known is every element's current, so `attributeWireCurrents` derives the
+wires from Kirchhoff's current law: repeatedly find a terminal where only one
+wire's current is still unknown, and that wire's current follows from the
+others. Tree-shaped wiring resolves completely; a genuinely ambiguous wire
+(two wires in parallel between the same two terminals) stays unknown and
+simply does not animate, which is the honest answer.
 
 The view is an orbit cam on a leash. Dragging the empty board circles the
 setup, the wheel zooms, `F` frames the selected part and `0` reframes the

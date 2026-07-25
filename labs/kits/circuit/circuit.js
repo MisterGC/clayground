@@ -95,6 +95,9 @@ function conductanceOf(el, ledOn) {
     case "resistor":  return 1 / Math.max(0.1, el.value || 470);
     case "bulb":      return 1 / RBULB;
     case "switch":    return el.on ? 1 / RCLOSED : 1 / ROPEN;
+    // a junction is a solder dot: a place for wires to meet, electrically
+    // just a short between its (coincident) terminals
+    case "junction":  return 1 / RCLOSED;
     case "ammeter":   return 1 / RSHUNT;
     case "voltmeter": return 1 / RVOLT;
     case "led":       return ledOn ? 1 / RLED : 1 / ROPEN;
@@ -195,5 +198,77 @@ function solve(elements, wires) {
             result.shorted = true;
         result.perElement[el.id] = entry;
     }
+    result.wireCurrent = attributeWireCurrents(elements, wires, result.perElement);
     return result;
+}
+
+// ---- per-wire current ------------------------------------------------------
+//
+// A wire cannot be oriented by potential: it IS the net here (ideal, zero
+// resistance), so both of its ends sit at exactly the same voltage. What is
+// known instead is every element's current, so the wires follow from KCL.
+//
+// Sign convention out of the solver: v = V(term0) - V(term1) and, for passive
+// elements, i = v * G - so a positive current runs internally 0 -> 1 and
+// therefore leaves terminal 1. A battery is the other way round: positive is
+// discharge, leaving terminal 0 (its + side).
+function terminalOutflow(el, ti, i) {
+    var out = (el.type === "battery") ? (ti === 0) : (ti === 1);
+    return out ? i : -i;
+}
+
+// Peels terminals that have exactly one wire of unknown current and applies
+// KCL there, repeating until nothing new can be resolved. Tree-shaped wiring
+// resolves completely; genuinely ambiguous wires (two wires in parallel
+// between the same pair of terminals - a redundant connection) stay null and
+// simply do not animate, which is honest.
+function attributeWireCurrents(elements, wires, perElement) {
+    var byId = {}, i, w, k;
+    for (i = 0; i < elements.length; ++i) byId[elements[i].id] = elements[i];
+
+    var atTerm = {};                 // termKey -> [wire index]
+    for (i = 0; i < wires.length; ++i) {
+        w = wires[i];
+        var ka = termKey(w.a[0], w.a[1]), kb = termKey(w.b[0], w.b[1]);
+        (atTerm[ka] = atTerm[ka] || []).push(i);
+        (atTerm[kb] = atTerm[kb] || []).push(i);
+    }
+
+    var cur = [];                    // signed along a -> b, null while unknown
+    for (i = 0; i < wires.length; ++i) cur.push(null);
+
+    // current leaving terminal `key` through wire `idx`
+    function leaving(idx, key) {
+        var ww = wires[idx];
+        if (cur[idx] === null) return 0;
+        return termKey(ww.a[0], ww.a[1]) === key ? cur[idx] : -cur[idx];
+    }
+
+    var progress = true;
+    while (progress) {
+        progress = false;
+        for (k in atTerm) {
+            var list = atTerm[k], unknown = -1, unknownCount = 0;
+            for (i = 0; i < list.length; ++i)
+                if (cur[list[i]] === null) { unknown = list[i]; ++unknownCount; }
+            if (unknownCount !== 1) continue;
+
+            var parts = k.split(":");
+            var el = byId[parts[0]] || byId[parseInt(parts[0], 10)];
+            var entry = el ? perElement[el.id] : null;
+            if (!el || !entry) continue;
+
+            var need = terminalOutflow(el, parseInt(parts[1], 10), entry.i);
+            for (i = 0; i < list.length; ++i)
+                if (list[i] !== unknown) need -= leaving(list[i], k);
+
+            w = wires[unknown];
+            cur[unknown] = termKey(w.a[0], w.a[1]) === k ? need : -need;
+            progress = true;
+        }
+    }
+
+    var out = {};
+    for (i = 0; i < wires.length; ++i) out[wires[i].id] = cur[i];
+    return out;
 }

@@ -11,7 +11,7 @@ import "../kits/circuit/circuit.js" as Circuit
 // switch, resistor, LED, bulb and meters, wired freely by clicking
 // terminals. A DC nodal solver lights things up in real time.
 // Keys: 1 led-basic · 2 series · 3 parallel · 4 metering · C clear ·
-// E eraser · # grid mode · R turn selected · Del remove selected ·
+// E eraser · V show all values · # grid mode · R turn selected · Del remove ·
 // Shift+R record · Esc cancel. View: drag the empty board to orbit,
 // wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
 Item {
@@ -85,9 +85,10 @@ Item {
         if (!el) return Qt.vector3d(0, 0, 0)
         // local (+/-3.5, 0) turned by the part's yaw (Qt rotates y ccw seen
         // from above: x' = x*cos, z' = -x*sin)
-        const off = ti === 0 ? -3.5 : 3.5
+        // a junction is a single point: both of its terminals sit dead centre
+        const off = el.type === "junction" ? 0 : (ti === 0 ? -3.5 : 3.5)
         const a = (el.rot || 0) * Math.PI / 180
-        return Qt.vector3d(cellX(el.col) + off * Math.cos(a), 1.9,
+        return Qt.vector3d(cellX(el.col) + off * Math.cos(a), 0.35,
                            cellZ(el.row) - off * Math.sin(a))
     }
 
@@ -100,14 +101,16 @@ Item {
     }
     Connections { target: pBatteryV; function onValueChanged() { root.resolve() } }
 
-    // Two pegs of clearance: parts are wider than one raster step
-    function cellFree(col, row, ignoreId) {
-        for (const el of elements)
-            if (el.id !== ignoreId && Math.abs(el.col - col) < 1.6
-                && Math.abs(el.row - row) < 1.6) return false
+    // Two pegs of clearance for real parts; junctions are dots and need one
+    function cellFree(col, row, ignoreId, type) {
+        for (const el of elements) {
+            if (el.id === ignoreId) continue
+            const k = (type === "junction" || el.type === "junction") ? 0.7 : 1.6
+            if (Math.abs(el.col - col) < k && Math.abs(el.row - row) < k) return false
+        }
         return true
     }
-    function nearestFreeCell(col, row) {
+    function nearestFreeCell(col, row, type) {
         col = Math.max(0, Math.min(cols - 1, Math.round(col)))
         row = Math.max(0, Math.min(rows - 1, Math.round(row)))
         for (let radius = 0; radius < cols; ++radius)
@@ -115,14 +118,14 @@ Item {
                 for (let dc = -radius; dc <= radius; ++dc) {
                     const c = col + dc, r = row + dr
                     if (c < 0 || c >= cols || r < 0 || r >= rows) continue
-                    if (cellFree(c, r, -1)) return { col: c, row: r }
+                    if (cellFree(c, r, -1, type)) return { col: c, row: r }
                 }
         return null
     }
 
     function addElement(type, col, row) {
         const spot = nearestFreeCell(col === undefined ? 10 : col,
-                                     row === undefined ? 6 : row)
+                                     row === undefined ? 6 : row, type)
         if (!spot) return -1
         const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
                      value: type === "resistor" ? 470 : 0, on: false }
@@ -130,6 +133,38 @@ Item {
         resolve()
         return el.id
     }
+    // A solder dot: wires meet here, so a board is no longer limited to
+    // point-to-point links between part terminals. Placed exactly (never
+    // snapped), because it lands wherever the wire was clicked.
+    function addJunction(col, row) {
+        const j = { id: nextId++, type: "junction", col: col, row: row,
+                    rot: 0, value: 0, on: false }
+        elements = elements.concat([j])
+        resolve()
+        return j.id
+    }
+
+    // Drops a junction onto an existing wire and splits it in two, which is
+    // what makes a branch (and therefore a parallel circuit) buildable.
+    function splitWireAt(wireId, wx, wz) {
+        let w = null
+        for (const x of wires) if (x.id === wireId) w = x
+        if (!w) return -1
+        const a = terminalPos(w.a[0], w.a[1])
+        const b = terminalPos(w.b[0], w.b[1])
+        const dx = b.x - a.x, dz = b.z - a.z
+        const len2 = dx * dx + dz * dz
+        const t = len2 < 1e-9 ? 0
+            : Math.max(0, Math.min(1, ((wx - a.x) * dx + (wz - a.z) * dz) / len2))
+        const j = addJunction((a.x + t * dx) / cell + (cols - 1) / 2,
+                              (a.z + t * dz) / cell + (rows - 1) / 2)
+        wires = wires.filter(x => x.id !== wireId).concat([
+            { id: nextId++, a: w.a, b: [j, 0] },
+            { id: nextId++, a: [j, 0], b: w.b }])
+        resolve()
+        return j
+    }
+
     function removeElement(id) {
         wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
         elements = elements.filter(el => el.id !== id)
@@ -145,7 +180,7 @@ Item {
         row = Math.max(0, Math.min(rows - 1, row))
         if (snap) {
             col = Math.round(col); row = Math.round(row)
-            if (!cellFree(col, row, id)) return
+            if (!cellFree(col, row, id, el.type)) return
         }
         el.col = col; el.row = row
         elemRev++
@@ -315,25 +350,34 @@ Item {
                 const sw = root.addElement("switch", 10, 2)
                 const b1 = root.addElement("bulb", 16, 2)
                 const b2 = root.addElement("bulb", 16, 8)
+                const jc = root.addJunction(4, 8)   // corner, so the loop is a rectangle
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [b1, 0])
                 root.addWire([b1, 1], [b2, 1])
-                root.addWire([b2, 0], [bat, 0])
+                root.addWire([b2, 0], [jc, 0])
+                root.addWire([jc, 0], [bat, 0])
             }
         }
         Scenario {
+            // Drawn as a ladder on purpose: two rungs between two rails, the
+            // source at the bottom. Same circuit as before, but now it looks
+            // like the textbook picture instead of a star of long diagonals.
             name: "parallel"
             script: () => {
                 root.clearBoard()
-                const bat = root.addElement("battery", 4, 2)
-                const sw = root.addElement("switch", 10, 2)
-                const b1 = root.addElement("bulb", 16, 2)
-                const b2 = root.addElement("bulb", 16, 8)
+                const bat = root.addElement("battery", 5, 10)
+                const sw = root.addElement("switch", 11, 10)
+                const b1 = root.addElement("bulb", 10, 2)
+                const b2 = root.addElement("bulb", 10, 6)
+                const jl1 = root.addJunction(5, 2), jl2 = root.addJunction(5, 6)
+                const jr1 = root.addJunction(15, 2), jr2 = root.addJunction(15, 6)
+                root.addWire([jl1, 0], [b1, 0]); root.addWire([b1, 1], [jr1, 0])
+                root.addWire([jl2, 0], [b2, 0]); root.addWire([b2, 1], [jr2, 0])
+                root.addWire([jl1, 0], [jl2, 0])   // left rail
+                root.addWire([jr1, 0], [jr2, 0])   // right rail
+                root.addWire([jl2, 0], [bat, 0])
                 root.addWire([bat, 1], [sw, 0])
-                root.addWire([sw, 1], [b1, 0])
-                root.addWire([sw, 1], [b2, 0])
-                root.addWire([b1, 1], [bat, 0])
-                root.addWire([b2, 1], [bat, 0])
+                root.addWire([sw, 1], [jr2, 0])
             }
         }
         Scenario {
@@ -383,6 +427,7 @@ Item {
     property string paletteDrag: ""     // element type while dragging from GUI
     property int selectedId: -1         // -1 = nothing selected
     property bool snapToGrid: true      // grafli-style grid mode, # toggles it
+    property bool showValues: false     // V: label every part and every wire
 
     // world-space hit test against the data model (no per-model picking)
     function hitAt(wx, wz) {
@@ -395,6 +440,7 @@ Item {
             }
         for (const el of elements) {
             const x = cellX(el.col), z = cellZ(el.row)
+            if (el.type === "junction") continue   // handled as a terminal
             // body box turned by the part's yaw -> axis-aligned bound of it
             const a = (el.rot || 0) * Math.PI / 180
             const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
@@ -402,35 +448,81 @@ Item {
                 && Math.abs(z - wz) < 4.6 * s + 3.4 * c)
                 return { kind: "element", el: el.id, type: el.type }
         }
-        for (let i = 0; i < wires.length; ++i) {
-            const apex = wireApex(wires[i], i)
-            if (Math.hypot(apex.x - wx, apex.z - wz) < 2.0)
-                return { kind: "wire", wire: wires[i].id }
+        // wires lie flat on the board, so a point-to-segment distance is all
+        // it takes to grab one anywhere along its length
+        for (const w of wires) {
+            const a = terminalPos(w.a[0], w.a[1])
+            const b = terminalPos(w.b[0], w.b[1])
+            const dx = b.x - a.x, dz = b.z - a.z
+            const len2 = dx * dx + dz * dz
+            const t = len2 < 1e-9 ? 0
+                : Math.max(0, Math.min(1, ((wx - a.x) * dx + (wz - a.z) * dz) / len2))
+            if (Math.hypot(a.x + t * dx - wx, a.z + t * dz - wz) < 1.3)
+                return { kind: "wire", wire: w.id }
         }
         return null
     }
 
-    function wireApex(w, idx) {
+    // --- wires --------------------------------------------------------------
+    // Wires are drawn flat on the board, as one instanced line batch: that is
+    // what buys arrowheads and a flowing current animation, and it stays a
+    // single draw call however many wires the board grows. Nothing expects a
+    // shadow from a line lying on the paper, so the shadow question is simply
+    // gone (a batch could not cast one anyway - see LineBatch3D).
+    readonly property real wireY: 0.12
+
+    function wireEnds(w) {
         const a = terminalPos(w.a[0], w.a[1])
         const b = terminalPos(w.b[0], w.b[1])
-        return Qt.vector3d((a.x + b.x) / 2, 3.0 + (idx % 3) * 0.8, (a.z + b.z) / 2)
+        return [Qt.vector3d(a.x, wireY, a.z), Qt.vector3d(b.x, wireY, b.z)]
     }
-    function wirePath(w, idx) {
-        const a = terminalPos(w.a[0], w.a[1])
-        const b = terminalPos(w.b[0], w.b[1])
-        const m = wireApex(w, idx)
-        const pts = []
-        for (let i = 0; i <= 14; ++i) {
-            const t = i / 14
-            const u = 1 - t
-            pts.push(Qt.vector3d(
-                u * u * a.x + 2 * u * t * m.x + t * t * b.x,
-                u * u * a.y + 2 * u * t * (m.y + 1.6) + t * t * b.y,
-                u * u * a.z + 2 * u * t * m.z + t * t * b.z))
+
+    // Style 0 is the idle wire; 1..flowSteps march chevrons at increasing
+    // speed. The speed is relative to the largest current on the board, not
+    // absolute, so a junction visibly splits: the trunk runs at full speed
+    // and each branch at its share of it.
+    readonly property int flowSteps: 6
+
+    function wireStyle(amps, iMax) {
+        const m = Math.abs(amps)
+        if (!(m > 1e-5)) return 0
+        const rel = iMax > 1e-9 ? m / iMax : 1
+        return 1 + Math.min(flowSteps - 1, Math.max(0, Math.round((flowSteps - 1) * rel)))
+    }
+
+    // Two lines per wire: the ink body, plus a chevron overlay that marches
+    // along it while current flows. The overlay rides a hair above the body
+    // so the two never fight over depth.
+    function wireLines() {
+        elemRev
+        let iMax = 0
+        for (const w of wires) {
+            const c = sim.wireCurrent ? sim.wireCurrent[w.id] : null
+            if (c !== null && c !== undefined) iMax = Math.max(iMax, Math.abs(c))
         }
-        return [pts]
+        const out = []
+        for (const w of wires) {
+            const pts = wireEnds(w)
+            const i = sim.wireCurrent ? sim.wireCurrent[w.id] : null
+            const amps = (i === null || i === undefined) ? 0 : i
+            const style = wireStyle(amps, iMax)
+            const hovered = hoverHit && hoverHit.kind === "wire" && hoverHit.wire === w.id
+
+            out.push({ points: pts,
+                       color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
+                                      : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
+                       width: 0.5, styleId: 0 })
+            if (style === 0) continue
+
+            // chevrons point from the first point to the last, so a negative
+            // current simply draws the overlay the other way round
+            const flow = amps < 0 ? [pts[1], pts[0]] : pts
+            out.push({ points: flow.map(p => Qt.vector3d(p.x, p.y + 0.05, p.z)),
+                       color: LabTheme.highlight, width: 0.62, styleId: style })
+        }
+        return out
     }
-    readonly property var wireColors: LabTheme.seriesColors
+
 
     // --- 3D scene ---------------------------------------------------------
     View3D {
@@ -559,10 +651,12 @@ Item {
                 // and each binding needs its own elemRev dependency: routing
                 // them through a shared var would re-yield the same object
                 // reference, which QML treats as "unchanged" (no notify).
+                // parts sit slightly sunk into the board, so they read as
+                // pressed in and their shadow hugs them instead of floating
                 position: {
                     root.elemRev
                     const e = root.elemAt(modelData.id)
-                    return e ? Qt.vector3d(root.cellX(e.col), 0, root.cellZ(e.row))
+                    return e ? Qt.vector3d(root.cellX(e.col), -0.45, root.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
                 }
                 eulerRotation.y: {
@@ -601,37 +695,37 @@ Item {
             }
         }
 
-        Repeater3D {  // wires
-            model: root.wires
-            Node {
-                Wire3D {
-                    points: { root.elemRev; return root.wirePath(modelData, index)[0] }
-                    color: root.wireColors[index % root.wireColors.length]
-                    radius: 0.3
-                }
-                Model {  // grab/erase handle at the apex
-                    source: "#Sphere"
-                    position: { root.elemRev; return root.wireApex(modelData, index) }
-                    scale: Qt.vector3d(0.011, 0.011, 0.011)
-                    materials: PrincipledMaterial {
-                        baseColor: root.wireColors[index % root.wireColors.length]
-                        emissiveFactor: root.hoverHit !== null
-                                        && root.hoverHit.kind === "wire"
-                                        && root.hoverHit.wire === modelData.id
-                                        ? Qt.vector3d(0.8, 0.2, 0.2) : Qt.vector3d(0, 0, 0)
-                        roughness: 0.4
-                    }
-                }
+        LineBatch3D {  // every wire, one instanced draw call
+            widthUnits: LineBatch3D.World
+            orientation: LineBatch3D.Flat     // ribbons lie in the board plane
+            opaque: true                      // crossings resolve by depth
+            depthBias: 4
+            castsShadows: false
+            flowTime: clock.time              // sim clock: the flow is deterministic
+            flowAutoPlay: false
+            styles: [
+                { dash: [0, 0], capRound: true, opacity: 1.0 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 3 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 6 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 10 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 15 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 21 },
+                { dash: [1.4, 3.2], pattern: "chevron", flow: 28 }
+            ]
+            lines: {
+                root.elemRev; root.sim; root.hoverHit; root.eraser
+                return root.wireLines()
             }
         }
 
-        MultiLine3D {  // dangling wire preview
+        MultiLine3D {  // dangling wire preview - flat, like the real thing
             visible: root.wiringFrom !== null
             coords: {
                 if (!root.wiringFrom) return []
                 const a = root.terminalPos(root.wiringFrom.el, root.wiringFrom.ti)
                 const b = root.cursorW
-                return [[a, Qt.vector3d((a.x + b.x) / 2, 4.5, (a.z + b.z) / 2), b]]
+                return [[Qt.vector3d(a.x, root.wireY, a.z),
+                         Qt.vector3d(b.x, root.wireY, b.z)]]
             }
             color: LabTheme.secondary
             width: 0.4
@@ -710,7 +804,28 @@ Item {
                     root.removeElement(hit.el)
                 return
             }
+            // Clicking a wire taps into it: a junction is dropped where you
+            // clicked and the wire splits, so you can branch off anywhere.
+            if (hit.kind === "wire") {
+                const j = root.splitWireAt(hit.wire, w.x, w.z)
+                if (j === -1) return
+                if (root.wiringFrom) {
+                    root.addWire([root.wiringFrom.el, root.wiringFrom.ti], [j, 0])
+                    root.wiringFrom = null
+                } else {
+                    root.wiringFrom = { el: j, ti: 0 }
+                }
+                return
+            }
             if (hit.kind === "terminal") {
+                const el = root.elemAt(hit.el)
+                // an idle click on a junction grabs the dot itself; while
+                // wiring, the same click connects to it
+                if (el && el.type === "junction" && root.wiringFrom === null) {
+                    root.selectedId = hit.el
+                    dragElem = hit.el
+                    return
+                }
                 if (root.wiringFrom === null)
                     root.wiringFrom = { el: hit.el, ti: hit.ti }
                 else {
@@ -816,6 +931,18 @@ Item {
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
+            }
+            Rectangle {
+                width: 148; height: 30; radius: 6
+                color: LabTheme.paper
+                border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
+                Text {
+                    anchors.centerIn: parent
+                    text: root.showValues ? "Values: on  (V)" : "Values: off  (V)"
+                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    font.family: LabTheme.monoFont
+                }
+                MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
             }
             Rectangle {
                 width: 148; height: 30; radius: 6
@@ -948,6 +1075,70 @@ Item {
         }
     }
 
+    // --- value labels ------------------------------------------------------
+    // The whole point of the lab in one toggle: with V on, every part shows
+    // its current and voltage and every wire its current, so series (one
+    // current everywhere, voltages divide) and parallel (one voltage, the
+    // current splits) can simply be read off the board.
+    Repeater {
+        model: root.showValues ? root.elements : []
+        Rectangle {
+            readonly property var screenAt: {
+                root.elemRev; cam.scenePosition; cam.sceneRotation
+                const e = root.elemAt(modelData.id)
+                if (!e) return Qt.vector3d(0, 0, 0)
+                return view3d.mapFrom3DScene(Qt.vector3d(
+                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
+            }
+            visible: modelData.type !== "junction" && screenAt.z > 0
+            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
+            y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
+            width: valueText.width + 12
+            height: 20
+            radius: 5
+            color: LabTheme.panel
+            border.color: LabTheme.panelEdge; border.width: 1
+            opacity: 0.94
+            Text {
+                id: valueText
+                anchors.centerIn: parent
+                // magnitudes only: direction is what the chevrons are for,
+                // and a signed reading here only invites "why is it minus?"
+                text: {
+                    const s = root.simOf(modelData.id)
+                    const i = Math.abs(s.i), v = Math.abs(s.v)
+                    return (i >= 0.9995 ? i.toFixed(2) + " A" : (i * 1000).toFixed(1) + " mA")
+                           + "  " + v.toFixed(2) + " V"
+                }
+                color: LabTheme.primary; font.pixelSize: 11
+                font.family: LabTheme.monoFont
+            }
+        }
+    }
+    Repeater {
+        model: root.showValues ? root.wires : []
+        Text {
+            readonly property var screenAt: {
+                root.elemRev; cam.scenePosition; cam.sceneRotation
+                const e = root.wireEnds(modelData)
+                return view3d.mapFrom3DScene(Qt.vector3d(
+                    (e[0].x + e[1].x) / 2, 0.6, (e[0].z + e[1].z) / 2))
+            }
+            visible: root.showValues && screenAt.z > 0
+            x: screenAt.x - width / 2
+            y: screenAt.y - height / 2
+            text: {
+                const i = root.sim.wireCurrent ? root.sim.wireCurrent[modelData.id] : null
+                if (i === null || i === undefined) return "?"
+                return Math.abs(i) >= 0.9995 ? Math.abs(i).toFixed(2) + " A"
+                                             : (Math.abs(i) * 1000).toFixed(1) + " mA"
+            }
+            color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
+            font.family: LabTheme.monoFont
+            style: Text.Outline; styleColor: LabTheme.paperDeep
+        }
+    }
+
     // --- selection card (what is selected, what it reads, what you can do) -
     Rectangle {
         id: selCard
@@ -1040,12 +1231,12 @@ Item {
             font.family: LabTheme.handFont
             text: {
                 if (root.eraser) return "eraser: click parts or wire knots to remove · E exits"
-                if (root.wiringFrom) return "click a second terminal to connect · Esc cancels"
+                if (root.wiringFrom) return "click a second pad — or any wire, to tap into it · Esc cancels"
                 if (root.selectedId !== -1)
                     return "R turns the part · Del removes it · drag moves it"
                     + (root.snapToGrid ? " (Alt places freely)" : " (Alt snaps)")
                     + " · F frames it"
-                return "click two gold terminals to wire · click a part to select · drag the empty board to look around · wheel zooms · 0 resets the view"
+                return "click two gold pads to wire · click a wire to branch off it · V shows all values · drag the empty board to look around · wheel zooms"
             }
         }
     }
@@ -1068,6 +1259,7 @@ Item {
         else if (ev.key === Qt.Key_C) clearBoard()
         else if (ev.key === Qt.Key_E) eraser = !eraser
         else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false; selectedId = -1 }
+        else if (ev.key === Qt.Key_V) showValues = !showValues
         else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
             snapToGrid = !snapToGrid
         else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace) {
