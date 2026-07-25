@@ -169,7 +169,7 @@ Node {
                         }
                         Text {
                             anchors.centerIn: parent
-                            text: root.value.toFixed(1) + " V"
+                            text: LabLang.num(root.value, 1) + " V"
                             color: LabTheme.ink
                             font.pixelSize: 52; font.bold: true
                             font.family: LabTheme.monoFont
@@ -333,20 +333,25 @@ Node {
             }
         }
         Model {  // printed state: a lever is hard to read from straight above
-            position: Qt.vector3d(0, 1.1, 0.85)
-            source: "#Cube"
-            scale: Qt.vector3d(0.028, 0.004, 0.012)
+            // on top of the case (its top face is at y 1.35) and in front of
+            // the lever, otherwise the print is swallowed by the body
+            // a plane, not a box: #Cube maps the same texture onto every face,
+            // so a raised plate would repeat the print down its sides
+            position: Qt.vector3d(0, 1.37, 1.05)
+            source: "#Rectangle"
+            eulerRotation.x: -90
+            scale: Qt.vector3d(0.026, 0.008, 1)
             materials: PrincipledMaterial {
                 lighting: PrincipledMaterial.NoLighting
                 baseColorMap: Texture {
-                    flipU: true
-                    flipV: true
+                    // a plane needs no flips - unlike a cube's up face, which
+                    // maps U and V mirrored
                     sourceItem: Item {
                         width: 200; height: 92
                         Rectangle { anchors.fill: parent; color: LabTheme.panel }
                         Text {
                             anchors.centerIn: parent
-                            text: root.switchOn ? "ON" : "OFF"
+                            text: LabLang.t(root.switchOn ? "switch.on" : "switch.off")
                             color: root.switchOn ? LabTheme.forest : LabTheme.clay
                             font.pixelSize: 60; font.bold: true
                             font.letterSpacing: 4

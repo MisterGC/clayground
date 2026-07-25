@@ -206,7 +206,8 @@ the core physical lesson of the lab.
 Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
 `E` eraser · `C` clear · `#` grid mode · `R` turn the selected part ·
 `W` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
-view · `Esc` cancel · `Shift+R` record CSV.
+view · `Esc` cancel · `Shift+R` record CSV. `EN`/`DE` in the top right
+switch the language.
 
 Drag parts from the palette onto the board, click two gold terminals to
 wire, click a switch to flip it, click a resistor to cycle its ohms, drag
@@ -248,6 +249,20 @@ its two coincident terminals), so inserting one never changes a reading. The
 `parallel` preset is built from them and is laid out as a ladder — two rungs
 between two rails, source at the bottom — because a parallel circuit that
 looks like a tangle teaches the wrong thing.
+
+The lab speaks **English or German**, switched by the `EN`/`DE` chips in the
+top right corner while it runs. Translation is a runtime dictionary
+(`LabLang` in `Clayground.Lab`), not `qsTr`: retranslating a live QML engine
+is a C++ call on the engine, which a lab hosted by the dojo — or exported to
+the web — never owns. Every string is therefore an ordinary binding that
+re-evaluates when the language changes, including the text printed *onto*
+the parts, so a switch reads `EIN`/`AUS` in German. Numbers switch with the
+words: German shows `4,32 V` and `641,0 mA`, in the plot's axis and legend
+too, because that is how a student writes it in their exercise book. The
+kit owns the part vocabulary (`labs/kits/circuit/strings.js`), the lab its
+own copy (`labs/electronics-101/strings.js`), and a lab may override a kit's
+wording by registering later. Key letters are physical and never translated:
+`W`, `V`, `R` and `#` are the same on a German keyboard.
 
 The **monitor** in the corner plots the board, not a fixed pair of curves.
 Select a part and press `W` (or hit *plot it* on its card) and it gets a
@@ -352,6 +367,8 @@ board even wins over a scenario preset on reload.
 - Watch list, per-part probes via `Instantiator`: `labs/electronics-101/Sandbox.qml:53`, `labs/electronics-101/Sandbox.qml:107`
 - Board tags and the monitor panel: `labs/electronics-101/Sandbox.qml:1417`, `labs/electronics-101/Sandbox.qml:1714`
 - Runtime-driven plot series (kernel): `plugins/clay_lab/Plot2D.qml:50`
+- Language switch (kernel): `plugins/clay_lab/LabLang.qml:1`, `plugins/clay_lab/LangSwitch.qml:1`
+- Dictionaries: `labs/electronics-101/strings.js:1`, `labs/kits/circuit/strings.js:1`
 - viewState circuit persistence: `labs/electronics-101/Sandbox.qml:423`
 
 *Verified via the clay-crew inspector on the running lab: the readings

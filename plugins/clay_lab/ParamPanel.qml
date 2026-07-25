@@ -45,7 +45,7 @@ Rectangle {
         Item {
             width: parent.width; height: 20
             Text {
-                text: (_panel.expanded ? "▾ " : "▸ ") + "PARAMETERS"
+                text: (_panel.expanded ? "▾ " : "▸ ") + LabLang.t("lab.parameters")
                 color: LabTheme.primary; font.pixelSize: 12; font.bold: true
                 font.letterSpacing: 1.5; font.family: LabTheme.monoFont
             }
@@ -79,7 +79,7 @@ Rectangle {
                     Text {
                         anchors.right: parent.right
                         text: _row.par
-                              ? _row.par.value.toFixed(2) + (_row.par.unit ? " " + _row.par.unit : "")
+                              ? LabLang.num(_row.par.value, 2) + (_row.par.unit ? " " + _row.par.unit : "")
                               : ""
                         color: LabTheme.primary; font.pixelSize: 11; font.bold: true
                         font.family: LabTheme.monoFont

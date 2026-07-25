@@ -118,7 +118,7 @@ Item {
                 }
                 Text {
                     anchors.right: parent.right
-                    text: modelData.value.toFixed(root.decimals)
+                    text: LabLang.num(modelData.value, root.decimals)
                           + (root.unit ? " " + root.unit : "")
                     color: LabTheme.ink
                     font.pixelSize: 10; font.bold: true

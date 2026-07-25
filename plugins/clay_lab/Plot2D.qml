@@ -92,6 +92,10 @@ Rectangle {
         target: Lab
         function onSampled(t) { _canvas.requestPaint() }
     }
+    Connections {
+        target: LabLang
+        function onLangChanged() { _canvas.requestPaint() }
+    }
 
     Canvas {
         id: _canvas
@@ -145,8 +149,9 @@ Rectangle {
             // Legend band on top, axis gutter on the left: the curves get a
             // rect of their own so a spike can never run through a label.
             ctx.font = "10px " + LabTheme.monoFont
-            // a flat-zero series must not read as "-0.00"
-            const fmt = v => (Math.abs(v) < 5e-3 ? 0 : v).toFixed(2)
+            // a flat-zero series must not read as "-0.00", and the decimal
+            // separator follows the lab's language
+            const fmt = v => LabLang.num(Math.abs(v) < 5e-3 ? 0 : v, 2)
             const ticks = [vMax, (vMax + vMin) / 2, vMin].map(fmt)
             let gutter = 0
             for (const tk of ticks) gutter = Math.max(gutter, ctx.measureText(tk).width)
@@ -194,7 +199,7 @@ Rectangle {
             for (let i = 0; i < series.length; ++i) {
                 const s = series[i]
                 const last = s.pts.length ? s.pts[s.pts.length - 1].v : 0
-                let txt = s.name + ": " + last.toFixed(2) + (s.unit ? " " + s.unit : "")
+                let txt = s.name + ": " + LabLang.num(last, 2) + (s.unit ? " " + s.unit : "")
                 if (clickable && _plot._hoverIndex === i) txt += " ×"
                 const w = ctx.measureText(txt).width
                 if (lx + w > width - padR) break

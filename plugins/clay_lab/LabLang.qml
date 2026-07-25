@@ -1,0 +1,134 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+pragma Singleton
+import QtQuick
+
+/*!
+    \qmltype LabLang
+    \inqmlmodule Clayground.Lab
+    \brief Runtime language switch for labs: dictionaries, lookup and number format.
+
+    A lab that is meant to be published to a classroom needs its wording in
+    the reader's language, switchable while it runs. Qt's own \c qsTr route
+    cannot do that here: retranslating a live QML engine is a C++ call on the
+    engine, and a lab hosted by the dojo (or exported to WASM) never owns that
+    engine. So translation is a runtime dictionary instead, and every string
+    is an ordinary binding that re-evaluates when \l lang changes.
+
+    Dictionaries are registered by whoever owns the vocabulary - a kit
+    registers its part names, the lab registers its own UI copy:
+
+    \qml
+    import Clayground.Lab
+    import "strings.js" as Strings
+
+    Component.onCompleted: LabLang.register(Strings.dict)
+    Text { text: LabLang.t("hint.wire") }
+    Text { text: LabLang.num(4.32, 2) + " V" }   // "4,32 V" in German
+    \endqml
+
+    \sa Lab, LangSwitch
+*/
+QtObject {
+    id: _lang
+
+    /*!
+        \qmlproperty string LabLang::lang
+        \brief Active language code, e.g. "en" or "de".
+    */
+    property string lang: "en"
+
+    /*!
+        \qmlproperty var LabLang::languages
+        \brief Language codes offered by the registered dictionaries.
+    */
+    property var languages: ["en"]
+
+    /*!
+        \qmlproperty string LabLang::decimalPoint
+        \brief Decimal separator of the active language.
+    */
+    readonly property string decimalPoint: lang === "en" ? "." : ","
+
+    // lang -> {key: text}; reassigned (never mutated) so bindings re-evaluate
+    property var _dicts: ({})
+
+    /*!
+        \qmlmethod void LabLang::register(var dict)
+        \brief Merges \c {{lang: {key: text}}} into the registry.
+
+        Later registrations win on conflicting keys, so a lab may override a
+        kit's wording. Registering also extends \l languages.
+    */
+    function register(dict) {
+        const merged = {}
+        for (const l in _dicts) merged[l] = _dicts[l]
+        for (const l in dict) {
+            const target = {}
+            for (const k in merged[l]) target[k] = merged[l][k]
+            for (const k in dict[l]) target[k] = dict[l][k]
+            merged[l] = target
+        }
+        _dicts = merged
+        // English first (the fallback language), the rest alphabetically
+        const langs = []
+        for (const l in merged) if (l !== "en") langs.push(l)
+        langs.sort()
+        languages = (merged["en"] ? ["en"] : []).concat(langs)
+    }
+
+    /*!
+        \qmlmethod string LabLang::t(string key)
+        \brief The key's text in the active language.
+
+        Falls back to English and then to the key itself, so a missing
+        translation shows up as the key rather than as an empty label.
+    */
+    function t(key) {
+        const d = _dicts[lang]
+        if (d && d[key] !== undefined) return d[key]
+        const en = _dicts["en"]
+        if (en && en[key] !== undefined) return en[key]
+        return key
+    }
+
+    /*!
+        \qmlmethod string LabLang::tf(string key, ...)
+        \brief \l t() with \c %1, \c %2 ... replaced by the extra arguments.
+    */
+    function tf(key) {
+        let out = t(key)
+        for (let i = 1; i < arguments.length; ++i)
+            out = out.replace("%" + i, arguments[i])
+        return out
+    }
+
+    /*!
+        \qmlmethod string LabLang::num(real v, int digits)
+        \brief Formats a number in the active language's decimal notation.
+
+        \c digits is optional; without it the value is printed as-is. German
+        (and any language whose separator is not ".") gets a decimal comma, so
+        readouts match what a student writes in their exercise book.
+    */
+    function num(v, digits) {
+        const s = digits === undefined ? String(v) : Number(v).toFixed(digits)
+        return decimalPoint === "." ? s : s.replace(".", decimalPoint)
+    }
+
+    /*!
+        \qmlmethod string LabLang::langName(string code)
+        \brief Display name for a language code (the code itself if unknown).
+    */
+    function langName(code) {
+        const names = { "en": "EN", "de": "DE" }
+        return names[code] ? names[code] : code.toUpperCase()
+    }
+
+    // The kernel's own handful of strings, so a lab gets ParamPanel and
+    // friends translated without registering anything itself.
+    Component.onCompleted: register({
+        "en": { "lab.parameters": "PARAMETERS" },
+        "de": { "lab.parameters": "PARAMETER" }
+    })
+}

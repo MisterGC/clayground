@@ -5,6 +5,7 @@
 # ── entry / meta ──
 @ box paper "Paper →︎\nthe full model" 60,60 220x80 %soft &link:./paper.md
 @ box viewState "viewState persistence\nelements + wires + switch\nstates survive a reload\n(user's board wins)" 320,50 260x120 %plum &link:./paper.md#run-it
+@ box lang "language EN / DE\nLabLang dict + LangSwitch\nwording and number format" 620,55 300x110 %forest &link:./paper.md#run-it
 @ note legend 1010,60 """
 left →︎ right: build →︎ solve →︎ show
 colours mark pipeline stages
@@ -37,3 +38,4 @@ scenarios (keys 1-4)
 @ arrow perel -> probes "sampled"
 @ arrow scen -> parts "build"
 @ arrow viewState -> parts "restores board" !dashed
+@ arrow lang -> visuals "labels + units" !dotted

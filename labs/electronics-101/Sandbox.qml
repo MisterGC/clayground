@@ -7,6 +7,8 @@ import Clayground.Lab
 import "../kits/circuit"
 import "../kits/circuit/circuit.js" as Circuit
 import "../kits/circuit/symbols.js" as Symbols
+import "../kits/circuit/strings.js" as CircuitStrings
+import "strings.js" as Strings
 
 // Electronics 101 — a school electronics kit on a pegboard: battery,
 // switch, resistor, LED, bulb and meters, wired freely by clicking
@@ -20,7 +22,13 @@ Item {
     id: root
     anchors.fill: parent
     focus: true
-    Component.onCompleted: { forceActiveFocus(); applyScenario("led-basic") }
+    Component.onCompleted: {
+        // the kit owns the part vocabulary, the lab its own copy
+        LabLang.register(CircuitStrings.dict)
+        LabLang.register(Strings.dict)
+        forceActiveFocus()
+        applyScenario("led-basic")
+    }
 
     // --- clock / probes --------------------------------------------------
     // No global battery parameter: every cell carries its own voltage (select
@@ -59,9 +67,9 @@ Item {
     property string watchQuantity: "I"      // I | V | P - one unit per axis
     readonly property int watchMax: 6       // beyond this the colours repeat
     readonly property var watchQuantities: [
-        { key: "I", label: "current", unit: "mA" },
-        { key: "V", label: "voltage", unit: "V" },
-        { key: "P", label: "power", unit: "W" }]
+        { key: "I", label: "quantity.current", unit: "mA" },
+        { key: "V", label: "quantity.voltage", unit: "V" },
+        { key: "P", label: "quantity.power", unit: "W" }]
     readonly property string watchUnitText:
         watchQuantity === "V" ? "V" : (watchQuantity === "P" ? "W" : "mA")
 
@@ -146,18 +154,23 @@ Item {
     // Short names for legend and board marks: the type code, plus an ordinal
     // once the board holds more than one of a kind, so BULB1/BULB2 in the plot
     // line up with BULB1/BULB2 on the paper.
-    readonly property var typeCodes: ({ "battery": "BAT", "switch": "SW",
-        "resistor": "R", "led": "LED", "bulb": "BULB", "ammeter": "A",
-        "voltmeter": "V", "junction": "J" })
     function partLabel(id) {
         const el = elemAt(id)
         if (!el) return "?"
-        const code = typeCodes[el.type] ? typeCodes[el.type] : el.type.toUpperCase()
+        const code = LabLang.t("code." + el.type)
         let n = 0, mine = 0
         for (const e of elements)
             if (e.type === el.type) { ++n; if (e.id === el.id) mine = n }
         return n > 1 ? code + mine : code
     }
+
+    // Readouts in the reader's notation: German writes 5,1 mA, and a
+    // current crosses to amps once it would need four digits in milliamps.
+    function fmtA(i) {
+        return Math.abs(i) >= 0.9995 ? LabLang.num(i, 2) + " A"
+                                     : LabLang.num(i * 1000, 1) + " mA"
+    }
+    function fmtV(v) { return LabLang.num(v, 2) + " V" }
 
     function simOf(id) {
         const e = sim.perElement[id]
@@ -424,6 +437,7 @@ Item {
         return Object.assign(Lab.viewState(), {
             circuit: circuitState(),
             watch: watch.slice(), watchQuantity: watchQuantity,
+            lang: LabLang.lang,
             cam: { yaw: camYaw, pitch: camPitch, dist: camDist,
                    px: camPivot.x, pz: camPivot.z }
         })
@@ -433,10 +447,16 @@ Item {
     // The viewpoint is restored last, so a rearmed scenario cannot yank the
     // camera away from where the user was looking.
     function applyViewState(s) {
-        if (s.circuit) loadCircuit(s.circuit)
+        if (s.circuit) {
+            loadCircuit(s.circuit)
+            // keep the name the board came from without re-running the preset,
+            // otherwise the header claims a scenario the board is no longer in
+            if (s.scenario) Lab.scenario = s.scenario
+        }
         else if (s.scenario) applyScenario(s.scenario)
         // the watched set is the user's, so it wins over what a preset seeded;
         // parts that no longer exist are dropped rather than plotted as zero
+        if (s.lang) LabLang.lang = s.lang
         if (s.watchQuantity) watchQuantity = s.watchQuantity
         if (s.watch) watch = s.watch.filter(id => elemAt(id) !== null)
         if (s.cam) {
@@ -544,9 +564,10 @@ Item {
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
                          iterations: sim.iterations }
+        // language-neutral for agents: types and ids, not display labels
         info.ui = { selected: selectedId, snap: snapToGrid,
-                    watching: watch.map(id => partLabel(id)),
-                    quantity: watchQuantity }
+                    watching: watch.map(id => ({ id: id, type: elemAt(id).type })),
+                    quantity: watchQuantity, lang: LabLang.lang }
         return info
     }
     function flagInfo() { return labInfo() }
@@ -999,13 +1020,13 @@ Item {
 
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
-        { type: "battery", label: "Battery", hint: "select it to set volts", color: "#3e9b92" },
-        { type: "switch", label: "Switch", hint: "click to flip", color: "#c56c54" },
-        { type: "resistor", label: "Resistor", hint: "select it to set Ω", color: "#d9c9a0" },
-        { type: "led", label: "LED", hint: "gold foot = +", color: "#e05a40" },
-        { type: "bulb", label: "Bulb", hint: "brightness = power", color: "#d4ba6a" },
-        { type: "ammeter", label: "Ammeter", hint: "wire it in series", color: "#3f7a57" },
-        { type: "voltmeter", label: "Voltmeter", hint: "wire it across", color: "#8160a8" }
+        { type: "battery", color: "#3e9b92" },
+        { type: "switch", color: "#c56c54" },
+        { type: "resistor", color: "#d9c9a0" },
+        { type: "led", color: "#e05a40" },
+        { type: "bulb", color: "#d4ba6a" },
+        { type: "ammeter", color: "#3f7a57" },
+        { type: "voltmeter", color: "#8160a8" }
     ]
 
     Rectangle {
@@ -1022,12 +1043,13 @@ Item {
             x: 10; y: 10
             spacing: 4
             Text {
-                text: "ELECTRONICS 101"
+                text: LabLang.t("lab.title")
                 color: LabTheme.primary; font.pixelSize: 13; font.bold: true
                 font.letterSpacing: 1.5; font.family: LabTheme.monoFont
             }
             Text {
-                text: Lab.scenario !== "" ? Lab.scenario : "drag parts onto the board"
+                text: Lab.scenario !== "" ? LabLang.t("scenario." + Lab.scenario)
+                                          : LabLang.t("lab.empty")
                 color: Lab.scenario !== "" ? LabTheme.accent : LabTheme.inkFaint
                 font.pixelSize: 13
                 font.family: LabTheme.handFont
@@ -1052,8 +1074,15 @@ Item {
                     }
                     Column {
                         x: 60; anchors.verticalCenter: parent.verticalCenter
-                        Text { text: modelData.label; color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
-                        Text { text: modelData.hint; color: LabTheme.inkFaint; font.pixelSize: 12; font.family: LabTheme.handFont }
+                        Text { text: LabLang.t("part." + modelData.type); color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
+                        // bounded: a translated hint is often longer than the
+                        // English one and must not run out of the panel
+                        Text {
+                            text: LabLang.t("part." + modelData.type + ".hint")
+                            width: 122; elide: Text.ElideRight
+                            color: LabTheme.inkFaint; font.pixelSize: 12
+                            font.family: LabTheme.handFont
+                        }
                     }
                     MouseArea {
                         id: partArea
@@ -1081,7 +1110,7 @@ Item {
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: root.eraser ? "ERASER ON  (E)" : "Eraser  (E)"
+                    text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
                     color: root.eraser ? "#ffffff" : LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
@@ -1093,7 +1122,7 @@ Item {
                 border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: root.showValues ? "Values: on  (V)" : "Values: off  (V)"
+                    text: LabLang.t(root.showValues ? "btn.values.on" : "btn.values.off")
                     color: LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
@@ -1105,7 +1134,7 @@ Item {
                 border.color: root.snapToGrid ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: root.snapToGrid ? "Grid: snap  (#)" : "Grid: free  (#)"
+                    text: LabLang.t(root.snapToGrid ? "btn.grid.snap" : "btn.grid.free")
                     color: LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
@@ -1116,7 +1145,7 @@ Item {
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: "Clear board  (C)"
+                    text: LabLang.t("btn.clear")
                     color: LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
@@ -1127,14 +1156,23 @@ Item {
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: "View " + Math.round(((root.camYaw % 360) + 360) % 360)
-                          + "°   reset (0)"
+                    text: LabLang.tf("btn.view",
+                        Math.round(((root.camYaw % 360) + 360) % 360))
                     color: LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.frameSetup() }
             }
         }
+    }
+
+    // --- language ----------------------------------------------------------
+    // Top right, out of the way of the board: the lab is meant for a
+    // classroom, and a German class should read it in German.
+    LangSwitch {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 12
     }
 
     // --- compass: which way the board faces while you circle it ------------
@@ -1175,7 +1213,7 @@ Item {
         Text {
             id: ghostLabel
             anchors.centerIn: parent
-            text: root.paletteDrag
+            text: root.paletteDrag === "" ? "" : LabLang.t("part." + root.paletteDrag)
             color: LabTheme.primary; font.pixelSize: 12
             font.family: LabTheme.monoFont
         }
@@ -1206,10 +1244,8 @@ Item {
             }
             readonly property string reading: {
                 const s = root.simOf(modelData.id)
-                if (modelData.type === "ammeter")
-                    return Math.abs(s.i) >= 0.9995 ? s.i.toFixed(2) + " A"
-                                                   : (s.i * 1000).toFixed(1) + " mA"
-                return s.v.toFixed(2) + " V"
+                if (modelData.type === "ammeter") return root.fmtA(s.i)
+                return root.fmtV(s.v)
             }
             visible: isMeter && screenAt.z > 0
             x: Math.max(4, Math.min(root.width - width - 4, screenAt.x - width / 2))
@@ -1251,7 +1287,7 @@ Item {
 
         Text {
             x: 12; y: 8
-            text: "SCHALTPLAN"
+            text: LabLang.t("plan.title")
             color: LabTheme.primary; font.pixelSize: 11; font.bold: true
             font.letterSpacing: 1.5; font.family: LabTheme.monoFont
         }
@@ -1381,9 +1417,7 @@ Item {
                 // and a signed reading here only invites "why is it minus?"
                 text: {
                     const s = root.simOf(modelData.id)
-                    const i = Math.abs(s.i), v = Math.abs(s.v)
-                    return (i >= 0.9995 ? i.toFixed(2) + " A" : (i * 1000).toFixed(1) + " mA")
-                           + "  " + v.toFixed(2) + " V"
+                    return root.fmtA(Math.abs(s.i)) + "  " + root.fmtV(Math.abs(s.v))
                 }
                 color: LabTheme.primary; font.pixelSize: 11
                 font.family: LabTheme.monoFont
@@ -1405,8 +1439,7 @@ Item {
             text: {
                 const i = root.sim.wireCurrent ? root.sim.wireCurrent[modelData.id] : null
                 if (i === null || i === undefined) return "?"
-                return Math.abs(i) >= 0.9995 ? Math.abs(i).toFixed(2) + " A"
-                                             : (Math.abs(i) * 1000).toFixed(1) + " mA"
+                return root.fmtA(Math.abs(i))
             }
             color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
             font.family: LabTheme.monoFont
@@ -1501,14 +1534,16 @@ Item {
                     root.elemRev
                     if (!selCard.el) return ""
                     const e = selCard.el
+                    const name = LabLang.t("part." + e.type).toUpperCase()
                     if (e.type === "resistor")
-                        return "RESISTOR  " + (e.value >= 1000
-                            ? (e.value / 1000).toFixed(e.value % 1000 ? 1 : 0) + " kΩ"
+                        return name + "  " + (e.value >= 1000
+                            ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
                             : e.value + " Ω")
                     if (e.type === "battery")
-                        return "BATTERY  " + (e.value || root.defaultVolts).toFixed(1) + " V"
-                    if (e.type === "switch") return "SWITCH  " + (e.on ? "closed" : "open")
-                    return e.type.toUpperCase()
+                        return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
+                    if (e.type === "switch")
+                        return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
+                    return name
                 }
                 color: LabTheme.primary; font.pixelSize: 11; font.bold: true
                 font.letterSpacing: 1.0; font.family: LabTheme.monoFont
@@ -1518,7 +1553,7 @@ Item {
                     root.elemRev
                     if (!selCard.el) return ""
                     const s = root.simOf(selCard.el.id)
-                    return s.v.toFixed(2) + " V   " + (s.i * 1000).toFixed(1) + " mA"
+                    return root.fmtV(s.v) + "   " + root.fmtA(s.i)
                 }
                 color: LabTheme.inkSoft; font.pixelSize: 11
                 font.family: LabTheme.monoFont
@@ -1592,9 +1627,9 @@ Item {
                     root.elemRev
                     const b = selCard.bat
                     if (!b) return []
-                    return [{ label: "reaches your parts", value: b.vTerm,
+                    return [{ label: LabLang.t("cell.reaches"), value: b.vTerm,
                               color: LabTheme.teal },
-                            { label: "lost inside the cell", value: b.internalDrop,
+                            { label: LabLang.t("cell.lost"), value: b.internalDrop,
                               color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
                 }
             }
@@ -1606,13 +1641,12 @@ Item {
                     const b = selCard.bat
                     if (!b) return ""
                     if (b.shorted)
-                        return "short: your circuit is only "
-                               + b.rExt.toFixed(2) + " Ω, less than the cell itself"
+                        return LabLang.tf("cell.short", LabLang.num(b.rExt, 2))
                     if (b.overloaded)
-                        return "heavy: " + Math.abs(b.i).toFixed(2)
-                               + " A drawn, rated " + b.rated.toFixed(1) + " A"
-                    return "your circuit is " + (b.rExt > 9999 ? "open"
-                           : b.rExt.toFixed(b.rExt < 100 ? 1 : 0) + " Ω")
+                        return LabLang.tf("cell.heavy", LabLang.num(Math.abs(b.i), 2),
+                                          LabLang.num(b.rated, 1))
+                    return LabLang.tf("cell.ok", b.rExt > 9999 ? LabLang.t("cell.open")
+                        : LabLang.num(b.rExt, b.rExt < 100 ? 1 : 0) + " Ω")
                 }
                 color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
                      : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
@@ -1639,8 +1673,8 @@ Item {
                 Text {
                     id: watchLabel
                     anchors.centerIn: parent
-                    text: watchChip.watched ? "on the plot ✓"
-                        : (watchChip.full ? "plot is full" : "plot it (W)")
+                    text: LabLang.t(watchChip.watched ? "card.watched"
+                        : (watchChip.full ? "card.watch.full" : "card.watch"))
                     color: watchChip.watched ? LabTheme.paper
                          : (watchChip.full ? LabTheme.inkFaint : LabTheme.secondary)
                     font.pixelSize: 12; font.family: LabTheme.handFont
@@ -1652,9 +1686,8 @@ Item {
                 }
             }
             Text {
-                text: selCard.isResistor ? "drag to set Ω · R turn · Del remove"
-                     : selCard.isBattery ? "drag to set volts · R turn · Del remove"
-                     : "R turn · Del remove · drag to move"
+                text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
+                     : selCard.isBattery ? "card.hint.battery" : "card.hint.part")
                 color: LabTheme.inkFaint; font.pixelSize: 12
                 font.family: LabTheme.handFont
             }
@@ -1674,9 +1707,7 @@ Item {
         Text {
             id: shortText
             anchors.centerIn: parent
-            text: root.sim.shorted
-                ? "⚠ SHORT CIRCUIT — the current skips your parts and the cell heats up"
-                : "⚠ heavy load — more current than the cell is rated for"
+            text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
             color: root.sim.shorted ? "#ffffff" : LabTheme.ink
             font.pixelSize: 14; font.bold: true
         }
@@ -1697,16 +1728,22 @@ Item {
         Text {
             id: hintText
             anchors.centerIn: parent
+            // the bar is centred, so it may only grow until it would reach
+            // the monitor - a longer translation is clipped, never overlapped
+            width: Math.min(implicitWidth,
+                            2 * (plot.x - 8 - root.width / 2) - 30)
+            elide: Text.ElideRight
             color: LabTheme.inkSoft; font.pixelSize: 15
             font.family: LabTheme.handFont
             text: {
-                if (root.eraser) return "eraser: click parts or wire knots to remove · E exits"
-                if (root.wiringFrom) return "click a second pad — or any wire, to tap into it · Esc cancels"
+                if (root.eraser) return LabLang.t("hint.eraser")
+                if (root.wiringFrom) return LabLang.t("hint.wiring")
                 if (root.selectedId !== -1)
-                    return "R turns the part · W plots it · Del removes it · drag moves it"
-                    + (root.snapToGrid ? " (Alt places freely)" : " (Alt snaps)")
-                    + " · F frames it"
-                return "click two gold pads to wire · click a wire to branch off it · select a resistor to set its Ω · V shows all values · drag to look around"
+                    return LabLang.t("hint.selected")
+                    + LabLang.t(root.snapToGrid ? "hint.selected.snap"
+                                                : "hint.selected.free")
+                    + LabLang.t("hint.selected.frame")
+                return LabLang.t("hint.idle")
             }
         }
     }
@@ -1734,7 +1771,7 @@ Item {
                 Text {
                     id: chipLabel
                     anchors.centerIn: parent
-                    text: modelData.label + " (" + modelData.unit + ")"
+                    text: LabLang.t(modelData.label) + " (" + modelData.unit + ")"
                     color: chip.active ? LabTheme.paper : LabTheme.inkSoft
                     font.pixelSize: 12; font.family: LabTheme.handFont
                 }
@@ -1760,7 +1797,7 @@ Item {
                 label: root.partLabel(id),
                 color: LabTheme.seriesColors[i % LabTheme.seriesColors.length] }))
         }
-        placeholder: "select a part · W puts it here"
+        placeholder: LabLang.t("plot.empty")
         onSeriesClicked: (probe) => root.setWatched(parseInt(probe.substring(4)), false)
     }
 

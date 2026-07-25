@@ -21,6 +21,15 @@ interactive, deterministic, agent-verifiable experimentation space.
   draws `placeholder` instead of every probe, and legend entries become
   clickable (`seriesClicked`) so the user can drop a curve where it is named.
 - **DataRecorder** — probe samples to CSV (via `Clayground.Text`).
+- **LabLang / LangSwitch** — runtime language switch for a published lab.
+  Whoever owns a vocabulary registers it (`LabLang.register(dict)` with
+  `{lang: {key: text}}`), strings are ordinary bindings on `LabLang.t(key)`
+  / `tf(key, ...)`, and `LabLang.num(v, digits)` prints numbers in the
+  language's notation (German gets a decimal comma; `Plot2D`, `BudgetBar`
+  and `ParamPanel` already use it). Not `qsTr`: retranslating a live engine
+  is a C++ call on the `QQmlEngine`, which a lab hosted by the dojo or
+  exported to WASM does not own. Drop `LangSwitch` in a corner and it
+  offers exactly the registered languages.
 - **Scenario / ScenarioSet** — named, scripted situations wiring the
   `scenarios()`/`applyScenario()` inspector convention; applying resets
   the clock so runs are reproducible.
