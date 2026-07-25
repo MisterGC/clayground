@@ -17,7 +17,7 @@ colours mark pipeline stages
 @ box perel "per-element V, I\npower = |V · I|" 1070,300 240x130 %primary &link:./paper.md#measured-results
 
 # ── outputs (show) ──
-@ box probes "probes + Plot2D\niBattery · iLed · power\nR records CSV" 700,530 270x120 %rose &link:./paper.md#run-it
+@ box probes "monitor: watched parts\npart<id> · iBattery · power\nI/V/P · R records CSV" 700,530 270x120 %rose &link:./paper.md#run-it
 @ box visuals "visuals\nLED glow ∝︎ current\nbulb glow ∝︎ power\nmeter pills read V / mA" 1070,520 270x140 %highlight &link:./paper.md#measured-results
 
 # ── scenarios ──

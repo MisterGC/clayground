@@ -176,7 +176,13 @@ the core physical lesson of the lab.
 - **Push the LED to its ceiling.** Set the resistor to 100 Ω and drag the
   battery's own slider up to 12 V. The current climbs but the LED clamps near its
   $V_F$ knee — most of the extra volts now burn in the resistor, not the
-  diode. Watch `iLed` flatten on the plot as you drag it.
+  diode. Put the LED and the resistor on the plot, switch it to *voltage*,
+  and watch the LED's curve flatten while the resistor's climbs.
+- **Read series and parallel off one plot.** Both presets seed the monitor
+  with the cell and one bulb. In `series` the two current curves lie on top
+  of each other (one current everywhere) while *voltage* shows the cell's
+  volts shared out; in `parallel` the currents separate exactly 2:1 while
+  the voltages coincide. Same two curves, opposite lessons.
 - **Build both bulb circuits and compare.** Press `2`, read the battery
   current, press `3`, read it again. Feel the $3.5\times$ jump — then
   notice the parallel bulbs are the bright ones. Same parts, different
@@ -199,8 +205,8 @@ the core physical lesson of the lab.
 
 Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
 `E` eraser · `C` clear · `#` grid mode · `R` turn the selected part ·
-`Del` remove it · `F` frame it · `0` reset the view · `Esc` cancel ·
-`Shift+R` record CSV.
+`W` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
+view · `Esc` cancel · `Shift+R` record CSV.
 
 Drag parts from the palette onto the board, click two gold terminals to
 wire, click a switch to flip it, click a resistor to cycle its ohms, drag
@@ -242,6 +248,22 @@ its two coincident terminals), so inserting one never changes a reading. The
 `parallel` preset is built from them and is laid out as a ladder — two rungs
 between two rails, source at the bottom — because a parallel circuit that
 looks like a tangle teaches the wrong thing.
+
+The **monitor** in the corner plots the board, not a fixed pair of curves.
+Select a part and press `W` (or hit *plot it* on its card) and it gets a
+probe, a colour and a curve; the same colour appears as a small tag on the
+part, so *which line is which* is read off the board instead of inferred
+from the legend order. Clicking a legend entry drops that curve again, and
+deleting a part takes its curve with it. Presets seed a watch list that
+suits what they are about, and an empty board says so instead of showing
+leftovers.
+
+One quantity is plotted at a time — *current*, *voltage* or *power*, by the
+chips above the plot. That is partly honesty (all series share one
+autoscaled axis, so mixing mA with V would flatten the volts onto the
+baseline) and partly the lesson: the same two parts tell you about series
+wiring under *voltage* and about parallel wiring under *current*. Switching
+quantity clears the curves, because the axis is no longer the same axis.
 
 `V` toggles **value labels**: every part shows its current and voltage and
 every wire its current. That one toggle is the lab's whole argument, made
@@ -304,8 +326,13 @@ palette shows the board turning against a fixed marker for you, and the
 table under the board gives a horizon at low angles.
 
 Agents attach via `.clay/inspect/` (`Lab.labInfo()` reports the element
-counts, net count, iteration count and short flag; probes `iBattery`,
-`iLed` and `power` are plotted live and CSV-recordable). The entire
+counts, net count, iteration count and short flag, plus which parts are
+being watched and in which quantity). Two probes are setup-independent and
+always registered — `iBattery`, the total supply current, and `power`, the
+total dissipated in the loads — so a CSV recording has stable columns
+whatever the board looks like. Every watched part adds a `part<id>` probe
+next to them, which is also the agent-facing way to plot something:
+`setWatched(id, true)`. The entire
 circuit — elements, wires, positions, rotations, switch states — plus the
 camera pose rides in the dojo `viewState`, so the board you built and the
 angle you were watching from both survive a QML reload untouched; a user's
@@ -320,9 +347,12 @@ board even wins over a scenario preset on reload.
 - Element conductances / Norton stamps: `labs/kits/circuit/circuit.js:92`, `labs/kits/circuit/circuit.js:135`
 - LED piecewise model and flip-lock iteration: `labs/kits/circuit/circuit.js:124`, `labs/kits/circuit/circuit.js:146`
 - Part visuals (LED glow, bulb glow): `labs/kits/circuit/CircuitElement3D.qml:1`, `labs/kits/circuit/CircuitElement3D.qml:136`, `labs/kits/circuit/CircuitElement3D.qml:171`
-- Scenarios: `labs/electronics-101/Sandbox.qml:196`
-- Probes: `labs/electronics-101/Sandbox.qml:26`
-- viewState circuit persistence: `labs/electronics-101/Sandbox.qml:184`
+- Scenarios (each seeds its own watch list): `labs/electronics-101/Sandbox.qml:451`
+- Fixed probes (`iBattery`, `power`): `labs/electronics-101/Sandbox.qml:31`
+- Watch list, per-part probes via `Instantiator`: `labs/electronics-101/Sandbox.qml:53`, `labs/electronics-101/Sandbox.qml:107`
+- Board tags and the monitor panel: `labs/electronics-101/Sandbox.qml:1417`, `labs/electronics-101/Sandbox.qml:1714`
+- Runtime-driven plot series (kernel): `plugins/clay_lab/Plot2D.qml:50`
+- viewState circuit persistence: `labs/electronics-101/Sandbox.qml:423`
 
 *Verified via the clay-crew inspector on the running lab: the readings
 above are read straight from the probes and meter pills; the solver's

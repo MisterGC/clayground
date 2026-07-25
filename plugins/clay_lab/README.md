@@ -15,7 +15,11 @@ interactive, deterministic, agent-verifiable experimentation space.
   `time`/`step` action); seeded `random()`/`randomRange()` are the only
   randomness a lab may use.
 - **ParamPanel** — auto-generated slider panel for all parameters.
-- **Plot2D** — live autoscaled strip chart of probes.
+- **Plot2D** — live autoscaled strip chart of probes. Pass `probes` for a
+  fixed set, or `series: [{probe, label, color}]` when the plotted set is
+  built at runtime: the lab then owns naming and colouring, an empty array
+  draws `placeholder` instead of every probe, and legend entries become
+  clickable (`seriesClicked`) so the user can drop a curve where it is named.
 - **DataRecorder** — probe samples to CSV (via `Clayground.Text`).
 - **Scenario / ScenarioSet** — named, scripted situations wiring the
   `scenarios()`/`applyScenario()` inspector convention; applying resets

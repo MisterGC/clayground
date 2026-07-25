@@ -12,7 +12,8 @@ import "../kits/circuit/symbols.js" as Symbols
 // switch, resistor, LED, bulb and meters, wired freely by clicking
 // terminals. A DC nodal solver lights things up in real time.
 // Keys: 1 led-basic · 2 series · 3 parallel · 4 metering · C clear ·
-// E eraser · V show all values · M schematic · # grid mode · R turn · Del ·
+// E eraser · V show all values · W plot the selected part · M schematic ·
+// # grid mode · R turn · Del ·
 // Shift+R record · Esc cancel. View: drag the empty board to orbit,
 // wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
 Item {
@@ -38,14 +39,6 @@ Item {
         }
     }
     Probe {
-        name: "iLed"; unit: "mA"
-        expr: () => {
-            for (const el of root.elements)
-                if (el.type === "led") return root.simOf(el.id).i * 1000
-            return 0
-        }
-    }
-    Probe {
         name: "power"; unit: "W"
         expr: () => {
             let sum = 0
@@ -56,6 +49,71 @@ Item {
     }
 
     DataRecorder { id: recorder; destination: "electronics-101-run.csv" }
+
+    // --- monitoring -------------------------------------------------------
+    // What the plot shows comes from the board, never from a fixed list: watch
+    // a part and it gets a probe, a colour and a curve; delete the part (or
+    // click its legend entry) and the curve goes with it. iBattery and power
+    // stay as setup-independent globals for the CSV and for agent queries.
+    property var watch: []                  // element ids, in plot order
+    property string watchQuantity: "I"      // I | V | P - one unit per axis
+    readonly property int watchMax: 6       // beyond this the colours repeat
+    readonly property var watchQuantities: [
+        { key: "I", label: "current", unit: "mA" },
+        { key: "V", label: "voltage", unit: "V" },
+        { key: "P", label: "power", unit: "W" }]
+    readonly property string watchUnitText:
+        watchQuantity === "V" ? "V" : (watchQuantity === "P" ? "W" : "mA")
+
+    function watchValueOf(id) {
+        const s = simOf(id)
+        // magnitudes, like the value labels: direction is the chevrons' job
+        if (watchQuantity === "V") return Math.abs(s.v)
+        if (watchQuantity === "P") return s.power
+        return Math.abs(s.i) * 1000
+    }
+    function isWatched(id) { return watch.indexOf(id) !== -1 }
+    function watchColorOf(id) {
+        const i = watch.indexOf(id)
+        return i === -1 ? "transparent"
+            : LabTheme.seriesColors[i % LabTheme.seriesColors.length]
+    }
+    function setWatched(id, on) {
+        const el = elemAt(id)
+        if (!el || el.type === "junction") return   // a solder dot has no reading
+        if (on === isWatched(id)) return
+        if (on) {
+            if (watch.length >= watchMax) return
+            watch = watch.concat([id])
+        } else {
+            watch = watch.filter(x => x !== id)
+        }
+    }
+    function toggleWatch(id) { setWatched(id, !isWatched(id)) }
+    function watchOnly(ids) { watch = ids.slice(0, watchMax) }
+
+    // Switching the quantity switches the unit, so the old samples would draw
+    // a nonsense step across the axis change.
+    onWatchQuantityChanged: {
+        for (const id of watch) {
+            const pr = Lab.probe("part" + id)
+            if (pr) pr.clear()
+        }
+    }
+
+    // One probe per watched part. The name is id-based and therefore stable,
+    // while the legend label may well change under it: a lone BULB becomes
+    // BULB1 the moment a second one lands on the board.
+    Instantiator {
+        model: root.watch
+        delegate: Probe {
+            required property var modelData
+            readonly property int pid: modelData
+            name: "part" + pid
+            unit: root.watchUnitText
+            expr: () => root.watchValueOf(pid)
+        }
+    }
 
     // --- circuit state ---------------------------------------------------
     // elements: {id, type, col, row, rot, value, on} - col/row are fractional
@@ -84,6 +142,22 @@ Item {
     }
     // the cell's rated current, used to mark wires that are carrying too much
     readonly property real ratedCurrent: 1.5
+
+    // Short names for legend and board marks: the type code, plus an ordinal
+    // once the board holds more than one of a kind, so BULB1/BULB2 in the plot
+    // line up with BULB1/BULB2 on the paper.
+    readonly property var typeCodes: ({ "battery": "BAT", "switch": "SW",
+        "resistor": "R", "led": "LED", "bulb": "BULB", "ammeter": "A",
+        "voltmeter": "V", "junction": "J" })
+    function partLabel(id) {
+        const el = elemAt(id)
+        if (!el) return "?"
+        const code = typeCodes[el.type] ? typeCodes[el.type] : el.type.toUpperCase()
+        let n = 0, mine = 0
+        for (const e of elements)
+            if (e.type === el.type) { ++n; if (e.id === el.id) mine = n }
+        return n > 1 ? code + mine : code
+    }
 
     function simOf(id) {
         const e = sim.perElement[id]
@@ -190,6 +264,7 @@ Item {
         wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
         elements = elements.filter(el => el.id !== id)
         if (selectedId === id) selectedId = -1
+        if (isWatched(id)) watch = watch.filter(x => x !== id)
         resolve()
     }
     // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
@@ -266,6 +341,7 @@ Item {
         elements = []; wires = []
         wiringFrom = null
         selectedId = -1
+        watch = []
         resolve()
     }
 
@@ -347,6 +423,7 @@ Item {
     function viewState() {
         return Object.assign(Lab.viewState(), {
             circuit: circuitState(),
+            watch: watch.slice(), watchQuantity: watchQuantity,
             cam: { yaw: camYaw, pitch: camPitch, dist: camDist,
                    px: camPivot.x, pz: camPivot.z }
         })
@@ -358,6 +435,10 @@ Item {
     function applyViewState(s) {
         if (s.circuit) loadCircuit(s.circuit)
         else if (s.scenario) applyScenario(s.scenario)
+        // the watched set is the user's, so it wins over what a preset seeded;
+        // parts that no longer exist are dropped rather than plotted as zero
+        if (s.watchQuantity) watchQuantity = s.watchQuantity
+        if (s.watch) watch = s.watch.filter(id => elemAt(id) !== null)
         if (s.cam) {
             camPivot = Qt.vector3d(s.cam.px, 2, s.cam.pz)
             camYaw = s.cam.yaw; camPitch = s.cam.pitch; camDist = s.cam.dist
@@ -381,6 +462,8 @@ Item {
                 root.addWire([sw, 1], [led, 1])
                 root.addWire([led, 0], [res, 1])
                 root.addWire([res, 0], [bat, 0])
+                // one current through both, but the volts split between them
+                root.watchOnly([led, res])
             }
         }
         Scenario {
@@ -397,6 +480,9 @@ Item {
                 root.addWire([b1, 1], [b2, 1])
                 root.addWire([b2, 0], [jc, 0])
                 root.addWire([jc, 0], [bat, 0])
+                // cell vs one bulb: same current, and V shows the cell's volts
+                // shared out between the two
+                root.watchOnly([bat, b1])
             }
         }
         Scenario {
@@ -419,6 +505,8 @@ Item {
                 root.addWire([jl2, 0], [bat, 0])
                 root.addWire([bat, 1], [sw, 0])
                 root.addWire([sw, 1], [jr2, 0])
+                // the same pair as in series, and now I splits while V doesn't
+                root.watchOnly([bat, b1])
             }
         }
         Scenario {
@@ -438,6 +526,7 @@ Item {
                 root.addWire([res, 0], [bat, 0])
                 root.addWire([volt, 0], [led, 0])
                 root.addWire([volt, 1], [led, 1])
+                root.watchOnly([led])
             }
         }
     }
@@ -455,7 +544,9 @@ Item {
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
                          iterations: sim.iterations }
-        info.ui = { selected: selectedId, snap: snapToGrid }
+        info.ui = { selected: selectedId, snap: snapToGrid,
+                    watching: watch.map(id => partLabel(id)),
+                    quantity: watchQuantity }
         return info
     }
     function flagInfo() { return labInfo() }
@@ -1323,6 +1414,50 @@ Item {
         }
     }
 
+    // --- watch marks -------------------------------------------------------
+    // A tag in the curve's own colour, so "which line is which part" is read
+    // off the board instead of guessed from the legend order.
+    Repeater {
+        model: root.watch
+        Rectangle {
+            readonly property int pid: modelData
+            readonly property var screenAt: {
+                root.elemRev; cam.scenePosition; cam.sceneRotation
+                const e = root.elemAt(pid)
+                if (!e) return Qt.vector3d(0, 0, 0)
+                return view3d.mapFrom3DScene(Qt.vector3d(
+                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
+            }
+            visible: screenAt.z > 0
+            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
+            // steps aside for the value label when V is on
+            y: Math.max(2, Math.min(root.height - height - 2,
+                                    screenAt.y - height - (root.showValues ? 23 : 0)))
+            width: markRow.width + 12
+            height: 18
+            radius: 9
+            color: LabTheme.panel
+            border.color: root.watchColorOf(pid); border.width: 2
+            opacity: 0.94
+            Row {
+                id: markRow
+                x: 6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 7; height: 7; radius: 4
+                    color: root.watchColorOf(pid)
+                }
+                Text {
+                    text: { root.elemRev; return root.partLabel(pid) }
+                    color: LabTheme.inkSoft; font.pixelSize: 10; font.bold: true
+                    font.family: LabTheme.monoFont
+                }
+            }
+        }
+    }
+
     // --- selection card (what is selected, what it reads, what you can do) -
     Rectangle {
         id: selCard
@@ -1485,6 +1620,37 @@ Item {
                 font.pixelSize: 12
                 font.family: LabTheme.handFont
             }
+            // Monitoring is a per-part act, like selecting: this puts the part
+            // on the plot in the colour it then wears on the board.
+            Rectangle {
+                id: watchChip
+                visible: selCard.el !== null && selCard.el.type !== "junction"
+                width: watchLabel.width + 16
+                height: visible ? 21 : 0
+                radius: LabTheme.radius
+                readonly property bool watched:
+                    selCard.el !== null && root.isWatched(selCard.el.id)
+                readonly property bool full:
+                    !watched && root.watch.length >= root.watchMax
+                color: watched ? root.watchColorOf(selCard.el.id) : LabTheme.panel
+                border.color: watched ? LabTheme.panelEdge
+                            : (full ? LabTheme.panelEdge : LabTheme.secondary)
+                border.width: LabTheme.borderWidth
+                Text {
+                    id: watchLabel
+                    anchors.centerIn: parent
+                    text: watchChip.watched ? "on the plot ✓"
+                        : (watchChip.full ? "plot is full" : "plot it (W)")
+                    color: watchChip.watched ? LabTheme.paper
+                         : (watchChip.full ? LabTheme.inkFaint : LabTheme.secondary)
+                    font.pixelSize: 12; font.family: LabTheme.handFont
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !watchChip.full
+                    onClicked: if (selCard.el) root.toggleWatch(selCard.el.id)
+                }
+            }
             Text {
                 text: selCard.isResistor ? "drag to set Ω · R turn · Del remove"
                      : selCard.isBattery ? "drag to set volts · R turn · Del remove"
@@ -1537,10 +1703,45 @@ Item {
                 if (root.eraser) return "eraser: click parts or wire knots to remove · E exits"
                 if (root.wiringFrom) return "click a second pad — or any wire, to tap into it · Esc cancels"
                 if (root.selectedId !== -1)
-                    return "R turns the part · Del removes it · drag moves it"
+                    return "R turns the part · W plots it · Del removes it · drag moves it"
                     + (root.snapToGrid ? " (Alt places freely)" : " (Alt snaps)")
                     + " · F frames it"
                 return "click two gold pads to wire · click a wire to branch off it · select a resistor to set its Ω · V shows all values · drag to look around"
+            }
+        }
+    }
+
+    // --- monitor -----------------------------------------------------------
+    // One quantity at a time: all series share one autoscaled axis, so mixing
+    // mA with V would flatten the volts onto the baseline. It is also the
+    // better lesson - watch V in series and it divides, watch I in parallel
+    // and it splits, on the very same pair of parts.
+    Row {
+        id: quantityChips
+        anchors.bottom: plot.top; anchors.bottomMargin: 6
+        anchors.right: plot.right
+        spacing: 6
+        Repeater {
+            model: root.watchQuantities
+            Rectangle {
+                id: chip
+                readonly property bool active: modelData.key === root.watchQuantity
+                width: chipLabel.width + 16; height: 22
+                radius: LabTheme.radius
+                color: chip.active ? LabTheme.secondary : LabTheme.panel
+                border.color: chip.active ? LabTheme.secondary : LabTheme.panelEdge
+                border.width: LabTheme.borderWidth
+                Text {
+                    id: chipLabel
+                    anchors.centerIn: parent
+                    text: modelData.label + " (" + modelData.unit + ")"
+                    color: chip.active ? LabTheme.paper : LabTheme.inkSoft
+                    font.pixelSize: 12; font.family: LabTheme.handFont
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.watchQuantity = modelData.key
+                }
             }
         }
     }
@@ -1549,8 +1750,18 @@ Item {
         id: plot
         anchors.bottom: parent.bottom; anchors.right: parent.right; anchors.margins: 10
         width: 330; height: 140
-        probes: ["iBattery", "iLed"]
         windowSeconds: 30
+        // the plotted set IS the watched set: labels and colours come from the
+        // board, and clicking a legend entry drops that part again
+        series: {
+            root.elemRev; root.elements
+            return root.watch.map((id, i) => ({
+                probe: "part" + id,
+                label: root.partLabel(id),
+                color: LabTheme.seriesColors[i % LabTheme.seriesColors.length] }))
+        }
+        placeholder: "select a part · W puts it here"
+        onSeriesClicked: (probe) => root.setWatched(parseInt(probe.substring(4)), false)
     }
 
     // --- keys --------------------------------------------------------------
@@ -1563,6 +1774,7 @@ Item {
         else if (ev.key === Qt.Key_E) eraser = !eraser
         else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false; selectedId = -1 }
         else if (ev.key === Qt.Key_V) showValues = !showValues
+        else if (ev.key === Qt.Key_W) { if (selectedId !== -1) toggleWatch(selectedId) }
         else if (ev.key === Qt.Key_M) showPlan = !showPlan
         else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
             snapToGrid = !snapToGrid
