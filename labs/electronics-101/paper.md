@@ -81,6 +81,40 @@ That iteration *is* the lesson made mechanical: current does not flow
 because a wire exists, it flows because the node voltages, solved all at
 once, leave a forward drop across a part that will pass it.
 
+## Short circuit vs. heavy load
+
+These are different faults and the lab used to conflate them: any battery
+current above 1.5 A raised a *SHORT CIRCUIT* banner. Two 6 Ω bulbs in
+parallel are 3 Ω, so the same, perfectly sound wiring was silent at 4.5 V
+(1.29 A) and accused of a short at 5.5 V (1.57 A). The threshold was
+measuring the wrong quantity.
+
+A short is not "a lot of current" — it is the **external resistance
+collapsing to the order of the cell's own**. The solver now computes what
+the cell actually sees,
+
+$$
+R_\mathrm{ext} = \frac{V_\mathrm{term}}{|I|},
+\qquad V_\mathrm{term} = \mathrm{EMF} - |I|\,R_\mathrm{int}
+$$
+
+and calls it a short when $R_\mathrm{ext} < 2R_\mathrm{int}$. Two parallel
+bulbs sit at $R_\mathrm{ext} = 3.01\,\Omega$ at *every* voltage — never a
+short, however hard you push them; past the cell's 1.5 A rating they are
+merely an **overload**, which now says so in its own words and colour.
+
+The explanation is visual, and the widget is reusable: selecting a battery
+shows a **`BudgetBar`** (in `Clayground.Lab`) splitting the EMF into what
+reaches your parts and what is lost inside the cell. On a healthy circuit
+the bar is almost all teal. On an overload a clay sliver appears — the cell
+is starting to eat its own voltage. On a real short the bar goes **entirely
+red**: every volt is burned internally, nothing is left for the parts, which
+is precisely why they go dark. Wires past the rating are drawn in alarm
+colour on the board and in the schematic, so the bypass path is visible as
+the thing carrying everything. A `BudgetBar` answers "where does it all go?"
+for any conserved quantity — volts round a loop, current at a junction,
+power in a machine — so other labs can borrow it as-is.
+
 ## Stated simplifications
 
 - **DC only.** No capacitors, inductors or AC sources — the solver has no
@@ -95,8 +129,9 @@ once, leave a forward drop across a part that will pass it.
   real incandescent's resistance climbs several-fold as it heats, so its
   true cold-inrush and warm-running currents differ. Brightness here is
   read straight off dissipated power.
-- **One global battery voltage.** Every battery on the board reads the
-  same `batteryV` slider; you cannot yet set two different cells.
+- **Ideal cells.** A battery's voltage is whatever you set on it (each cell
+  has its own, so a board can mix a 1.5 V and a 9 V one); only its internal
+  resistance limits current. Real cells sag and run down — these do not.
 
 ## Measured results
 
@@ -138,10 +173,10 @@ the core physical lesson of the lab.
 
 ## Things to try
 
-- **Push the LED to its ceiling.** Swap in a 100 Ω resistor and crank
-  `batteryV` to 12 V. The current climbs but the LED clamps near its
+- **Push the LED to its ceiling.** Set the resistor to 100 Ω and drag the
+  battery's own slider up to 12 V. The current climbs but the LED clamps near its
   $V_F$ knee — most of the extra volts now burn in the resistor, not the
-  diode. Watch `iLed` flatten on the plot as you drag the slider.
+  diode. Watch `iLed` flatten on the plot as you drag it.
 - **Build both bulb circuits and compare.** Press `2`, read the battery
   current, press `3`, read it again. Feel the $3.5\times$ jump — then
   notice the parallel bulbs are the bright ones. Same parts, different
@@ -188,8 +223,16 @@ value the way a bought resistor's do.
 Values are set where the part is, not in a global panel. Selecting a
 resistor puts a slider on its card that walks the **E12 series** — the
 values a shop actually sells — and selecting a battery gives it its own
-volts; the `batteryV` slider in the parameter panel stays as a master that
-moves every cell at once.
+volts, so a board can hold a 1.5 V cell next to a 9 V one. There is
+deliberately no global voltage parameter any more: one slider per cell is
+both simpler to explain and strictly more capable.
+
+`M` toggles the **Schaltplan**: a live schematic of the board in the corner,
+drawn with the same symbols the palette shows — parts where the parts are,
+lines where the wires are, energised wires in ink and idle ones faint. It
+fits itself to what you built. The 3D board shows what you assembled; the
+schematic shows what it *is*, and watching both at once is how the diagram
+in a textbook stops being an abstraction.
 
 Wires meet at **junctions**: click any wire and a solder dot is dropped
 where you clicked, splitting it in two and starting a branch from that point

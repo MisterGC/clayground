@@ -16,6 +16,7 @@ clay_plugin( Lab
         SimClock.qml
         ParamPanel.qml
         Plot2D.qml
+        BudgetBar.qml
         DataRecorder.qml
         Scenario.qml
         ScenarioSet.qml

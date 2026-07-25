@@ -23,7 +23,8 @@ Node {
     property real simV: 0            // volts across the part
     property bool lit: false         // led/bulb emitting
     property real simPower: 0        // watts dissipated
-    property bool shorted: false     // battery over-current
+    property bool shorted: false     // battery terminals effectively bridged
+    property bool overloaded: false  // heavy but honest load
     property bool hovered: false
     property bool selected: false
     property int wiringTerminal: -1  // terminal glowing during wiring, -1 none
@@ -125,7 +126,8 @@ Node {
         Part {
             width: 5.2; height: 3.6; depth: 3.6
             position: Qt.vector3d(0, 0, 0)
-            color: root.shorted ? "#b04434" : LabTheme.teal
+            color: root.shorted ? "#b04434"
+                 : root.overloaded ? LabTheme.highlight : LabTheme.teal
             SequentialAnimation on opacity {
                 running: root.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
                 NumberAnimation { to: 0.45; duration: 240 }

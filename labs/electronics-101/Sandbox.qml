@@ -6,12 +6,13 @@ import Clayground.Canvas3D
 import Clayground.Lab
 import "../kits/circuit"
 import "../kits/circuit/circuit.js" as Circuit
+import "../kits/circuit/symbols.js" as Symbols
 
 // Electronics 101 — a school electronics kit on a pegboard: battery,
 // switch, resistor, LED, bulb and meters, wired freely by clicking
 // terminals. A DC nodal solver lights things up in real time.
 // Keys: 1 led-basic · 2 series · 3 parallel · 4 metering · C clear ·
-// E eraser · V show all values · # grid mode · R turn selected · Del remove ·
+// E eraser · V show all values · M schematic · # grid mode · R turn · Del ·
 // Shift+R record · Esc cancel. View: drag the empty board to orbit,
 // wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
 Item {
@@ -20,8 +21,10 @@ Item {
     focus: true
     Component.onCompleted: { forceActiveFocus(); applyScenario("led-basic") }
 
-    // --- parameters / clock / probes ------------------------------------
-    Parameter { id: pBatteryV; name: "batteryV"; value: 4.5; from: 1.5; to: 12; unit: "V" }
+    // --- clock / probes --------------------------------------------------
+    // No global battery parameter: every cell carries its own voltage (select
+    // it and drag), so a board can hold a 1.5 V and a 9 V cell at once.
+    readonly property real defaultVolts: 4.5
 
     SimClock { id: clock; seed: 42; sampleInterval: 0.1 }
 
@@ -75,6 +78,13 @@ Item {
         for (const el of elements) if (el.id === id) return el
         return null
     }
+    function batteryOf(id) {
+        const b = sim.batteries ? sim.batteries[id] : null
+        return b ? b : null
+    }
+    // the cell's rated current, used to mark wires that are carrying too much
+    readonly property real ratedCurrent: 1.5
+
     function simOf(id) {
         const e = sim.perElement[id]
         return e ? e : { v: 0, i: 0, on: false, power: 0 }
@@ -97,19 +107,9 @@ Item {
             id: el.id, type: el.type, on: el.on,
             // a battery carries its own volts; the panel slider is a master
             // that moves them all at once
-            value: el.type === "battery" ? (el.value || pBatteryV.value) : el.value
+            value: el.type === "battery" ? (el.value || defaultVolts) : el.value
         }))
         sim = Circuit.solve(els, wires)
-    }
-    // the panel slider is the master cell voltage: it moves every battery
-    Connections {
-        target: pBatteryV
-        function onValueChanged() {
-            for (const el of root.elements)
-                if (el.type === "battery") el.value = pBatteryV.value
-            root.elemRev++
-            root.resolve()
-        }
     }
     function setBatteryVolts(id, v) {
         const el = elemAt(id)
@@ -149,7 +149,7 @@ Item {
         if (!spot) return -1
         const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
                      value: type === "resistor" ? 470
-                          : (type === "battery" ? pBatteryV.value : 0), on: false }
+                          : (type === "battery" ? defaultVolts : 0), on: false }
         elements = elements.concat([el])
         resolve()
         return el.id
@@ -469,6 +469,7 @@ Item {
     property int selectedId: -1         // -1 = nothing selected
     property bool snapToGrid: true      // grafli-style grid mode, # toggles it
     property bool showValues: false     // V: label every part and every wire
+    property bool showPlan: true        // M: the schematic minimap
 
     // world-space hit test against the data model (no per-model picking)
     function hitAt(wx, wz) {
@@ -549,10 +550,15 @@ Item {
             const style = wireStyle(amps, iMax)
             const hovered = hoverHit && hoverHit.kind === "wire" && hoverHit.wire === w.id
 
+            // a wire past the cell's rating is the one that would get hot:
+            // in a short this paints the bypass path, which is the answer to
+            // "where is all that current going?"
+            const hot = Math.abs(amps) > root.ratedCurrent
             out.push({ points: pts,
                        color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
-                                      : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
-                       width: 0.5, styleId: 0 })
+                            : hot ? LabTheme.alarm
+                            : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
+                       width: hot ? 0.66 : 0.5, styleId: 0 })
             if (style === 0) continue
 
             // chevrons point from the first point to the last, so a negative
@@ -722,7 +728,14 @@ Item {
                 simV: root.simOf(modelData.id).v
                 simPower: root.simOf(modelData.id).power
                 lit: root.simOf(modelData.id).on
-                shorted: modelData.type === "battery" && root.sim.shorted
+                shorted: {
+                    const b = root.batteryOf(modelData.id)
+                    return b !== null && b.shorted
+                }
+                overloaded: {
+                    const b = root.batteryOf(modelData.id)
+                    return b !== null && b.overloaded
+                }
                 hovered: root.hoverHit !== null && root.hoverHit.kind === "element"
                          && root.hoverHit.el === modelData.id
                 wiringTerminal: {
@@ -923,8 +936,9 @@ Item {
                 font.letterSpacing: 1.5; font.family: LabTheme.monoFont
             }
             Text {
-                text: "drag parts onto the board"
-                color: LabTheme.inkFaint; font.pixelSize: 13
+                text: Lab.scenario !== "" ? Lab.scenario : "drag parts onto the board"
+                color: Lab.scenario !== "" ? LabTheme.accent : LabTheme.inkFaint
+                font.pixelSize: 13
                 font.family: LabTheme.handFont
             }
             Item { width: 1; height: 6 }
@@ -1125,6 +1139,126 @@ Item {
         }
     }
 
+    // --- schematic minimap (Schaltplan) ------------------------------------
+    // The same board, drawn the way a circuit diagram draws it: symbols where
+    // the parts are, lines where the wires are. The 3D board says what you
+    // built; this says what it *is*. Both stay in step because they read the
+    // same model - and the symbols are the very ones from the palette.
+    Rectangle {
+        id: plan
+        visible: root.showPlan
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 12
+        anchors.bottomMargin: 44
+        width: 250
+        height: 176
+        radius: LabTheme.radius
+        color: LabTheme.panel
+        border.color: LabTheme.panelEdge
+        border.width: LabTheme.borderWidth
+
+        Text {
+            x: 12; y: 8
+            text: "SCHALTPLAN"
+            color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+            font.letterSpacing: 1.5; font.family: LabTheme.monoFont
+        }
+        Text {
+            anchors.right: parent.right; anchors.rightMargin: 12
+            y: 8
+            text: "M"
+            color: LabTheme.inkFaint; font.pixelSize: 11
+            font.family: LabTheme.monoFont
+        }
+
+        Canvas {
+            id: planCanvas
+            anchors.fill: parent
+            anchors.topMargin: 26
+            anchors.margins: 10
+
+            // one repaint trigger for everything the diagram depends on
+            readonly property int rev: root.elemRev + root.selectedId * 7919
+                                       + (root.showPlan ? 1 : 0)
+            readonly property var simRef: root.sim
+            onRevChanged: requestPaint()
+            onSimRefChanged: requestPaint()
+            Connections {
+                target: root
+                function onHoverHitChanged() { planCanvas.requestPaint() }
+                function onShowPlanChanged() { planCanvas.requestPaint() }
+            }
+
+            // Fits the parts, not the whole board: an empty pegboard would
+            // squeeze the diagram into a corner. Uniform scale, so the shape
+            // of the circuit stays the shape you built.
+            readonly property var fit: {
+                root.elemRev
+                const pad = 26
+                if (!root.elements.length)
+                    return { s: 1, ox: width / 2, oy: height / 2, cx: 0, cy: 0 }
+                let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity
+                for (const el of root.elements) {
+                    c0 = Math.min(c0, el.col); c1 = Math.max(c1, el.col)
+                    r0 = Math.min(r0, el.row); r1 = Math.max(r1, el.row)
+                }
+                const spanC = Math.max(1.2, c1 - c0), spanR = Math.max(1.2, r1 - r0)
+                const s = Math.min((width - 2 * pad) / spanC, (height - 2 * pad) / spanR)
+                return { s: s, ox: width / 2, oy: height / 2,
+                         cx: (c0 + c1) / 2, cy: (r0 + r1) / 2 }
+            }
+            function px(col) { return fit.ox + (col - fit.cx) * fit.s }
+            function py(row) { return fit.oy + (row - fit.cy) * fit.s }
+
+            onPaint: {
+                const ctx = getContext("2d")
+                ctx.reset()
+
+                // wires first, so symbols sit on top of their leads. Ends go
+                // to the terminal, not the part centre - otherwise a wire
+                // bridging one part's own two terminals (a short across the
+                // cell) would collapse to a point and vanish from the diagram.
+                function end(ref) {
+                    const el = root.elemAt(ref[0])
+                    if (!el) return null
+                    if (el.type === "junction")
+                        return { x: px(el.col), y: py(el.row) }
+                    const off = ref[1] === 0 ? -0.7 : 0.7
+                    const a = (el.rot || 0) * Math.PI / 180
+                    return { x: px(el.col + off * Math.cos(a)),
+                             y: py(el.row - off * Math.sin(a)) }
+                }
+                for (const w of root.wires) {
+                    const a = end(w.a), b = end(w.b)
+                    if (!a || !b) continue
+                    const i = root.sim.wireCurrent ? root.sim.wireCurrent[w.id] : null
+                    const amps = (i === null || i === undefined) ? 0 : Math.abs(i)
+                    const hot = amps > root.ratedCurrent
+                    ctx.strokeStyle = (hot ? LabTheme.alarm
+                                     : amps > 1e-5 ? LabTheme.ink
+                                     : LabTheme.inkFaint).toString()
+                    ctx.lineWidth = hot ? 2.4 : (amps > 1e-5 ? 1.6 : 1.2)
+                    ctx.beginPath()
+                    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y)
+                    ctx.stroke()
+                }
+
+                for (const el of root.elements) {
+                    const sel = el.id === root.selectedId
+                    const hov = root.hoverHit && root.hoverHit.el === el.id
+                    const sw = Math.max(22, Math.min(40, fit.s * 1.5))
+                    Symbols.draw(ctx, el.type, px(el.col), py(el.row), sw, sw * 0.66, {
+                        ink: (sel || hov ? LabTheme.secondary : LabTheme.ink).toString(),
+                        lineWidth: sel ? 2.2 : 1.5,
+                        rot: el.rot || 0,
+                        on: el.type === "switch" ? el.on : false
+                    })
+                }
+            }
+        }
+    }
+
     // --- value labels ------------------------------------------------------
     // The whole point of the lab in one toggle: with V on, every part shows
     // its current and voltage and every wire its current, so series (one
@@ -1211,6 +1345,10 @@ Item {
         height: selCol.height + 14
         readonly property bool isResistor: el !== null && el.type === "resistor"
         readonly property bool isBattery: el !== null && el.type === "battery"
+        readonly property var bat: {
+            root.elemRev; root.sim
+            return el && el.type === "battery" ? root.batteryOf(el.id) : null
+        }
         radius: LabTheme.radius
         color: LabTheme.panel
         border.color: LabTheme.secondary
@@ -1233,7 +1371,7 @@ Item {
                             ? (e.value / 1000).toFixed(e.value % 1000 ? 1 : 0) + " kΩ"
                             : e.value + " Ω")
                     if (e.type === "battery")
-                        return "BATTERY  " + (e.value || pBatteryV.value).toFixed(1) + " V"
+                        return "BATTERY  " + (e.value || root.defaultVolts).toFixed(1) + " V"
                     if (e.type === "switch") return "SWITCH  " + (e.on ? "closed" : "open")
                     return e.type.toUpperCase()
                 }
@@ -1267,7 +1405,7 @@ Item {
                         root.elemRev
                         if (!selCard.el) return 0
                         if (selCard.isBattery)
-                            return ((selCard.el.value || pBatteryV.value) - 1.5) / 10.5
+                            return ((selCard.el.value || root.defaultVolts) - 1.5) / 10.5
                         return steps > 0 ? root.resistorStepOf(selCard.el.value) / steps : 0
                     }
 
@@ -1306,6 +1444,47 @@ Item {
                     }
                 }
             }
+            // The cell's own account of itself: EMF splits into what it
+            // burns inside and what actually reaches the parts. A short is
+            // then not a slogan on a banner but a bar gone all-red.
+            BudgetBar {
+                visible: selCard.isBattery && selCard.bat !== null
+                width: selCard.width - 20
+                height: visible ? implicitHeight : 0
+                unit: "V"
+                total: selCard.bat ? selCard.bat.emf : 1
+                segments: {
+                    root.elemRev
+                    const b = selCard.bat
+                    if (!b) return []
+                    return [{ label: "reaches your parts", value: b.vTerm,
+                              color: LabTheme.teal },
+                            { label: "lost inside the cell", value: b.internalDrop,
+                              color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
+                }
+            }
+            Text {
+                visible: selCard.isBattery && selCard.bat !== null
+                width: selCard.width - 20
+                wrapMode: Text.WordWrap
+                text: {
+                    const b = selCard.bat
+                    if (!b) return ""
+                    if (b.shorted)
+                        return "short: your circuit is only "
+                               + b.rExt.toFixed(2) + " Ω, less than the cell itself"
+                    if (b.overloaded)
+                        return "heavy: " + Math.abs(b.i).toFixed(2)
+                               + " A drawn, rated " + b.rated.toFixed(1) + " A"
+                    return "your circuit is " + (b.rExt > 9999 ? "open"
+                           : b.rExt.toFixed(b.rExt < 100 ? 1 : 0) + " Ω")
+                }
+                color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
+                     : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
+                     : LabTheme.inkFaint
+                font.pixelSize: 12
+                font.family: LabTheme.handFont
+            }
             Text {
                 text: selCard.isResistor ? "drag to set Ω · R turn · Del remove"
                      : selCard.isBattery ? "drag to set volts · R turn · Del remove"
@@ -1317,17 +1496,23 @@ Item {
     }
 
     // --- short-circuit banner ---------------------------------------------
+    // Two different faults, two different messages. Drawing more current than
+    // the cell is rated for is not a short - the old banner cried short at any
+    // load above 1.5 A, which taught the wrong lesson.
     Rectangle {
-        visible: root.sim.shorted
+        visible: root.sim.shorted || root.sim.overloaded
         anchors.horizontalCenter: parent.horizontalCenter
         y: 16
         width: shortText.width + 40; height: 36; radius: 8
-        color: LabTheme.alarm
+        color: root.sim.shorted ? LabTheme.alarm : LabTheme.highlight
         Text {
             id: shortText
             anchors.centerIn: parent
-            text: "⚠ SHORT CIRCUIT — check your wiring!"
-            color: "#ffffff"; font.pixelSize: 14; font.bold: true
+            text: root.sim.shorted
+                ? "⚠ SHORT CIRCUIT — the current skips your parts and the cell heats up"
+                : "⚠ heavy load — more current than the cell is rated for"
+            color: root.sim.shorted ? "#ffffff" : LabTheme.ink
+            font.pixelSize: 14; font.bold: true
         }
         SequentialAnimation on opacity {
             running: root.sim.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
@@ -1360,7 +1545,6 @@ Item {
         }
     }
 
-    ParamPanel { anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10 }
     Plot2D {
         id: plot
         anchors.bottom: parent.bottom; anchors.right: parent.right; anchors.margins: 10
@@ -1379,6 +1563,7 @@ Item {
         else if (ev.key === Qt.Key_E) eraser = !eraser
         else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false; selectedId = -1 }
         else if (ev.key === Qt.Key_V) showValues = !showValues
+        else if (ev.key === Qt.Key_M) showPlan = !showPlan
         else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
             snapToGrid = !snapToGrid
         else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace) {

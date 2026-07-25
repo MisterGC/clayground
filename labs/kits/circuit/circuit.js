@@ -19,7 +19,15 @@
 //   voltmeter RVOLT (reads voltage across its terminals)
 //
 // solve() returns { ok, perElement: {id: {v, i, on, power}}, netCount,
-//                   shorted, iterations } - all numbers finite.
+//                   wireCurrent: {id: amps|null}, batteries: {id: {...}},
+//                   shorted, overloaded, iterations } - all numbers finite.
+//
+// A short and an overload are different faults and are reported separately.
+// A short is not "a lot of current": it is the external resistance collapsing
+// to the order of the cell's own internal resistance, so the cell burns its
+// EMF inside itself and almost nothing reaches the parts. A heavy but honest
+// load (two bulbs in parallel, say) draws a lot of current with its terminal
+// voltage nearly intact - that is an overload at worst, never a short.
 
 var RINT    = 0.5;     // battery internal resistance (ohm)
 var RCLOSED = 0.01;    // closed switch / plain contact (ohm)
@@ -30,7 +38,8 @@ var RBULB   = 6.0;     // incandescent bulb filament (ohm)
 var RLED    = 15.0;    // LED series resistance when conducting (ohm)
 var VF_LED  = 2.0;     // LED forward voltage (volt)
 var GLEAK   = 1e-9;    // per-net leak to ground keeps islands solvable
-var I_SHORT = 1.5;     // battery current above this counts as a short (A)
+var I_RATED = 1.5;     // what a cell is meant to deliver (A) - above this it
+                       // is overloaded, which is NOT the same as shorted
 
 // ---- nets via union-find ---------------------------------------------------
 
@@ -110,8 +119,8 @@ function conductanceOf(el, ledOn) {
 function solve(elements, wires) {
     var nets = buildNets(elements, wires);
     var n = nets.count;
-    var result = { ok: true, perElement: {}, netCount: n, shorted: false,
-                   iterations: 0 };
+    var result = { ok: true, perElement: {}, batteries: {}, netCount: n,
+                   shorted: false, overloaded: false, iterations: 0 };
     if (n === 0) return result;
 
     // LED conducting states, iterated to a fixed point. An LED that keeps
@@ -194,8 +203,23 @@ function solve(elements, wires) {
         if (el.type === "led") entry.on = ledOn[el.id] && cur > 1e-5;
         if (el.type === "bulb") entry.on = entry.power > 0.005;
         if (el.type === "switch") entry.on = !!el.on;
-        if (el.type === "battery" && Math.abs(cur) > I_SHORT)
-            result.shorted = true;
+        if (el.type === "battery") {
+            var ib = Math.abs(cur);
+            var vTerm = Math.abs(v);
+            var emf = el.value || 4.5;
+            // external resistance the cell actually sees
+            var rExt = ib > 1e-3 ? vTerm / ib : Infinity;
+            var isShort = rExt < 2 * RINT;
+            result.batteries[el.id] = {
+                emf: emf, i: cur, vTerm: vTerm, rExt: rExt,
+                internalDrop: Math.max(0, emf - vTerm),
+                rated: I_RATED,
+                shorted: isShort,
+                overloaded: !isShort && ib > I_RATED
+            };
+            if (isShort) result.shorted = true;
+            else if (ib > I_RATED) result.overloaded = true;
+        }
         result.perElement[el.id] = entry;
     }
     result.wireCurrent = attributeWireCurrents(elements, wires, result.perElement);
