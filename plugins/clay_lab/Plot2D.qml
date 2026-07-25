@@ -40,14 +40,14 @@ Rectangle {
 
     /*!
         \qmlproperty var Plot2D::seriesColors
-        \brief Colors cycled through per series (Clayground palette).
+        \brief Colors cycled through per series (LabTheme paper set).
     */
-    property var seriesColors: ["#00d9ff", "#ff3366", "#ffd93d", "#0f9d9a", "#b479ff", "#7dffa8"]
+    property var seriesColors: LabTheme.seriesColors
 
-    color: "#e60a0f14"
-    border.color: "#5500d9ff"
-    border.width: 1
-    radius: 6
+    color: LabTheme.panel
+    border.color: LabTheme.panelEdge
+    border.width: LabTheme.borderWidth
+    radius: LabTheme.radius
 
     Connections {
         target: Lab
@@ -84,7 +84,7 @@ Rectangle {
             const pad = (vMax - vMin) * 0.08
             vMin -= pad; vMax += pad
 
-            ctx.strokeStyle = "#1affffff"
+            ctx.strokeStyle = LabTheme.grid.toString()
             ctx.lineWidth = 1
             for (let i = 1; i < 4; ++i) {
                 const y = height * i / 4
@@ -106,8 +106,8 @@ Rectangle {
                 ctx.stroke()
             }
 
-            ctx.font = "10px sans-serif"
-            ctx.fillStyle = "#889099"
+            ctx.font = "10px Menlo, monospace"
+            ctx.fillStyle = LabTheme.inkFaint.toString()
             ctx.fillText(vMax.toFixed(2), 4, 12)
             ctx.fillText(vMin.toFixed(2), 4, height - 4)
             for (let i = 0; i < series.length; ++i) {

@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
+import Clayground.Lab
 
 // One circuit part on the pegboard: body by type, two gold terminals at
 // x = -/+ termOffset. Purely visual - the Sandbox owns state, hit testing
@@ -30,7 +31,7 @@ Node {
         scale: Qt.vector3d(0.11, 0.006, 0.09)
         visible: root.hovered
         materials: PrincipledMaterial {
-            baseColor: "#00d9ff"; emissiveFactor: Qt.vector3d(0, 0.5, 0.6)
+            baseColor: LabTheme.secondary; emissiveFactor: Qt.vector3d(0, 0.25, 0.5)
             lighting: PrincipledMaterial.NoLighting
         }
     }
@@ -43,9 +44,9 @@ Node {
             position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.9, 0)
             scale: Qt.vector3d(0.02, 0.02, 0.02)
             materials: PrincipledMaterial {
-                baseColor: root.wiringTerminal === index ? "#00d9ff" : "#ffd93d"
+                baseColor: root.wiringTerminal === index ? LabTheme.secondary : LabTheme.highlight
                 emissiveFactor: root.wiringTerminal === index
-                                ? Qt.vector3d(0, 0.9, 1.1) : Qt.vector3d(0.25, 0.2, 0)
+                                ? Qt.vector3d(0, 0.45, 0.9) : Qt.vector3d(0.12, 0.1, 0.02)
                 roughness: 0.35
             }
         }
@@ -57,7 +58,7 @@ Node {
             source: "#Cylinder"
             position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.4, 0)
             scale: Qt.vector3d(0.008, 0.011, 0.008)
-            materials: PrincipledMaterial { baseColor: "#8a7326"; roughness: 0.5 }
+            materials: PrincipledMaterial { baseColor: "#9a8a5a"; roughness: 0.5 }
         }
     }
 
@@ -67,7 +68,7 @@ Node {
         Box3D {
             width: 5.2; height: 3.6; depth: 3.6
             position: Qt.vector3d(0, 1.8, 0)
-            color: root.shorted ? "#a02020" : "#0f9d9a"
+            color: root.shorted ? "#b04434" : LabTheme.teal
             SequentialAnimation on opacity {
                 running: root.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
                 NumberAnimation { to: 0.45; duration: 240 }
@@ -76,19 +77,19 @@ Node {
         }
         Box3D {  // + cap
             width: 0.8; height: 1.0; depth: 1.6
-            position: Qt.vector3d(-2.9, 2.0, 0); color: "#ffd93d"
+            position: Qt.vector3d(-2.9, 2.0, 0); color: LabTheme.highlight
         }
         Box3D {  // + glyph above the anode cap
             width: 1.3; height: 0.3; depth: 0.3
-            position: Qt.vector3d(-2.4, 4.1, 0); color: "#ffd93d"
+            position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
         }
         Box3D {
             width: 0.3; height: 0.3; depth: 1.3
-            position: Qt.vector3d(-2.4, 4.1, 0); color: "#ffd93d"
+            position: Qt.vector3d(-2.4, 4.1, 0); color: LabTheme.ink
         }
         Box3D {  // - glyph
             width: 1.3; height: 0.3; depth: 0.3
-            position: Qt.vector3d(2.4, 4.1, 0); color: "#dfe7ee"
+            position: Qt.vector3d(2.4, 4.1, 0); color: LabTheme.panel
         }
     }
 
@@ -123,7 +124,7 @@ Node {
                 position: Qt.vector3d(index === 0 ? -2.8 : 2.8, 1.0, 0)
                 eulerRotation.z: 90
                 scale: Qt.vector3d(0.003, 0.014, 0.003)
-                materials: PrincipledMaterial { baseColor: "#9aa2ab"; roughness: 0.4 }
+                materials: PrincipledMaterial { baseColor: LabTheme.muted; roughness: 0.4 }
             }
         }
     }
@@ -139,7 +140,7 @@ Node {
             position: Qt.vector3d(0, 2.4, 0)
             scale: Qt.vector3d(0.034, 0.034, 0.034)
             materials: PrincipledMaterial {
-                baseColor: root.lit ? "#ff5a4a" : "#a03a30"
+                baseColor: root.lit ? "#e05a40" : "#9a5244"
                 emissiveFactor: Qt.vector3d(2.2, 0.55, 0.35).times(_led.glow)
                 roughness: 0.25
             }
@@ -148,16 +149,16 @@ Node {
             source: "#Cylinder"
             position: Qt.vector3d(0, 0.7, 0)
             scale: Qt.vector3d(0.026, 0.014, 0.026)
-            materials: PrincipledMaterial { baseColor: "#3c4650"; roughness: 0.6 }
+            materials: PrincipledMaterial { baseColor: "#6b655c"; roughness: 0.6 }
         }
         Box3D {  // anode marker: gold foot toward terminal 0
             width: 1.6; height: 0.3; depth: 0.7
-            position: Qt.vector3d(-1.4, 0.5, 0); color: "#ffd93d"
+            position: Qt.vector3d(-1.4, 0.5, 0); color: LabTheme.highlight
         }
         PointLight {
             visible: root.lit
             position: Qt.vector3d(0, 3.2, 0)
-            color: "#ff6a55"
+            color: "#e8785e"
             brightness: 1.6 * _led.glow
             quadraticFade: 0.02
         }
@@ -175,7 +176,7 @@ Node {
             scale: Qt.vector3d(0.042, 0.042, 0.042)
             opacity: 0.42
             materials: PrincipledMaterial {
-                baseColor: "#cfe4ee"; roughness: 0.05
+                baseColor: "#e7e4da"; roughness: 0.05
                 alphaMode: PrincipledMaterial.Blend
             }
         }
@@ -198,7 +199,7 @@ Node {
         PointLight {
             visible: root.lit
             position: Qt.vector3d(0, 3.8, 0)
-            color: "#ffd98c"
+            color: "#e8cf8a"
             brightness: 2.2 * _bulb.glow
             quadraticFade: 0.015
         }
@@ -210,14 +211,14 @@ Node {
         Box3D {
             width: 4.6; height: 1.3; depth: 3.0
             position: Qt.vector3d(0, 0.7, 0)
-            color: "#2b3642"
+            color: "#8a8378"
         }
         Node {  // lever pivots at the left contact
             position: Qt.vector3d(-1.6, 1.6, 0)
             Box3D {
-                width: 3.4; height: 0.5; depth: 1.1
+                width: 3.4; height: 0.65; depth: 1.5
                 position: Qt.vector3d(1.6, 0, 0)
-                color: root.switchOn ? "#3fbf6f" : "#c74a52"
+                color: root.switchOn ? LabTheme.forest : LabTheme.clay
             }
             eulerRotation.z: root.switchOn ? 0 : 28
             Behavior on eulerRotation.z { NumberAnimation { duration: 120 } }
@@ -228,7 +229,7 @@ Node {
                 source: "#Cylinder"
                 position: Qt.vector3d(index === 0 ? -1.6 : 1.6, 1.65, 0)
                 scale: Qt.vector3d(0.009, 0.005, 0.009)
-                materials: PrincipledMaterial { baseColor: "#ffd93d"; roughness: 0.3 }
+                materials: PrincipledMaterial { baseColor: LabTheme.highlight; roughness: 0.3 }
             }
         }
     }
@@ -237,12 +238,12 @@ Node {
     Node {
         id: _meter
         visible: root.type === "ammeter" || root.type === "voltmeter"
-        readonly property color ring: root.type === "ammeter" ? "#0f9d9a" : "#ff3366"
+        readonly property color ring: root.type === "ammeter" ? LabTheme.forest : LabTheme.plum
         Model {  // face
             source: "#Cylinder"
             position: Qt.vector3d(0, 1.2, 0)
             scale: Qt.vector3d(0.05, 0.014, 0.05)
-            materials: PrincipledMaterial { baseColor: "#e8eef2"; roughness: 0.55 }
+            materials: PrincipledMaterial { baseColor: LabTheme.panel; roughness: 0.55 }
         }
         Model {  // ring
             source: "#Cylinder"

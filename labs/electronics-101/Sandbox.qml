@@ -321,7 +321,7 @@ Item {
         }
         return [pts]
     }
-    readonly property var wireColors: ["#e04b3a", "#2e343d", "#3a7bd5", "#3fbf6f"]
+    readonly property var wireColors: LabTheme.seriesColors
 
     // --- 3D scene ---------------------------------------------------------
     View3D {
@@ -330,7 +330,7 @@ Item {
         camera: cam
 
         environment: SceneEnvironment {
-            clearColor: "#0d0d1a"
+            clearColor: LabTheme.paper
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
         }
@@ -360,12 +360,12 @@ Item {
             pickable: true
             position: Qt.vector3d(0, -2, 0)
             scale: Qt.vector3d(1.06, 0.04, 0.66)
-            materials: PrincipledMaterial { baseColor: "#16222e"; roughness: 0.85 }
+            materials: PrincipledMaterial { baseColor: LabTheme.paperDeep; roughness: 0.9 }
         }
         Box3D {  // rim
             width: 112; height: 1.6; depth: 72
             position: Qt.vector3d(0, -3.0, 0)
-            color: "#0f9d9a"
+            color: LabTheme.ink
         }
         Repeater3D {  // peg dots mark the cells
             model: root.cols * root.rows
@@ -375,7 +375,7 @@ Item {
                                       root.cellZ(Math.floor(index / root.cols)))
                 scale: Qt.vector3d(0.008, 0.001, 0.008)
                 materials: PrincipledMaterial {
-                    baseColor: "#38495c"
+                    baseColor: LabTheme.grid
                     lighting: PrincipledMaterial.NoLighting
                 }
             }
@@ -457,7 +457,7 @@ Item {
                 const b = root.cursorW
                 return [[a, Qt.vector3d((a.x + b.x) / 2, 4.5, (a.z + b.z) / 2), b]]
             }
-            color: "#00d9ff"
+            color: LabTheme.secondary
             width: 0.4
         }
     }
@@ -530,13 +530,13 @@ Item {
 
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
-        { type: "battery", label: "Battery", hint: "voltage from the slider", color: "#0f9d9a" },
-        { type: "switch", label: "Switch", hint: "click to flip", color: "#c74a52" },
+        { type: "battery", label: "Battery", hint: "voltage from the slider", color: "#3e9b92" },
+        { type: "switch", label: "Switch", hint: "click to flip", color: "#c56c54" },
         { type: "resistor", label: "Resistor", hint: "click cycles Ω", color: "#d9c9a0" },
-        { type: "led", label: "LED", hint: "gold foot = +", color: "#ff5a4a" },
-        { type: "bulb", label: "Bulb", hint: "brightness = power", color: "#ffd98c" },
-        { type: "ammeter", label: "Ammeter", hint: "wire it in series", color: "#0f9d9a" },
-        { type: "voltmeter", label: "Voltmeter", hint: "wire it across", color: "#ff3366" }
+        { type: "led", label: "LED", hint: "gold foot = +", color: "#e05a40" },
+        { type: "bulb", label: "Bulb", hint: "brightness = power", color: "#d4ba6a" },
+        { type: "ammeter", label: "Ammeter", hint: "wire it in series", color: "#3f7a57" },
+        { type: "voltmeter", label: "Voltmeter", hint: "wire it across", color: "#8160a8" }
     ]
 
     Rectangle {
@@ -545,8 +545,8 @@ Item {
         width: 168
         height: paletteCol.height + 20
         radius: 8
-        color: "#e60a0f14"
-        border.color: "#5500d9ff"; border.width: 1
+        color: LabTheme.panel
+        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
 
         Column {
             id: paletteCol
@@ -554,28 +554,29 @@ Item {
             spacing: 4
             Text {
                 text: "ELECTRONICS 101"
-                color: "#00d9ff"; font.pixelSize: 13; font.bold: true
-                font.letterSpacing: 1.5
+                color: LabTheme.primary; font.pixelSize: 13; font.bold: true
+                font.letterSpacing: 1.5; font.family: LabTheme.monoFont
             }
             Text {
                 text: "drag parts onto the board"
-                color: "#889099"; font.pixelSize: 10
+                color: LabTheme.inkFaint; font.pixelSize: 13
+                font.family: LabTheme.handFont
             }
             Item { width: 1; height: 6 }
             Repeater {
                 model: root.partCatalog
                 Rectangle {
                     width: 148; height: 40; radius: 6
-                    color: partArea.containsMouse ? "#1c2c3c" : "#141f2a"
-                    border.color: partArea.containsMouse ? "#7700d9ff" : "#33222f3a"
+                    color: partArea.containsMouse ? "#ffffff" : LabTheme.paper
+                    border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
                     Rectangle {
                         x: 8; y: 11; width: 18; height: 18; radius: 4
                         color: modelData.color
                     }
                     Column {
                         x: 34; anchors.verticalCenter: parent.verticalCenter
-                        Text { text: modelData.label; color: "#dfe7ee"; font.pixelSize: 12; font.bold: true }
-                        Text { text: modelData.hint; color: "#889099"; font.pixelSize: 9 }
+                        Text { text: modelData.label; color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
+                        Text { text: modelData.hint; color: LabTheme.inkFaint; font.pixelSize: 12; font.family: LabTheme.handFont }
                     }
                     MouseArea {
                         id: partArea
@@ -599,22 +600,24 @@ Item {
             Item { width: 1; height: 6 }
             Rectangle {
                 width: 148; height: 34; radius: 6
-                color: root.eraser ? "#66ff3366" : "#141f2a"
-                border.color: root.eraser ? "#ff3366" : "#33222f3a"
+                color: root.eraser ? LabTheme.clay : LabTheme.paper
+                border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
                     text: root.eraser ? "ERASER ON  (E)" : "Eraser  (E)"
-                    color: root.eraser ? "#ffffff" : "#dfe7ee"; font.pixelSize: 11
+                    color: root.eraser ? "#ffffff" : LabTheme.inkSoft; font.pixelSize: 11
+                    font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
             }
             Rectangle {
                 width: 148; height: 30; radius: 6
-                color: "#141f2a"; border.color: "#33222f3a"
+                color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
                     text: "Clear board  (C)"
-                    color: "#dfe7ee"; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
             }
@@ -626,12 +629,13 @@ Item {
         visible: root.paletteDrag !== "" && ghostArea.mx > 0
         x: ghostArea.mx + 10; y: ghostArea.my - 14
         width: ghostLabel.width + 18; height: 26; radius: 6
-        color: "#cc0f2a38"; border.color: "#00d9ff"
+        color: LabTheme.panel; border.color: LabTheme.secondary
         Text {
             id: ghostLabel
             anchors.centerIn: parent
             text: root.paletteDrag
-            color: "#00d9ff"; font.pixelSize: 12
+            color: LabTheme.primary; font.pixelSize: 12
+            font.family: LabTheme.monoFont
         }
     }
     MouseArea {
@@ -670,14 +674,15 @@ Item {
             width: readingText.width + 18
             height: 24
             radius: 12
-            color: "#e60a0f14"
-            border.color: modelData.type === "ammeter" ? "#0f9d9a" : "#ff3366"
+            color: LabTheme.panel
+            border.color: modelData.type === "ammeter" ? LabTheme.forest : LabTheme.plum
             border.width: 1.5
             Text {
                 id: readingText
                 anchors.centerIn: parent
                 text: (modelData.type === "ammeter" ? "A " : "V ") + parent.reading
-                color: "#dfe7ee"; font.pixelSize: 13; font.bold: true
+                color: LabTheme.ink; font.pixelSize: 13; font.bold: true
+                font.family: LabTheme.monoFont
             }
         }
     }
@@ -688,7 +693,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: 16
         width: shortText.width + 40; height: 36; radius: 8
-        color: "#d8ff3366"
+        color: LabTheme.alarm
         Text {
             id: shortText
             anchors.centerIn: parent
@@ -708,11 +713,12 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: 8
         width: hintText.width + 30; height: 26; radius: 6
-        color: "#c80a0f14"
+        color: LabTheme.panel
         Text {
             id: hintText
             anchors.centerIn: parent
-            color: "#889099"; font.pixelSize: 11
+            color: LabTheme.inkSoft; font.pixelSize: 15
+            font.family: LabTheme.handFont
             text: {
                 if (root.eraser) return "eraser: click parts or wire knots to remove · E exits"
                 if (root.wiringFrom) return "click a second terminal to connect · Esc cancels"
@@ -727,7 +733,6 @@ Item {
         anchors.bottom: parent.bottom; anchors.right: parent.right; anchors.margins: 10
         width: 330; height: 140
         probes: ["iBattery", "iLed"]
-        seriesColors: ["#ffd93d", "#ff5a4a"]
         windowSeconds: 30
     }
 

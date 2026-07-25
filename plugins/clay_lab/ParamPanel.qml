@@ -31,10 +31,10 @@ Rectangle {
 
     width: 280
     height: _content.height + 16
-    color: "#e60a0f14"
-    border.color: "#5500d9ff"
-    border.width: 1
-    radius: 6
+    color: LabTheme.panel
+    border.color: LabTheme.panelEdge
+    border.width: LabTheme.borderWidth
+    radius: LabTheme.radius
 
     Column {
         id: _content
@@ -46,14 +46,15 @@ Rectangle {
             width: parent.width; height: 20
             Text {
                 text: (_panel.expanded ? "▾ " : "▸ ") + "PARAMETERS"
-                color: "#00d9ff"; font.pixelSize: 12; font.bold: true
-                font.letterSpacing: 1.5
+                color: LabTheme.primary; font.pixelSize: 12; font.bold: true
+                font.letterSpacing: 1.5; font.family: LabTheme.monoFont
             }
             Text {
                 anchors.right: parent.right
                 visible: Lab.scenario !== ""
                 text: Lab.scenario
-                color: "#ffd93d"; font.pixelSize: 11; font.italic: true
+                color: LabTheme.accent; font.pixelSize: 13
+                font.family: LabTheme.handFont
             }
             TapHandler { onTapped: _panel.expanded = !_panel.expanded }
         }
@@ -72,14 +73,16 @@ Rectangle {
                     width: parent.width; height: 14
                     Text {
                         text: _row.par ? _row.par.name : ""
-                        color: "#e8ecf2"; font.pixelSize: 11
+                        color: LabTheme.inkSoft; font.pixelSize: 11
+                        font.family: LabTheme.monoFont
                     }
                     Text {
                         anchors.right: parent.right
                         text: _row.par
                               ? _row.par.value.toFixed(2) + (_row.par.unit ? " " + _row.par.unit : "")
                               : ""
-                        color: "#00d9ff"; font.pixelSize: 11; font.bold: true
+                        color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+                        font.family: LabTheme.monoFont
                     }
                 }
 
@@ -93,19 +96,19 @@ Rectangle {
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width; height: 4; radius: 2
-                        color: "#22ffffff"
+                        color: LabTheme.panelEdge
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, Math.min(1, _slider.ratio)) * parent.width
                         height: 4; radius: 2
-                        color: "#00d9ff"
+                        color: LabTheme.secondary
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         x: Math.max(0, Math.min(1, _slider.ratio)) * (parent.width - width)
                         width: 12; height: 12; radius: 6
-                        color: "#0a0f14"; border.color: "#00d9ff"; border.width: 2
+                        color: LabTheme.panel; border.color: LabTheme.ink; border.width: 2
                     }
                     MouseArea {
                         anchors.fill: parent
