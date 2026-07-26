@@ -19,10 +19,80 @@ not documentation-after-the-fact in spirit — writing it is what forces
 the numbers to be right — but its results section can only be written
 after the verification runs exist.
 
+## Purpose decides the structure
+
+Ask what the lab is *for* before writing a line of either artifact, and
+say so in the paper's opening. The three purposes want genuinely
+different documents, and a paper written for the wrong one reads as
+padding — a lesson plan full of uncertainty budgets, or a lab report
+that keeps stopping to ask the reader a question.
+
+| Purpose | Who reads it | `paper.md` is | `overview.grafli` is |
+|---|---|---|---|
+| **learning** | you, working it out | a study path | a concept map that grows |
+| **teaching** | someone you are explaining it to | a lesson plan | a storyboard of reveals |
+| **research** | you or a reviewer, later | a lab report | a model diagram |
+
+### learning — the lab is your study space
+
+1. **The question** and, before any answer, **what you expected** —
+   writing the wrong prediction down is the whole point.
+2. **The model at the level you can currently hold**, not the textbook's.
+3. **Worked examples you can redo in the lab** — each one a scenario,
+   a knob to turn, and the number to watch.
+4. **Where the intuition broke** — the surprises, in your own words.
+5. **Still open** — the questions the lab did not settle.
+
+The board grows with the understanding: prerequisite → concept →
+consequence, with unresolved nodes explicitly marked as questions rather
+than quietly omitted. The distinguishing move is that the misconceptions
+you actually hit get recorded, because that is the one thing you cannot
+reconstruct later.
+
+### teaching — someone else is the reader
+
+1. **The misconception it targets**, stated as the belief a learner
+   arrives with.
+2. **The demonstration sequence** — which scenario, what to change, what
+   to ask, in order.
+3. **The moment the number contradicts the belief** — name the reading
+   and the value it lands on.
+4. **The takeaway**, in one sentence a learner could repeat.
+5. **When they ask…** — the two or three follow-ups that always come,
+   with answers.
+
+The board is a storyboard: one node per beat, in reveal order, mirroring
+the guided flow exactly. Here the **flow is the primary artifact** and
+the paper is its script, so prepared scenarios matter more than a wide
+parameter range — the reader is on rails on purpose.
+
+### research — the lab is an instrument
+
+1. **The question**, sharp enough to be answered by a number.
+2. **Method** — what is swept, what is held, how many runs.
+3. **The model and its assumptions**, with each simplification's
+   expected effect on the result.
+4. **Results** — the table, with seed, scenario, step count and
+   uncertainty, and one sentence on reproducing it.
+5. **Limitations** — where the answer stops being trustworthy.
+
+The board is a model diagram: what feeds what, where each assumption
+sits, which quantities are measured and which derived. Determinism and
+CSV export are load-bearing rather than nice to have, and the staleness
+contract below bites hardest here.
+
+### When the purpose shifts
+
+A lab often starts as research and becomes teaching once you know the
+answer. When that happens, **re-cut the paper rather than appending to
+it** — a lab report with a lesson plan bolted on the end serves neither
+reader, and the flow it needs is a different flow.
+
 ## paper.md
 
-Structure that has worked (see `labs/electronics-101/paper.md` and
-`labs/sensor-fusion-101/paper.md`):
+Whatever the purpose, these hold. Structure that has worked (see
+`labs/electronics-101/paper.md` and `labs/sensor-fusion-101/paper.md`,
+both teaching labs):
 
 1. **The hook** — what question the lab answers, in two sentences.
 2. **The model** — the actual math in pandoc-math notation (the Kalman
@@ -63,7 +133,9 @@ Therefore:
 
 - Concept topology, not a screenshot: the causal chain of the lab
   (build → solve → show; sensors → filter → estimate), with deep links
-  into the paper's sections.
+  into the paper's sections. Which topology depends on the purpose — a
+  growing concept map, a reveal storyboard or a model diagram; see
+  *Purpose decides the structure* above.
 - Its guided flow (bookmarks) mirrors the in-lab flow — same order, same
   vocabulary.
 - Include the key map and the scenario list; keep every binding claim in

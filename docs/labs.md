@@ -35,6 +35,14 @@ results; the *board* is the concept map. Writing the paper is what forces the
 numbers to be right, so it is part of the work rather than documentation
 after the fact.
 
+What those two look like depends on what the lab is *for*. A lab built for
+**learning** gets a study path and a concept map that grows as the
+understanding does. One built for **teaching** gets a lesson plan and a
+storyboard of reveals, with the guided tour as the main artifact. One built
+for **research** gets a lab report — hypothesis, method, results with seeds
+and uncertainty, limitations — and a diagram of the model itself. Same three
+files either way; different documents.
+
 ## The labs
 
 <div class="lab-cards">

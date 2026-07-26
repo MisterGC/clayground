@@ -42,6 +42,16 @@ A lab is finished when `labs/<lab>/` contains, consistent with each other:
 | `paper.md` | depth: the model, its math, stated simplifications, **measured** results (textli conventions) |
 | `overview.grafli` | overview: concept topology, deep links into the paper (grafli conventions) |
 
+**Decide the purpose before writing either.** A lab is built for
+**learning** (you are working it out), **teaching** (you are explaining
+it to someone) or **research** (you are measuring something), and the
+paper and board are structured differently for each — a study path, a
+lesson plan or a lab report; a growing concept map, a reveal storyboard
+or a model diagram. State it in the paper's opening. The skeletons are in
+`references/triad.md`; picking the wrong one produces a document that
+reads as padding, and a purpose that shifts means re-cutting the paper
+rather than appending to it.
+
 Flows currently live inline in `Sandbox.qml` (a `flows/` dir convention is
 planned, not built). Papers and boards are authoring artifacts — the lab
 never links against textli or grafli. See `references/triad.md` before
