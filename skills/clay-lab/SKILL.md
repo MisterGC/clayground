@@ -79,7 +79,6 @@ Reference labs, in reading order for a new author:
 
 | Lab | Teaches you |
 |---|---|
-| `labs/physics-playground/` | minimal kernel-only lab, Box2D clock |
 | `labs/sensor-fusion-101/` | continuous 3D lab: sensors, Kalman, watch steps, produced GNSS error |
 | `labs/electronics-101/` | build-type lab: palette, wiring, per-part controls, dual representation, richest conventions |
 | `labs/street-network-101/` | draw → derive → simulate: planar road graph, derived lane model, kit unit suite |

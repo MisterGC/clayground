@@ -100,4 +100,4 @@ Item {
 ```
 
 See `demo/Sandbox.qml` (kernel-only damped oscillator) and
-`labs/physics-playground/` for a full physics-based lab.
+`labs/electronics-101/` for a full lab.
