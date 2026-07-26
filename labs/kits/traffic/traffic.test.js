@@ -13,17 +13,10 @@
 // invariants (determinism, no overlaps, one car per turn, no deadlock).
 // The deadlock cases at the end are regressions - each of those (seed, demand)
 // pairs once brought a network to a complete standstill.
-const fs = require('fs')
-const path = require('path')
+const K = require('../kitcheck.js')
 
 const KIT = process.argv[2] || __dirname
-
-function load(name, exports) {
-    const src = fs.readFileSync(path.join(KIT, name), 'utf8')
-        .replace(/^\s*\.pragma\s+library\s*$/m, '')
-    const fn = new Function(src + '\nreturn {' + exports.join(',') + '}')
-    return fn()
-}
+const load = (name, exports) => K.load(KIT, name, exports)
 
 const G = load('roadgraph.js', ['empty', 'clone', 'addNode', 'insertRoad', 'removeRoad',
     'removeNode', 'nodeById', 'roadById', 'degree', 'incident', 'nearestNode',
@@ -34,28 +27,8 @@ const L = load('lanemodel.js', ['derive', 'poseOn', 'surfaceRuns', 'laneRuns',
 const T = load('traffic.js', ['createState', 'step', 'defaultParams', 'targetCount',
     'summary', 'meanSpeed', 'rehome', 'stoppedShare'])
 
-let pass = 0, fail = 0
-function ok(name, cond, extra) {
-    if (cond) { pass++; console.log('  ok   ' + name) }
-    else { fail++; console.log('  FAIL ' + name + (extra ? '  <- ' + extra : '')) }
-}
-function eq(name, got, want) { ok(name, got === want, 'got ' + got + ', want ' + want) }
-function near(name, got, want, tol) {
-    ok(name, Math.abs(got - want) <= tol, 'got ' + got + ', want ~' + want)
-}
-function section(s) { console.log('\n' + s) }
-
-// deterministic rng for the sim tests (mulberry32, same as SimClock)
-function rngFrom(seed) {
-    let a = seed >>> 0
-    return function () {
-        a = (a + 0x6D2B79F5) | 0
-        let t = a
-        t = Math.imul(t ^ (t >>> 15), t | 1)
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-    }
-}
+// the harness owns the assertions and the tally now
+const ok = K.ok, eq = K.eq, near = K.near, section = K.section, rngFrom = K.rngFrom
 
 // ---------------------------------------------------------------- roadgraph
 section('roadgraph: building')
@@ -579,5 +552,4 @@ function run(seed, steps, par, netIn) {
     eq('no network, no cars', st.cars.length, 0)
 }
 
-console.log('\n' + pass + ' passed, ' + fail + ' failed')
-process.exit(fail ? 1 : 0)
+process.exit(K.report('traffic kit'))
