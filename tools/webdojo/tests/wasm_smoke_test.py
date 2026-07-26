@@ -65,7 +65,6 @@ def main():
 
     booted = qml_loaded = False
     errors = []
-    settled = threading.Event()
 
     with sync_playwright() as p:
         browser = launch_browser(p)
@@ -85,13 +84,18 @@ def main():
                 qml_loaded = True
             if any(marker in text for marker in ERROR_MARKERS):
                 errors.append(text)
-            if qml_loaded or errors:
-                settled.set()
 
         page.on("console", on_console)
-        page.on("pageerror", lambda e: (errors.append(f"pageerror: {e}"), settled.set()))
+        page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         page.goto(url)
-        settled.wait(args.timeout)
+        # Poll via a Playwright call so the sync event loop is pumped and console
+        # events actually fire; a bare threading.Event.wait() would stall dispatch
+        # and always burn the full timeout even when the app boots in seconds.
+        waited = 0
+        deadline_ms = args.timeout * 1000
+        while waited < deadline_ms and not (qml_loaded or errors):
+            page.wait_for_timeout(250)
+            waited += 250
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
         if args.screenshot:
             page.screenshot(path=args.screenshot)

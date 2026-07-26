@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>deck.gl line-rendering benchmark</title>
+    <!-- deck.gl 9.3.7 umbrella scripting bundle (core + layers + extensions),
+         same CDN as the neoncity deck.gl reference twin. -->
+    <script src="https://unpkg.com/deck.gl@9.3.7/dist.min.js"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #101018;
+        color: #e6f7ff;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      #deck-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #panel {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 10;
+        background: rgba(16, 16, 24, 0.82);
+        border: 1px solid #0f9d9a;
+        border-radius: 8px;
+        padding: 12px 14px;
+        min-width: 280px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      #panel h1 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: #00d9ff;
+      }
+      #panel .kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      #panel .kv span {
+        color: #8fb7c4;
+      }
+      #panel .kv b {
+        color: #ffd93d;
+      }
+      #results {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 10;
+        width: 44%;
+        max-width: 640px;
+        overflow: auto;
+        background: rgba(16, 16, 24, 0.9);
+        border: 1px solid #ff3366;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 12px;
+        white-space: pre;
+        color: #cfe9f2;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="deck-canvas"></canvas>
+
+    <section id="panel">
+      <h1>deck.gl line benchmark</h1>
+      <div class="kv"><span>status</span><b id="m-status">loading…</b></div>
+      <div class="kv"><span>scenario</span><b id="m-scenario">–</b></div>
+      <div class="kv"><span>N</span><b id="m-n">–</b></div>
+      <div class="kv"><span>phase</span><b id="m-phase">–</b></div>
+      <div class="kv"><span>live fps</span><b id="m-fps">–</b></div>
+      <div class="kv"><span>refresh (empty)</span><b id="m-empty">–</b></div>
+      <div class="kv"><span>deck.gl</span><b id="m-ver">–</b></div>
+    </section>
+
+    <pre id="results"></pre>
+
+    <script src="./bench.js"></script>
+  </body>
+</html>

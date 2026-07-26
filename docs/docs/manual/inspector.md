@@ -42,7 +42,7 @@ The `.clay/` directory is created automatically in the directory where the sandb
 }
 ```
 
-Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors`, and optionally a `screenshot` path.
+Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors`, and optionally a `screenshot` path.
 
 ### eval — Expression evaluation
 
@@ -202,6 +202,32 @@ function applyScenario(name) {
 optionally rearms them (see above). Assign entity positions imperatively in
 `applyScenario` — initial QML property values do not fire change handlers, so
 `PhysicsItem` coordinates only sync on post-creation writes.
+
+## View State Preservation
+
+The sandbox root may define `viewState()` (returns a JSON-serializable object
+— the user's place: camera, tuning params, sim time) and
+`applyViewState(state)` (assigns it back). Both are optional siblings of
+`flagInfo()` / `scenarios()`:
+
+```qml
+function viewState() { return { camX: cam.x, camY: cam.y, zoom: cam.zoom } }
+
+function applyViewState(s) { cam.x = s.camX; cam.y = s.camY; cam.zoom = s.zoom }
+```
+
+When present, the loader captures `viewState()` from the outgoing root right
+before *every* reload — file-watch and agent-requested alike — and re-applies
+it to the new root once it is ready, after any rearmed scenario (so a sandbox
+that encodes scenario + sim time in its view state gets the last word). A null
+or failed capture keeps the previous one, so a fix applied after a load error
+still restores the user's place. Each step is recorded in `events.jsonl` as a
+`view_state_captured` and a `view_state_restored` (`{"ok": bool}`) event.
+
+`snapshot` responses carry a `viewState` key when the root implements it, and
+flag bundles (`Ctrl+F` flags and auto-flags) include the same key. The effect:
+the user keeps their camera, zoom, and place while an agent edits and reloads
+files underneath them.
 
 ## canvas.find() — Entity Search
 

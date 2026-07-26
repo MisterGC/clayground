@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project (examples)
 
 add_subdirectory (gui)
+add_subdirectory (neoncity)
 add_subdirectory (platformer)
 add_subdirectory (visualfx)
 add_subdirectory (void)

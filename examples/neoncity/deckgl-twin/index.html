@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>neoncity lane overlay — deck.gl reference twin</title>
+    <link rel="stylesheet" href="./style.css" />
+    <!-- deck.gl 9.3.7 umbrella scripting bundle (core + layers + extensions). -->
+    <script src="https://unpkg.com/deck.gl@9.3.7/dist.min.js"></script>
+    <script src="./sample-gen.js"></script>
+  </head>
+  <body>
+    <canvas id="deck-canvas"></canvas>
+
+    <header id="titlebar">
+      <h1>neoncity lane overlay <span>— deck.gl reference twin</span></h1>
+    </header>
+
+    <section id="panel-meta" class="panel">
+      <h2>detailed lane model</h2>
+      <div id="meta-content" class="meta">
+        <div class="kv"><span>status</span><b>loading…</b></div>
+      </div>
+      <div class="controls">
+        <button id="btn-sample">load synthetic sample</button>
+        <button id="btn-pick">open file…</button>
+        <input id="file-input" type="file" accept=".json,application/json" hidden />
+      </div>
+      <div class="toggles">
+        <label><input id="toggle-orbit" type="checkbox" /> tilt (OrbitView)</label>
+        <label><input id="toggle-stress" type="checkbox" /> pan/zoom stress</label>
+      </div>
+    </section>
+
+    <section id="panel-metrics" class="panel">
+      <h2>metrics</h2>
+      <div class="metric"><span>FPS (rAF)</span><b id="m-fps">–</b></div>
+      <div class="metric"><span>FPS (deck)</span><b id="m-deckfps">–</b></div>
+      <div class="metric"><span>paths</span><b id="m-paths">–</b></div>
+      <div class="metric"><span>vertices</span><b id="m-verts">–</b></div>
+    </section>
+
+    <div id="drop-hint">Drop a lane-export.json here</div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

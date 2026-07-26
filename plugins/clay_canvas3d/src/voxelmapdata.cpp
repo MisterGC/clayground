@@ -1,36 +1,122 @@
 #include "voxelmapdata.h"
 #include <QFile>
 #include <QTextStream>
-#include <QDataStream>
 #include <QDebug>
 #include <random>
 #include <QtMath>
 
-// Helper functions for file I/O
-static QString colorToString(const QColor &c)
-{
-    return QString("%1,%2,%3,%4").arg(c.red()).arg(c.green()).arg(c.blue()).arg(c.alpha());
-}
-
-static QColor stringToColor(const QString &str)
-{
-    auto parts = str.split(",");
-    if (parts.size() < 4) return Qt::transparent;
-    return QColor(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
-}
-
 VoxelMapData::VoxelMapData(QObject *parent)
     : QObject(parent)
 {
+    // Index 0 is permanently reserved for "empty" (transparent).
+    m_palette.append(QColor(Qt::transparent));
+}
+
+// ==========================================
+// Palette-index storage
+// ==========================================
+void VoxelMapData::allocateIndices(qsizetype count)
+{
+    if (m_use16) {
+        m_indices16.assign(count, quint16(0));
+        m_indices8.clear();
+    } else {
+        m_indices8.assign(count, quint8(0));
+        m_indices16.clear();
+    }
+}
+
+void VoxelMapData::setPaletteIndexAt(int flat, int idx)
+{
+    if (m_use16)
+        m_indices16[flat] = quint16(idx);
+    else
+        m_indices8[flat] = quint8(idx);
+}
+
+void VoxelMapData::upgradeTo16()
+{
+    if (m_use16)
+        return;
+    m_indices16.resize(m_indices8.size());
+    for (qsizetype i = 0; i < m_indices8.size(); ++i)
+        m_indices16[i] = quint16(m_indices8[i]);
+    m_indices8.clear();
+    m_use16 = true;
+}
+
+int VoxelMapData::indexForColor(const QColor &color)
+{
+    if (color.alpha() == 0)
+        return 0;
+    const QRgb key = color.rgba();
+    auto it = m_colorToIndex.constFind(key);
+    if (it != m_colorToIndex.constEnd())
+        return it.value();
+    const int newIdx = m_palette.size();
+    m_palette.append(color);
+    m_colorToIndex.insert(key, newIdx);
+    if (!m_use16 && newIdx > 255)
+        upgradeTo16();
+    return newIdx;
+}
+
+qsizetype VoxelMapData::storageBytes() const
+{
+    return m_use16 ? m_indices16.size() * qsizetype(sizeof(quint16))
+                   : m_indices8.size() * qsizetype(sizeof(quint8));
+}
+
+// ==========================================
+// Dimensions (resize preserves overlapping content)
+// ==========================================
+void VoxelMapData::applyResize(int newX, int newY, int newZ)
+{
+    if (newX == m_voxelCountX && newY == m_voxelCountY && newZ == m_voxelCountZ)
+        return;
+
+    const int oldX = m_voxelCountX;
+    const int oldY = m_voxelCountY;
+    const int oldZ = m_voxelCountZ;
+    const bool use16 = m_use16;
+
+    QVector<quint8> old8 = m_indices8;
+    QVector<quint16> old16 = m_indices16;
+
+    m_voxelCountX = newX;
+    m_voxelCountY = newY;
+    m_voxelCountZ = newZ;
+
+    const qsizetype count = qsizetype(newX) * newY * newZ;
+    allocateIndices(count);
+
+    int solid = 0;
+    if (count > 0 && oldX > 0 && oldY > 0 && oldZ > 0) {
+        const int cx = qMin(oldX, newX);
+        const int cy = qMin(oldY, newY);
+        const int cz = qMin(oldZ, newZ);
+        for (int z = 0; z < cz; ++z) {
+            for (int y = 0; y < cy; ++y) {
+                for (int x = 0; x < cx; ++x) {
+                    const qsizetype oldFlat = qsizetype(x) + qsizetype(y)*oldX + qsizetype(z)*oldX*oldY;
+                    const int pi = use16 ? int(old16[oldFlat]) : int(old8[oldFlat]);
+                    if (pi != 0) {
+                        setPaletteIndexAt(indexOf(x, y, z), pi);
+                        ++solid;
+                    }
+                }
+            }
+        }
+    }
+    m_solidCount = solid;
+    markDirtyFull();
 }
 
 void VoxelMapData::setVoxelCountX(int count)
 {
     if (m_voxelCountX == count)
         return;
-    m_voxelCountX = count;
-    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
-    m_voxels.fill(Qt::transparent);
+    applyResize(count, m_voxelCountY, m_voxelCountZ);
     emit voxelCountXChanged();
     notifyDataChanged();
 }
@@ -39,9 +125,7 @@ void VoxelMapData::setVoxelCountY(int count)
 {
     if (m_voxelCountY == count)
         return;
-    m_voxelCountY = count;
-    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
-    m_voxels.fill(Qt::transparent);
+    applyResize(m_voxelCountX, count, m_voxelCountZ);
     emit voxelCountYChanged();
     notifyDataChanged();
 }
@@ -50,9 +134,7 @@ void VoxelMapData::setVoxelCountZ(int count)
 {
     if (m_voxelCountZ == count)
         return;
-    m_voxelCountZ = count;
-    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
-    m_voxels.fill(Qt::transparent);
+    applyResize(m_voxelCountX, m_voxelCountY, count);
     emit voxelCountZChanged();
     notifyDataChanged();
 }
@@ -75,24 +157,90 @@ void VoxelMapData::setSpacing(float spacing)
     notifyDataChanged();
 }
 
+// ==========================================
+// Voxel access
+// ==========================================
 QColor VoxelMapData::voxel(int x, int y, int z) const
 {
     if (x < 0 || x >= m_voxelCountX || y < 0 || y >= m_voxelCountY || z < 0 || z >= m_voxelCountZ)
         return Qt::transparent;
-    return m_voxels[indexOf(x, y, z)];
+    return m_palette[paletteIndexAt(indexOf(x, y, z))];
+}
+
+void VoxelMapData::setVoxelRaw(int x, int y, int z, const QColor &color)
+{
+    if (x < 0 || x >= m_voxelCountX || y < 0 || y >= m_voxelCountY || z < 0 || z >= m_voxelCountZ)
+        return;
+    const int flat = indexOf(x, y, z);
+    const int oldIdx = paletteIndexAt(flat);
+
+    if (color.alpha() == 0) {
+        if (oldIdx == 0)
+            return;
+        setPaletteIndexAt(flat, 0);
+        --m_solidCount;
+        markDirtyVoxel(x, y, z);
+        return;
+    }
+
+    const int newIdx = indexForColor(color);
+    if (newIdx == oldIdx)
+        return;
+    setPaletteIndexAt(flat, newIdx);
+    if (oldIdx == 0)
+        ++m_solidCount;
+    markDirtyVoxel(x, y, z);
 }
 
 void VoxelMapData::setVoxel(int x, int y, int z, const QColor &color)
 {
     if (x < 0 || x >= m_voxelCountX || y < 0 || y >= m_voxelCountY || z < 0 || z >= m_voxelCountZ)
         return;
-    int idx = indexOf(x, y, z);
-    if (m_voxels[idx] == color)
-        return;
-    m_voxels[idx] = color;
-    notifyDataChanged();
+    const int before = m_solidCount;
+    const int flat = indexOf(x, y, z);
+    const int oldIdx = paletteIndexAt(flat);
+    setVoxelRaw(x, y, z, color);
+    // Only notify if something actually changed.
+    if (paletteIndexAt(flat) != oldIdx || m_solidCount != before)
+        notifyDataChanged();
 }
 
+// ==========================================
+// Dirty region tracking
+// ==========================================
+void VoxelMapData::markDirtyVoxel(int x, int y, int z)
+{
+    if (m_dirty.empty) {
+        m_dirty.empty = false;
+        m_dirty.minX = m_dirty.maxX = x;
+        m_dirty.minY = m_dirty.maxY = y;
+        m_dirty.minZ = m_dirty.maxZ = z;
+    } else {
+        m_dirty.minX = qMin(m_dirty.minX, x);
+        m_dirty.minY = qMin(m_dirty.minY, y);
+        m_dirty.minZ = qMin(m_dirty.minZ, z);
+        m_dirty.maxX = qMax(m_dirty.maxX, x);
+        m_dirty.maxY = qMax(m_dirty.maxY, y);
+        m_dirty.maxZ = qMax(m_dirty.maxZ, z);
+    }
+}
+
+void VoxelMapData::markDirtyFull()
+{
+    m_dirty.full = true;
+    m_dirty.empty = false;
+}
+
+VoxelDirtyRegion VoxelMapData::takeDirtyRegion()
+{
+    VoxelDirtyRegion r = m_dirty;
+    m_dirty = VoxelDirtyRegion();
+    return r;
+}
+
+// ==========================================
+// Color distribution helpers
+// ==========================================
 QVector<ColorProb> VoxelMapData::prepareColorDistribution(const QVariantList &colorDistribution)
 {
     QVector<ColorProb> distribution;
@@ -182,7 +330,7 @@ void VoxelMapData::fillSphere(int cx, int cy, int cz, int r, const QVariantList 
                 float distanceSquared = dx*dx + dy*dy + dz*dz;
                 float currentR2 = applyNoise(baseR2, noiseFactor);
                 if (distanceSquared <= currentR2) {
-                    m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
+                    setVoxelRaw(x, y, z, getRandomColor(distribution));
                 }
             }
         }
@@ -218,7 +366,7 @@ void VoxelMapData::fillCylinder(int cx, int cy, int cz, int r, int height, const
                 float dx = float(x - cx);
                 float dz = float(z - cz);
                 if (dx*dx + dz*dz <= currentR2) {
-                    m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
+                    setVoxelRaw(x, y, z, getRandomColor(distribution));
                 }
             }
         }
@@ -258,12 +406,15 @@ void VoxelMapData::fillBox(int minX, int minY, int minZ, int boxWidth, int boxHe
                     }
                 }
 
-                m_voxels[indexOf(x,y,z)] = getRandomColor(distribution);
+                setVoxelRaw(x, y, z, getRandomColor(distribution));
             }
         }
     }
 }
 
+// ==========================================
+// I/O (text format unchanged for compatibility)
+// ==========================================
 bool VoxelMapData::saveToFile(const QString &path)
 {
     QFile file(path);
@@ -289,7 +440,7 @@ bool VoxelMapData::saveToFile(const QString &path)
     for (int z = 0; z < m_voxelCountZ; z++) {
         for (int y = 0; y < m_voxelCountY; y++) {
             for (int x = 0; x < m_voxelCountX; x++) {
-                QColor color = m_voxels[indexOf(x, y, z)];
+                QColor color = voxel(x, y, z);
 
                 // Only write non-transparent voxels
                 if (color.alpha() > 0) {
@@ -374,15 +525,19 @@ bool VoxelMapData::loadFromFile(const QString &path)
         }
     }
 
-    // Update dimensions and reset voxel array
+    // Reset storage to a blank volume of the new dimensions.
     m_voxelCountX = newVoxelCountX;
     m_voxelCountY = newVoxelCountY;
     m_voxelCountZ = newVoxelCountZ;
     m_voxelSize = newVoxelSize;
     m_spacing = newSpacing;
 
-    m_voxels.resize(m_voxelCountX * m_voxelCountY * m_voxelCountZ);
-    m_voxels.fill(Qt::transparent);
+    m_use16 = false;
+    m_palette.clear();
+    m_palette.append(QColor(Qt::transparent));
+    m_colorToIndex.clear();
+    m_solidCount = 0;
+    allocateIndices(qsizetype(m_voxelCountX) * m_voxelCountY * m_voxelCountZ);
 
     // Second pass: read voxel data
     in.seek(0);
@@ -426,7 +581,7 @@ bool VoxelMapData::loadFromFile(const QString &path)
                         );
                     }
 
-                    m_voxels[indexOf(x, y, z)] = color;
+                    setVoxelRaw(x, y, z, color);
                 }
             }
         }
@@ -434,6 +589,7 @@ bool VoxelMapData::loadFromFile(const QString &path)
 
     file.close();
 
+    markDirtyFull();
     emit voxelCountXChanged();
     emit voxelCountYChanged();
     emit voxelCountZChanged();

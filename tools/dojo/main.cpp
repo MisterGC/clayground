@@ -32,6 +32,10 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
 
 int main(int argc, char *argv[])
 {
+    // Fallback path for GPU timestamp collection; inherited by the spawned
+    // clayliveloader child so QQuick3DRenderStats can report GPU times.
+    qputenv("QSG_RHI_PROFILE", "1");
+
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName("ClayDojo");
     QGuiApplication::setApplicationVersion(CLAY_DOJO_VERSION);

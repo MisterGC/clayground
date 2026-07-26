@@ -1,0 +1,100 @@
+#!grafli v1
+# Street Network 101 — concept overview
+# Companion board to paper.md; how a drawn line becomes traffic.
+
+# ── entry / meta ──
+@ box paper "Paper →︎\nthe full derivation" 60,60 230x80 %soft &link:./paper.md
+@ box viewState "viewState persistence\nthe drawn plan, the cars,\nthe clock and the watch set\nsurvive a reload exactly" 340,50 270x120 %plum &link:./paper.md#measured-results
+@ box lang "language EN / DE\nLabLang dict + LangSwitch\nkit owns the vocabulary" 650,55 280x110 %forest
+@ note legend 970,60 """
+left →︎ right: draw →︎ derive →︎ drive
+nothing in the middle column
+is ever drawn by hand
+""" ~small
+
+# ── draw ──
+@ box draw "you draw a road\nA CLICK SELECTS, A DRAG DRAWS\nfrom open ground, from a dead\nend, or off a road (→︎ a T)\nring = joins · cross = splits" 60,280 240x150 %teal &link:./paper.md#run-it
+@ box planar "planar graph\njoins what it touches,\nSPLITS what it crosses\nnodes + straight roads" 60,470 240x140 %primary &link:./paper.md#stated-simplifications
+
+# ── derive (the subject) ──
+@ box boxes "1 junction boxes\nd ≥ h / sin θ\ncollinear joint →︎ radius 0" 370,250 265x120 %clay &link:./paper.md#the-derivation
+@ box lanes "2 lane centerlines\nr = u × ŷ, offset (k+½)·W\nright-hand traffic" 370,410 265x120 %clay &link:./paper.md#the-derivation
+@ box turns "3 turn connectors\nbezier, control = where the\nlanes' own lines cross\nNO U-turns" 370,570 265x140 %clay &link:./paper.md#the-derivation
+@ box deadend "dead end\na lane with no exits\n(not a special case —\njust an empty exit list)" 370,760 265x130 %accent &link:./paper.md#the-derivation
+
+@ box conflicts "conflicts\ncurves that cross, or that\nfeed the same lane\n4-way →︎ 30 pairs\nleft 7 · straight 6 · right 2" 700,240 260x150 %highlight &link:./paper.md#right-of-way
+
+@ box bans "turn restrictions\n(junction, from-road, to-road)\nDIRECTED: A→B ≠ B→A\nstill drawn, dashed + red\nsurvives every re-derive" 370,940 265x160 %plum &link:./paper.md#turn-restrictions
+
+# ── drive ──
+@ box follow "FOLLOW\ngap = 2.4 + 0.85·v\nlooks one element ahead" 700,430 260x110 %rose &link:./paper.md#stated-simplifications
+@ box yield "YIELD\nbooking held until through\nonly the car at the line\nrevalidated every step" 700,580 260x140 %rose &link:./paper.md#right-of-way
+@ box leave "LEAVE\nfades over the last 14 u\nof a terminal lane" 700,760 260x110 %accent &link:./paper.md#the-derivation
+
+@ box cars "cars\nspawn anywhere there is room\nuniform choice at junctions\nno routes, no destinations" 1020,430 275x140 %teal &link:./paper.md#stated-simplifications
+
+# ── readouts ──
+@ box dual "lane graph (M)\nthe same model drawn as\nwhat it IS: one arrow per\nlane, rings at dead ends" 1020,250 275x140 %primary &link:./paper.md#measured-results
+@ box monitor "monitor\nwatch roads (W)\nflow /min · load · speed\nShift+R records CSV" 1020,620 275x130 %rose &link:./paper.md#run-it
+
+# ── the three results ──
+@ note shape 60,680 """
+result 1 — shape decides lifetime
+p = share of turns into a dead end
+crossroads p=1.00 →︎  6.6 s
+grid       p=0.33 →︎ 10.0 s
+ring       p=0.13 →︎ 28.5 s
+a car on the ring lives 4.3x longer
+""" ~small &link:./paper.md#measured-results
+
+@ note bansresult 700,940 """
+result 3 — closing a turn can ADD capacity
+demand 1.5, every interior 4-way:
+open        thr 431 · 25% standing
+no lefts    thr 492 · 15% standing
+no rights   thr 345 · 33% standing
+a left turn conflicts with 7 movements,
+a right turn with 2 - so the ban that
+frees a junction is the left one
+""" ~small &link:./paper.md#closing-turns-changes-capacity-and-the-sign-is-not-obvious
+
+@ note capacity 1020,800 """
+result 2 — a network has a capacity
+demand 1.5 →︎ asked 71, held 68
+demand 2.5 →︎ asked 118, held 78
+demand 3.0 →︎ asked 140, held 78
+asking for more simply gives none
+""" ~small &link:./paper.md#measured-results
+
+# ── scenarios ──
+@ note scen 60,880 """
+scenarios (keys 1-4)
+1 crossroads - one junction, four stubs
+2 grid - 9 crossings, traffic recirculates
+3 cul-de-sac - a tree; every branch ends
+4 ring - a loop that keeps its cars
+""" ~small &link:./paper.md#measured-results
+
+# ── arrows ──
+@ arrow draw -> planar "one gesture"
+@ arrow planar -> boxes
+@ arrow boxes -> lanes "trimmed span"
+@ arrow lanes -> turns "in x out"
+@ arrow turns -> deadend "none legal" !dashed
+@ arrow turns -> conflicts "which two clash"
+@ arrow lanes -> follow "the track"
+@ arrow conflicts -> yield "may I go?"
+@ arrow deadend -> leave
+@ arrow follow -> cars
+@ arrow yield -> cars
+@ arrow leave -> cars
+@ arrow lanes -> dual "same model"
+@ arrow cars -> monitor "sampled"
+@ arrow scen -> draw "build" !dashed
+@ arrow viewState -> planar "restores the plan" !dashed
+@ arrow cars -> capacity "spawn finds no gap" !dotted
+@ arrow deadend -> shape "absorbs" !dotted
+@ arrow bans -> turns "removes a movement"
+@ arrow bans -> deadend "ban every exit →︎ a dead end" !dashed
+@ arrow bans -> bansresult "measured"
+@ arrow conflicts -> bansresult "explains the sign" !dotted

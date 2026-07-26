@@ -77,6 +77,17 @@ void ClayInspector::markReloading()
 {
     if (m_phase == Phase::Reloading)
         return;
+
+    // The outgoing root is still alive here (hotReload comes after) - the
+    // last chance to ask it where the user is. Null captures (load-error
+    // page, no viewState() on root) keep the previous capture alive.
+    QJsonValue vs = callViewState(m_container ? m_container->rootObject()
+                                              : nullptr);
+    if (!vs.isNull()) {
+        m_capturedViewState = vs;
+        appendEvent("view_state_captured");
+    }
+
     m_phase = Phase::Reloading;
     ++m_reloadCount;
     m_autoFlagged = false;
@@ -101,6 +112,14 @@ void ClayInspector::markReady()
     m_pendingScenario.clear();
     if (!scenario.isEmpty())
         applyScenarioToRoot(scenario);
+
+    // View state restores after the scenario so a sandbox that encodes
+    // scenario + sim time in its viewState gets the last word.
+    if (!m_capturedViewState.isNull()) {
+        QJsonValue state = m_capturedViewState;
+        m_capturedViewState = QJsonValue::Null;
+        applyViewStateToRoot(state);
+    }
 }
 
 void ClayInspector::markLoadError()
@@ -213,6 +232,9 @@ void ClayInspector::setSandboxDir(const QString& dir)
         return;
 
     stopWatching();
+    // A captured view state belongs to the previous sandbox - never carry
+    // it across a switch.
+    m_capturedViewState = QJsonValue::Null;
     m_sandboxDir = dir;
     m_inspectDir = dir + "/.clay/inspect";
     if (!m_instanceName.isEmpty())
@@ -429,6 +451,11 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
     QJsonValue flagInfo = callFlagInfo(root);
     if (!flagInfo.isNull())
         response["flagInfo"] = flagInfo;
+
+    // viewState() if the sandbox supports place-keeping across reloads
+    QJsonValue viewState = callViewState(root);
+    if (!viewState.isNull())
+        response["viewState"] = viewState;
 
     // scenarios() if the sandbox offers checkpoints
     if (auto* context = QQmlEngine::contextForObject(root)) {
@@ -969,6 +996,60 @@ QJsonValue ClayInspector::callFlagInfo(QQuickItem* root)
     if (doc.isArray())
         return doc.array();
     return QJsonValue::Null;
+}
+
+QJsonValue ClayInspector::callViewState(QQuickItem* root)
+{
+    if (!root)
+        return QJsonValue::Null;
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context)
+        return QJsonValue::Null;
+
+    QQmlExpression checkExpr(context, root, "typeof viewState === 'function'");
+    QVariant exists = checkExpr.evaluate();
+    if (checkExpr.hasError() || !exists.toBool())
+        return QJsonValue::Null;
+
+    QQmlExpression callExpr(context, root, "JSON.stringify(viewState())");
+    QVariant result = callExpr.evaluate();
+    if (callExpr.hasError())
+        return QJsonValue::Null;
+
+    auto doc = QJsonDocument::fromJson(result.toString().toUtf8());
+    if (doc.isObject())
+        return doc.object();
+    return QJsonValue::Null;
+}
+
+void ClayInspector::applyViewStateToRoot(const QJsonValue& state)
+{
+    auto* root = m_container ? m_container->rootObject() : nullptr;
+    if (!root || !state.isObject())
+        return;
+
+    bool ok = false;
+    if (auto* context = QQmlEngine::contextForObject(root)) {
+        QQmlExpression checkExpr(context, root,
+                                 "typeof applyViewState === 'function'");
+        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
+            // Compact JSON is a valid JS object literal - inject directly.
+            QString json = QString::fromUtf8(
+                QJsonDocument(state.toObject()).toJson(QJsonDocument::Compact));
+            QQmlExpression callExpr(context, root,
+                QString("applyViewState(%1)").arg(json));
+            callExpr.evaluate();
+            ok = !callExpr.hasError();
+        }
+    }
+
+    QJsonObject payload;
+    payload["ok"] = ok;
+    appendEvent("view_state_restored", payload);
+    if (!ok)
+        qWarning() << "ClayInspector: restoring view state failed"
+                   << "(no applyViewState() on the sandbox root?)";
 }
 
 QJsonObject ClayInspector::evalExpressions(QQuickItem* root, const QJsonArray& expressions)
@@ -1523,6 +1604,9 @@ void ClayInspector::completeFlag(const QString& annotation)
         QJsonValue fi = callFlagInfo(root);
         if (!fi.isNull())
             flag["flagInfo"] = fi;
+        QJsonValue vs = callViewState(root);
+        if (!vs.isNull())
+            flag["viewState"] = vs;
         flag["tree"] = buildItemTree(root, 4, 0, false);
     }
 
@@ -1593,6 +1677,9 @@ void ClayInspector::writeAutoFlag(const QString& errorMsg)
         QJsonValue fi = callFlagInfo(root);
         if (!fi.isNull())
             flag["flagInfo"] = fi;
+        QJsonValue vs = callViewState(root);
+        if (!vs.isNull())
+            flag["viewState"] = vs;
         flag["tree"] = buildItemTree(root, 4, 0, false);
     }
     attachDiagnostics(flag);

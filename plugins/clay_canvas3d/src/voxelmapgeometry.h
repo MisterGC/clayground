@@ -3,9 +3,12 @@
 #include <QQuick3DGeometry>
 #include <QColor>
 #include <QVector>
-#include <QDataStream>
+#include <QSet>
+#include <QElapsedTimer>
+#include <QFutureWatcher>
 #include <QVariantMap>
 #include "voxelmapdata.h"
+#include "voxelchunk.h"
 
 class VoxelMapGeometry : public QQuick3DGeometry
 {
@@ -17,6 +20,7 @@ class VoxelMapGeometry : public QQuick3DGeometry
     Q_PROPERTY(int voxelCountZ READ voxelCountZ WRITE setVoxelCountZ NOTIFY voxelCountZChanged)
     Q_PROPERTY(float voxelSize READ voxelSize WRITE setVoxelSize NOTIFY voxelSizeChanged)
     Q_PROPERTY(float spacing READ spacing WRITE setSpacing NOTIFY spacingChanged)
+    Q_PROPERTY(int chunkSize READ chunkSize WRITE setChunkSize NOTIFY chunkSizeChanged)
     Q_PROPERTY(int vertexCount READ vertexCount NOTIFY vertexCountChanged)
 
 public:
@@ -33,6 +37,8 @@ public:
     void setVoxelSize(float size);
     float spacing() const;
     void setSpacing(float spacing);
+    int chunkSize() const { return m_chunkSize; }
+    void setChunkSize(int size);
     int vertexCount() const { return m_vertexCount; }
 
     // Forward QML-invokable methods to m_data
@@ -51,20 +57,37 @@ signals:
     void voxelCountZChanged();
     void voxelSizeChanged();
     void spacingChanged();
+    void chunkSizeChanged();
     void vertexCountChanged();
 
+private slots:
+    void onMeshBatchFinished();
+
 private:
-    // Greedy meshing structures
-    struct GreedyQuad {
-        int x, y, z;  // Starting voxel position
-        int width, height;  // Size in voxels (on the face's 2D plane)
-        QColor color;
-        int faceIndex;
-    };
-    
-    void updateGeometry();
-    bool isFaceVisible(int x, int y, int z, int faceIndex) const;
-    QVector<GreedyQuad> generateGreedyQuads();
+    // Called whenever the voxel data changes; schedules chunk (re)meshing.
+    void onDataChanged();
+    void rebuildChunkGrid();
+    void addChunksForRegion(const VoxelDirtyRegion &region);
+    void maybeStartBatch();
+    void startBatch();
+    VoxelChunk::MeshInput buildChunkInput(int chunkId) const;
+    void concatenateAndUpload();
+    int chunkIndex(int cx, int cy, int cz) const { return cx + cy*m_chunksX + cz*m_chunksX*m_chunksY; }
+
     VoxelMapData m_data;
     int m_vertexCount = 0;
+
+    // Chunk grid
+    int m_chunkSize = 32;
+    int m_chunksX = 0, m_chunksY = 0, m_chunksZ = 0;
+    QVector<VoxelChunk::MeshResult> m_chunkCache;   // indexed by chunk id
+
+    // Async meshing coordination (all touched on the main thread)
+    QSet<int> m_pendingDirty;
+    bool m_pendingFull = false;
+    bool m_batchRunning = false;
+    QFutureWatcher<VoxelChunk::MeshResult> m_watcher;
+    QElapsedTimer m_batchTimer;
+    int m_batchChunkCount = 0;
+    bool m_batchWasFull = false;
 };

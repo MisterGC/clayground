@@ -58,6 +58,15 @@ VoxelMap {
     */
     property alias voxelCountZ: _voxelMesh.voxelCountZ
 
+    /*!
+        \qmlproperty int StaticVoxelMap::chunkSize
+        \brief Edge length (in voxels) of a meshing chunk.
+
+        The volume is meshed in cubic chunks of this size; a voxel edit only
+        re-meshes the affected chunk(s), off the main thread. Defaults to 32.
+    */
+    property alias chunkSize: _voxelMesh.chunkSize
+
     voxelOffset: Qt.vector3d(
                      (_voxelMap.voxelCountX % 2 == 0) ? 0 : (_voxelMap.voxelSize * 0.5),
                      0,

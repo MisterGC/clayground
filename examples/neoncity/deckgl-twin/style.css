@@ -1,0 +1,189 @@
+/* neoncity lane overlay — deck.gl reference twin
+   Synthwave dark theme matching the Clayground neoncity demo. */
+:root {
+  --bg: #1a1a2e;
+  --bg2: #16213e;
+  --panel: rgba(16, 21, 40, 0.82);
+  --border: rgba(0, 217, 255, 0.35);
+  --cyan: #00d9ff;
+  --teal: #0f9d9a;
+  --pink: #ff3366;
+  --gold: #ffd93d;
+  --text: #d7e3f0;
+  --muted: #8a97b8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(1200px 800px at 50% 0%, var(--bg2), var(--bg));
+  color: var(--text);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+#deck-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 18px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#titlebar h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
+}
+
+#titlebar h1 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.panel {
+  position: fixed;
+  z-index: 10;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  min-width: 210px;
+}
+
+#panel-meta {
+  left: 18px;
+  top: 58px;
+}
+
+#panel-metrics {
+  right: 18px;
+  top: 58px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+}
+
+.meta .kv,
+.metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.meta .kv span,
+.metric span {
+  color: var(--muted);
+}
+
+.meta .kv b,
+.metric b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric b {
+  color: var(--cyan);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.controls button {
+  font: inherit;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(0, 217, 255, 0.12), rgba(0, 217, 255, 0.04));
+  color: var(--cyan);
+  transition: all 0.15s ease;
+}
+
+.controls button:hover {
+  border-color: var(--cyan);
+  background: rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 14px rgba(0, 217, 255, 0.3);
+}
+
+.toggles {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toggles label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toggles input {
+  accent-color: var(--pink);
+}
+
+#drop-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  max-width: 70vw;
+  text-align: center;
+}
+
+body.dragging::after {
+  content: "drop lane-export.json";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--cyan);
+  background: rgba(0, 217, 255, 0.08);
+  border: 3px dashed var(--cyan);
+}

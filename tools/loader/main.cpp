@@ -98,6 +98,11 @@ int main(int argc, char *argv[])
     // as it is one of the main purposes of the live loader
     // to always use the source content
     qputenv("QML_DISABLE_DISK_CACHE", "1");
+
+    // Fallback path for GPU timestamp collection so QQuick3DRenderStats can
+    // report lastCompletedGpuTime even where the per-window graphics
+    // configuration is not honored. Must be set before the RHI is created.
+    qputenv("QSG_RHI_PROFILE", "1");
   
     QQmlDebuggingEnabler::enableDebugging(true);
 

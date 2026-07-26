@@ -143,8 +143,9 @@ gives you confidence.
 ```
 
 Returns `rootProperties` (custom primitive properties of the root),
-`flagInfo` (if the root defines that function), `eval` results, `logTail`
-(last 50), `warnings`, `errors`, optional `screenshot` path. With no
+`flagInfo` (if the root defines that function), `viewState` (if the root
+implements it), `eval` results, `logTail` (last 50), `warnings`, `errors`,
+optional `screenshot` path. With no
 root item it returns `"error": "No sandbox root item available"` — but
 still attaches `logTail`/`warnings`/`errors`.
 
@@ -322,6 +323,53 @@ function flagInfo() {
 
 Recommended for any sandbox you work on repeatedly — it turns every
 snapshot and flag into a domain-level status report.
+
+## The viewState() convention
+
+Sibling of `flagInfo()` / `scenarios()`: the root may define `viewState()`
+(returns a JSON-serializable object — the user's place: camera, tuning
+params, sim time) and `applyViewState(state)` (assigns it back). Both
+optional. When present, the loader captures `viewState()` from the outgoing
+root right before *every* reload — your agent-requested reloads and the
+user's file edits alike — and re-applies it to the new root once it is ready,
+after any rearmed scenario (so a scenario + sim-time encoding gets the last
+word). A null/failed capture keeps the previous one, so a fix after a load
+error still restores. Snapshots and flags carry a `viewState` key when the
+root implements it, and `view_state_captured` / `view_state_restored`
+(`{ok}`) land in `events.jsonl`. Add these to any sandbox you iterate on with
+a user watching — it keeps their camera and place fixed while you edit.
+
+## The labInfo() convention (labs)
+
+Sandboxes built with `Clayground.Lab` (everything under `labs/`) expose
+`labInfo()` on the root — typically just `return Lab.labInfo()`:
+parameters (name/value/range/unit), probe summaries
+(first/last/min/max/count), and the active scenario, all
+language-neutral (ids and types, never localized labels). Operate a lab
+entirely through `eval`:
+
+```json
+{"id": "l1", "action": "eval", "eval": [
+  "JSON.stringify(labInfo())",
+  "Lab.set('gpsSigma', 5)",
+  "JSON.stringify(Lab.probeSummary())",
+  "startFlow('led-basics')"
+]}
+```
+
+Probes are the right `trace` targets (`Lab.p('gain')`, probe
+expressions), and labs honor the `time` pause/step actions by contract —
+same seed + same stepped frames must reproduce identical probe series,
+which is the determinism check every lab change should re-run. For
+*composing* labs (blocks, conventions, flows, design language), use the
+sibling skill `skills/clay-lab/`.
+
+## Fix loop discipline
+
+Live `eval` patches are preview only — a way to confirm a fix hypothesis on
+the running scene, never the fix itself. Every fix lands in the source files
+and is confirmed through a state-preserving reload (`viewState` restores the
+user's place), so the running scene never diverges from git.
 
 ## Choosing eval expressions
 

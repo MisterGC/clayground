@@ -22,6 +22,9 @@ add_subdirectory (clay_physics)
 add_subdirectory (clay_world)
 add_subdirectory (clay_behavior)
 
+# Lab: experiment kernel for Clayground Labs
+add_subdirectory (clay_lab)
+
 # AI plugin: LLM, STT, TTS
 add_subdirectory (clay_ai)
 
