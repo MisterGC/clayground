@@ -19,12 +19,13 @@ QtObject {
 
     property var _lastTrue: null
     property real _lastT: -1
-    property real _headingErr: 0
+    // public: the lidar assumes this heading, so its drift is felt there too
+    property real headingErr: 0
 
     function reset() {
         _lastTrue = null
         _lastT = -1
-        _headingErr = 0
+        headingErr = 0
         if (truePos) { const p = truePos(); estX = p.x; estY = p.y }
     }
 
@@ -45,10 +46,10 @@ QtObject {
                 return
             }
             const dt = Math.max(1e-6, t - _odo._lastT)
-            _odo._headingErr += _odo.clock.randomGaussian() * _odo.driftRate * Math.sqrt(dt)
+            _odo.headingErr += _odo.clock.randomGaussian() * _odo.driftRate * Math.sqrt(dt)
             const dx = (p.x - _odo._lastTrue.x) * _odo.scaleBias
             const dy = (p.y - _odo._lastTrue.y) * _odo.scaleBias
-            const c = Math.cos(_odo._headingErr), s = Math.sin(_odo._headingErr)
+            const c = Math.cos(_odo.headingErr), s = Math.sin(_odo.headingErr)
             _odo.estX += dx * c - dy * s
             _odo.estY += dx * s + dy * c
             _odo._lastTrue = p
