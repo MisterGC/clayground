@@ -179,6 +179,18 @@ Node {
     property int priority: 0
 
     /*!
+        \qmlproperty real Label3D::scaleQuantum
+        \brief Relative scale change required before the pill is re-scaled (0 disables).
+
+        In Screen size mode the pill's scale follows the camera distance, so a
+        moving camera would re-scale - and therefore re-rasterize - the text
+        every single frame, which reads as high-frequency shimmer. Holding the
+        scale until it drifts past this fraction (2% by default) keeps the
+        glyphs stable while the label still tracks depth.
+    */
+    property real scaleQuantum: 0.02
+
+    /*!
         \qmlproperty QtObject Label3D::labelStyle
         \brief Grouped pill styling: colors, radius, padding, halo and font.
 
@@ -258,8 +270,24 @@ Node {
     // the leader in step. Called by the registry's shared per-view ticker.
     function _applyTick(elapsed) {
         root._tick = elapsed
+        root._updateScale()
         root._maybeUpdateLeader()
     }
+
+    // Quantized scale: recomputed every tick, applied only when it has moved
+    // more than scaleQuantum. Written imperatively so the binding that reads
+    // it never feeds itself.
+    property real _appliedScale: 0
+    function _updateScale() {
+        var s = root._computeScale()
+        if (root._appliedScale <= 0 || root.scaleQuantum <= 0
+            || Math.abs(s - root._appliedScale) > root._appliedScale * root.scaleQuantum)
+            root._appliedScale = s
+    }
+    onScreenHeightChanged: _updateScale()
+    onWorldHeightChanged: _updateScale()
+    onSizeModeChanged: _updateScale()
+    on_PillLogicalHeightChanged: _updateScale()
 
     // Cheap movement probe the shared ticker uses to skip still labels: reports
     // whether the anchor's scene position changed since the last pass (a moving
@@ -349,8 +377,7 @@ Node {
         }
 
         scale: {
-            root._tick
-            var s = root._computeScale()
+            var s = root._appliedScale > 0 ? root._appliedScale : root._computeScale()
             return Qt.vector3d(s, s, s)
         }
 
@@ -513,6 +540,7 @@ Node {
     }
 
     Component.onCompleted: {
+        _updateScale()
         _syncRegistration()
         _initLeader()
     }

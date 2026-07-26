@@ -22,6 +22,9 @@ clay_plugin( Lab
         DataRecorder.qml
         Scenario.qml
         ScenarioSet.qml
+        Flow.qml
+        FlowStep.qml
+        Narrator.qml
         Tour.qml
         TourStep.qml
 

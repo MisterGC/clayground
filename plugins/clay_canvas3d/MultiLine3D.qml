@@ -52,9 +52,22 @@ Node {
     */
     property real width: 1
 
+    /*!
+        \qmlproperty int MultiLine3D::orientation
+        \brief \c LineBatch3D.Billboard (default) or \c LineBatch3D.Flat.
+
+        Billboard ribbons always face the camera, which is right for a line in
+        the air and wrong for a marking on the ground: on a curve, consecutive
+        camera-facing quads splay apart and leave wedge-shaped gaps at the
+        joins. Anything that represents a surface - a road, a lane, a trace on
+        a board - wants \c Flat.
+    */
+    property int orientation: LineBatch3D.Billboard
+
     LineBatch3D {
         id: _batch
         widthUnits: LineBatch3D.World
+        orientation: root.orientation
         lines: {
             if (!root.coords)
                 return []
