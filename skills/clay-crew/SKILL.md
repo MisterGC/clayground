@@ -339,6 +339,31 @@ root implements it, and `view_state_captured` / `view_state_restored`
 (`{ok}`) land in `events.jsonl`. Add these to any sandbox you iterate on with
 a user watching — it keeps their camera and place fixed while you edit.
 
+## The labInfo() convention (labs)
+
+Sandboxes built with `Clayground.Lab` (everything under `labs/`) expose
+`labInfo()` on the root — typically just `return Lab.labInfo()`:
+parameters (name/value/range/unit), probe summaries
+(first/last/min/max/count), and the active scenario, all
+language-neutral (ids and types, never localized labels). Operate a lab
+entirely through `eval`:
+
+```json
+{"id": "l1", "action": "eval", "eval": [
+  "JSON.stringify(labInfo())",
+  "Lab.set('gpsSigma', 5)",
+  "JSON.stringify(Lab.probeSummary())",
+  "startFlow('led-basics')"
+]}
+```
+
+Probes are the right `trace` targets (`Lab.p('gain')`, probe
+expressions), and labs honor the `time` pause/step actions by contract —
+same seed + same stepped frames must reproduce identical probe series,
+which is the determinism check every lab change should re-run. For
+*composing* labs (blocks, conventions, flows, design language), use the
+sibling skill `skills/clay-lab/`.
+
 ## Fix loop discipline
 
 Live `eval` patches are preview only — a way to confirm a fix hypothesis on
