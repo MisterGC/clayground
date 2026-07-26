@@ -20,7 +20,7 @@ var dict = {
         // next to the preset that demonstrates it
         "scenario.note.crossroads": "every turn leads off the plan, so cars leave almost as fast as they arrive",
         "scenario.note.grid": "turns everywhere: a car can circulate for ever, and the network holds its traffic",
-        "scenario.note.cul-de-sac": "a tree - every branch ends, so the plan quietly bleeds traffic",
+        "scenario.note.cul-de-sac": "a tree \u2014 every branch ends, so the plan quietly bleeds traffic",
         "scenario.note.ring": "the ring keeps traffic circulating while the spurs drain it",
 
         // key map (LabHelp renders these next to the keys that trigger them)
