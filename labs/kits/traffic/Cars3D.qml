@@ -51,6 +51,16 @@ Node {
                            LabTheme.forest, LabTheme.highlight, LabTheme.secondary]
 
     /*!
+        \qmlproperty real Cars3D::fleetAlpha
+        \brief Whole-population opacity, 0..1; multiplies each car's own alpha.
+
+        It exists so a lab can dissolve the entire fleet on the WALL clock when
+        the simulation is stopped. A fade driven from sim time would freeze
+        half-way, because stopping the sim is what stopped that clock.
+    */
+    property real fleetAlpha: 1.0
+
+    /*!
         \qmlproperty color Cars3D::fadeTarget
         \brief What a fading car dissolves towards.
 
@@ -74,6 +84,8 @@ Node {
 
     Component.onCompleted: _build()
     onCapacityChanged: _build()
+    // a fleet-wide fade has to repaint the table even when no car moved
+    onFleetAlphaChanged: if (_ready) sync()
 
     function _build() {
         var scales = [], colors = [], cabScales = [], cabColors = []
@@ -146,8 +158,8 @@ Node {
             _poseCabin[b + 2] = pose.z + Math.cos(pose.yaw) * back
             _poseCabin[b + 3] = pose.yaw
 
-            var a = car.alpha === undefined ? 1 : car.alpha
-            if (Math.abs(a - _alphaOf[slot]) > 0.04) {
+            var a = (car.alpha === undefined ? 1 : car.alpha) * fleetAlpha
+            if (Math.abs(a - _alphaOf[slot]) > 0.03) {
                 _alphaOf[slot] = a
                 var base = palette[slot % palette.length]
                 var col = Qt.rgba(base.r + (fadeTarget.r - base.r) * (1 - a),

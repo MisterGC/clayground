@@ -96,6 +96,61 @@ Two things about it are load-bearing, and both were found the hard way:
   booking each step is what makes the invariant self-healing; a sweep of 625
   runs (5 network shapes × 5 demand levels × 25 seeds) is clean only with it.
 
+## Turn restrictions
+
+A movement can be switched off. A restriction is keyed on
+**(junction, arriving road, leaving road)** and is **directed**: closing
+A → B says nothing about B → A, exactly as a real "no left turn from Main
+into Elm" does. Keying it on roads rather than on derived lane pairs is what
+lets it survive everything that re-derives the lane model — a lane-count
+change, a node move, a reload, and the split of a road it names (the ban
+follows the half that still reaches the junction).
+
+A banned movement is still built and still drawn, dashed and in the alarm
+colour. A restriction you cannot see is one you cannot undo — and the drawn
+curve is also the thing you click to lift it.
+
+The consequence worth noticing: it is not a decoration but a modelling tool.
+Ban every exit from a lane and *that lane becomes a dead end* — no special
+case anywhere, just an empty exit list, and cars begin fading out at a place
+that used to be a through road.
+
+### Closing turns changes capacity, and the sign is not obvious
+
+Every interior four-way of the grid, one class of movement closed at each,
+three seeds averaged:
+
+| demand | restriction | cars | speed (u/s) | waiting | throughput |
+|---|---|---|---|---|---|
+| 0.5 | everything open | 23.7 | 11.50 | 6 % | 273 |
+| 0.5 | no left turns | 23.6 | 12.64 | 3 % | **299** |
+| 0.5 | no right turns | 23.7 | 10.29 | 11 % | 244 |
+| 0.5 | no straight through | 23.8 | 11.17 | 8 % | 266 |
+| 1.5 | everything open | 67.9 | 6.34 | 25 % | 431 |
+| 1.5 | no left turns | 65.6 | 7.50 | 15 % | **492** |
+| 1.5 | no right turns | 70.0 | 4.93 | 33 % | 345 |
+| 1.5 | no straight through | 68.7 | 5.87 | 24 % | 403 |
+
+**Taking a movement away makes the network carry more.** Banning left turns
+lifts throughput 14 % at demand 1.5 (431 → 492) and cuts the standing share
+from 25 % to 15 %. Banning right turns costs 20 %.
+
+The mechanism is in the conflict sets, and it is worth reading off the model
+rather than being told. At a four-way crossing of one-lane roads:
+
+| movement | conflicts with |
+|---|---|
+| right turn | 2 movements |
+| straight through | 6 movements |
+| left turn | **7 movements** |
+
+A left turn crosses almost everything else, so it holds the junction against
+the most traffic; removing the four of them frees the crossing far more than
+it costs in detour. A right turn blocks almost nothing, so banning it only
+pushes cars onto movements that block more. This is why real networks
+restrict left turns and not right ones, and here it is a measured consequence
+of a conflict rule rather than a fact anybody wrote down.
+
 ## Stated simplifications
 
 This is a teaching model, and it is worth being explicit about what it is not:
@@ -107,7 +162,8 @@ This is a teaching model, and it is worth being explicit about what it is not:
   no longer matches what you see.
 - **No traffic signals and no priority roads.** Right of way is
   first-come-first-served by booking, ordered by waiting time so a busy
-  approach cannot starve a quiet one.
+  approach cannot starve a quiet one. Turn restrictions are the only
+  junction control the lab offers.
 - **No routing.** At a junction a car picks uniformly among its legal exits.
   There is no origin, no destination, no shortest path — deliberately, because
   the subject is what the *network* does, not what a commuter wants.
@@ -189,9 +245,9 @@ result a simulation will happily hand you.
 
 ### The derivation, checked
 
-`node labs/kits/traffic/traffic.test.js` — 87 assertions covering the graph
-editing, the derivation and the sim's invariants, including the two deadlock
-regressions. Determinism is checked in the lab as well: two runs of 1800
+`node labs/kits/traffic/traffic.test.js` — 110 assertions covering the graph
+editing, the derivation, turn restrictions and the sim's invariants,
+including the two deadlock regressions and the ban-follows-a-split case. Determinism is checked in the lab as well: two runs of 1800
 stepped frames from the same seed produce byte-identical car state and
 counters, and a reload restores the drawn plan, the exact car positions, the
 clock and the watched set unchanged.
@@ -212,6 +268,12 @@ clock and the watched set unchanged.
   double.
 - Watch two roads (**W**) and switch the plot to *Load* — the queue building
   on one approach and draining on the other is the booking rule, visible.
+- Select a crossing and close its left turns, then watch the standing share
+  in the network panel fall. Then close the right turns instead and watch it
+  rise. The junction has not got smaller either time.
+- Close **every** movement at one junction (**X**) while traffic runs: the
+  approaches turn into dead ends and cars start dissolving where a through
+  road used to be.
 
 ## Run it
 
@@ -219,22 +281,36 @@ clock and the watched set unchanged.
 ./build/bin/claydojo --sbx labs/street-network-101/Sandbox.qml
 ```
 
-Drag on the plan to draw a road; it joins whatever it touches and splits
-whatever it crosses. Right-drag turns the view.
+One rule for the pointer: **a click selects, a drag draws.** Drag from open
+ground, from a dead end (that is how two of them get joined), or off the
+middle of a road (that is how a T-junction appears). While you drag, a green
+ring means "joins that point" and a green cross means "splits that road
+here", so the answer arrives before you let go. Moving a node is a second
+act: select it, then drag it. Right-drag turns the view.
+
+Select a junction and its legs are named on the plan, matching the rows and
+columns of a matrix on the right: rows are the road you arrive on, columns
+the road you leave by. Click a cell — or the turn curve itself — to close
+that movement.
+
+`S` starts and stops the traffic. Stopping clears the cars away so the plan
+is yours to work on; starting seeds a fresh run from the seed, so the same
+plan always produces the same traffic.
 
 Keys: `1`–`4` scenarios · `S` simulate · `C` clear · `E` erase · `L` lane
 model · `V` flow numbers · `M` lane graph · `W` plot the selected road ·
-`#` grid mode · `Del` remove · `Esc` cancel · `Shift+R` record CSV ·
-`F` frame selection · `0` reset view.
+`X` close/open every movement at the selected junction · `#` grid mode ·
+`Del` remove · `Esc` cancel · `Shift+R` record CSV · `F` frame selection ·
+`0` reset view.
 
 ## Source map
 
 | file | what is in it |
 |---|---|
-| `labs/kits/traffic/roadgraph.js` | the editable planar graph: joining, splitting, crossing, the planarity invariant |
+| `labs/kits/traffic/roadgraph.js` | the editable planar graph: joining, splitting, crossing, the planarity invariant, directed turn bans |
 | `labs/kits/traffic/lanemodel.js` | the derivation: junction radii, lane offsets, turn curves, conflicts |
 | `labs/kits/traffic/traffic.js` | the sim: follow, yield, leave; spawning, re-homing after an edit |
-| `labs/kits/traffic/traffic.test.js` | 87 assertions over all three, no engine needed |
+| `labs/kits/traffic/traffic.test.js` | 110 assertions over all three, no engine needed |
 | `labs/kits/traffic/Streets3D.qml` | asphalt, paint, lane overlay, chevron flow |
 | `labs/kits/traffic/Cars3D.qml` | the instanced car population |
 | `labs/street-network-101/Sandbox.qml` | the lab: drawing, HUD, scenarios, lane graph view |

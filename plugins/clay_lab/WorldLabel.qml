@@ -1,7 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
-import QtQuick3D
 
 /*!
     \qmltype WorldLabel
@@ -54,8 +53,15 @@ Rectangle {
     */
     enum Placement { Above, Below, Centered }
 
-    /*! \qmlproperty Item WorldLabel::view \brief The View3D to project through. */
-    property Item view: null
+    /*!
+        \qmlproperty var WorldLabel::view
+        \brief The View3D to project through.
+
+        Deliberately \c var, not \c View3D: typing it would make
+        \c Clayground.Lab import QtQuick3D for one property, and the kernel
+        should not need a 3D dependency to draw a paper chip.
+    */
+    property var view: null
 
     /*! \qmlproperty var WorldLabel::camera \brief The camera that View3D renders with. */
     property var camera: null

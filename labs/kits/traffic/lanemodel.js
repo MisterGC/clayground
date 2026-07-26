@@ -20,6 +20,12 @@
 //      arriving lane at a dead end has nowhere to go, which is precisely what
 //      makes a dead end a dead end.
 //
+// A movement the user has BANNED (graph.bans, directed per road pair) is still
+// built and still drawn - you have to be able to see what you switched off in
+// order to switch it back on - but it is left out of the lane's exit list, so
+// no car will ever take it. One consequence falls out for free and is worth
+// noticing: ban every exit from a lane and that lane becomes a dead end.
+//
 // What comes out is a directed graph whose edges are drivable and whose
 // vertices are junctions - the thing traffic.js walks. Lanes and connectors
 // are addressed by ARRAY INDEX (stable within one derivation), so a car is
@@ -178,13 +184,17 @@ function derive(graph) {
                 for (var ci = 0; ci < cand.length; ++ci)
                     if (net.lanes[cand[ci]].index === Math.min(L.index,
                             net.roads[ri].lanes - 1)) pick = cand[ci]
-                net.connectors.push(_makeConnector(net, node, incoming[ii], pick))
+                var banned = _isBanned(graph, node.id, L.roadId, net.roads[ri].id)
+                net.connectors.push(
+                    _makeConnector(net, node, incoming[ii], pick, banned))
             }
         }
     }
     for (var ce = 0; ce < net.connectors.length; ++ce) {
         net.connectors[ce].id = ce
-        net.lanes[net.connectors[ce].fromLane].exits.push(ce)
+        // a banned movement exists, and is drawn, but is not an exit
+        if (!net.connectors[ce].banned)
+            net.lanes[net.connectors[ce].fromLane].exits.push(ce)
     }
     // a lane with no way out ends the journey: this is the dead end
     var deadEnds = 0
@@ -197,9 +207,13 @@ function derive(graph) {
 
     var laneLen = 0
     for (var ll = 0; ll < net.lanes.length; ++ll) laneLen += net.lanes[ll].length
+    var bannedCount = 0
+    for (var bc = 0; bc < net.connectors.length; ++bc)
+        if (net.connectors[bc].banned) ++bannedCount
     net.stats = {
         nodes: net.nodes.length, roads: net.roads.length,
         lanes: net.lanes.length, connectors: net.connectors.length,
+        bannedTurns: bannedCount,
         junctions: net.nodes.filter(function (x) { return x.degree >= 3 }).length,
         deadEnds: deadEnds,
         laneLength: laneLen,
@@ -231,7 +245,16 @@ function _legsAt(graph, node) {
 // own lines cross - so the curve leaves along the incoming lane and arrives
 // along the outgoing one, which is what makes a fan of turns look drawn
 // rather than interpolated.
-function _makeConnector(net, node, fromIdx, toIdx) {
+function _isBanned(graph, node, fromRoad, toRoad) {
+    var bans = graph.bans
+    if (!bans) return false
+    for (var i = 0; i < bans.length; ++i)
+        if (bans[i].node === node && bans[i].from === fromRoad
+            && bans[i].to === toRoad) return true
+    return false
+}
+
+function _makeConnector(net, node, fromIdx, toIdx, banned) {
     var L = net.lanes[fromIdx], M = net.lanes[toIdx]
     var p0x = L.x1, p0z = L.z1
     var p2x = M.x0, p2z = M.z0
@@ -266,8 +289,9 @@ function _makeConnector(net, node, fromIdx, toIdx) {
         }
     }
     return { id: -1, node: node.id, fromLane: fromIdx, toLane: toIdx,
+             fromRoad: L.roadId, toRoad: M.roadId,
              pts: pts, cum: cum, length: Math.max(total, 0.01),
-             turn: turn, conflicts: [] }
+             turn: turn, banned: banned === true, conflicts: [] }
 }
 
 // Which turns may not be taken at the same time. Two connectors at one node
@@ -277,6 +301,7 @@ function _findConflicts(net) {
     var byNode = {}
     for (var i = 0; i < net.connectors.length; ++i) {
         var c = net.connectors[i]
+        if (c.banned) continue      // never driven, so never in anyone's way
         if (!byNode[c.node]) byNode[c.node] = []
         byNode[c.node].push(i)
     }
@@ -406,12 +431,23 @@ function laneRuns(net, opts) {
                    styleId: styleOf(i, L) })
     }
     if (opts.connectors !== false) {
+        var banColor = opts.banColor || "#c05621"
+        var banStyle = opts.banStyleId === undefined ? 0 : opts.banStyleId
+        var hi = opts.highlightNode === undefined ? -1 : opts.highlightNode
         for (var c = 0; c < net.connectors.length; ++c) {
             var C = net.connectors[c]
-            // deliberately faint: the turn fan is the junction's plumbing,
-            // and at a busy crossing a dozen of them would read as a scribble
+            // Deliberately faint: the turn fan is the junction's plumbing, and
+            // at a busy crossing a dozen of them would read as a scribble.
+            // A BANNED movement is the exception - it is drawn in the alarm
+            // colour and dashed, because a restriction you cannot see is one
+            // you cannot undo. Turns at the selected junction come forward.
+            var live = C.node === hi
             out.push({ xz: C.pts.slice(), roadId: -1, connIdx: c,
-                       color: connColor, width: w * 0.5, styleId: 0 })
+                       banned: C.banned, node: C.node,
+                       color: C.banned ? banColor
+                            : (live ? laneColor : connColor),
+                       width: C.banned ? w * 0.8 : (live ? w * 0.75 : w * 0.5),
+                       styleId: C.banned ? banStyle : 0 })
         }
     }
     return out

@@ -17,8 +17,15 @@
 //   nodes: [ { id, x, z } ]
 //   roads: [ { id, a, b, lanes } ]        a/b are node ids, lanes is PER
 //                                         DIRECTION (1 or 2)
+//   bans:  [ { node, from, to } ]         forbidden movements (see below)
 // Ids are handed out from a single counter so a graph serializes and restores
 // as plain JSON (see the lab's viewState).
+//
+// TURN BANS are keyed by (node, from-road, to-road) and are DIRECTED: banning
+// A -> B at a junction says nothing about B -> A. That is how a real turn
+// restriction works ("no left turn from Main into Elm"), and keying on roads
+// rather than on derived lane pairs means a ban survives everything that
+// re-derives the lane model - a lane-count change, a node move, a reload.
 
 // An endpoint this close to an existing node joins it instead of making a new
 // one; this close to a road splits that road. Both are in world units and
@@ -35,7 +42,7 @@ var MIN_LEN = 7.0
 // one point), and share a node rather than leaving a sliver between them.
 var MERGE_EPS = 1.2
 
-function empty() { return { nodes: [], roads: [], nextId: 1 } }
+function empty() { return { nodes: [], roads: [], bans: [], nextId: 1 } }
 
 // Deep copy - the lab hands these to QML properties, and a shared reference
 // would mutate under bindings that think they are looking at a snapshot.
@@ -45,8 +52,49 @@ function clone(g) {
         roads: g.roads.map(function (r) {
             return { id: r.id, a: r.a, b: r.b, lanes: r.lanes }
         }),
+        bans: (g.bans || []).map(function (b) {
+            return { node: b.node, from: b.from, to: b.to }
+        }),
         nextId: g.nextId
     }
+}
+
+// ---- turn bans -------------------------------------------------------------
+
+function isBanned(g, node, fromRoad, toRoad) {
+    var bans = g.bans || []
+    for (var i = 0; i < bans.length; ++i) {
+        var b = bans[i]
+        if (b.node === node && b.from === fromRoad && b.to === toRoad) return true
+    }
+    return false
+}
+
+function setBanned(g, node, fromRoad, toRoad, banned) {
+    if (!g.bans) g.bans = []
+    var had = isBanned(g, node, fromRoad, toRoad)
+    if (banned === had) return false
+    if (banned) g.bans.push({ node: node, from: fromRoad, to: toRoad })
+    else g.bans = g.bans.filter(function (b) {
+        return !(b.node === node && b.from === fromRoad && b.to === toRoad)
+    })
+    return true
+}
+
+function toggleBanned(g, node, fromRoad, toRoad) {
+    var next = !isBanned(g, node, fromRoad, toRoad)
+    setBanned(g, node, fromRoad, toRoad, next)
+    return next
+}
+
+// A ban naming a road or node that no longer exists is dead weight, and it
+// would silently come back to life if a future id were reused.
+function pruneBans(g) {
+    if (!g.bans || !g.bans.length) return
+    g.bans = g.bans.filter(function (b) {
+        return nodeById(g, b.node) !== null
+            && roadById(g, b.from) !== null && roadById(g, b.to) !== null
+    })
 }
 
 function nodeById(g, id) {
@@ -133,9 +181,31 @@ function splitRoad(g, roadId, x, z) {
 
     var n = addNode(g, x, z)
     g.roads = g.roads.filter(function (o) { return o.id !== roadId })
-    g.roads.push({ id: g.nextId++, a: r.a, b: n.id, lanes: r.lanes })
-    g.roads.push({ id: g.nextId++, a: n.id, b: r.b, lanes: r.lanes })
+    var halfA = { id: g.nextId++, a: r.a, b: n.id, lanes: r.lanes }
+    var halfB = { id: g.nextId++, a: n.id, b: r.b, lanes: r.lanes }
+    g.roads.push(halfA)
+    g.roads.push(halfB)
+    // A ban named the road as a whole; after the split only one half still
+    // reaches the junction the ban belongs to, so the ban follows that half.
+    // Without this, splitting a road anywhere silently lifted every turn
+    // restriction at both of its ends.
+    var bans = g.bans || []
+    for (var i = 0; i < bans.length; ++i) {
+        // NOT named `b`: this function already has a `b` (the road's second
+        // endpoint), and `var` would quietly reuse it
+        var ban = bans[i]
+        if (ban.from === roadId) ban.from = _halfAt(g, halfA, halfB, ban.node)
+        if (ban.to === roadId) ban.to = _halfAt(g, halfA, halfB, ban.node)
+    }
+    pruneBans(g)
     return n.id
+}
+
+// Which half of a just-split road still touches the given node?
+function _halfAt(g, halfA, halfB, nodeId) {
+    if (halfA.a === nodeId || halfA.b === nodeId) return halfA.id
+    if (halfB.a === nodeId || halfB.b === nodeId) return halfB.id
+    return -1
 }
 
 // Resolve one end of a new road to a node id, joining or splitting whatever is
@@ -256,6 +326,7 @@ function removeRoad(g, roadId) {
     if (!r) return false
     g.roads = g.roads.filter(function (o) { return o.id !== roadId })
     pruneOrphans(g)
+    pruneBans(g)
     return true
 }
 
@@ -265,6 +336,7 @@ function removeNode(g, nodeId) {
     })
     g.nodes = g.nodes.filter(function (n) { return n.id !== nodeId })
     pruneOrphans(g)
+    pruneBans(g)
     return true
 }
 

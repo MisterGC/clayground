@@ -75,6 +75,18 @@ Node {
     /*! \qmlproperty int Streets3D::selectedRoad \brief Selected road id, or -1. */
     property int selectedRoad: -1
 
+    /*!
+        \qmlproperty int Streets3D::activeNode
+        \brief Junction whose turns are being edited, or -1.
+
+        Its turn curves are drawn forward in the lane colour instead of faint,
+        because they become clickable at the same moment.
+    */
+    property int activeNode: -1
+
+    /*! \qmlproperty int Streets3D::hoveredTurn \brief Turn curve under the cursor, or -1. */
+    property int hoveredTurn: -1
+
     /*! \qmlproperty bool Streets3D::eraser \brief Tints the hover mark as a removal. */
     property bool eraser: false
 
@@ -86,9 +98,12 @@ Node {
     property color deadEndColor: LabTheme.accent
 
     // one repaint dependency for everything the geometry reads
-    readonly property int _rev: (net ? net.stats.lanes : 0) + hoveredRoad * 31
-                                + selectedRoad * 131 + (showLanes ? 1 : 0)
-                                + (showPaint ? 2 : 0) + (eraser ? 4 : 0)
+    readonly property int _rev: (net ? net.stats.lanes : 0)
+                                + (net ? net.stats.bannedTurns * 7919 : 0)
+                                + hoveredRoad * 31 + selectedRoad * 131
+                                + activeNode * 523 + hoveredTurn * 1291
+                                + (showLanes ? 1 : 0) + (showPaint ? 2 : 0)
+                                + (eraser ? 4 : 0)
 
     readonly property color _markColor: eraser ? LabTheme.alarm : LabTheme.secondary
 
@@ -163,8 +178,10 @@ Node {
                 var hov = runs[i].roadId === root.hoveredRoad
                 if (!sel && !hov) continue
                 if (runs[i].kind !== "edge") continue
+                // hover is a quiet outline, selection a firm one - the gap
+                // between them has to be visible or they read as one state
                 runs[i].color = sel ? LabTheme.secondary : root._markColor
-                runs[i].width = sel ? 0.62 : 0.42
+                runs[i].width = sel ? 0.66 : 0.30
             }
             // a centre line is dashed on a one-lane road, solid on a wider one
             for (var k = 0; k < runs.length; ++k)
@@ -191,7 +208,10 @@ Node {
             { dash: [1.2, 3.0], pattern: "chevron", flow: 2.5 },
             { dash: [1.2, 3.0], pattern: "chevron", flow: 3.6 },
             { dash: [1.2, 3.0], pattern: "chevron", flow: 4.9 },
-            { dash: [1.2, 3.0], pattern: "chevron", flow: 6.4 }
+            { dash: [1.2, 3.0], pattern: "chevron", flow: 6.4 },
+            // 7: a banned movement - dashed, so "switched off" reads at a
+            // glance and can be switched back on
+            { dash: [1.6, 1.6], capRound: false, opacity: 1.0 }
         ]
         lines: {
             root._rev; root.flowOf; root.flowRev
@@ -200,6 +220,8 @@ Node {
             var runs = LaneModel.laneRuns(root.net, {
                 laneColor: root.laneColor, connColor: root.connColor,
                 deadColor: root.deadEndColor, width: 0.34,
+                banColor: LabTheme.alarm, banStyleId: 7,
+                highlightNode: root.activeNode,
                 styleOf: function (i) {
                     if (!f) return 0
                     var rel = f(i)
@@ -207,6 +229,13 @@ Node {
                     return 1 + Math.min(5, Math.max(0, Math.round(rel * 5)))
                 }
             })
+            // the turn under the cursor answers before it is clicked
+            for (var h = 0; h < runs.length; ++h) {
+                if (runs[h].connIdx === undefined) continue
+                if (runs[h].connIdx !== root.hoveredTurn) continue
+                runs[h].color = LabTheme.secondary
+                runs[h].width = 0.62
+            }
             return root._lift(runs, root.surfaceY + 0.05)
         }
     }

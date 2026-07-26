@@ -18,10 +18,16 @@ import "strings.js" as Strings
 // model is DERIVED, never drawn: lanes, turn curves and dead ends all follow
 // from the graph. Press Simulate and cars drive the lanes they were given.
 //
+// Interaction, in one rule: A CLICK SELECTS, A DRAG DRAWS. Drag from open
+// ground, from a dead end (that is how you join two of them), or off the middle
+// of a road (that is how you get a T). Select a junction and its turns become
+// clickable, so single movements can be closed - directed, so A->B and B->A are
+// separate. Moving a node is a second act: select it, then drag it.
+//
 // Keys: 1..4 scenarios · S simulate · C clear · E erase · L lane model ·
-// V flow numbers · M lane graph · W plot the selected road · # grid mode ·
-// Del remove · Esc cancel · Shift+R record. View: right-drag turns, wheel
-// zooms, arrows/+/- nudge, F frames the selection, 0 resets.
+// V flow numbers · M lane graph · W plot the selected road · X close/open the
+// selected junction · # grid mode · Del remove · Esc cancel · Shift+R record.
+// View: right-drag turns, wheel zooms, arrows/+/- nudge, F frames, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -193,6 +199,43 @@ Item {
     property var laneFlow: []       // per-lane relative business, 0..1
 
     property bool running: false
+
+    // --- starting and stopping ---------------------------------------------
+    // Stopping is not pausing: the cars dissolve and the plan is handed back
+    // empty, because the reason to stop is to model without traffic in the way.
+    // Starting seeds a fresh run from the seed, so the same plan always gives
+    // the same traffic - which is what makes a before/after comparison mean
+    // anything after you have changed the network.
+    function startSim() {
+        if (running) return
+        drainAnim.stop()
+        cars3d.fleetAlpha = 1.0
+        clock.reset()          // clears cars, RNG and the plots
+        running = true
+    }
+    function stopSim() {
+        if (!running) return
+        running = false        // freezes sim time immediately
+        drainAnim.restart()    // then dissolve what is left, on the wall clock
+    }
+    function toggleSim() { running ? stopSim() : startSim() }
+
+    NumberAnimation {
+        id: drainAnim
+        target: cars3d
+        property: "fleetAlpha"
+        from: 1.0; to: 0.0
+        duration: 380
+        easing.type: Easing.InQuad
+        onFinished: {
+            root.simState = Traffic.createState()
+            root.simRev++
+            root.refreshFlow()
+            cars3d.cars = root.simState.cars
+            cars3d.sync()
+            cars3d.fleetAlpha = 1.0
+        }
+    }
     // Someone else may be holding time still - the inspector's pause, or a
     // flow saying "look at this before it moves on". Saying "Stop" while
     // nothing moves would be a lie.
@@ -262,9 +305,22 @@ Item {
     }
     function removeRoad(id) {
         if (!RoadGraph.removeRoad(graph, id)) return
-        if (selectedRoad === id) selectedRoad = -1
+        if (selectedRoad === id) clearSelection()
         if (isWatched(id)) watch = watch.filter(x => x !== id)
         rebuild()
+    }
+    // Erasing a junction takes its roads with it - a bare node is not a thing
+    // you can have, so removing one has to mean removing what met there.
+    function removeNodeAndRoads(id) {
+        const doomed = RoadGraph.incident(graph, id).map(r => r.id)
+        if (!RoadGraph.removeNode(graph, id)) return
+        clearSelection()
+        watch = watch.filter(x => doomed.indexOf(x) === -1)
+        rebuild()
+    }
+    function removeSelection() {
+        if (selection.kind === "road") removeRoad(selection.id)
+        else if (selection.kind === "node") removeNodeAndRoads(selection.id)
     }
     function setRoadLanes(id, n) {
         if (!RoadGraph.setLanes(graph, id, n)) return
@@ -273,7 +329,7 @@ Item {
     function clearPlan() {
         graph = RoadGraph.empty()
         simState = Traffic.createState()
-        selectedRoad = -1
+        clearSelection()
         watch = []
         rebuild()
     }
@@ -346,22 +402,165 @@ Item {
         for (const nd of net.nodes) if (nd.degree === 1) out.push(nd)
         return out
     }
+    function nodeRecord(id) {
+        for (const nd of net.nodes) if (nd.id === id) return nd
+        return null
+    }
+    function turnRecord(id) {
+        return id >= 0 && id < net.connectors.length ? net.connectors[id] : null
+    }
 
-    // world-space hit test against the model - no per-model picking
+    // --- turn restrictions -------------------------------------------------
+    // The movements at one junction, one row per (arriving road -> leaving
+    // road) pair. Derived from the connectors, but collapsed to road pairs
+    // because that is what a ban is keyed on: on a two-lane road the same
+    // movement exists twice and must toggle as one thing.
+    function movementsAt(nodeId) {
+        const seen = {}, out = []
+        for (const c of net.connectors) {
+            if (c.node !== nodeId) continue
+            const key = c.fromRoad + ">" + c.toRoad
+            if (seen[key]) continue
+            seen[key] = true
+            out.push({ from: c.fromRoad, to: c.toRoad, turn: c.turn,
+                       banned: c.banned, connector: c.id })
+        }
+        // stable order so the card does not reshuffle under the cursor
+        out.sort((p, q) => p.from - q.from || p.to - q.to)
+        return out
+    }
+    // The roads meeting at a node, in graph order, so the matrix's rows and
+    // columns keep the same identity from one repaint to the next.
+    function legsAt(nodeId) {
+        return RoadGraph.incident(graph, nodeId).map(r => r.id)
+    }
+    // One cell of the matrix: the movement from one leg to another, or null
+    // when there is none (the diagonal - a U-turn is never offered).
+    function movementAt(nodeId, fromRoad, toRoad) {
+        if (fromRoad === toRoad) return null
+        for (const c of net.connectors) {
+            if (c.node !== nodeId) continue
+            if (c.fromRoad === fromRoad && c.toRoad === toRoad)
+                return { from: fromRoad, to: toRoad, turn: c.turn,
+                         banned: c.banned, connector: c.id }
+        }
+        return null
+    }
+    // Where to hang a leg's name: a little way out along the road from the
+    // junction, so the label sits ON the leg it names rather than in the box.
+    function legAnchor(nodeId, roadId) {
+        const nd = nodeRecord(nodeId), r = roadRecord(roadId)
+        if (!nd || !r) return Qt.vector3d(0, 0, 0)
+        const away = r.a === nodeId ? 1 : -1
+        const d = Math.min(r.length * 0.42, Math.max(nd.pad + 5, 11))
+        return Qt.vector3d(nd.x + r.ux * away * d, 1.6, nd.z + r.uz * away * d)
+    }
+    readonly property var turnGlyphs: ({ straight: "↑", left: "←",
+                                         right: "→", back: "↓" })
+
+    function setTurnBanned(nodeId, fromRoad, toRoad, banned) {
+        if (!RoadGraph.setBanned(graph, nodeId, fromRoad, toRoad, banned)) return
+        rebuild()
+    }
+    function toggleTurnBanned(nodeId, fromRoad, toRoad) {
+        setTurnBanned(nodeId, fromRoad, toRoad,
+                      !RoadGraph.isBanned(graph, nodeId, fromRoad, toRoad))
+    }
+    // toggling by connector id: what clicking a curve in the 3D view does
+    function toggleTurnByConnector(connId) {
+        const c = turnRecord(connId)
+        if (!c) return
+        toggleTurnBanned(c.node, c.fromRoad, c.toRoad)
+    }
+    function turnLabel(m) {
+        return roadLabel(m.from) + " → " + roadLabel(m.to)
+    }
+    // Close a whole junction, or open it again. Closing every movement makes
+    // each arriving lane a dead end, which is a striking thing to be able to
+    // do in one keystroke and see immediately.
+    function junctionClosed(nodeId) {
+        const ms = movementsAt(nodeId)
+        return ms.length > 0 && ms.every(m => m.banned)
+    }
+    function toggleJunctionClosed() {
+        const id = activeNode
+        if (id === -1) return
+        const close = !junctionClosed(id)
+        for (const m of movementsAt(id))
+            RoadGraph.setBanned(graph, id, m.from, m.to, close)
+        rebuild()
+    }
+
+    // World-space hit test against the model - no per-model picking.
+    //
+    // Turn curves come FIRST, but only at the junction that is already
+    // selected. That ordering is deliberate: a turn curve lives inside its
+    // junction box, so if it were always hittable you could never click the
+    // junction itself, and an idle click near a crossing would silently flip a
+    // restriction. Select the junction, and only then do its turns respond.
     function hitAt(wx, wz) {
+        if (activeNode !== -1) {
+            // The node keeps a CORE that always wins. Every turn curve at a
+            // junction passes through its middle, so without this the moment
+            // you selected a junction its own centre became a turn: you could
+            // no longer grab it to move it, and clicking it silently flipped a
+            // restriction. The fan is clickable everywhere outside the core.
+            const nd = nodeRecord(activeNode)
+            if (nd && Math.hypot(nd.x - wx, nd.z - wz) < Math.max(2.2, nd.pad * 0.45))
+                return { kind: "node", id: nd.id }
+            let best = null, bd = 1.5
+            for (const c of net.connectors) {
+                if (c.node !== activeNode) continue
+                const d = distToConnector(c, wx, wz)
+                if (d < bd) { bd = d; best = c }
+            }
+            if (best) return { kind: "turn", id: best.id }
+        }
         for (const nd of net.nodes) {
             if (Math.hypot(nd.x - wx, nd.z - wz) < Math.max(3.2, nd.pad * 0.75))
                 return { kind: "node", id: nd.id }
         }
         for (const r of net.roads) {
-            const dx = r.x1 - r.x0, dz = r.z1 - r.z0
-            const len2 = dx * dx + dz * dz
-            const t = len2 < 1e-9 ? 0
-                : Math.max(0, Math.min(1, ((wx - r.x0) * dx + (wz - r.z0) * dz) / len2))
-            const d = Math.hypot(r.x0 + t * dx - wx, r.z0 + t * dz - wz)
+            const d = distToRoad(r, wx, wz)
             if (d < r.width / 2 + 0.5) return { kind: "road", id: r.id }
         }
         return null
+    }
+
+    function distToRoad(r, wx, wz) {
+        const dx = r.x1 - r.x0, dz = r.z1 - r.z0
+        const len2 = dx * dx + dz * dz
+        const t = len2 < 1e-9 ? 0
+            : Math.max(0, Math.min(1, ((wx - r.x0) * dx + (wz - r.z0) * dz) / len2))
+        return Math.hypot(r.x0 + t * dx - wx, r.z0 + t * dz - wz)
+    }
+    function distToConnector(c, wx, wz) {
+        let best = Infinity
+        for (let i = 0; i + 3 < c.pts.length; i += 2) {
+            const ax = c.pts[i], az = c.pts[i + 1]
+            const bx = c.pts[i + 2], bz = c.pts[i + 3]
+            const dx = bx - ax, dz = bz - az
+            const len2 = dx * dx + dz * dz
+            const t = len2 < 1e-9 ? 0
+                : Math.max(0, Math.min(1, ((wx - ax) * dx + (wz - az) * dz) / len2))
+            best = Math.min(best, Math.hypot(ax + t * dx - wx, az + t * dz - wz))
+        }
+        return best
+    }
+
+    // What would an endpoint dropped here attach to? Drives the drawing
+    // preview: the answer has to be visible BEFORE the mouse is released,
+    // because "will this connect?" is the whole question when you are joining
+    // two dead ends.
+    readonly property real snapNodeRadius: 8.0     // forgiving: aiming is hard in 3D
+    readonly property real snapRoadRadius: 4.0
+
+    function snapTargetAt(wx, wz) {
+        const nd = RoadGraph.nearestNode(graph, wx, wz, snapNodeRadius)
+        if (nd) return { kind: "node", id: nd.id, x: nd.x, z: nd.z }
+        const hit = RoadGraph.nearestRoad(graph, wx, wz, snapRoadRadius)
+        if (hit) return { kind: "road", id: hit.road.id, x: hit.x, z: hit.z }
+        return { kind: "free", id: -1, x: wx, z: wz }
     }
 
     // --- camera ------------------------------------------------------------
@@ -379,9 +578,28 @@ Item {
         framePoints(pts.length ? pts : null)
     }
     function frameSelection() {
-        const r = roadRecord(selectedRoad)
-        if (!r) { framePlan(); return }
-        framePoints([Qt.vector3d(r.x0, 0, r.z0), Qt.vector3d(r.x1, 0, r.z1)])
+        if (selection.kind === "road") {
+            const r = roadRecord(selection.id)
+            if (r) {
+                framePoints([Qt.vector3d(r.x0, 0, r.z0), Qt.vector3d(r.x1, 0, r.z1)])
+                return
+            }
+        }
+        if (activeNode !== -1) {
+            const nd = nodeRecord(activeNode)
+            if (nd) {
+                // a junction alone is a point; frame it with its legs so the
+                // camera lands on something with extent
+                const pts = [Qt.vector3d(nd.x, 0, nd.z)]
+                for (const r of RoadGraph.incident(graph, nd.id)) {
+                    const o = RoadGraph.nodeById(graph, r.a === nd.id ? r.b : r.a)
+                    if (o) pts.push(Qt.vector3d((nd.x + o.x) / 2, 0, (nd.z + o.z) / 2))
+                }
+                framePoints(pts)
+                return
+            }
+        }
+        framePlan()
     }
 
     // --- interaction state -------------------------------------------------
@@ -391,10 +609,30 @@ Item {
     property bool showValues: false
     property bool showPlan: true
     property int newLanes: 1              // lane count for the next road drawn
-    property int selectedRoad: -1
+
+    // One selection, three things it can be. A junction being selected is what
+    // makes its turns editable, so this is not just a highlight.
+    property var selection: ({ kind: "", id: -1 })
+    readonly property int selectedRoad: selection.kind === "road" ? selection.id : -1
+    readonly property int selectedNode: selection.kind === "node" ? selection.id : -1
+    readonly property int selectedTurn: selection.kind === "turn" ? selection.id : -1
+    // a selected turn keeps its junction lit, so the card and the curves stay put
+    readonly property int activeNode: {
+        if (selection.kind === "node") return selection.id
+        if (selection.kind === "turn") {
+            const c = turnRecord(selection.id)
+            return c ? c.node : -1
+        }
+        return -1
+    }
+    function select(kind, id) { selection = { kind: kind, id: id } }
+    function clearSelection() { selection = { kind: "", id: -1 } }
+
     property var hoverHit: null
     property var drawFrom: null           // {x, z} while a road is being dragged
     property var drawTo: null
+    property var drawFromSnap: null       // what each end would attach to
+    property var drawToSnap: null
     property string lastRefusal: ""
     property var cursorW: Qt.vector3d(0, 0, 0)
 
@@ -408,7 +646,7 @@ Item {
     function loadPlan(s) {
         graph = RoadGraph.clone(s.graph)
         if (s.newLanes) newLanes = s.newLanes
-        selectedRoad = -1
+        clearSelection()
         simState = Traffic.createState()
         rebuild()
     }
@@ -517,9 +755,11 @@ Item {
             "road":     (x1, z1, x2, z2) => addRoad(x1, z1, x2, z2),
             "remove":   (id) => removeRoad(id),
             "lanes":    (id, n) => setRoadLanes(id, n),
-            "select":   (id) => { selectedRoad = id },
+            "select":   (kind, id) => root.select(kind, id),
+            "banTurn":  (node, from, to, on) =>
+                            setTurnBanned(node, from, to, on !== false),
             "watch":    (id, on) => setWatched(id, on),
-            "simulate": (on) => { running = on },
+            "simulate": (on) => on === false ? stopSim() : startSim(),
             "clear":    () => clearPlan(),
             "scenario": (n) => applyScenario(n),
             "showLanes": (on) => { showLanes = on },
@@ -545,7 +785,9 @@ Item {
         info.traffic.heldByPause = running && Clayground.paused
         info.traffic.steps = _stepsTaken
         // language-neutral for agents: ids and types, not display labels
-        info.ui = { selected: selectedRoad, snap: snapToGrid, eraser: eraser,
+        info.network.bannedTurns = net.stats.bannedTurns
+        info.ui = { selected: { kind: selection.kind, id: selection.id },
+                    snap: snapToGrid, eraser: eraser,
                     watching: watch.slice(), quantity: watchQuantity,
                     lang: LabLang.lang }
         return info
@@ -656,7 +898,10 @@ Item {
             showLanes: root.showLanes
             hoveredRoad: root.hoverHit && root.hoverHit.kind === "road"
                          ? root.hoverHit.id : -1
+            hoveredTurn: root.hoverHit && root.hoverHit.kind === "turn"
+                         ? root.hoverHit.id : -1
             selectedRoad: root.selectedRoad
+            activeNode: root.activeNode
             eraser: root.eraser
             flowTime: clock.time
             flowRev: root.flowRev
@@ -702,6 +947,89 @@ Item {
             color: root.drawValid ? LabTheme.secondary : LabTheme.alarm
             width: root.newLanes * LaneModel.LANE_W * 2
         }
+
+        // What each end of the drag will ATTACH to. A ring means "joins this
+        // node", a cross means "splits this road here", nothing means "a new
+        // node in open ground". Without this the only way to find out was to
+        // let go and see - which is exactly why joining two dead ends felt
+        // impossible.
+        Repeater3D {
+            model: [root.drawFromSnap, root.drawToSnap]
+            Node {
+                required property var modelData
+                visible: modelData !== null && modelData !== undefined
+                         && modelData.kind !== "free"
+                position: modelData ? Qt.vector3d(modelData.x, 0.2, modelData.z)
+                                    : Qt.vector3d(0, -999, 0)
+                // joins an existing node: a ring around it
+                Model {
+                    source: "#Cylinder"
+                    visible: modelData && modelData.kind === "node"
+                    castsShadows: false
+                    scale: Qt.vector3d(0.115, 0.0002, 0.115)
+                    materials: PrincipledMaterial {
+                        baseColor: LabTheme.tertiary
+                        lighting: PrincipledMaterial.NoLighting
+                        opacity: 0.55; alphaMode: PrincipledMaterial.Blend
+                    }
+                }
+                // splits a road: a cross on the spot
+                Node {
+                    visible: modelData && modelData.kind === "road"
+                    Box3D {
+                        width: 7.0; height: 0.4; depth: 0.7
+                        position: Qt.vector3d(0, 0, 0)
+                        color: LabTheme.tertiary
+                        useToonShading: true
+                    }
+                    Box3D {
+                        width: 0.7; height: 0.4; depth: 7.0
+                        position: Qt.vector3d(0, 0, 0)
+                        color: LabTheme.tertiary
+                        useToonShading: true
+                    }
+                }
+            }
+        }
+
+        // Every node that a road can be attached to wears a faint open ring
+        // while you are drawing, so the plan says where the anchors ARE rather
+        // than making you hunt for them.
+        Repeater3D {
+            model: root.drawFrom !== null ? root.net.nodes : []
+            Model {
+                required property var modelData
+                source: "#Cylinder"
+                castsShadows: false
+                position: Qt.vector3d(modelData.x, 0.13, modelData.z)
+                scale: Qt.vector3d(0.085, 0.0002, 0.085)
+                materials: PrincipledMaterial {
+                    baseColor: LabTheme.secondary
+                    lighting: PrincipledMaterial.NoLighting
+                    opacity: 0.22; alphaMode: PrincipledMaterial.Blend
+                }
+            }
+        }
+
+        // The junction being edited: a ring so it is obvious which crossing the
+        // turn card belongs to.
+        Model {
+            readonly property var nd: {
+                root.graphRev
+                return root.activeNode === -1 ? null : root.nodeRecord(root.activeNode)
+            }
+            source: "#Cylinder"
+            visible: nd !== null
+            castsShadows: false
+            position: nd ? Qt.vector3d(nd.x, 0.12, nd.z) : Qt.vector3d(0, -999, 0)
+            scale: nd ? Qt.vector3d(nd.pad * 2.5 / 100, 0.0002, nd.pad * 2.5 / 100)
+                      : Qt.vector3d(0.01, 0.0002, 0.01)
+            materials: PrincipledMaterial {
+                baseColor: LabTheme.secondary
+                lighting: PrincipledMaterial.NoLighting
+                opacity: 0.16; alphaMode: PrincipledMaterial.Blend
+            }
+        }
     }
 
     // --- mouse -------------------------------------------------------------
@@ -734,40 +1062,61 @@ Item {
 
         onWheel: (wheel) => rig.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
 
-        // The gesture lives in three named functions rather than in the signal
+        // The gesture lives in named functions rather than in the signal
         // handlers, so a flow, a test or an agent can perform the SAME drag a
         // hand does - the inspector can synthesize a click but not a drag, and
         // drawing a road is the one thing this lab is for.
+        //
+        // ONE RULE: a click selects, a drag draws. Nothing is decided on press,
+        // because on press we do not yet know which it is - so the press only
+        // remembers what it grabbed, and the first real movement commits. That
+        // is what makes drawing FROM existing geometry possible: previously a
+        // press on a node started moving it and a press on a road selected it,
+        // so a road could only ever start in empty space, and joining two dead
+        // ends was unreachable.
+        //
+        // Moving a node is therefore a second act: select it, then drag it.
+        property var pressHit: null
+        property var pressW: null
+        property string mode: ""      // "" until the first movement decides
+
         function pressAt(mx, my, button, mods) {
             root.forceActiveFocus()
             lastX = mx; lastY = my
-            orbiting = false; dragNode = null
+            orbiting = false; dragNode = null; mode = ""
+            pressHit = null; pressW = null
             root.drawFrom = null; root.drawTo = null
 
-            if (button === Qt.RightButton) { orbiting = true; return }
+            if (button === Qt.RightButton) { orbiting = true; mode = "orbit"; return }
 
             const w = worldAt(mx, my)
-            if (!w) { orbiting = true; return }
-            const hit = root.hitAt(w.x, w.z)
+            if (!w) { orbiting = true; mode = "orbit"; return }
 
-            if (root.eraser) {
-                if (hit && hit.kind === "road") root.removeRoad(hit.id)
-                return
-            }
-            if (hit && hit.kind === "node") {
-                root.selectedRoad = -1
-                dragNode = hit.id
-                return
-            }
-            if (hit && hit.kind === "road") {
-                root.selectedRoad = hit.id
-                return
-            }
-            // empty plan: start drawing
-            root.selectedRoad = -1
+            const hit = root.hitAt(w.x, w.z)
+            pressHit = hit
+            pressW = { x: w.x, z: w.z }
             root.lastRefusal = ""
-            root.drawFrom = snapped(w, mods)
-            root.drawTo = root.drawFrom
+
+            // The eraser is a mode and acts immediately - a modal tool that
+            // waited for a drag would feel broken.
+            if (root.eraser) {
+                mode = "erase"
+                if (hit && hit.kind === "road") root.removeRoad(hit.id)
+                else if (hit && hit.kind === "node") root.removeNodeAndRoads(hit.id)
+                return
+            }
+        }
+
+        // Where would a road started at this press begin? On a node, exactly
+        // on it; on a road, at the point grabbed (which splits it, giving a T);
+        // otherwise the snapped cursor.
+        function drawOrigin(mods) {
+            if (pressHit && pressHit.kind === "node") {
+                const nd = RoadGraph.nodeById(root.graph, pressHit.id)
+                if (nd) return { x: nd.x, z: nd.z }
+            }
+            if (pressHit && pressHit.kind === "road") return pressW
+            return snapped(pressW, mods)
         }
 
         function moveAt(mx, my, mods, isDown) {
@@ -779,26 +1128,60 @@ Item {
             const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = w
-            if (isDown && dragNode !== null) {
+
+            if (!isDown) {
+                root.hoverHit = root.hitAt(w.x, w.z)
+                return
+            }
+            if (mode === "erase") return
+
+            // First real movement decides what this gesture is
+            if (mode === "" && pressW) {
+                if (Math.hypot(w.x - pressW.x, w.z - pressW.z) < 1.6) return
+                const grabbedSelectedNode = pressHit && pressHit.kind === "node"
+                                            && root.selectedNode === pressHit.id
+                if (grabbedSelectedNode) {
+                    mode = "move"
+                    dragNode = pressHit.id
+                } else {
+                    mode = "draw"
+                    root.drawFrom = drawOrigin(mods)
+                    root.drawFromSnap = root.snapTargetAt(root.drawFrom.x,
+                                                          root.drawFrom.z)
+                }
+            }
+            if (mode === "move" && dragNode !== null) {
                 const p = snapped(w, mods)
                 root.moveNode(dragNode, p.x, p.z)
                 return
             }
-            if (isDown && root.drawFrom) {
-                root.drawTo = snapped(w, mods)
-                return
+            if (mode === "draw") {
+                // The end follows what it would ATTACH to, not the raw cursor:
+                // aim near a dead end and the preview jumps onto it, so "will
+                // this connect?" is answered before the button comes up.
+                const t = root.snapTargetAt(w.x, w.z)
+                root.drawToSnap = t
+                root.drawTo = t.kind === "free" ? snapped(w, mods)
+                                               : { x: t.x, z: t.z }
             }
-            root.hoverHit = root.hitAt(w.x, w.z)
         }
 
         function releaseAt() {
-            if (root.drawFrom && root.drawTo) {
+            if (mode === "draw" && root.drawFrom && root.drawTo) {
                 const r = root.addRoad(root.drawFrom.x, root.drawFrom.z,
                                        root.drawTo.x, root.drawTo.z)
-                if (r.ok && r.roads.length) root.selectedRoad = r.roads[0]
+                if (r.ok && r.roads.length) root.select("road", r.roads[0])
+            } else if (mode === "" && pressHit !== null) {
+                // never moved: this was a click, so it selects
+                if (pressHit.kind === "turn") root.toggleTurnByConnector(pressHit.id)
+                else root.select(pressHit.kind, pressHit.id)
+            } else if (mode === "" && pressHit === null) {
+                root.clearSelection()
             }
             root.drawFrom = null; root.drawTo = null
-            dragNode = null; orbiting = false
+            root.drawFromSnap = null; root.drawToSnap = null
+            dragNode = null; orbiting = false; mode = ""
+            pressHit = null; pressW = null
         }
 
         // Drag a road from one window point to another in one call - the whole
@@ -806,6 +1189,11 @@ Item {
         function dragRoad(x1, y1, x2, y2, mods) {
             pressAt(x1, y1, Qt.LeftButton, mods || 0)
             moveAt(x2, y2, mods || 0, true)
+            releaseAt()
+        }
+        // A click, as one call: press and release with no movement between.
+        function clickAt(x, y, mods) {
+            pressAt(x, y, Qt.LeftButton, mods || 0)
             releaseAt()
         }
 
@@ -857,7 +1245,7 @@ Item {
                     color: "#ffffff"; font.pixelSize: 13; font.bold: true
                     font.family: LabTheme.monoFont
                 }
-                MouseArea { anchors.fill: parent; onClicked: root.running = !root.running }
+                MouseArea { anchors.fill: parent; onClicked: root.toggleSim() }
             }
 
             // how wide the NEXT road will be - the road already on the plan is
@@ -1048,10 +1436,14 @@ Item {
             }
             Text {
                 width: parent.width
+                wrapMode: Text.WordWrap
                 text: {
                     root.graphRev
-                    return root.net.stats.junctions + " " + LabLang.t("traffic.junctions")
-                         + " · " + root.net.stats.deadEnds + " " + LabLang.t("traffic.deadEnds")
+                    let t = root.net.stats.junctions + " " + LabLang.t("traffic.junctions")
+                          + " · " + root.net.stats.deadEnds + " " + LabLang.t("traffic.deadEnds")
+                    if (root.net.stats.bannedTurns > 0)
+                        t += " · " + LabLang.tf("stats.banned", root.net.stats.bannedTurns)
+                    return t
                 }
                 color: LabTheme.inkFaint; font.pixelSize: 11
                 font.family: LabTheme.monoFont
@@ -1164,7 +1556,7 @@ Item {
             anchors.margins: 9
 
             readonly property int rev: root.graphRev * 7 + root.selectedRoad * 7919
-                                       + root.flowRev
+                                       + root.activeNode * 104729 + root.flowRev
             onRevChanged: requestPaint()
             Connections {
                 target: root
@@ -1231,11 +1623,15 @@ Item {
                     ctx.fill()
                 }
 
-                // the turns, faint: they are what makes it a graph rather than
-                // a heap of arrows
-                ctx.strokeStyle = LabTheme.panelEdge.toString()
+                // The turns, faint: they are what makes it a graph rather than
+                // a heap of arrows. A CLOSED movement is drawn in the alarm
+                // colour here too - the abstract view has to agree with the
+                // plan about what is switched off.
                 ctx.lineWidth = 0.9
                 for (const C of root.net.connectors) {
+                    ctx.strokeStyle = (C.banned ? LabTheme.alarm
+                                     : LabTheme.panelEdge).toString()
+                    ctx.lineWidth = C.banned ? 1.6 : 0.9
                     ctx.beginPath()
                     ctx.moveTo(px(C.pts[0]), py(C.pts[1]))
                     for (let p = 1; p < C.pts.length / 2; ++p)
@@ -1246,6 +1642,7 @@ Item {
                 // nodes: a junction is a filled dot, a dead end an open ring
                 for (const nd of root.net.nodes) {
                     const dead = nd.degree === 1
+                    const active = nd.id === root.activeNode
                     ctx.beginPath()
                     ctx.arc(px(nd.x), py(nd.z), dead ? 3.4 : 2.6 + nd.degree * 0.5, 0,
                             2 * Math.PI)
@@ -1254,10 +1651,19 @@ Item {
                         ctx.lineWidth = 1.8
                         ctx.stroke()
                     } else {
-                        ctx.fillStyle = (nd.degree >= 3 ? LabTheme.primary
-                                                        : LabTheme.inkFaint).toString()
+                        ctx.fillStyle = (active ? LabTheme.secondary
+                                       : nd.degree >= 3 ? LabTheme.primary
+                                       : LabTheme.inkFaint).toString()
                         ctx.fill()
                     }
+                    if (!active) continue
+                    // ring the junction being edited, so the card and the graph
+                    // agree about which crossing is in hand
+                    ctx.beginPath()
+                    ctx.arc(px(nd.x), py(nd.z), 6.5, 0, 2 * Math.PI)
+                    ctx.strokeStyle = LabTheme.secondary.toString()
+                    ctx.lineWidth = 1.4
+                    ctx.stroke()
                 }
             }
         }
@@ -1282,6 +1688,30 @@ Item {
                 return LabLang.num(Traffic.roadRate(root.simState, modelData.id), 0)
                      + LabLang.t("unit.perMin")
             }
+        }
+    }
+
+    // --- leg names at the selected junction --------------------------------
+    // The matrix says "R3 → R5"; these chips are what make that mean something
+    // you can point at. They appear only while a junction is selected, sit out
+    // along each leg rather than in the box, and use the very same labels as
+    // the matrix headers.
+    Repeater {
+        model: {
+            root.graphRev
+            return root.activeNode === -1 ? [] : root.legsAt(root.activeNode)
+        }
+        WorldLabel {
+            required property var modelData
+            view: view3d
+            camera: rig.camera
+            worldPosition: {
+                root.graphRev
+                return root.legAnchor(root.activeNode, modelData)
+            }
+            placement: WorldLabel.Centered
+            accent: LabTheme.primary
+            text: { root.graphRev; return root.roadLabel(modelData) }
         }
     }
 
@@ -1318,6 +1748,9 @@ Item {
     }
 
     // --- selection card ----------------------------------------------------
+    // A road's card rides with the road, because it is small and belongs to a
+    // place. The junction editor does NOT - see the panel further down: a
+    // matrix pinned to a crossing covers the very legs it names.
     WorldLabel {
         id: selCard
         readonly property var road: {
@@ -1421,6 +1854,227 @@ Item {
                 font.family: LabTheme.handFont
             }
         }
+
+    }
+
+    // --- junction editor ---------------------------------------------------
+    // A FIXED panel, not a card pinned to the crossing. The matrix is large
+    // enough that anchoring it to the junction covered the very leg labels it
+    // refers to - so instead the junction is ringed on the plan, its legs wear
+    // the same names the matrix uses, and the editor sits still on the right
+    // where a panel of this size can breathe.
+    Rectangle {
+        id: junctionPanel
+        readonly property var node: {
+            root.graphRev
+            return root.activeNode === -1 ? null : root.nodeRecord(root.activeNode)
+        }
+        readonly property var moves: {
+            root.graphRev
+            return node ? root.movementsAt(node.id) : []
+        }
+        visible: node !== null
+        anchors.right: parent.right
+        anchors.top: stats.bottom
+        anchors.rightMargin: 12
+        anchors.topMargin: 10
+        width: 232
+        height: junctionCol.height + 18
+        radius: LabTheme.radius
+        color: LabTheme.panel
+        border.width: LabTheme.borderWidth
+        border.color: node !== null && root.junctionClosed(node.id) ? LabTheme.alarm
+                                                                   : LabTheme.secondary
+
+      Column {
+        id: junctionCol
+        x: 11; y: 9
+        width: parent.width - 22
+        spacing: 3
+
+        Text {
+            // German runs a quarter longer than the English it replaces, so the
+            // title is capped and elides rather than escaping the panel
+            width: junctionCol.width
+            elide: Text.ElideRight
+            text: {
+                root.graphRev
+                if (!junctionPanel.node) return ""
+                const nd = junctionPanel.node
+                const what = nd.degree === 1 ? "card.deadEnd"
+                           : (nd.degree === 2 ? "card.bend" : "card.junction")
+                return LabLang.t(what) + "  "
+                     + LabLang.tf("card.legs", nd.degree)
+            }
+            color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+            font.letterSpacing: 1.0; font.family: LabTheme.monoFont
+        }
+        Text {
+            visible: junctionPanel.moves.length > 0
+            width: junctionCol.width
+            wrapMode: Text.WordWrap
+            text: LabLang.t("card.turns.hint")
+            color: LabTheme.inkFaint; font.pixelSize: 11
+            font.family: LabTheme.handFont
+        }
+        Text {
+            visible: junctionPanel.moves.length === 0
+            width: junctionCol.width
+            wrapMode: Text.WordWrap
+            text: LabLang.t("card.turns.none")
+            color: LabTheme.accent; font.pixelSize: 11
+            font.family: LabTheme.handFont
+        }
+
+        // The movements as a MATRIX: rows are the road you arrive on,
+        // columns the road you leave by, so every combination has a place
+        // and you can see at a glance which way through the junction is
+        // shut. The diagonal is blank - a U-turn is never offered.
+        //
+        // The row and column names are the same labels that appear on the
+        // legs out on the plan while this junction is selected, which is
+        // what makes "R3 → R5" mean something you can point at.
+        Grid {
+            id: turnMatrix
+            readonly property var legs: {
+                root.graphRev
+                return junctionPanel.node ? root.legsAt(junctionPanel.node.id) : []
+            }
+            visible: legs.length > 1
+            columns: legs.length + 1
+            spacing: 2
+
+            // corner: the axis legend
+            Rectangle {
+                width: 30; height: 17; color: "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "↓→"
+                    color: LabTheme.inkFaint; font.pixelSize: 9
+                    font.family: LabTheme.monoFont
+                }
+            }
+            // column headers: the road you LEAVE by
+            Repeater {
+                model: turnMatrix.legs
+                Rectangle {
+                    required property var modelData
+                    width: 30; height: 17; radius: 3
+                    color: LabTheme.paperDeep
+                    Text {
+                        anchors.centerIn: parent
+                        text: { root.graphRev; return root.roadLabel(modelData) }
+                        color: LabTheme.primary; font.pixelSize: 9; font.bold: true
+                        font.family: LabTheme.monoFont
+                    }
+                }
+            }
+
+            // one row per arriving road: its header, then a cell per exit
+            Repeater {
+                model: turnMatrix.legs.length * (turnMatrix.legs.length + 1)
+                Item {
+                    required property int index
+                    readonly property int col: index % (turnMatrix.legs.length + 1)
+                    readonly property int row: Math.floor(index / (turnMatrix.legs.length + 1))
+                    readonly property int fromRoad: turnMatrix.legs[row]
+                    readonly property int toRoad: col > 0 ? turnMatrix.legs[col - 1] : -1
+                    readonly property var move: {
+                        root.graphRev
+                        if (col === 0 || !junctionPanel.node) return null
+                        return root.movementAt(junctionPanel.node.id, fromRoad, toRoad)
+                    }
+                    width: 30; height: 17
+
+                    // row header
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: col === 0
+                        radius: 3
+                        color: LabTheme.paperDeep
+                        Text {
+                            anchors.centerIn: parent
+                            text: { root.graphRev; return root.roadLabel(fromRoad) }
+                            color: LabTheme.primary; font.pixelSize: 9; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                    // a movement cell
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: col > 0 && move !== null
+                        radius: 3
+                        readonly property bool off: move !== null && move.banned
+                        readonly property bool hovered:
+                            move !== null && root.hoverHit
+                            && root.hoverHit.kind === "turn"
+                            && root.hoverHit.id === move.connector
+                        color: off ? LabTheme.alarm : LabTheme.paper
+                        border.color: hovered ? LabTheme.secondary
+                                    : (off ? LabTheme.alarm : LabTheme.panelEdge)
+                        border.width: hovered ? 2 : 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: move ? (root.turnGlyphs[move.turn] || "·") : ""
+                            color: parent.off ? "#ffffff" : LabTheme.ink
+                            font.pixelSize: 12; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: root.hoverHit = { kind: "turn",
+                                                         id: move.connector }
+                            onExited: root.hoverHit = null
+                            onClicked: root.toggleTurnBanned(junctionPanel.node.id,
+                                                             fromRoad, toRoad)
+                        }
+                    }
+                    // the diagonal, and any pair with no movement at all
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: col > 0 && move === null
+                        radius: 3
+                        color: "transparent"
+                        border.color: LabTheme.panelEdge; border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "·"
+                            color: LabTheme.muted; font.pixelSize: 10
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            visible: junctionPanel.moves.length > 1
+            readonly property bool closed:
+                junctionPanel.node !== null && root.junctionClosed(junctionPanel.node.id)
+            width: junctionCol.width; height: 21; radius: LabTheme.radius
+            color: closed ? LabTheme.alarm : LabTheme.panel
+            border.color: closed ? LabTheme.alarm : LabTheme.secondary
+            border.width: 1.5
+            Text {
+                anchors.centerIn: parent
+                width: junctionCol.width - 8; horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: LabLang.t(parent.closed ? "card.junction.open"
+                                              : "card.junction.close") + "  (X)"
+                color: parent.closed ? "#ffffff" : LabTheme.secondary
+                font.pixelSize: 10; font.family: LabTheme.monoFont
+            }
+            MouseArea { anchors.fill: parent; onClicked: root.toggleJunctionClosed() }
+        }
+        Text {
+            width: junctionCol.width
+            wrapMode: Text.WordWrap
+            text: LabLang.t("card.hint.node")
+            color: LabTheme.inkFaint; font.pixelSize: 11
+            font.family: LabTheme.handFont
+        }
+      }
     }
 
     // --- banner ------------------------------------------------------------
@@ -1473,6 +2127,7 @@ Item {
                 if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
                 if (root.eraser) return LabLang.t("hint.erasing")
                 if (root.drawFrom) return LabLang.t("hint.drawing")
+                if (root.activeNode !== -1) return LabLang.t("hint.selectedNode")
                 if (root.selectedRoad !== -1) return LabLang.t("hint.selected")
                 if (root.running) return LabLang.t("hint.running")
                 return LabLang.t("hint.idle")
@@ -1533,21 +2188,24 @@ Item {
         else if (ev.key === Qt.Key_2) applyScenario("grid")
         else if (ev.key === Qt.Key_3) applyScenario("cul-de-sac")
         else if (ev.key === Qt.Key_4) applyScenario("ring")
-        else if (ev.key === Qt.Key_S) running = !running
+        else if (ev.key === Qt.Key_S) toggleSim()
         else if (ev.key === Qt.Key_C) clearPlan()
         else if (ev.key === Qt.Key_E) eraser = !eraser
         else if (ev.key === Qt.Key_L) showLanes = !showLanes
         else if (ev.key === Qt.Key_V) showValues = !showValues
         else if (ev.key === Qt.Key_M) showPlan = !showPlan
         else if (ev.key === Qt.Key_W) { if (selectedRoad !== -1) toggleWatch(selectedRoad) }
+        // X closes or opens every movement through the selected junction at
+        // once. NOT T: the canonical key map reserves that for flows, and a lab
+        // may add keys but never reassign them.
+        else if (ev.key === Qt.Key_X) { if (activeNode !== -1) toggleJunctionClosed() }
         else if (ev.key === Qt.Key_Escape) {
-            eraser = false; selectedRoad = -1; drawFrom = null; drawTo = null
+            eraser = false; clearSelection(); drawFrom = null; drawTo = null
         }
         else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
             snapToGrid = !snapToGrid
-        else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace) {
-            if (selectedRoad !== -1) removeRoad(selectedRoad)
-        }
+        else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace)
+            removeSelection()
         else if (ev.key === Qt.Key_R && (ev.modifiers & Qt.ShiftModifier))
             recorder.recording = !recorder.recording
         // --- view ---

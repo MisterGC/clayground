@@ -27,7 +27,8 @@ function load(name, exports) {
 
 const G = load('roadgraph.js', ['empty', 'clone', 'addNode', 'insertRoad', 'removeRoad',
     'removeNode', 'nodeById', 'roadById', 'degree', 'incident', 'nearestNode',
-    'nearestRoad', 'splitRoad', 'bounds', 'totalLength', 'setLanes', 'roadLength'])
+    'nearestRoad', 'splitRoad', 'bounds', 'totalLength', 'setLanes', 'roadLength',
+    'isBanned', 'setBanned', 'toggleBanned', 'pruneBans'])
 const L = load('lanemodel.js', ['derive', 'poseOn', 'surfaceRuns', 'laneRuns',
     'markingRuns', 'LANE_W', 'elementLength'])
 const T = load('traffic.js', ['createState', 'step', 'defaultParams', 'targetCount',
@@ -230,6 +231,129 @@ section('lanemodel: derivation')
     const lr = L.laneRuns(net, {})
     ok('lane runs are flat numbers too',
        lr.every(r => r.xz.every(v => typeof v === 'number')))
+}
+
+// ------------------------------------------------------------------ turn bans
+section('turn bans: directed, per road pair, still drawn')
+function crossing() {
+    const g = G.empty()
+    G.insertRoad(g, -90, 0, 90, 0, {})
+    G.insertRoad(g, 0, -60, 0, 60, {})
+    return g
+}
+{
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    const A = legs[0].id, B = legs[1].id
+
+    ok('nothing is banned to start with', !G.isBanned(g, hub.id, A, B))
+    ok('toggling returns the new state', G.toggleBanned(g, hub.id, A, B) === true)
+    ok('...and it took', G.isBanned(g, hub.id, A, B))
+    // THE point of the user-facing design: a ban is DIRECTED
+    ok('the reverse movement is untouched', !G.isBanned(g, hub.id, B, A))
+    G.setBanned(g, hub.id, B, A, true)
+    ok('...and can be banned independently', G.isBanned(g, hub.id, B, A))
+    G.setBanned(g, hub.id, A, B, false)
+    ok('lifting one leaves the other', !G.isBanned(g, hub.id, A, B)
+       && G.isBanned(g, hub.id, B, A))
+    ok('a ban survives a clone', G.isBanned(G.clone(g), hub.id, B, A))
+}
+{
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    const A = legs[0].id, B = legs[1].id
+    const before = L.derive(g)
+    const liveBefore = before.lanes.reduce((s, l) => s + l.exits.length, 0)
+
+    G.setBanned(g, hub.id, A, B, true)
+    const after = L.derive(g)
+    eq('the connector still exists', after.connectors.length, before.connectors.length)
+    eq('...and is marked banned', after.stats.bannedTurns, 1)
+    const banned = after.connectors.find(c => c.banned)
+    ok('the banned turn knows its roads', banned.fromRoad === A && banned.toRoad === B)
+    eq('...and is no longer an exit',
+       after.lanes.reduce((s, l) => s + l.exits.length, 0), liveBefore - 1)
+    ok('no lane lists it', after.lanes.every(l => l.exits.indexOf(banned.id) === -1))
+    ok('a banned turn is in nobody\'s conflict set',
+       after.connectors.every(c => c.conflicts.indexOf(banned.id) === -1))
+    ok('...and holds no conflicts of its own', banned.conflicts.length === 0)
+}
+{
+    // ban every exit from one lane and that lane becomes a dead end - the
+    // consequence that makes bans a modelling tool and not just a decoration
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    const arriving = legs[0].id
+    const deadBefore = L.derive(g).stats.deadEnds
+    for (const other of legs) {
+        if (other.id === arriving) continue
+        G.setBanned(g, hub.id, arriving, other.id, true)
+    }
+    const net = L.derive(g)
+    eq('banning every exit makes the lane a dead end', net.stats.deadEnds, deadBefore + 1)
+    eq('...and bans three movements', net.stats.bannedTurns, 3)
+}
+{
+    // a ban keyed on roads must survive everything that re-derives
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    G.setBanned(g, hub.id, legs[0].id, legs[1].id, true)
+    G.setLanes(g, legs[0].id, 2)
+    eq('a ban survives a lane-count change', L.derive(g).stats.bannedTurns, 2)
+    const n = G.nodeById(g, hub.id)
+    n.x += 4; n.z -= 3
+    ok('...and a node move', L.derive(g).stats.bannedTurns > 0)
+}
+{
+    // splitting the banned road must carry the ban onto the half that still
+    // reaches the junction, not silently drop it
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    const from = legs[0], to = legs[1]
+    G.setBanned(g, hub.id, from.id, to.id, true)
+    eq('banned before the split', L.derive(g).stats.bannedTurns, 1)
+    // cut the banned road somewhere along its length
+    const a = G.nodeById(g, from.a), b = G.nodeById(g, from.b)
+    G.splitRoad(g, from.id, (a.x + b.x) / 2, (a.z + b.z) / 2)
+    ok('the ban follows the half that still reaches the junction',
+       L.derive(g).stats.bannedTurns === 1)
+}
+{
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    G.setBanned(g, hub.id, legs[0].id, legs[1].id, true)
+    G.removeRoad(g, legs[1].id)
+    eq('removing a road prunes bans naming it', (g.bans || []).length, 0)
+}
+{
+    // and the sim must actually honour it
+    const g = crossing()
+    const hub = G.nearestNode(g, 0, 0, 1)
+    const legs = G.incident(g, hub.id)
+    for (const other of legs) {
+        if (other.id === legs[0].id) continue
+        G.setBanned(g, hub.id, legs[0].id, other.id, true)
+    }
+    const net = L.derive(g)
+    const bannedIds = net.connectors.filter(c => c.banned).map(c => c.id)
+    const st = T.createState()
+    const rng = rngFrom(5)
+    const p = Object.assign(T.defaultParams(), { demand: 0.6 })
+    let everUsed = 0
+    for (let i = 0; i < 3600; ++i) {
+        T.step(net, st, 1 / 60, rng, p)
+        for (const c of st.cars)
+            if (c.kind === 1 && bannedIds.indexOf(c.idx) !== -1) ++everUsed
+    }
+    eq('no car ever enters a banned turn', everUsed, 0)
+    ok('...and traffic still runs', T.meanSpeed(st) > 3,
+       'meanSpeed=' + T.meanSpeed(st).toFixed(2))
 }
 
 // ------------------------------------------------------------------ traffic
