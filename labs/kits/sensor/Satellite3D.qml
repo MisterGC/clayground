@@ -12,6 +12,11 @@ import Clayground.Lab
 Node {
     id: root
 
+    // Nothing up here casts. A spacecraft tens of units above the scene would
+    // otherwise drop a blot on the city, and - worse - the drifting
+    // constellation re-fits the shadow volume every frame, which shows up as
+    // the whole city's shadows flickering. The sky is lit, not lighting.
+
     /*! Whether the receiver currently has line of sight (drives the colour). */
     property bool linked: true
     /*! World point the dish points at. */
@@ -25,6 +30,7 @@ Node {
 
     // body: a bright box with ink edges, so it reads against the paper sky
     Box3D {
+        castsShadows: false
         width: 1.5 * root.size; height: 1.0 * root.size; depth: 1.0 * root.size
         y: -0.5 * root.size
         color: root.linked ? LabTheme.panel : LabTheme.paperDeep
@@ -36,6 +42,7 @@ Node {
     Repeater3D {
         model: [-1, 1]
         Box3D {
+            castsShadows: false
             required property var modelData
             width: 2.0 * root.size; height: 0.08 * root.size; depth: 0.85 * root.size
             x: modelData * 1.85 * root.size
@@ -48,6 +55,7 @@ Node {
     Repeater3D {
         model: [-1, 1]
         Box3D {
+            castsShadows: false
             required property var modelData
             width: 0.9 * root.size; height: 0.08 * root.size; depth: 0.08 * root.size
             x: modelData * 1.05 * root.size
@@ -69,6 +77,7 @@ Node {
             return Qt.vector3d(pitch + 90, yaw, 0)
         }
         Model {   // mast
+            castsShadows: false
             source: "#Cylinder"
             position: Qt.vector3d(0, -0.05 * root.size, 0)
             scale: Qt.vector3d(0.0012 * root.size, 0.006 * root.size, 0.0012 * root.size)
@@ -77,6 +86,7 @@ Node {
             }
         }
         Model {   // dish
+            castsShadows: false
             source: "#Cone"
             position: Qt.vector3d(0, -0.75 * root.size, 0)
             eulerRotation.x: 180

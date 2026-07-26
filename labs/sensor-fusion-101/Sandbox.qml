@@ -292,9 +292,32 @@ Item {
         DirectionalLight {
             eulerRotation.x: -35
             castsShadow: true
-            shadowFactor: 78
+            // 58 rather than 78: a hard-edged shadow at the old strength read
+            // as a black hole punched in the paper, and the road (a flat
+            // LineBatch3D, an unshaded material the shadow pass skips) cannot
+            // receive it - so the darker the shadow, the more obvious the seam
+            // where it stops at the kerb. Matches the other labs' weight.
+            shadowFactor: 58
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
             ambientColor: Qt.rgba(0.45, 0.45, 0.5, 1)
+            // Without these three the shadows detach from the buildings: Qt's
+            // default bias pushes them off the ground, and the default map
+            // range spreads the texels over a volume thousands of units deep,
+            // so what is left is a blurry smudge beside each block rather than
+            // a shadow under it. The range only has to cover this city at the
+            // camera's furthest (maxDistance 220 plus the scene radius), and
+            // the cascades spend the resolution near the viewer.
+            shadowBias: 3
+            shadowMapFar: 300
+            // Crisp rather than soft: everything else in the scene is flat
+            // toon shading with no specular, and a feathered shadow is the one
+            // element that would look photographic next to it. Two cascades
+            // keep the texels dense enough near the viewer for a hard edge to
+            // read as an edge rather than as stair-steps - a third was measured
+            // against this scene and changed nothing visible, so it is not
+            // worth the extra shadow pass every frame.
+            csmNumSplits: 2
+            softShadowQuality: Light.Hard
         }
 
         // Box3D's y is the BOTTOM of the box: -0.5 with height 0.5 puts the
