@@ -112,3 +112,7 @@ web_dojo_feedback.md
 webdojo_issues.md
 docs/assets/images/graphics_source.svg
 docs/assets/images/*.svg.[0-9]*
+
+# Lab pages generated from labs/ by docs/scripts/import_labs.py at build time
+docs/labs/
+docs/_data/labs.yml

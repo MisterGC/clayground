@@ -135,6 +135,16 @@ function(clay_website_create_target)
         COMMENT "Syncing plugin documentation..."
     )
 
+    # Generate the lab pages from the labs themselves - the paper and the
+    # lab's own dictionary are the source, so the site never holds a second
+    # copy of prose that can drift from the lab it describes.
+    add_custom_target(website-import-labs
+        COMMAND ${CMAKE_COMMAND} -E echo "Importing labs into the website..."
+        COMMAND python3 docs/scripts/import_labs.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating lab pages from labs/..."
+    )
+
     # Generate enriched index.json for webdojo examples (at configure time)
     # Parses @brief and @tags from entry QML files
     set(EXAMPLES_JSON "{\n  \"version\": \"${PROJECT_VERSION}\",\n  \"examples\": [\n")
@@ -262,7 +272,7 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll
         COMMAND ${BUNDLER_EXECUTABLE} exec jekyll build
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs website-sync-webdojo-examples docs
+        DEPENDS website-sync-docs website-import-labs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (production)..."
     )
 
@@ -271,7 +281,7 @@ function(clay_website_create_target)
     add_custom_target(website-jekyll-dev
         COMMAND ${CMAKE_SOURCE_DIR}/docs/scripts/build-dev.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-        DEPENDS website-sync-docs website-sync-webdojo-examples docs
+        DEPENDS website-sync-docs website-import-labs website-sync-webdojo-examples docs
         COMMENT "Building Jekyll site (local dev)..."
     )
 
