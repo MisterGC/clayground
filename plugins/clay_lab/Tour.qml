@@ -81,10 +81,12 @@ Rectangle {
     visible: index >= 0
     width: 420
     height: _col.height + 20
-    color: "#e60a0f14"
-    border.color: "#5500d9ff"
-    border.width: 1
-    radius: 6
+    // Predates the paper theme and was the last kernel widget still painting
+    // its own colours; it now follows LabTheme like everything else.
+    color: LabTheme.panel
+    border.color: LabTheme.panelEdge
+    border.width: LabTheme.borderWidth
+    radius: LabTheme.radius
 
     Column {
         id: _col
@@ -96,26 +98,27 @@ Rectangle {
             text: _tour.index >= 0
                   ? (_tour.index + 1) + "/" + _tour.steps.length + " — " + _tour.steps[_tour.index].title
                   : ""
-            color: "#00d9ff"; font.pixelSize: 13; font.bold: true
+            color: LabTheme.primary; font.pixelSize: 13; font.bold: true
+            font.family: LabTheme.monoFont
         }
         Text {
             width: parent.width
             text: _tour.index >= 0 ? _tour.steps[_tour.index].say : ""
-            color: "#e8ecf2"; font.pixelSize: 12
+            color: LabTheme.inkSoft; font.pixelSize: 12
             wrapMode: Text.WordWrap
         }
         Row {
             spacing: 16
             Text {
-                text: "‹ prev"; color: "#889099"; font.pixelSize: 12
+                text: "‹ prev"; color: LabTheme.inkFaint; font.pixelSize: 12
                 TapHandler { onTapped: _tour.prev() }
             }
             Text {
-                text: "next ›"; color: "#ffd93d"; font.pixelSize: 12; font.bold: true
+                text: "next ›"; color: LabTheme.secondary; font.pixelSize: 12; font.bold: true
                 TapHandler { onTapped: _tour.next() }
             }
             Text {
-                text: "✕ end"; color: "#889099"; font.pixelSize: 12
+                text: "✕ end"; color: LabTheme.inkFaint; font.pixelSize: 12
                 TapHandler { onTapped: _tour.stop() }
             }
         }

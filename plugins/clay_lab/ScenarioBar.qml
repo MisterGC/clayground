@@ -65,7 +65,7 @@ Column {
                     // the digit that also works: the chip teaches its own key
                     text: (index < 9 ? (index + 1) + " " : "")
                           + LabLang.t(root.namePrefix + modelData)
-                    color: parent.active ? LabTheme.paper : LabTheme.inkSoft
+                    color: LabTheme.inkOn(parent.color)
                     font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }

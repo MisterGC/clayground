@@ -191,7 +191,7 @@ Item {
                     anchors.centerIn: parent
                     text: LabLang.t(modelData.label)
                           + (modelData.unit ? " (" + modelData.unit + ")" : "")
-                    color: parent.active ? LabTheme.paper : LabTheme.inkSoft
+                    color: LabTheme.inkOn(parent.color)
                     font.pixelSize: 12
                     font.family: LabTheme.handFont
                 }

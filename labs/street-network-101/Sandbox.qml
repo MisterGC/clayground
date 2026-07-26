@@ -756,7 +756,7 @@ Item {
         environment: SceneEnvironment {
             // a touch lighter than the table, so a horizon line appears at low
             // camera angles and the eye keeps a reference
-            clearColor: "#f2eee7"
+            clearColor: LabTheme.board
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
         }
@@ -784,7 +784,7 @@ Item {
             eulerRotation.y: -28
             brightness: 0.92
             castsShadow: true
-            shadowFactor: 58
+            shadowFactor: LabTheme.shadowFactor
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
             shadowMapFar: 420
             csmNumSplits: 2
@@ -801,7 +801,7 @@ Item {
             scale: Qt.vector3d(root.boardW * 1.22 / 100, 0.02, root.boardH * 1.3 / 100)
             castsShadows: false
             materials: PrincipledMaterial {
-                baseColor: LabTheme.paper
+                baseColor: LabTheme.table
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
@@ -813,14 +813,14 @@ Item {
             position: Qt.vector3d(0, -0.4, 0)
             scale: Qt.vector3d(root.boardW / 100, 0.008, root.boardH / 100)
             materials: PrincipledMaterial {
-                baseColor: LabTheme.paperDeep
+                baseColor: LabTheme.sheet
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
         Box3D {  // the sheet's ink rim
             width: root.boardW + 2.4; height: 0.9; depth: root.boardH + 2.4
             position: Qt.vector3d(0, -1.3, 0)
-            color: LabTheme.ink
+            color: LabTheme.inkSolid
             useToonShading: true
         }
 
@@ -1184,7 +1184,7 @@ Item {
                     anchors.centerIn: parent
                     text: root.held ? LabLang.t("btn.held")
                         : LabLang.t(root.running ? "btn.stop" : "btn.simulate") + "   (S)"
-                    color: "#ffffff"; font.pixelSize: 13; font.bold: true
+                    color: LabTheme.inkOn(parent.color); font.pixelSize: 13; font.bold: true
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.toggleSim() }
@@ -1227,7 +1227,7 @@ Item {
                     width: 186; horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                     text: LabLang.t(root.eraser ? "tool.erase.on" : "tool.erase") + "  (E)"
-                    color: root.eraser ? "#ffffff" : LabTheme.inkSoft
+                    color: LabTheme.inkOn(parent.color)
                     font.pixelSize: 11; font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
@@ -1302,18 +1302,23 @@ Item {
     }
 
     // --- language ----------------------------------------------------------
-    LangSwitch {
-        id: langSwitch
+    // Language and palette, the two switches that change nothing about the
+    // experiment and everything about who can read it.
+    Row {
+        id: topSwitches
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 12
+        spacing: 6
+        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
     // --- parameters --------------------------------------------------------
     ParamPanel {
         id: params
         anchors.right: parent.right
-        anchors.top: langSwitch.bottom
+        anchors.top: topSwitches.bottom
         anchors.rightMargin: 12
         anchors.topMargin: 10
         width: 232
@@ -1911,7 +1916,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             text: move ? (root.turnGlyphs[move.turn] || "·") : ""
-                            color: parent.off ? "#ffffff" : LabTheme.ink
+                            color: LabTheme.inkOn(parent.color)
                             font.pixelSize: 12; font.bold: true
                             font.family: LabTheme.monoFont
                         }
@@ -1957,7 +1962,7 @@ Item {
                 elide: Text.ElideRight
                 text: LabLang.t(parent.closed ? "card.junction.open"
                                               : "card.junction.close") + "  (X)"
-                color: parent.closed ? "#ffffff" : LabTheme.secondary
+                color: LabTheme.inkOn(parent.color)
                 font.pixelSize: 10; font.family: LabTheme.monoFont
             }
             MouseArea { anchors.fill: parent; onClicked: root.toggleJunctionClosed() }
@@ -1997,7 +2002,7 @@ Item {
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
             text: LabLang.t(banner.jammed ? "banner.jammed" : "banner.allDeadEnds")
-            color: banner.jammed ? "#ffffff" : LabTheme.ink
+            color: LabTheme.inkOn(banner.color)
             font.pixelSize: 13; font.bold: true
         }
     }

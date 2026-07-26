@@ -655,7 +655,7 @@ Item {
         environment: SceneEnvironment {
             // slightly lighter than the table below, so that a horizon line
             // appears at low camera angles - the eye keeps a reference
-            clearColor: "#f2eee7"
+            clearColor: LabTheme.board
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
         }
@@ -668,7 +668,7 @@ Item {
             scale: Qt.vector3d(2.4, 0.02, 1.9)
             castsShadows: false
             materials: PrincipledMaterial {
-                baseColor: LabTheme.paper
+                baseColor: LabTheme.table
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
@@ -701,7 +701,7 @@ Item {
             eulerRotation.y: -25
             brightness: 0.9
             castsShadow: true
-            shadowFactor: 62          // present, not dramatic
+            shadowFactor: LabTheme.shadowFactor   // present, not dramatic
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
             // far enough to still cover the setup at maximum zoom-out (the
             // range is measured from the camera), with cascades spending the
@@ -731,14 +731,14 @@ Item {
             position: Qt.vector3d(0, -2, 0)
             scale: Qt.vector3d(1.06, 0.04, 0.66)
             materials: PrincipledMaterial {
-                baseColor: LabTheme.paperDeep
+                baseColor: LabTheme.sheet
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
         Box3D {  // rim
             width: 112; height: 1.6; depth: 72
             position: Qt.vector3d(0, -3.8, 0)
-            color: LabTheme.ink
+            color: LabTheme.inkSolid
             useToonShading: true
         }
         // Peg marks: round dots when parts move freely, crisp squares while
@@ -1012,7 +1012,7 @@ Item {
                 model: root.partCatalog
                 Rectangle {
                     width: 188; height: 40; radius: 6
-                    color: partArea.containsMouse ? "#ffffff" : LabTheme.paper
+                    color: partArea.containsMouse ? LabTheme.panel : LabTheme.paper
                     border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
                     Rectangle {  // the part's colour on the board
                         x: 6; y: 15; width: 10; height: 10; radius: 3
@@ -1064,7 +1064,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
-                    color: root.eraser ? "#ffffff" : LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkOn(parent.color); font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
@@ -1178,10 +1178,16 @@ Item {
     // --- language ----------------------------------------------------------
     // Top right, out of the way of the board: the lab is meant for a
     // classroom, and a German class should read it in German.
-    LangSwitch {
+    // Language and palette, the two switches that change nothing about the
+    // experiment and everything about who can read it.
+    Row {
+        id: topSwitches
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 12
+        spacing: 6
+        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
     // --- compass: which way the board faces while you circle it ------------
@@ -1680,7 +1686,7 @@ Item {
             id: shortText
             anchors.centerIn: parent
             text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
-            color: root.sim.shorted ? "#ffffff" : LabTheme.ink
+            color: LabTheme.inkOn(parent.color)
             font.pixelSize: 14; font.bold: true
         }
         SequentialAnimation on opacity {

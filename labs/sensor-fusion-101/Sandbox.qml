@@ -150,7 +150,7 @@ Item {
     // --- probes ---------------------------------------------------------
     // mix a colour toward the ground, k = 1 keeps it, k = 0 dissolves it
     function fadeToGround(c, k) {
-        const g = LabTheme.paperDeep
+        const g = LabTheme.sheet
         const ch = v => {
             const h = Math.round(255 * Math.max(0, Math.min(1, v))).toString(16)
             return h.length < 2 ? "0" + h : h
@@ -263,7 +263,7 @@ Item {
     View3D {
         anchors.fill: parent
         environment: SceneEnvironment {
-            clearColor: LabTheme.paper
+            clearColor: LabTheme.board
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
         }
@@ -292,14 +292,16 @@ Item {
         DirectionalLight {
             eulerRotation.x: -35
             castsShadow: true
-            // 58 rather than 78: a hard-edged shadow at the old strength read
-            // as a black hole punched in the paper, and the road (a flat
+            // The theme owns the strength, because how much darkening a board
+            // can take depends on how bright it is. What made it moderate on
+            // paper still holds: a hard-edged shadow at full strength read as
+            // a black hole punched in the sheet, and the road (a flat
             // LineBatch3D, an unshaded material the shadow pass skips) cannot
             // receive it - so the darker the shadow, the more obvious the seam
-            // where it stops at the kerb. Matches the other labs' weight.
-            shadowFactor: 58
+            // where it stops at the kerb.
+            shadowFactor: LabTheme.shadowFactor
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            ambientColor: Qt.rgba(0.45, 0.45, 0.5, 1)
+            ambientColor: LabTheme.ambient3d
             // Without these three the shadows detach from the buildings: Qt's
             // default bias pushes them off the ground, and the default map
             // range spreads the texels over a volume thousands of units deep,
@@ -324,7 +326,7 @@ Item {
         // ground surface at exactly 0, which is what everything else assumes.
         Box3D {
             width: 92; height: 0.5; depth: 62; y: -0.5
-            color: LabTheme.paperDeep
+            color: LabTheme.sheet
             useToonShading: true
         }
 
@@ -340,8 +342,8 @@ Item {
             lines: {
                 const out = []
                 const hx = 44, hz = 28, y = 0.012
-                const minor = Qt.darker(LabTheme.paperDeep, 1.05)
-                const major = Qt.darker(LabTheme.paperDeep, 1.14)
+                const minor = LabTheme.step(LabTheme.sheet, 1.05)
+                const major = LabTheme.step(LabTheme.sheet, 1.14)
                 for (let x = -hx; x <= hx; x += 4) {
                     const big = (x % 20) === 0
                     out.push({ points: [Qt.vector3d(x, y, -hz), Qt.vector3d(x, y, hz)],
@@ -430,19 +432,20 @@ Item {
             Box3D {   // north wall
                 x: 0; z: -17.2; y: 0
                 width: 22; height: 2.2; depth: 0.6
-                color: LabTheme.ink
+                color: LabTheme.inkSolid
                 useToonShading: true
             }
             Box3D {   // south wall
                 x: 0; z: -10.8; y: 0
                 width: 22; height: 2.2; depth: 0.6
-                color: LabTheme.ink
+                color: LabTheme.inkSolid
                 useToonShading: true
             }
             Box3D {   // roof, resting on the walls
                 x: 0; z: -14; y: 2.2
                 width: 22; height: 0.5; depth: 7
-                color: LabTheme.inkSoft
+                // a shade back toward the ground from the walls, either way round
+                color: LabTheme.step(LabTheme.inkSolid, 0.86)
                 useToonShading: true
             }
         }
@@ -591,13 +594,18 @@ Item {
     // --- lab UI ---------------------------------------------------------
     // HUD slots, as every lab uses them: presets top-left, language top-right
     // with the parameters under it, plot along the bottom, monitor bottom-right.
-    LangSwitch {
-        id: langSwitch
+    // Language and palette, the two switches that change nothing about the
+    // experiment and everything about who can read it.
+    Row {
+        id: topSwitches
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
+        spacing: 6
+        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
     ParamPanel {
         id: params
-        anchors.right: parent.right; anchors.top: langSwitch.bottom
+        anchors.right: parent.right; anchors.top: topSwitches.bottom
         anchors.rightMargin: 10; anchors.topMargin: 10
     }
     Plot2D {

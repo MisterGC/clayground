@@ -54,7 +54,8 @@ A lab is composed from tested blocks rather than written from scratch. The
 `Clayground.Lab` plugin provides the experiment kernel — parameters, probes,
 live plots, a seeded clock, scenarios, guided flows — plus the shared chrome
 that makes every lab feel like the same product: one panel style, one key map
-(press <kbd>?</kbd> in any lab to see it), one paper-and-ink theme.
+(press <kbd>?</kbd> in any lab to see it), one paper-and-ink theme — in a light
+and a dark palette you can swap while the experiment runs.
 
 Underneath sits a *kit* per subject: the domain model, its visuals and its
 vocabulary, with the maths kept free of any UI so it can be unit-tested

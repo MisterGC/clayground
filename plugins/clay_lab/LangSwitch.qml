@@ -46,7 +46,7 @@ Row {
             Text {
                 anchors.centerIn: parent
                 text: LabLang.langName(_chip.modelData)
-                color: _chip.active ? LabTheme.paper : LabTheme.inkSoft
+                color: LabTheme.inkOn(_chip.color)
                 font.pixelSize: 12; font.bold: _chip.active
                 font.letterSpacing: 0.5
                 font.family: LabTheme.monoFont

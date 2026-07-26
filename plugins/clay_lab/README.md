@@ -21,6 +21,14 @@ interactive, deterministic, agent-verifiable experimentation space.
   draws `placeholder` instead of every probe, and legend entries become
   clickable (`seriesClicked`) so the user can drop a curve where it is named.
 - **DataRecorder** — probe samples to CSV (via `Clayground.Text`).
+- **LabTheme / ThemeSwitch** — every colour, shape and type token, in a
+  light and a dark palette that swap at runtime. The two are counterparts
+  rather than inversions, and the rules that make them so live (and are
+  tested) in `palette.js` — most importantly `LabTheme.inkOn(fill)`, which
+  every chip and badge must use instead of naming an ink, and
+  `LabTheme.step(c, amount)`, which moves a colour away from the ground in
+  whichever direction the palette has room. `node palette.test.js` checks
+  the relationships, not the colours.
 - **LabLang / LangSwitch** — runtime language switch for a published lab.
   Whoever owns a vocabulary registers it (`LabLang.register(dict)` with
   `{lang: {key: text}}`), strings are ordinary bindings on `LabLang.t(key)`

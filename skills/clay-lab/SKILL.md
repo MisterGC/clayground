@@ -149,7 +149,9 @@ Kernel (`import Clayground.Lab`):
 - **`WorldLabel`** — 2D paper chip pinned to a 3D point (meter pills,
   value tags, selection cards). Sibling of the View3D, not inside it; it
   already carries the camera-dependency fix from the pitfall list.
-- **`LabTheme`** — all colors/shape/type tokens; see Design language.
+- **`LabTheme`** / **`ThemeSwitch`** — all colors/shape/type tokens in a
+  light and a dark palette, plus `inkOn()` and `step()`; see Design
+  language. Drop `ThemeSwitch` beside `LangSwitch` top-right.
 - **`LabLang` / `LangSwitch`** — runtime dictionary i18n (deliberately
   not `qsTr`: a dojo-hosted or WASM lab doesn't own the engine). Kernel
   chrome strings (`flow.*`, `keys.*`) are a built-in fallback layer — a
@@ -281,7 +283,8 @@ makes the fix loop and flow checkpoints seamless.
 
 One theme for all labs: `LabTheme` (grafli's design DNA — paper
 `#e8e4dd`, panel `#f5f2ed`, ink `#2f3437`, muted meaning-bearing accents,
-radius 8, border 2, `monoFont` for structure, `handFont` for hints).
+radius 8, border 2, `monoFont` for structure, `handFont` for hints), in a
+**light and a dark palette** that `ThemeSwitch` swaps at runtime.
 Rules that make labs read as one product:
 
 - **Flat and glare-free.** Toon shading (`useToonShading`), no specular
@@ -309,6 +312,41 @@ Rules that make labs read as one product:
   thick + a nose mark showing facing + a 2D card with the per-object
   controls.
 
+### Light and dark — the four rules
+
+Both palettes live in `plugins/clay_lab/palette.js`, and
+`palette.test.js` asserts the *relationships* rather than the colours, so
+a palette edit is checked against the rule that made the original value
+correct. Read the header of `palette.js` before touching a colour; the
+same doctrine runs in grafli and textli, and the dark ground `#1e1c19` is
+shared with both to the byte.
+
+- **Never pin an ink over a fill.** Use `LabTheme.inkOn(fill)` for every
+  chip, badge, pill and banner. `color: active ? "#ffffff" : ink` is the
+  single most repeated bug in this codebase — it looks right only while
+  the fill happens to be dark, and a palette that lifts that fill breaks
+  it silently. Eight lab sites and four kernel widgets had it.
+- **Say how far, not which way.** `LabTheme.step(c, amount)` replaces
+  `Qt.darker()` on anything that must survive both themes: a grid line
+  drawn by removing light has nothing to remove on a dark ground, so it
+  is drawn by adding light instead. An amount below 1 moves the other way.
+- **The board has its own roles.** `board` (the sky / `clearColor`),
+  `table`, `sheet`, `inkSolid` (a rim or wall — ink as a *lit surface*,
+  which cannot simply invert or it becomes a light source), plus
+  `ambient3d` and `shadowFactor`. The 2D `paper`/`paperDeep` are not
+  substitutes: a recessed 2D well still sinks in the dark while the
+  board's ordering inverts.
+- **Colour that means something keeps its identity.** The paper says
+  "the rose track is GPS" and the legend has to agree in both themes, so
+  data tokens are measured on the dark ground and kept unless they fail
+  to read there — nine of twelve survive untouched. Never re-derive a
+  token because the theme changed; lift it only if it fails, and along
+  its own hue.
+
+Verify a new lab in both: toggle via the inspector
+(`{"action":"eval","eval":["LabTheme.toggle()"]}`), screenshot each, and
+look for anything that got *brighter* when the room got darker.
+
 ### Canonical key map
 
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
@@ -323,7 +361,8 @@ the hint bar teaches the rest, and the header comment lists them all.
 
 palette top-left · compass under it · abstract view bottom-left ·
 monitor (plot + quantity chips) bottom-right · banner top-centre · hint
-bar bottom-centre · language chips top-right · parameters right. The
+bar bottom-centre · language and theme switches top-right ·
+parameters right. The
 Narrator owns bottom-centre while a flow runs — hide the hint bar then
 (`flow.running`). Hard rule: **text panels are width-capped and elide**
 — a translation is routinely 25% longer than the English it replaced

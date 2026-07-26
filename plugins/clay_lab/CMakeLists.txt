@@ -11,8 +11,10 @@ clay_plugin( Lab
     QML_FILES
         Lab.qml
         LabTheme.qml
+        palette.js
         LabLang.qml
         LangSwitch.qml
+        ThemeSwitch.qml
         Parameter.qml
         Probe.qml
         SimClock.qml

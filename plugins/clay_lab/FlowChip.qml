@@ -58,7 +58,8 @@ Rectangle {
             width: Math.min(implicitWidth, root.parent ? root.parent.width - 70 : 200)
             elide: Text.ElideRight
             text: root.label
-            color: LabTheme.ink
+            // the chip fills with gold on hover, so the ink follows the fill
+            color: LabTheme.inkOn(root.color)
             font.pixelSize: 13
             font.family: LabTheme.handFont
         }
