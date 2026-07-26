@@ -72,7 +72,17 @@ Rectangle {
                 Item {
                     width: parent.width; height: 14
                     Text {
-                        text: _row.par ? _row.par.name : ""
+                        // A lab may localize a parameter by registering
+                        // "param.<name>"; with nothing registered LabLang
+                        // hands the key straight back, and we fall back to the
+                        // bare name - so a lab that has not been translated
+                        // looks exactly as it did before.
+                        text: {
+                            if (!_row.par) return ""
+                            const key = "param." + _row.par.name
+                            const label = LabLang.t(key)
+                            return label === key ? _row.par.name : label
+                        }
                         color: LabTheme.inkSoft; font.pixelSize: 11
                         font.family: LabTheme.monoFont
                     }

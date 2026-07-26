@@ -25,6 +25,7 @@ clay_plugin( Lab
         Flow.qml
         FlowStep.qml
         Narrator.qml
+        WorldLabel.qml
         Tour.qml
         TourStep.qml
 
