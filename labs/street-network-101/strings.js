@@ -16,6 +16,25 @@ var dict = {
         "scenario.cul-de-sac": "Cul-de-sacs",
         "scenario.ring": "Ring and spurs",
 
+        // what each preset is worth noticing - the shape-of-the-network lesson,
+        // next to the preset that demonstrates it
+        "scenario.note.crossroads": "every turn leads off the plan, so cars leave almost as fast as they arrive",
+        "scenario.note.grid": "turns everywhere: a car can circulate for ever, and the network holds its traffic",
+        "scenario.note.cul-de-sac": "a tree - every branch ends, so the plan quietly bleeds traffic",
+        "scenario.note.ring": "the ring keeps traffic circulating while the spurs drain it",
+
+        // key map (LabHelp renders these next to the keys that trigger them)
+        "key.simulate": "start / stop the traffic",
+        "key.clear": "clear the plan",
+        "key.eraser": "eraser",
+        "key.lanes": "show the lane model",
+        "key.values": "show the flow numbers",
+        "key.plan": "lane graph",
+        "key.watch": "plot the selected road",
+        "key.closeJunction": "close / open the junction",
+        "key.grid": "grid mode",
+        "key.delete": "remove the selection",
+
         // tools
         "tool.draw": "Draw road",
         "tool.draw.hint": "drag on the plan",
@@ -106,6 +125,22 @@ var dict = {
         "scenario.grid": "Ein kleines Raster",
         "scenario.cul-de-sac": "Sackgassen",
         "scenario.ring": "Ring mit Stichen",
+
+        "scenario.note.crossroads": "jede Abbiegung f\u00fchrt vom Plan herunter - die Autos verlassen ihn fast so schnell, wie sie kommen",
+        "scenario.note.grid": "\u00fcberall Abbiegungen: ein Auto kann ewig kreisen, das Netz h\u00e4lt seinen Verkehr",
+        "scenario.note.cul-de-sac": "ein Baum - jeder Ast endet, der Plan verliert st\u00e4ndig Verkehr",
+        "scenario.note.ring": "der Ring h\u00e4lt den Verkehr in Bewegung, die Stiche lassen ihn abflie\u00dfen",
+
+        "key.simulate": "Verkehr starten / stoppen",
+        "key.clear": "Plan leeren",
+        "key.eraser": "Radierer",
+        "key.lanes": "Spurmodell zeigen",
+        "key.values": "Flusszahlen zeigen",
+        "key.plan": "Spurgraph",
+        "key.watch": "Stra\u00dfe plotten",
+        "key.closeJunction": "Knoten sperren / \u00f6ffnen",
+        "key.grid": "Raster",
+        "key.delete": "Auswahl entfernen",
 
         "tool.draw": "Straße zeichnen",
         "tool.draw.hint": "auf dem Plan ziehen",

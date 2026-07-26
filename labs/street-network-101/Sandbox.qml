@@ -46,40 +46,23 @@ Item {
     // skipping the step. That keeps the sim a pure function of clock.time, so
     // the reload path (Lab.applyViewState re-steps a world-less clock) replays
     // exactly the same traffic that was on screen before.
+    // Fixed steps are the clock's job: a variable frame time would make the
+    // run depend on the machine it ran on, and the whole lab rests on the sim
+    // being a pure function of clock.time.
     SimClock {
         id: clock
         seed: 42
         sampleInterval: 0.25
         timeScale: root.running ? Lab.p("simSpeed") : 0
+        fixedStep: 1 / 60
+        onStepped: (dt) => root.stepSim(dt)
     }
 
-    readonly property real fixedDt: 1 / 60
-    property real _lastTime: 0
-    property real _stepAccum: 0
     property int _stepsTaken: 0
 
     Connections {
         target: clock
-        function onTimeChanged() {
-            var dt = clock.time - root._lastTime
-            root._lastTime = clock.time
-            if (dt <= 0) return                 // a reset rewinds; ignore it
-            root._stepAccum += dt
-            // fixed steps only, and never more than a handful in one frame: a
-            // hitch must not turn into a freeze while the sim catches up
-            var budget = 8
-            while (root._stepAccum >= root.fixedDt && budget-- > 0) {
-                root._stepAccum -= root.fixedDt
-                root.stepSim(root.fixedDt)
-            }
-            if (budget <= 0) root._stepAccum = 0
-        }
-    }
-    Connections {
-        target: clock
         function onWasReset() {
-            root._lastTime = 0
-            root._stepAccum = 0
             root._stepsTaken = 0
             root.simState = Traffic.createState()
             root.simRev++
@@ -132,62 +115,28 @@ Item {
     // The plotted set is the WATCHED set, and what you watch is a road you
     // picked off the plan - same act as selecting it, same colour on the board
     // as in the legend.
-    property var watch: []                   // road ids, in plot order
-    property string watchQuantity: "flow"    // flow | load | speed
-    readonly property int watchMax: 6
-    readonly property var watchQuantities: [
-        { key: "flow", label: "quantity.flow", unit: "/min" },
-        { key: "load", label: "quantity.load", unit: "" },
-        { key: "speed", label: "quantity.speed", unit: "u/s" }]
-    readonly property string watchUnitText:
-        watchQuantity === "flow" ? "/min" : (watchQuantity === "speed" ? "u/s" : "")
+    // The plotted set is the WATCHED set, and what you watch is a road you
+    // picked off the plan - same act as selecting it, same colour on the board
+    // as in the legend. The mechanism is the kernel's WatchMonitor; what stays
+    // here is what a road is worth right now.
+    readonly property alias watch: monitor.watched
 
     function watchValueOf(roadId) {
-        if (watchQuantity === "flow") return Traffic.roadRate(simState, roadId)
+        if (monitor.quantity === "flow") return Traffic.roadRate(simState, roadId)
         var n = 0, sum = 0
         for (const c of simState.cars) {
             if (c.kind !== 0) continue
             if (net.lanes[c.idx].roadId !== roadId) continue
             ++n; sum += c.v
         }
-        if (watchQuantity === "load") return n
+        if (monitor.quantity === "load") return n
         return n ? sum / n : 0
     }
-    function isWatched(id) { return watch.indexOf(id) !== -1 }
-    function watchColorOf(id) {
-        const i = watch.indexOf(id)
-        return i === -1 ? "transparent"
-            : LabTheme.seriesColors[i % LabTheme.seriesColors.length]
-    }
-    function setWatched(id, on) {
-        if (on === isWatched(id)) return
-        if (on) {
-            if (watch.length >= watchMax) return
-            watch = watch.concat([id])
-        } else watch = watch.filter(x => x !== id)
-    }
-    function toggleWatch(id) { setWatched(id, !isWatched(id)) }
-    function watchOnly(ids) { watch = ids.slice(0, watchMax) }
-
-    // a new quantity is a new unit, so the old samples would draw a nonsense
-    // step across the axis change
-    onWatchQuantityChanged: {
-        for (const id of watch) {
-            const pr = Lab.probe("road" + id)
-            if (pr) pr.clear()
-        }
-    }
-
-    Instantiator {
-        model: root.watch
-        delegate: Probe {
-            required property var modelData
-            readonly property int rid: modelData
-            name: "road" + rid
-            unit: root.watchUnitText
-            expr: () => root.watchValueOf(rid)
-        }
-    }
+    function isWatched(id) { return monitor.isWatched(id) }
+    function watchColorOf(id) { return monitor.colorOf(id) }
+    function setWatched(id, on) { monitor.setWatched(id, on) }
+    function toggleWatch(id) { monitor.toggle(id) }
+    function watchOnly(ids) { monitor.watchOnly(ids) }
 
     // --- the network -------------------------------------------------------
     property var graph: RoadGraph.empty()
@@ -290,8 +239,9 @@ Item {
     }
 
     // --- editing -----------------------------------------------------------
-    function snapWorld(v) {
-        return snapToGrid ? Math.round(v / cell) * cell : v
+    function snapWorld(v, modifiers) {
+        return modifiers === undefined ? (grid.snap ? Math.round(v / cell) * cell : v)
+                                       : grid.quantize(v, modifiers)
     }
     function inBoard(x, z) {
         return Math.abs(x) <= boardW / 2 && Math.abs(z) <= boardH / 2
@@ -306,7 +256,7 @@ Item {
     function removeRoad(id) {
         if (!RoadGraph.removeRoad(graph, id)) return
         if (selectedRoad === id) clearSelection()
-        if (isWatched(id)) watch = watch.filter(x => x !== id)
+        monitor.setWatched(id, false)
         rebuild()
     }
     // Erasing a junction takes its roads with it - a bare node is not a thing
@@ -315,7 +265,7 @@ Item {
         const doomed = RoadGraph.incident(graph, id).map(r => r.id)
         if (!RoadGraph.removeNode(graph, id)) return
         clearSelection()
-        watch = watch.filter(x => doomed.indexOf(x) === -1)
+        monitor.prune(id => doomed.indexOf(id) === -1)
         rebuild()
     }
     function removeSelection() {
@@ -330,7 +280,7 @@ Item {
         graph = RoadGraph.empty()
         simState = Traffic.createState()
         clearSelection()
-        watch = []
+        monitor.clear()
         rebuild()
     }
 
@@ -573,6 +523,7 @@ Item {
         }
         rig.frame(pts, 1.12)
     }
+    function frameAll() { framePlan() }   // the name LabKeys looks for
     function framePlan() {
         const pts = graph.nodes.map(n => Qt.vector3d(n.x, 0, n.z))
         framePoints(pts.length ? pts : null)
@@ -604,7 +555,9 @@ Item {
 
     // --- interaction state -------------------------------------------------
     property bool eraser: false
-    property bool snapToGrid: true
+    // grafli's grid contract: # cycles it, Alt inverts it for one gesture
+    GridMode { id: grid; step: root.cell }
+    readonly property bool snapToGrid: grid.snap
     property bool showLanes: true
     property bool showValues: false
     property bool showPlan: true
@@ -653,10 +606,10 @@ Item {
     function viewState() {
         return Object.assign(Lab.viewState(), {
             plan: planState(),
-            watch: watch.slice(), watchQuantity: watchQuantity,
+            watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
             running: running, lang: LabLang.lang,
             toggles: { lanes: showLanes, values: showValues, plan: showPlan,
-                       snap: snapToGrid },
+                       snap: grid.snap },
             cam: rig.state()
         })
     }
@@ -671,10 +624,10 @@ Item {
         if (s.lang) LabLang.lang = s.lang
         if (s.toggles) {
             showLanes = s.toggles.lanes; showValues = s.toggles.values
-            showPlan = s.toggles.plan; snapToGrid = s.toggles.snap
+            showPlan = s.toggles.plan; grid.snap = s.toggles.snap
         }
-        if (s.watchQuantity) watchQuantity = s.watchQuantity
-        if (s.watch) watch = s.watch.filter(id => roadRecord(id) !== null)
+        if (s.watchQuantity) monitor.quantity = s.watchQuantity
+        if (s.watch) monitor.watchOnly(s.watch.filter(id => roadRecord(id) !== null))
         if (s.running !== undefined) running = s.running
         // parameters and the clock re-step happen here; the scenario above has
         // already reset both, so the replay is exact
@@ -787,8 +740,8 @@ Item {
         // language-neutral for agents: ids and types, not display labels
         info.network.bannedTurns = net.stats.bannedTurns
         info.ui = { selected: { kind: selection.kind, id: selection.id },
-                    snap: snapToGrid, eraser: eraser,
-                    watching: watch.slice(), quantity: watchQuantity,
+                    snap: grid.snap, eraser: eraser,
+                    watching: monitor.watched.slice(), quantity: monitor.quantity,
                     lang: LabLang.lang }
         return info
     }
@@ -1203,32 +1156,21 @@ Item {
     }
 
     // --- palette -----------------------------------------------------------
-    Rectangle {
+    LabPanel {
         id: palette
         x: 12; y: 12
         width: 214
-        height: paletteCol.height + 20
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
+        title: LabLang.t("lab.title")
+        spacing: 5
 
+        // the presets, clickable, each carrying what it is worth noticing
+        ScenarioBar {
+            lab: root
+            width: 194
+        }
         Column {
             id: paletteCol
-            x: 10; y: 10
             spacing: 5
-
-            Text {
-                text: LabLang.t("lab.title")
-                color: LabTheme.primary; font.pixelSize: 13; font.bold: true
-                font.letterSpacing: 1.4; font.family: LabTheme.monoFont
-            }
-            Text {
-                text: Lab.scenario !== "" ? LabLang.t("scenario." + Lab.scenario)
-                                          : LabLang.t("lab.empty")
-                color: Lab.scenario !== "" ? LabTheme.accent : LabTheme.inkFaint
-                font.pixelSize: 13; font.family: LabTheme.handFont
-            }
-            Item { width: 1; height: 4 }
 
             // the one button the lab is named for
             Rectangle {
@@ -1352,31 +1294,11 @@ Item {
     }
 
     // --- compass: which way the plan faces while you circle it -------------
-    Rectangle {
+    Compass {
         id: compass
         x: 12; y: palette.y + palette.height + 10
-        width: 68; height: 68; radius: 34
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
-        Rectangle {
-            anchors.centerIn: parent
-            width: 40; height: 26; radius: 3
-            color: LabTheme.paperDeep
-            border.color: LabTheme.ink; border.width: 1.5
-            rotation: -rig.yaw
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: 14; height: 3
-                color: LabTheme.accent
-            }
-        }
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom; anchors.bottomMargin: 4
-            width: 8; height: 8; radius: 4
-            color: LabTheme.secondary
-        }
+        yaw: rig.yaw
+        aspect: root.cols / root.rows
     }
 
     // --- language ----------------------------------------------------------
@@ -1398,29 +1320,19 @@ Item {
     }
 
     // --- network stats -----------------------------------------------------
-    Rectangle {
+    LabPanel {
         id: stats
         anchors.right: parent.right
         anchors.top: params.bottom
         anchors.rightMargin: 12
         anchors.topMargin: 10
         width: 232
-        height: statsCol.height + 18
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
+        title: LabLang.t("stats.title")
 
         Column {
             id: statsCol
-            x: 11; y: 9
             spacing: 3
-            width: parent.width - 22
-
-            Text {
-                text: LabLang.t("stats.title")
-                color: LabTheme.primary; font.pixelSize: 11; font.bold: true
-                font.letterSpacing: 1.4; font.family: LabTheme.monoFont
-            }
+            width: stats.body.width
             // the derivation in one line: what you drew, and what it became
             Text {
                 width: parent.width
@@ -1523,7 +1435,7 @@ Item {
     // The plan shows what you built; this shows how a car sees it - nodes,
     // one arrow per lane, and the turns that join them. Both read the same
     // model, so they can never disagree.
-    Rectangle {
+    LabPanel {
         id: planPanel
         visible: root.showPlan
         anchors.left: parent.left
@@ -1532,28 +1444,15 @@ Item {
         anchors.bottomMargin: 44
         width: 258
         height: 190
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
-
-        Text {
-            x: 12; y: 8
-            text: LabLang.t("plan.title")
-            color: LabTheme.primary; font.pixelSize: 11; font.bold: true
-            font.letterSpacing: 1.4; font.family: LabTheme.monoFont
-        }
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 12; y: 8
-            text: "M"
-            color: LabTheme.inkFaint; font.pixelSize: 11
-            font.family: LabTheme.monoFont
-        }
+        title: LabLang.t("plan.title")
+        tag: "M"
 
         Canvas {
             id: planCanvas
-            anchors.fill: parent
-            anchors.topMargin: 24
-            anchors.margins: 9
+            // the panel's body, by id: `parent` here is the panel's stacking
+            // column, which is a generation too deep to anchor across
+            width: planPanel.body.width
+            height: planPanel.body.height
 
             readonly property int rev: root.graphRev * 7 + root.selectedRoad * 7919
                                        + root.activeNode * 104729 + root.flowRev
@@ -1863,7 +1762,7 @@ Item {
     // refers to - so instead the junction is ringed on the plan, its legs wear
     // the same names the matrix uses, and the editor sits still on the right
     // where a panel of this size can breathe.
-    Rectangle {
+    LabPanel {
         id: junctionPanel
         readonly property var node: {
             root.graphRev
@@ -1879,17 +1778,13 @@ Item {
         anchors.rightMargin: 12
         anchors.topMargin: 10
         width: 232
-        height: junctionCol.height + 18
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.width: LabTheme.borderWidth
+        // a closed junction says so in its own border
         border.color: node !== null && root.junctionClosed(node.id) ? LabTheme.alarm
                                                                    : LabTheme.secondary
 
       Column {
         id: junctionCol
-        x: 11; y: 9
-        width: parent.width - 22
+        width: junctionPanel.body.width
         spacing: 3
 
         Text {
@@ -2108,114 +2003,79 @@ Item {
     }
 
     // --- hint bar ----------------------------------------------------------
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin: 8
-        width: hintText.width + 30; height: 26; radius: 6
-        color: LabTheme.panel
-        Text {
-            id: hintText
-            anchors.centerIn: parent
-            // centred, so it may only grow until it would reach the monitor -
-            // a longer translation is clipped, never overlapped
-            width: Math.min(implicitWidth, 2 * (plot.x - 8 - root.width / 2) - 30)
-            elide: Text.ElideRight
-            color: LabTheme.inkSoft; font.pixelSize: 15
-            font.family: LabTheme.handFont
-            text: {
-                if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
-                if (root.eraser) return LabLang.t("hint.erasing")
-                if (root.drawFrom) return LabLang.t("hint.drawing")
-                if (root.activeNode !== -1) return LabLang.t("hint.selectedNode")
-                if (root.selectedRoad !== -1) return LabLang.t("hint.selected")
-                if (root.running) return LabLang.t("hint.running")
-                return LabLang.t("hint.idle")
-            }
+    HintBar {
+        rightGuard: monitor
+        text: {
+            if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
+            if (root.eraser) return LabLang.t("hint.erasing")
+            if (root.drawFrom) return LabLang.t("hint.drawing")
+            if (root.activeNode !== -1) return LabLang.t("hint.selectedNode")
+            if (root.selectedRoad !== -1) return LabLang.t("hint.selected")
+            if (root.running) return LabLang.t("hint.running")
+            return LabLang.t("hint.idle")
         }
     }
 
     // --- monitor -----------------------------------------------------------
-    Row {
-        anchors.bottom: plot.top; anchors.bottomMargin: 6
-        anchors.right: plot.right
-        spacing: 6
-        Repeater {
-            model: root.watchQuantities
-            Rectangle {
-                required property var modelData
-                readonly property bool active: modelData.key === root.watchQuantity
-                width: chipLabel.width + 16; height: 22
-                radius: LabTheme.radius
-                color: active ? LabTheme.secondary : LabTheme.panel
-                border.color: active ? LabTheme.secondary : LabTheme.panelEdge
-                border.width: LabTheme.borderWidth
-                Text {
-                    id: chipLabel
-                    anchors.centerIn: parent
-                    text: LabLang.t(modelData.label)
-                         + (modelData.unit ? " (" + modelData.unit + ")" : "")
-                    color: parent.active ? LabTheme.paper : LabTheme.inkSoft
-                    font.pixelSize: 12; font.family: LabTheme.handFont
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.watchQuantity = modelData.key
-                }
-            }
-        }
-    }
-
-    Plot2D {
-        id: plot
-        anchors.bottom: parent.bottom; anchors.right: parent.right; anchors.margins: 10
-        width: 340; height: 142
+    // One quantity at a time: every series shares one autoscaled axis, so
+    // mixing cars-per-minute with speeds would flatten one of them onto the
+    // baseline.
+    WatchMonitor {
+        id: monitor
+        anchors.bottom: parent.bottom; anchors.right: parent.right
+        anchors.margins: 10
+        idPrefix: "road"
+        quantities: [
+            { key: "flow", label: "quantity.flow", unit: "/min" },
+            { key: "load", label: "quantity.load", unit: "" },
+            { key: "speed", label: "quantity.speed", unit: "u/s" }]
+        plotWidth: 340
+        plotHeight: 142
         windowSeconds: 40
-        series: {
-            root.graphRev
-            return root.watch.map((id, i) => ({
-                probe: "road" + id,
-                label: root.roadLabel(id),
-                color: LabTheme.seriesColors[i % LabTheme.seriesColors.length] }))
-        }
         placeholder: LabLang.t("plot.empty")
-        onSeriesClicked: (probe) => root.setWatched(parseInt(probe.substring(4)), false)
+        valueOf: (id) => root.watchValueOf(id)
+        labelOf: (id) => root.roadLabel(id)
+        revision: root.graphRev
     }
 
     // --- keys --------------------------------------------------------------
+    // The reserved half of the map (presets, view, record, help) is LabKeys';
+    // what is declared here is what this lab adds - and declaring a key here
+    // is also what documents it in LabHelp.
+    LabKeys {
+        id: keymap
+        lab: root
+        camera: rig
+        recorder: recorder
+        keys: [
+            { key: "S", label: "key.simulate", action: () => root.toggleSim() },
+            { key: "C", label: "key.clear", action: () => root.clearPlan() },
+            { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
+            { key: "L", label: "key.lanes", action: () => root.showLanes = !root.showLanes },
+            { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
+            { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
+            { key: "W", label: "key.watch", action: () => {
+                if (root.selectedRoad !== -1) root.toggleWatch(root.selectedRoad) } },
+            // X closes or opens every movement through the selected junction at
+            // once. NOT T: the canonical map reserves that for flows, and a lab
+            // may add keys but never reassign them.
+            { key: "X", label: "key.closeJunction", action: () => {
+                if (root.activeNode !== -1) root.toggleJunctionClosed() } },
+            { key: "#", label: "key.grid", action: () => grid.toggle() },
+            { key: "G", label: "key.grid", hidden: true, action: () => grid.toggle() },
+            { key: "Del", label: "key.delete", action: () => root.removeSelection() }
+        ]
+    }
+    LabHelp {
+        keymap: keymap
+        anchors.centerIn: parent
+        width: 300
+    }
+
     Keys.onPressed: (ev) => {
-        if (ev.key === Qt.Key_1) applyScenario("crossroads")
-        else if (ev.key === Qt.Key_2) applyScenario("grid")
-        else if (ev.key === Qt.Key_3) applyScenario("cul-de-sac")
-        else if (ev.key === Qt.Key_4) applyScenario("ring")
-        else if (ev.key === Qt.Key_S) toggleSim()
-        else if (ev.key === Qt.Key_C) clearPlan()
-        else if (ev.key === Qt.Key_E) eraser = !eraser
-        else if (ev.key === Qt.Key_L) showLanes = !showLanes
-        else if (ev.key === Qt.Key_V) showValues = !showValues
-        else if (ev.key === Qt.Key_M) showPlan = !showPlan
-        else if (ev.key === Qt.Key_W) { if (selectedRoad !== -1) toggleWatch(selectedRoad) }
-        // X closes or opens every movement through the selected junction at
-        // once. NOT T: the canonical key map reserves that for flows, and a lab
-        // may add keys but never reassign them.
-        else if (ev.key === Qt.Key_X) { if (activeNode !== -1) toggleJunctionClosed() }
-        else if (ev.key === Qt.Key_Escape) {
+        if (keymap.handle(ev)) return
+        if (ev.key === Qt.Key_Escape) {
             eraser = false; clearSelection(); drawFrom = null; drawTo = null
         }
-        else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
-            snapToGrid = !snapToGrid
-        else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace)
-            removeSelection()
-        else if (ev.key === Qt.Key_R && (ev.modifiers & Qt.ShiftModifier))
-            recorder.recording = !recorder.recording
-        // --- view ---
-        else if (ev.key === Qt.Key_Left) rig.orbitBy(-6, 0)
-        else if (ev.key === Qt.Key_Right) rig.orbitBy(6, 0)
-        else if (ev.key === Qt.Key_Up) rig.orbitBy(0, 4)
-        else if (ev.key === Qt.Key_Down) rig.orbitBy(0, -4)
-        else if (ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) rig.zoomBy(0.88)
-        else if (ev.key === Qt.Key_Minus) rig.zoomBy(1.14)
-        else if (ev.key === Qt.Key_F) frameSelection()
-        else if (ev.key === Qt.Key_0 || ev.key === Qt.Key_Home) framePlan()
     }
 }

@@ -13,9 +13,11 @@ import "strings.js" as Strings
 // Electronics 101 — a school electronics kit on a pegboard: battery,
 // switch, resistor, LED, bulb and meters, wired freely by clicking
 // terminals. A DC nodal solver lights things up in real time.
-// Keys: 1 led-basic · 2 series · 3 parallel · 4 metering · C clear ·
-// E eraser · V show all values · W plot the selected part · M schematic ·
-// # grid mode · R turn · Del ·
+//
+// Keys are declared once, on the LabKeys below, which is also what generates
+// the on-screen list: press ? to see the whole map. The short version:
+// 1..4 presets · T the guided tour · C clear · E eraser · V values ·
+// M schematic · W plot the selected part · # grid mode · R turn · Del ·
 // Shift+R record · Esc cancel. View: drag the empty board to orbit,
 // wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
 Item {
@@ -63,65 +65,22 @@ Item {
     // a part and it gets a probe, a colour and a curve; delete the part (or
     // click its legend entry) and the curve goes with it. iBattery and power
     // stay as setup-independent globals for the CSV and for agent queries.
-    property var watch: []                  // element ids, in plot order
-    property string watchQuantity: "I"      // I | V | P - one unit per axis
-    readonly property int watchMax: 6       // beyond this the colours repeat
-    readonly property var watchQuantities: [
-        { key: "I", label: "quantity.current", unit: "mA" },
-        { key: "V", label: "quantity.voltage", unit: "V" },
-        { key: "P", label: "quantity.power", unit: "W" }]
-    readonly property string watchUnitText:
-        watchQuantity === "V" ? "V" : (watchQuantity === "P" ? "W" : "mA")
+    // The mechanism itself lives in the kernel's WatchMonitor now - what stays
+    // here is only what a part is worth, and what it is called.
+    readonly property alias watch: monitor.watched
 
     function watchValueOf(id) {
         const s = simOf(id)
         // magnitudes, like the value labels: direction is the chevrons' job
-        if (watchQuantity === "V") return Math.abs(s.v)
-        if (watchQuantity === "P") return s.power
+        if (monitor.quantity === "V") return Math.abs(s.v)
+        if (monitor.quantity === "P") return s.power
         return Math.abs(s.i) * 1000
     }
-    function isWatched(id) { return watch.indexOf(id) !== -1 }
-    function watchColorOf(id) {
-        const i = watch.indexOf(id)
-        return i === -1 ? "transparent"
-            : LabTheme.seriesColors[i % LabTheme.seriesColors.length]
-    }
-    function setWatched(id, on) {
-        const el = elemAt(id)
-        if (!el || el.type === "junction") return   // a solder dot has no reading
-        if (on === isWatched(id)) return
-        if (on) {
-            if (watch.length >= watchMax) return
-            watch = watch.concat([id])
-        } else {
-            watch = watch.filter(x => x !== id)
-        }
-    }
-    function toggleWatch(id) { setWatched(id, !isWatched(id)) }
-    function watchOnly(ids) { watch = ids.slice(0, watchMax) }
-
-    // Switching the quantity switches the unit, so the old samples would draw
-    // a nonsense step across the axis change.
-    onWatchQuantityChanged: {
-        for (const id of watch) {
-            const pr = Lab.probe("part" + id)
-            if (pr) pr.clear()
-        }
-    }
-
-    // One probe per watched part. The name is id-based and therefore stable,
-    // while the legend label may well change under it: a lone BULB becomes
-    // BULB1 the moment a second one lands on the board.
-    Instantiator {
-        model: root.watch
-        delegate: Probe {
-            required property var modelData
-            readonly property int pid: modelData
-            name: "part" + pid
-            unit: root.watchUnitText
-            expr: () => root.watchValueOf(pid)
-        }
-    }
+    function isWatched(id) { return monitor.isWatched(id) }
+    function watchColorOf(id) { return monitor.colorOf(id) }
+    function setWatched(id, on) { monitor.setWatched(id, on) }
+    function toggleWatch(id) { monitor.toggle(id) }
+    function watchOnly(ids) { monitor.watchOnly(ids) }
 
     // --- circuit state ---------------------------------------------------
     // elements: {id, type, col, row, rot, value, on} - col/row are fractional
@@ -129,7 +88,8 @@ Item {
     property var elements: []
     property var wires: []
     property int nextId: 1
-    property var sim: ({ ok: true, perElement: {}, shorted: false, iterations: 0 })
+    property var sim: ({ ok: true, perElement: {}, shorted: false, overloaded: false,
+                        iterations: 0 })
     property int elemRev: 0          // bumped on moves so positions rebind
 
     // Peg raster: 5 world units, so a part can be nudged half a part-width.
@@ -354,69 +314,41 @@ Item {
         elements = []; wires = []
         wiringFrom = null
         selectedId = -1
-        watch = []
+        monitor.clear()
         resolve()
     }
 
     // --- camera -----------------------------------------------------------
-    // An orbit cam on a leash: it always looks at the setup, always stays
-    // above the board and outside the parts, and it reframes itself for the
-    // scenario that is on the board. You can circle it and zoom in, but you
-    // cannot fly into a part or end up lost under the table.
-    property real camYaw: 0        // degrees around the setup
-    property real camPitch: 48     // degrees above the board plane
-    property real camDist: 80      // distance to the pivot
-    property var camPivot: Qt.vector3d(0, 2, 0)
-
-    readonly property real camPitchMin: 22   // never skim along the board
-    readonly property real camPitchMax: 84   // never flip over the top
-    readonly property real camDistMin: 20    // clears a single part
-    readonly property real camDistMax: 170
-    readonly property real camHeightMin: 9   // taller than anything on the board
-
-    // The leash: pitch and distance are bounded, and on top of that the
-    // camera must stay at least camHeightMin above the pivot plane. That one
-    // rule is what makes clipping into a part impossible - flatten the angle
-    // and the rig backs off instead of diving through the setup.
-    function clampCam() {
-        camPitch = Math.max(camPitchMin, Math.min(camPitchMax, camPitch))
-        let d = Math.max(camDistMin, Math.min(camDistMax, camDist))
-        const sinP = Math.sin(camPitch * Math.PI / 180)
-        d = Math.max(d, camHeightMin / Math.max(0.05, sinP))
-        camDist = Math.min(d, camDistMax)
-    }
-    function orbitBy(dYaw, dPitch) {
-        camYaw += dYaw
-        camPitch -= dPitch
-        clampCam()
-    }
-    function zoomBy(f) { camDist *= f; clampCam() }
-
-    // Frame a set of cells: pivot on their centre, back off far enough to
-    // hold them all in view. With no argument it frames the whole setup.
+    // An orbit cam on a leash (the kernel's OrbitCamera3D): it always looks at
+    // the setup, always stays above the board and outside the parts, and it
+    // reframes itself for the scenario that is on the board. The leash that
+    // matters is minHeight - flatten the angle and the rig backs off instead
+    // of diving through the setup, which a minimum DISTANCE could not do
+    // without also blocking a zoom onto a single part.
     function frameCells(cells) {
         if (!cells || !cells.length) {
-            camPivot = Qt.vector3d(0, 2, 0)
-            camDist = camDistMax
-            clampCam()
+            rig.pivot = Qt.vector3d(0, 2, 0)
+            rig.distance = rig.maxDistance
+            rig.clamp()
             return
         }
-        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity
+        // a single part is a point; give the frame some extent so the camera
+        // lands on something rather than diving at it
+        const pts = []
         for (const c of cells) {
-            const x = cellX(c.col), z = cellZ(c.row)
-            x0 = Math.min(x0, x); x1 = Math.max(x1, x)
-            z0 = Math.min(z0, z); z1 = Math.max(z1, z)
+            pts.push(Qt.vector3d(cellX(c.col) - 7, 2, cellZ(c.row) - 7))
+            pts.push(Qt.vector3d(cellX(c.col) + 7, 2, cellZ(c.row) + 7))
         }
-        camPivot = Qt.vector3d((x0 + x1) / 2, 2, (z0 + z1) / 2)
-        const r = Math.max(9, Math.hypot(x1 - x0, z1 - z0) / 2 + 7)
-        camDist = r * 1.7 + 20
-        clampCam()
+        rig.frame(pts, 1.25)
     }
-    function frameSetup() { frameCells(elements) }
+    function frameAll() { frameCells(elements) }
+    function frameSetup() { frameAll() }          // the flow's "frame" verb
     function frameSelection() {
         const el = elemAt(selectedId)
         frameCells(el ? [el] : elements)
     }
+    function orbitBy(dYaw, dPitch) { rig.orbitBy(dYaw, -dPitch) }
+    function zoomBy(f) { rig.zoomBy(f) }
 
     // --- serialization (survives reloads via the viewState convention) ---
     function circuitState() {
@@ -436,10 +368,9 @@ Item {
     function viewState() {
         return Object.assign(Lab.viewState(), {
             circuit: circuitState(),
-            watch: watch.slice(), watchQuantity: watchQuantity,
+            watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
             lang: LabLang.lang,
-            cam: { yaw: camYaw, pitch: camPitch, dist: camDist,
-                   px: camPivot.x, pz: camPivot.z }
+            cam: rig.state()
         })
     }
     // The user's board wins over the scenario preset: with a circuit payload
@@ -457,12 +388,10 @@ Item {
         // the watched set is the user's, so it wins over what a preset seeded;
         // parts that no longer exist are dropped rather than plotted as zero
         if (s.lang) LabLang.lang = s.lang
-        if (s.watchQuantity) watchQuantity = s.watchQuantity
-        if (s.watch) watch = s.watch.filter(id => elemAt(id) !== null)
+        if (s.watchQuantity) monitor.quantity = s.watchQuantity
+        if (s.watch) monitor.watchOnly(s.watch.filter(id => elemAt(id) !== null))
         if (s.cam) {
-            camPivot = Qt.vector3d(s.cam.px, 2, s.cam.pz)
-            camYaw = s.cam.yaw; camPitch = s.cam.pitch; camDist = s.cam.dist
-            clampCam()
+            rig.applyState(s.cam)
         }
         Lab.applyViewState(s)
     }
@@ -557,6 +486,31 @@ Item {
         return r
     }
 
+    // --- flow actions (SPIKE, see mgc/groundwork/lab-flows-2026-07-25.md) ---
+    // One mutation API, three drivers: the UI below calls these same
+    // functions, a Flow calls them by name, and an agent can call them
+    // through the inspector's eval. Nothing here is flow-only.
+    function flowActions() {
+        return {
+            "addPart":    (type, col, row) => addElement(type, col, row),
+            "wire":       (a, ta, b, tb) => addWire([a, ta], [b, tb]),
+            "flipSwitch": (id) => toggleSwitch(id),
+            "setVolts":   (id, v) => setBatteryVolts(id, v),
+            "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
+            "watch":      (id, on) => setWatched(id, on),
+            "select":     (id) => { selectedId = id },
+            "showValues": (on) => { showValues = on },
+            "clear":      () => clearBoard(),
+            "scenario":   (n) => applyScenario(n),
+            "frame":      (what) => what === "selection" ? frameSelection() : frameSetup()
+        }
+    }
+    function flows() { return [ledFlow.flowId] }
+    function startFlow(id) {
+        if (id === ledFlow.flowId) { ledFlow.start(); return true }
+        return false
+    }
+
     function labInfo() {
         const info = Lab.labInfo()
         const byType = {}
@@ -565,21 +519,30 @@ Item {
                          nets: sim.netCount || 0, shorted: sim.shorted,
                          iterations: sim.iterations }
         // language-neutral for agents: types and ids, not display labels
-        info.ui = { selected: selectedId, snap: snapToGrid,
+        info.flow = { id: ledFlow.running ? ledFlow.flowId : "",
+                      step: ledFlow.index, paused: ledFlow.paused,
+                      waiting: ledFlow.waiting }
+        info.ui = { selected: selectedId, snap: grid.snap,
                     watching: watch.map(id => ({ id: id, type: elemAt(id).type })),
-                    quantity: watchQuantity, lang: LabLang.lang }
+                    quantity: monitor.quantity, lang: LabLang.lang }
         return info
     }
     function flagInfo() { return labInfo() }
 
     // --- interaction state ------------------------------------------------
+    // Grid mode follows grafli's contract: # cycles it, Alt inverts it for one
+    // drag, and the pegs show which mode is on (crosses while snapping, dots
+    // when free).
+    GridMode { id: grid }
+    // readable from inside delegates, where an outer id is not in scope
+    readonly property bool snapToGrid: grid.snap
+
     property var wiringFrom: null       // {el, ti} while a wire is dangling
     property bool eraser: false
     property var hoverHit: null         // last hit under the cursor
     property var cursorW: Qt.vector3d(0, 1.9, 0)
     property string paletteDrag: ""     // element type while dragging from GUI
     property int selectedId: -1         // -1 = nothing selected
-    property bool snapToGrid: true      // grafli-style grid mode, # toggles it
     property bool showValues: false     // V: label every part and every wire
     property bool showPlan: true        // M: the schematic minimap
 
@@ -687,7 +650,7 @@ Item {
     View3D {
         id: view3d
         anchors.fill: parent
-        camera: cam
+        camera: rig.camera
 
         environment: SceneEnvironment {
             // slightly lighter than the table below, so that a horizon line
@@ -709,22 +672,19 @@ Item {
                 roughness: 1.0; metalness: 0.0; specularAmount: 0.0
             }
         }
-        // Orbit rig: the camera hangs off a yaw node at the pivot, so it can
-        // never look anywhere but at the setup.
-        Node {
-            position: root.camPivot
-            eulerRotation.y: root.camYaw
-            Behavior on position { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
-            Node {
-                eulerRotation.x: -root.camPitch
-                PerspectiveCamera {
-                    id: cam
-                    position: Qt.vector3d(0, 0, root.camDist)
-                    clipNear: 1
-                    clipFar: 900
-                    Behavior on position { Vector3dAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                }
-            }
+        OrbitCamera3D {
+            id: rig
+            pivot: Qt.vector3d(0, 2, 0)
+            yaw: 0
+            pitch: 48
+            distance: 80
+            minPitch: 22          // never skim along the board
+            maxPitch: 84          // never flip over the top
+            minDistance: 20       // clears a single part
+            maxDistance: 170
+            minHeight: 9          // taller than anything standing on the board
+            Behavior on pivot { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
+            Behavior on distance { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         }
 
         // Three soft lights instead of one hard one: key with shadows, side
@@ -914,7 +874,7 @@ Item {
         property real lastY: 0
         // Alt inverts the current grid mode for the length of one drag
         function snapping(mods) {
-            return root.snapToGrid !== ((mods & Qt.AltModifier) !== 0)
+            return grid.snapping(mods)
         }
 
         function worldAt(mx, my) {
@@ -1007,6 +967,7 @@ Item {
                 root.selectedId = hit.el
                 dragElem = hit.el
             }
+            ledFlow.takeOver()   // the learner is driving now, not the flow
         }
         onReleased: {
             if (dragElem && !dragged) {
@@ -1029,32 +990,24 @@ Item {
         { type: "voltmeter", color: "#8160a8" }
     ]
 
-    Rectangle {
+    LabPanel {
         id: palette
         x: 12; y: 12
         width: 208
-        height: paletteCol.height + 20
-        radius: 8
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
+        title: LabLang.t("lab.title")
 
+        // The presets, clickable and each carrying what it is worth noticing.
+        // They used to be reachable only by pressing 1..4, with nothing but
+        // the active name on screen - the best material in the lab, hidden.
+        ScenarioBar {
+            lab: root
+            width: 188
+        }
+        // and the offer to be taught, from the first frame
+        FlowChip { flow: ledFlow }
+        Item { width: 1; height: 2 }
         Column {
-            id: paletteCol
-            x: 10; y: 10
             spacing: 4
-            Text {
-                text: LabLang.t("lab.title")
-                color: LabTheme.primary; font.pixelSize: 13; font.bold: true
-                font.letterSpacing: 1.5; font.family: LabTheme.monoFont
-            }
-            Text {
-                text: Lab.scenario !== "" ? LabLang.t("scenario." + Lab.scenario)
-                                          : LabLang.t("lab.empty")
-                color: Lab.scenario !== "" ? LabTheme.accent : LabTheme.inkFaint
-                font.pixelSize: 13
-                font.family: LabTheme.handFont
-            }
-            Item { width: 1; height: 6 }
             Repeater {
                 model: root.partCatalog
                 Rectangle {
@@ -1103,9 +1056,9 @@ Item {
                     }
                 }
             }
-            Item { width: 1; height: 6 }
+            Item { width: 1; height: 4 }
             Rectangle {
-                width: 188; height: 34; radius: 6
+                width: 188; height: 30; radius: 6
                 color: root.eraser ? LabTheme.clay : LabTheme.paper
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
@@ -1131,14 +1084,14 @@ Item {
             Rectangle {
                 width: 188; height: 30; radius: 6
                 color: LabTheme.paper
-                border.color: root.snapToGrid ? LabTheme.secondary : LabTheme.panelEdge
+                border.color: grid.snap ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
-                    text: LabLang.t(root.snapToGrid ? "btn.grid.snap" : "btn.grid.free")
+                    text: LabLang.t(grid.snap ? "btn.grid.snap" : "btn.grid.free")
                     color: LabTheme.inkSoft; font.pixelSize: 11
                     font.family: LabTheme.monoFont
                 }
-                MouseArea { anchors.fill: parent; onClicked: root.snapToGrid = !root.snapToGrid }
+                MouseArea { anchors.fill: parent; onClicked: grid.toggle() }
             }
             Rectangle {
                 width: 188; height: 30; radius: 6
@@ -1151,19 +1104,75 @@ Item {
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
             }
-            Rectangle {
-                width: 188; height: 30; radius: 6
-                color: LabTheme.paper; border.color: LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    text: LabLang.tf("btn.view",
-                        Math.round(((root.camYaw % 360) + 360) % 360))
-                    color: LabTheme.inkSoft; font.pixelSize: 11
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.frameSetup() }
-            }
         }
+    }
+
+    // --- flow (SPIKE) ------------------------------------------------------
+    // "Why does the LED light?" - a demo that builds the circuit, hands the
+    // switch to the learner, then explains the number it produced.
+    Flow {
+        id: ledFlow
+        lab: root
+        flowId: "led-basics"
+        titleKey: "flow.led-basics.title"
+
+        FlowStep {
+            key: "empty"
+            demo: [["clear"], ["showValues", false], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "battery"
+            demo: [["let", "bat", "addPart", "battery", 6, 2],
+                   ["select", "bat"], ["frame", "selection"]]
+        }
+        FlowStep {
+            key: "led"
+            demo: [["let", "led", "addPart", "led", 12, 8],
+                   ["select", "led"], ["frame", "selection"]]
+        }
+        FlowStep {
+            key: "resistor"
+            demo: [["let", "res", "addPart", "resistor", 6, 8],
+                   ["setOhms", "res", 470],
+                   ["select", "res"], ["frame", "selection"]]
+        }
+        FlowStep {
+            key: "wire"
+            demo: [["let", "sw", "addPart", "switch", 12, 2],
+                   ["select", -1], ["frame", "setup"],
+                   ["wire", "bat", 1, "sw", 0],
+                   ["wire", "sw", 1, "led", 1],
+                   ["wire", "led", 0, "res", 1],
+                   ["wire", "res", 0, "bat", 0]]
+        }
+        FlowStep {
+            key: "flip"
+            task: ({ "until": (n) => { const e = root.elemAt(n("sw")); return e && e.on },
+                     "hint": "flow.led-basics.flip.hint",
+                     "hintAfter": 7,
+                     "solve": [["flipSwitch", "sw"]] })
+        }
+        FlowStep {
+            key: "lit"
+            demo: [["watch", "led", true]]
+            expect: (n) => Math.abs(root.simOf(n("led")).i - 0.00515) < 5e-5
+        }
+        FlowStep { key: "why" }
+        FlowStep {
+            key: "values"
+            demo: [["showValues", true]]
+        }
+        FlowStep {
+            key: "try"
+            demo: [["select", "res"], ["frame", "selection"]]
+        }
+    }
+    Narrator {
+        flow: ledFlow
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 12
+        width: Math.min(680, root.width - 2 * (root.width - monitor.x) - 24)
     }
 
     // --- language ----------------------------------------------------------
@@ -1176,32 +1185,14 @@ Item {
     }
 
     // --- compass: which way the board faces while you circle it ------------
-    Rectangle {
-        x: 12; y: palette.y + palette.height + 10
-        width: 72; height: 72; radius: 36
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge; border.width: LabTheme.borderWidth
-
-        Rectangle {  // the board, seen from above, turning with the view
-            anchors.centerIn: parent
-            width: 40; height: 26; radius: 3
-            color: LabTheme.paperDeep
-            border.color: LabTheme.ink; border.width: 1.5
-            rotation: -root.camYaw
-            Rectangle {  // front edge marker
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: 14; height: 3
-                color: LabTheme.accent
-            }
-        }
-        Rectangle {  // you: fixed at the bottom, the board turns instead
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 4
-            width: 8; height: 8; radius: 4
-            color: LabTheme.secondary
-        }
+    Compass {
+        // beside the palette rather than under it: the palette carries the
+        // presets and the tour offer now, and the slot below it is the
+        // schematic's
+        x: palette.x + palette.width + 10
+        y: 12
+        yaw: rig.yaw
+        aspect: root.cols / root.rows
     }
 
     // drag ghost following the cursor while dragging out of the palette
@@ -1236,7 +1227,7 @@ Item {
                                             || modelData.type === "voltmeter"
             readonly property var screenAt: {
                 // re-project whenever the part moves OR the camera does
-                root.elemRev; cam.scenePosition; cam.sceneRotation
+                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(modelData.id)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return view3d.mapFrom3DScene(Qt.vector3d(
@@ -1271,7 +1262,7 @@ Item {
     // the parts are, lines where the wires are. The 3D board says what you
     // built; this says what it *is*. Both stay in step because they read the
     // same model - and the symbols are the very ones from the palette.
-    Rectangle {
+    LabPanel {
         id: plan
         visible: root.showPlan
         anchors.left: parent.left
@@ -1280,30 +1271,13 @@ Item {
         anchors.bottomMargin: 44
         width: 250
         height: 176
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.color: LabTheme.panelEdge
-        border.width: LabTheme.borderWidth
-
-        Text {
-            x: 12; y: 8
-            text: LabLang.t("plan.title")
-            color: LabTheme.primary; font.pixelSize: 11; font.bold: true
-            font.letterSpacing: 1.5; font.family: LabTheme.monoFont
-        }
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 12
-            y: 8
-            text: "M"
-            color: LabTheme.inkFaint; font.pixelSize: 11
-            font.family: LabTheme.monoFont
-        }
+        title: LabLang.t("plan.title")
+        tag: "M"
 
         Canvas {
             id: planCanvas
-            anchors.fill: parent
-            anchors.topMargin: 26
-            anchors.margins: 10
+            width: plan.body.width
+            height: plan.body.height
 
             // one repaint trigger for everything the diagram depends on
             readonly property int rev: root.elemRev + root.selectedId * 7919
@@ -1395,7 +1369,7 @@ Item {
         model: root.showValues ? root.elements : []
         Rectangle {
             readonly property var screenAt: {
-                root.elemRev; cam.scenePosition; cam.sceneRotation
+                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(modelData.id)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return view3d.mapFrom3DScene(Qt.vector3d(
@@ -1428,7 +1402,7 @@ Item {
         model: root.showValues ? root.wires : []
         Text {
             readonly property var screenAt: {
-                root.elemRev; cam.scenePosition; cam.sceneRotation
+                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.wireEnds(modelData)
                 return view3d.mapFrom3DScene(Qt.vector3d(
                     (e[0].x + e[1].x) / 2, 0.6, (e[0].z + e[1].z) / 2))
@@ -1455,7 +1429,7 @@ Item {
         Rectangle {
             readonly property int pid: modelData
             readonly property var screenAt: {
-                root.elemRev; cam.scenePosition; cam.sceneRotation
+                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(pid)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return view3d.mapFrom3DScene(Qt.vector3d(
@@ -1484,7 +1458,7 @@ Item {
                 }
                 Text {
                     text: { root.elemRev; return root.partLabel(pid) }
-                    color: LabTheme.inkSoft; font.pixelSize: 10; font.bold: true
+                    color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
                     font.family: LabTheme.monoFont
                 }
             }
@@ -1492,14 +1466,17 @@ Item {
     }
 
     // --- selection card (what is selected, what it reads, what you can do) -
-    Rectangle {
+    LabPanel {
         id: selCard
+        padding: 10
+        spacing: 1
+        border.color: LabTheme.secondary
         readonly property var el: {
             root.elemRev
             return root.selectedId === -1 ? null : root.elemAt(root.selectedId)
         }
         readonly property var screenAt: {
-            root.elemRev; cam.scenePosition; cam.sceneRotation
+            root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
             if (!el) return Qt.vector3d(0, 0, 0)
             return view3d.mapFrom3DScene(Qt.vector3d(root.cellX(el.col), 0,
                                                      root.cellZ(el.row) + 5.5))
@@ -1517,14 +1494,9 @@ Item {
             root.elemRev; root.sim
             return el && el.type === "battery" ? root.batteryOf(el.id) : null
         }
-        radius: LabTheme.radius
-        color: LabTheme.panel
-        border.color: LabTheme.secondary
-        border.width: LabTheme.borderWidth
 
         Column {
             id: selCol
-            x: 10; y: 7
             spacing: 1
             Text {
                 text: {
@@ -1719,32 +1691,18 @@ Item {
     }
 
     // --- hint bar ----------------------------------------------------------
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin: 8
-        width: hintText.width + 30; height: 26; radius: 6
-        color: LabTheme.panel
-        Text {
-            id: hintText
-            anchors.centerIn: parent
-            // the bar is centred, so it may only grow until it would reach
-            // the monitor - a longer translation is clipped, never overlapped
-            width: Math.min(implicitWidth,
-                            2 * (plot.x - 8 - root.width / 2) - 30)
-            elide: Text.ElideRight
-            color: LabTheme.inkSoft; font.pixelSize: 15
-            font.family: LabTheme.handFont
-            text: {
-                if (root.eraser) return LabLang.t("hint.eraser")
-                if (root.wiringFrom) return LabLang.t("hint.wiring")
-                if (root.selectedId !== -1)
-                    return LabLang.t("hint.selected")
-                    + LabLang.t(root.snapToGrid ? "hint.selected.snap"
-                                                : "hint.selected.free")
-                    + LabLang.t("hint.selected.frame")
-                return LabLang.t("hint.idle")
-            }
+    HintBar {
+        flow: ledFlow                 // the narrator owns this slot while it runs
+        rightGuard: monitor
+        text: {
+            if (root.eraser) return LabLang.t("hint.eraser")
+            if (root.wiringFrom) return LabLang.t("hint.wiring")
+            if (root.selectedId !== -1)
+                return LabLang.t("hint.selected")
+                + LabLang.t(grid.snap ? "hint.selected.snap"
+                                      : "hint.selected.free")
+                + LabLang.t("hint.selected.frame")
+            return LabLang.t("hint.idle")
         }
     }
 
@@ -1753,83 +1711,66 @@ Item {
     // mA with V would flatten the volts onto the baseline. It is also the
     // better lesson - watch V in series and it divides, watch I in parallel
     // and it splits, on the very same pair of parts.
-    Row {
-        id: quantityChips
-        anchors.bottom: plot.top; anchors.bottomMargin: 6
-        anchors.right: plot.right
-        spacing: 6
-        Repeater {
-            model: root.watchQuantities
-            Rectangle {
-                id: chip
-                readonly property bool active: modelData.key === root.watchQuantity
-                width: chipLabel.width + 16; height: 22
-                radius: LabTheme.radius
-                color: chip.active ? LabTheme.secondary : LabTheme.panel
-                border.color: chip.active ? LabTheme.secondary : LabTheme.panelEdge
-                border.width: LabTheme.borderWidth
-                Text {
-                    id: chipLabel
-                    anchors.centerIn: parent
-                    text: LabLang.t(modelData.label) + " (" + modelData.unit + ")"
-                    color: chip.active ? LabTheme.paper : LabTheme.inkSoft
-                    font.pixelSize: 12; font.family: LabTheme.handFont
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.watchQuantity = modelData.key
-                }
-            }
-        }
-    }
-
-    Plot2D {
-        id: plot
-        anchors.bottom: parent.bottom; anchors.right: parent.right; anchors.margins: 10
-        width: 330; height: 140
+    WatchMonitor {
+        id: monitor
+        anchors.bottom: parent.bottom; anchors.right: parent.right
+        anchors.margins: 10
+        idPrefix: "part"
+        quantities: [
+            { key: "I", label: "quantity.current", unit: "mA" },
+            { key: "V", label: "quantity.voltage", unit: "V" },
+            { key: "P", label: "quantity.power", unit: "W" }]
         windowSeconds: 30
-        // the plotted set IS the watched set: labels and colours come from the
-        // board, and clicking a legend entry drops that part again
-        series: {
-            root.elemRev; root.elements
-            return root.watch.map((id, i) => ({
-                probe: "part" + id,
-                label: root.partLabel(id),
-                color: LabTheme.seriesColors[i % LabTheme.seriesColors.length] }))
-        }
         placeholder: LabLang.t("plot.empty")
-        onSeriesClicked: (probe) => root.setWatched(parseInt(probe.substring(4)), false)
+        valueOf: (id) => root.watchValueOf(id)
+        labelOf: (id) => root.partLabel(id)
+        // a solder dot has no reading of its own
+        canWatch: (id) => {
+            const el = root.elemAt(id)
+            return el !== null && el.type !== "junction"
+        }
+        // labels carry ordinals (BULB becomes BULB1 when a second one lands),
+        // so the legend has to be rebuilt when the board changes
+        revision: root.elemRev + root.elements.length
     }
 
     // --- keys --------------------------------------------------------------
+    // The reserved half of the map (presets, flow transport, view, record,
+    // help) belongs to LabKeys; what is listed here is what this lab adds -
+    // and declaring a key here is also what documents it in LabHelp.
+    LabKeys {
+        id: keymap
+        lab: root
+        camera: rig
+        flow: ledFlow
+        recorder: recorder
+        keys: [
+            { key: "C", label: "key.clear", action: () => root.clearBoard() },
+            { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
+            { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
+            { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
+            { key: "W", label: "key.watch", action: () => {
+                if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
+            { key: "R", label: "key.rotate", action: () => {
+                if (root.selectedId !== -1) root.rotateElement(root.selectedId) } },
+            { key: "#", label: "key.grid", action: () => grid.toggle() },
+            { key: "G", label: "key.grid", hidden: true, action: () => grid.toggle() },
+            { key: "Del", label: "key.delete", action: () => {
+                if (root.selectedId !== -1) root.removeElement(root.selectedId) } }
+        ]
+    }
+    LabHelp {
+        keymap: keymap
+        anchors.centerIn: parent
+        width: 300
+    }
+
     Keys.onPressed: (ev) => {
-        if (ev.key === Qt.Key_1) applyScenario("led-basic")
-        else if (ev.key === Qt.Key_2) applyScenario("series")
-        else if (ev.key === Qt.Key_3) applyScenario("parallel")
-        else if (ev.key === Qt.Key_4) applyScenario("metering")
-        else if (ev.key === Qt.Key_C) clearBoard()
-        else if (ev.key === Qt.Key_E) eraser = !eraser
-        else if (ev.key === Qt.Key_Escape) { wiringFrom = null; eraser = false; selectedId = -1 }
-        else if (ev.key === Qt.Key_V) showValues = !showValues
-        else if (ev.key === Qt.Key_W) { if (selectedId !== -1) toggleWatch(selectedId) }
-        else if (ev.key === Qt.Key_M) showPlan = !showPlan
-        else if (ev.key === Qt.Key_NumberSign || ev.key === Qt.Key_G)
-            snapToGrid = !snapToGrid
-        else if (ev.key === Qt.Key_Delete || ev.key === Qt.Key_Backspace) {
-            if (selectedId !== -1) removeElement(selectedId)
+        if (keymap.handle(ev)) return
+        // what is left is this lab's own cancel: the flow's Esc has already
+        // had its turn inside handle()
+        if (ev.key === Qt.Key_Escape) {
+            wiringFrom = null; eraser = false; selectedId = -1
         }
-        else if (ev.key === Qt.Key_R) {
-            if (ev.modifiers & Qt.ShiftModifier) recorder.recording = !recorder.recording
-            else if (selectedId !== -1) rotateElement(selectedId)
-        }
-        // --- view ---
-        else if (ev.key === Qt.Key_Left) orbitBy(-6, 0)
-        else if (ev.key === Qt.Key_Right) orbitBy(6, 0)
-        else if (ev.key === Qt.Key_Up) orbitBy(0, 4)
-        else if (ev.key === Qt.Key_Down) orbitBy(0, -4)
-        else if (ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) zoomBy(0.88)
-        else if (ev.key === Qt.Key_Minus) zoomBy(1.14)
-        else if (ev.key === Qt.Key_F) frameSelection()
-        else if (ev.key === Qt.Key_0 || ev.key === Qt.Key_Home) frameSetup()
     }
 }
