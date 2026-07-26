@@ -89,6 +89,12 @@ QtObject {
         if (d && d[key] !== undefined) return d[key]
         const en = _dicts["en"]
         if (en && en[key] !== undefined) return en[key]
+        // kernel chrome last: a lab that registers its own wording always wins,
+        // whatever order the dictionaries happened to be registered in
+        const kd = _kernel[lang]
+        if (kd && kd[key] !== undefined) return kd[key]
+        const ken = _kernel["en"]
+        if (ken && ken[key] !== undefined) return ken[key]
         return key
     }
 
@@ -125,10 +131,64 @@ QtObject {
         return names[code] ? names[code] : code.toUpperCase()
     }
 
-    // The kernel's own handful of strings, so a lab gets ParamPanel and
-    // friends translated without registering anything itself.
-    Component.onCompleted: register({
-        "en": { "lab.parameters": "PARAMETERS" },
-        "de": { "lab.parameters": "PARAMETER" }
+    // The kernel's own strings, so a lab gets its chrome translated without
+    // registering anything itself. Everything a KERNEL widget renders belongs
+    // here - the flow chrome lived in two labs' dictionaries word for word
+    // before this, and the third lab would have copied it again.
+    //
+    // Deliberately NOT register()ed: registration is last-wins, and the
+    // singleton is created whenever it is first touched, so a kernel
+    // registration could land after a lab's and silently overwrite its
+    // wording. As a fallback layer inside t() the lab always wins, whatever
+    // the creation order turns out to be.
+    readonly property var _kernel: ({
+        "en": {
+            "lab.parameters": "PARAMETERS",
+            "flow.paused": "paused — you took over",
+            "flow.next": "next ›",
+            "flow.back": "‹ back",
+            "flow.resume": "resume",
+            "flow.leave": "✕ leave",
+            "flow.showme": "show me",
+            "flow.watching": "watching…",
+            "flow.start": "start the tour",
+            "keys.title": "KEYS",
+            "keys.hint": "? keys",
+            "keys.scenarios": "presets",
+            "keys.flow": "guided tour",
+            "keys.next": "next step",
+            "keys.back": "step back",
+            "keys.frame": "frame selection",
+            "keys.reset": "reset view",
+            "keys.record": "record CSV",
+            "keys.cancel": "cancel",
+            "keys.help": "this list",
+            "keys.view": "turn · zoom the view",
+            "scenario.pick": "presets"
+        },
+        "de": {
+            "lab.parameters": "PARAMETER",
+            "flow.paused": "angehalten — du übernimmst",
+            "flow.next": "weiter ›",
+            "flow.back": "‹ zurück",
+            "flow.resume": "fortsetzen",
+            "flow.leave": "✕ beenden",
+            "flow.showme": "zeig es mir",
+            "flow.watching": "beobachten…",
+            "flow.start": "Tour starten",
+            "keys.title": "TASTEN",
+            "keys.hint": "? Tasten",
+            "keys.scenarios": "Vorlagen",
+            "keys.flow": "geführte Tour",
+            "keys.next": "nächster Schritt",
+            "keys.back": "Schritt zurück",
+            "keys.frame": "Auswahl zeigen",
+            "keys.reset": "Ansicht zurücksetzen",
+            "keys.record": "CSV aufzeichnen",
+            "keys.cancel": "abbrechen",
+            "keys.help": "diese Liste",
+            "keys.view": "Ansicht drehen · zoomen",
+            "scenario.pick": "Vorlagen"
+        }
     })
 }

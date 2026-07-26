@@ -25,7 +25,17 @@ clay_plugin( Lab
         Flow.qml
         FlowStep.qml
         Narrator.qml
+        FlowChip.qml
         WorldLabel.qml
+        SelectionFrame3D.qml
+        LabPanel.qml
+        LabKeys.qml
+        LabHelp.qml
+        HintBar.qml
+        ScenarioBar.qml
+        WatchMonitor.qml
+        Compass.qml
+        GridMode.qml
         Tour.qml
         TourStep.qml
 

@@ -78,6 +78,11 @@ QtObject {
         _rngState = (seed >>> 0)
         time = 0
         _nextSample = 0
+        // the fixed-step remainder is part of the clock's state: carrying a
+        // leftover fraction across a reset would make a replayed run differ
+        // from a fresh one, which is exactly what the contract forbids
+        _stepAccum = 0
+        _lastStepTime = 0
         Lab.clearProbes()
         wasReset()
     }
@@ -108,12 +113,57 @@ QtObject {
         return Math.sqrt(-2 * Math.log(1 - random())) * Math.cos(2 * Math.PI * random())
     }
 
+    /*!
+        \qmlproperty real SimClock::fixedStep
+        \brief Length of a fixed simulation step; 0 disables \l stepped.
+
+        A time-driven lab must advance its model in FIXED steps or it is not
+        reproducible: variable frame times make the run depend on the machine
+        it ran on. Set this and handle \l stepped instead of reading \l time
+        in a frame handler.
+    */
+    property real fixedStep: 0
+
+    /*!
+        \qmlproperty int SimClock::maxStepsPerAdvance
+        \brief Fixed steps allowed per advance, so a hitch cannot become a freeze.
+    */
+    property int maxStepsPerAdvance: 8
+
+    /*!
+        \qmlsignal SimClock::stepped(real dt)
+        \brief Emitted once per fixed step, \a dt being \l fixedStep.
+
+        Guaranteed to arrive in whole steps and never to run backwards: a
+        \l reset() rewinds \l time, and the rewind is swallowed here rather
+        than replayed as a negative step by every lab that forgot to.
+    */
+    signal stepped(real dt)
+
+    property real _stepAccum: 0
+    property real _lastStepTime: 0
+
     function _advance(dt) {
         time += dt
         while (time + 1e-9 >= _nextSample) {
             Lab.takeSamples(_nextSample)
             _nextSample += sampleInterval
         }
+        _emitFixedSteps()
+    }
+
+    function _emitFixedSteps() {
+        if (fixedStep <= 0) return
+        const d = time - _lastStepTime
+        _lastStepTime = time
+        if (d <= 0) return                  // a reset rewinds; never step back
+        _stepAccum += d
+        let budget = maxStepsPerAdvance
+        while (_stepAccum >= fixedStep && budget-- > 0) {
+            _stepAccum -= fixedStep
+            stepped(fixedStep)
+        }
+        if (budget <= 0) _stepAccum = 0     // drop the backlog, don't chase it
     }
 
     onSeedChanged: reset()

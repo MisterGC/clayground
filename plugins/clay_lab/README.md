@@ -33,6 +33,34 @@ interactive, deterministic, agent-verifiable experimentation space.
 - **Scenario / ScenarioSet** — named, scripted situations wiring the
   `scenarios()`/`applyScenario()` inspector convention; applying resets
   the clock so runs are reproducible.
+- **Flow / FlowStep / Narrator / FlowChip** — the guided, narrated
+  walkthrough: verbs-as-data driven through the lab's own `flowActions()`,
+  demo/task/watch steps, hint→solve escalation, checkpoint scrubbing.
+  `FlowChip` is the on-screen offer to be taught, so the lesson is not
+  hidden behind a key nobody knows.
+
+### Chrome — what makes two labs look like one product
+
+Everything below was hand-rolled in two labs before it moved here.
+
+- **LabPanel** — the titled paper panel every HUD is made of; children
+  stack, or set a size and anchor to its `body`.
+- **LabKeys / LabHelp** — the canonical key map (`1..9` presets, `T` flow,
+  `F`/`0` view, `Shift+R` record, `?` help) plus the lab's own keys as
+  data. Declaring a key is what documents it: `LabHelp` renders the map
+  from the same list, so the two can never drift.
+- **HintBar** — bottom-centre line that steps aside while a flow narrates
+  and stays width-capped against its neighbours.
+- **ScenarioBar** — clickable preset chips, each with the one-line reason
+  it exists (`scenario.note.<name>`).
+- **WatchMonitor** — watch a thing, get a probe, a colour and a curve;
+  owns probe lifecycle, stable names and the one-quantity-per-axis rule.
+- **WorldLabel** — 2D paper chip pinned to a 3D point.
+- **SelectionFrame3D** — the shared hover/select language on the work
+  surface (thin outline hovering, full frame plus facing mark selected).
+- **Compass** — which way the work surface faces while you circle it.
+- **GridMode** — snap/free placement with grafli's contract (`#` cycles,
+  `Alt` inverts for one gesture).
 
 ## The determinism contract
 
