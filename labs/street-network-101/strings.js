@@ -1,0 +1,166 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+.pragma library
+
+// The lab's own copy. The traffic kit owns the vocabulary (what a lane, a
+// junction, a dead end is called); everything the interface says about
+// building and running one lives here. Registered AFTER the kit's dict, so
+// any key repeated here wins.
+
+var dict = {
+    "en": {
+        "lab.title": "STREET NETWORK 101",
+        "lab.empty": "empty plan",
+
+        "scenario.crossroads": "One crossroads",
+        "scenario.grid": "A small grid",
+        "scenario.cul-de-sac": "Cul-de-sacs",
+        "scenario.ring": "Ring and spurs",
+
+        // tools
+        "tool.draw": "Draw road",
+        "tool.draw.hint": "drag on the plan",
+        "tool.erase": "Erase",
+        "tool.erase.on": "ERASING - click a road",
+        "tool.select": "Select",
+        "btn.clear": "Clear the plan",
+        "btn.simulate": "Simulate",
+        "btn.stop": "Stop",
+        "btn.held": "HELD - time is paused",
+        "btn.grid.snap": "Grid: snapping (#)",
+        "btn.grid.free": "Grid: free (#)",
+        "btn.lanes.on": "Lane model: shown (L)",
+        "btn.lanes.off": "Lane model: hidden (L)",
+        "btn.values.on": "Flow numbers: on (V)",
+        "btn.values.off": "Flow numbers: off (V)",
+        "btn.view": "Frame the plan (%1°)",
+
+        // parameters
+        "param.demand": "Traffic demand",
+        "param.demand.desc": "how many cars the network is asked to hold",
+        "param.speed": "Free-flow speed",
+        "param.speed.desc": "how fast a car drives with the road to itself",
+        "param.simSpeed": "Sim speed",
+        "param.simSpeed.desc": "wall-clock pace; it does not change the result",
+
+        // map / plan
+        "plan.title": "LANE GRAPH",
+        "plan.hint": "what you built, as the cars see it",
+        "plan.empty": "draw a road to begin",
+
+        // stats
+        "stats.title": "NETWORK",
+        "stats.cars": "Cars",
+        "stats.asked": "%1 of %2 asked for",
+        "stats.atCapacity": "at capacity - asking for more gives none",
+        "stats.moving": "moving",
+        "stats.waiting": "waiting",
+        "stats.arrived": "left at dead ends",
+        "stats.meanSpeed": "Mean speed",
+
+        // selection card
+        "card.road": "ROAD",
+        "card.lanes1": "1 lane each way",
+        "card.lanes2": "2 lanes each way",
+        "card.flow": "Flow",
+        "card.load": "On it now",
+        "card.watch": "plot this road",
+        "card.watched": "plotted",
+        "card.watch.full": "plot is full",
+        "card.hint.road": "drag the ends to move · Del removes it",
+        "card.junction": "JUNCTION",
+        "card.deadEnd": "DEAD END",
+        "card.turns": "%1 turns",
+
+        // plot
+        "plot.empty": "select a road and press W to plot it",
+
+        // banners
+        "banner.allDeadEnds": "Every road is a dead end - traffic drains away as fast as it arrives",
+        "banner.jammed": "Gridlock: most cars are standing",
+
+        // hints
+        "hint.idle": "drag on the plan to draw a road · right-drag turns the view",
+        "hint.drawing": "release to lay the road - it will split whatever it crosses",
+        "hint.erasing": "click a road to remove it · Esc leaves erase mode",
+        "hint.selected": "Del removes it · W plots it · drag an end to move it",
+        "hint.running": "S stops the traffic · draw while it runs, the cars will use it",
+        "hint.tooShort": "too short to be a road",
+
+        "sim.stopped": "stopped",
+        "sim.running": "running"
+    },
+    "de": {
+        "lab.title": "STRASSENNETZ 101",
+        "lab.empty": "leerer Plan",
+
+        "scenario.crossroads": "Eine Kreuzung",
+        "scenario.grid": "Ein kleines Raster",
+        "scenario.cul-de-sac": "Sackgassen",
+        "scenario.ring": "Ring mit Stichen",
+
+        "tool.draw": "Straße zeichnen",
+        "tool.draw.hint": "auf dem Plan ziehen",
+        "tool.erase": "Radieren",
+        "tool.erase.on": "RADIEREN - Straße anklicken",
+        "tool.select": "Auswählen",
+        "btn.clear": "Plan leeren",
+        "btn.simulate": "Simulieren",
+        "btn.stop": "Anhalten",
+        "btn.held": "ANGEHALTEN - Zeit pausiert",
+        "btn.grid.snap": "Raster: fangend (#)",
+        "btn.grid.free": "Raster: frei (#)",
+        "btn.lanes.on": "Spurmodell: sichtbar (L)",
+        "btn.lanes.off": "Spurmodell: verborgen (L)",
+        "btn.values.on": "Flusszahlen: an (V)",
+        "btn.values.off": "Flusszahlen: aus (V)",
+        "btn.view": "Plan einpassen (%1°)",
+
+        "param.demand": "Verkehrsnachfrage",
+        "param.demand.desc": "wie viele Autos das Netz halten soll",
+        "param.speed": "Freie Geschwindigkeit",
+        "param.speed.desc": "wie schnell ein Auto auf freier Straße fährt",
+        "param.simSpeed": "Simulationstempo",
+        "param.simSpeed.desc": "nur die Uhr, nicht das Ergebnis",
+
+        "plan.title": "SPURGRAPH",
+        "plan.hint": "das Gebaute, wie die Autos es sehen",
+        "plan.empty": "zeichne eine Straße",
+
+        "stats.title": "NETZ",
+        "stats.cars": "Autos",
+        "stats.asked": "%1 von %2 angefragt",
+        "stats.atCapacity": "Kapazität erreicht - mehr anfragen bringt nichts",
+        "stats.moving": "fahrend",
+        "stats.waiting": "wartend",
+        "stats.arrived": "in Sackgassen verlassen",
+        "stats.meanSpeed": "Mittleres Tempo",
+
+        "card.road": "STRASSE",
+        "card.lanes1": "1 Spur je Richtung",
+        "card.lanes2": "2 Spuren je Richtung",
+        "card.flow": "Fluss",
+        "card.load": "gerade darauf",
+        "card.watch": "Straße plotten",
+        "card.watched": "geplottet",
+        "card.watch.full": "Plot ist voll",
+        "card.hint.road": "Enden ziehen zum Verschieben · Entf entfernt sie",
+        "card.junction": "KREUZUNG",
+        "card.deadEnd": "SACKGASSE",
+        "card.turns": "%1 Abbiegungen",
+
+        "plot.empty": "Straße wählen und W drücken",
+
+        "banner.allDeadEnds": "Alles Sackgassen - der Verkehr versickert so schnell, wie er entsteht",
+        "banner.jammed": "Stau: die meisten Autos stehen",
+
+        "hint.idle": "ziehen zeichnet eine Straße · rechte Maustaste dreht die Ansicht",
+        "hint.drawing": "loslassen legt die Straße - sie teilt, was sie kreuzt",
+        "hint.erasing": "Straße anklicken zum Entfernen · Esc beendet",
+        "hint.selected": "Entf entfernt · W plottet · Ende ziehen verschiebt",
+        "hint.running": "S hält den Verkehr an · zeichne weiter, die Autos nutzen es",
+        "hint.tooShort": "zu kurz für eine Straße",
+
+        "sim.stopped": "angehalten",
+        "sim.running": "läuft"
+    }
+}
