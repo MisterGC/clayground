@@ -59,6 +59,12 @@ writing them; see `references/flows.md` before authoring a flow;
 read `references/pitfalls.md` **before writing any 3D/QML lab code** —
 every entry there cost a debugging session.
 
+A lab is published as well as run locally: it launches full-screen from its
+own page via `/labs/run/?lab=<slug>`, served out of `docs/labs-run/`. That
+costs one convention — **every directory the lab imports needs a `qmldir`**,
+including the lab's own, because a directory cannot be listed over HTTP. See
+*Publishing to the web* in the pitfalls.
+
 ## Layout, running, boundaries
 
 ```

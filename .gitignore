@@ -90,6 +90,9 @@ docs/api/*-qmlmodule.html
 docs/api/readme/
 docs/api/version.json
 
+# Lab payloads (copied from labs/ by CMake at build time)
+docs/labs-run/
+
 # WebDojo examples (copied from source by CMake at build time)
 # Keep source directories (empty/, platform/), ignore generated ones
 docs/webdojo-examples/*/

@@ -83,6 +83,32 @@ writing lab code; skim again when something "impossible" happens.
 - A follow camera that feeds `Label3D` sizing must be top-level, not
   nested in a moving rig (`Label3D` reads `camera.position`).
 
+## Publishing to the web
+
+**Every directory a lab imports needs a `qmldir`, or it works on the desktop
+and fails in the browser.** A directory import resolves by *listing* the
+directory, and a directory cannot be listed over HTTP — so a lab loaded by the
+Web Runtime silently loses those types. Two forms bite:
+
+- the kit: `import "../kits/circuit"` → `labs/kits/circuit/qmldir`
+- the lab's own siblings: a bare `LidarMonitor { }` next to `Sandbox.qml`
+  → `labs/<lab>/qmldir`. This one is easy to miss because there is no import
+  statement to remind you; the failure is `LidarMonitor is not a type`.
+
+List every type except `Sandbox.qml` itself (it is loaded by URL). Comments in
+a qmldir start with `#` — a `//` comment fails the whole file to parse, and
+the error surfaces as "unexpected token" on the *import line*, which sends you
+looking in the wrong place entirely. Adding a qmldir is invisible on the
+desktop, where Qt scans the directory when none is present.
+
+Related: `.js` imports name a file (`import "../kits/x/y.js" as Y`) and so
+work over HTTP untouched — only *directory* imports need the manifest.
+
+Also web-only: a Canvas font must be quoted. `ctx.font = "10px " + family`
+silently drops the whole declaration when the family has a space in it, and
+the family that gets picked differs between desktop and WASM, so this hides
+until you publish.
+
 ## Loader / reload semantics
 
 - **Plugin QML is baked into the plugin (rcc): kernel changes need a

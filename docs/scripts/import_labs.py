@@ -152,8 +152,15 @@ def main():
         # just leads with its text. (Shots are taken from a windowed run -
         # an offscreen grab renders the 3D view blank.)
         has_shot = os.path.exists(os.path.join(SHOT_DIR, slug + ".jpg"))
-        hero = ('<img class="lab-hero" src="{{ site.baseurl }}/assets/images/labs/%s.jpg"'
-                ' alt="%s running in the Dojo">' % (slug, name)) if has_shot else ""
+        # The shot is the start button. A lab is something you use, so the
+        # picture of it running is the thing to click - it launches full-screen
+        # in the browser rather than dropping you into an editor.
+        hero = ('<a class="lab-launch" href="{{ site.baseurl }}/labs/run/?lab=%s"'
+                ' title="Start %s in your browser">\n'
+                '  <img class="lab-hero" src="{{ site.baseurl }}/assets/images/labs/%s.jpg"'
+                ' alt="%s running">\n'
+                '  <span class="lab-launch-cta">&#9654;&nbsp; Click to start &mdash; full screen</span>\n'
+                '</a>' % (slug, name, slug, name)) if has_shot else ""
 
         page = ["---",
                 "layout: page",

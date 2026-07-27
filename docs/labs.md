@@ -72,17 +72,20 @@ exist, what the interface is, what the narration says.
 
 ## Status
 
-Clay Labs is young and openly in progress. Today labs run from a Clayground
-checkout in the Dojo, with live reloading while you edit them:
+Clay Labs is young and openly in progress, but you do not need to install
+anything to try one: **click a lab's picture and it starts in your browser**,
+full screen. It runs on the same Web Runtime that powers the
+[Web Dojo]({{ site.baseurl }}/webdojo/) — around 36 MB on the first visit,
+cached afterwards. A lab itself is tiny; the browser fetches only the few
+hundred kilobytes the lab you opened actually uses.
+
+To edit one, run it from a Clayground checkout in the Dojo, with live
+reloading while you type:
 
 ```bash
 cmake -B build && cmake --build build
 ./build/bin/claydojo --sbx labs/electronics-101/Sandbox.qml
 ```
-
-Running them **directly in the browser** is the next step — the Web Runtime
-that already powers the [Web Dojo]({{ site.baseurl }}/webdojo/) is the same
-one a lab needs, so this is a matter of packaging rather than new technology.
 
 If you want to look under the hood, the labs, their kits and their papers all
 live in [the repository](https://github.com/MisterGC/clayground/tree/main/labs).

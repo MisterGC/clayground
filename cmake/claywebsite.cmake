@@ -39,6 +39,17 @@ function(clay_website_register_webdojo_example SOURCE DEST_DIR DISPLAY_NAME)
     message(STATUS "WebDojo example: ${DISPLAY_NAME} (${SOURCE_TYPE}) <- ${SOURCE}")
 endfunction()
 
+# Registers the labs tree as its own published payload.
+#
+# Deliberately NOT a webdojo example: a lab is not a demo of the framework, it
+# is a thing you go and use, launched from its own page. Keeping it out of the
+# gallery also keeps the eventual move to a lab subdomain a move of /labs/ and
+# /labs-run/ alone, with no dependency on the dojo's example index.
+function(clay_website_register_lab SOURCE)
+    set(CLAY_WEBSITE_LABS ${CLAY_WEBSITE_LABS} "${SOURCE}" CACHE INTERNAL "")
+    message(STATUS "Lab payload: ${SOURCE} -> docs/labs-run/")
+endfunction()
+
 # Check all prerequisites at configure time (fail fast)
 function(clay_website_check_prerequisites)
     # Must be building for WASM
@@ -275,11 +286,23 @@ function(clay_website_create_target)
         endif()
     endforeach()
 
+    # Lab payloads land under docs/labs-run/, served to the runtime over HTTP.
+    foreach(LAB_SOURCE IN LISTS CLAY_WEBSITE_LABS)
+        list(APPEND WEBDOJO_COPY_COMMANDS
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_SOURCE_DIR}/${LAB_SOURCE}
+                ${CMAKE_SOURCE_DIR}/docs/labs-run
+            COMMAND ${CMAKE_COMMAND}
+                -DTARGET_DIR=${CMAKE_SOURCE_DIR}/docs/labs-run
+                -P ${CMAKE_SOURCE_DIR}/cmake/claystripdotdirs.cmake
+        )
+    endforeach()
+
     add_custom_target(website-sync-webdojo-examples
         ${WEBDOJO_COPY_COMMANDS}
         # Ensure files are world-readable for web server
         COMMAND chmod -R a+r ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/
-        COMMENT "Syncing webdojo examples from source..."
+        COMMENT "Syncing webdojo examples and lab payloads from source..."
     )
 
     # Jekyll build for production (uses baseurl from _config.yml)
