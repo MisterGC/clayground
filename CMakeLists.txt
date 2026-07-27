@@ -132,6 +132,12 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     clay_website_register_webdojo_example(examples/voxelworld voxelworld "Voxel World")
     clay_website_register_webdojo_example(examples/visualfx visualfx "Visual FX")
 
+    # Labs. The whole labs/ tree is registered once and each lab is an entry
+    # inside it, because a lab imports its kit by relative path and so is not
+    # self-contained. Loaded over HTTP the kit's directory import needs the
+    # qmldir in labs/kits/<kit>/ - a directory cannot be listed over a network.
+    clay_website_register_webdojo_example(labs labs "Electronics 101" electronics-101/Sandbox.qml)
+
     # Source files in webdojo-examples (not copied, just registered)
     clay_website_register_webdojo_example(docs/webdojo-examples/welcome welcome "welcome")
     clay_website_register_webdojo_example(docs/webdojo-examples/platform platform "Platform Detection")

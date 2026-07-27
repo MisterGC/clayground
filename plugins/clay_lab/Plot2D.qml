@@ -135,7 +135,10 @@ Rectangle {
             _plot._legendHits = []
             if (series.length === 0 && _plot.placeholder !== "") {
                 ctx.fillStyle = LabTheme.inkFaint.toString()
-                ctx.font = "13px " + LabTheme.handFont
+                // quoted: a family with a space in it ("Patrick Hand",
+                // "DejaVu Sans Mono") is not a valid CSS font shorthand
+                // unquoted, and Context2D rejects the whole declaration
+                ctx.font = '13px "' + LabTheme.handFont + '"'
                 ctx.textAlign = "center"
                 ctx.fillText(_plot.placeholder, width / 2, height / 2 + 4)
                 ctx.textAlign = "left"
@@ -148,7 +151,7 @@ Rectangle {
 
             // Legend band on top, axis gutter on the left: the curves get a
             // rect of their own so a spike can never run through a label.
-            ctx.font = "10px " + LabTheme.monoFont
+            ctx.font = '10px "' + LabTheme.monoFont + '"'
             // a flat-zero series must not read as "-0.00", and the decimal
             // separator follows the lab's language
             const fmt = v => LabLang.num(Math.abs(v) < 5e-3 ? 0 : v, 2)
