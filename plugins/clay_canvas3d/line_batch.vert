@@ -16,6 +16,10 @@
 //   depthJitter         = 1.0 in opaque mode -> tiny per-instance depth offset
 //                         (deterministic table-order tie-break for coplanar
 //                          lines), 0.0 otherwise
+//   shadowOnly          = 1.0 for the shadow-caster twin of the batch, which
+//                         exists solely to occupy the shadow map: it collapses
+//                         to nothing in every other pass (see below). 0.0 for
+//                         the visible material.
 
 VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = coordinate along segment axis, y = coordinate across
@@ -30,6 +34,18 @@ VARYING vec2 vHead; // x = arrowhead length (segment-space), y = head half width
 
 void MAIN()
 {
+    // The shadow-caster twin shares this shader so its shadow is expanded by
+    // exactly the same ribbon maths as the visible line - anything else and the
+    // shadow would drift from the line it belongs to. It must not draw anywhere
+    // but the shadow map, so outside the shadow passes it collapses to a
+    // degenerate point behind the far plane and is clipped before rasterizing.
+#if !defined(QSSG_ENABLE_ORTHO_SHADOW_PASS) && !defined(QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS)
+    if (shadowOnly > 0.5) {
+        POSITION = vec4(0.0, 0.0, 2.0, 1.0);
+        return;
+    }
+#endif
+
     float t = VERTEX.x;                       // 0 at start, 1 at end
     float side = VERTEX.y;                     // -1 or +1
     float capDir = (t < 0.5) ? -1.0 : 1.0;     // longitudinal cap direction

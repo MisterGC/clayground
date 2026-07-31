@@ -41,6 +41,7 @@ clay_plugin( Canvas3D
     RESOURCES
         line_batch.frag
         line_batch.vert
+        line_batch_shadow.frag
         label_batch.frag
         label_batch.vert
         label_pill.frag

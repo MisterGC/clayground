@@ -156,8 +156,37 @@ Model {
         Leave \c false for translucent or additive styling; set \c true for
         dense opaque overlays where depth-correct occlusion and lower overdraw
         matter more than per-line opacity.
+
+        \note A batch does not honour \c Node.opacity. Every line's alpha comes
+        from its own \c color and its style's \c opacity, which the shader
+        multiplies itself; the inherited node opacity never reaches it. Wrapping
+        a batch in \c {Node { opacity: 0.5 }} therefore does nothing, unlike
+        Box3D or a PrincipledMaterial. To fade a whole batch, fade the per-line
+        colour alpha or the \l styles entry.
     */
     property bool opaque: false
+
+    /*!
+        \qmlproperty bool LineBatch3D::castsShadows
+        \brief Whether the batch drops a shadow. Off by default.
+
+        Only meaningful on a batch that is \c {widthUnits: LineBatch3D.World}
+        and \c {orientation: LineBatch3D.Flat}; on any other batch it is ignored
+        with a warning. The restriction is not a missing feature: a Billboard
+        ribbon expands toward the viewer, and in the shadow pass the viewer is
+        the light, so it would cast the shadow of a ribbon turned to face the
+        light rather than the one on screen. A flat ribbon is view-independent,
+        so its silhouette is well defined from anywhere.
+
+        Enabling it adds one instanced draw in the shadow pass, which is why it
+        is opt-in. Leave it off for lines that should read as paint on a surface
+        (lane markings, route overlays) and turn it on where the line is a thing
+        in the world that ought to be grounded like the meshes around it.
+
+        \note Dash gaps, glyph patterns and arrowheads do not cut the shadow -
+        a dashed line casts a continuous one. The ribbon body and its caps are
+        the silhouette.
+    */
 
     /*!
         \qmlproperty int LineBatch3D::count
@@ -351,14 +380,42 @@ Model {
         return _inst.positionAt(lineId, distance)
     }
 
-    // Shadows are off and cannot meaningfully be turned on: the lines are
-    // camera-facing ribbons expanded in an unshaded custom material's vertex
-    // shader, and the shadow pass skips unshaded custom materials - setting
-    // castsShadows on an instance produces no shadow. Lines that must drop
-    // one need real mesh geometry (see labs/kits/circuit/Wire3D.qml, which
-    // walks a path with cylinder segments for exactly that reason).
+    // Off by default: a batch is usually an overlay, and casting costs a
+    // second instanced draw in the shadow pass. Set castsShadows to opt in -
+    // see the note on the property for what it needs.
     castsShadows: false
+    // Lines are flat unshaded ribbons with no surface to darken, so they never
+    // receive.
     receivesShadows: false
+
+    // A batch can only cast where the shadow is well defined: a flat ribbon is
+    // view-independent, so its silhouette from the light is the same shape the
+    // eye sees. A billboarded one expands toward the viewer, and in the shadow
+    // pass the viewer IS the light - it would cast the shadow of a ribbon
+    // turned to face the light, which is not the ribbon on screen. Pixel width
+    // has no world size at all.
+    readonly property bool _shadowValid: widthUnits === LineBatch3D.World
+                                         && orientation === LineBatch3D.Flat
+    readonly property bool _castsShadow: castsShadows && _shadowValid
+
+    // Warn on the STATE, not on each property that feeds it: a batch declaring
+    // castsShadows, widthUnits and orientation together would otherwise warn
+    // once per property, and warn spuriously while half-initialised. Nothing is
+    // said before the component is complete, and nothing is repeated until the
+    // configuration has been valid in between.
+    readonly property bool _shadowMisconfigured: castsShadows && !_shadowValid
+    property bool _shadowReady: false
+    property bool _shadowWarned: false
+    Component.onCompleted: { _shadowReady = true; _checkShadowConfig() }
+    on_ShadowMisconfiguredChanged: if (_shadowReady) _checkShadowConfig()
+    function _checkShadowConfig() {
+        if (!_shadowMisconfigured) { _shadowWarned = false; return }
+        if (_shadowWarned) return
+        _shadowWarned = true
+        console.warn("LineBatch3D: castsShadows needs widthUnits: World and "
+                     + "orientation: Flat; a Billboard or Pixel ribbon has no "
+                     + "view-independent silhouette to cast. Ignoring it.")
+    }
 
     geometry: LineBatchGeometry {
         boundsMin: _inst.boundsMin
@@ -389,6 +446,8 @@ Model {
             property real depthBias: root.depthBias
             // Shared animation clock for flowing/pulsing styles (seconds).
             property real flowTime: root.flowTime
+            // This is the visible material, never the shadow twin.
+            property real shadowOnly: 0.0
             // 1.0 in opaque mode enables the deterministic per-instance depth
             // tie-break in the vertex shader; 0.0 disables it when blending.
             property real depthJitter: root.opaque ? 1.0 : 0.0
@@ -409,4 +468,58 @@ Model {
             fragmentShader: "line_batch.frag"
         }
     ]
+
+    // The shadow twin. Qt skips unshaded custom materials in the shadow pass,
+    // so the visible material above can never cast whatever castsShadows says.
+    // Rather than make it Shaded - which would drag the whole batch onto the
+    // lit path for the sake of a silhouette - the batch grows a second Model
+    // over the SAME geometry and instance table whose only job is to occupy the
+    // shadow map. It shares line_batch.vert, so its ribbons are expanded by
+    // identical maths and the shadow cannot drift from the line; its own
+    // fragment shader carves out the ribbon and writes nothing else, and the
+    // vertex shader clips it away in every pass that is not a shadow pass.
+    //
+    // It exists only while it is wanted: no opt-in, no second draw.
+    Model {
+        id: _shadowTwin
+        visible: root._castsShadow
+        geometry: root.geometry
+        instancing: root.instancing
+        castsShadows: true
+        receivesShadows: false
+        materials: [
+            CustomMaterial {
+                shadingMode: CustomMaterial.Shaded
+                cullMode: Material.NoCulling
+                // The shadow map IS a depth buffer, so this must be allowed to
+                // write depth - it simply never reaches the colour pass.
+                depthDrawMode: Material.AlwaysDepthDraw
+                property vector2d viewportSize: root.viewportSize
+                property real widthMode: root.widthUnits
+                property real orientationMode: root.orientation
+                property real depthBias: root.depthBias
+                property real flowTime: root.flowTime
+                property real depthJitter: 0.0
+                property real shadowOnly: 1.0
+                property real styleCount: _shadowStyleData.styleCount
+                // Its own copy of the (tiny) style table: only capRound is read
+                // from it, and a second 3xN texture is cheaper than plumbing a
+                // shared one through two materials.
+                property TextureInput styleTable: TextureInput {
+                    texture: Texture {
+                        minFilter: Texture.Nearest
+                        magFilter: Texture.Nearest
+                        tilingModeHorizontal: Texture.ClampToEdge
+                        tilingModeVertical: Texture.ClampToEdge
+                        textureData: LineStyleTextureData {
+                            id: _shadowStyleData
+                            styles: root.styles
+                        }
+                    }
+                }
+                vertexShader: "line_batch.vert"
+                fragmentShader: "line_batch_shadow.frag"
+            }
+        ]
+    }
 }
