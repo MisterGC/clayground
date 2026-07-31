@@ -64,10 +64,24 @@ Node {
     */
     property int orientation: LineBatch3D.Billboard
 
+    /*!
+        \qmlproperty bool MultiLine3D::castsShadows
+        \brief Whether the lines drop a shadow. Off by default.
+
+        Forwarded to the underlying \l LineBatch3D, so the same rules apply:
+        only a \c Flat set qualifies (MultiLine3D is always world-width), and a
+        Billboard set that opts in warns once and stays shadowless. Turn it on
+        for lines that are things in the world - a path floating above the
+        road, a route ribbon - where the contact shadow is what conveys the
+        height.
+    */
+    property bool castsShadows: false
+
     LineBatch3D {
         id: _batch
         widthUnits: LineBatch3D.World
         orientation: root.orientation
+        castsShadows: root.castsShadows
         lines: {
             if (!root.coords)
                 return []
