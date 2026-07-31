@@ -240,12 +240,33 @@ void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
         const int capFlags = (s == 0 ? 1 : 0) | 2;
 
         // Affine transform mapping base-space (0,0,0)->P0 and (1,0,0)->P1.
-        // Columns 1 and 2 are zero; translation is P0. Stored row-major as
-        // three vec4 rows (row.xyz = matrix row, row.w = translation).
+        // Translation is P0. Stored row-major as three vec4 rows
+        // (row.xyz = matrix row, row.w = translation).
+        //
+        // Column 0 is the segment axis. Columns 1 and 2 carry the flat ribbon
+        // frame - column 1 the unit across direction in the ground plane
+        // (the Flat orientation's sideDir), column 2 the plane normal. The
+        // line shaders only ever transform (0,0,0) and (1,0,0), so they never
+        // see them - but the matrix must still be full rank: for Shaded
+        // materials (the shadow-caster twin) Qt's generated vertex code takes
+        // inverse(instance model matrix) for the normal matrix, which with
+        // zero columns inverts a singular matrix into garbage. The bytes were
+        // zero padding before, so the frame costs nothing.
+        const QVector3D axis = p1 - p0;
+        QVector3D across = QVector3D::crossProduct(axis, QVector3D(0.0f, 1.0f, 0.0f));
+        const float acrossLen = across.length();
+        if (acrossLen > 1e-6f)
+            across /= acrossLen;
+        else
+            across = QVector3D(1.0f, 0.0f, 0.0f); // vertical segment: any horizontal unit
+        QVector3D normal = QVector3D::crossProduct(across, axis);
+        const float normalLen = normal.length();
+        normal = normalLen > 1e-6f ? normal / normalLen : QVector3D(0.0f, 1.0f, 0.0f);
+
         Entry e;
-        e.row0 = QVector4D(p1.x() - p0.x(), 0.0f, 0.0f, p0.x());
-        e.row1 = QVector4D(p1.y() - p0.y(), 0.0f, 0.0f, p0.y());
-        e.row2 = QVector4D(p1.z() - p0.z(), 0.0f, 0.0f, p0.z());
+        e.row0 = QVector4D(axis.x(), across.x(), normal.x(), p0.x());
+        e.row1 = QVector4D(axis.y(), across.y(), normal.y(), p0.y());
+        e.row2 = QVector4D(axis.z(), across.z(), normal.z(), p0.z());
         e.color = line.color;
         e.instanceData = QVector4D(line.width, static_cast<float>(line.styleId),
                                    pathDist, static_cast<float>(capFlags));

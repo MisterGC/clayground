@@ -183,9 +183,11 @@ Model {
         (lane markings, route overlays) and turn it on where the line is a thing
         in the world that ought to be grounded like the meshes around it.
 
-        \note Dash gaps, glyph patterns and arrowheads do not cut the shadow -
-        a dashed line casts a continuous one. The ribbon body and its caps are
-        the silhouette.
+        \note Dash gaps, glyph patterns, arrowheads and cap shapes do not cut
+        the shadow - a dashed line casts a continuous one. The silhouette is
+        the plain ribbon quad (body plus a small overhang at free ends): the
+        shadow passes never run the material's fragment stage, so no
+        per-fragment shaping is possible there.
     */
 
     /*!
@@ -383,6 +385,15 @@ Model {
     // Off by default: a batch is usually an overlay, and casting costs a
     // second instanced draw in the shadow pass. Set castsShadows to opt in -
     // see the note on the property for what it needs.
+    //
+    // This root Model deliberately renders NOTHING (no geometry): it exists as
+    // the public surface, and castsShadows / receivesShadows on it are pure
+    // opt-in flags read by the children below. The visible ribbons live on a
+    // child Model that is hard-wired to never cast: an Unshaded custom
+    // material is NOT skipped in the shadow map render - its fragment shader
+    // runs raw and would write line COLOR into what that pass reads as DEPTH,
+    // stomping the shadow twin's correct values. So the model users toggle and
+    // the model that casts must not be the same object.
     castsShadows: false
     // Lines are flat unshaded ribbons with no surface to darken, so they never
     // receive.
@@ -417,74 +428,88 @@ Model {
                      + "view-independent silhouette to cast. Ignoring it.")
     }
 
-    geometry: LineBatchGeometry {
-        boundsMin: _inst.boundsMin
-        boundsMax: _inst.boundsMax
-    }
+    // The visible ribbons. castsShadows stays false FOREVER here, whatever the
+    // root flag says: this model's Unshaded material is not skipped in the
+    // shadow map render, and its fragment shader would write ribbon colour
+    // into the pass's depth output - erasing the twin's correct depths at the
+    // exact same rasterized positions. The blobs-instead-of-shadows bug lived
+    // here. Casting is the twin's job alone.
+    Model {
+        id: _visual
+        castsShadows: false
+        receivesShadows: false
 
-    instancing: LineBatchInstancing {
-        id: _inst
-    }
+        geometry: LineBatchGeometry {
+            id: _geom
+            boundsMin: _inst.boundsMin
+            boundsMax: _inst.boundsMax
+        }
 
-    materials: [
-        CustomMaterial {
-            id: _mat
-            shadingMode: CustomMaterial.Unshaded
-            cullMode: Material.NoCulling
-            // Default (opaque == false): alpha blending lets styles apply an
-            // opacity multiplier; overlapping lines composite by draw order.
-            // Depth is still written so lines occlude other geometry.
-            // opaque == true: no blending + depth write, so overlapping opaque
-            // lines resolve by depth and the GPU can early-reject occluded
-            // fragments (lower overdraw). Cap/dash cutouts still discard.
-            sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
-            destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
-            depthDrawMode: Material.AlwaysDepthDraw
-            property vector2d viewportSize: root.viewportSize
-            property real widthMode: root.widthUnits
-            property real orientationMode: root.orientation
-            property real depthBias: root.depthBias
-            // Shared animation clock for flowing/pulsing styles (seconds).
-            property real flowTime: root.flowTime
-            // This is the visible material, never the shadow twin.
-            property real shadowOnly: 0.0
-            // 1.0 in opaque mode enables the deterministic per-instance depth
-            // tie-break in the vertex shader; 0.0 disables it when blending.
-            property real depthJitter: root.opaque ? 1.0 : 0.0
-            property real styleCount: _styleData.styleCount
-            property TextureInput styleTable: TextureInput {
-                texture: Texture {
-                    minFilter: Texture.Nearest
-                    magFilter: Texture.Nearest
-                    tilingModeHorizontal: Texture.ClampToEdge
-                    tilingModeVertical: Texture.ClampToEdge
-                    textureData: LineStyleTextureData {
-                        id: _styleData
-                        styles: root.styles
+        instancing: LineBatchInstancing {
+            id: _inst
+        }
+
+        materials: [
+            CustomMaterial {
+                id: _mat
+                shadingMode: CustomMaterial.Unshaded
+                cullMode: Material.NoCulling
+                // Default (opaque == false): alpha blending lets styles apply an
+                // opacity multiplier; overlapping lines composite by draw order.
+                // Depth is still written so lines occlude other geometry.
+                // opaque == true: no blending + depth write, so overlapping opaque
+                // lines resolve by depth and the GPU can early-reject occluded
+                // fragments (lower overdraw). Cap/dash cutouts still discard.
+                sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
+                destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
+                depthDrawMode: Material.AlwaysDepthDraw
+                property vector2d viewportSize: root.viewportSize
+                property real widthMode: root.widthUnits
+                property real orientationMode: root.orientation
+                property real depthBias: root.depthBias
+                // Shared animation clock for flowing/pulsing styles (seconds).
+                property real flowTime: root.flowTime
+                // This is the visible material, never the shadow twin.
+                property real shadowOnly: 0.0
+                // 1.0 in opaque mode enables the deterministic per-instance depth
+                // tie-break in the vertex shader; 0.0 disables it when blending.
+                property real depthJitter: root.opaque ? 1.0 : 0.0
+                property real styleCount: _styleData.styleCount
+                property TextureInput styleTable: TextureInput {
+                    texture: Texture {
+                        minFilter: Texture.Nearest
+                        magFilter: Texture.Nearest
+                        tilingModeHorizontal: Texture.ClampToEdge
+                        tilingModeVertical: Texture.ClampToEdge
+                        textureData: LineStyleTextureData {
+                            id: _styleData
+                            styles: root.styles
+                        }
                     }
                 }
+                vertexShader: "line_batch.vert"
+                fragmentShader: "line_batch.frag"
             }
-            vertexShader: "line_batch.vert"
-            fragmentShader: "line_batch.frag"
-        }
-    ]
+        ]
+    }
 
-    // The shadow twin. Qt skips unshaded custom materials in the shadow pass,
-    // so the visible material above can never cast whatever castsShadows says.
-    // Rather than make it Shaded - which would drag the whole batch onto the
-    // lit path for the sake of a silhouette - the batch grows a second Model
-    // over the SAME geometry and instance table whose only job is to occupy the
-    // shadow map. It shares line_batch.vert, so its ribbons are expanded by
-    // identical maths and the shadow cannot drift from the line; its own
-    // fragment shader carves out the ribbon and writes nothing else, and the
-    // vertex shader clips it away in every pass that is not a shadow pass.
+    // The shadow twin: a second Model over the SAME geometry and instance
+    // table whose only job is to occupy the shadow map. The visible material
+    // cannot do that job - Unshaded custom materials DO run in the shadow
+    // pass, but Qt's shader generator skips the pass's depth output for them,
+    // so their fragment colour lands in the map as garbage depth. The twin is
+    // Shaded, which makes Qt generate the proper shadow-pass fragment (the
+    // twin's own fragment snippet is never called in that pass). It shares
+    // line_batch.vert, so its ribbons are expanded by identical maths and the
+    // shadow cannot drift from the line; outside the shadow passes the vertex
+    // shader collapses it to a clipped point.
     //
     // It exists only while it is wanted: no opt-in, no second draw.
     Model {
         id: _shadowTwin
         visible: root._castsShadow
-        geometry: root.geometry
-        instancing: root.instancing
+        geometry: _geom
+        instancing: _inst
         castsShadows: true
         receivesShadows: false
         materials: [
@@ -502,9 +527,10 @@ Model {
                 property real depthJitter: 0.0
                 property real shadowOnly: 1.0
                 property real styleCount: _shadowStyleData.styleCount
-                // Its own copy of the (tiny) style table: only capRound is read
-                // from it, and a second 3xN texture is cheaper than plumbing a
-                // shared one through two materials.
+                // Never sampled in the shadow pass (Qt binds no custom textures
+                // there, so the shaders avoid it - see line_batch.vert). The
+                // declaration must still exist because the shared vertex source
+                // references the sampler in its non-shadow branch.
                 property TextureInput styleTable: TextureInput {
                     texture: Texture {
                         minFilter: Texture.Nearest

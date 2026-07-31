@@ -39,7 +39,11 @@ void MAIN()
     // shadow would drift from the line it belongs to. It must not draw anywhere
     // but the shadow map, so outside the shadow passes it collapses to a
     // degenerate point behind the far plane and is clipped before rasterizing.
-#if !defined(QSSG_ENABLE_ORTHO_SHADOW_PASS) && !defined(QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS)
+    //
+    // These must be VALUE tests: Qt emits every pass macro in every variant as
+    // "#define QSSG_ENABLE_..._SHADOW_PASS 0" or "... 1", so defined() is true
+    // in all of them and would gate nothing.
+#if !QSSG_ENABLE_ORTHO_SHADOW_PASS && !QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
     if (shadowOnly > 0.5) {
         POSITION = vec4(0.0, 0.0, 2.0, 1.0);
         return;
@@ -67,11 +71,23 @@ void MAIN()
     // as raw line-width multiples straight from the style). Heads are a
     // single-segment feature (capFlags == 3), so a widened quad only appears
     // where it is a real end.
+#if QSSG_ENABLE_ORTHO_SHADOW_PASS || QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
+    // Shadow pass: no style-table fetch. Qt binds only the uniform buffer for
+    // custom materials in the shadow map render - TextureInput samplers are
+    // NOT bound there, so this fetch would read an unbound sampler and the
+    // garbage would widen the quad via the arrowhead path (every single
+    // segment has capFlags == 3), shredding the shadow silhouette. The twin
+    // casts the plain shaft; arrowheads simply widen no quad here.
+    float headWidM = 0.0;
+    float headLenM = 0.0;
+    bool headActive = false;
+#else
     float styleCol = (INSTANCE_DATA.y + 0.5) / max(styleCount, 1.0);
     vec4 headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
     float headWidM = headRow.a;   // requested head base width (shaft-width mult)
     float headLenM = headRow.b;   // requested head length (shaft-width mult)
     bool headActive = (headWidM > 0.0) && (capFlagsI == 3);
+#endif
 
     // Resolve arrowhead proportions - the geometry model. The head is a clean
     // triangle: its base is clamped to a real shoulder (>= 1.5x the shaft) and
