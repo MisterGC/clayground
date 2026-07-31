@@ -77,11 +77,19 @@ Node {
     */
     property bool castsShadows: false
 
+    /*!
+        \qmlproperty bool MultiLine3D::shapedShadows
+        \brief Forwarded to \l {LineBatch3D::shapedShadows}: carved (default)
+        versus cheap rectangular shadows while \l castsShadows is active.
+    */
+    property bool shapedShadows: true
+
     LineBatch3D {
         id: _batch
         widthUnits: LineBatch3D.World
         orientation: root.orientation
         castsShadows: root.castsShadows
+        shapedShadows: root.shapedShadows
         lines: {
             if (!root.coords)
                 return []

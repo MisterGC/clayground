@@ -20,6 +20,10 @@
 //                         exists solely to occupy the shadow map: it collapses
 //                         to nothing in every other pass (see below). 0.0 for
 //                         the visible material.
+//   styledShadow        = 1.0 when the style table is readable in the shadow
+//                         passes (styled OpaquePrePass twin, and always for
+//                         the visible material); 0.0 for the fast twin, whose
+//                         shadow-pass pipeline has no style table bound.
 
 VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = coordinate along segment axis, y = coordinate across
@@ -71,14 +75,24 @@ void MAIN()
     // as raw line-width multiples straight from the style). Heads are a
     // single-segment feature (capFlags == 3), so a widened quad only appears
     // where it is a real end.
-    // The fetch runs in the shadow passes too. Qt binds custom TextureInput
-    // samplers there only for an OpaquePrePass renderable, which the shadow
-    // twin is: addOpaqueDepthPrePassBindings maps every custom property
-    // texture of a custom material for the vertex AND the fragment stage. The
-    // visible material never reaches a shadow pass (it does not cast), so both
-    // materials can share this one branch.
+    // The fetch runs in the shadow passes too - but only for a STYLED twin.
+    // Qt binds custom TextureInput samplers in the shadow passes only for an
+    // OpaquePrePass renderable (addOpaqueDepthPrePassBindings maps every
+    // custom property texture for the vertex AND the fragment stage); a fast
+    // twin (shapedShadows: false, AlwaysDepthDraw) has nothing bound there, so
+    // styledShadow gates the read to keep it off the unbound sampler. Outside
+    // the shadow passes the table is always bound and the gate is constant
+    // true. The visible material never reaches a shadow pass (it does not
+    // cast).
+#if QSSG_ENABLE_ORTHO_SHADOW_PASS || QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
+    bool headFetch = styledShadow > 0.5;
+#else
+    bool headFetch = true;
+#endif
     float styleCol = (INSTANCE_DATA.y + 0.5) / max(styleCount, 1.0);
-    vec4 headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
+    vec4 headRow = vec4(0.0);
+    if (headFetch)
+        headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
     float headWidM = headRow.a;   // requested head base width (shaft-width mult)
     float headLenM = headRow.b;   // requested head length (shaft-width mult)
     bool headActive = (headWidM > 0.0) && (capFlagsI == 3);

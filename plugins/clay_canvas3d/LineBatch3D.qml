@@ -201,8 +201,26 @@ Model {
 
         Leave it off for lines that should read as paint on a surface (lane
         markings, route overlays) and turn it on where the line is a thing in
-        the world that ought to be grounded like the meshes around it.
+        the world that ought to be grounded like the meshes around it. If the
+        pre-pass cost is unwanted, \l shapedShadows: false keeps the shadow but
+        drops the requirement.
     */
+
+    /*!
+        \qmlproperty bool LineBatch3D::shapedShadows
+        \brief Carved (default) versus cheap rectangular shadows.
+
+        Only relevant while \l castsShadows is active. When true, the shadow is
+        carved to the line's drawn shape - dash gaps, glyphs, cap shapes and
+        arrowheads all cut it - which requires the caster to be an OpaquePrePass
+        object and thereby switches the whole View3D to a depth pre-pass (see
+        \l castsShadows for what that implies). When false, the batch casts
+        plain uncut ribbon rectangles: no fragment work and no style fetches in
+        the shadow pass, and no layer-wide pre-pass forced by this batch. Flip
+        it off when profiling shows the pre-pass hurting and bar shadows are
+        acceptable - a solid line loses nothing but its cap shape.
+    */
+    property bool shapedShadows: true
 
     /*!
         \qmlproperty int LineBatch3D::count
@@ -490,8 +508,9 @@ Model {
                 // round caps would occlude the scene behind them as if they
                 // were solid. Matching the twin's mode keeps the snippet, so
                 // the pre-pass depth is carved exactly like the drawn line.
-                depthDrawMode: root._castsShadow ? Material.OpaquePrePassDepthDraw
-                                                 : Material.AlwaysDepthDraw
+                depthDrawMode: (root._castsShadow && root.shapedShadows)
+                               ? Material.OpaquePrePassDepthDraw
+                               : Material.AlwaysDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real widthMode: root.widthUnits
                 property real orientationMode: root.orientation
@@ -500,6 +519,8 @@ Model {
                 property real flowTime: root.flowTime
                 // This is the visible material, never the shadow twin.
                 property real shadowOnly: 0.0
+                // The visible pass always has the style table bound.
+                property real styledShadow: 1.0
                 // 1.0 in opaque mode enables the deterministic per-instance depth
                 // tie-break in the vertex shader; 0.0 disables it when blending.
                 property real depthJitter: root.opaque ? 1.0 : 0.0
@@ -560,8 +581,11 @@ Model {
                 // the arrowhead size, the fragment shader carves caps, dash
                 // gaps, glyphs and the head. With AlwaysDepthDraw the shadow
                 // pass ignores the snippet and binds no textures, and the
-                // shadow degenerates to the raw ribbon quad.
-                depthDrawMode: Material.OpaquePrePassDepthDraw
+                // shadow is the raw ribbon quad - which is exactly what
+                // shapedShadows: false asks for: cheap bar shadows without
+                // forcing the layer-wide depth pre-pass.
+                depthDrawMode: root.shapedShadows ? Material.OpaquePrePassDepthDraw
+                                                  : Material.AlwaysDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real widthMode: root.widthUnits
                 property real orientationMode: root.orientation
@@ -569,6 +593,10 @@ Model {
                 property real flowTime: root.flowTime
                 property real depthJitter: 0.0
                 property real shadowOnly: 1.0
+                // Gates the vertex-stage style fetch in the shadow passes: a
+                // fast (AlwaysDepthDraw) twin has no style table bound there
+                // and must not read the sampler.
+                property real styledShadow: root.shapedShadows ? 1.0 : 0.0
                 property real styleCount: _shadowStyleData.styleCount
                 // Sampled in the shadow pass by both stages - see the
                 // depthDrawMode comment above for why that is bound at all.
