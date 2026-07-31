@@ -457,6 +457,20 @@ void LineBatchInstancing::updateBounds()
     const QVector3D margin(maxWidth, maxWidth, maxWidth);
     m_boundsMin = mn - margin;
     m_boundsMax = mx + margin;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    // Shadow-casting bounds. Without these, Qt derives an instanced caster's
+    // bounds by pushing the GEOMETRY bounds through every instance transform -
+    // and our base-quad geometry deliberately reports the whole batch extent
+    // (world coordinates) for culling, so each segment's axis-scaled transform
+    // turns that box into garbage thousands of units off. The shadow camera is
+    // fitted laterally to the casting box, so the garbage made its frustum
+    // slice straight through the ribbons and their shadows ended at a hard
+    // diagonal line. These explicit bounds bypass the per-instance transform
+    // entirely; they are world-space, matching the batch's point contract.
+    setShadowBoundsMinimum(m_boundsMin);
+    setShadowBoundsMaximum(m_boundsMax);
+#endif
     emit boundsChanged();
 }
 
