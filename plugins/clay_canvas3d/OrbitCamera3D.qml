@@ -17,6 +17,14 @@ import QtQuick3D
     focused object, while a height floor pushes the rig outward as the angle
     flattens and can never end up under the ground.
 
+    \note Move the rig with \l orbitBy, \l zoomBy, \l setDistance and \l frame
+    rather than by writing \l distance and calling \l clamp. A rig is often
+    given a \c {Behavior on distance} to ease its zoom, and a Behavior defers
+    the write: the property still reports the old value on the next line, so
+    a write-then-clamp reads back what was there before and silently cancels
+    the move. The methods here compute the limited value first and write it
+    once, which is correct either way.
+
     Example usage:
     \qml
     import Clayground.Canvas3D
@@ -78,38 +86,64 @@ Node {
     /*! \qmlproperty PerspectiveCamera OrbitCamera3D::camera \readonly */
     readonly property alias camera: _cam
 
+    // The limits as pure functions: they RETURN the allowed value instead of
+    // writing it. Everything below computes first and writes once, because a
+    // Behavior on distance defers the write - a mutator that wrote and then
+    // read back would clamp against the old value and cancel its own change.
+    function _fitPitch(p) {
+        return Math.max(minPitch, Math.min(maxPitch, p))
+    }
+
+    function _fitDistance(d, p) {
+        d = Math.max(minDistance, Math.min(maxDistance, d))
+        if (minHeight > 0) {
+            const sinP = Math.sin(p * Math.PI / 180)
+            if (d * sinP < minHeight)
+                d = Math.min(maxDistance, minHeight / Math.max(0.08, sinP))
+        }
+        return d
+    }
+
     /*!
         \qmlmethod void OrbitCamera3D::orbitBy(real dYaw, real dPitch)
         \brief Turns the rig, then re-applies the leash.
     */
     function orbitBy(dYaw, dPitch) {
         yaw += dYaw
-        pitch += dPitch
-        clamp()
+        const p = _fitPitch(pitch + dPitch)
+        pitch = p
+        distance = _fitDistance(distance, p)
     }
 
     /*!
         \qmlmethod void OrbitCamera3D::zoomBy(real factor)
         \brief Multiplies the distance (0.9 zooms in, 1.1 out).
     */
-    function zoomBy(factor) {
-        distance *= factor
-        clamp()
+    function zoomBy(factor) { setDistance(distance * factor) }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::setDistance(real d)
+        \brief Moves to \a d with the leash applied - the safe way to set it.
+
+        Prefer this over writing \l distance directly: it limits the value
+        before the single write, so it stays correct on a rig that animates
+        its distance.
+    */
+    function setDistance(d) {
+        const p = _fitPitch(pitch)
+        pitch = p
+        distance = _fitDistance(d, p)
     }
 
     /*!
         \qmlmethod void OrbitCamera3D::clamp()
-        \brief Applies the pitch/distance limits and the minimum-height rule.
+        \brief Re-applies the limits to the pose the rig is in right now.
+
+        For after a \e limit changes (a new \l maxDistance, a tighter
+        \l minHeight). It is not the way to apply a pose - see the note on
+        \l setDistance.
     */
-    function clamp() {
-        pitch = Math.max(minPitch, Math.min(maxPitch, pitch))
-        distance = Math.max(minDistance, Math.min(maxDistance, distance))
-        if (minHeight > 0) {
-            const sinP = Math.sin(pitch * Math.PI / 180)
-            if (distance * sinP < minHeight)
-                distance = Math.min(maxDistance, minHeight / Math.max(0.08, sinP))
-        }
-    }
+    function clamp() { setDistance(distance) }
 
     /*!
         \qmlmethod void OrbitCamera3D::frame(var points, real pad)
@@ -132,9 +166,7 @@ Node {
         pivot = Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
         var radius = Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2
         var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
-        distance = Math.max(minDistance,
-                            (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad))
-        clamp()
+        setDistance((radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad))
     }
 
     /*!
@@ -154,9 +186,9 @@ Node {
         if (!s) return
         if (s.px !== undefined) pivot = Qt.vector3d(s.px, s.py, s.pz)
         if (s.yaw !== undefined) yaw = s.yaw
-        if (s.pitch !== undefined) pitch = s.pitch
-        if (s.distance !== undefined) distance = s.distance
-        clamp()
+        const p = _fitPitch(s.pitch !== undefined ? s.pitch : pitch)
+        pitch = p
+        distance = _fitDistance(s.distance !== undefined ? s.distance : distance, p)
     }
 
     position: {

@@ -47,13 +47,22 @@ function(clay_add_qml_test NAME)
     endif()
     string(REPLACE ";" ":" _imports_env "${_imports}")
 
-    # Register with CTest
+    # One -import per directory; qmltestrunner takes the flag repeatedly rather
+    # than a joined path.
+    set(_import_args)
+    foreach(_dir IN LISTS _imports)
+        list(APPEND _import_args -import ${_dir})
+    endforeach()
+
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/test-results)
+
+    # Register with CTest. QTest spells the report "-o <file>,<format>".
     add_test(NAME qml_${NAME}
         COMMAND ${QMLTESTRUNNER_EXECUTABLE}
                 -input ${T_DIRECTORY}
-                -import ${_imports_env}
-                -o junitxml
-                -output ${CMAKE_BINARY_DIR}/test-results/${NAME}.xml
+                ${_import_args}
+                -o ${CMAKE_BINARY_DIR}/test-results/${NAME}.xml,junitxml
+                -o -,txt
     )
 
     # Run headless, with software backend for stability

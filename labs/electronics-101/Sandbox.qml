@@ -328,8 +328,7 @@ Item {
     function frameCells(cells) {
         if (!cells || !cells.length) {
             rig.pivot = Qt.vector3d(0, 2, 0)
-            rig.distance = rig.maxDistance
-            rig.clamp()
+            rig.setDistance(rig.maxDistance)
             return
         }
         // a single part is a point; give the frame some extent so the camera

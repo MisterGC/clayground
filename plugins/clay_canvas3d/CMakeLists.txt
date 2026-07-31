@@ -83,3 +83,8 @@ clay_plugin( Canvas3D
 # TODO: Make this an option of the clay_plugin macro, so that
 # we don't have to always write this explicitly
 target_include_directories(ClayCanvas3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Pure-QML checks on the types that carry logic. The suite imports the sources
+# by directory rather than the built module, so it needs no compiled plugin.
+include(claytest)
+clay_add_qml_test(canvas3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)

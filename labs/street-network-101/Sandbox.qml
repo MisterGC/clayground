@@ -517,8 +517,7 @@ Item {
     function framePoints(pts) {
         if (!pts || !pts.length) {
             rig.pivot = Qt.vector3d(0, 0, 0)
-            rig.distance = 210
-            rig.clamp()
+            rig.setDistance(210)
             return
         }
         rig.frame(pts, 1.12)
