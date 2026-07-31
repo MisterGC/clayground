@@ -71,23 +71,17 @@ void MAIN()
     // as raw line-width multiples straight from the style). Heads are a
     // single-segment feature (capFlags == 3), so a widened quad only appears
     // where it is a real end.
-#if QSSG_ENABLE_ORTHO_SHADOW_PASS || QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
-    // Shadow pass: no style-table fetch. Qt binds only the uniform buffer for
-    // custom materials in the shadow map render - TextureInput samplers are
-    // NOT bound there, so this fetch would read an unbound sampler and the
-    // garbage would widen the quad via the arrowhead path (every single
-    // segment has capFlags == 3), shredding the shadow silhouette. The twin
-    // casts the plain shaft; arrowheads simply widen no quad here.
-    float headWidM = 0.0;
-    float headLenM = 0.0;
-    bool headActive = false;
-#else
+    // The fetch runs in the shadow passes too. Qt binds custom TextureInput
+    // samplers there only for an OpaquePrePass renderable, which the shadow
+    // twin is: addOpaqueDepthPrePassBindings maps every custom property
+    // texture of a custom material for the vertex AND the fragment stage. The
+    // visible material never reaches a shadow pass (it does not cast), so both
+    // materials can share this one branch.
     float styleCol = (INSTANCE_DATA.y + 0.5) / max(styleCount, 1.0);
     vec4 headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
     float headWidM = headRow.a;   // requested head base width (shaft-width mult)
     float headLenM = headRow.b;   // requested head length (shaft-width mult)
     bool headActive = (headWidM > 0.0) && (capFlagsI == 3);
-#endif
 
     // Resolve arrowhead proportions - the geometry model. The head is a clean
     // triangle: its base is clamped to a real shoulder (>= 1.5x the shaft) and

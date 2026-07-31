@@ -178,16 +178,30 @@ Model {
         light rather than the one on screen. A flat ribbon is view-independent,
         so its silhouette is well defined from anywhere.
 
-        Enabling it adds one instanced draw in the shadow pass, which is why it
-        is opt-in. Leave it off for lines that should read as paint on a surface
-        (lane markings, route overlays) and turn it on where the line is a thing
-        in the world that ought to be grounded like the meshes around it.
+        The shadow is the line's own shape, not a bar in its place: dash gaps,
+        dot / chevron / triangle glyphs, square versus round caps and
+        arrowheads all cut it, and a flowing pattern's shadow flows with it.
+        Edges are hard - a shadow map stores depth, not coverage - so a style's
+        \c glow, \c pulse and \c opacity do not soften or fade it, and neither
+        does a line's own colour alpha: the silhouette is purely geometric. The
+        one view-dependent case is \c{patternUnits: "screen"}, whose period has
+        no world size; its shadow resolves the period against the light instead
+        of the camera and so does not track the drawn pattern.
 
-        \note Dash gaps, glyph patterns, arrowheads and cap shapes do not cut
-        the shadow - a dashed line casts a continuous one. The silhouette is
-        the plain ribbon quad (body plus a small overhang at free ends): the
-        shadow passes never run the material's fragment stage, so no
-        per-fragment shaping is possible there.
+        Enabling it costs more than the one extra instanced draw in the shadow
+        pass, which is why it is opt-in: the caster is an \c OpaquePrePass
+        object, and a single one of those switches the enclosing View3D to a
+        depth pre-pass for every object in it. That is usually a wash (it is
+        the standard early-z optimisation), but any OTHER custom material in
+        the same View3D that carves its fragments and does not itself use
+        \c Material.OpaquePrePassDepthDraw will lay down uncarved depth in that
+        pre-pass and occlude the scene through its own cut-outs. Batches handle
+        themselves; a hand-written CustomMaterial sharing the view may need the
+        same depth draw mode.
+
+        Leave it off for lines that should read as paint on a surface (lane
+        markings, route overlays) and turn it on where the line is a thing in
+        the world that ought to be grounded like the meshes around it.
     */
 
     /*!
@@ -462,7 +476,22 @@ Model {
                 // fragments (lower overdraw). Cap/dash cutouts still discard.
                 sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
                 destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
-                depthDrawMode: Material.AlwaysDepthDraw
+                // Normally AlwaysDepthDraw: the lines write depth in their own
+                // pass and occlude what is behind them.
+                //
+                // While the batch casts, the twin below is OpaquePrePass, and
+                // ONE such object anywhere in a View3D switches that whole
+                // layer to a depth pre-pass (QSSGLayerRenderData: an
+                // OpaquePrePass renderable sets zPrePassForced). In that
+                // pre-pass Qt skips a custom material's fragment snippet -
+                // unless the material is itself OpaquePrePass. An
+                // AlwaysDepthDraw batch would therefore lay down the depth of
+                // its full, uncarved quads: dash gaps and the corners outside
+                // round caps would occlude the scene behind them as if they
+                // were solid. Matching the twin's mode keeps the snippet, so
+                // the pre-pass depth is carved exactly like the drawn line.
+                depthDrawMode: root._castsShadow ? Material.OpaquePrePassDepthDraw
+                                                 : Material.AlwaysDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real widthMode: root.widthUnits
                 property real orientationMode: root.orientation
@@ -498,11 +527,12 @@ Model {
     // cannot do that job - Unshaded custom materials DO run in the shadow
     // pass, but Qt's shader generator skips the pass's depth output for them,
     // so their fragment colour lands in the map as garbage depth. The twin is
-    // Shaded, which makes Qt generate the proper shadow-pass fragment (the
-    // twin's own fragment snippet is never called in that pass). It shares
-    // line_batch.vert, so its ribbons are expanded by identical maths and the
-    // shadow cannot drift from the line; outside the shadow passes the vertex
-    // shader collapses it to a clipped point.
+    // Shaded AND OpaquePrePass, which together make Qt generate a shadow-pass
+    // fragment that calls the twin's own snippet and binds its style texture,
+    // so the shadow is carved to the line's shape (see the material below). It
+    // shares line_batch.vert, so its ribbons are expanded by identical maths
+    // and the shadow cannot drift from the line; outside the shadow passes the
+    // vertex shader collapses it to a clipped point.
     //
     // It exists only while it is wanted: no opt-in, no second draw.
     Model {
@@ -518,7 +548,20 @@ Model {
                 cullMode: Material.NoCulling
                 // The shadow map IS a depth buffer, so this must be allowed to
                 // write depth - it simply never reaches the colour pass.
-                depthDrawMode: Material.AlwaysDepthDraw
+                //
+                // OpaquePrePass rather than AlwaysDepthDraw, and that choice is
+                // what makes a carved shadow possible at all. Qt's shader
+                // generator gives an OpaquePrePass renderable a real base
+                // colour in the shadow passes (the alpha-tested-foliage
+                // mechanism), which means the generated shadow fragment calls
+                // this material's MAIN, and rhiPrepareResourcesForShadowMap
+                // binds its custom TextureInputs - styleTable - for the vertex
+                // and fragment stage. Both are needed: the vertex shader reads
+                // the arrowhead size, the fragment shader carves caps, dash
+                // gaps, glyphs and the head. With AlwaysDepthDraw the shadow
+                // pass ignores the snippet and binds no textures, and the
+                // shadow degenerates to the raw ribbon quad.
+                depthDrawMode: Material.OpaquePrePassDepthDraw
                 property vector2d viewportSize: root.viewportSize
                 property real widthMode: root.widthUnits
                 property real orientationMode: root.orientation
@@ -527,10 +570,8 @@ Model {
                 property real depthJitter: 0.0
                 property real shadowOnly: 1.0
                 property real styleCount: _shadowStyleData.styleCount
-                // Never sampled in the shadow pass (Qt binds no custom textures
-                // there, so the shaders avoid it - see line_batch.vert). The
-                // declaration must still exist because the shared vertex source
-                // references the sampler in its non-shadow branch.
+                // Sampled in the shadow pass by both stages - see the
+                // depthDrawMode comment above for why that is bound at all.
                 property TextureInput styleTable: TextureInput {
                     texture: Texture {
                         minFilter: Texture.Nearest
