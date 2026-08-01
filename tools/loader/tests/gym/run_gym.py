@@ -230,6 +230,61 @@ def run(insp, sandbox_dir, attended):
               px is not None and abs(px - 10) < 0.6 and score == 0,
               f"player.xWu={px} score={score}")
 
+    # -- 6b: a broken save must not take the scene down (#170) -----------
+    # The exact situation from the issue: a file is saved mid-edit while an
+    # import is still missing. That is an ordinary two-second window, and it
+    # used to end the session. It must now be a no-op with an error report.
+    if attended:
+        print("SKIP  reload-survives-error (attended mode leaves your files alone)")
+    else:
+        def try_request(payload, timeout=8.0):
+            try:
+                return insp.request(payload, timeout)
+            except TimeoutError:
+                return None
+
+        sbx = os.path.join(sandbox_dir, "Sandbox.qml")
+        with open(sbx) as f:
+            good = f.read()
+
+        # Mark the live root. A runtime-set value cannot survive a real
+        # reload, so reading it back later proves it is the *same* root.
+        insp.eval(["gym.score = 77"])
+        marker = insp.eval1("gym.score")
+        check("reload_survives_error: marker set on live root", marker == 77,
+              f"gym.score={marker}")
+
+        with open(sbx, "w") as f:
+            f.write(good.replace("import Clayground.World",
+                                 "import Clayground.World\n"
+                                 "import Clayground.NotAModuleYet", 1))
+        ok = insp.wait_phase("load_error", timeout=15)
+        check("reload_survives_error: phase load_error", ok,
+              f"phase={insp.state().get('phase')}")
+
+        # (a) still alive, and the *previous* root is still the one on screen
+        resp = try_request({"action": "eval", "eval": ["gym.score"]})
+        check("reload_survives_error: loader still answering", resp is not None)
+        still = (resp or {}).get("eval", {}).get("gym.score")
+        check("reload_survives_error: previous root still live",
+              still == 77, f"gym.score={still} (expected 77)")
+
+        # (b) the failure is reported, not swallowed
+        snap = try_request({"action": "snapshot"}) or {}
+        errs = " ".join(snap.get("errors", []))
+        check("reload_survives_error: error reported",
+              "NotAModuleYet" in errs,
+              f"errors={snap.get('errors', [])[-2:]}")
+
+        # (c) the next save recovers - no relaunch, no re-navigation
+        with open(sbx, "w") as f:
+            f.write(good)
+        ok = insp.wait_phase("ready", timeout=20)
+        after = insp.eval1("gym.score") if ok else None
+        check("reload_survives_error: next save recovers the scene",
+              ok and after == 0,
+              f"phase={insp.state().get('phase')} gym.score={after}")
+
     # -- 7: auto-flag on runtime error -----------------------------------
     for f in glob.glob(os.path.join(insp.dir, "autoflag_*")):
         os.remove(f)

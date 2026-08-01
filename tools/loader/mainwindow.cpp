@@ -75,32 +75,17 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     m_inputCtrl = new ClayInputControl(this);
 
     // Setup engine context
-    auto* context = m_container->rootContext();
-    if (context) {
-        context->setContextProperty("ClayLiveLoader", m_liveLoader);
-        context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
-        context->setContextProperty("ClayInputCtrl", m_inputCtrl);
-    }
+    configureEngine(m_container->engine());
 
-    // Connect engine recreation
+    // A reload's candidate engine has to be fully wired before it parses the
+    // sandbox — and it gets this treatment whether or not it ever becomes the
+    // current engine.
+    connect(m_container, &HotReloadContainer::engineAboutToLoad,
+            this, &MainWindow::configureEngine);
+
+    // A candidate that made it: rebuild the overlays on the engine that is
+    // now current. Context properties were already installed above.
     connect(m_container, &HotReloadContainer::engineCreated, [this]() {
-        auto* context = m_container->rootContext();
-        if (context) {
-            context->setContextProperty("ClayLiveLoader", m_liveLoader);
-            context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
-            context->setContextProperty("ClayInputCtrl", m_inputCtrl);
-        }
-        
-        // Add import paths
-        auto* engine = m_container->engine();
-        if (engine) {
-            QString sandboxDir = m_liveLoader->sandboxDir();
-            if (!sandboxDir.isEmpty()) {
-                engine->addImportPath(sandboxDir);
-            }
-        }
-        
-        // Recreate overlays after engine is fully set up
         QTimer::singleShot(200, this, [this]() {
             createOverlays();
         });
@@ -203,6 +188,24 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     if (m_traceIndicator && m_traceIndicator->isVisible()) {
         m_traceIndicator->move(width() - m_traceIndicator->width() - 10, 10);
     }
+}
+
+void MainWindow::configureEngine(QQmlEngine* engine)
+{
+    if (!engine)
+        return;
+
+    auto* context = engine->rootContext();
+    if (context) {
+        context->setContextProperty("ClayLiveLoader", m_liveLoader);
+        context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
+        context->setContextProperty("ClayInputCtrl", m_inputCtrl);
+    }
+
+    engine->addImportPath("qml");
+    QString sandboxDir = m_liveLoader->sandboxDir();
+    if (!sandboxDir.isEmpty())
+        engine->addImportPath(sandboxDir);
 }
 
 void MainWindow::onSandboxUrlChanged()
