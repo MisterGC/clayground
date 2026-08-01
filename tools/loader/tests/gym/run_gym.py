@@ -148,6 +148,91 @@ def run(insp, sandbox_dir, attended):
             return False
     check("log.jsonl: eval marker streamed", wait_for(marker_logged, 5))
 
+    # -- 2c: batch --------------------------------------------------------
+    # Several steps per round trip. A step is a whole request - it carries its
+    # own "action" - so anything that works standalone works as a step.
+    b = insp.request({"action": "batch", "steps": [
+        {"action": "eval", "eval": ["gym.score = 5"]},
+        {"action": "eval", "eval": ["gym.score"]},
+        {"action": "time", "paused": True},
+        {"action": "time", "paused": False},
+    ]})
+    bs = b.get("steps", [])
+    check("batch: one result per step", len(bs) == 4 and b.get("stepsRun") == 4,
+          f"{len(bs)} results, stepsRun={b.get('stepsRun')}")
+    check("batch: no failure on a clean run",
+          "error" not in b and "failedStep" not in b, f"error={b.get('error')}")
+    if len(bs) == 4:
+        check("batch: step results are the plain per-action responses",
+              bs[1].get("eval", {}).get("gym.score") == 5,
+              f"step1={bs[1].get('eval')}")
+        check("batch: steps ran in order (pause then resume)",
+              bs[2].get("paused") is True and bs[3].get("paused") is False,
+              f"{bs[2].get('paused')} -> {bs[3].get('paused')}")
+        check("batch: envelope once for the batch, generation per step",
+              isinstance(b.get("status"), dict)
+              and all(isinstance(s.get("generation"), int) for s in bs)
+              and all(s.get("action") for s in bs),
+              f"generations={[s.get('generation') for s in bs]}")
+
+    # A batch that silently continued past a failure would be worse than no
+    # batch at all: the third step must not have run.
+    bf = insp.request({"action": "batch", "steps": [
+        {"action": "eval", "eval": ["gym.score = 1"]},
+        {"action": "no_such_action"},
+        {"action": "eval", "eval": ["gym.score = 99"]},
+    ]})
+    check("batch: stops at the first failing step",
+          bf.get("failedStep") == 1 and len(bf.get("steps", [])) == 2,
+          f"failedStep={bf.get('failedStep')} results={len(bf.get('steps', []))}")
+    check("batch: failure also surfaces as a plain top-level error",
+          "step 1" in bf.get("error", "")
+          and "Unknown action" in bf.get("error", ""), f"error={bf.get('error')}")
+    check("batch: nothing after the failing step ran",
+          insp.eval1("gym.score") == 1, f"gym.score={insp.eval1('gym.score')}")
+
+    bn = insp.request({"action": "batch",
+                       "steps": [{"input": {"key": {"key": "V"}}}]})
+    check("batch: a step without an action fails instead of silently "
+          "snapshotting",
+          bn.get("failedStep") == 0
+          and "action" in bn.get("steps", [{}])[0].get("error", ""),
+          f"error={bn.get('error')}")
+
+    # -- 2d: the canonical batch -----------------------------------------
+    # "toggle a mode, capture, toggle back, capture" - five tool calls before,
+    # one now. Asserted on the mode the captures actually saw.
+    tog = insp.request({"action": "batch", "steps": [
+        {"action": "input", "key": {"key": "V"}},
+        {"action": "snapshot", "screenshot": True},
+        {"action": "input", "key": {"key": "V"}},
+        {"action": "snapshot", "screenshot": True},
+    ]}, timeout=25)
+    ts = tog.get("steps", [])
+    on = ts[1].get("rootProperties", {}).get("debugMode") if len(ts) == 4 else None
+    off = ts[3].get("rootProperties", {}).get("debugMode") if len(ts) == 4 else None
+    check("batch: toggle, capture, toggle back, capture in one round trip",
+          len(ts) == 4 and on is True and off is False,
+          f"steps={len(ts)} debugMode {on} -> {off} error={tog.get('error')}")
+
+    # The recipe the skill hands out. It puts a blocking step (waitForRoot)
+    # and a reload in the middle of a batch - which is exactly where an
+    # interleaved second request would show up.
+    rb = insp.request({"action": "batch", "steps": [
+        {"action": "reload", "scenario": "near-coin"},
+        {"action": "waitForRoot", "timeoutMs": 8000},
+        {"action": "snapshot", "eval": ["player.xWu"]},
+    ]}, timeout=25)
+    rs = rb.get("steps", [])
+    rpx = rs[2].get("eval", {}).get("player.xWu") if len(rs) == 3 else None
+    check("batch: reload + waitForRoot + snapshot in one round trip",
+          len(rs) == 3 and rs[1].get("ready") is True
+          and rpx is not None and abs(rpx - 10) < 0.6,
+          f"steps={len(rs)} player.xWu={rpx} error={rb.get('error')}")
+    check("batch: a mid-batch reload shows up in the per-step generations",
+          len(rs) == 3 and rs[2]["generation"] > rs[0]["generation"],
+          f"generations={[s.get('generation') for s in rs]}")
+
     # -- 3: scenario via reload + rearm ----------------------------------
     gen_before = insp.request({"action": "eval"}).get("status", {}).get("generation")
     insp.request({"action": "reload", "scenario": "near-coin", "rearm": True})

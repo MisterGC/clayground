@@ -88,6 +88,12 @@ else.
 {"id": "req-42", "action": "snapshot"}
 ```
 
+**One request at a time.** Wait for your reply before writing the next
+request: a request written while another is in flight is dropped (the
+reply you do get then says `reentrantDropped`), because both would be
+answered into the same file. When you want several things done without
+waiting in between, that is exactly what `batch` is for.
+
 ## The status envelope
 
 The envelope is on every response whatever the action, and it is what you
@@ -190,22 +196,58 @@ way — a layer that "passed" against a dead or pre-edit scene is worse
 than no verification at all.
 
 1. **Static analysis (always):** `qmllint <file> -I build/qml`.
-2. **Load check:** `{"id": "...", "action": "waitForRoot", "timeoutMs": 5000}`
-   — blocks until the next load resolves (or returns immediately if the
-   phase is already terminal); the response carries `phase`, and `status`
-   tells you whether `generation` advanced. On `load_error`, fix the
-   errors (`errors` action) before anything else — the running scene is
-   still the pre-edit one, so any check you run now measures the wrong
-   thing.
-3. **State verification:** `snapshot` — check `errors`, `warnings`, then
-   verify your change via `eval` / `rootProperties` / `flagInfo`.
-4. **Entity search:** `eval` with `canvas.find()` (below).
-5. **Behavior verification:** `trace` with a `stopWhen` condition.
-6. **Live patching:** `eval` imperative changes on the running scene to
+2. **Load + state check (one batch):** wait for the load to resolve and
+   read the result in the same round trip.
+   ```json
+   {"id": "v1", "action": "batch", "steps": [
+     {"action": "waitForRoot", "timeoutMs": 5000},
+     {"action": "snapshot", "eval": ["player.health"]}
+   ]}
+   ```
+   `steps[0]` carries `phase`; on `load_error` the batch still returns
+   and `steps[1]`'s `errors` tell you what broke — fix that before
+   anything else, since the running scene is still the pre-edit one and
+   any further check measures the wrong thing. Confirm
+   `status.generation` advanced, and read each step's `generation` to be
+   sure no reload landed between them.
+3. **Entity search:** `eval` with `canvas.find()` (below).
+4. **Behavior verification:** `trace` with a `stopWhen` condition.
+5. **Live patching:** `eval` imperative changes on the running scene to
    confirm a fix hypothesis before editing source (changes are lost on
    reload; you cannot create new bindings or signal handlers this way).
-7. **Visual verification (last resort):** `snapshot` with
+6. **Visual verification (last resort):** `snapshot` with
    `"screenshot": true`, then Read the PNG.
+
+**Two batches worth memorizing.** Check a toggle — the same shape
+captures one view in both themes, both light states, both camera modes:
+
+```json
+{"id": "b1", "action": "batch", "steps": [
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true},
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true}
+]}
+```
+
+`steps[1]` and `steps[3]` are full snapshot results — compare their
+`rootProperties` to see the mode actually flipped, and only Read a PNG
+if the numbers leave a question. Both captures write the same
+`screenshot.png`, so only the last image survives; the per-step results
+are the evidence, the image is a look.
+
+And the deterministic measurement — freeze, read, advance an exact
+number of physics frames, read again, with no wall-clock between the
+steps:
+
+```json
+{"id": "b2", "action": "batch", "steps": [
+  {"action": "time", "paused": true},
+  {"action": "eval", "eval": ["enemy.xWu"]},
+  {"action": "time", "step": 30},
+  {"action": "eval", "eval": ["enemy.xWu"]}
+]}
+```
 
 ## Actions reference
 
@@ -367,6 +409,37 @@ gameplay verification: start the trace, drive the game, assert
 Default `timeoutMs` 3000. Use it instead of sleep/poll loops after any
 reload or when attaching during startup.
 
+### batch — several steps in one round trip
+
+```json
+{"id": "b1", "action": "batch", "steps": [
+  {"action": "reload", "scenario": "boss-fight"},
+  {"action": "waitForRoot", "timeoutMs": 8000},
+  {"action": "snapshot", "eval": ["boss.health"]}
+]}
+```
+
+A step *is* a request — same keys, same handler, nothing new to learn.
+The one difference: a step must spell out its `action`. There is no
+`snapshot` default inside a batch, so a step written as
+`{"input": {...}}` fails loudly instead of quietly taking a picture.
+
+Returns `steps` (one result per step, in order, each with the `action`
+it ran and the `generation` it ran at), `stepsRun` and `stepsTotal`. The
+`status` envelope comes once for the whole batch — the per-step
+`generation` is how you see a reload landing mid-batch instead of
+silently measuring a different scene from step to step.
+
+**It stops at the first failing step**, reporting `failedStep` (the
+index) and an `error` reading `batch: step 1 failed: …`; `steps` ends
+there and nothing after it ran. So check `error` on the batch, then
+`failedStep` to know how far you got.
+
+Batches do not nest, and 32 steps is the ceiling. A `trace` step may
+start or stop a trace but a batch never waits for one — a trace answers
+later, from its own timer; start it in a batch, then wait for the
+completion response as usual.
+
 ### canvas.find() — spatial/conditional search (via eval)
 
 Filter object (all optional, AND-combined):
@@ -401,7 +474,8 @@ human's channel — don't write into it.
 Sibling of `flagInfo()`: the root may define `scenarios()` (name list,
 surfaced in snapshots) and `applyScenario(name)` (imperative setup of a
 named situation). Recommend adding these to any sandbox you iterate on —
-combined with `reload` + `rearm` they eliminate replay-from-the-start.
+combined with `reload` + `rearm` they eliminate replay-from-the-start,
+and `reload` + `waitForRoot` + `snapshot` is one batch.
 Assign entity positions imperatively inside `applyScenario`: initial QML
 property values do not fire change handlers, so `PhysicsItem`
 coordinates only sync on post-creation writes.
@@ -478,7 +552,7 @@ Pick expressions that verify the **effect** of your change:
 | Change | Expressions |
 |--------|------------|
 | Added enemies | `canvas.find({type: 'Enemy*'}).length` |
-| Changed movement | `player.xWu` (snapshot, wait, snapshot) |
+| Changed movement | `player.xWu` read either side of a `time` `step` in one batch |
 | Fixed pathfinding | `pathfinder.findPath(start, end).length > 0` |
 | Nearby entities | `canvas.find({near: {objectName: 'player', radius: 15}})` |
 

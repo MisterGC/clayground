@@ -28,6 +28,8 @@ The `.clay/` directory is created automatically in the directory where the sandb
 
 **Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 3) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
 
+**One request at a time:** wait for your reply before writing the next request. Blocking actions (`waitForRoot`, a settling capture, a `batch`) spin the event loop, so a request written while one is in flight would be answered into the same `response.json` and lost; the loader drops it instead and reports `reentrantDropped` on the response it does send. Use `batch` when you want several things done without waiting in between.
+
 **Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default. `dojo.json` stays at `<sandbox-dir>/.clay/inspect/dojo.json` in every case — there is one supervisor per sandbox dir, whatever the instance layout.
 
 ## The status envelope
@@ -224,6 +226,39 @@ Three channels, combinable in one request:
   world units (`xWu`/`yWu`, canvas apps — resolved via
   `canvas.worldToScene()`, clean error otherwise), or `objectName`
   (resolves the item's center; nicest for Controls-style UIs).
+
+### batch — several steps in one round trip
+
+```json
+{"action": "batch", "steps": [
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true},
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true}
+]}
+```
+
+A step *is* a request — same keys, same handler, nothing new to learn. Anything
+that works standalone works as a step, with one difference: a step must spell
+out its `action`. There is no `snapshot` default inside a batch, so a step
+written as `{"input": {...}}` fails loudly instead of quietly taking a picture.
+
+Returns `steps` — one result per step, in the same order, each carrying the
+action it ran and the `generation` it ran at — plus `stepsRun` and
+`stepsTotal`. The `status` envelope is attached once, for the whole batch; the
+per-step `generation` is what makes a reload landing mid-batch visible instead
+of silently changing what the later steps measured.
+
+**A batch stops at the first failing step.** The response then carries
+`failedStep` (the index) and an `error` reading `batch: step 1 failed: …`, and
+`steps` ends there — nothing after it ran. Continuing past a failure would be
+worse than not batching at all.
+
+Batches do not nest, and 32 steps is the ceiling: a batch runs synchronously
+inside one file-watch callback. A `trace` step may start or stop a trace, but a
+batch never waits for one — a trace answers later, from its own timer, as its
+own response. Trace sampling is suspended for the duration of a batch so that
+completion cannot land in the middle and overwrite the batch's own reply.
 
 ## Scenario Checkpoints
 

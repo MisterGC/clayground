@@ -80,6 +80,26 @@ ClayWorld2d {
         onTriggered: gym._thisFunctionDoesNotExist()
     }
 
+    // A mode that survives the key release, which is what "toggle a mode,
+    // capture, toggle back, capture" needs: a momentary controller button
+    // would be back to false by the time the capture happens.
+    property bool debugMode: false
+
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_V) {
+            gym.debugMode = !gym.debugMode;
+            event.accepted = true;
+        }
+    }
+
+    Rectangle {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        width: 60; height: 60
+        color: "#0f9d9a"
+        visible: gym.debugMode
+    }
+
     Keys.forwardTo: ctrl
     GameController {
         id: ctrl

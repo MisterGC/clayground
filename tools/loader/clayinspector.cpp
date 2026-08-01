@@ -419,13 +419,9 @@ void ClayInspector::onRequestFileChanged(const QString& path)
     processRequest(doc.object());
 }
 
-void ClayInspector::processRequest(const QJsonObject& request)
+QJsonObject ClayInspector::dispatchAction(const QString& action,
+                                          const QJsonObject& request)
 {
-    QString action = request.value("action").toString("snapshot");
-
-    // Only a handler that actually grabs an image sets this.
-    m_renderedAt = QDateTime();
-
     QJsonObject response;
     if (action == "snapshot")
         response = handleSnapshot(request);
@@ -445,9 +441,32 @@ void ClayInspector::processRequest(const QJsonObject& request)
         response = handleInput(request);
     else if (action == "errors")
         response = handleErrors(request);
-    else {
+    else if (action == "batch")
+        response = handleBatch(request);
+    else
         response["error"] = QString("Unknown action: %1").arg(action);
+    return response;
+}
+
+void ClayInspector::processRequest(const QJsonObject& request)
+{
+    // A blocking action spins the event loop; the watcher can then hand us the
+    // next request.json mid-flight. Answering it would interleave two payloads
+    // into one response.json, and the outer write wins anyway - so drop it and
+    // let the outer response say so. The dropped request keeps no answer, which
+    // is honest: a caller must have its reply before sending the next request.
+    if (m_inRequest) {
+        ++m_reentrantDropped;
+        return;
     }
+    m_inRequest = true;
+
+    QString action = request.value("action").toString("snapshot");
+
+    // Only a handler that actually grabs an image sets this.
+    m_renderedAt = QDateTime();
+
+    QJsonObject response = dispatchAction(action, request);
 
     response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
     response["action"] = action;
@@ -455,8 +474,103 @@ void ClayInspector::processRequest(const QJsonObject& request)
     // request and ignore stale responses from earlier roundtrips.
     if (request.contains("id"))
         response["requestId"] = request.value("id");
+    if (m_reentrantDropped > 0) {
+        response["reentrantDropped"] = m_reentrantDropped;
+        m_reentrantDropped = 0;
+    }
 
+    m_inRequest = false;
     writeResponse(response);
+}
+
+QJsonObject ClayInspector::handleBatch(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    if (!request.value("steps").isArray()) {
+        response["error"] = "batch: 'steps' must be an array of requests";
+        return response;
+    }
+    QJsonArray steps = request.value("steps").toArray();
+    if (steps.isEmpty()) {
+        response["error"] = "batch: 'steps' is empty";
+        return response;
+    }
+    // A cap, not a policy: a batch runs synchronously inside one file-watch
+    // callback, so an unbounded one would freeze the UI with no way out.
+    const int MAX_STEPS = 32;
+    if (steps.size() > MAX_STEPS) {
+        response["error"] = QString("batch: too many steps (%1 > %2)")
+                                .arg(steps.size()).arg(MAX_STEPS);
+        return response;
+    }
+
+    // Trace sampling is suspended for the duration. A blocking step spins the
+    // event loop, so the trace timer would otherwise fire mid-batch and write
+    // its completion into response.json - which the batch response then
+    // overwrites, losing the summary. A batch is a synchronous burst; the
+    // trace resumes (and re-checks its timeout) as soon as it returns.
+    auto muteTrace = [this](bool mute) {
+        if (m_traceTimer) m_traceTimer->blockSignals(mute);
+    };
+    muteTrace(true);
+
+    QJsonArray results;
+    int failedStep = -1;
+    QString failure;
+
+    for (int i = 0; i < steps.size(); ++i) {
+        QJsonObject result;
+        QString stepAction;
+
+        if (!steps.at(i).isObject()) {
+            result["error"] = "step must be an object";
+        } else {
+            QJsonObject step = steps.at(i).toObject();
+            stepAction = step.value("action").toString();
+            if (stepAction.isEmpty()) {
+                // Deliberately no 'snapshot' default here: a step written as
+                // {"input": {...}} would silently become a snapshot and the
+                // caller would believe the key was sent.
+                result["error"] = "step needs an \"action\"; a step is a whole "
+                                  "request, e.g. {\"action\":\"input\","
+                                  "\"key\":{\"key\":\"V\"}}";
+            } else if (stepAction == "batch") {
+                result["error"] = "batch steps cannot nest";
+            } else {
+                result = dispatchAction(stepAction, step);
+                muteTrace(true);  // a trace step may have started a new timer
+            }
+        }
+
+        if (!stepAction.isEmpty())
+            result["action"] = stepAction;
+        // Per step, not per batch: a reload landing mid-batch must be visible
+        // rather than silently changing what the later steps measured.
+        result["generation"] = m_generation;
+        results.append(result);
+
+        QString err = result.value("error").toString();
+        if (!err.isEmpty()) {
+            failedStep = i;
+            failure = err;
+            break;  // never continue past a failure
+        }
+    }
+
+    muteTrace(false);
+
+    response["steps"] = results;
+    response["stepsRun"] = results.size();
+    response["stepsTotal"] = steps.size();
+    if (failedStep >= 0) {
+        response["failedStep"] = failedStep;
+        // Also as a plain 'error' so every existing "did it work?" check keeps
+        // working on a batch response without knowing about batches.
+        response["error"] = QString("batch: step %1 failed: %2")
+                                .arg(failedStep).arg(failure);
+    }
+    return response;
 }
 
 int ClayInspector::currentLoadGeneration() const
