@@ -89,3 +89,6 @@ target_include_directories(ClayCanvas3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # by directory rather than the built module, so it needs no compiled plugin.
 include(claytest)
 clay_add_qml_test(canvas3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+# C++ unit tests for the types the QML suite cannot reach.
+add_subdirectory(tests)
