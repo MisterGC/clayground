@@ -5,6 +5,7 @@
 #include "hotreloadcontainer.h"
 #include <clayscenecapture.h>
 #include <clayscenequery.h>
+#include <claysettle.h>
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -27,6 +28,7 @@
 #include <QEventLoop>
 #include <QJSValue>
 #include <QRegularExpression>
+#include <QtMath>
 #include <QUuid>
 #include <QVector2D>
 #include <QVector3D>
@@ -51,6 +53,54 @@ static void parseDiagnosticLocation(const QString& msg, QString& file, int& line
         return;
     file = m.captured(1);
     line = m.captured(2).toInt();
+}
+
+// A crop arrives either as raw viewport pixels ([x, y, w, h]) or as the thing
+// the caller actually means ({"objectName": "player"}). Resolving the second
+// form here is the point: "show me this" is the intent, and a pixel rectangle
+// is only how it had to be expressed before.
+static QRect resolveCrop(const QJsonValue& value, QQuickItem* root,
+                         QString* error)
+{
+    if (value.isArray()) {
+        const auto a = value.toArray();
+        if (a.size() != 4) {
+            *error = QStringLiteral("crop: array wants [x, y, width, height]");
+            return {};
+        }
+        return QRect(a.at(0).toInt(), a.at(1).toInt(),
+                     a.at(2).toInt(), a.at(3).toInt());
+    }
+
+    if (value.isObject()) {
+        const auto o = value.toObject();
+        if (o.contains("objectName")) {
+            const auto name = o.value("objectName").toString();
+            QQuickItem* target = (root && root->objectName() == name)
+                ? root : (root ? root->findChild<QQuickItem*>(name) : nullptr);
+            if (!target) {
+                *error = QStringLiteral("crop: no item with objectName '%1'")
+                             .arg(name);
+                return {};
+            }
+            // The grab is of the root item, so the rect has to be expressed in
+            // the root's coordinates - and in device pixels, which is what
+            // grabToImage produces.
+            const QPointF topLeft = root->mapFromItem(target, QPointF(0, 0));
+            auto* win = root->window();
+            const qreal dpr = win ? win->effectiveDevicePixelRatio() : 1.0;
+            return QRect(qFloor(topLeft.x() * dpr), qFloor(topLeft.y() * dpr),
+                         qCeil(target->width() * dpr),
+                         qCeil(target->height() * dpr));
+        }
+        if (o.contains("x") && o.contains("y"))
+            return QRect(o.value("x").toInt(), o.value("y").toInt(),
+                         o.value("width").toInt(), o.value("height").toInt());
+    }
+
+    *error = QStringLiteral(
+        "crop: give [x, y, width, height] or {\"objectName\": \"...\"}");
+    return {};
 }
 
 ClayInspector* ClayInspector::current()
@@ -668,28 +718,178 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
         response["eval"] = ClayScene::evalExpressions(rootItem, exprs);
     }
 
-    // Screenshot if requested
-    if (request.value("screenshot").toBool(false)) {
-        QString screenshotPath = m_inspectDir + "/screenshot.png";
-        auto capture = ClayScene::capture(*m_host);
-        // Stamp the grab, not the write: status.renderedAt is only worth
-        // anything if it is the moment the pixels were taken.
-        QDateTime grabbedAt = QDateTime::currentDateTime();
-        if (capture.ok() && ClayScene::saveImage(capture.image, screenshotPath)) {
-            response["screenshot"] = screenshotPath;
-            m_renderedAt = grabbedAt;
-        } else if (!capture.ok()) {
-            // A failed grab used to be indistinguishable from a stale file
-            // left behind by an earlier run.
-            response["screenshotError"] =
-                capture.error.isEmpty() ? QStringLiteral("capture failed")
-                                        : capture.error;
-        }
-    }
+    // Wait for the picture to stop moving before grabbing it. Runs on its own
+    // too, so "let the transition finish, then look" is one request.
+    runSettle(request.value("settle"), response);
+
+    // Screenshot and/or diff.
+    runCapture(request, rootItem, response);
 
     attachDiagnostics(response);
 
     return response;
+}
+
+void ClayInspector::runSettle(const QJsonValue& spec, QJsonObject& response)
+{
+    const bool wanted = spec.isObject() || spec.toBool(false);
+    if (!wanted)
+        return;
+
+    ClayScene::SettleRequest req;
+    if (spec.isObject()) {
+        const auto o = spec.toObject();
+        req.timeoutMs = o.value("timeoutMs").toInt(req.timeoutMs);
+        req.stableFrames = o.value("stableFrames").toInt(req.stableFrames);
+        req.intervalMs = o.value("intervalMs").toInt(req.intervalMs);
+        req.tolerance = o.value("tolerance").toInt(req.tolerance);
+    }
+
+    const auto res = ClayScene::settle(*m_host, req);
+
+    // Reported in full, always: a caller has to be able to tell "quiet" from
+    // "timed out while still moving". A scene in permanent motion is a fact
+    // about the scene, not a failure of the request.
+    QJsonObject out;
+    out["settled"] = res.settled;
+    out["waitedMs"] = res.waitedMs;
+    out["framesCompared"] = res.framesCompared;
+    out["lastDelta"] = res.lastDelta;
+    if (!res.error.isEmpty())
+        out["error"] = res.error;
+    response["settle"] = out;
+}
+
+void ClayInspector::runCapture(const QJsonObject& request, QQuickItem* rootItem,
+                               QJsonObject& response)
+{
+    const QJsonValue shotValue = request.value("screenshot");
+    // "screenshot": true keeps its old meaning; an object carries the framing.
+    const bool wantShot = shotValue.isObject() || shotValue.toBool(false);
+    const bool wantDiff = request.contains("diff")
+                          && !request.value("diff").isNull();
+    if (!wantShot && !wantDiff)
+        return;
+
+    const QJsonObject opts = shotValue.toObject();
+
+    ClayScene::CaptureRequest capReq;
+    QString optionError;
+    if (opts.contains("crop"))
+        capReq.crop = resolveCrop(opts.value("crop"), rootItem, &optionError);
+    capReq.scale = opts.value("scale").toDouble(1.0);
+    capReq.targetWidth = opts.value("width").toInt(0);
+    capReq.timeoutMs = opts.value("timeoutMs").toInt(capReq.timeoutMs);
+
+    if (!optionError.isEmpty()) {
+        response["screenshotError"] = optionError;
+        return;
+    }
+
+    const auto capture = ClayScene::capture(*m_host, capReq);
+    // Stamp the grab, not the write: status.renderedAt is only worth
+    // anything if it is the moment the pixels were taken.
+    const QDateTime grabbedAt = QDateTime::currentDateTime();
+    if (!capture.ok()) {
+        // A failed grab used to be indistinguishable from a stale file
+        // left behind by an earlier run.
+        response["screenshotError"] =
+            capture.error.isEmpty() ? QStringLiteral("capture failed")
+                                    : capture.error;
+        return;
+    }
+    m_renderedAt = grabbedAt;
+
+    // What was actually produced, not what was asked for.
+    QJsonObject size;
+    size["width"] = capture.image.width();
+    size["height"] = capture.image.height();
+    response["screenshotSize"] = size;
+
+    if (wantShot) {
+        const QString path = opts.contains("path")
+            ? resolveArtifactPath(opts.value("path").toString())
+            : m_inspectDir + "/screenshot.png";
+        QString saveError;
+        if (ClayScene::saveImage(capture.image, path, &saveError))
+            response["screenshot"] = path;
+        else
+            response["screenshotError"] = saveError;
+    }
+
+    if (wantDiff) {
+        QString diffError;
+        const auto diff = diffAgainstBaseline(request.value("diff"),
+                                              capture.image, &diffError);
+        if (diffError.isEmpty())
+            response["diff"] = diff;
+        else
+            response["diffError"] = diffError;
+    }
+}
+
+QJsonObject ClayInspector::diffAgainstBaseline(const QJsonValue& spec,
+                                               const QImage& shot,
+                                               QString* error) const
+{
+    QString baseline;
+    // Two GPU renders of the same scene are not bit-identical; a small
+    // per-channel tolerance is what keeps that from reading as a regression.
+    int tolerance = 2;
+    if (spec.isString()) {
+        baseline = spec.toString();
+    } else if (spec.isObject()) {
+        const auto o = spec.toObject();
+        baseline = o.value("baseline").toString();
+        tolerance = o.value("tolerance").toInt(tolerance);
+    }
+    if (baseline.isEmpty()) {
+        *error = QStringLiteral("diff: give a baseline PNG path");
+        return {};
+    }
+
+    const QString path = resolveArtifactPath(baseline);
+    QImage before;
+    if (!before.load(path)) {
+        // A missing baseline that silently skips the comparison is how a
+        // regression check passes forever without ever comparing anything.
+        *error = QStringLiteral("diff: cannot read baseline '%1'").arg(path);
+        return {};
+    }
+
+    const auto d = ClayScene::diffImages(before, shot, tolerance);
+    if (!d.ok()) {
+        *error = d.error;
+        return {};
+    }
+
+    QJsonObject out;
+    out["baseline"] = path;
+    out["tolerance"] = tolerance;
+    out["delta"] = d.delta;
+    out["changedPixels"] = d.changedPixels;
+    if (!d.changedBounds.isNull()) {
+        QJsonObject b;
+        b["x"] = d.changedBounds.x();
+        b["y"] = d.changedBounds.y();
+        b["width"] = d.changedBounds.width();
+        b["height"] = d.changedBounds.height();
+        out["changedBounds"] = b;
+    }
+    return out;
+}
+
+QString ClayInspector::resolveArtifactPath(const QString& path) const
+{
+    if (path.isEmpty())
+        return path;
+    const QFileInfo info(path);
+    if (info.isAbsolute())
+        return info.absoluteFilePath();
+    // Relative means "relative to the sandbox", never to the loader's cwd -
+    // that ambiguity is what made the throwaway crop scripts in #169 write
+    // their output somewhere nobody looked.
+    return QDir(m_sandboxDir).absoluteFilePath(path);
 }
 
 QJsonObject ClayInspector::handleEval(const QJsonObject& request)

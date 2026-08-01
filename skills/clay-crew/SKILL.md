@@ -204,8 +204,9 @@ than no verification at all.
 6. **Live patching:** `eval` imperative changes on the running scene to
    confirm a fix hypothesis before editing source (changes are lost on
    reload; you cannot create new bindings or signal handlers this way).
-7. **Visual verification (last resort):** `snapshot` with
-   `"screenshot": true`, then Read the PNG.
+7. **Visual verification (last resort):** one `snapshot` that settles,
+   crops, scales and writes straight to the path you then Read (below).
+   Never the only evidence.
 
 ## Actions reference
 
@@ -229,6 +230,43 @@ that failed returns `screenshotError` and no `status.renderedAt`; the
 `screenshot.png` on disk is then whatever an earlier request left there.
 Trust `status.renderedAt`, not the file. Never make a screenshot the only
 evidence.
+
+**Capture is one call.** `"screenshot": true` still writes
+`.clay/inspect/screenshot.png`. Pass an object instead and the renderer
+frames the picture for you — there is nothing left to copy out,
+downscale or crop with a throwaway script:
+
+```json
+{"id": "s2", "action": "snapshot", "settle": true,
+ "screenshot": {"path": "shots/hud.png",
+                "crop": {"objectName": "hud"}, "scale": 0.5},
+ "diff": "shots/hud-baseline.png"}
+```
+
+- `path` — where to write it. Relative resolves against the **sandbox
+  dir**, not your working directory; parents are created.
+- `crop` — `[x, y, w, h]` in captured pixels, or `{"objectName": "..."}`
+  for "show me this thing". Applied before `scale` (or `width`, a target
+  pixel width). A crop outside the viewport errors instead of clamping.
+- `settle` — wait until the frame stops changing, then grab. Answers
+  `{settled, waitedMs, framesCompared, lastDelta}`. `settled: false` is
+  the timeout hitting while the scene still moved: a finding, not a
+  failure. Some scenes never settle.
+- `diff` — compare against a baseline PNG. Answers `{delta,
+  changedPixels, changedBounds}`, tolerance 2 per channel by default,
+  since two GPU renders of one scene are never bit-identical. A missing
+  baseline is an error, not a skipped check.
+
+`screenshotSize` is the size actually produced; `status.renderedAt` the
+moment those pixels were grabbed.
+
+**Match the instrument to the timescale.** A 480 ms `tree` probe cannot
+measure a 300 ms fade. Never stretch the effect to fit the probe —
+`settle` waits for the picture, `time` pause/step controls the clock,
+and between them any moment on the curve is directly reachable. Likewise
+a pixel metric that includes the background mostly measures the
+background: crop to the thing under test, and read `diff`'s
+`changedBounds` to see where the change actually landed.
 
 ### errors — QML errors and warnings since load
 
@@ -495,7 +533,7 @@ Pick expressions that verify the **effect** of your change:
     dojo.json                  <- dojo supervisor state (generation, crashes)
     crash.json                 <- after crash loops: exit info + stderr tail
     autoflag_<ts>.json/.png    <- auto evidence bundle on runtime errors
-    screenshot.png             <- when requested (trust status.renderedAt)
+    screenshot.png             <- default target (a request can name its own)
     trace.jsonl                <- during/after trace
     i/<instance>/...           <- per-instance scope when --instance is used
   crew/                        <- human -> agent (Ctrl+F flags)
