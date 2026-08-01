@@ -294,6 +294,28 @@ def run(insp, sandbox_dir, attended):
           resp.get("inspect") == [] and not resp.get("error"),
           f"inspect={resp.get('inspect')} error={resp.get('error')}")
 
+    # inspect and tree used to disagree about what exists: an item without a
+    # clayInspect() hook was invisible to inspect, so "is my player there"
+    # depended on which action you happened to pick (#177).
+    resp = insp.request({"action": "inspect", "objectName": "player"})
+    found = resp.get("inspect", [])
+    check("inspect: an item with no hook still answers when asked for by name",
+          len(found) == 1 and found[0].get("via") == "properties",
+          str(found)[:140])
+
+    resp = insp.request({"action": "inspect", "select": "RectBoxBody"})
+    bodies = resp.get("inspect", [])
+    check("inspect: a selector finds every item of a type, hook or not",
+          len(bodies) >= 3
+          and {b.get("objectName") for b in bodies} >= {"player", "enemy", "coin"},
+          f"{len(bodies)}: {[b.get('objectName') for b in bodies]}")
+
+    resp = insp.request({"action": "inspect"})
+    everything = resp.get("inspect", [])
+    check("inspect: without a selector only hooked objects answer",
+          all(e.get("via") == "hook" for e in everything),
+          f"{len(everything)} entries, via={[e.get('via') for e in everything][:5]}")
+
     # pick works without a View3D: the colour question is always answerable.
     geom = insp.eval(["gym.mapFromItem(player, 0, 0).x",
                       "gym.mapFromItem(player, 0, 0).y",

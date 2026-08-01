@@ -59,37 +59,6 @@ bool isInternalType(const QString& className)
     return false;
 }
 
-QString shortTypeName(const QObject* obj)
-{
-    QString typeName = QString::fromUtf8(obj->metaObject()->className());
-    // QML-declared types come through as Foo_QMLTYPE_42.
-    const int qmlMarker = typeName.indexOf("_QMLTYPE_");
-    if (qmlMarker > 0)
-        return typeName.left(qmlMarker);
-    if (typeName.startsWith("QQuick3D"))
-        return typeName.mid(8);
-    if (typeName.startsWith("QQuick"))
-        return typeName.mid(6);
-    return typeName;
-}
-
-// A handful of C++ classes are known by a different name in QML, and
-// selecting by the name people actually write has to work. View3D is the one
-// that bites: its class is QQuick3DViewport, so "select": "View3D" silently
-// matched nothing and read as "this scene has no 3D view".
-bool typeMatches(const QObject* obj, const QString& wanted)
-{
-    if (wanted.isEmpty())
-        return true;
-    if (shortTypeName(obj).compare(wanted, Qt::CaseInsensitive) == 0)
-        return true;
-    const QString cls = QString::fromUtf8(obj->metaObject()->className());
-    if (cls.compare(wanted, Qt::CaseInsensitive) == 0)
-        return true;
-    if (wanted.compare(QLatin1String("View3D"), Qt::CaseInsensitive) == 0)
-        return cls == QLatin1String("QQuick3DViewport");
-    return false;
-}
 
 QJsonObject buildItemTreeRec(QQuickItem* item, int maxDepth, int depth,
                              bool fullDetail, const QString& parentSource)
@@ -244,6 +213,100 @@ QJsonObject buildItemTreeRec(QQuickItem* item, int maxDepth, int depth,
 }
 
 } // namespace
+
+QString shortTypeName(const QObject* obj)
+{
+    if (!obj)
+        return {};
+    QString typeName = QString::fromUtf8(obj->metaObject()->className());
+    // QML-declared types come through as Foo_QMLTYPE_42.
+    const int qmlMarker = typeName.indexOf("_QMLTYPE_");
+    if (qmlMarker > 0)
+        return typeName.left(qmlMarker);
+    // Declaring a property inline gives the object a synthesised subclass:
+    // Rectangle { property int score } is a QQuickRectangle_QML_42. Without
+    // this, selecting "Rectangle" silently skipped exactly the items a sandbox
+    // author cared about - the ones carrying their own state.
+    const int vmeMarker = typeName.indexOf("_QML_");
+    if (vmeMarker > 0)
+        typeName = typeName.left(vmeMarker);
+    if (typeName.startsWith("QQuick3D"))
+        return typeName.mid(8);
+    if (typeName.startsWith("QQuick"))
+        return typeName.mid(6);
+    return typeName;
+}
+
+// A handful of C++ classes are known by a different name in QML, and
+// selecting by the name people actually write has to work. View3D is the one
+// that bites: its class is QQuick3DViewport, so "select": "View3D" silently
+// matched nothing and read as "this scene has no 3D view" - twice, in two
+// places that each derived this for themselves. Hence one copy.
+bool typeMatches(const QObject* obj, const QString& wanted)
+{
+    if (wanted.isEmpty())
+        return true;
+    if (!obj)
+        return false;
+    if (shortTypeName(obj).compare(wanted, Qt::CaseInsensitive) == 0)
+        return true;
+    const QString cls = QString::fromUtf8(obj->metaObject()->className());
+    if (cls.compare(wanted, Qt::CaseInsensitive) == 0)
+        return true;
+    if (wanted.compare(QLatin1String("View3D"), Qt::CaseInsensitive) == 0)
+        return cls == QLatin1String("QQuick3DViewport");
+    return false;
+}
+
+QJsonObject describeObject(QObject* obj, bool fullDetail)
+{
+    QJsonObject node;
+    if (!obj)
+        return node;
+
+    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+        // Depth 0: this item alone, with the geometry and app-level properties
+        // the tree would show for it.
+        node = buildItemTree(item, 0, fullDetail);
+        if (!node.isEmpty())
+            return node;
+    }
+
+    // Not a 2D item (a 3D node, an instancing table, a plain QObject): report
+    // the value-typed properties it declares. Object-valued ones are skipped -
+    // reading those trips lazy getters and answers with an address nobody can
+    // use anyway.
+    node["type"] = shortTypeName(obj);
+    if (!obj->objectName().isEmpty())
+        node["objectName"] = obj->objectName();
+
+    QJsonObject props;
+    const QMetaObject* meta = obj->metaObject();
+    for (int i = QObject::staticMetaObject.propertyCount();
+         i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        if (!prop.isReadable())
+            continue;
+        const QMetaType type = prop.metaType();
+        if (type.flags() & QMetaType::PointerToQObject)
+            continue;
+        const QVariant value = prop.read(obj);
+        if (type == QMetaType::fromType<QVector3D>()) {
+            const auto v = value.value<QVector3D>();
+            props[QString::fromUtf8(prop.name())] =
+                QJsonArray{v.x(), v.y(), v.z()};
+            continue;
+        }
+        const QJsonValue json = QJsonValue::fromVariant(value);
+        // Lists, maps and unconvertible value types turn into nulls that read
+        // as "the property is empty" - leave them out instead of lying.
+        if (!json.isNull() && !json.isUndefined())
+            props[QString::fromUtf8(prop.name())] = json;
+    }
+    if (!props.isEmpty())
+        node["properties"] = props;
+    return node;
+}
 
 QJsonObject collectCustomProperties(QQuickItem* item)
 {

@@ -1093,6 +1093,7 @@ QJsonObject ClayInspector::handleInspect(const QJsonObject& request)
         selector.type = QStringLiteral("LineBatch3D");
     selector.objectName = request.value("objectName").toString();
     selector.limit = request.value("limit").toInt(0);
+    selector.fullDetail = request.value("fullDetail").toBool(false);
 
     response["inspect"] = ClayScene::inspect(rootItem, selector);
     return response;

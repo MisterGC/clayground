@@ -304,6 +304,46 @@ Item {
     check("--pick names the object under the pixel and its colour",
           picked.get("hit") == "theCube" and "color" in picked, str(picked))
 
+    # A selector answers for anything in the scene, hook or no hook (#177).
+    write(os.path.join(tmp, "Mixed.qml"), """
+import QtQuick
+import QtQuick3D
+Item {
+    width: 400; height: 300
+    Rectangle {
+        objectName: "hud"; x: 10; y: 20; width: 120; height: 40
+        color: "#ffd93d"
+        property int score: 7
+    }
+    View3D {
+        anchors.fill: parent
+        environment: SceneEnvironment { clearColor: "#101820"; backgroundMode: SceneEnvironment.Color }
+        PerspectiveCamera { position: Qt.vector3d(0, 0, 400) }
+        DirectionalLight {}
+        Model { objectName: "hero"; source: "#Cube"
+                materials: PrincipledMaterial { baseColor: "#ff3366" } }
+    }
+}
+""")
+    mixed = os.path.join(tmp, "Mixed.qml")
+    hud_json = os.path.join(tmp, "hud.json")
+    model_json = os.path.join(tmp, "model.json")
+    run(args.clayrender, [mixed, "--out", os.path.join(tmp, "mixed.png"),
+                          "--size", "400x300",
+                          "--dump", f"Rectangle={hud_json}",
+                          "--dump", f"Model={model_json}"])
+    hud = json.load(open(hud_json))
+    # An inline property declaration gives the item a synthesised subclass
+    # (QQuickRectangle_QML_42); selecting "Rectangle" has to see through that.
+    check("a 2D item with no hook still answers a selector",
+          len(hud) == 1 and hud[0]["via"] == "properties"
+          and hud[0]["data"]["properties"]["score"] == 7,
+          json.dumps(hud)[:120])
+    model = json.load(open(model_json))
+    check("a 3D object with no hook answers the same way",
+          len(model) == 1 and model[0]["objectName"] == "hero",
+          json.dumps(model)[:120])
+
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(
         [args.clayrender, os.path.join(tmp, "Flat.qml"),

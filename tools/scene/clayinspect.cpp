@@ -23,31 +23,8 @@
 namespace ClayScene {
 namespace {
 
-QString shortTypeName(const QObject* obj)
-{
-    QString name = QString::fromUtf8(obj->metaObject()->className());
-    // QML-declared types come through as Foo_QMLTYPE_42.
-    int qmlMarker = name.indexOf("_QMLTYPE_");
-    if (qmlMarker > 0)
-        return name.left(qmlMarker);
-    if (name.startsWith("QQuick3D"))
-        return name.mid(8);
-    if (name.startsWith("QQuick"))
-        return name.mid(6);
-    return name;
-}
-
 // A C++ hook is a Q_INVOKABLE; a QML hook is a JS function that shows up as a
 // method too, but is only callable through the QML context.
-// View3D is QQuick3DViewport in C++ - matching on the QML name alone finds
-// nothing, which reads as "this scene has no 3D view" for a scene full of them.
-bool isView3D(const QObject* obj)
-{
-    const QString cls = QString::fromUtf8(obj->metaObject()->className());
-    return cls == QLatin1String("QQuick3DViewport")
-           || shortTypeName(obj) == QLatin1String("View3D");
-}
-
 // The C++ hook, if this type has one. Returned as a QMetaMethod so the call
 // can use the DECLARED return type: invoking with the wrong one still works
 // via a fallback, but logs a mismatch warning for every hook in the scene -
@@ -99,8 +76,10 @@ bool matches(const QObject* obj, const QJsonValue& payload,
     if (selector.type.isEmpty())
         return true;
 
-    if (shortTypeName(obj).compare(selector.type, Qt::CaseInsensitive) == 0)
+    if (typeMatches(obj, selector.type))
         return true;
+    // A hook may report a name of its own (an instancing table answering as
+    // the batch it belongs to), and selecting by that name has to work too.
     if (payload.isObject()) {
         const QString reported = payload.toObject().value("type").toString();
         if (reported.compare(selector.type, Qt::CaseInsensitive) == 0)
@@ -118,8 +97,15 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
         return;
     visited.insert(obj);
 
-    QJsonValue payload = callHook(obj);
-    if (!payload.isNull() && matches(obj, payload, selector)) {
+    const QJsonValue payload = callHook(obj);
+    const bool hooked = !payload.isNull();
+    // With a selector, "what is in my scene" must not depend on whether the
+    // type happens to have a hook - an unhooked Item asked for by name used to
+    // come back as "not there". Without one, only hooked objects answer, so
+    // the default stays a short list instead of the whole scene.
+    const bool asked = !selector.type.isEmpty() || !selector.objectName.isEmpty();
+
+    if ((hooked || asked) && matches(obj, payload, selector)) {
         QJsonObject entry;
         entry["class"] = shortTypeName(obj);
         if (!obj->objectName().isEmpty())
@@ -129,7 +115,12 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
             if (!src.isEmpty())
                 entry["source"] = src;
         }
-        entry["data"] = payload;
+        // Where the numbers came from: a type's own answer, or the generic
+        // read of its properties. Worth saying, because a hook reports what
+        // the type considers true and the generic read reports what Qt sees.
+        entry["via"] = hooked ? "hook" : "properties";
+        entry["data"] = hooked ? payload
+                               : QJsonValue(describeObject(obj, selector.fullDetail));
         out.append(entry);
     }
 
@@ -196,7 +187,7 @@ QQuickItem* findView3D(QQuickItem* root, const QString& viewId, QString* error)
     std::function<void(QObject*)> walk = [&](QObject* obj) {
         if (!obj || seen.contains(obj)) return;
         seen.insert(obj);
-        if (isView3D(obj)) {
+        if (typeMatches(obj, QStringLiteral("View3D"))) {
             if (auto* item = qobject_cast<QQuickItem*>(obj))
                 views << item;
         }

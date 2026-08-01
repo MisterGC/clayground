@@ -32,10 +32,15 @@ struct InspectSelector
     QString type;        // matches the hook's reported "type" or the class name
     QString objectName;
     int limit = 0;       // 0 = no limit
+    bool fullDetail = false;  // for objects answered generically, not by a hook
 };
 
-// Every inspectable object under `root` that matches the selector, each entry
-// carrying the hook's payload plus objectName/class for identification.
+// Every object under `root` that matches the selector. An object with a hook
+// answers through it ("via": "hook"); with a selector given, a matching object
+// WITHOUT a hook still answers from its own properties ("via": "properties"),
+// so "is my Item there" does not depend on whether its type happens to have a
+// hook. With no selector, only hooked objects answer - that keeps the default
+// a short list rather than a dump of the scene.
 QJsonArray inspect(QObject* root, const InspectSelector& selector = {});
 
 // Where a world point lands on screen, using the live camera and viewport.

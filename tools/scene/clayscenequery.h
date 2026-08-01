@@ -6,9 +6,26 @@
 #include <QJsonValue>
 #include <QString>
 
+class QObject;
 class QQuickItem;
 
 namespace ClayScene {
+
+// --- Naming ----------------------------------------------------------------
+
+// The name the type is known by in QML: Foo_QMLTYPE_42 -> Foo, QQuick3DNode
+// -> Node.
+QString shortTypeName(const QObject* obj);
+
+// True when 'wanted' names this object's type. Shared by every query, because
+// a few C++ classes are known by another name in QML and each place that
+// re-derived this got View3D (class QQuick3DViewport) wrong on its own.
+bool typeMatches(const QObject* obj, const QString& wanted);
+
+// What is known about one object without asking it anything: type, name,
+// source file, geometry and app-level properties. This is what an object that
+// has no clayInspect() hook can still say about itself.
+QJsonObject describeObject(QObject* obj, bool fullDetail = false);
 
 // --- Property collection ----------------------------------------------------
 // "Custom" means declared by the sandbox rather than inherited from Qt, plus a
