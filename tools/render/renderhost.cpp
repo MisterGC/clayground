@@ -61,6 +61,13 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     m_renderControl = std::make_unique<QQuickRenderControl>();
     m_window = std::make_unique<QQuickWindow>(m_renderControl.get());
     m_window->setGeometry(0, 0, size.width(), size.height());
+    // A window driven by a render control is never exposed, so it gets no
+    // resize event and its contentItem stays 0x0. Anchors then win over the
+    // explicit size below, and every sandbox whose root does
+    // `anchors.fill: parent` collapses to nothing - a black picture of a scene
+    // that is fine.
+    m_window->contentItem()->setWidth(size.width());
+    m_window->contentItem()->setHeight(size.height());
     // Transparent would hide anything the sandbox does not paint; a picture
     // that silently drops the background is exactly the kind of half-truth
     // this tool exists to remove.

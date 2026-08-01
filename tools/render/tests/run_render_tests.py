@@ -344,6 +344,52 @@ Item {
           len(model) == 1 and model[0]["objectName"] == "hero",
           json.dumps(model)[:120])
 
+    # A render-control window is never exposed, so its contentItem has to be
+    # sized explicitly - otherwise every sandbox whose root anchors to its
+    # parent collapses to 0x0 and renders black. That is most 2D examples.
+    write(os.path.join(tmp, "Anchored.qml"), """
+import QtQuick
+Item {
+    anchors.fill: parent
+    Rectangle { anchors.fill: parent; color: "#00d9ff" }
+}
+""")
+    out_anch = os.path.join(tmp, "anchored.png")
+    run(args.clayrender, [os.path.join(tmp, "Anchored.qml"), "--out", out_anch,
+                          "--size", "120x80"])
+    check("a root anchored to its parent fills the viewport",
+          centre_of(out_anch) == (0, 0xD9, 0xFF), str(centre_of(out_anch)))
+
+    # A QML `function clayInspect()` is a metamethod whose metacall yields
+    # nothing usable, and a bare-name lookup would let every child of the same
+    # file answer for it. Both failure modes are silent, hence this check.
+    write(os.path.join(tmp, "Hooked.qml"), """
+import QtQuick
+Item {
+    objectName: "owner"
+    function clayInspect() { return { who: "owner", score: 42 } }
+    Rectangle { objectName: "kid"; width: 10; height: 10; color: "#ffd93d" }
+}
+""")
+    hooked_json = os.path.join(tmp, "hooked.json")
+    run(args.clayrender, [os.path.join(tmp, "Hooked.qml"), "--out",
+                          os.path.join(tmp, "hooked.png"), "--size", "60x40",
+                          "--dump", f"Item={hooked_json}"])
+    hooked = json.load(open(hooked_json))
+    owner = [e for e in hooked if e.get("objectName") == "owner"]
+    check("a QML-declared clayInspect() answers for its own object",
+          len(owner) == 1 and owner[0]["via"] == "hook"
+          and owner[0]["data"]["score"] == 42, json.dumps(hooked)[:160])
+
+    kid_json = os.path.join(tmp, "kid.json")
+    run(args.clayrender, [os.path.join(tmp, "Hooked.qml"), "--out",
+                          os.path.join(tmp, "hooked.png"), "--size", "60x40",
+                          "--dump", f"Rectangle={kid_json}"])
+    kid = json.load(open(kid_json))
+    check("a child does not answer with its parent's hook",
+          len(kid) == 1 and kid[0]["via"] == "properties",
+          json.dumps(kid)[:160])
+
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(
         [args.clayrender, os.path.join(tmp, "Flat.qml"),

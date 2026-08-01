@@ -9,6 +9,9 @@
 #include <QMetaType>
 #include <QMetaObject>
 #include <QQmlExpression>
+#include <QHash>
+#include <memory>
+#include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QVariantMap>
@@ -41,29 +44,90 @@ QMetaMethod findInvokableHook(const QObject* obj)
     return {};
 }
 
-QJsonValue callHook(QObject* obj)
+// Calls QML-declared hooks the way QML itself would: as a property of the
+// object. A bare `clayInspect` in the object's context walks the scope chain,
+// so every child declared in the same file - and every component instantiated
+// inside it - resolves the ENCLOSING type's hook and answers with a world's
+// data under a Rectangle's name. `target.clayInspect` finds only what this
+// object actually has.
+//
+// The context and the per-type answer are kept for the whole traversal: one
+// JS evaluation per type rather than per object.
+class QmlHookProbe
 {
+public:
+    explicit QmlHookProbe(QQmlEngine* engine)
+        : m_engine(engine)
+    {
+        if (m_engine)
+            m_context = std::make_unique<QQmlContext>(m_engine->rootContext());
+    }
+
+    QJsonValue call(QObject* obj)
+    {
+        if (!m_context)
+            return QJsonValue::Null;
+
+        const QMetaObject* type = obj->metaObject();
+        auto known = m_hasHook.constFind(type);
+        if (known != m_hasHook.cend() && !known.value())
+            return QJsonValue::Null;
+
+        m_context->setContextProperty(QStringLiteral("__clayTarget"), obj);
+        QQmlExpression expr(m_context.get(), nullptr,
+            QStringLiteral("typeof __clayTarget.clayInspect === 'function'"
+                           " ? JSON.stringify(__clayTarget.clayInspect()) : ''"));
+        const QString json = expr.evaluate().toString();
+        m_hasHook.insert(type, !json.isEmpty());
+        if (expr.hasError() || json.isEmpty())
+            return QJsonValue::Null;
+
+        const auto doc = QJsonDocument::fromJson(json.toUtf8());
+        if (doc.isObject())
+            return doc.object();
+        if (doc.isArray())
+            return doc.array();
+        return QJsonValue::Null;
+    }
+
+private:
+    QQmlEngine* m_engine = nullptr;
+    std::unique_ptr<QQmlContext> m_context;
+    QHash<const QMetaObject*, bool> m_hasHook;
+};
+
+QJsonValue callHook(QObject* obj, QmlHookProbe& qmlHooks)
+{
+    // A C++ hook is a Q_INVOKABLE returning QVariantMap or QVariant. A QML
+    // `function clayInspect()` ALSO shows up as a metamethod - declared
+    // QVariant - and invoking it through the metaobject reports success while
+    // handing back an empty value, because a QML function has to be called by
+    // the JS engine. An empty answer therefore means "not answered here" and
+    // falls through to the QML path; treating it as the payload is what
+    // silently hid every QML-side hook.
     const QMetaMethod hook = findInvokableHook(obj);
     if (hook.isValid()) {
         const QMetaType ret = hook.returnMetaType();
         if (ret == QMetaType::fromType<QVariantMap>()) {
             QVariantMap map;
-            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariantMap, map)))
-                return QJsonValue::fromVariant(map);
+            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariantMap, map))) {
+                const QJsonValue payload = QJsonValue::fromVariant(map);
+                if (!payload.isNull())
+                    return payload;
+            }
         } else if (ret == QMetaType::fromType<QVariant>()) {
             QVariant value;
-            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariant, value)))
-                return QJsonValue::fromVariant(value);
+            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariant, value))) {
+                // A QML function hands back a QJSValue, which converts to JSON
+                // null - indistinguishable from "no answer" unless checked.
+                const QJsonValue payload = QJsonValue::fromVariant(value);
+                if (!payload.isNull())
+                    return payload;
+            }
         }
-        return QJsonValue::Null;
     }
 
-    // QML-side hook: only reachable through the object's own context.
-    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
-        if (hasFunction(item, "clayInspect"))
-            return callJsonFunction(item, "clayInspect");
-    }
-    return QJsonValue::Null;
+    return qmlHooks.call(obj);
 }
 
 bool matches(const QObject* obj, const QJsonValue& payload,
@@ -89,7 +153,7 @@ bool matches(const QObject* obj, const QJsonValue& payload,
 }
 
 void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
-             QSet<QObject*>& visited)
+             QSet<QObject*>& visited, QmlHookProbe& qmlHooks)
 {
     if (!obj || visited.contains(obj))
         return;
@@ -97,7 +161,7 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
         return;
     visited.insert(obj);
 
-    const QJsonValue payload = callHook(obj);
+    const QJsonValue payload = callHook(obj, qmlHooks);
     const bool hooked = !payload.isNull();
     // With a selector, "what is in my scene" must not depend on whether the
     // type happens to have a hook - an unhooked Item asked for by name used to
@@ -134,11 +198,11 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
     //    is assigned, not parented. LineBatch3D's whole line list lives behind
     //    `instancing:`, which a children-only walk never sees.
     for (auto* child : obj->children())
-        collect(child, selector, out, visited);
+        collect(child, selector, out, visited, qmlHooks);
 
     if (auto* item = qobject_cast<QQuickItem*>(obj)) {
         for (auto* child : item->childItems())
-            collect(child, selector, out, visited);
+            collect(child, selector, out, visited, qmlHooks);
     }
 
     const QMetaObject* meta = obj->metaObject();
@@ -155,7 +219,7 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
         if (name == "parent" || name == "window" || name == "scene")
             continue;
         if (auto* child = prop.read(obj).value<QObject*>())
-            collect(child, selector, out, visited);
+            collect(child, selector, out, visited, qmlHooks);
     }
 }
 
@@ -224,7 +288,8 @@ QJsonArray inspect(QObject* root, const InspectSelector& selector)
 {
     QJsonArray out;
     QSet<QObject*> visited;
-    collect(root, selector, out, visited);
+    QmlHookProbe qmlHooks(root ? qmlEngine(root) : nullptr);
+    collect(root, selector, out, visited, qmlHooks);
     return out;
 }
 

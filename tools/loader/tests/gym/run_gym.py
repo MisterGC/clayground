@@ -299,9 +299,19 @@ def run(insp, sandbox_dir, attended):
     # depended on which action you happened to pick (#177).
     resp = insp.request({"action": "inspect", "objectName": "player"})
     found = resp.get("inspect", [])
-    check("inspect: an item with no hook still answers when asked for by name",
-          len(found) == 1 and found[0].get("via") == "properties",
+    check("inspect: an item answers when asked for by name",
+          len(found) == 1 and found[0].get("class") == "RectBoxBody"
+          and found[0].get("via") in ("hook", "properties"),
           str(found)[:140])
+
+    # The 2D hooks (#175) have to survive the round trip, not just exist in
+    # the QML: a body reports its world-unit position, which is the number a
+    # screenshot cannot give you.
+    body = found[0]["data"] if found else {}
+    check("inspect: a body reports its world-unit position through the hook",
+          isinstance(body.get("xWu"), (int, float))
+          and isinstance(body.get("bodyType"), str),
+          f"xWu={body.get('xWu')} bodyType={body.get('bodyType')}")
 
     resp = insp.request({"action": "inspect", "select": "RectBoxBody"})
     bodies = resp.get("inspect", [])

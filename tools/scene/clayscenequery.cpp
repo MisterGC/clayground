@@ -248,13 +248,31 @@ bool typeMatches(const QObject* obj, const QString& wanted)
         return true;
     if (!obj)
         return false;
-    if (shortTypeName(obj).compare(wanted, Qt::CaseInsensitive) == 0)
-        return true;
     const QString cls = QString::fromUtf8(obj->metaObject()->className());
     if (cls.compare(wanted, Qt::CaseInsensitive) == 0)
         return true;
     if (wanted.compare(QLatin1String("View3D"), Qt::CaseInsensitive) == 0)
         return cls == QLatin1String("QQuick3DViewport");
+
+    // Base types count. A sandbox root is its own QML type deriving from
+    // ClayWorld2d, and every body in it derives from PhysicsItem - asking for
+    // the type you wrote in the import and getting nothing back is the same
+    // "it says my scene is empty" failure as the View3D one above.
+    for (const QMetaObject* m = obj->metaObject(); m; m = m->superClass()) {
+        QString name = QString::fromUtf8(m->className());
+        const int qmlMarker = name.indexOf("_QMLTYPE_");
+        if (qmlMarker > 0)
+            name = name.left(qmlMarker);
+        const int vmeMarker = name.indexOf("_QML_");
+        if (vmeMarker > 0)
+            name = name.left(vmeMarker);
+        if (name.startsWith("QQuick3D"))
+            name = name.mid(8);
+        else if (name.startsWith("QQuick"))
+            name = name.mid(6);
+        if (name.compare(wanted, Qt::CaseInsensitive) == 0)
+            return true;
+    }
     return false;
 }
 
