@@ -1000,10 +1000,15 @@ QString ClayInspector::resolveArtifactPath(const QString& path) const
     const QFileInfo info(path);
     if (info.isAbsolute())
         return info.absoluteFilePath();
-    // Relative means "relative to the sandbox", never to the loader's cwd -
-    // that ambiguity is what made the throwaway crop scripts in #169 write
-    // their output somewhere nobody looked.
-    return QDir(m_sandboxDir).absoluteFilePath(path);
+    // Relative resolves under .clay/inspect/, never the loader's cwd (that
+    // ambiguity is what made the throwaway crop scripts in #169 write their
+    // output somewhere nobody looked) and never the sandbox dir itself: the
+    // dojo watches that whole tree and skips only .clay/, so a capture
+    // written beside the sandbox triggers a RELOAD. That was not theoretical
+    // - a three-step batch here captured, reloaded because of its own first
+    // capture, and measured a different scene in step three (visible only
+    // because per-step generation went 1 -> 2).
+    return QDir(m_inspectDir).absoluteFilePath(path);
 }
 
 QJsonObject ClayInspector::handleEval(const QJsonObject& request)

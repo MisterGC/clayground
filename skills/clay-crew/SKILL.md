@@ -325,8 +325,12 @@ downscale or crop with a throwaway script:
  "diff": "shots/hud-baseline.png"}
 ```
 
-- `path` — where to write it. Relative resolves against the **sandbox
-  dir**, not your working directory; parents are created.
+- `path` — where to write it. Relative resolves under **`.clay/inspect/`**,
+  not your working directory; parents are created. Absolute goes wherever
+  you say, with one trap: **never write a capture into the sandbox
+  directory**. The dojo watches that whole tree and skips only `.clay/`,
+  so the capture triggers a reload and whatever you measure next is a
+  different scene (per-step `generation` in a batch is how you catch it).
 - `crop` — `[x, y, w, h]` in captured pixels, or `{"objectName": "..."}`
   for "show me this thing". Applied before `scale` (or `width`, a target
   pixel width). A crop outside the viewport errors instead of clamping.

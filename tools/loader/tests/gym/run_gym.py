@@ -301,11 +301,22 @@ def run(insp, sandbox_dir, attended):
           resp.get("screenshot") == target and os.path.exists(target),
           f"screenshot={resp.get('screenshot')} err={resp.get('screenshotError')}")
 
+    gen_before = insp.request({"action": "snapshot"}).get("status", {}).get("generation")
     resp = insp.request({"action": "snapshot",
                          "screenshot": {"path": "shots/relative.png"}}, timeout=15)
-    check("capture: a relative path resolves against the sandbox dir",
-          os.path.exists(os.path.join(sandbox_dir, "shots", "relative.png")),
+    check("capture: a relative path resolves under .clay/inspect",
+          os.path.exists(os.path.join(sandbox_dir, ".clay", "inspect",
+                                      "shots", "relative.png")),
           f"screenshot={resp.get('screenshot')}")
+
+    # The dojo watches the whole sandbox tree and skips only .clay/, so a
+    # capture written beside the sandbox reloads the scene - and then every
+    # later step measures a different one. Caught for real by a three-step
+    # batch whose own first capture reloaded it mid-flight.
+    time.sleep(1.5)
+    gen_after = insp.request({"action": "snapshot"}).get("status", {}).get("generation")
+    check("capture: writing a capture does not reload the scene",
+          gen_before == gen_after, f"generation {gen_before} -> {gen_after}")
 
     resp = insp.request({"action": "snapshot",
                          "screenshot": {"path": os.path.join(shots, "crop.png"),

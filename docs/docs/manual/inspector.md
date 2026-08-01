@@ -92,7 +92,7 @@ Returns: `rootProperties` (auto-captured primitive properties on the sandbox roo
 
 | Key | Meaning |
 |---|---|
-| `screenshot.path` | Where to write. A relative path resolves against the **sandbox directory**, never the loader's working directory; parent directories are created. Omit it to keep the default `.clay/inspect/screenshot.png`. |
+| `screenshot.path` | Where to write. A relative path resolves under **`.clay/inspect/`**, never the loader's working directory; parent directories are created. Omit it to keep the default `.clay/inspect/screenshot.png`. Absolute paths go wherever you say — but **not into the sandbox directory**: the dojo watches that whole tree (it skips only `.clay/`), so a capture written there triggers a reload and your next step measures a different scene. |
 | `screenshot.crop` | `[x, y, width, height]` in captured-image pixels, or `{"objectName": "..."}` to frame exactly that item. Applied before scaling. A crop that lies outside the viewport is a `screenshotError`, not a silent clamp — a picture of the wrong thing is worse than no picture. |
 | `screenshot.scale`, `screenshot.width` | Downscale by a factor, or to a target width in pixels (`width` wins over `scale`). |
 | `settle` | `true`, or `{timeoutMs, stableFrames, intervalMs, tolerance}`. Waits for the picture to stop changing before grabbing it. |
