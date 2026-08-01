@@ -436,8 +436,13 @@ variants render in parallel:
 
 ```bash
 clayrender labs/electronics-101/Sandbox.qml --out shot.png --size 1400x900 \
-    --set 'root.applyScenario("parallel")' --settle --scale 0.6
+    --settle --scale 0.6
 ```
+
+`--set` **assigns**, it does not call: `--set 'root.showLabels=false'` works,
+`--set 'root.applyScenario("parallel")'` does not. Until that gap is closed,
+a state you can only reach through a function call (a scenario, a flow) needs
+the dojo: `reload` with `scenario`, then capture.
 
 Use the dojo for interaction, hot-reload iteration and anything stateful
 (driving a flow, real input, a determinism run across steps). Query the
