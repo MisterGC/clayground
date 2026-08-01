@@ -233,6 +233,21 @@ QByteArray VoxelMapInstancing::getInstanceBuffer(int *instanceCount)
     return m_instanceData;
 }
 
+QVariantMap VoxelMapInstancing::clayInspect() const
+{
+    QVariantMap info;
+    info["type"] = QStringLiteral("VoxelMap");
+    info["voxelCount"] = QVariantList{m_data.voxelCountX(), m_data.voxelCountY(),
+                                      m_data.voxelCountZ()};
+    info["solidCount"] = m_data.solidCount();
+    info["voxelSize"] = m_data.voxelSize();
+    info["spacing"] = m_data.spacing();
+    info["paletteSize"] = m_data.paletteSize();
+    info["storageBytes"] = static_cast<double>(m_data.storageBytes());
+    info["dirty"] = m_dirty;
+    return info;
+}
+
 void VoxelMapInstancing::updateInstanceData()
 {
     m_instanceData.clear();
