@@ -92,6 +92,12 @@ public:
     // switches it back. No pill table is produced in curved mode.
     Q_INVOKABLE void setCurvedLabels(const QVariantList &labels);
 
+    // Inspection hook (issue #165): the labels as the renderer resolved them,
+    // so "did that label render, at what size, where?" is answerable without
+    // reading pixels. Pull-only - it reports state this class already keeps
+    // and never maintains anything for the inspector's sake.
+    Q_INVOKABLE QVariantMap clayInspect() const;
+
     // Pill instance buffer accessors (consumed by LabelPillInstancing).
     const QByteArray &pillData() const { return m_pillData; }
     int pillCount() const { return static_cast<int>(m_labels.size()); }

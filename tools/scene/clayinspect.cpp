@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QMetaMethod>
+#include <QMetaType>
 #include <QMetaObject>
 #include <QQmlExpression>
 #include <QQmlEngine>
@@ -47,38 +48,35 @@ bool isView3D(const QObject* obj)
            || shortTypeName(obj) == QLatin1String("View3D");
 }
 
-bool hasInvokableHook(const QObject* obj)
+// The C++ hook, if this type has one. Returned as a QMetaMethod so the call
+// can use the DECLARED return type: invoking with the wrong one still works
+// via a fallback, but logs a mismatch warning for every hook in the scene -
+// noise an inspector must not add to the log it exists to report on.
+QMetaMethod findInvokableHook(const QObject* obj)
 {
-    const QMetaObject* meta = obj->metaObject();
-    for (int i = meta->methodOffset(); i < meta->methodCount(); ++i) {
-        auto method = meta->method(i);
-        if (method.name() == "clayInspect" && method.parameterCount() == 0)
-            return true;
-    }
-    // Walk the whole chain, not just this class' own methods.
-    for (const QMetaObject* m = meta; m; m = m->superClass()) {
-        for (int i = 0; i < m->methodCount(); ++i) {
+    for (const QMetaObject* m = obj->metaObject(); m; m = m->superClass()) {
+        for (int i = m->methodOffset(); i < m->methodCount(); ++i) {
             auto method = m->method(i);
             if (method.name() == "clayInspect" && method.parameterCount() == 0)
-                return true;
+                return method;
         }
     }
-    return false;
+    return {};
 }
 
 QJsonValue callHook(QObject* obj)
 {
-    if (hasInvokableHook(obj)) {
-        QVariant result;
-        if (QMetaObject::invokeMethod(obj, "clayInspect", Qt::DirectConnection,
-                                      Q_RETURN_ARG(QVariant, result))) {
-            return QJsonValue::fromVariant(result);
-        }
-        // Some hooks return QVariantMap directly rather than QVariant.
-        QVariantMap map;
-        if (QMetaObject::invokeMethod(obj, "clayInspect", Qt::DirectConnection,
-                                      Q_RETURN_ARG(QVariantMap, map))) {
-            return QJsonValue::fromVariant(map);
+    const QMetaMethod hook = findInvokableHook(obj);
+    if (hook.isValid()) {
+        const QMetaType ret = hook.returnMetaType();
+        if (ret == QMetaType::fromType<QVariantMap>()) {
+            QVariantMap map;
+            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariantMap, map)))
+                return QJsonValue::fromVariant(map);
+        } else if (ret == QMetaType::fromType<QVariant>()) {
+            QVariant value;
+            if (hook.invoke(obj, Qt::DirectConnection, Q_RETURN_ARG(QVariant, value)))
+                return QJsonValue::fromVariant(value);
         }
         return QJsonValue::Null;
     }
