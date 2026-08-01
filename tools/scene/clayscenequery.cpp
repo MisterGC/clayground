@@ -1,0 +1,452 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+#include "clayscenequery.h"
+
+#include <QHash>
+#include <QJsonDocument>
+#include <QMetaObject>
+#include <QMetaProperty>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QQmlExpression>
+#include <QQuickItem>
+#include <QVector2D>
+#include <QVector3D>
+
+namespace ClayScene {
+namespace {
+
+// Find the property index where Qt's built-in properties end.
+// Walks the metaobject chain and finds the highest propertyCount()
+// from any Qt-internal class (QQuick*/QQml* that isn't QML-generated).
+int qtPropertyBoundary(QQuickItem* item)
+{
+    int boundary = QQuickItem::staticMetaObject.propertyCount();
+    const QMetaObject* m = item->metaObject();
+    while (m && m != &QQuickItem::staticMetaObject) {
+        QString cls = QString::fromUtf8(m->className());
+        bool isQtInternal = (cls.startsWith("QQuick") || cls.startsWith("QQml"))
+                         && !cls.contains("QMLTYPE")
+                         && !cls.contains("_QML_");
+        if (isQtInternal)
+            boundary = qMax(boundary, m->propertyCount());
+        m = m->superClass();
+    }
+    return boundary;
+}
+
+// Small set of Qt-internal properties that carry semantic meaning
+// and should always be captured even from Qt base classes.
+bool isUsefulQtProperty(const QString& name)
+{
+    static const QStringList useful = {
+        "text", "color", "source", "radius", "contextType"
+    };
+    return useful.contains(name);
+}
+
+bool isInternalType(const QString& className)
+{
+    static const QStringList internals = {
+        "ContentItem", "Overlay", "RootItem", "Loader_QML",
+        "WindowContentItem", "ShaderEffectSource"
+    };
+    for (const auto& s : internals) {
+        if (className.contains(s))
+            return true;
+    }
+    return false;
+}
+
+QString shortTypeName(const QObject* obj)
+{
+    QString typeName = QString::fromUtf8(obj->metaObject()->className());
+    if (typeName.startsWith("QQuick3D"))
+        return typeName.mid(8);
+    if (typeName.startsWith("QQuick"))
+        return typeName.mid(6);
+    return typeName;
+}
+
+QJsonObject buildItemTreeRec(QQuickItem* item, int maxDepth, int depth,
+                             bool fullDetail, const QString& parentSource)
+{
+    QJsonObject node;
+    if (!item)
+        return node;
+
+    QString typeName = shortTypeName(item);
+
+    // Collect custom properties and complex names
+    QJsonObject customProps = collectCustomProperties(item);
+    QJsonArray complexNames = collectComplexPropertyNames(item);
+    bool hasObjectName = !item->objectName().isEmpty();
+
+    // Skip internal Qt plumbing items that carry no app-level info
+    if (!hasObjectName && customProps.isEmpty() && isInternalType(typeName)) {
+        auto children = item->childItems();
+        if (children.isEmpty())
+            return {};
+        // Pass through to children — don't create a node for this item
+        // But only if there's exactly one child (transparent wrapper)
+        if (children.size() == 1)
+            return buildItemTreeRec(children.first(), maxDepth, depth,
+                                    fullDetail, parentSource);
+    }
+
+    node["type"] = typeName;
+
+    if (hasObjectName)
+        node["objectName"] = item->objectName();
+
+    // Source file — only include when different from parent to reduce noise
+    QString src = sourceFileName(item);
+    if (!src.isEmpty() && src != parentSource)
+        node["source"] = src;
+
+    // Geometry (always)
+    node["x"] = item->x();
+    node["y"] = item->y();
+    node["width"] = item->width();
+    node["height"] = item->height();
+    node["visible"] = item->isVisible();
+    node["enabled"] = item->isEnabled();
+
+    // Custom properties (app-level state)
+    if (!customProps.isEmpty())
+        node["properties"] = customProps;
+
+    // Complex property names (tells you what the item can do)
+    if (!complexNames.isEmpty())
+        node["complexProperties"] = complexNames;
+
+    // Full detail extras
+    if (fullDetail) {
+        node["z"] = item->z();
+        if (item->opacity() < 1.0)
+            node["opacity"] = item->opacity();
+        if (item->clip())
+            node["clip"] = true;
+
+        QString state = item->state();
+        if (!state.isEmpty())
+            node["state"] = state;
+
+        // All QVector3D/QVector2D properties (generic — covers 3D transforms etc.)
+        QJsonObject vecs = collectVectorProperties(item);
+        if (!vecs.isEmpty())
+            node["vectors"] = vecs;
+
+        // Children bounding rect
+        QRectF cr = item->childrenRect();
+        if (!cr.isNull())
+            node["childrenRect"] = QJsonObject{
+                {"x", cr.x()}, {"y", cr.y()},
+                {"w", cr.width()}, {"h", cr.height()}
+            };
+    } else {
+        // Overview: only include opacity when not 1.0
+        if (item->opacity() < 1.0)
+            node["opacity"] = item->opacity();
+    }
+
+    // Recurse into children
+    auto children = item->childItems();
+    QString currentSource = src.isEmpty() ? parentSource : src;
+
+    if (!children.isEmpty() && (maxDepth < 0 || depth < maxDepth)) {
+        static const int MAX_CHILDREN_INLINE = 20;
+        static const int TRUNCATED_SHOW = 5;
+
+        QJsonArray childArray;
+        int limit = children.size();
+        bool truncated = false;
+
+        if (limit > MAX_CHILDREN_INLINE) {
+            limit = TRUNCATED_SHOW;
+            truncated = true;
+        }
+
+        for (int i = 0; i < limit; ++i) {
+            QJsonObject childNode = buildItemTreeRec(children[i], maxDepth,
+                                                     depth + 1, fullDetail,
+                                                     currentSource);
+            if (!childNode.isEmpty())
+                childArray.append(childNode);
+        }
+
+        node["children"] = childArray;
+        if (truncated) {
+            node["childCount"] = children.size();
+            node["truncated"] = true;
+
+            // Build a summary of ALL children: type counts + rare/named items
+            QHash<QString, int> typeCounts;
+            for (auto* child : children)
+                typeCounts[shortTypeName(child)]++;
+
+            QJsonObject typeCountsJson;
+            for (auto it = typeCounts.cbegin(); it != typeCounts.cend(); ++it)
+                typeCountsJson[it.key()] = it.value();
+
+            QJsonArray namedItems;
+            for (auto* child : children) {
+                QString cls = shortTypeName(child);
+                bool hasName = !child->objectName().isEmpty();
+                bool isRare = typeCounts.value(cls) <= 3;
+
+                if (hasName || isRare) {
+                    QJsonObject mini;
+                    mini["type"] = cls;
+                    if (hasName)
+                        mini["objectName"] = child->objectName();
+                    QJsonObject props = collectCustomProperties(child);
+                    if (!props.isEmpty())
+                        mini["properties"] = props;
+                    namedItems.append(mini);
+                }
+            }
+
+            QJsonObject summary;
+            summary["typeCounts"] = typeCountsJson;
+            if (!namedItems.isEmpty())
+                summary["namedItems"] = namedItems;
+            node["summary"] = summary;
+        }
+    } else if (!children.isEmpty()) {
+        node["childCount"] = children.size();
+    }
+
+    return node;
+}
+
+} // namespace
+
+QJsonObject collectCustomProperties(QQuickItem* item)
+{
+    QJsonObject props;
+    if (!item)
+        return props;
+
+    auto* meta = item->metaObject();
+    int itemBase = QQuickItem::staticMetaObject.propertyCount();
+    int qtEnd = qtPropertyBoundary(item);
+
+    for (int i = itemBase; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        QString name = QString::fromUtf8(prop.name());
+
+        if (name.startsWith('_'))
+            continue;
+
+        // Skip Qt-internal properties unless universally useful
+        if (i < qtEnd && !isUsefulQtProperty(name))
+            continue;
+
+        QVariant value = prop.read(item);
+        int typeId = value.typeId();
+
+        switch (typeId) {
+        case QMetaType::Int:
+            props[name] = value.toInt();
+            break;
+        case QMetaType::Double:
+        case QMetaType::Float:
+            props[name] = value.toDouble();
+            break;
+        case QMetaType::QString:
+            props[name] = value.toString();
+            break;
+        case QMetaType::Bool:
+            props[name] = value.toBool();
+            break;
+        case QMetaType::QColor:
+            props[name] = value.toString();
+            break;
+        default:
+            break;
+        }
+    }
+
+    return props;
+}
+
+QJsonArray collectComplexPropertyNames(QQuickItem* item)
+{
+    QJsonArray names;
+    if (!item)
+        return names;
+
+    auto* meta = item->metaObject();
+    int itemBase = QQuickItem::staticMetaObject.propertyCount();
+    int qtEnd = qtPropertyBoundary(item);
+
+    for (int i = itemBase; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        QString name = QString::fromUtf8(prop.name());
+
+        if (name.startsWith('_'))
+            continue;
+
+        if (i < qtEnd && !isUsefulQtProperty(name))
+            continue;
+
+        QVariant value = prop.read(item);
+        int typeId = value.typeId();
+
+        switch (typeId) {
+        case QMetaType::Int:
+        case QMetaType::Double:
+        case QMetaType::Float:
+        case QMetaType::QString:
+        case QMetaType::Bool:
+        case QMetaType::QColor:
+            break;
+        default:
+            names.append(name);
+            break;
+        }
+    }
+
+    return names;
+}
+
+QJsonObject collectVectorProperties(QQuickItem* item)
+{
+    QJsonObject vecs;
+    if (!item)
+        return vecs;
+
+    auto* meta = item->metaObject();
+    for (int i = 0; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        QString typeName = QString::fromUtf8(prop.typeName());
+        QString name = QString::fromUtf8(prop.name());
+
+        if (name.startsWith('_'))
+            continue;
+
+        if (typeName == "QVector3D") {
+            QVector3D v = prop.read(item).value<QVector3D>();
+            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}, {"z", v.z()}};
+        } else if (typeName == "QVector2D") {
+            QVector2D v = prop.read(item).value<QVector2D>();
+            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}};
+        }
+    }
+
+    return vecs;
+}
+
+QString sourceFileName(QQuickItem* item)
+{
+    auto* context = QQmlEngine::contextForObject(item);
+    if (!context)
+        return {};
+
+    QUrl url = context->baseUrl();
+    if (url.isEmpty())
+        return {};
+
+    return url.fileName();
+}
+
+QJsonObject buildItemTree(QQuickItem* item, int maxDepth, bool fullDetail)
+{
+    return buildItemTreeRec(item, maxDepth, 0, fullDetail, QString());
+}
+
+QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions)
+{
+    QJsonObject results;
+    if (!root)
+        return results;
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context)
+        return results;
+
+    for (const auto& exprVal : expressions) {
+        QString exprStr = exprVal.toString();
+        if (exprStr.isEmpty())
+            continue;
+
+        QQmlExpression expr(context, root, exprStr);
+        bool valueIsUndefined = false;
+        QVariant result = expr.evaluate(&valueIsUndefined);
+
+        if (expr.hasError()) {
+            results[exprStr] = QJsonObject{{"error", expr.error().toString()}};
+        } else if (valueIsUndefined) {
+            results[exprStr] = QJsonValue::Null;
+        } else {
+            results[exprStr] = QJsonValue::fromVariant(result);
+        }
+    }
+
+    return results;
+}
+
+bool hasFunction(QQuickItem* root, const QString& functionName)
+{
+    if (!root)
+        return false;
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context)
+        return false;
+
+    QQmlExpression expr(context, root,
+                        QString("typeof %1 === 'function'").arg(functionName));
+    QVariant exists = expr.evaluate();
+    return !expr.hasError() && exists.toBool();
+}
+
+QJsonValue callJsonFunction(QQuickItem* root, const QString& functionName)
+{
+    if (!hasFunction(root, functionName))
+        return QJsonValue::Null;
+
+    auto* context = QQmlEngine::contextForObject(root);
+
+    // JSON.stringify is the only reliable way to get a JS object across.
+    QQmlExpression callExpr(context, root,
+                            QString("JSON.stringify(%1())").arg(functionName));
+    QVariant result = callExpr.evaluate();
+    if (callExpr.hasError())
+        return QJsonValue::Null;
+
+    QString jsonStr = result.toString();
+    if (jsonStr.isEmpty())
+        return QJsonValue::Null;
+
+    auto doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+    if (doc.isObject())
+        return doc.object();
+    if (doc.isArray())
+        return doc.array();
+    return QJsonValue::Null;
+}
+
+bool callVoid(QQuickItem* root, const QString& expression)
+{
+    if (!root)
+        return false;
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context)
+        return false;
+
+    QQmlExpression expr(context, root, expression);
+    expr.evaluate();
+    return !expr.hasError();
+}
+
+QString jsStringLiteral(const QString& value)
+{
+    QString escaped = value;
+    escaped.replace('\\', "\\\\").replace('\'', "\\'");
+    return "'" + escaped + "'";
+}
+
+} // namespace ClayScene

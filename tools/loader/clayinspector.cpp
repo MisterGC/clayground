@@ -3,6 +3,8 @@
 #include "clayinspector.h"
 #include "claycontrols.h"
 #include "hotreloadcontainer.h"
+#include <clayscenecapture.h>
+#include <clayscenequery.h>
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -44,6 +46,7 @@ ClayInspector* ClayInspector::current()
 ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
     : QObject(parent)
     , m_container(container)
+    , m_host(std::make_unique<LoaderSceneHost>(container))
     , m_runId(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))
     , m_startedAt(QDateTime::currentDateTime())
 {
@@ -59,6 +62,11 @@ ClayInspector::~ClayInspector()
         writeState();
     if (g_currentInspector == this)
         g_currentInspector = nullptr;
+}
+
+QQuickItem* ClayInspector::sceneRoot() const
+{
+    return m_host ? m_host->rootObject() : nullptr;
 }
 
 QString ClayInspector::phaseName(Phase p)
@@ -81,8 +89,7 @@ void ClayInspector::markReloading()
     // The outgoing root is still alive here (hotReload comes after) - the
     // last chance to ask it where the user is. Null captures (load-error
     // page, no viewState() on root) keep the previous capture alive.
-    QJsonValue vs = callViewState(m_container ? m_container->rootObject()
-                                              : nullptr);
+    QJsonValue vs = ClayScene::callJsonFunction(sceneRoot(), "viewState");
     if (!vs.isNull()) {
         m_capturedViewState = vs;
         appendEvent("view_state_captured");
@@ -437,39 +444,30 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container ? m_container->rootObject() : nullptr;
-    if (!root) {
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
         response["error"] = "No sandbox root item available";
         attachDiagnostics(response);
         return response;
     }
 
     // Root properties (auto-captured primitives)
-    response["rootProperties"] = collectCustomProperties(root);
+    response["rootProperties"] = ClayScene::collectCustomProperties(rootItem);
 
     // flagInfo() if available
-    QJsonValue flagInfo = callFlagInfo(root);
+    QJsonValue flagInfo = ClayScene::callJsonFunction(rootItem, "flagInfo");
     if (!flagInfo.isNull())
         response["flagInfo"] = flagInfo;
 
     // viewState() if the sandbox supports place-keeping across reloads
-    QJsonValue viewState = callViewState(root);
+    QJsonValue viewState = ClayScene::callJsonFunction(rootItem, "viewState");
     if (!viewState.isNull())
         response["viewState"] = viewState;
 
     // scenarios() if the sandbox offers checkpoints
-    if (auto* context = QQmlEngine::contextForObject(root)) {
-        QQmlExpression checkExpr(context, root,
-                                 "typeof scenarios === 'function'");
-        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
-            QQmlExpression callExpr(context, root,
-                                    "JSON.stringify(scenarios())");
-            auto doc = QJsonDocument::fromJson(
-                callExpr.evaluate().toString().toUtf8());
-            if (!callExpr.hasError() && doc.isArray())
-                response["scenarios"] = doc.array();
-        }
-    }
+    QJsonValue scenarios = ClayScene::callJsonFunction(rootItem, "scenarios");
+    if (scenarios.isArray())
+        response["scenarios"] = scenarios.toArray();
 
     // Eval expressions if requested
     if (request.contains("eval")) {
@@ -479,26 +477,15 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
             exprs = evalVal.toArray();
         else if (evalVal.isString())
             exprs.append(evalVal.toString());
-        response["eval"] = evalExpressions(root, exprs);
+        response["eval"] = ClayScene::evalExpressions(rootItem, exprs);
     }
 
     // Screenshot if requested
     if (request.value("screenshot").toBool(false)) {
         QString screenshotPath = m_inspectDir + "/screenshot.png";
-        auto grabResult = root->grabToImage();
-        if (grabResult) {
-            QEventLoop loop;
-            bool saved = false;
-            connect(grabResult.data(), &QQuickItemGrabResult::ready, [&]() {
-                saved = grabResult->saveToFile(screenshotPath);
-                loop.quit();
-            });
-            // Timeout after 3 seconds
-            QTimer::singleShot(3000, &loop, &QEventLoop::quit);
-            loop.exec();
-            if (saved)
-                response["screenshot"] = screenshotPath;
-        }
+        auto capture = ClayScene::capture(*m_host);
+        if (capture.ok() && ClayScene::saveImage(capture.image, screenshotPath))
+            response["screenshot"] = screenshotPath;
     }
 
     attachDiagnostics(response);
@@ -510,8 +497,8 @@ QJsonObject ClayInspector::handleEval(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container ? m_container->rootObject() : nullptr;
-    if (!root) {
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
         response["error"] = "No sandbox root item available";
         attachDiagnostics(response);
         return response;
@@ -524,7 +511,7 @@ QJsonObject ClayInspector::handleEval(const QJsonObject& request)
     else if (evalVal.isString())
         exprs.append(evalVal.toString());
 
-    response["eval"] = evalExpressions(root, exprs);
+    response["eval"] = ClayScene::evalExpressions(rootItem, exprs);
     return response;
 }
 
@@ -532,8 +519,8 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
 {
     QJsonObject response;
 
-    auto* root = m_container ? m_container->rootObject() : nullptr;
-    if (!root) {
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
         response["error"] = "No sandbox root item available";
         attachDiagnostics(response);
         return response;
@@ -541,7 +528,7 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
 
     int maxDepth = request.value("maxDepth").toInt(-1);
     bool fullDetail = request.value("detail").toString("overview") == "full";
-    response["tree"] = buildItemTree(root, maxDepth, 0, fullDetail);
+    response["tree"] = ClayScene::buildItemTree(rootItem, maxDepth, fullDetail);
     return response;
 }
 
@@ -570,23 +557,14 @@ QJsonObject ClayInspector::handleReload(const QJsonObject& request)
 
 void ClayInspector::applyScenarioToRoot(const QString& name)
 {
-    auto* root = m_container ? m_container->rootObject() : nullptr;
-    if (!root)
+    auto* rootItem = sceneRoot();
+    if (!rootItem)
         return;
 
-    bool ok = false;
-    if (auto* context = QQmlEngine::contextForObject(root)) {
-        QQmlExpression checkExpr(context, root,
-                                 "typeof applyScenario === 'function'");
-        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
-            QString escaped = name;
-            escaped.replace('\\', "\\\\").replace('\'', "\\'");
-            QQmlExpression callExpr(context, root,
-                QString("applyScenario('%1')").arg(escaped));
-            callExpr.evaluate();
-            ok = !callExpr.hasError();
-        }
-    }
+    bool ok = ClayScene::hasFunction(rootItem, "applyScenario")
+              && ClayScene::callVoid(rootItem,
+                     QString("applyScenario(%1)")
+                         .arg(ClayScene::jsStringLiteral(name)));
 
     QJsonObject payload;
     payload["name"] = name;
@@ -595,6 +573,27 @@ void ClayInspector::applyScenarioToRoot(const QString& name)
     if (!ok)
         qWarning() << "ClayInspector: applying scenario" << name
                    << "failed (no applyScenario() on the sandbox root?)";
+}
+
+void ClayInspector::applyViewStateToRoot(const QJsonValue& state)
+{
+    auto* rootItem = sceneRoot();
+    if (!rootItem || !state.isObject())
+        return;
+
+    // Compact JSON is a valid JS object literal - inject directly.
+    QString json = QString::fromUtf8(
+        QJsonDocument(state.toObject()).toJson(QJsonDocument::Compact));
+    bool ok = ClayScene::hasFunction(rootItem, "applyViewState")
+              && ClayScene::callVoid(rootItem,
+                     QString("applyViewState(%1)").arg(json));
+
+    QJsonObject payload;
+    payload["ok"] = ok;
+    appendEvent("view_state_restored", payload);
+    if (!ok)
+        qWarning() << "ClayInspector: restoring view state failed"
+                   << "(no applyViewState() on the sandbox root?)";
 }
 
 QJsonObject ClayInspector::handleTime(const QJsonObject& request)
@@ -629,7 +628,7 @@ QJsonObject ClayInspector::handleTime(const QJsonObject& request)
 QJsonObject ClayInspector::handleInput(const QJsonObject& request)
 {
     QJsonObject response;
-    auto* root = m_container ? m_container->rootObject() : nullptr;
+    auto* root = sceneRoot();
 
     if (request.contains("gamepad")) {
         if (!m_inputCtrl) {
@@ -755,7 +754,7 @@ QJsonObject ClayInspector::handleWaitForRoot(const QJsonObject& request)
     // would only ever burn the timeout. Report the current situation instead
     // and let the agent decide its next move.
     bool terminal = (m_phase == Phase::Ready || m_phase == Phase::LoadError);
-    bool haveRoot = m_container && m_container->rootObject();
+    bool haveRoot = sceneRoot() != nullptr;
     if (terminal) {
         response["phase"] = phaseName(m_phase);
         response["waited"] = 0;
@@ -787,468 +786,11 @@ QJsonObject ClayInspector::handleWaitForRoot(const QJsonObject& request)
 
     response["phase"] = phaseName(m_phase);
     response["waited"] = static_cast<int>(timer.elapsed());
-    response["ready"] = loaded || (m_container && m_container->rootObject() != nullptr);
+    response["ready"] = loaded || (sceneRoot() != nullptr);
     if (response["waited"].toInt() >= timeoutMs && !response["ready"].toBool())
         response["timedOut"] = true;
     attachDiagnostics(response);
     return response;
-}
-
-// Find the property index where Qt's built-in properties end.
-// Walks the metaobject chain and finds the highest propertyCount()
-// from any Qt-internal class (QQuick*/QQml* that isn't QML-generated).
-static int qtPropertyBoundary(QQuickItem* item)
-{
-    int boundary = QQuickItem::staticMetaObject.propertyCount();
-    const QMetaObject* m = item->metaObject();
-    while (m && m != &QQuickItem::staticMetaObject) {
-        QString cls = QString::fromUtf8(m->className());
-        bool isQtInternal = (cls.startsWith("QQuick") || cls.startsWith("QQml"))
-                         && !cls.contains("QMLTYPE")
-                         && !cls.contains("_QML_");
-        if (isQtInternal)
-            boundary = qMax(boundary, m->propertyCount());
-        m = m->superClass();
-    }
-    return boundary;
-}
-
-// Small set of Qt-internal properties that carry semantic meaning
-// and should always be captured even from Qt base classes.
-static bool isUsefulQtProperty(const QString& name)
-{
-    static const QStringList useful = {
-        "text", "color", "source", "radius", "contextType"
-    };
-    return useful.contains(name);
-}
-
-QJsonObject ClayInspector::collectCustomProperties(QQuickItem* item)
-{
-    QJsonObject props;
-    if (!item)
-        return props;
-
-    auto* meta = item->metaObject();
-    int itemBase = QQuickItem::staticMetaObject.propertyCount();
-    int qtEnd = qtPropertyBoundary(item);
-
-    for (int i = itemBase; i < meta->propertyCount(); ++i) {
-        auto prop = meta->property(i);
-        QString name = QString::fromUtf8(prop.name());
-
-        if (name.startsWith('_'))
-            continue;
-
-        // Skip Qt-internal properties unless universally useful
-        if (i < qtEnd && !isUsefulQtProperty(name))
-            continue;
-
-        QVariant value = prop.read(item);
-        int typeId = value.typeId();
-
-        switch (typeId) {
-        case QMetaType::Int:
-            props[name] = value.toInt();
-            break;
-        case QMetaType::Double:
-        case QMetaType::Float:
-            props[name] = value.toDouble();
-            break;
-        case QMetaType::QString:
-            props[name] = value.toString();
-            break;
-        case QMetaType::Bool:
-            props[name] = value.toBool();
-            break;
-        case QMetaType::QColor:
-            props[name] = value.toString();
-            break;
-        default:
-            break;
-        }
-    }
-
-    return props;
-}
-
-QJsonArray ClayInspector::collectComplexPropertyNames(QQuickItem* item)
-{
-    QJsonArray names;
-    if (!item)
-        return names;
-
-    auto* meta = item->metaObject();
-    int itemBase = QQuickItem::staticMetaObject.propertyCount();
-    int qtEnd = qtPropertyBoundary(item);
-
-    for (int i = itemBase; i < meta->propertyCount(); ++i) {
-        auto prop = meta->property(i);
-        QString name = QString::fromUtf8(prop.name());
-
-        if (name.startsWith('_'))
-            continue;
-
-        if (i < qtEnd && !isUsefulQtProperty(name))
-            continue;
-
-        QVariant value = prop.read(item);
-        int typeId = value.typeId();
-
-        switch (typeId) {
-        case QMetaType::Int:
-        case QMetaType::Double:
-        case QMetaType::Float:
-        case QMetaType::QString:
-        case QMetaType::Bool:
-        case QMetaType::QColor:
-            break;
-        default:
-            names.append(name);
-            break;
-        }
-    }
-
-    return names;
-}
-
-QJsonObject ClayInspector::collectVectorProperties(QQuickItem* item)
-{
-    QJsonObject vecs;
-    if (!item)
-        return vecs;
-
-    auto* meta = item->metaObject();
-    for (int i = 0; i < meta->propertyCount(); ++i) {
-        auto prop = meta->property(i);
-        QString typeName = QString::fromUtf8(prop.typeName());
-        QString name = QString::fromUtf8(prop.name());
-
-        if (name.startsWith('_'))
-            continue;
-
-        if (typeName == "QVector3D") {
-            QVector3D v = prop.read(item).value<QVector3D>();
-            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}, {"z", v.z()}};
-        } else if (typeName == "QVector2D") {
-            QVector2D v = prop.read(item).value<QVector2D>();
-            vecs[name] = QJsonObject{{"x", v.x()}, {"y", v.y()}};
-        }
-    }
-
-    return vecs;
-}
-
-QString ClayInspector::sourceFileName(QQuickItem* item)
-{
-    auto* context = QQmlEngine::contextForObject(item);
-    if (!context)
-        return {};
-
-    QUrl url = context->baseUrl();
-    if (url.isEmpty())
-        return {};
-
-    return url.fileName();
-}
-
-bool ClayInspector::isInternalType(const QString& className)
-{
-    static const QStringList internals = {
-        "ContentItem", "Overlay", "RootItem", "Loader_QML",
-        "WindowContentItem", "ShaderEffectSource"
-    };
-    for (const auto& s : internals) {
-        if (className.contains(s))
-            return true;
-    }
-    return false;
-}
-
-QJsonValue ClayInspector::callFlagInfo(QQuickItem* root)
-{
-    if (!root)
-        return QJsonValue::Null;
-
-    auto* context = QQmlEngine::contextForObject(root);
-    if (!context)
-        return QJsonValue::Null;
-
-    // Check if flagInfo function exists on root
-    QQmlExpression checkExpr(context, root, "typeof flagInfo === 'function'");
-    QVariant exists = checkExpr.evaluate();
-    if (checkExpr.hasError() || !exists.toBool())
-        return QJsonValue::Null;
-
-    // Call it and serialize via JSON.stringify to reliably capture JS objects
-    QQmlExpression callExpr(context, root, "JSON.stringify(flagInfo())");
-    QVariant result = callExpr.evaluate();
-    if (callExpr.hasError())
-        return QJsonValue::Null;
-
-    QString jsonStr = result.toString();
-    if (jsonStr.isEmpty())
-        return QJsonValue::Null;
-
-    auto doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-    if (doc.isObject())
-        return doc.object();
-    if (doc.isArray())
-        return doc.array();
-    return QJsonValue::Null;
-}
-
-QJsonValue ClayInspector::callViewState(QQuickItem* root)
-{
-    if (!root)
-        return QJsonValue::Null;
-
-    auto* context = QQmlEngine::contextForObject(root);
-    if (!context)
-        return QJsonValue::Null;
-
-    QQmlExpression checkExpr(context, root, "typeof viewState === 'function'");
-    QVariant exists = checkExpr.evaluate();
-    if (checkExpr.hasError() || !exists.toBool())
-        return QJsonValue::Null;
-
-    QQmlExpression callExpr(context, root, "JSON.stringify(viewState())");
-    QVariant result = callExpr.evaluate();
-    if (callExpr.hasError())
-        return QJsonValue::Null;
-
-    auto doc = QJsonDocument::fromJson(result.toString().toUtf8());
-    if (doc.isObject())
-        return doc.object();
-    return QJsonValue::Null;
-}
-
-void ClayInspector::applyViewStateToRoot(const QJsonValue& state)
-{
-    auto* root = m_container ? m_container->rootObject() : nullptr;
-    if (!root || !state.isObject())
-        return;
-
-    bool ok = false;
-    if (auto* context = QQmlEngine::contextForObject(root)) {
-        QQmlExpression checkExpr(context, root,
-                                 "typeof applyViewState === 'function'");
-        if (checkExpr.evaluate().toBool() && !checkExpr.hasError()) {
-            // Compact JSON is a valid JS object literal - inject directly.
-            QString json = QString::fromUtf8(
-                QJsonDocument(state.toObject()).toJson(QJsonDocument::Compact));
-            QQmlExpression callExpr(context, root,
-                QString("applyViewState(%1)").arg(json));
-            callExpr.evaluate();
-            ok = !callExpr.hasError();
-        }
-    }
-
-    QJsonObject payload;
-    payload["ok"] = ok;
-    appendEvent("view_state_restored", payload);
-    if (!ok)
-        qWarning() << "ClayInspector: restoring view state failed"
-                   << "(no applyViewState() on the sandbox root?)";
-}
-
-QJsonObject ClayInspector::evalExpressions(QQuickItem* root, const QJsonArray& expressions)
-{
-    QJsonObject results;
-    if (!root)
-        return results;
-
-    auto* context = QQmlEngine::contextForObject(root);
-    if (!context)
-        return results;
-
-    for (const auto& exprVal : expressions) {
-        QString exprStr = exprVal.toString();
-        if (exprStr.isEmpty())
-            continue;
-
-        QQmlExpression expr(context, root, exprStr);
-        bool valueIsUndefined = false;
-        QVariant result = expr.evaluate(&valueIsUndefined);
-
-        if (expr.hasError()) {
-            results[exprStr] = QJsonObject{{"error", expr.error().toString()}};
-        } else if (valueIsUndefined) {
-            results[exprStr] = QJsonValue::Null;
-        } else {
-            results[exprStr] = QJsonValue::fromVariant(result);
-        }
-    }
-
-    return results;
-}
-
-QJsonObject ClayInspector::buildItemTree(QQuickItem* item, int maxDepth,
-                                         int depth, bool fullDetail,
-                                         const QString& parentSource)
-{
-    QJsonObject node;
-    if (!item)
-        return node;
-
-    // Type name — strip common prefixes for readability
-    QString typeName = QString::fromUtf8(item->metaObject()->className());
-    if (typeName.startsWith("QQuick3D"))
-        typeName = typeName.mid(8);
-    else if (typeName.startsWith("QQuick"))
-        typeName = typeName.mid(6);
-
-    // Collect custom properties and complex names
-    QJsonObject customProps = collectCustomProperties(item);
-    QJsonArray complexNames = collectComplexPropertyNames(item);
-    bool hasObjectName = !item->objectName().isEmpty();
-
-    // Skip internal Qt plumbing items that carry no app-level info
-    if (!hasObjectName && customProps.isEmpty() && isInternalType(typeName)) {
-        auto children = item->childItems();
-        if (children.isEmpty())
-            return {};
-        // Pass through to children — don't create a node for this item
-        // But only if there's exactly one child (transparent wrapper)
-        if (children.size() == 1)
-            return buildItemTree(children.first(), maxDepth, depth, fullDetail, parentSource);
-    }
-
-    node["type"] = typeName;
-
-    if (hasObjectName)
-        node["objectName"] = item->objectName();
-
-    // Source file — only include when different from parent to reduce noise
-    QString src = sourceFileName(item);
-    if (!src.isEmpty() && src != parentSource)
-        node["source"] = src;
-
-    // Geometry (always)
-    node["x"] = item->x();
-    node["y"] = item->y();
-    node["width"] = item->width();
-    node["height"] = item->height();
-    node["visible"] = item->isVisible();
-    node["enabled"] = item->isEnabled();
-
-    // Custom properties (app-level state)
-    if (!customProps.isEmpty())
-        node["properties"] = customProps;
-
-    // Complex property names (tells you what the item can do)
-    if (!complexNames.isEmpty())
-        node["complexProperties"] = complexNames;
-
-    // Full detail extras
-    if (fullDetail) {
-        node["z"] = item->z();
-        if (item->opacity() < 1.0)
-            node["opacity"] = item->opacity();
-        if (item->clip())
-            node["clip"] = true;
-
-        QString state = item->state();
-        if (!state.isEmpty())
-            node["state"] = state;
-
-        // All QVector3D/QVector2D properties (generic — covers 3D transforms etc.)
-        QJsonObject vecs = collectVectorProperties(item);
-        if (!vecs.isEmpty())
-            node["vectors"] = vecs;
-
-        // Children bounding rect
-        QRectF cr = item->childrenRect();
-        if (!cr.isNull())
-            node["childrenRect"] = QJsonObject{
-                {"x", cr.x()}, {"y", cr.y()},
-                {"w", cr.width()}, {"h", cr.height()}
-            };
-    } else {
-        // Overview: only include opacity when not 1.0
-        if (item->opacity() < 1.0)
-            node["opacity"] = item->opacity();
-    }
-
-    // Recurse into children
-    auto children = item->childItems();
-    QString currentSource = src.isEmpty() ? parentSource : src;
-
-    if (!children.isEmpty() && (maxDepth < 0 || depth < maxDepth)) {
-        static const int MAX_CHILDREN_INLINE = 20;
-        static const int TRUNCATED_SHOW = 5;
-
-        QJsonArray childArray;
-        int limit = children.size();
-        bool truncated = false;
-
-        if (limit > MAX_CHILDREN_INLINE) {
-            limit = TRUNCATED_SHOW;
-            truncated = true;
-        }
-
-        for (int i = 0; i < limit; ++i) {
-            QJsonObject childNode = buildItemTree(children[i], maxDepth,
-                                                  depth + 1, fullDetail,
-                                                  currentSource);
-            if (!childNode.isEmpty())
-                childArray.append(childNode);
-        }
-
-        node["children"] = childArray;
-        if (truncated) {
-            node["childCount"] = children.size();
-            node["truncated"] = true;
-
-            // Build a summary of ALL children: type counts + rare/named items
-            QHash<QString, int> typeCounts;
-            for (auto* child : children) {
-                QString cls = QString::fromUtf8(child->metaObject()->className());
-                if (cls.startsWith("QQuick3D"))
-                    cls = cls.mid(8);
-                else if (cls.startsWith("QQuick"))
-                    cls = cls.mid(6);
-                typeCounts[cls]++;
-            }
-
-            QJsonObject typeCountsJson;
-            for (auto it = typeCounts.cbegin(); it != typeCounts.cend(); ++it)
-                typeCountsJson[it.key()] = it.value();
-
-            QJsonArray namedItems;
-            for (auto* child : children) {
-                QString cls = QString::fromUtf8(child->metaObject()->className());
-                if (cls.startsWith("QQuick3D"))
-                    cls = cls.mid(8);
-                else if (cls.startsWith("QQuick"))
-                    cls = cls.mid(6);
-
-                bool hasName = !child->objectName().isEmpty();
-                bool isRare = typeCounts.value(cls) <= 3;
-
-                if (hasName || isRare) {
-                    QJsonObject mini;
-                    mini["type"] = cls;
-                    if (hasName)
-                        mini["objectName"] = child->objectName();
-                    QJsonObject props = collectCustomProperties(child);
-                    if (!props.isEmpty())
-                        mini["properties"] = props;
-                    namedItems.append(mini);
-                }
-            }
-
-            QJsonObject summary;
-            summary["typeCounts"] = typeCountsJson;
-            if (!namedItems.isEmpty())
-                summary["namedItems"] = namedItems;
-            node["summary"] = summary;
-        }
-    } else if (!children.isEmpty()) {
-        node["childCount"] = children.size();
-    }
-
-    return node;
 }
 
 void ClayInspector::writeResponse(const QJsonObject& response)
@@ -1296,7 +838,7 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
             stopTrace("replaced");
         }
 
-        auto* root = m_container->rootObject();
+        auto* root = sceneRoot();
         if (!root) {
             response["error"] = "No sandbox root item available";
             return response;
@@ -1369,7 +911,7 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
 
 void ClayInspector::onTraceTick()
 {
-    auto* root = m_container->rootObject();
+    auto* root = sceneRoot();
     if (!root || !m_traceFile)
         return;
 
@@ -1558,7 +1100,7 @@ QJsonObject ClayInspector::buildTraceSummary()
 
 void ClayInspector::startFlag()
 {
-    auto* root = m_container->rootObject();
+    auto* root = sceneRoot();
     if (!root) {
         qWarning() << "ClayInspector: no sandbox root for flag capture";
         return;
@@ -1568,23 +1110,18 @@ void ClayInspector::startFlag()
     m_pendingFlagTimestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
     m_pendingFlagScreenshot = m_crewDir + "/flag_" + m_pendingFlagTimestamp + ".png";
 
-    auto grabResult = root->grabToImage();
-    if (!grabResult) {
-        qWarning() << "ClayInspector: grabToImage failed";
+    auto shot = ClayScene::capture(*m_host);
+    QString saveError;
+    if (!shot.ok() || !ClayScene::saveImage(shot.image, m_pendingFlagScreenshot,
+                                            &saveError)) {
+        qWarning() << "ClayInspector: flag capture failed:"
+                   << (shot.ok() ? saveError : shot.error);
         m_pendingFlagTimestamp.clear();
         m_pendingFlagScreenshot.clear();
         return;
     }
 
-    connect(grabResult.data(), &QQuickItemGrabResult::ready, this, [this, grabResult]() {
-        if (grabResult->saveToFile(m_pendingFlagScreenshot))
-            emit flagReady(m_pendingFlagScreenshot);
-        else {
-            qWarning() << "ClayInspector: failed to save flag screenshot";
-            m_pendingFlagTimestamp.clear();
-            m_pendingFlagScreenshot.clear();
-        }
-    });
+    emit flagReady(m_pendingFlagScreenshot);
 }
 
 void ClayInspector::completeFlag(const QString& annotation)
@@ -1592,7 +1129,7 @@ void ClayInspector::completeFlag(const QString& annotation)
     if (m_pendingFlagTimestamp.isEmpty())
         return;
 
-    auto* root = m_container->rootObject();
+    auto* root = sceneRoot();
 
     QJsonObject flag;
     flag["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
@@ -1600,14 +1137,14 @@ void ClayInspector::completeFlag(const QString& annotation)
     flag["annotation"] = annotation;
 
     if (root) {
-        flag["rootProperties"] = collectCustomProperties(root);
-        QJsonValue fi = callFlagInfo(root);
+        flag["rootProperties"] = ClayScene::collectCustomProperties(root);
+        QJsonValue fi = ClayScene::callJsonFunction(root, "flagInfo");
         if (!fi.isNull())
             flag["flagInfo"] = fi;
-        QJsonValue vs = callViewState(root);
+        QJsonValue vs = ClayScene::callJsonFunction(root, "viewState");
         if (!vs.isNull())
             flag["viewState"] = vs;
-        flag["tree"] = buildItemTree(root, 4, 0, false);
+        flag["tree"] = ClayScene::buildItemTree(root, 4, false);
     }
 
     QJsonArray logTail;
@@ -1671,16 +1208,16 @@ void ClayInspector::writeAutoFlag(const QString& errorMsg)
     flag["phase"] = phaseName(m_phase);
     flag["reloadCount"] = m_reloadCount;
 
-    auto* root = m_container ? m_container->rootObject() : nullptr;
+    auto* root = sceneRoot();
     if (root) {
-        flag["rootProperties"] = collectCustomProperties(root);
-        QJsonValue fi = callFlagInfo(root);
+        flag["rootProperties"] = ClayScene::collectCustomProperties(root);
+        QJsonValue fi = ClayScene::callJsonFunction(root, "flagInfo");
         if (!fi.isNull())
             flag["flagInfo"] = fi;
-        QJsonValue vs = callViewState(root);
+        QJsonValue vs = ClayScene::callJsonFunction(root, "viewState");
         if (!vs.isNull())
             flag["viewState"] = vs;
-        flag["tree"] = buildItemTree(root, 4, 0, false);
+        flag["tree"] = ClayScene::buildItemTree(root, 4, false);
     }
     attachDiagnostics(flag);
 
@@ -1696,17 +1233,13 @@ void ClayInspector::writeAutoFlag(const QString& errorMsg)
         appendEvent("auto_flag", payload);
     }
 
-    // Screenshot is best-effort and async; the PNG pairs with the JSON via
-    // the shared timestamp when the grab succeeds.
+    // Screenshot is best-effort; the PNG pairs with the JSON via the shared
+    // timestamp when the grab succeeds.
     if (root) {
-        auto grabResult = root->grabToImage();
-        if (grabResult) {
-            QString pngPath = m_inspectDir + "/autoflag_" + ts + ".png";
-            connect(grabResult.data(), &QQuickItemGrabResult::ready,
-                    this, [grabResult, pngPath]() {
-                grabResult->saveToFile(pngPath);
-            });
-        }
+        auto shot = ClayScene::capture(*m_host);
+        if (shot.ok())
+            ClayScene::saveImage(shot.image,
+                                 m_inspectDir + "/autoflag_" + ts + ".png");
     }
 
     cleanupOldAutoFlags();

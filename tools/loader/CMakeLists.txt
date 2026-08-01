@@ -17,6 +17,7 @@ add_executable(${PROJECT_NAME}
     clayliveloader.h
     hotreloadcontainer.cpp
     hotreloadcontainer.h
+    loaderscenehost.h
     mainwindow.cpp
     mainwindow.h
     retroeffect.cpp
@@ -32,6 +33,7 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
 PRIVATE
   claytoolscommon
+  clayscene
   Qt::Core
   Qt::Quick
   Qt::QuickControls2

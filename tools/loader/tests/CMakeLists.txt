@@ -22,6 +22,7 @@ target_include_directories(tst_inspector_unit PRIVATE
 )
 
 target_link_libraries(tst_inspector_unit PRIVATE
+    clayscene
     Qt6::Core
     Qt6::Test
     Qt6::Quick

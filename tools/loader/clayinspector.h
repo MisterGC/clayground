@@ -11,6 +11,9 @@
 #include <QQuickItem>
 #include <QElapsedTimer>
 #include <functional>
+#include <memory>
+
+#include "loaderscenehost.h"
 
 class QTimer;
 class QFile;
@@ -104,17 +107,8 @@ private:
     void stopTrace(const QString& reason);
     QJsonObject buildTraceSummary();
 
-    QJsonObject collectCustomProperties(QQuickItem* item);
-    QJsonArray collectComplexPropertyNames(QQuickItem* item);
-    QJsonObject collectVectorProperties(QQuickItem* item);
-    QString sourceFileName(QQuickItem* item);
-    static bool isInternalType(const QString& className);
-    QJsonValue callFlagInfo(QQuickItem* root);
-    QJsonValue callViewState(QQuickItem* root);
-    QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions);
-    QJsonObject buildItemTree(QQuickItem* item, int maxDepth = -1,
-                              int depth = 0, bool fullDetail = false,
-                              const QString& parentSource = QString());
+    // The sandbox root, or nullptr while nothing is loaded.
+    QQuickItem* sceneRoot() const;
     void writeResponse(const QJsonObject& response);
     void cleanupOldFlags();
 
@@ -122,6 +116,9 @@ private:
     void stopWatching();
 
     HotReloadContainer* m_container = nullptr;
+    // Everything scene-facing goes through this: capture, queries, the item
+    // tree. See tools/scene (issue #173).
+    std::unique_ptr<LoaderSceneHost> m_host;
     ClayTimeControl* m_timeCtrl = nullptr;
     ClayInputControl* m_inputCtrl = nullptr;
     QFileSystemWatcher m_watcher;
