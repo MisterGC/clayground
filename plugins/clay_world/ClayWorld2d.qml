@@ -203,6 +203,39 @@ ClayWorldBase {
         }
     }
 
+    /*!
+        \qmlmethod object ClayWorld2d::clayInspect()
+        \brief Reports world bounds, entity count and camera state as plain
+               JSON, for tooling.
+
+        Pull-only and side-effect free: read on demand from the canvas, the
+        room and the physics world, nothing is cached or observed. Extends
+        \c _clayInspectBase() with the 2d-specific half.
+    */
+    function clayInspect() {
+        var info = _clayInspectBase();
+        info["type"] = "ClayWorld2d";
+        info["worldBounds"] = {"xMin": xWuMin, "xMax": xWuMax,
+                               "yMin": yWuMin, "yMax": yWuMax};
+        info["worldSizeWu"] = [xWuMax - xWuMin, yWuMax - yWuMin];
+        info["pixelPerUnit"] = pixelPerUnit;
+        info["entityCount"] = room ? room.children.length : 0;
+        info["viewPortCenterWu"] = [viewPortCenterWuX, viewPortCenterWuY];
+        info["hasObservedItem"] = observedItem ? true : false;
+        info["observedItem"] = (observedItem && observedItem.objectName)
+                               ? observedItem.objectName : null;
+        // Either a camera drives the viewport or observedItem does, never both
+        // - reporting which one is in charge is half the answer to "why is the
+        // view here".
+        info["cameraAttached"] = camera !== null;
+        info["running"] = running;
+        info["gravity"] = [gravity.x, gravity.y];
+        info["timeStep"] = timeStep;
+        info["baseZCoord"] = baseZCoord;
+        info["lastZCoord"] = lastZCoord;
+        return info;
+    }
+
     // _updateRoomContent also runs once here so declaratively room-parented
     // children get their world/pixelPerUnit wired in worlds without a map
     // (the room.childrenChanged connection is not active during
