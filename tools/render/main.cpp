@@ -15,6 +15,8 @@
 #include <QGuiApplication>
 #include <QQuickWindow>
 #include <QFile>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QQuickItem>
 #include <QTextStream>
 
@@ -25,8 +27,29 @@ constexpr int EXIT_LOAD_FAILED = 1;        // nothing rendered
 constexpr int EXIT_QML_ERRORS = 2;         // rendered, but the scene complained
 constexpr int EXIT_STATE_NOT_REACHED = 3;  // --wait-for never came true
 
-QStringList g_qmlProblems;
 QtMessageHandler g_defaultHandler = nullptr;
+
+// Qt runs the message handler on whichever thread happened to log, so it has to
+// be reentrant. It is not just a theoretical requirement here: Qt Multimedia's
+// ffmpeg plugin logs from a pooled worker thread while the main thread is still
+// building the scene, and two threads growing the same QStringList corrupt the
+// heap. That was issue #179 - the same command died as SIGSEGV, SIGABRT or
+// SIGBUS depending on which thread lost the race, sometimes only at exit.
+//
+// The list and its mutex are leaked on purpose. Those worker threads can still
+// be logging while static destructors run, so a list destroyed at exit is just
+// the same race with a later deadline.
+QMutex& problemsMutex()
+{
+    static QMutex* mutex = new QMutex;
+    return *mutex;
+}
+
+QStringList& qmlProblems()
+{
+    static QStringList* problems = new QStringList;
+    return *problems;
+}
 
 // A runtime ReferenceError does not stop a component from instantiating, so a
 // sandbox can render a plausible-looking picture of a broken scene. Collect
@@ -35,10 +58,20 @@ QtMessageHandler g_defaultHandler = nullptr;
 void messageHandler(QtMsgType type, const QMessageLogContext& ctx,
                     const QString& msg)
 {
-    if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg)
-        g_qmlProblems << msg;
+    if (type == QtWarningMsg || type == QtCriticalMsg || type == QtFatalMsg) {
+        QMutexLocker locker(&problemsMutex());
+        qmlProblems() << msg;
+    }
+    // Deliberately outside the lock: the default handler writes to stderr and
+    // may log again, and holding the lock across it would be a deadlock.
     if (g_defaultHandler)
         g_defaultHandler(type, ctx, msg);
+}
+
+int qmlProblemCount()
+{
+    QMutexLocker locker(&problemsMutex());
+    return qmlProblems().size();
 }
 
 int fail(const QString& message)
@@ -337,8 +370,9 @@ int main(int argc, char* argv[])
 
     // The picture exists either way - but a scene that threw is not a scene
     // you should trust, so say so and exit non-zero.
-    if (!g_qmlProblems.isEmpty()) {
-        QTextStream(stderr) << "clayrender: " << g_qmlProblems.size()
+    const int problems = qmlProblemCount();
+    if (problems > 0) {
+        QTextStream(stderr) << "clayrender: " << problems
                             << " QML warning(s)/error(s) during render\n";
         return EXIT_QML_ERRORS;
     }
