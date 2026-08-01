@@ -204,8 +204,28 @@ bool RenderHost::applyAssignment(const QString& assignment, QString* error)
                           ? rawValue : ClayScene::jsStringLiteral(rawValue);
 
     const QString expression = QString("%1 = %2").arg(path, value);
-    if (!ClayScene::callVoid(m_rootItem, expression)) {
-        if (error) *error = QStringLiteral("assignment failed: %1").arg(expression);
+    QString qmlError;
+    if (!ClayScene::callVoid(m_rootItem, expression, &qmlError)) {
+        if (error) *error = QStringLiteral("assignment failed: %1 (%2)")
+                            .arg(expression, qmlError);
+        return false;
+    }
+    return true;
+}
+
+bool RenderHost::evalScript(const QString& source, QString* error)
+{
+    if (!m_rootItem) {
+        if (error) *error = QStringLiteral("nothing loaded");
+        return false;
+    }
+
+    QString qmlError;
+    // Wrapped in a function body so several statements, local vars and an
+    // early return all behave the way they do in the sandbox itself.
+    const QString wrapped = QStringLiteral("(function(){\n%1\n})()").arg(source);
+    if (!ClayScene::callVoid(m_rootItem, wrapped, &qmlError)) {
+        if (error) *error = qmlError;
         return false;
     }
     return true;

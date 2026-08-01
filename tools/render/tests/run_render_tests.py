@@ -146,6 +146,84 @@ Item { this is not qml }
     centre = pixels[(h // 2) * w + w // 2] if pixels else None
     check("--set changed the pixels", centre == (0xFF, 0x33, 0x66), str(centre))
 
+    # Reaching a state that is not the sandbox's default (issue #174):
+    # --set can only assign, so calls need --eval/--script, and a state that
+    # builds over time needs --wait-for.
+    write(os.path.join(tmp, "State.qml"), """
+import QtQuick
+Item {
+    id: root
+    property color fill: "#101820"
+    property int spawned: 0
+    property bool ready: spawned >= 3
+    function applyScenario(name) { fill = (name === "hot") ? "#ff3366" : "#00d9ff" }
+    Timer { interval: 60; repeat: true; running: true; onTriggered: root.spawned++ }
+    Rectangle { anchors.fill: parent; color: root.fill }
+}
+""")
+    write(os.path.join(tmp, "setup.js"), 'applyScenario("hot");\nspawned = 1;\n')
+    state = os.path.join(tmp, "State.qml")
+
+    def centre_of(path):
+        pixels, w, h = png_pixels(path)
+        return pixels[(h // 2) * w + w // 2] if pixels else None
+
+    out_eval = os.path.join(tmp, "eval.png")
+    code, _, err = run(args.clayrender,
+                       [state, "--out", out_eval, "--size", "60x40",
+                        "--eval", 'applyScenario("hot")'])
+    check("--eval calls into the scene", code == 0 and centre_of(out_eval) == (0xFF, 0x33, 0x66),
+          f"exit {code} {centre_of(out_eval)}")
+
+    out_script = os.path.join(tmp, "script.png")
+    code, _, err = run(args.clayrender,
+                       [state, "--out", out_script, "--size", "60x40",
+                        "--script", os.path.join(tmp, "setup.js")])
+    check("--script runs a file in the same context",
+          code == 0 and centre_of(out_script) == (0xFF, 0x33, 0x66),
+          f"exit {code} {centre_of(out_script)}")
+
+    # The order on the command line is the order of application - the parser
+    # groups values per option, so this is the check that keeps it honest.
+    out_a = os.path.join(tmp, "order_a.png")
+    run(args.clayrender, [state, "--out", out_a, "--size", "60x40",
+                          "--set", 'fill="#00ff00"',
+                          "--eval", 'applyScenario("hot")'])
+    out_b = os.path.join(tmp, "order_b.png")
+    run(args.clayrender, [state, "--out", out_b, "--size", "60x40",
+                          "--eval", 'applyScenario("hot")',
+                          "--set", 'fill="#00ff00"'])
+    check("--set and --eval apply in command-line order",
+          centre_of(out_a) == (0xFF, 0x33, 0x66) and centre_of(out_b) == (0, 0xFF, 0),
+          f"{centre_of(out_a)} then {centre_of(out_b)}")
+
+    code, _, err = run(args.clayrender,
+                       [state, "--out", os.path.join(tmp, "wait.png"),
+                        "--size", "60x40", "--wait-for", "ready"])
+    check("--wait-for waits for a state that builds over time", code == 0,
+          f"exit {code} {err.strip()[:80]}")
+
+    out_never = os.path.join(tmp, "never.png")
+    code, _, err = run(args.clayrender,
+                       [state, "--out", out_never, "--size", "60x40",
+                        "--wait-for", "spawned > 100000",
+                        "--wait-timeout", "400"])
+    check("a state that never arrives exits 3 and writes no image",
+          code == 3 and not os.path.exists(out_never), f"exit {code}")
+
+    code, _, err = run(args.clayrender,
+                       [state, "--out", os.path.join(tmp, "bad.png"),
+                        "--size", "60x40", "--eval", "noSuchFunction()"])
+    check("a broken --eval fails with the QML message, not a picture",
+          code == 1 and "noSuchFunction" in err, f"exit {code} {err.strip()[:80]}")
+
+    code, _, err = run(args.clayrender,
+                       [state, "--out", os.path.join(tmp, "bad2.png"),
+                        "--size", "60x40", "--wait-for", "noSuchThing.x",
+                        "--wait-timeout", "400"])
+    check("a broken --wait-for is an error, not a timeout",
+          code == 1 and "noSuchThing" in err, f"exit {code} {err.strip()[:80]}")
+
     # Crop and scale, applied in that order.
     out_crop = os.path.join(tmp, "crop.png")
     code, _, _ = run(args.clayrender,

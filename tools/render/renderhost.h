@@ -65,9 +65,17 @@ public:
     // failure - a picture of a state you did not reach is worse than an error.
     bool applyAssignment(const QString& assignment, QString* error);
 
+    // Runs statements in the root's own context for their side effect - the
+    // half of "reach a state" that --set cannot express, because an assignment
+    // cannot call anything. Returns false with the QML message on error.
+    bool evalScript(const QString& source, QString* error);
+
     // Renders n additional frames, giving animations and lazily-built scene
     // graph nodes a chance to appear.
     void renderFrames(int count);
+
+    // Nothing renders here unless asked, so waiting has to drive a frame.
+    void advance() override { renderFrames(1); }
 
     QQuickItem* rootObject() const override { return m_rootItem; }
     int generation() const override { return m_generation; }

@@ -40,6 +40,12 @@ public:
     // synchronously should override this. Returns a null image on failure and
     // fills 'error' when given.
     virtual QImage grabImage(int timeoutMs = 3000, QString* error = nullptr) const;
+
+    // Gives the scene one chance to move on. A live host renders on its own
+    // clock and does nothing here; a host that only renders when asked must
+    // drive its render control, or waiting for an animated condition waits
+    // forever on a scene that never ticks.
+    virtual void advance();
 };
 
 } // namespace ClayScene

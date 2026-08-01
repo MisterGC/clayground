@@ -34,4 +34,28 @@ struct SettleResult
 // animation that keeps running is a fact about the scene, not a failure.
 SettleResult settle(const Host& host, const SettleRequest& request = {});
 
+// The other half of "is the scene ready yet": settle answers it in pixels,
+// waitFor answers it in the scene's own terms - "root.spawned.length === 12".
+// Cheaper than settling, and the only way to wait for something that never
+// shows up as motion.
+struct WaitRequest
+{
+    QString expression;
+    int timeoutMs = 3000;
+    int intervalMs = 32;
+};
+
+struct WaitResult
+{
+    bool satisfied = false;
+    int waitedMs = 0;
+    int polls = 0;
+    QString error;      // a broken expression; NOT "the condition stayed false"
+};
+
+// Polls the expression in the root's own context until it is truthy. A
+// timeout is reported as satisfied=false with no error, a typo as an error -
+// telling those apart is the whole point of having this instead of a sleep.
+WaitResult waitFor(Host& host, const WaitRequest& request);
+
 } // namespace ClayScene

@@ -20,9 +20,10 @@
 
 namespace {
 
-// Exit codes, so a script can tell the three outcomes apart.
-constexpr int EXIT_LOAD_FAILED = 1;   // nothing rendered
-constexpr int EXIT_QML_ERRORS = 2;    // rendered, but the scene complained
+// Exit codes, so a script can tell the outcomes apart.
+constexpr int EXIT_LOAD_FAILED = 1;        // nothing rendered
+constexpr int EXIT_QML_ERRORS = 2;         // rendered, but the scene complained
+constexpr int EXIT_STATE_NOT_REACHED = 3;  // --wait-for never came true
 
 QStringList g_qmlProblems;
 QtMessageHandler g_defaultHandler = nullptr;
@@ -71,6 +72,43 @@ QRect parseCrop(const QString& text, bool* ok)
     return QRect(v[0], v[1], v[2], v[3]);
 }
 
+// One way of getting the scene into the state worth photographing.
+struct Step
+{
+    enum Kind { Assign, Eval, Script };
+    Kind kind;
+    QString value;
+};
+
+// QCommandLineParser hands back all values of one option together, which
+// loses the order BETWEEN options - and "--set paused=true --eval step()"
+// does something different from the other way round. So the order comes
+// from argv, and the parser is left to do the validating.
+QList<Step> collectSteps(const QStringList& args)
+{
+    QList<Step> steps;
+    for (int i = 1; i < args.size(); ++i) {
+        const QString arg = args[i];
+        auto take = [&](const char* name, Step::Kind kind) {
+            const QString flag = QLatin1String("--") + QLatin1String(name);
+            if (arg == flag) {
+                if (i + 1 < args.size())
+                    steps.append({kind, args[++i]});
+                return true;
+            }
+            if (arg.startsWith(flag + QLatin1Char('='))) {
+                steps.append({kind, arg.mid(flag.size() + 1)});
+                return true;
+            }
+            return false;
+        };
+        if (take("set", Step::Assign)) continue;
+        if (take("eval", Step::Eval)) continue;
+        take("script", Step::Script);
+    }
+    return steps;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -102,9 +140,23 @@ int main(int argc, char* argv[])
     QCommandLineOption outOpt({"o", "out"}, "Write the PNG here.", "file", "shot.png");
     QCommandLineOption sizeOpt("size", "Viewport size, e.g. 1600x1000.", "WxH", "1280x800");
     QCommandLineOption setOpt("set",
-        "Assign a property after load, before capture: --set 'root.showLabels=false'. "
-        "Evaluated in the root's own context, so ids and dotted paths work. Repeatable.",
+        "Assign a property after load, before capture: --set 'showLabels=false'. "
+        "Evaluated in the root's own context, so ids and dotted paths work. "
+        "Assignment only - use --eval to call something. Repeatable.",
         "path=value");
+    QCommandLineOption evalOpt("eval",
+        "Run statements in the root's context for their side effect: "
+        "--eval 'applyScenario(\"parallel\")'. Repeatable, and --set/--eval/"
+        "--script run in the order given on the command line.", "js");
+    QCommandLineOption scriptOpt("script",
+        "Run a JS file in the root's context - the same thing as --eval for "
+        "setups too long for one line.", "file");
+    QCommandLineOption waitForOpt("wait-for",
+        "Hold the capture until this expression is truthy: --wait-for "
+        "'spawned.length === 12'. Exits 3 if it never is, rather than "
+        "photographing a state that was never reached.", "js");
+    QCommandLineOption waitMsOpt("wait-timeout",
+        "Upper bound for --wait-for in ms.", "ms", "3000");
     QCommandLineOption framesOpt("frames",
         "Render this many frames before capturing.", "n", "2");
     QCommandLineOption settleOpt("settle",
@@ -125,9 +177,9 @@ int main(int argc, char* argv[])
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
-    parser.addOptions({outOpt, sizeOpt, setOpt, framesOpt, settleOpt,
-                       settleMsOpt, dumpOpt, projectOpt, pickOpt, cropOpt,
-                       scaleOpt, widthOpt});
+    parser.addOptions({outOpt, sizeOpt, setOpt, evalOpt, scriptOpt, waitForOpt,
+                       waitMsOpt, framesOpt, settleOpt, settleMsOpt, dumpOpt,
+                       projectOpt, pickOpt, cropOpt, scaleOpt, widthOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -148,14 +200,49 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    for (const auto& assignment : parser.values(setOpt)) {
+    for (const auto& step : collectSteps(app.arguments())) {
         QString error;
-        if (!host.applyAssignment(assignment, &error))
-            return fail(error);
+        switch (step.kind) {
+        case Step::Assign:
+            if (!host.applyAssignment(step.value, &error))
+                return fail(error);
+            break;
+        case Step::Eval:
+            if (!host.evalScript(step.value, &error))
+                return fail(QString("--eval '%1': %2").arg(step.value, error));
+            break;
+        case Step::Script: {
+            QFile file(step.value);
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+                return fail(QString("cannot read --script %1").arg(step.value));
+            const QString source = QString::fromUtf8(file.readAll());
+            if (!host.evalScript(source, &error))
+                return fail(QString("--script %1: %2").arg(step.value, error));
+            break;
+        }
+        }
     }
 
     const int frames = parser.value(framesOpt).toInt();
     host.renderFrames(qMax(1, frames));
+
+    if (parser.isSet(waitForOpt)) {
+        ClayScene::WaitRequest req;
+        req.expression = parser.value(waitForOpt);
+        req.timeoutMs = parser.value(waitMsOpt).toInt();
+        auto waited = ClayScene::waitFor(host, req);
+        if (!waited.error.isEmpty())
+            return fail(QString("--wait-for '%1': %2")
+                        .arg(req.expression, waited.error));
+        if (!waited.satisfied) {
+            // No image: a picture of a state that was never reached is the
+            // kind of evidence that costs an hour to disbelieve.
+            QTextStream(stderr)
+                << "clayrender: --wait-for '" << req.expression
+                << "' still false after " << waited.waitedMs << " ms\n";
+            return EXIT_STATE_NOT_REACHED;
+        }
+    }
 
     if (parser.isSet(settleOpt)) {
         ClayScene::SettleRequest req;

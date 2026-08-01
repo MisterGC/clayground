@@ -3,6 +3,7 @@
 #include "claysettle.h"
 #include "clayscenecapture.h"
 #include "clayscenehost.h"
+#include "clayscenequery.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -58,6 +59,45 @@ SettleResult settle(const Host& host, const SettleRequest& request)
         }
 
         previous = current;
+    }
+
+    result.waitedMs = static_cast<int>(clock.elapsed());
+    return result;
+}
+
+WaitResult waitFor(Host& host, const WaitRequest& request)
+{
+    WaitResult result;
+
+    QElapsedTimer clock;
+    clock.start();
+
+    for (;;) {
+        QString error;
+        ++result.polls;
+        if (evalCondition(host.rootObject(), request.expression, &error)) {
+            result.satisfied = true;
+            result.waitedMs = static_cast<int>(clock.elapsed());
+            return result;
+        }
+        if (!error.isEmpty()) {
+            // Stop on the first evaluation error: retrying a typo until the
+            // timeout would report it as "the state was never reached", which
+            // sends the reader looking in entirely the wrong place.
+            result.error = error;
+            result.waitedMs = static_cast<int>(clock.elapsed());
+            return result;
+        }
+
+        if (clock.elapsed() >= request.timeoutMs)
+            break;
+
+        QEventLoop loop;
+        QTimer::singleShot(request.intervalMs, &loop, &QEventLoop::quit);
+        loop.exec();
+        // An offscreen host renders only when asked; without this a condition
+        // that depends on an animation or a physics step never comes true.
+        host.advance();
     }
 
     result.waitedMs = static_cast<int>(clock.elapsed());

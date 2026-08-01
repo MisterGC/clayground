@@ -478,18 +478,53 @@ QJsonValue callJsonFunction(QQuickItem* root, const QString& functionName)
     return QJsonValue::Null;
 }
 
-bool callVoid(QQuickItem* root, const QString& expression)
+bool callVoid(QQuickItem* root, const QString& expression, QString* error)
 {
-    if (!root)
+    if (!root) {
+        if (error) *error = QStringLiteral("nothing loaded");
         return false;
+    }
 
     auto* context = QQmlEngine::contextForObject(root);
-    if (!context)
+    if (!context) {
+        if (error) *error = QStringLiteral("the root has no QML context");
         return false;
+    }
 
     QQmlExpression expr(context, root, expression);
     expr.evaluate();
-    return !expr.hasError();
+    if (expr.hasError()) {
+        if (error) *error = expr.error().description();
+        return false;
+    }
+    return true;
+}
+
+bool evalCondition(QQuickItem* root, const QString& expression, QString* error)
+{
+    if (error) error->clear();
+
+    if (!root) {
+        if (error) *error = QStringLiteral("nothing loaded");
+        return false;
+    }
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context) {
+        if (error) *error = QStringLiteral("the root has no QML context");
+        return false;
+    }
+
+    QQmlExpression expr(context, root, expression);
+    bool undefined = false;
+    const QVariant value = expr.evaluate(&undefined);
+    if (expr.hasError()) {
+        if (error) *error = expr.error().description();
+        return false;
+    }
+    // undefined is falsy, exactly as it is in JS - and it is the usual answer
+    // while a scene is still building the thing being waited for.
+    return !undefined && value.toBool();
 }
 
 QString jsStringLiteral(const QString& value)

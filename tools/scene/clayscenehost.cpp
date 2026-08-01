@@ -54,4 +54,9 @@ QImage Host::grabImage(int timeoutMs, QString* error) const
     return image;
 }
 
+void Host::advance()
+{
+    // A hosted, visible scene renders itself; there is nothing to drive.
+}
+
 } // namespace ClayScene

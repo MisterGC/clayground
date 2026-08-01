@@ -51,8 +51,15 @@ bool hasFunction(QQuickItem* root, const QString& functionName);
 QJsonValue callJsonFunction(QQuickItem* root, const QString& functionName);
 
 // Evaluates an expression for its side effect. Returns false when the
-// expression errors, so callers can report an honest failure.
-bool callVoid(QQuickItem* root, const QString& expression);
+// expression errors, so callers can report an honest failure; 'error' takes
+// the QML message, which is the part that says *what* was wrong.
+bool callVoid(QQuickItem* root, const QString& expression,
+              QString* error = nullptr);
+
+// Evaluates an expression and reports whether it is truthy. 'error' is filled
+// only for a broken expression - a typo must not read the same as "the
+// condition is not met yet".
+bool evalCondition(QQuickItem* root, const QString& expression, QString* error);
 
 // Quotes a string for injection into a JS expression.
 QString jsStringLiteral(const QString& value);
