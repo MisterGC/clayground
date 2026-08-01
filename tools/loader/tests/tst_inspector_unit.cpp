@@ -33,7 +33,45 @@ private slots:
     void testResponseEchoesRequestId();
     void testReloadActionEmitsSignal();
     void testWaitForRootOnLoadErrorEarlyReturns();
+    void testStatusEnvelopeOnEveryResponse();
+    void testGenerationCountsSuccessfulLoadsOnly();
+    void testErrorsActionCarriesFileAndLine();
+    void testErrorsActionFiltersBySinceGeneration();
+    void testStatusLastErrorFromDojoState();
+
+private:
+    // Round-trips one request through the file protocol and returns the
+    // response object.
+    static QJsonObject roundtrip(ClayInspector& inspector, const QString& dir,
+                                 QJsonObject req);
 };
+
+QJsonObject TestInspectorUnit::roundtrip(ClayInspector& inspector,
+                                         const QString& dir, QJsonObject req)
+{
+    Q_UNUSED(inspector);
+    QFile f(dir + "/.clay/inspect/request.json");
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return {};
+    f.write(QJsonDocument(req).toJson());
+    f.close();
+
+    // Wait for OUR reply: consecutive requests can produce byte-identical
+    // responses apart from the id, and the file watcher is free to coalesce.
+    QString wanted = req.value("id").toString();
+    QJsonObject resp;
+    for (int waited = 0; waited < 4000; waited += 100) {
+        QTest::qWait(100);
+        QFile rf(dir + "/.clay/inspect/response.json");
+        if (!rf.open(QIODevice::ReadOnly))
+            continue;
+        resp = QJsonDocument::fromJson(rf.readAll()).object();
+        rf.close();
+        if (wanted.isEmpty() || resp.value("requestId").toString() == wanted)
+            return resp;
+    }
+    return resp;
+}
 
 void TestInspectorUnit::testLogBufferAdd()
 {
@@ -501,7 +539,7 @@ void TestInspectorUnit::testReloadActionEmitsSignal()
     QVERIFY(rf.open(QIODevice::ReadOnly));
     auto resp = QJsonDocument::fromJson(rf.readAll()).object();
     rf.close();
-    QCOMPARE(resp["status"].toString(), QStringLiteral("requested"));
+    QCOMPARE(resp["reloadStatus"].toString(), QStringLiteral("requested"));
     QCOMPARE(resp["requestId"].toString(), QStringLiteral("r1"));
 }
 
@@ -536,6 +574,198 @@ void TestInspectorUnit::testWaitForRootOnLoadErrorEarlyReturns()
     QCOMPARE(resp["phase"].toString(), QStringLiteral("load_error"));
     QCOMPARE(resp["ready"].toBool(), false);
     QCOMPARE(resp["waited"].toInt(), 0);
+}
+
+void TestInspectorUnit::testStatusEnvelopeOnEveryResponse()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    // Even the failure path — an action nobody implements — must say whether
+    // anyone was home.
+    QJsonObject req;
+    req["action"] = "bogus_action";
+    req["id"] = "env-1";
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QVERIFY(resp.contains("status"));
+    auto st = resp["status"].toObject();
+    QCOMPARE(st["alive"].toBool(), true);
+    QCOMPARE(st["rootLoaded"].toBool(), false);   // null container, no root
+    QCOMPARE(st["generation"].toInt(), 0);
+    QCOMPARE(st["phase"].toString(), QStringLiteral("starting"));
+    QCOMPARE(st["supervised"].toBool(), false);   // no dojo.json
+    QCOMPARE(st["restarts"].toInt(), 0);
+    QVERIFY(st.contains("sandbox"));
+    QVERIFY(st.contains("runId"));
+    // No capture in this response, so no claim about one.
+    QVERIFY(!st.contains("renderedAt"));
+
+    // protocolVersion moved to 3 with the envelope.
+    QFile sf(tmpDir.path() + "/.clay/inspect/state.json");
+    QVERIFY(sf.open(QIODevice::ReadOnly));
+    auto state = QJsonDocument::fromJson(sf.readAll()).object();
+    sf.close();
+    QCOMPARE(state["protocolVersion"].toInt(), 3);
+}
+
+void TestInspectorUnit::testGenerationCountsSuccessfulLoadsOnly()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    auto generationOf = [&](const QString& id) {
+        QJsonObject req;
+        req["action"] = "eval";
+        req["id"] = id;
+        return roundtrip(inspector, tmpDir.path(), req)["status"]
+                   .toObject()["generation"].toInt();
+    };
+
+    QCOMPARE(generationOf("g0"), 0);
+
+    inspector.markReady();
+    QCOMPARE(generationOf("g1"), 1);
+
+    // A reload attempt that ends in a load error must NOT advance it — the
+    // whole point is "is the scene I am measuring the one I edited?".
+    inspector.markReloading();
+    inspector.markLoadError();
+    QCOMPARE(generationOf("g2"), 1);
+
+    inspector.markReloading();
+    inspector.markReady();
+    QCOMPARE(generationOf("g3"), 2);
+
+    // reloadCount counts attempts and stays independent.
+    QFile sf(tmpDir.path() + "/.clay/inspect/state.json");
+    QVERIFY(sf.open(QIODevice::ReadOnly));
+    auto state = QJsonDocument::fromJson(sf.readAll()).object();
+    sf.close();
+    QCOMPARE(state["generation"].toInt(), 2);
+    QCOMPARE(state["reloadCount"].toInt(), 2);
+}
+
+void TestInspectorUnit::testErrorsActionCarriesFileAndLine()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.markReady();
+
+    inspector.addError("file:///tmp/gym/Sandbox.qml:80:12: "
+                       "TypeError: Property 'nope' is not a function");
+    inspector.addWarning("plain warning without a location");
+
+    QJsonObject req;
+    req["action"] = "errors";
+    req["id"] = "e1";
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QCOMPARE(resp["action"].toString(), QStringLiteral("errors"));
+    auto errors = resp["errors"].toArray();
+    QCOMPARE(errors.size(), 1);
+    auto e = errors[0].toObject();
+    QCOMPARE(e["file"].toString(), QStringLiteral("file:///tmp/gym/Sandbox.qml"));
+    QCOMPARE(e["line"].toInt(), 80);
+    QCOMPARE(e["generation"].toInt(), 1);
+    QVERIFY(e["text"].toString().contains("TypeError"));
+    QVERIFY(e.contains("ts"));
+
+    auto warnings = resp["warnings"].toArray();
+    QCOMPARE(warnings.size(), 1);
+    // A message with no location gets no location, not a guessed one.
+    QVERIFY(!warnings[0].toObject().contains("file"));
+
+    QCOMPARE(resp["errorCount"].toInt(), 1);
+    QCOMPARE(resp["warningCount"].toInt(), 1);
+    QCOMPARE(resp["truncated"].toBool(), false);
+}
+
+void TestInspectorUnit::testErrorsActionFiltersBySinceGeneration()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    inspector.markReady();               // generation 1
+    inspector.addError("old failure");
+    inspector.markReloading();
+    inspector.markReady();               // generation 2
+    inspector.addError("fresh failure");
+
+    QJsonObject req;
+    req["action"] = "errors";
+    req["sinceGeneration"] = 2;
+    req["id"] = "e2";
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    auto errors = resp["errors"].toArray();
+    QCOMPARE(errors.size(), 1);
+    QCOMPARE(errors[0].toObject()["text"].toString(), QStringLiteral("fresh failure"));
+    QCOMPARE(resp["sinceGeneration"].toInt(), 2);
+
+    // Diagnostics raised while a load is in flight belong to the load being
+    // attempted, so a failed reload's errors are visible at generation + 1
+    // even though the reported generation never advanced.
+    inspector.markReloading();
+    inspector.addError("failed while loading");
+    inspector.markLoadError();
+
+    QJsonObject req2;
+    req2["action"] = "errors";
+    req2["sinceGeneration"] = 3;
+    req2["id"] = "e3";
+    auto resp2 = roundtrip(inspector, tmpDir.path(), req2);
+    auto errors2 = resp2["errors"].toArray();
+    QCOMPARE(errors2.size(), 1);
+    QCOMPARE(errors2[0].toObject()["text"].toString(),
+             QStringLiteral("failed while loading"));
+    QCOMPARE(resp2["status"].toObject()["generation"].toInt(), 2);
+}
+
+void TestInspectorUnit::testStatusLastErrorFromDojoState()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    // What a supervisor in a crash loop leaves behind. The inspector reads it
+    // from the sandbox dir (never the instance-scoped subdir) rather than
+    // inventing a second channel.
+    QJsonObject dojo;
+    dojo["role"] = "dojo";
+    dojo["generation"] = 4;
+    dojo["phase"] = "child_crashed";
+    dojo["rapidCrashCount"] = 3;
+    dojo["lastExitCode"] = 0;
+    dojo["lastExitStatus"] = "normal";
+    dojo["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    QFile df(tmpDir.path() + "/.clay/inspect/dojo.json");
+    QVERIFY(df.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    df.write(QJsonDocument(dojo).toJson());
+    df.close();
+
+    QJsonObject req;
+    req["action"] = "eval";
+    req["id"] = "d1";
+    auto st = roundtrip(inspector, tmpDir.path(), req)["status"].toObject();
+
+    QCOMPARE(st["supervised"].toBool(), true);
+    QCOMPARE(st["restarts"].toInt(), 3);   // 4 children started => 3 respawns
+    QVERIFY(st["lastError"].toString().contains("child exited 0"));
 }
 
 QTEST_MAIN(TestInspectorUnit)

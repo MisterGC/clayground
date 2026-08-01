@@ -43,6 +43,18 @@ public:
         Stopped
     };
 
+    // A QML warning or error, tagged with the load generation it belongs to
+    // and (when the message carries one) the file/line it came from. Plain
+    // strings would not let the 'errors' action answer "what broke since the
+    // scene I edited?".
+    struct Diagnostic {
+        int generation = 0;
+        QDateTime ts;
+        QString text;
+        QString file;   // empty when the message carries no location
+        int line = 0;
+    };
+
     void setSandboxDir(const QString& dir);
     void setControls(ClayTimeControl* timeCtrl, ClayInputControl* inputCtrl);
     // Must be called before setSandboxDir. A non-empty name scopes the
@@ -90,9 +102,24 @@ private:
     QJsonObject handleWaitForRoot(const QJsonObject& request);
     QJsonObject handleTime(const QJsonObject& request);
     QJsonObject handleInput(const QJsonObject& request);
+    QJsonObject handleErrors(const QJsonObject& request);
     void applyScenarioToRoot(const QString& name);
     void applyViewStateToRoot(const QJsonValue& state);
     void attachDiagnostics(QJsonObject& response) const;
+    // The status envelope that rides on every response (protocol v3).
+    QJsonObject buildStatus() const;
+    // The supervisor's own facts, read from <sandboxDir>/.clay/inspect/dojo.json
+    // (never the instance-scoped subdir - the dojo writes one per sandbox dir).
+    // Empty object when no dojo supervises this loader.
+    QJsonObject readDojoState() const;
+    // Absolute path of the sandbox QML file when the container knows it,
+    // otherwise the sandbox directory.
+    QString sandboxPath() const;
+    // The generation a diagnostic arriving right now belongs to: while a load
+    // is in flight that is the load being attempted, not the last one that
+    // succeeded.
+    int currentLoadGeneration() const;
+    Diagnostic makeDiagnostic(const QString& msg) const;
     void writeState();
     static QString phaseName(Phase p);
     void appendEvent(const QString& type, const QJsonObject& payload = {});
@@ -144,7 +171,16 @@ private:
     QDateTime m_startedAt;
     QDateTime m_lastReadyAt;
     QDateTime m_lastLoadErrorAt;
+    // Reload *attempts* - kept as it was, counters that mix attempts and
+    // successes are how "the scene I measured" gets confused with "the scene
+    // I edited".
     int m_reloadCount = 0;
+    // Successful loads. Pushed into the scene host so the scene layer reports
+    // the same number.
+    int m_generation = 0;
+    // When the response currently being assembled carries a capture: the
+    // moment that image was actually grabbed. Invalid otherwise.
+    QDateTime m_renderedAt;
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;
@@ -154,8 +190,8 @@ private:
     QJsonValue m_traceRequestId;
 
     QStringList m_logBuffer;
-    QStringList m_warningBuffer;
-    QStringList m_errorBuffer;
+    QList<Diagnostic> m_warningBuffer;
+    QList<Diagnostic> m_errorBuffer;
     static const int MAX_LOG_ENTRIES = 200;
 
     // Trace state

@@ -9,12 +9,31 @@
 #include <QDir>
 #include <QDebug>
 #include <QCommandLineParser>
+#include <iostream>
 
-void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
+// Returns false when the command line is unusable. The dojo forwards its own
+// arguments verbatim to clayliveloader, so anything it accepts here but does
+// not understand fails in the child instead - which used to mean a child that
+// printed usage to stdout, exited 0, and got respawned with backoff forever
+// while the HUD reported all systems up (issue #166). Fail at the front door.
+bool processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
 {
     QCommandLineParser parser;
     addCommonArgs(parser);
     parser.process(app);
+
+    auto const stray = parser.positionalArguments();
+    if (!stray.isEmpty()) {
+        std::cerr << "ClayDojo: unexpected argument '"
+                  << stray.first().toStdString() << "'." << std::endl;
+        if (stray.first().endsWith(".qml", Qt::CaseInsensitive))
+            std::cerr << "ClayDojo: a sandbox is registered with --"
+                      << SBX_ARG << " " << stray.first().toStdString()
+                      << std::endl;
+        std::cerr << parser.helpText().toStdString();
+        return false;
+    }
+
     if (parser.isSet(DYN_PLUGIN_ARG)) {
         for (auto const& val: parser.values(DYN_PLUGIN_ARG))
         {
@@ -25,9 +44,18 @@ void processCmdLineArgs(const QGuiApplication& app, ClayDojo& restarter)
         }
     }
     if (parser.isSet(SBX_ARG)) {
-        for (auto const& sbx: parser.values(SBX_ARG))
-            restarter.addSandboxDir(sbx);
+        for (auto const& sbx: parser.values(SBX_ARG)) {
+            // A sandbox that isn't there registers no directory, so the dojo
+            // would supervise nothing and write no dojo.json - invisible from
+            // the outside. Say it here instead.
+            if (!restarter.addSandboxDir(sbx)) {
+                std::cerr << "ClayDojo: sandbox file not found: "
+                          << sbx.toStdString() << std::endl;
+                return false;
+            }
+        }
     }
+    return true;
 }
 
 int main(int argc, char *argv[])
@@ -45,7 +73,8 @@ int main(int argc, char *argv[])
     engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
 
     ClayDojo dojo;
-    processCmdLineArgs(app, dojo);
+    if (!processCmdLineArgs(app, dojo))
+        return 1;
     engine.rootContext()->setContextProperty("ClayDojo", &dojo);
     engine.load(QUrl("qrc:/clayground/main.qml"));
 

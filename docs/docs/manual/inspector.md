@@ -14,11 +14,11 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 <sandbox-dir>/.clay/inspect/
 ├── request.json      ← you (or your tool) write this
 ├── response.json     ← the inspector writes this (atomically)
-├── state.json        ← lifecycle: phase, pid, protocolVersion, reloadCount
+├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount
 ├── events.jsonl      ← append-only event stream (5 MB one-level rotation)
 ├── log.jsonl         ← every console/Qt message: ts, level, category, text
 ├── dojo.json         ← dojo supervisor state (generation, crash info)
-├── crash.json        ← after crash loops: exit info + stderr tail
+├── crash.json        ← after crash loops: exit info + child output tail
 ├── autoflag_*.json   ← auto-captured evidence bundle on runtime errors
 ├── screenshot.png    ← written when requested
 └── trace.jsonl       ← written during trace recording
@@ -26,9 +26,38 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 
 The `.clay/` directory is created automatically in the directory where the sandbox QML file lives.
 
-**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 2) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
+**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 3) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
 
-**Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default.
+**Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default. `dojo.json` stays at `<sandbox-dir>/.clay/inspect/dojo.json` in every case — there is one supervisor per sandbox dir, whatever the instance layout.
+
+## The status envelope
+
+Every response carries a `status` object, whatever the action was (protocol v3):
+
+```json
+"status": {
+  "alive": true, "rootLoaded": true, "generation": 7, "phase": "ready",
+  "reloadCount": 9, "runId": "84b55d33", "supervised": true, "restarts": 3,
+  "sandbox": "/path/Sandbox.qml",
+  "renderedAt": "2026-08-01T10:21:07.412",
+  "lastError": "child exited 0 (normal)", "lastErrorAt": "2026-08-01T10:20:58.101"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `alive` | The inspector reached the point of writing this response. Not a measurement — a dead inspector writes nothing, but a *stale* `response.json` still says `true`, so pair it with `requestId`. |
+| `rootLoaded` | A root object exists. |
+| `generation` | Successful loads. Does not advance on a reload that failed, which is exactly what makes "am I measuring the scene I edited?" answerable. `reloadCount` counts attempts. |
+| `phase`, `runId`, `sandbox`, `instanceId` | The same facts as `state.json`, so one response answers them. |
+| `renderedAt` | Present **only** when this response carries a capture, and set to the moment the image was grabbed. A `snapshot` with `"screenshot": true` that returns no `renderedAt` produced no image (see `screenshotError`); any PNG on disk is then from an earlier request. |
+| `supervised`, `restarts` | Read from the dojo's `dojo.json`. `restarts` counts respawns, i.e. every child after the first. |
+| `lastError`, `lastErrorAt` | The newer of the most recent QML error and how the supervisor's last child died — so a crash loop is visible even from a loader that logged nothing. |
+| `supervisorGaveUp` | Present and `true` when the dojo stopped respawning (see `dojo.json`'s `gave_up` phase and its `reason`). |
+
+Because `status` is reserved for the envelope, actions that acknowledge themselves use their own key: `reload` answers `reloadStatus`, `trace` answers `traceStatus`.
+
+**On the supervisor side**, `claydojo` forwards the child's stdout as well as its stderr (a rejected command line prints its usage to stdout), rejects unknown positional arguments and missing `--sbx` files at the front door instead of passing them to the child, and stops respawning once the crash threshold is reached without any child ever having run stably — writing `phase: "gave_up"` and a `reason` into `dojo.json` and printing both. A silent infinite restart loop is the worst failure mode for headless use.
 
 ## Actions
 
@@ -42,7 +71,18 @@ The `.clay/` directory is created automatically in the directory where the sandb
 }
 ```
 
-Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors`, and optionally a `screenshot` path.
+Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors` (plain strings — the `errors` action carries file and line), and optionally a `screenshot` path. A grab that failed returns `screenshotError` instead, and leaves `status.renderedAt` unset.
+
+### errors — QML errors and warnings since load
+
+```json
+{"action": "errors"}
+{"action": "errors", "sinceGeneration": 8}
+```
+
+Returns `errors` and `warnings` as objects — `{generation, ts, text, file, line}`, with `file`/`line` filled in when the message carried a location — plus `errorCount`, `warningCount` and `truncated` (each buffer holds 200 entries). Unhandled QML/JS exceptions (`TypeError`, `ReferenceError`, …) arrive as warnings, so read both lists.
+
+The buffers are cleared before every reload, so a bare `errors` request means "what has gone wrong with the current scene". `sinceGeneration: N` drops everything older than generation N. Diagnostics raised while a load is in flight are tagged with the generation being *attempted*, so a reload that failed leaves its errors at `status.generation + 1` — findable even though the generation itself never advanced.
 
 ### eval — Expression evaluation
 
@@ -105,6 +145,7 @@ The response includes a summary — often sufficient without reading the full tr
 
 ```json
 {
+  "traceStatus": "stopped",
   "stoppedBy": "condition",
   "samples": 42,
   "duration": 8400,
@@ -124,7 +165,9 @@ The response includes a summary — often sufficient without reading the full tr
 ```
 
 Runs the same path as a file-watch reload (full engine recreation — no scene
-state survives). With `scenario`, the named checkpoint is applied via the
+state survives). The response acknowledges with `reloadStatus: "requested"`;
+the reload itself has not happened yet, so follow with `waitForRoot` and
+confirm `status.generation` advanced. With `scenario`, the named checkpoint is applied via the
 root's `applyScenario()` once the new root is ready. With `rearm: true`, the
 scenario is re-applied after *every* subsequent reload (including file-watch
 reloads while you edit) until a reload request passes `rearm: false`. The
