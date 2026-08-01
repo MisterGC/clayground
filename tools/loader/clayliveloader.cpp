@@ -152,11 +152,16 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
 void ClayLiveLoader::reloadIgnoreFor(const QString &sandboxDir)
 {
     ignoreFile_ = QDir(sandboxDir).filePath(".dojoignore");
+    // Note: even when there is no .dojoignore, load() keeps the built-in
+    // default rules armed and remembers the root - so editor/OS noise never
+    // reaches the reload path.
     if (ignore_.load(ignoreFile_, sandboxDir)) {
         qInfo().noquote() << "Loaded .dojoignore with"
-                          << ignore_.ruleCount() << "rule(s) from" << ignoreFile_;
+                          << ignore_.ruleCount() << "rule(s) from" << ignoreFile_
+                          << "- plus" << ignore_.defaultRuleCount() << "built-in default rule(s)";
     } else {
-        ignore_.clear();
+        qInfo().noquote() << "No .dojoignore in" << sandboxDir << "-"
+                          << ignore_.defaultRuleCount() << "built-in default rule(s) active";
     }
     // Watch the ignore file so edits take effect without a dojo restart.
     if (QFileInfo::exists(ignoreFile_))
@@ -220,9 +225,15 @@ void ClayLiveLoader::onFileChanged(const QString &path)
         return;
     }
 
-    if (ignore_.matches(path)) {
+    switch (ignore_.decide(path)) {
+    case DojoIgnore::Decision::IgnoredByDefault:
+        qInfo().noquote() << "Ignored (built-in default rule):" << path;
+        return;
+    case DojoIgnore::Decision::IgnoredByUserRule:
         qInfo().noquote() << "Ignored (per .dojoignore):" << path;
         return;
+    case DojoIgnore::Decision::NotIgnored:
+        break;
     }
 
     qInfo() << "File changed:" << path;
