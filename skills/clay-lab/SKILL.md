@@ -439,10 +439,19 @@ clayrender labs/electronics-101/Sandbox.qml --out shot.png --size 1400x900 \
     --settle --scale 0.6
 ```
 
-`--set` **assigns**, it does not call: `--set 'root.showLabels=false'` works,
-`--set 'root.applyScenario("parallel")'` does not. Until that gap is closed,
-a state you can only reach through a function call (a scenario, a flow) needs
-the dojo: `reload` with `scenario`, then capture.
+`--set` **assigns**, it does not call — use `--eval` for anything that runs
+code, and `--script file.js` for a setup too long for one line. They apply in
+command-line order, so this is one command, not a dojo session:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out shot.png \
+    --set 'showLabels=false' --eval 'applyScenario("parallel")' \
+    --wait-for 'ready' --settle
+```
+
+`--wait-for` holds the capture until the expression is truthy; if it never is,
+clayrender exits 3 and writes **no** image, so a picture of a state you never
+reached cannot end up in your evidence.
 
 Use the dojo for interaction, hot-reload iteration and anything stateful
 (driving a flow, real input, a determinism run across steps). Query the

@@ -153,13 +153,18 @@ A full tree costs a few hundred milliseconds and dumps the whole scene, which is
 {"action": "inspect", "select": "LabelBatch3D", "objectName": "roadNames"}
 ```
 
-Most verification questions in a 3D scene are numeric — *is that arrowhead full size? did the second line get drawn at all? where does this label sit?* — and a screenshot answers none of them. `inspect` walks the scene and calls the `clayInspect()` hook on every object that has one, returning the data **as the renderer received it**, after all bindings and JS have run.
+Most verification questions are numeric — *is that arrowhead full size? did the second line get drawn at all? where is the player, in world units?* — and a screenshot answers none of them. `inspect` walks the scene and returns the data **as the renderer received it**, after all bindings and JS have run.
 
-`select` filters by the type the hook reports (or the class name); `lines` is shorthand for `LineBatch3D`. Types shipping a hook today: `LineBatch3D` (per line: resolved world points, width, colour, styleId, length; plus batch bounds and instance count), `LabelBatch3D` (text, size, position, colour per label, including curved path labels), `VoxelMap` (grid, solid count, palette, storage).
+Two kinds of answer, and every entry says which it gave via `"via"`:
 
-The inspector knows none of these types by name — a plugin type opts in by implementing `Q_INVOKABLE QVariantMap clayInspect() const` (or a `clayInspect()` function in QML). The contract for anyone adding one: **pull-only**. Read state the renderer already keeps, compute nothing on your own schedule, never maintain bookkeeping for the inspector's benefit. That is what keeps this free in a shipped app, where nothing ever calls it.
+- `"via": "hook"` — the type implements `clayInspect()` and answers in its own terms.
+- `"via": "properties"` — no hook, so the answer is read generically: geometry, app-level properties, source file. This only happens when you asked for something specific (`select` or `objectName`); with no selector, only hooked objects answer, which keeps the default cheap.
 
-Note `tree` and `inspect` see different things: `tree` walks the 2D item hierarchy, while a 3D object (a `LineBatch3D` is a `Model`, not an `Item`) only shows up under `inspect`.
+`select` matches the type name, the class name, **any base type** (so `select: "PhysicsItem"` finds every body, and `select: "ClayWorld2d"` finds a sandbox root that derives from it), or the type a hook reports for itself; `lines` is shorthand for `LineBatch3D`. Types shipping a hook today: `LineBatch3D` (per line: resolved world points, width, colour, styleId, length; plus batch bounds and instance count), `LabelBatch3D` (text, size, position, colour per label, including curved path labels), `VoxelMap` (grid, solid count, palette, storage), `ClayCanvas` (pixelPerUnit, the visible world rect, canvas size), `ClayWorld2d` (world bounds, entity count, registered components, gravity), `ClayWorld2dCamera` (mode, target, centre, look-ahead offset) and `PhysicsItem` (world-unit position and size, body type, velocity, sensor/categories).
+
+The inspector knows none of these types by name — a type opts in by implementing `Q_INVOKABLE QVariantMap clayInspect() const` in C++ or a plain `function clayInspect()` in QML. The contract for anyone adding one: **pull-only**. Read state the renderer already keeps, compute nothing on your own schedule, never maintain bookkeeping for the inspector's benefit. That is what keeps this free in a shipped app, where nothing ever calls it. A hook belongs to the object that declares it: children of the same file do not answer with it.
+
+`tree` and `inspect` overlap but are not the same view: `tree` gives you the item *hierarchy* (2D items only — a `LineBatch3D` is a `Model`, not an `Item`), while `inspect` gives a flat list of matches across the whole scene, 2D and 3D alike. For "what is in my scene", reach for `inspect`.
 
 ### project / pick — Screen space and what's under a pixel
 

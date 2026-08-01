@@ -36,6 +36,35 @@ A value that parses as JSON keeps its type (`true`, `42`, `[1,2]`, `"text"`);
 anything else is treated as a string, so `--set title=hello` does what it looks
 like. Quoting explicitly always wins.
 
+`--set` **assigns**; it cannot call. When the state comes from a function, or
+takes a few statements, use `--eval` — or `--script` for a whole file:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out board.png \
+    --eval 'applyScenario("parallel")' \
+    --script setup.js
+```
+
+Both run in the same context `--set` uses, and `--set`, `--eval` and `--script`
+apply **in the order they appear on the command line** — so
+`--set paused=true --eval 'step()'` and the reverse do different things, as they
+should.
+
+Some states are not reached the moment you ask for them: a spawn takes a few
+frames, a level loads, an animation has to finish. `--wait-for` holds the
+capture until the scene says it is there:
+
+```bash
+clayrender Sandbox.qml --out shot.png \
+    --eval 'spawnWave()' --wait-for 'enemies.length === 12'
+```
+
+If the expression never becomes truthy within `--wait-timeout` (3 s by
+default), `clayrender` exits **3 and writes no image** — a picture of a state
+that was never reached is worse than no picture. A *broken* expression is a
+different thing: that is exit 1 with the QML error, so a typo never reads as
+"the state never happened".
+
 ## Getting a usable image
 
 | Option | Effect |
@@ -70,8 +99,10 @@ clayrender Sandbox.qml --out shot.png \
 - `--dump <type>=<file>` writes what the renderer actually received for every
   object of that type: for `lines` (shorthand for `LineBatch3D`) that is the
   resolved world-space points, widths, colours, style ids and bounds of every
-  line in every batch. Any type with a `clayInspect()` hook works, e.g.
-  `--dump LabelBatch3D=labels.json`.
+  line in every batch. Types with a `clayInspect()` hook answer in their own
+  terms (`"via": "hook"`); everything else answers from its properties —
+  geometry, app-level state — as `"via": "properties"`. So `--dump
+  Rectangle=hud.json` works on a type nobody wrote a hook for.
 - `--project x,y,z` maps a world point to screen pixels through the live
   camera, and tells you whether it is inside the viewport or behind the camera
   (which are different failures).

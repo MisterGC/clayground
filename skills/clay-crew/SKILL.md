@@ -26,13 +26,18 @@ the lifecycle/failure artifacts, and the human collaboration channel.
 
   ```bash
   clayrender Sandbox.qml --out shot.png --size 1400x900 \
-      --set 'root.mode="inspect"' --settle --scale 0.6
+      --set 'mode="inspect"' --eval 'applyScenario("wave2")' \
+      --wait-for 'enemies.length === 12' --settle --scale 0.6
   ```
 
-  It also answers numeric questions without a protocol: `--dump
-  lines=out.json` (any type with a `clayInspect()` hook), `--project
-  x,y,z`, `--pick x,y`. Exit 1 = never loaded, 2 = rendered but the scene
-  logged errors. See the manual page for the rest.
+  `--set` assigns, `--eval` runs statements, `--script f.js` runs a file;
+  all three apply in command-line order. `--wait-for` holds the capture
+  until the scene reaches the state (exit 3 and no image if it never
+  does). It also answers numeric questions without a protocol: `--dump
+  <Type>=out.json` (hooked types answer in their own terms, everything
+  else from its properties), `--project x,y,z`, `--pick x,y`. Exit 1 =
+  never loaded, 2 = rendered but the scene logged errors, 3 = the
+  `--wait-for` state never arrived. See the manual page for the rest.
 - **The dojo** (the rest of this skill) — interaction, hot-reload
   iteration, and anything genuinely stateful: driving input, stepping
   simulation time, tracing, or working in a shared session with the user.
@@ -412,20 +417,30 @@ get an `items` array of just those nodes instead:
 
 ```json
 {"id": "i1", "action": "inspect", "select": "lines"}
+{"id": "i2", "action": "inspect", "select": "PhysicsItem"}
+{"id": "i3", "action": "inspect", "objectName": "player"}
 ```
 
 **If the question is numeric, ask this instead of taking a screenshot.**
-`inspect` calls the `clayInspect()` hook on every object that has one and
-returns what the renderer received after all bindings ran: for
-`LineBatch3D` (shorthand `lines`) the resolved world points, width, colour,
-styleId and length of every line, plus batch bounds; `LabelBatch3D` gives
-text/size/position per label including curved ones; `VoxelMap` gives grid,
-solid count and palette.
+`inspect` returns what the renderer received after all bindings ran, and
+each entry says how it answered:
 
-`tree` and `inspect` see different scenes: `tree` walks 2D items, and a 3D
-object (a `LineBatch3D` is a `Model`, not an `Item`) appears only under
-`inspect`. An empty `inspect` result means no type in that scene has a
-hook — not an error.
+- `"via": "hook"` — the type implements `clayInspect()`. `LineBatch3D`
+  (shorthand `lines`) gives resolved world points, width, colour, styleId
+  and length per line plus batch bounds; `LabelBatch3D` text/size/position
+  per label including curved ones; `VoxelMap` grid, solid count, palette;
+  `ClayCanvas` pixelPerUnit and the visible world rect; `ClayWorld2d`
+  bounds, entity count and registered components; `ClayWorld2dCamera`
+  mode/target/centre; `PhysicsItem` world-unit position and size, body
+  type, velocity, sensor and categories.
+- `"via": "properties"` — no hook, answered generically from geometry and
+  app-level properties. Only happens when you gave a selector.
+
+`select` matches the type, the class, or **any base type** — so
+`"PhysicsItem"` finds every body and `"ClayWorld2d"` finds a sandbox root
+deriving from it. With no selector only hooked objects answer, which keeps
+the default cheap. `tree` still gives the *hierarchy* (2D items only); for
+"what is in my scene", 2D or 3D, use `inspect`.
 
 ### project / pick — screen space, and what is under a pixel
 
