@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
-"""Crew Gym run — end-to-end verification of the inspector protocol v2.
+"""Crew Gym run — end-to-end verification of the inspector protocol v3.
 
 Drives the gym sandbox exclusively through the file-based protocol an agent
 uses (.clay/inspect/), covering: attach, log stream, scenarios + rearm,
@@ -92,7 +92,7 @@ def run(insp, sandbox_dir, attended):
     ok = insp.wait_phase("ready", timeout=20)
     st = insp.state()
     check("attach: phase ready", ok, f"phase={st.get('phase')}")
-    check("attach: protocolVersion >= 2", st.get("protocolVersion", 0) >= 2,
+    check("attach: protocolVersion >= 3", st.get("protocolVersion", 0) >= 3,
           f"protocolVersion={st.get('protocolVersion')}")
     check("attach: runId present", bool(st.get("runId")),
           f"runId={st.get('runId')}")
@@ -100,6 +100,40 @@ def run(insp, sandbox_dir, attended):
     # -- 2: baseline + log stream ----------------------------------------
     snap = insp.request({"action": "snapshot"})
     check("snapshot: has rootProperties", "rootProperties" in snap)
+
+    # -- 2b: status envelope ---------------------------------------------
+    # Every response carries it, whatever the action was — that is what lets
+    # an agent tell a live instance from a stale artefact.
+    env = snap.get("status")
+    check("status: envelope on a response", isinstance(env, dict), str(env))
+    if isinstance(env, dict):
+        check("status: alive + rootLoaded true on a loaded scene",
+              env.get("alive") is True and env.get("rootLoaded") is True,
+              f"alive={env.get('alive')} rootLoaded={env.get('rootLoaded')}")
+        check("status: generation >= 1 after first load",
+              isinstance(env.get("generation"), int) and env["generation"] >= 1,
+              f"generation={env.get('generation')}")
+        check("status: sandbox path reported",
+              str(env.get("sandbox", "")).endswith("Sandbox.qml"),
+              f"sandbox={env.get('sandbox')}")
+        check("status: no renderedAt without a capture",
+              "renderedAt" not in env, f"renderedAt={env.get('renderedAt')}")
+    # An unknown action is still a response, so it still carries the envelope.
+    bogus = insp.request({"action": "no_such_action"})
+    check("status: envelope even on an error response",
+          isinstance(bogus.get("status"), dict) and "error" in bogus,
+          f"error={bogus.get('error')}")
+
+    # renderedAt is the moment the image was grabbed — the replacement for
+    # deleting the PNG first to prove a dead instance did not fake a capture.
+    shot = insp.request({"action": "snapshot", "screenshot": True}, timeout=15)
+    if "screenshot" in shot:
+        check("status: renderedAt stamped on a capture",
+              bool(shot.get("status", {}).get("renderedAt")),
+              f"renderedAt={shot.get('status', {}).get('renderedAt')}")
+    else:
+        print("SKIP  status: renderedAt (no capture in this environment: "
+              f"{shot.get('screenshotError')})")
     check("snapshot: scenarios listed",
           snap.get("scenarios") == ["start", "near-coin", "error-probe"],
           str(snap.get("scenarios")))
@@ -115,12 +149,21 @@ def run(insp, sandbox_dir, attended):
     check("log.jsonl: eval marker streamed", wait_for(marker_logged, 5))
 
     # -- 3: scenario via reload + rearm ----------------------------------
+    gen_before = insp.request({"action": "eval"}).get("status", {}).get("generation")
     insp.request({"action": "reload", "scenario": "near-coin", "rearm": True})
     insp.request({"action": "waitForRoot", "timeoutMs": 8000}, timeout=12)
     insp.wait_phase("ready", timeout=10)
     px = insp.eval1("player.xWu")
     check("scenario near-coin: player placed", px is not None and abs(px - 10) < 0.6,
           f"player.xWu={px}")
+
+    # A successful reload advances the generation, which is how an agent knows
+    # the scene it is measuring is the one it just changed.
+    gen_after = insp.request({"action": "eval"}).get("status", {}).get("generation")
+    check("status: generation advances across a reload",
+          isinstance(gen_before, int) and isinstance(gen_after, int)
+          and gen_after == gen_before + 1,
+          f"{gen_before} -> {gen_after}")
 
     # -- 4: time control --------------------------------------------------
     insp.eval(["applyScenario('start')"])
@@ -300,6 +343,29 @@ def run(insp, sandbox_dir, attended):
             flag = json.load(f)
         check("auto-flag: carries trigger + diagnostics",
               "trigger" in flag and "logTail" in flag and "tree" in flag)
+
+    # -- 8: errors action -------------------------------------------------
+    # The error-probe scenario above raised a genuine QML TypeError; asking
+    # for it must return something real, with the file and line it came from.
+    errs = insp.request({"action": "errors"})
+    diags = errs.get("errors", []) + errs.get("warnings", [])
+    probe = [d for d in diags
+             if "_thisFunctionDoesNotExist" in d.get("text", "")]
+    check("errors: reports the deliberate QML error", len(probe) > 0,
+          f"{len(diags)} diagnostics, none matching" if not probe else "")
+    if probe:
+        d = probe[0]
+        check("errors: carries file and line",
+              d.get("file", "").endswith("Sandbox.qml") and d.get("line", 0) > 0,
+              f"file={d.get('file')} line={d.get('line')}")
+        check("errors: tagged with a generation",
+              isinstance(d.get("generation"), int), f"gen={d.get('generation')}")
+
+    gen_now = errs.get("status", {}).get("generation", 0)
+    future = insp.request({"action": "errors", "sinceGeneration": gen_now + 5})
+    check("errors: sinceGeneration filters",
+          future.get("errorCount") == 0 and future.get("warningCount") == 0,
+          f"errors={future.get('errorCount')} warnings={future.get('warningCount')}")
 
     failed = [c for c in CHECKS if not c[1]]
     print(f"\n{len(CHECKS) - len(failed)}/{len(CHECKS)} checks passed")

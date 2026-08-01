@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QEventLoop>
 #include <QJSValue>
+#include <QRegularExpression>
 #include <QUuid>
 #include <QVector2D>
 #include <QVector3D>
@@ -37,6 +38,20 @@ static ClayInspector* g_currentInspector = nullptr;
 // rotation) and a fresh active file is started. Total on-disk usage is
 // therefore bounded at ~2x this value.
 static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
+
+// Qt/QML diagnostics carry their origin inline ("file:///a/Sandbox.qml:80:12:
+// TypeError: ..."). Pulling it out is best effort by design: a message without
+// a location keeps an empty file and line 0 rather than a guessed one.
+static void parseDiagnosticLocation(const QString& msg, QString& file, int& line)
+{
+    static const QRegularExpression re(
+        QStringLiteral("(\\S+\\.(?:qml|js|mjs)):(\\d+)"));
+    auto m = re.match(msg);
+    if (!m.hasMatch())
+        return;
+    file = m.captured(1);
+    line = m.captured(2).toInt();
+}
 
 ClayInspector* ClayInspector::current()
 {
@@ -109,6 +124,12 @@ void ClayInspector::markReady()
 {
     m_phase = Phase::Ready;
     m_lastReadyAt = QDateTime::currentDateTime();
+    // Generation counts *successful* loads, which is what lets an agent tell
+    // "the scene I am measuring is the one I edited" - a reload that never
+    // produced a root must not advance it. m_reloadCount counts attempts.
+    ++m_generation;
+    if (m_host)
+        m_host->setGeneration(m_generation);
     writeState();
     QJsonObject payload;
     payload["phase"] = phaseName(m_phase);
@@ -139,7 +160,7 @@ void ClayInspector::markLoadError()
     QJsonArray errs;
     int start = qMax(0, m_errorBuffer.size() - 5);
     for (int i = start; i < m_errorBuffer.size(); ++i)
-        errs.append(m_errorBuffer.at(i));
+        errs.append(m_errorBuffer.at(i).text);
     if (!errs.isEmpty())
         payload["errorsTail"] = errs;
     appendEvent("phase_change", payload);
@@ -206,7 +227,8 @@ void ClayInspector::writeState()
         return;
 
     QJsonObject state;
-    state["protocolVersion"] = 2;
+    // v3 adds the status envelope on every response and the 'errors' action.
+    state["protocolVersion"] = 3;
     state["runId"] = m_runId;
     state["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
     state["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
@@ -214,6 +236,7 @@ void ClayInspector::writeState()
         state["instanceId"] = m_instanceName;
     state["phase"] = phaseName(m_phase);
     state["reloadCount"] = m_reloadCount;
+    state["generation"] = m_generation;
     state["startedAt"] = m_startedAt.toString(Qt::ISODateWithMs);
     if (m_lastReadyAt.isValid())
         state["lastReadyAt"] = m_lastReadyAt.toString(Qt::ISODateWithMs);
@@ -331,9 +354,19 @@ void ClayInspector::addLogMessage(const QString& msg, const QString& category)
     appendLogLine("log", msg, category);
 }
 
+ClayInspector::Diagnostic ClayInspector::makeDiagnostic(const QString& msg) const
+{
+    Diagnostic d;
+    d.generation = currentLoadGeneration();
+    d.ts = QDateTime::currentDateTime();
+    d.text = msg;
+    parseDiagnosticLocation(msg, d.file, d.line);
+    return d;
+}
+
 void ClayInspector::addWarning(const QString& msg, const QString& category)
 {
-    m_warningBuffer.append(msg);
+    m_warningBuffer.append(makeDiagnostic(msg));
     while (m_warningBuffer.size() > MAX_LOG_ENTRIES)
         m_warningBuffer.removeFirst();
     appendLogLine("warning", msg, category);
@@ -345,7 +378,7 @@ void ClayInspector::addWarning(const QString& msg, const QString& category)
 
 void ClayInspector::addError(const QString& msg, const QString& category)
 {
-    m_errorBuffer.append(msg);
+    m_errorBuffer.append(makeDiagnostic(msg));
     while (m_errorBuffer.size() > MAX_LOG_ENTRIES)
         m_errorBuffer.removeFirst();
     appendLogLine("error", msg, category);
@@ -390,6 +423,9 @@ void ClayInspector::processRequest(const QJsonObject& request)
 {
     QString action = request.value("action").toString("snapshot");
 
+    // Only a handler that actually grabs an image sets this.
+    m_renderedAt = QDateTime();
+
     QJsonObject response;
     if (action == "snapshot")
         response = handleSnapshot(request);
@@ -407,6 +443,8 @@ void ClayInspector::processRequest(const QJsonObject& request)
         response = handleTime(request);
     else if (action == "input")
         response = handleInput(request);
+    else if (action == "errors")
+        response = handleErrors(request);
     else {
         response["error"] = QString("Unknown action: %1").arg(action);
     }
@@ -421,6 +459,154 @@ void ClayInspector::processRequest(const QJsonObject& request)
     writeResponse(response);
 }
 
+int ClayInspector::currentLoadGeneration() const
+{
+    return (m_phase == Phase::Starting || m_phase == Phase::Reloading)
+               ? m_generation + 1 : m_generation;
+}
+
+QString ClayInspector::sandboxPath() const
+{
+    if (m_container) {
+        QUrl src = m_container->source();
+        if (src.isLocalFile())
+            return src.toLocalFile();
+        if (!src.isEmpty())
+            return src.toString();
+    }
+    return QFileInfo(m_sandboxDir).absoluteFilePath();
+}
+
+QJsonObject ClayInspector::readDojoState() const
+{
+    if (m_sandboxDir.isEmpty())
+        return {};
+    QFile f(m_sandboxDir + "/.clay/inspect/dojo.json");
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    auto doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    return doc.object();
+}
+
+QJsonObject ClayInspector::buildStatus() const
+{
+    QJsonObject st;
+
+    // 'alive' is not a measurement — it is the fact that this process got far
+    // enough to write a response. A dead inspector writes nothing at all, so
+    // the value is only meaningful together with a matching requestId (or a
+    // fresh 'ts'); a stale response.json on disk carries alive:true too.
+    st["alive"] = true;
+    st["rootLoaded"] = sceneRoot() != nullptr;
+    st["generation"] = m_generation;
+    st["phase"] = phaseName(m_phase);
+    st["reloadCount"] = m_reloadCount;
+    st["runId"] = m_runId;
+    st["sandbox"] = sandboxPath();
+    if (!m_instanceName.isEmpty())
+        st["instanceId"] = m_instanceName;
+    // Set only when this response carries a capture, and set to the moment the
+    // image was grabbed — this is what makes "is the picture I am looking at
+    // the one I just asked for?" answerable without deleting files first.
+    if (m_renderedAt.isValid())
+        st["renderedAt"] = m_renderedAt.toString(Qt::ISODateWithMs);
+
+    // Supervisor facts come from the dojo's own artifact, never from a second
+    // channel invented here.
+    QJsonObject dojo = readDojoState();
+    bool supervised = !dojo.isEmpty();
+    st["supervised"] = supervised;
+    // Restarts are respawns, i.e. every child after the first.
+    st["restarts"] = supervised ? qMax(0, dojo.value("generation").toInt() - 1) : 0;
+
+    // lastError: the newest of "most recent QML error" and "how the last child
+    // died", so a crash loop is visible even when this loader logged nothing.
+    QString lastError;
+    QDateTime lastErrorAt;
+    if (!m_errorBuffer.isEmpty()) {
+        lastError = m_errorBuffer.last().text;
+        lastErrorAt = m_errorBuffer.last().ts;
+    }
+    if (supervised) {
+        QString phase = dojo.value("phase").toString();
+        bool bad = (phase == "child_crashed" || phase == "child_exited"
+                    || phase == "start_failed" || phase == "gave_up");
+        if (bad) {
+            QString msg;
+            if (dojo.contains("reason"))
+                msg = dojo.value("reason").toString();
+            else if (dojo.contains("lastExitCode"))
+                msg = QString("child exited %1 (%2)")
+                          .arg(dojo.value("lastExitCode").toInt())
+                          .arg(dojo.value("lastExitStatus").toString());
+            else
+                msg = QString("supervisor phase %1: %2")
+                          .arg(phase, dojo.value("lastExitStatus").toString());
+            auto at = QDateTime::fromString(dojo.value("updatedAt").toString(),
+                                            Qt::ISODateWithMs);
+            if (lastError.isEmpty() || (at.isValid() && at > lastErrorAt)) {
+                lastError = msg;
+                lastErrorAt = at;
+            }
+        }
+        if (phase == "gave_up")
+            st["supervisorGaveUp"] = true;
+    }
+    if (!lastError.isEmpty()) {
+        st["lastError"] = lastError;
+        if (lastErrorAt.isValid())
+            st["lastErrorAt"] = lastErrorAt.toString(Qt::ISODateWithMs);
+    }
+
+    return st;
+}
+
+QJsonObject ClayInspector::handleErrors(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    // Absent sinceGeneration means "everything still buffered", which after a
+    // reload is exactly the diagnostics of the current load: the buffers are
+    // cleared before every reload.
+    bool filtered = request.contains("sinceGeneration");
+    int since = request.value("sinceGeneration").toInt(0);
+
+    auto pack = [&](const QList<Diagnostic>& buf) {
+        QJsonArray arr;
+        for (const auto& d : buf) {
+            if (filtered && d.generation < since)
+                continue;
+            QJsonObject o;
+            o["generation"] = d.generation;
+            o["ts"] = d.ts.toString(Qt::ISODateWithMs);
+            o["text"] = d.text;
+            if (!d.file.isEmpty()) {
+                o["file"] = d.file;
+                o["line"] = d.line;
+            }
+            arr.append(o);
+        }
+        return arr;
+    };
+
+    QJsonArray errors = pack(m_errorBuffer);
+    QJsonArray warnings = pack(m_warningBuffer);
+
+    // Structured here, unlike snapshot's plain string arrays of the same names
+    // — this action exists precisely to carry file/line/generation.
+    response["errors"] = errors;
+    response["warnings"] = warnings;
+    response["errorCount"] = errors.size();
+    response["warningCount"] = warnings.size();
+    if (filtered)
+        response["sinceGeneration"] = since;
+    // Buffers are capped; say so rather than let a caller assume completeness.
+    response["truncated"] = (m_errorBuffer.size() >= MAX_LOG_ENTRIES
+                             || m_warningBuffer.size() >= MAX_LOG_ENTRIES);
+    return response;
+}
+
 void ClayInspector::attachDiagnostics(QJsonObject& response) const
 {
     QJsonArray logTail;
@@ -429,14 +615,16 @@ void ClayInspector::attachDiagnostics(QJsonObject& response) const
         logTail.append(m_logBuffer.at(i));
     response["logTail"] = logTail;
 
+    // Plain strings, unchanged: this is the v2 shape every existing recipe
+    // reads. The 'errors' action is where file/line/generation live.
     QJsonArray warnings;
     for (const auto& w : m_warningBuffer)
-        warnings.append(w);
+        warnings.append(w.text);
     response["warnings"] = warnings;
 
     QJsonArray errors;
     for (const auto& e : m_errorBuffer)
-        errors.append(e);
+        errors.append(e.text);
     response["errors"] = errors;
 }
 
@@ -484,8 +672,19 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
     if (request.value("screenshot").toBool(false)) {
         QString screenshotPath = m_inspectDir + "/screenshot.png";
         auto capture = ClayScene::capture(*m_host);
-        if (capture.ok() && ClayScene::saveImage(capture.image, screenshotPath))
+        // Stamp the grab, not the write: status.renderedAt is only worth
+        // anything if it is the moment the pixels were taken.
+        QDateTime grabbedAt = QDateTime::currentDateTime();
+        if (capture.ok() && ClayScene::saveImage(capture.image, screenshotPath)) {
             response["screenshot"] = screenshotPath;
+            m_renderedAt = grabbedAt;
+        } else if (!capture.ok()) {
+            // A failed grab used to be indistinguishable from a stale file
+            // left behind by an earlier run.
+            response["screenshotError"] =
+                capture.error.isEmpty() ? QStringLiteral("capture failed")
+                                        : capture.error;
+        }
     }
 
     attachDiagnostics(response);
@@ -550,7 +749,7 @@ QJsonObject ClayInspector::handleReload(const QJsonObject& request)
     }
 
     emit reloadRequested();
-    response["status"] = "requested";
+    response["reloadStatus"] = "requested";
     response["phase"] = phaseName(m_phase);
     return response;
 }
@@ -797,6 +996,13 @@ void ClayInspector::writeResponse(const QJsonObject& response)
 {
     ensureInspectDir();
 
+    // The envelope rides on every response, whatever the action and whoever
+    // wrote it (the async trace completions come through here too). An answer
+    // that cannot say whether anyone was home is how a dead instance gets
+    // mistaken for a working one.
+    QJsonObject enveloped = response;
+    enveloped["status"] = buildStatus();
+
     // Atomic write: QSaveFile writes to a sibling temp file and commits via
     // rename(2), so an agent reading response.json concurrently never observes
     // a half-written payload. Plain open(Truncate) briefly exposes an empty
@@ -808,7 +1014,7 @@ void ClayInspector::writeResponse(const QJsonObject& response)
         return;
     }
 
-    QJsonDocument doc(response);
+    QJsonDocument doc(enveloped);
     file.write(doc.toJson(QJsonDocument::Indented));
     if (!file.commit())
         qWarning() << "ClayInspector: failed to commit response to" << responsePath;
@@ -824,7 +1030,7 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
             return response;
         }
         stopTrace("manual");
-        response["status"] = "stopped";
+        response["traceStatus"] = "stopped";
         response["stoppedBy"] = "manual";
         response["samples"] = m_traceSamples;
         response["duration"] = static_cast<int>(m_traceElapsed.elapsed());
@@ -887,7 +1093,7 @@ QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
         // Take first sample immediately
         onTraceTick();
 
-        response["status"] = "started";
+        response["traceStatus"] = "started";
         response["watch"] = m_traceWatch;
         response["interval"] = interval;
         response["timeout"] = m_traceTimeout;
@@ -924,7 +1130,7 @@ void ClayInspector::onTraceTick()
         QJsonObject response;
         response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
         response["action"] = "trace";
-        response["status"] = "stopped";
+        response["traceStatus"] = "stopped";
         response["stoppedBy"] = "timeout";
         response["samples"] = m_traceSamples;
         response["duration"] = static_cast<int>(elapsed);
@@ -1000,7 +1206,7 @@ void ClayInspector::onTraceTick()
             QJsonObject response;
             response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
             response["action"] = "trace";
-            response["status"] = "stopped";
+            response["traceStatus"] = "stopped";
             response["stoppedBy"] = "condition";
             response["stopCondition"] = m_traceStopExpr;
             response["samples"] = m_traceSamples;
@@ -1050,7 +1256,7 @@ void ClayInspector::toggleTrace()
         QJsonObject response;
         response["ts"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
         response["action"] = "trace";
-        response["status"] = "stopped";
+        response["traceStatus"] = "stopped";
         response["stoppedBy"] = "manual";
         response["samples"] = m_traceSamples;
         response["duration"] = duration;
@@ -1155,12 +1361,12 @@ void ClayInspector::completeFlag(const QString& annotation)
 
     QJsonArray warnings;
     for (const auto& w : m_warningBuffer)
-        warnings.append(w);
+        warnings.append(w.text);
     flag["warnings"] = warnings;
 
     QJsonArray errors;
     for (const auto& e : m_errorBuffer)
-        errors.append(e);
+        errors.append(e.text);
     flag["errors"] = errors;
 
     QString flagPath = m_crewDir + "/flag_" + m_pendingFlagTimestamp + ".json";

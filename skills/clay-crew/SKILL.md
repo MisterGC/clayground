@@ -42,18 +42,22 @@ should be gitignored.
 **Attach procedure** (do this before the first request):
 
 1. Read `.clay/inspect/state.json`. Check `phase` is `ready` (or wait —
-   see `waitForRoot`) and `protocolVersion >= 2` (the actions below are
-   the v2 contract; against an older loader only snapshot/eval/tree/
-   trace/reload/waitForRoot exist). Check `pid` refers to a live process
-   if you need certainty the loader didn't die.
+   see `waitForRoot`) and `protocolVersion >= 3`. If you do not see a
+   `status` envelope on responses, the loader is older than these
+   instructions: v2 has no envelope and no `errors` action, and against
+   anything older still only snapshot/eval/tree/trace/reload/waitForRoot
+   exist. Check `pid` refers to a live process if you need certainty the
+   loader didn't die.
    When YOU relaunch a loader under a previously used instance name,
    don't trust the first `ready` you read: the file may still be the
    dead run's (the new process clears it at startup, but there is a
    small spawn window). Either clean the instance dir before launching
    or record `runId` (unique per process) and wait for it to change.
 2. If `.clay/inspect/dojo.json` exists, a dojo supervisor manages the
-   loader: note `generation` — it increments on every child respawn, so
-   a response written before a respawn belongs to a dead process.
+   loader; its respawn count reaches you as `status.restarts` on every
+   response, so you rarely need to read the file. A response written
+   before a respawn belongs to a dead process — watch `restarts` and
+   `runId` for that.
 3. Put a unique `"id"` into every request. The inspector echoes it back
    as `"requestId"` in the response — ignore any response whose
    `requestId` doesn't match your last request (stale from an earlier
@@ -75,12 +79,57 @@ watches the file and writes `.clay/inspect/response.json` atomically.
 `response.json` is the sync point: wait for it to change and for your
 `requestId` to appear.
 
-Every response carries `ts`, `action`, and (if you sent `"id"`)
-`requestId`. Unknown actions return `{"error": "Unknown action: ..."}`.
+Every response carries `ts`, `action`, a `status` envelope, and (if you
+sent `"id"`) `requestId`. Unknown actions return
+`{"error": "Unknown action: ..."}` — with the envelope, like everything
+else.
 
 ```json
 {"id": "req-42", "action": "snapshot"}
 ```
+
+## The status envelope
+
+The envelope is on every response whatever the action, and it is what you
+check before trusting a result:
+
+```json
+"status": {
+  "alive": true, "rootLoaded": true, "generation": 7, "phase": "ready",
+  "reloadCount": 9, "runId": "84b55d33", "supervised": true, "restarts": 3,
+  "sandbox": "/path/Sandbox.qml",
+  "renderedAt": "2026-08-01T10:21:07.412",
+  "lastError": "child exited 0 (normal)", "lastErrorAt": "…"
+}
+```
+
+- `alive` is not a measurement — it is the fact that the inspector got far
+  enough to write this response. It is only meaningful on a response whose
+  `requestId` is yours; a stale `response.json` on disk says `alive: true`
+  too.
+- `rootLoaded` — a root object exists. False plus `phase: load_error` means
+  the scene is broken; go read `errors` before anything else.
+- `generation` counts **successful** loads. It is how you know the scene
+  you measured is the one you edited: note it, edit, reload, and check it
+  advanced. It does *not* move on a reload that failed — a generation that
+  stayed put while you waited is a load error, not a slow load.
+  (`reloadCount` counts attempts, so the two differing is itself a signal.)
+- `renderedAt` is present **only** when this response carries a capture, and
+  is the moment the image was grabbed. A `snapshot` with `"screenshot": true`
+  that comes back without `renderedAt` produced no new image — read
+  `screenshotError` and treat any PNG on disk as somebody else's. Never
+  compare two crops without checking their captures were actually taken.
+- `supervised` / `restarts` come from the dojo's `dojo.json` (`restarts` is
+  respawns, i.e. every child after the first). A climbing `restarts` across
+  your requests means the loader you are talking to keeps being replaced.
+- `lastError` is the newer of the most recent QML error and how the last
+  child died, so a crash loop is visible even when this loader logged
+  nothing at all. `supervisorGaveUp: true` means the dojo stopped
+  respawning — nothing will get better until the invocation is fixed.
+
+**Never discard an error response unread.** A wrong protocol field or a
+one-line QML mistake is in there, and throwing it away to retry costs
+whole verification rounds.
 
 ## Lifecycle and failure artifacts
 
@@ -89,12 +138,16 @@ without human help. Know these files:
 
 | File | Writer | Content |
 |---|---|---|
-| `state.json` | loader | `protocolVersion`, `runId` (unique per process), `pid`, `sandbox`, `phase`, `reloadCount`, `rearmedScenario`, `instanceId`, timestamps |
+| `state.json` | loader | `protocolVersion`, `runId` (unique per process), `pid`, `sandbox`, `phase`, `generation` (successful loads), `reloadCount` (attempts), `rearmedScenario`, `instanceId`, timestamps |
 | `events.jsonl` (+ `events.rotated.jsonl`) | loader | append-only stream: `session_start`, `phase_change` (with `errorsTail` on load errors), `trace_start`, `trace_stop`, `flag`, `auto_flag`, `scenario_applied`; rotates at 5 MB |
 | `log.jsonl` (+ rotation) | loader | every console/Qt message as `{ts, level, category, text}` — tail this instead of relying on snapshot's 50-line `logTail` |
 | `autoflag_<ts>.json` (+ best-effort PNG) | loader | evidence bundle (trigger, tree, rootProperties, flagInfo, diagnostics) written automatically on the first runtime error per reload generation; last 3 kept |
-| `dojo.json` | dojo parent | `role`, `pid`, `generation`, `phase` (`starting_child`, `child_running`, `child_exited`, `child_crashed`, `start_failed`, `stopped`), `rapidCrashCount`, `backingOff`/`backoffMs`, `lastExitCode`, `lastExitStatus` |
-| `crash.json` | dojo parent | after ≥3 rapid crashes: `exitCode`, `exitStatus`, `generation`, `stderrTail` (last 200 lines) |
+| `dojo.json` | dojo parent | `role`, `pid`, `generation`, `phase` (`starting_child`, `child_running`, `child_exited`, `child_crashed`, `start_failed`, `gave_up`, `stopped`), `rapidCrashCount`, `everRanStably`, `reason` (terminal phases), `backingOff`/`backoffMs`, `lastExitCode`, `lastExitStatus` |
+| `crash.json` | dojo parent | after ≥3 rapid crashes: `exitCode`, `exitStatus`, `generation`, `stderrTail` (last 200 lines of the child's **stdout and stderr** — a rejected command line prints its usage to stdout) |
+
+Note `dojo.json` always lives at `<sandbox-dir>/.clay/inspect/dojo.json`,
+even when the loader runs under `--instance` and serves its own protocol
+from the `i/<name>/` subdir — one supervisor, one file.
 
 Loader phases: `starting` → `ready`, `reloading` on every file-watch or
 requested reload, `load_error` when the QML failed to load, `stopped` on
@@ -113,29 +166,37 @@ edit.
 **Diagnosis recipes:**
 
 - `phase: load_error` → your edit did not take effect; the scene you can
-  still query is the one from before it. `snapshot` carries `errors`,
-  `warnings`, and `logTail`; the last `phase_change` event also carries
-  `errorsTail`. Fix the file and save again — that is the whole recovery.
+  still query is the one from before it. `errors` is the direct question;
+  `snapshot` also works (even with no root item its response carries
+  `errors`, `warnings` and `logTail`), and the last `phase_change` event
+  carries `errorsTail`. Fix the file and save again — that is the whole
+  recovery.
+- Change seems to have had no effect → check that `status.generation`
+  moved. If it did not, you are measuring the pre-edit scene.
 - Loader gone / no response → check `dojo.json`: `child_crashed` with
-  `backingOff` means the dojo is respawning with backoff; `crash.json`
-  has the stderr tail after a crash loop. C++ library changes also
-  intentionally quit the loader so the dojo respawns it with fresh
-  plugins — that is not a crash.
+  `backingOff` means the dojo is respawning with backoff; `gave_up` means
+  it stopped and `reason` says why (typically a command line that never
+  worked). `crash.json` has the child's output tail after a crash loop.
+  C++ library changes also intentionally quit the loader so the dojo
+  respawns it with fresh plugins — that is not a crash.
 - Response looks unrelated → compare `requestId`; if it isn't yours,
   the response is stale.
 
 ## Verification workflow
 
 After editing QML files, verify in layers; stop at the first layer that
-gives you confidence.
+gives you confidence. Read `status` on every response you get along the
+way — a layer that "passed" against a dead or pre-edit scene is worse
+than no verification at all.
 
 1. **Static analysis (always):** `qmllint <file> -I build/qml`.
 2. **Load check:** `{"id": "...", "action": "waitForRoot", "timeoutMs": 5000}`
    — blocks until the next load resolves (or returns immediately if the
-   phase is already terminal); response carries `phase`. On
-   `load_error`, fix the errors from the diagnostics before anything else
-   — the running scene is still the pre-edit one, so any check you run
-   now measures the wrong thing.
+   phase is already terminal); the response carries `phase`, and `status`
+   tells you whether `generation` advanced. On `load_error`, fix the
+   errors (`errors` action) before anything else — the running scene is
+   still the pre-edit one, so any check you run now measures the wrong
+   thing.
 3. **State verification:** `snapshot` — check `errors`, `warnings`, then
    verify your change via `eval` / `rootProperties` / `flagInfo`.
 4. **Entity search:** `eval` with `canvas.find()` (below).
@@ -156,14 +217,38 @@ gives you confidence.
 
 Returns `rootProperties` (custom primitive properties of the root),
 `flagInfo` (if the root defines that function), `viewState` (if the root
-implements it), `eval` results, `logTail` (last 50), `warnings`, `errors`,
+implements it), `eval` results, `logTail` (last 50), `warnings`, `errors`
+(plain strings here — the `errors` action is where file/line live),
 optional `screenshot` path. With no
 root item it returns `"error": "No sandbox root item available"` — but
 still attaches `logTail`/`warnings`/`errors`.
 
 Screenshots are **best-effort**: `grabToImage()` can fail or come out
-blank on some platforms (notably offscreen with View3D content). Never
-make a screenshot the only evidence.
+blank on some platforms (notably offscreen with View3D content). A grab
+that failed returns `screenshotError` and no `status.renderedAt`; the
+`screenshot.png` on disk is then whatever an earlier request left there.
+Trust `status.renderedAt`, not the file. Never make a screenshot the only
+evidence.
+
+### errors — QML errors and warnings since load
+
+```json
+{"id": "x1", "action": "errors"}
+{"id": "x2", "action": "errors", "sinceGeneration": 8}
+```
+
+Returns `errors` and `warnings` as objects — `{generation, ts, text, file,
+line}`, with `file`/`line` present when the message carried them — plus
+`errorCount`, `warningCount` and `truncated` (the buffers hold 200 each).
+Note that unhandled QML/JS exceptions (`TypeError`, `ReferenceError`, …)
+arrive as *warnings*, so read both lists.
+
+Buffers are cleared before every reload, so a bare `errors` is "what has
+gone wrong with the current scene". `sinceGeneration: N` drops anything
+older than generation N. Diagnostics raised *during* a load are tagged
+with the generation being attempted, so a reload that failed leaves its
+errors at `status.generation + 1` — visible even though the generation
+itself never advanced.
 
 ### eval — expression evaluation
 
@@ -201,9 +286,9 @@ More than 20 children truncate to 5 plus a type-count/named-item summary.
 
 Stop manually with `{"action": "trace", "stop": true}`. Defaults:
 `interval` 200 ms, `timeout` 30 s. The completion response (async, still
-correlated via `requestId`) reports `stoppedBy` (`"condition"` /
-`"timeout"` / `"manual"`), `samples`, `duration`, and a per-expression
-summary (numeric: first/last/min/max/changes; string: values/changes).
+correlated via `requestId`) reports `traceStatus: "stopped"`, `stoppedBy`
+(`"condition"` / `"timeout"` / `"manual"`), `samples`, `duration`, and a
+per-expression summary (numeric: first/last/min/max/changes; string: values/changes).
 Full samples land in `.clay/inspect/trace.jsonl` — do NOT read it while
 the trace runs; wait for the completion response. A red REC indicator is
 shown in the window while tracing; the user can stop a trace with Ctrl+T.
@@ -232,7 +317,9 @@ lag).
 
 Same path as a file-watch reload: a fresh engine, so no scene state
 survives a *successful* reload — and no scene is lost to a failed one.
-Follow with `waitForRoot`. With `scenario`, the root's
+The response acknowledges with `reloadStatus: "requested"` — the reload
+has not happened yet. Follow with `waitForRoot`, then confirm
+`status.generation` advanced. With `scenario`, the root's
 `applyScenario(name)` runs once the new root is ready; `rearm: true`
 re-applies it after every subsequent reload (including the user's file
 edits) until a reload passes `rearm: false` — this is how you keep the
@@ -408,7 +495,7 @@ Pick expressions that verify the **effect** of your change:
     dojo.json                  <- dojo supervisor state (generation, crashes)
     crash.json                 <- after crash loops: exit info + stderr tail
     autoflag_<ts>.json/.png    <- auto evidence bundle on runtime errors
-    screenshot.png             <- when requested
+    screenshot.png             <- when requested (trust status.renderedAt)
     trace.jsonl                <- during/after trace
     i/<instance>/...           <- per-instance scope when --instance is used
   crew/                        <- human -> agent (Ctrl+F flags)
