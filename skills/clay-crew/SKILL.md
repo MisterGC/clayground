@@ -17,6 +17,46 @@ through a file-based protocol under `.clay/` in the sandbox's directory.
 This skill covers attaching to a running instance, the full command set,
 the lifecycle/failure artifacts, and the human collaboration channel.
 
+## Which tool — decide this before reaching for the dojo
+
+- **`clayrender`** — anything you can express as *"put the sandbox in
+  state X and show me"*. One command, no session, no protocol; variants
+  render in parallel, and it cannot hand you a stale or dead instance's
+  picture. **This is the default way to look at a sandbox.**
+
+  ```bash
+  clayrender Sandbox.qml --out shot.png --size 1400x900 \
+      --set 'root.mode="inspect"' --settle --scale 0.6
+  ```
+
+  It also answers numeric questions without a protocol: `--dump
+  lines=out.json` (any type with a `clayInspect()` hook), `--project
+  x,y,z`, `--pick x,y`. Exit 1 = never loaded, 2 = rendered but the scene
+  logged errors. See the manual page for the rest.
+- **The dojo** (the rest of this skill) — interaction, hot-reload
+  iteration, and anything genuinely stateful: driving input, stepping
+  simulation time, tracing, or working in a shared session with the user.
+- **Query the scene rather than screenshotting** whenever the question is
+  numeric — size, position, colour, count. A screenshot answers "does
+  this read correctly to a human"; it does not answer "is this
+  geometrically what I intended". Two rounds of a real session were once
+  spent diagnosing an arrowhead from pixels when one query would have
+  shown the resolved geometry immediately.
+
+## Two things that cost an hour each if you don't know them
+
+**Launch with `QT_DISABLE_SHADER_DISK_CACHE=1`.** Without it the loader
+dies unpredictably mid-session on shader-heavy scenes.
+
+**After touching plugin QML, rebuild the plugin and RESTART the loader.**
+Plugin QML is compiled into the plugin's Qt resources, so a hot reload
+cannot pick it up, and building only `clayliveloader` does not rebuild
+those resources at all — the fix looks applied while the old file is
+still live. The targets are named after the QML modules (`ClayCanvas3D`,
+`ClayLab`, ...), not the directories: `--target clay_canvas3d` fails with
+"No rule to make target", which is easy to miss in a long build log. When
+in doubt, `cmake --build build`.
+
 ## Prerequisites and attach
 
 Both entrypoints are first-class — pick by situation:
@@ -293,7 +333,12 @@ downscale or crop with a throwaway script:
 - `settle` — wait until the frame stops changing, then grab. Answers
   `{settled, waitedMs, framesCompared, lastDelta}`. `settled: false` is
   the timeout hitting while the scene still moved: a finding, not a
-  failure. Some scenes never settle.
+  failure. Some scenes never settle. **`settled: true` only means nothing
+  in frame moved** — it is a pixel metric, so motion outside the viewport
+  is invisible to it by construction. If you are settling to wait for a
+  specific thing, make sure that thing is on screen (a real check once
+  passed only because a sliver of the moving object clipped the right
+  edge).
 - `diff` — compare against a baseline PNG. Answers `{delta,
   changedPixels, changedBounds}`, tolerance 2 per channel by default,
   since two GPU renders of one scene are never bit-identical. A missing
