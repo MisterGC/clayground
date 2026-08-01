@@ -94,6 +94,11 @@ private:
     void ensureInspectDir();
     void ensureCrewDir();
     void processRequest(const QJsonObject& request);
+    // Runs one action and returns its (un-enveloped) result. Both a top-level
+    // request and a batch step go through here, so a step is literally a
+    // request and never a second vocabulary.
+    QJsonObject dispatchAction(const QString& action, const QJsonObject& request);
+    QJsonObject handleBatch(const QJsonObject& request);
     QJsonObject handleSnapshot(const QJsonObject& request);
     QJsonObject handleEval(const QJsonObject& request);
     QJsonObject handleTree(const QJsonObject& request);
@@ -181,6 +186,14 @@ private:
     // When the response currently being assembled carries a capture: the
     // moment that image was actually grabbed. Invalid otherwise.
     QDateTime m_renderedAt;
+
+    // Re-entrancy guard. Blocking actions (waitForRoot, a settling capture)
+    // spin the event loop, which lets the file watcher deliver the next
+    // request.json while this one is still running. Two interleaved responses
+    // share one file, so the inner answer is lost either way - drop the nested
+    // request instead and report how many were dropped.
+    bool m_inRequest = false;
+    int m_reentrantDropped = 0;
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;

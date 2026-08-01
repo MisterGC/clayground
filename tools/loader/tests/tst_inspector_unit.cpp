@@ -38,6 +38,10 @@ private slots:
     void testErrorsActionCarriesFileAndLine();
     void testErrorsActionFiltersBySinceGeneration();
     void testStatusLastErrorFromDojoState();
+    void testBatchRunsStepsInOrder();
+    void testBatchStopsAtFirstFailingStep();
+    void testBatchStepNeedsAnAction();
+    void testBatchRejectsNesting();
 
 private:
     // Round-trips one request through the file protocol and returns the
@@ -766,6 +770,128 @@ void TestInspectorUnit::testStatusLastErrorFromDojoState()
     QCOMPARE(st["supervised"].toBool(), true);
     QCOMPARE(st["restarts"].toInt(), 3);   // 4 children started => 3 respawns
     QVERIFY(st["lastError"].toString().contains("child exited 0"));
+}
+
+void TestInspectorUnit::testBatchRunsStepsInOrder()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.addError("boom");
+
+    // Two 'errors' steps that differ only in their body: the second filters
+    // everything away. Same results in the same order proves both that the
+    // steps ran in order and that each got its own request body.
+    QJsonObject step1;
+    step1["action"] = "errors";
+    QJsonObject step2;
+    step2["action"] = "errors";
+    step2["sinceGeneration"] = 99;
+
+    QJsonObject req;
+    req["action"] = "batch";
+    req["id"] = "b1";
+    req["steps"] = QJsonArray{step1, step2};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QVERIFY(!resp.contains("error"));
+    QVERIFY(!resp.contains("failedStep"));
+    QCOMPARE(resp["stepsRun"].toInt(), 2);
+    QCOMPARE(resp["stepsTotal"].toInt(), 2);
+
+    auto steps = resp["steps"].toArray();
+    QCOMPARE(steps.size(), 2);
+    QCOMPARE(steps[0].toObject()["errorCount"].toInt(), 1);
+    QCOMPARE(steps[1].toObject()["errorCount"].toInt(), 0);
+    // Action echoed per step, generation recorded per step, envelope once.
+    QCOMPARE(steps[0].toObject()["action"].toString(), QStringLiteral("errors"));
+    QVERIFY(steps[0].toObject().contains("generation"));
+    QVERIFY(steps[1].toObject().contains("generation"));
+    QVERIFY(resp["status"].toObject().contains("alive"));
+    QCOMPARE(resp["action"].toString(), QStringLiteral("batch"));
+}
+
+void TestInspectorUnit::testBatchStopsAtFirstFailingStep()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QJsonObject ok;
+    ok["action"] = "errors";
+    QJsonObject bad;
+    bad["action"] = "no_such_action";
+
+    QJsonObject req;
+    req["action"] = "batch";
+    req["id"] = "b2";
+    req["steps"] = QJsonArray{ok, bad, ok};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QCOMPARE(resp["failedStep"].toInt(), 1);
+    QCOMPARE(resp["stepsRun"].toInt(), 2);      // the third never ran
+    QCOMPARE(resp["stepsTotal"].toInt(), 3);
+    QCOMPARE(resp["steps"].toArray().size(), 2);
+    QVERIFY(resp["error"].toString().contains("step 1"));
+    QVERIFY(resp["error"].toString().contains("Unknown action"));
+}
+
+void TestInspectorUnit::testBatchStepNeedsAnAction()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    // The shorthand from the issue sketch. Without an explicit action this
+    // would default to 'snapshot' and the caller would think a key was sent.
+    QJsonObject sugar;
+    sugar["input"] = QJsonObject{{"key", QJsonObject{{"key", "V"}}}};
+
+    QJsonObject req;
+    req["action"] = "batch";
+    req["id"] = "b3";
+    req["steps"] = QJsonArray{sugar};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QCOMPARE(resp["failedStep"].toInt(), 0);
+    QVERIFY(resp["steps"].toArray()[0].toObject()["error"].toString()
+                .contains("action"));
+}
+
+void TestInspectorUnit::testBatchRejectsNesting()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QJsonObject inner;
+    inner["action"] = "batch";
+    inner["steps"] = QJsonArray{};
+
+    QJsonObject req;
+    req["action"] = "batch";
+    req["id"] = "b4";
+    req["steps"] = QJsonArray{inner};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+
+    QCOMPARE(resp["failedStep"].toInt(), 0);
+    QVERIFY(resp["error"].toString().contains("nest"));
+
+    // An empty batch is a caller mistake, not a no-op.
+    QJsonObject empty;
+    empty["action"] = "batch";
+    empty["id"] = "b5";
+    empty["steps"] = QJsonArray{};
+    auto eresp = roundtrip(inspector, tmpDir.path(), empty);
+    QVERIFY(eresp["error"].toString().contains("empty"));
 }
 
 QTEST_MAIN(TestInspectorUnit)
