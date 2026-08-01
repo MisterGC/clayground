@@ -56,7 +56,7 @@ jobs:
 
     - name: Setup Emscripten
       if: matrix.qt-target == 'wasm'
-      uses: mymindstorm/setup-emsdk@v14
+      uses: mymindstorm/setup-emsdk@v16
       with:
         version: ${{ env.EMSDK_VERSION }}
 
