@@ -9,6 +9,7 @@ class ClayLiveLoader;
 class ClayInspector;
 class ClayTimeControl;
 class ClayInputControl;
+class QQmlEngine;
 class QQuickWidget;
 class QLabel;
 
@@ -29,6 +30,10 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     
 private slots:
+    // Installs everything a sandbox needs at load time (context properties,
+    // import paths). Runs for the initial engine and for every reload
+    // candidate, before it parses any QML.
+    void configureEngine(QQmlEngine* engine);
     void onSandboxUrlChanged();
     void onRestarted();
     void toggleLogOverlay();

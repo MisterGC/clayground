@@ -100,12 +100,22 @@ Loader phases: `starting` → `ready`, `reloading` on every file-watch or
 requested reload, `load_error` when the QML failed to load, `stopped` on
 shutdown.
 
+A failed reload is a no-op. The new QML is loaded into a candidate engine
+and only swapped in once it instantiates without errors; a candidate that
+fails is dropped, the previous scene keeps running and rendering, the error
+is reported, and the generation stays where it was. So edit and look as
+tightly as you like — saving a file mid-thought, with an import still
+missing, costs you an error message and nothing else, and the next save
+recovers without a relaunch. What you must not do is *measure* while the
+phase is `load_error`: everything you read is the previous scene, not your
+edit.
+
 **Diagnosis recipes:**
 
-- `phase: load_error` → the reload broke the scene. `snapshot` still
-  works: even with no root item the response carries `errors`,
-  `warnings`, and `logTail`. The last `phase_change` event also carries
-  `errorsTail`.
+- `phase: load_error` → your edit did not take effect; the scene you can
+  still query is the one from before it. `snapshot` carries `errors`,
+  `warnings`, and `logTail`; the last `phase_change` event also carries
+  `errorsTail`. Fix the file and save again — that is the whole recovery.
 - Loader gone / no response → check `dojo.json`: `child_crashed` with
   `backingOff` means the dojo is respawning with backoff; `crash.json`
   has the stderr tail after a crash loop. C++ library changes also
@@ -123,7 +133,9 @@ gives you confidence.
 2. **Load check:** `{"id": "...", "action": "waitForRoot", "timeoutMs": 5000}`
    — blocks until the next load resolves (or returns immediately if the
    phase is already terminal); response carries `phase`. On
-   `load_error`, fix the errors from the diagnostics before anything else.
+   `load_error`, fix the errors from the diagnostics before anything else
+   — the running scene is still the pre-edit one, so any check you run
+   now measures the wrong thing.
 3. **State verification:** `snapshot` — check `errors`, `warnings`, then
    verify your change via `eval` / `rootProperties` / `flagInfo`.
 4. **Entity search:** `eval` with `canvas.find()` (below).
@@ -218,8 +230,9 @@ lag).
 {"id": "r2", "action": "reload", "scenario": "boss-fight", "rearm": true}
 ```
 
-Same path as a file-watch reload (full QML engine recreation — no scene
-state survives). Follow with `waitForRoot`. With `scenario`, the root's
+Same path as a file-watch reload: a fresh engine, so no scene state
+survives a *successful* reload — and no scene is lost to a failed one.
+Follow with `waitForRoot`. With `scenario`, the root's
 `applyScenario(name)` runs once the new root is ready; `rearm: true`
 re-applies it after every subsequent reload (including the user's file
 edits) until a reload passes `rearm: false` — this is how you keep the
