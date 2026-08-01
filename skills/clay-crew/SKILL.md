@@ -400,6 +400,47 @@ Overview (default): type, objectName, source file, custom properties,
 visible/enabled. `full` adds vectors, z-order, opacity, clip, state.
 More than 20 children truncate to 5 plus a type-count/named-item summary.
 
+A full tree costs a few hundred ms and dumps everything, which is too
+expensive to put inside a loop. Add `select` (type) or `objectName` and you
+get an `items` array of just those nodes instead:
+
+```json
+{"id": "t3", "action": "tree", "select": "Rectangle", "limit": 5}
+```
+
+### inspect — ask the renderer what it actually got
+
+```json
+{"id": "i1", "action": "inspect", "select": "lines"}
+```
+
+**If the question is numeric, ask this instead of taking a screenshot.**
+`inspect` calls the `clayInspect()` hook on every object that has one and
+returns what the renderer received after all bindings ran: for
+`LineBatch3D` (shorthand `lines`) the resolved world points, width, colour,
+styleId and length of every line, plus batch bounds; `LabelBatch3D` gives
+text/size/position per label including curved ones; `VoxelMap` gives grid,
+solid count and palette.
+
+`tree` and `inspect` see different scenes: `tree` walks 2D items, and a 3D
+object (a `LineBatch3D` is a `Model`, not an `Item`) appears only under
+`inspect`. An empty `inspect` result means no type in that scene has a
+hook — not an error.
+
+### project / pick — screen space, and what is under a pixel
+
+```json
+{"id": "p1", "action": "project", "world": [0, 0, 0]}
+{"id": "k1", "action": "pick", "x": 640, "y": 400}
+```
+
+`project` answers `x`, `y`, `depth`, `behindCamera`, `insideViewport` —
+behind-the-camera is never reported as inside the viewport. Use it to get
+click targets instead of hand-rolling `mapFrom3DScene` in a shell script.
+`pick` answers the object hit (needs a `View3D`; instanced geometry is not
+pickable — use `inspect`) **and the colour actually rendered there**, which
+works in a 2D scene too. Add `"view"` when there is more than one `View3D`.
+
 ### trace — temporal observation
 
 ```json

@@ -4,6 +4,7 @@
 #include "claycontrols.h"
 #include "hotreloadcontainer.h"
 #include <clayscenecapture.h>
+#include <clayinspect.h>
 #include <clayscenequery.h>
 #include <claysettle.h>
 #include <QCoreApplication>
@@ -479,6 +480,12 @@ QJsonObject ClayInspector::dispatchAction(const QString& action,
         response = handleEval(request);
     else if (action == "tree")
         response = handleTree(request);
+    else if (action == "inspect")
+        response = handleInspect(request);
+    else if (action == "project")
+        response = handleProject(request);
+    else if (action == "pick")
+        response = handlePick(request);
     else if (action == "trace")
         response = handleTrace(request);
     else if (action == "reload")
@@ -1046,8 +1053,96 @@ QJsonObject ClayInspector::handleTree(const QJsonObject& request)
 
     int maxDepth = request.value("maxDepth").toInt(-1);
     bool fullDetail = request.value("detail").toString("overview") == "full";
+
+    // A full tree costs a few hundred ms and dumps the whole scene, which is
+    // too expensive to put inside a verification loop. With a selector you
+    // get just the items you are working on.
+    const QString select = request.value("select").toString();
+    const QString objectName = request.value("objectName").toString();
+    if (!select.isEmpty() || !objectName.isEmpty()) {
+        // Default depth 0 here: "show me these items", not their subtrees.
+        response["items"] = ClayScene::findItems(
+            rootItem, select, objectName,
+            request.contains("maxDepth") ? maxDepth : 0, fullDetail,
+            request.value("limit").toInt(0));
+        response["select"] = select.isEmpty() ? objectName : select;
+        return response;
+    }
+
     response["tree"] = ClayScene::buildItemTree(rootItem, maxDepth, fullDetail);
     return response;
+}
+
+QJsonObject ClayInspector::handleInspect(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
+        response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
+        return response;
+    }
+
+    // Ask the renderer what it actually got. Every type that implements the
+    // clayInspect() hook answers here; the inspector knows none of them by
+    // name. "lines" is the documented shorthand for the common case.
+    ClayScene::InspectSelector selector;
+    selector.type = request.value("select").toString();
+    if (selector.type.compare("lines", Qt::CaseInsensitive) == 0)
+        selector.type = QStringLiteral("LineBatch3D");
+    selector.objectName = request.value("objectName").toString();
+    selector.limit = request.value("limit").toInt(0);
+
+    response["inspect"] = ClayScene::inspect(rootItem, selector);
+    return response;
+}
+
+QJsonObject ClayInspector::handleProject(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
+        response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
+        return response;
+    }
+
+    const auto world = request.value("world").toArray();
+    if (world.size() != 3) {
+        response["error"] = "project: give \"world\": [x, y, z]";
+        return response;
+    }
+
+    return ClayScene::project(rootItem, world.at(0).toDouble(),
+                              world.at(1).toDouble(), world.at(2).toDouble(),
+                              request.value("view").toString());
+}
+
+QJsonObject ClayInspector::handlePick(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
+        response["error"] = "No sandbox root item available";
+        attachDiagnostics(response);
+        return response;
+    }
+
+    if (!request.contains("x") || !request.contains("y")) {
+        response["error"] = "pick: give x and y in viewport pixels";
+        return response;
+    }
+
+    // Grab first so the reported colour is the pixel actually rendered there,
+    // not an inference from the scene graph.
+    const auto shot = ClayScene::capture(*m_host);
+    const QImage* frame = shot.ok() ? &shot.image : nullptr;
+    return ClayScene::pick(rootItem, request.value("x").toDouble(),
+                           request.value("y").toDouble(),
+                           request.value("view").toString(), frame);
 }
 
 QJsonObject ClayInspector::handleReload(const QJsonObject& request)

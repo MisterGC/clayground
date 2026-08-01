@@ -139,6 +139,41 @@ Returns a JSON tree of the QML item hierarchy. **Overview** mode (default) inclu
 
 When a child list exceeds 20 items, the tree truncates to the first 5 items plus a summary of all children — type counts and mini-dumps of rare or named items. This surfaces interesting entities (player, enemies) among hundreds of walls.
 
+```json
+{"action": "tree", "select": "Rectangle", "limit": 5}
+{"action": "tree", "objectName": "hud", "maxDepth": 2}
+```
+
+A full tree costs a few hundred milliseconds and dumps the whole scene, which is too expensive inside a verification loop. With `select` (type) or `objectName` you get an `items` array of just those nodes, at depth 0 unless you ask for more. A selector that matches nothing returns an empty list — never the whole tree.
+
+### inspect — Ask the renderer what it actually got
+
+```json
+{"action": "inspect", "select": "lines"}
+{"action": "inspect", "select": "LabelBatch3D", "objectName": "roadNames"}
+```
+
+Most verification questions in a 3D scene are numeric — *is that arrowhead full size? did the second line get drawn at all? where does this label sit?* — and a screenshot answers none of them. `inspect` walks the scene and calls the `clayInspect()` hook on every object that has one, returning the data **as the renderer received it**, after all bindings and JS have run.
+
+`select` filters by the type the hook reports (or the class name); `lines` is shorthand for `LineBatch3D`. Types shipping a hook today: `LineBatch3D` (per line: resolved world points, width, colour, styleId, length; plus batch bounds and instance count), `LabelBatch3D` (text, size, position, colour per label, including curved path labels), `VoxelMap` (grid, solid count, palette, storage).
+
+The inspector knows none of these types by name — a plugin type opts in by implementing `Q_INVOKABLE QVariantMap clayInspect() const` (or a `clayInspect()` function in QML). The contract for anyone adding one: **pull-only**. Read state the renderer already keeps, compute nothing on your own schedule, never maintain bookkeeping for the inspector's benefit. That is what keeps this free in a shipped app, where nothing ever calls it.
+
+Note `tree` and `inspect` see different things: `tree` walks the 2D item hierarchy, while a 3D object (a `LineBatch3D` is a `Model`, not an `Item`) only shows up under `inspect`.
+
+### project / pick — Screen space and what's under a pixel
+
+```json
+{"action": "project", "world": [0, 0, 0]}
+{"action": "pick", "x": 640, "y": 400}
+```
+
+`project` maps a world point through the live camera and viewport, answering `x`, `y`, `depth`, `behindCamera` and `insideViewport` — a point behind the camera is never reported as inside the viewport, since those are different failures. It removes the need to hand-roll `mapFrom3DScene` arithmetic in a shell script.
+
+`pick` answers what is under that pixel: the object hit, distance, world position and normal, **plus the colour actually rendered there**. The colour works in a 2D-only scene too; the hit needs a `View3D`. Instanced geometry (a `LineBatch3D`) is not pickable in Qt Quick 3D — use `inspect` for those.
+
+Both take an optional `"view"` (id or objectName) when the scene has several `View3D`s.
+
 ### trace — Temporal observation
 
 Start recording:

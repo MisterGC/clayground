@@ -12,6 +12,7 @@
 #include <QQuickItem>
 #include <QVector2D>
 #include <QVector3D>
+#include <functional>
 
 namespace ClayScene {
 namespace {
@@ -61,11 +62,33 @@ bool isInternalType(const QString& className)
 QString shortTypeName(const QObject* obj)
 {
     QString typeName = QString::fromUtf8(obj->metaObject()->className());
+    // QML-declared types come through as Foo_QMLTYPE_42.
+    const int qmlMarker = typeName.indexOf("_QMLTYPE_");
+    if (qmlMarker > 0)
+        return typeName.left(qmlMarker);
     if (typeName.startsWith("QQuick3D"))
         return typeName.mid(8);
     if (typeName.startsWith("QQuick"))
         return typeName.mid(6);
     return typeName;
+}
+
+// A handful of C++ classes are known by a different name in QML, and
+// selecting by the name people actually write has to work. View3D is the one
+// that bites: its class is QQuick3DViewport, so "select": "View3D" silently
+// matched nothing and read as "this scene has no 3D view".
+bool typeMatches(const QObject* obj, const QString& wanted)
+{
+    if (wanted.isEmpty())
+        return true;
+    if (shortTypeName(obj).compare(wanted, Qt::CaseInsensitive) == 0)
+        return true;
+    const QString cls = QString::fromUtf8(obj->metaObject()->className());
+    if (cls.compare(wanted, Qt::CaseInsensitive) == 0)
+        return true;
+    if (wanted.compare(QLatin1String("View3D"), Qt::CaseInsensitive) == 0)
+        return cls == QLatin1String("QQuick3DViewport");
+    return false;
 }
 
 QJsonObject buildItemTreeRec(QQuickItem* item, int maxDepth, int depth,
@@ -354,6 +377,33 @@ QString sourceFileName(QQuickItem* item)
 QJsonObject buildItemTree(QQuickItem* item, int maxDepth, bool fullDetail)
 {
     return buildItemTreeRec(item, maxDepth, 0, fullDetail, QString());
+}
+
+QJsonArray findItems(QQuickItem* root, const QString& type,
+                     const QString& objectName, int maxDepth,
+                     bool fullDetail, int limit)
+{
+    QJsonArray out;
+    if (!root || (type.isEmpty() && objectName.isEmpty()))
+        return out;
+
+    std::function<void(QQuickItem*)> walk = [&](QQuickItem* item) {
+        if (!item || (limit > 0 && out.size() >= limit))
+            return;
+        const bool typeOk = typeMatches(item, type);
+        const bool nameOk = objectName.isEmpty()
+            || item->objectName() == objectName;
+        if (typeOk && nameOk) {
+            QJsonObject node = buildItemTreeRec(item, maxDepth, 0, fullDetail,
+                                                QString());
+            if (!node.isEmpty())
+                out.append(node);
+        }
+        for (auto* child : item->childItems())
+            walk(child);
+    };
+    walk(root);
+    return out;
 }
 
 QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions)

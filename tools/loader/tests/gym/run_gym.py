@@ -276,6 +276,39 @@ def run(insp, sandbox_dir, attended):
           f"moved={slow} (normal would be ~4.0)")
     insp.request({"action": "time", "scale": 1.0})
 
+    # -- 4a2: scene queries — asking the renderer instead of the pixels (#165)
+    resp = insp.request({"action": "tree", "select": "Rectangle", "limit": 3})
+    items = resp.get("items", [])
+    check("tree: a selector returns only matching items",
+          len(items) > 0 and all(i.get("type") == "Rectangle" for i in items),
+          f"{len(items)} items: {[i.get('type') for i in items]}")
+
+    resp = insp.request({"action": "tree", "select": "NoSuchTypeAnywhere"})
+    check("tree: a selector that matches nothing returns an empty list, not the whole tree",
+          resp.get("items") == [] and "tree" not in resp, str(resp.get("items")))
+
+    # No type in the gym implements clayInspect(), so the honest answer is an
+    # empty list - not an error, and not a fallback to everything.
+    resp = insp.request({"action": "inspect", "select": "lines"})
+    check("inspect: a scene with no hooks answers empty rather than erroring",
+          resp.get("inspect") == [] and not resp.get("error"),
+          f"inspect={resp.get('inspect')} error={resp.get('error')}")
+
+    # pick works without a View3D: the colour question is always answerable.
+    geom = insp.eval(["gym.mapFromItem(player, 0, 0).x",
+                      "gym.mapFromItem(player, 0, 0).y",
+                      "player.width", "player.height"])
+    px = geom["gym.mapFromItem(player, 0, 0).x"] + geom["player.width"] / 2
+    py = geom["gym.mapFromItem(player, 0, 0).y"] + geom["player.height"] / 2
+    resp = insp.request({"action": "pick", "x": px, "y": py}, timeout=15)
+    check("pick: reports the colour rendered at that pixel",
+          isinstance(resp.get("color"), str) and resp["color"].startswith("#"),
+          f"color={resp.get('color')} at {px:.0f},{py:.0f}")
+
+    resp = insp.request({"action": "project", "world": [0, 0, 0]})
+    check("project: says plainly that a 2D scene has no View3D",
+          "View3D" in (resp.get("error") or ""), str(resp.get("error")))
+
     # -- 4b: capture — framing, settle, diff (#167, #169) ----------------
     # One request does what used to be five tool calls: settle, grab, crop,
     # scale, write where the caller asked, compare against a baseline.

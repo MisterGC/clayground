@@ -24,6 +24,15 @@ QString sourceFileName(QQuickItem* item);
 QJsonObject buildItemTree(QQuickItem* item, int maxDepth = -1,
                           bool fullDetail = false);
 
+// Only the items whose type or objectName matches, each as a tree node.
+// `tree` on a real scene costs ~480 ms and dumps everything, which is too
+// expensive to use inside a verification loop; this makes "just the thing I
+// am working on" cheap. An empty selector returns nothing rather than
+// everything - "match all" is what plain buildItemTree is for.
+QJsonArray findItems(QQuickItem* root, const QString& type,
+                     const QString& objectName, int maxDepth = 0,
+                     bool fullDetail = false, int limit = 0);
+
 // --- Talking to the sandbox root -------------------------------------------
 
 // Evaluates each expression against the root's QML context. Errors are

@@ -103,6 +103,9 @@ private:
     QJsonObject handleSnapshot(const QJsonObject& request);
     QJsonObject handleEval(const QJsonObject& request);
     QJsonObject handleTree(const QJsonObject& request);
+    QJsonObject handleInspect(const QJsonObject& request);
+    QJsonObject handleProject(const QJsonObject& request);
+    QJsonObject handlePick(const QJsonObject& request);
     QJsonObject handleTrace(const QJsonObject& request);
     QJsonObject handleReload(const QJsonObject& request);
     QJsonObject handleWaitForRoot(const QJsonObject& request);
