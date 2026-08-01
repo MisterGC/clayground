@@ -5,8 +5,6 @@
 #include <QVector>
 #include "voxelmapdata.h"
 
-// Helper struct used for probabilistic color selection.
-
 class VoxelMapInstancing : public QQuick3DInstancing
 {
     Q_OBJECT
@@ -64,13 +62,4 @@ private:
     VoxelMapData m_data;
     QByteArray m_instanceData;
     bool m_dirty = true;
-
-    struct ColorProb {
-        QColor color;
-        float probability;
-    };
-    // Utility functions for color distribution and noise.
-    QVector<ColorProb> prepareColorDistribution(const QVariantList &colorDistribution);
-    QColor getRandomColor(const QVector<ColorProb> &distribution);
-    float applyNoise(float value, float noiseFactor);
 };
