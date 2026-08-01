@@ -11,6 +11,7 @@ session) the whole run reports SKIP (exit 77) rather than a false failure.
 """
 
 import argparse
+import json
 import os
 import struct
 import subprocess
@@ -179,6 +180,51 @@ Item { this is not qml }
                        [os.path.join(tmp, "Broken.qml"), "--out", out_broken])
     check("a scene that throws at runtime exits 2 and still writes the image",
           code == 2 and os.path.exists(out_broken), f"exit {code}")
+
+    # Scene queries: the numeric answers that used to be pixel-squinting.
+    write(os.path.join(tmp, "Scene3D.qml"), """
+import QtQuick
+import QtQuick3D
+Item {
+    width: 400; height: 300
+    View3D {
+        anchors.fill: parent
+        camera: cam
+        environment: SceneEnvironment { clearColor: "#101820"; backgroundMode: SceneEnvironment.Color }
+        PerspectiveCamera { id: cam; position: Qt.vector3d(0, 0, 400) }
+        DirectionalLight {}
+        Model {
+            objectName: "theCube"
+            source: "#Cube"; pickable: true
+            materials: PrincipledMaterial { baseColor: "#ffd93d" }
+        }
+    }
+}
+""")
+    code, out, err = run(args.clayrender,
+                         [os.path.join(tmp, "Scene3D.qml"), "--out",
+                          os.path.join(tmp, "scene.png"), "--size", "400x300",
+                          "--project", "0,0,0"])
+    projected = json.loads(out.strip().splitlines()[0]) if out.strip() else {}
+    check("--project puts the world origin at the viewport centre",
+          projected.get("x") == 200 and projected.get("y") == 150, str(projected))
+
+    code, out, _ = run(args.clayrender,
+                       [os.path.join(tmp, "Scene3D.qml"), "--out",
+                        os.path.join(tmp, "scene.png"), "--size", "400x300",
+                        "--project", "0,0,900"])
+    behind = json.loads(out.strip().splitlines()[0]) if out.strip() else {}
+    check("a point behind the camera is not reported as inside the viewport",
+          behind.get("behindCamera") is True
+          and behind.get("insideViewport") is False, str(behind))
+
+    code, out, _ = run(args.clayrender,
+                       [os.path.join(tmp, "Scene3D.qml"), "--out",
+                        os.path.join(tmp, "scene.png"), "--size", "400x300",
+                        "--pick", "200,150"])
+    picked = json.loads(out.strip().splitlines()[0]) if out.strip() else {}
+    check("--pick names the object under the pixel and its colour",
+          picked.get("hit") == "theCube" and "color" in picked, str(picked))
 
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(

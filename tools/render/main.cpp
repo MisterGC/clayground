@@ -4,12 +4,18 @@
 
 #include "renderhost.h"
 
+#include <clayinspect.h>
 #include <clayscenecapture.h>
 #include <claysettle.h>
+
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <QCommandLineParser>
 #include <QGuiApplication>
 #include <QQuickWindow>
+#include <QFile>
+#include <QQuickItem>
 #include <QTextStream>
 
 namespace {
@@ -105,12 +111,23 @@ int main(int argc, char* argv[])
         "Capture once the picture stops changing (or the timeout expires).");
     QCommandLineOption settleMsOpt("settle-timeout",
         "Upper bound for --settle in ms.", "ms", "3000");
+    QCommandLineOption dumpOpt("dump",
+        "Ask the renderer what it actually got and write it as JSON: "
+        "--dump lines=out.json (any type with a clayInspect() hook works, "
+        "e.g. --dump LineBatch3D=lines.json). Numeric questions belong here, "
+        "not in a screenshot.", "type=file");
+    QCommandLineOption projectOpt("project",
+        "Where a world point lands on screen: --project x,y,z", "x,y,z");
+    QCommandLineOption pickOpt("pick",
+        "What is under this pixel, with the colour rendered there: --pick x,y",
+        "x,y");
     QCommandLineOption cropOpt("crop", "Crop before scaling: x,y,w,h.", "rect");
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
     parser.addOptions({outOpt, sizeOpt, setOpt, framesOpt, settleOpt,
-                       settleMsOpt, cropOpt, scaleOpt, widthOpt});
+                       settleMsOpt, dumpOpt, projectOpt, pickOpt, cropOpt,
+                       scaleOpt, widthOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -156,6 +173,42 @@ int main(int argc, char* argv[])
         }
     }
 
+    // Scene queries before the capture, so a dump describes the same frame the
+    // picture shows.
+    for (const auto& dump : parser.values(dumpOpt)) {
+        const int eq = dump.indexOf('=');
+        if (eq <= 0)
+            return fail(QString("cannot parse --dump '%1' (want type=file)").arg(dump));
+        QString type = dump.left(eq);
+        const QString path = dump.mid(eq + 1);
+
+        ClayScene::InspectSelector selector;
+        // "lines" is the documented shorthand; everything else is a type name.
+        selector.type = (type.compare("lines", Qt::CaseInsensitive) == 0)
+                        ? QStringLiteral("LineBatch3D") : type;
+        auto found = ClayScene::inspect(host.rootObject(), selector);
+
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return fail(QString("cannot write %1").arg(path));
+        file.write(QJsonDocument(found).toJson(QJsonDocument::Indented));
+        QTextStream(stdout) << path << " (" << found.size() << " "
+                            << selector.type << ")\n";
+    }
+
+    if (parser.isSet(projectOpt)) {
+        const auto parts = parser.value(projectOpt).split(',');
+        if (parts.size() != 3)
+            return fail("--project wants x,y,z");
+        auto projected = ClayScene::project(host.rootObject(),
+                                            parts[0].toDouble(),
+                                            parts[1].toDouble(),
+                                            parts[2].toDouble());
+        QTextStream(stdout)
+            << QString::fromUtf8(QJsonDocument(projected).toJson(QJsonDocument::Compact))
+            << "\n";
+    }
+
     ClayScene::CaptureRequest capReq;
     if (parser.isSet(cropOpt)) {
         capReq.crop = parseCrop(parser.value(cropOpt), &ok);
@@ -170,6 +223,21 @@ int main(int argc, char* argv[])
     auto capture = ClayScene::capture(host, capReq);
     if (!capture.ok())
         return fail(capture.error);
+
+    if (parser.isSet(pickOpt)) {
+        const auto parts = parser.value(pickOpt).split(',');
+        if (parts.size() != 2)
+            return fail("--pick wants x,y");
+        // The uncropped frame is the one whose pixel coordinates the caller
+        // means.
+        auto full = ClayScene::capture(host);
+        auto picked = ClayScene::pick(host.rootObject(),
+                                      parts[0].toDouble(), parts[1].toDouble(),
+                                      QString(), &full.image);
+        QTextStream(stdout)
+            << QString::fromUtf8(QJsonDocument(picked).toJson(QJsonDocument::Compact))
+            << "\n";
+    }
 
     QString saveError;
     const QString outPath = parser.value(outOpt);

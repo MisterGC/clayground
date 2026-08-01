@@ -1,0 +1,351 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+#include "clayinspect.h"
+#include "clayscenequery.h"
+
+#include <QJsonDocument>
+#include <QJsonValue>
+#include <QMetaMethod>
+#include <QMetaObject>
+#include <QQmlExpression>
+#include <QQmlEngine>
+#include <QQuickItem>
+#include <QVariantMap>
+#include <QVector3D>
+#include <QMetaProperty>
+#include <functional>
+#include <QSet>
+#include <QColor>
+#include <QImage>
+#include <QJsonArray>
+
+namespace ClayScene {
+namespace {
+
+QString shortTypeName(const QObject* obj)
+{
+    QString name = QString::fromUtf8(obj->metaObject()->className());
+    // QML-declared types come through as Foo_QMLTYPE_42.
+    int qmlMarker = name.indexOf("_QMLTYPE_");
+    if (qmlMarker > 0)
+        return name.left(qmlMarker);
+    if (name.startsWith("QQuick3D"))
+        return name.mid(8);
+    if (name.startsWith("QQuick"))
+        return name.mid(6);
+    return name;
+}
+
+// A C++ hook is a Q_INVOKABLE; a QML hook is a JS function that shows up as a
+// method too, but is only callable through the QML context.
+// View3D is QQuick3DViewport in C++ - matching on the QML name alone finds
+// nothing, which reads as "this scene has no 3D view" for a scene full of them.
+bool isView3D(const QObject* obj)
+{
+    const QString cls = QString::fromUtf8(obj->metaObject()->className());
+    return cls == QLatin1String("QQuick3DViewport")
+           || shortTypeName(obj) == QLatin1String("View3D");
+}
+
+bool hasInvokableHook(const QObject* obj)
+{
+    const QMetaObject* meta = obj->metaObject();
+    for (int i = meta->methodOffset(); i < meta->methodCount(); ++i) {
+        auto method = meta->method(i);
+        if (method.name() == "clayInspect" && method.parameterCount() == 0)
+            return true;
+    }
+    // Walk the whole chain, not just this class' own methods.
+    for (const QMetaObject* m = meta; m; m = m->superClass()) {
+        for (int i = 0; i < m->methodCount(); ++i) {
+            auto method = m->method(i);
+            if (method.name() == "clayInspect" && method.parameterCount() == 0)
+                return true;
+        }
+    }
+    return false;
+}
+
+QJsonValue callHook(QObject* obj)
+{
+    if (hasInvokableHook(obj)) {
+        QVariant result;
+        if (QMetaObject::invokeMethod(obj, "clayInspect", Qt::DirectConnection,
+                                      Q_RETURN_ARG(QVariant, result))) {
+            return QJsonValue::fromVariant(result);
+        }
+        // Some hooks return QVariantMap directly rather than QVariant.
+        QVariantMap map;
+        if (QMetaObject::invokeMethod(obj, "clayInspect", Qt::DirectConnection,
+                                      Q_RETURN_ARG(QVariantMap, map))) {
+            return QJsonValue::fromVariant(map);
+        }
+        return QJsonValue::Null;
+    }
+
+    // QML-side hook: only reachable through the object's own context.
+    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+        if (hasFunction(item, "clayInspect"))
+            return callJsonFunction(item, "clayInspect");
+    }
+    return QJsonValue::Null;
+}
+
+bool matches(const QObject* obj, const QJsonValue& payload,
+             const InspectSelector& selector)
+{
+    if (!selector.objectName.isEmpty()
+        && obj->objectName() != selector.objectName)
+        return false;
+
+    if (selector.type.isEmpty())
+        return true;
+
+    if (shortTypeName(obj).compare(selector.type, Qt::CaseInsensitive) == 0)
+        return true;
+    if (payload.isObject()) {
+        const QString reported = payload.toObject().value("type").toString();
+        if (reported.compare(selector.type, Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
+}
+
+void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
+             QSet<QObject*>& visited)
+{
+    if (!obj || visited.contains(obj))
+        return;
+    if (selector.limit > 0 && out.size() >= selector.limit)
+        return;
+    visited.insert(obj);
+
+    QJsonValue payload = callHook(obj);
+    if (!payload.isNull() && matches(obj, payload, selector)) {
+        QJsonObject entry;
+        entry["class"] = shortTypeName(obj);
+        if (!obj->objectName().isEmpty())
+            entry["objectName"] = obj->objectName();
+        if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+            QString src = sourceFileName(item);
+            if (!src.isEmpty())
+                entry["source"] = src;
+        }
+        entry["data"] = payload;
+        out.append(entry);
+    }
+
+    // Three ways an object can hang in a scene, and a query that misses any of
+    // them reports "not there" for something that is:
+    //  - QObject children (the 3D scene graph, since QQuick3DObject is not a
+    //    QQuickItem)
+    //  - childItems() for 2D items whose visual parent is not their QObject
+    //    parent
+    //  - QObject-valued PROPERTIES: an instancing table, geometry or material
+    //    is assigned, not parented. LineBatch3D's whole line list lives behind
+    //    `instancing:`, which a children-only walk never sees.
+    for (auto* child : obj->children())
+        collect(child, selector, out, visited);
+
+    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+        for (auto* child : item->childItems())
+            collect(child, selector, out, visited);
+    }
+
+    const QMetaObject* meta = obj->metaObject();
+    for (int i = 0; i < meta->propertyCount(); ++i) {
+        auto prop = meta->property(i);
+        // Only properties DECLARED as an object pointer, and only those - a
+        // read-everything walk trips lazy getters and fills the log with
+        // warnings from properties nobody asked about.
+        if (!prop.isReadable()
+            || !(prop.metaType().flags() & QMetaType::PointerToQObject))
+            continue;
+        // "parent" and friends walk back up and blow the traversal open.
+        const QByteArray name = prop.name();
+        if (name == "parent" || name == "window" || name == "scene")
+            continue;
+        if (auto* child = prop.read(obj).value<QObject*>())
+            collect(child, selector, out, visited);
+    }
+}
+
+// Finds a View3D by id, objectName, or "the only one in the scene".
+QQuickItem* findView3D(QQuickItem* root, const QString& viewId, QString* error)
+{
+    if (!viewId.isEmpty()) {
+        auto* named = root->findChild<QQuickItem*>(viewId);
+        if (named)
+            return named;
+        // Try it as a QML id in the root's context.
+        if (auto* ctx = QQmlEngine::contextForObject(root)) {
+            QQmlExpression expr(ctx, root, viewId);
+            QVariant v = expr.evaluate();
+            if (!expr.hasError()) {
+                if (auto* item = qobject_cast<QQuickItem*>(v.value<QObject*>()))
+                    return item;
+            }
+        }
+        if (error) *error = QStringLiteral("no View3D '%1'").arg(viewId);
+        return nullptr;
+    }
+
+    // Same three-way walk the inspection uses - a View3D inside a Loader is
+    // not a QObject child of the root, and looking only there is how you get
+    // "no View3D in this scene" for a scene full of them.
+    QList<QQuickItem*> views;
+    QSet<QObject*> seen;
+    std::function<void(QObject*)> walk = [&](QObject* obj) {
+        if (!obj || seen.contains(obj)) return;
+        seen.insert(obj);
+        if (isView3D(obj)) {
+            if (auto* item = qobject_cast<QQuickItem*>(obj))
+                views << item;
+        }
+        for (auto* child : obj->children())
+            walk(child);
+        if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+            for (auto* child : item->childItems())
+                walk(child);
+        }
+        const QMetaObject* meta = obj->metaObject();
+        for (int i = 0; i < meta->propertyCount(); ++i) {
+            auto prop = meta->property(i);
+            if (!prop.isReadable()
+                || !(prop.metaType().flags() & QMetaType::PointerToQObject))
+                continue;
+            const QByteArray name = prop.name();
+            if (name == "parent" || name == "window" || name == "scene")
+                continue;
+            walk(prop.read(obj).value<QObject*>());
+        }
+    };
+    walk(root);
+
+    if (views.isEmpty()) {
+        if (error) *error = QStringLiteral("no View3D in this scene");
+        return nullptr;
+    }
+    return views.first();
+}
+
+} // namespace
+
+QJsonArray inspect(QObject* root, const InspectSelector& selector)
+{
+    QJsonArray out;
+    QSet<QObject*> visited;
+    collect(root, selector, out, visited);
+    return out;
+}
+
+QJsonObject project(QQuickItem* root, double x, double y, double z,
+                    const QString& viewId)
+{
+    QJsonObject response;
+    if (!root) {
+        response["error"] = "no root";
+        return response;
+    }
+
+    QString error;
+    QQuickItem* view = findView3D(root, viewId, &error);
+    if (!view) {
+        response["error"] = error;
+        return response;
+    }
+
+    // Evaluated with the View3D itself as scope: mapFrom3DScene returns a
+    // vector3d, and going through QML avoids hand-rolling the camera maths
+    // (which is exactly the arithmetic agents used to get wrong in shell
+    // scripts).
+    auto* ctx = QQmlEngine::contextForObject(view);
+    if (!ctx) {
+        response["error"] = "the View3D has no QML context";
+        return response;
+    }
+    QQmlExpression expr(ctx, view,
+        QString("JSON.stringify((function(){var p = mapFrom3DScene("
+                "Qt.vector3d(%1,%2,%3)); return {x: p.x, y: p.y, z: p.z};})())")
+            .arg(x).arg(y).arg(z));
+    QVariant result = expr.evaluate();
+    if (expr.hasError()) {
+        response["error"] = expr.error().toString();
+        return response;
+    }
+
+    const auto doc = QJsonDocument::fromJson(result.toString().toUtf8());
+    const auto point = doc.object();
+    response["x"] = point.value("x").toDouble();
+    response["y"] = point.value("y").toDouble();
+    // z is the distance from the camera; negative means behind it, which is
+    // the difference between "off screen" and "behind you".
+    response["depth"] = point.value("z").toDouble();
+    response["behindCamera"] = point.value("z").toDouble() < 0.0;
+    // A point behind the camera can land on plausible-looking pixels; calling
+    // that "inside the viewport" is how a query starts lying.
+    const bool inBounds =
+        point.value("x").toDouble() >= 0 && point.value("y").toDouble() >= 0
+        && point.value("x").toDouble() <= view->width()
+        && point.value("y").toDouble() <= view->height();
+    response["insideViewport"] = inBounds && point.value("z").toDouble() >= 0;
+    response["viewport"] = QJsonArray{view->width(), view->height()};
+    return response;
+}
+
+QJsonObject pick(QQuickItem* root, double x, double y, const QString& viewId,
+                 const QImage* frame)
+{
+    QJsonObject response;
+    if (!root) {
+        response["error"] = "no root";
+        return response;
+    }
+
+    QString error;
+    QQuickItem* view = findView3D(root, viewId, &error);
+    if (view) {
+        auto* ctx = QQmlEngine::contextForObject(view);
+        // View3D::pick returns a value type; reading it through QML is the
+        // only way that survives Qt's type registration.
+        QQmlExpression expr(ctx, view,
+            QString("JSON.stringify((function(){var r = pick(%1,%2);"
+                    "if (!r || !r.objectHit) return {hit: null};"
+                    "return {hit: r.objectHit.objectName || String(r.objectHit),"
+                    " distance: r.distance,"
+                    " scenePosition: [r.scenePosition.x, r.scenePosition.y,"
+                    "                 r.scenePosition.z],"
+                    " normal: [r.normal.x, r.normal.y, r.normal.z]};})())")
+                .arg(x).arg(y));
+        QVariant result = expr.evaluate();
+        if (expr.hasError()) {
+            response["error"] = expr.error().toString();
+        } else {
+            const auto doc = QJsonDocument::fromJson(result.toString().toUtf8());
+            const auto hit = doc.object();
+            for (auto it = hit.begin(); it != hit.end(); ++it)
+                response[it.key()] = it.value();
+        }
+    } else {
+        // A 2D-only scene still answers the colour question.
+        response["hit"] = QJsonValue::Null;
+        response["note"] = error;
+    }
+
+    // The colour actually rendered there - "is the boundary line visible at
+    // this pixel" without a human looking.
+    if (frame && !frame->isNull()) {
+        const int px = qRound(x);
+        const int py = qRound(y);
+        if (px >= 0 && py >= 0 && px < frame->width() && py < frame->height()) {
+            const QColor c = frame->pixelColor(px, py);
+            response["color"] = c.name(QColor::HexArgb);
+        } else {
+            response["color"] = QJsonValue::Null;
+        }
+    }
+
+    return response;
+}
+
+} // namespace ClayScene

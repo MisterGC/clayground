@@ -404,6 +404,43 @@ QVector3D LineBatchInstancing::positionAt(int lineIndex, qreal distance) const
     return line.points.last();
 }
 
+QVariantMap LineBatchInstancing::clayInspect() const
+{
+    QVariantMap info;
+    info["type"] = QStringLiteral("LineBatch3D");
+    info["lineCount"] = m_lines.size();
+    info["instanceCount"] = m_instanceCount;
+    info["boundsMin"] = QVariantList{m_boundsMin.x(), m_boundsMin.y(), m_boundsMin.z()};
+    info["boundsMax"] = QVariantList{m_boundsMax.x(), m_boundsMax.y(), m_boundsMax.z()};
+
+    QVariantList lines;
+    lines.reserve(m_lines.size());
+    for (int i = 0; i < m_lines.size(); ++i) {
+        const Line &line = m_lines.at(i);
+
+        QVariantList points;
+        points.reserve(line.points.size() * 3);
+        for (const auto &p : line.points)
+            points << p.x() << p.y() << p.z();
+
+        QVariantMap entry;
+        entry["index"] = i;
+        entry["pointCount"] = line.points.size();
+        // Flat x,y,z runs: compact enough to read in a response, and the same
+        // shape the bulk setters take.
+        entry["points"] = points;
+        entry["width"] = line.width;
+        entry["styleId"] = line.styleId;
+        entry["color"] = QColor::fromRgbF(line.color.x(), line.color.y(),
+                                          line.color.z(), line.color.w()).name(QColor::HexArgb);
+        entry["segments"] = line.instanceCount;
+        entry["length"] = pathLength(i);
+        lines << entry;
+    }
+    info["lines"] = lines;
+    return info;
+}
+
 void LineBatchInstancing::rebuild()
 {
     // Assign instance ranges and total segment count.
