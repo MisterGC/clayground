@@ -111,6 +111,11 @@ endif()
 # for every WASM build - it must not require the website toolchain (Jekyll).
 # (tools/ is excluded from WASM, so we add webdojo separately)
 if(EMSCRIPTEN)
+    # The scene layer is deliberately widget-free so the web runtime can adopt
+    # it (issue #173). Building it here keeps that honest: a QtWidgets
+    # dependency or an emscripten breakage fails the WASM build immediately,
+    # instead of the day someone actually wires it into the webdojo.
+    add_subdirectory(tools/scene)
     add_subdirectory(tools/webdojo)
 endif()
 
