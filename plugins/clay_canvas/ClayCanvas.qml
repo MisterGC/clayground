@@ -269,6 +269,51 @@ Item {
         return results;
     }
 
+    /*!
+        \qmlmethod object ClayCanvas::clayInspect()
+        \brief Reports the current camera framing as plain JSON, for tooling.
+
+        Pull-only and side-effect free: computed on demand from the live
+        viewport, nothing is cached or observed. Answers "where is the camera
+        looking" - the world rect actually on screen, the pixel/world scale,
+        and the canvas size - without taking a screenshot.
+    */
+    function clayInspect() {
+        // yInWU is the world y of the viewport's TOP edge (screen y grows down,
+        // world y grows up), so the visible band runs downwards from it.
+        var visibleYMax = yInWU;
+        var visibleYMin = yInWU - sHeightInWU;
+        return {
+            "type": "ClayCanvas",
+            "pixelPerUnit": pixelPerUnit,
+            "deviceScalingFactor": deviceScalingFactor,
+            "zoomFactor": zoomFactor,
+            "canvasSize": [width, height],
+            "worldBounds": {
+                "xMin": worldXMin, "xMax": worldXMax,
+                "yMin": worldYMin, "yMax": worldYMax
+            },
+            "visibleWorldRect": {
+                "xMin": xInWU, "xMax": xInWU + sWidthInWU,
+                "yMin": visibleYMin, "yMax": visibleYMax,
+                "width": sWidthInWU, "height": sHeightInWU
+            },
+            "viewPortCenterWu": [viewPortCenterWuX, viewPortCenterWuY],
+            // An unnamed observed item still is one - reporting only the name
+            // would read as "the camera follows nothing".
+            "hasObservedItem": observedItem ? true : false,
+            "observedItem": (observedItem && observedItem.objectName)
+                            ? observedItem.objectName : null,
+            "observedItemWu": observedItem
+                              ? [screenXToWorld(observedItem.x),
+                                 screenYToWorld(observedItem.y)]
+                              : null,
+            "itemsInRoom": coordSys ? coordSys.children.length : 0,
+            "showDebugInfo": showDebugInfo,
+            "interactive": interactive
+        };
+    }
+
     function _matchPattern(str, pattern) {
         if (pattern === "*") return true;
         if (pattern.indexOf("*") < 0) return str.indexOf(pattern) >= 0;

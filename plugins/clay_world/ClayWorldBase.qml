@@ -68,6 +68,33 @@ Item {
 
     Component.onCompleted: _sceneLoader.sceneSource = _fullmappath
 
+    // The scene/loader half of a world's clayInspect() report: pull-only and
+    // side-effect free, for tooling. Not a hook itself - the concrete world
+    // types merge it into their own clayInspect(), so 2d and 3d can share one
+    // answer to "which scene is loaded" without ClayWorld3d inheriting a hook
+    // that would report 2d-only fields it does not have.
+    function _clayInspectBase() {
+        // components is normally a JS Map, and Object.keys() on a Map is
+        // silently [] - which reads as "this world registers no components"
+        // for a world full of them.
+        var names = [];
+        if (components) {
+            if (typeof components.keys === "function")
+                names = Array.from(components.keys());
+            else
+                names = Object.keys(components);
+        }
+        return {
+            "scene": scene.length > 0 ? scene : null,
+            "scenePath": _fullmappath.length > 0 ? _fullmappath : null,
+            "loadMapAsync": loadMapAsync,
+            "sizePx": [width, height],
+            "componentNames": names,
+            "debugRendering": debugRendering,
+            "debugPhysics": debugPhysics
+        };
+    }
+
     /*!
         \qmlsignal ClayWorldBase::mapAboutToBeLoaded()
         \brief Emitted before scene loading begins.
