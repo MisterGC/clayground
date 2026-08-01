@@ -407,8 +407,13 @@ Verify in this order (clay-crew skill has the full protocol):
    probe series; repeat with the same seed; byte-identical or it's a bug.
 3. **Assertions over screenshots**: `eval` the quantity you changed;
    screenshot only for a visual claim, pixel-sample it when the claim is
-   about color or position (offscreen View3D grabs can come out blank —
-   never make a screenshot the only evidence).
+   about color or position (never make a screenshot the only evidence).
+   If the question is *numeric* — size, position, colour, count — query
+   the resolved scene instead: `clayrender … --dump lines=out.json`
+   returns the world-space points, widths, colours and style ids the
+   renderer actually got, and `--project x,y,z` / `--pick x,y` answer
+   "where does this land" and "what is under this pixel". A screenshot
+   answers "does this read correctly to a human", nothing more.
 4. **Drive the real input path** (synthetic clicks/keys) at least once
    per feature — property pokes hide real bugs (a pick-scan via
    `mapFrom3DScene` gets you screen coords for click targets).
@@ -424,6 +429,19 @@ The authoring gym (`tools/loader/tests/gym/run_gym.py`) guards loader
 conventions; labs add their determinism/flow checks there as they land.
 
 ## Agent operation cheat-sheet
+
+**Which tool.** Anything you can express as *"put the lab in state X and
+show me"* goes to `clayrender` — one command, no session, and several
+variants render in parallel:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out shot.png --size 1400x900 \
+    --set 'root.applyScenario("parallel")' --settle --scale 0.6
+```
+
+Use the dojo for interaction, hot-reload iteration and anything stateful
+(driving a flow, real input, a determinism run across steps). Query the
+scene rather than screenshotting whenever the question is numeric.
 
 Through clay-crew's `eval`: read state `Lab.labInfo()`; set a parameter
 `Lab.set('gpsSigma', 5)`; jump situations `applyScenario('tunnel')`
