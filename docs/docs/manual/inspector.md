@@ -20,7 +20,7 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 ├── dojo.json         ← dojo supervisor state (generation, crash info)
 ├── crash.json        ← after crash loops: exit info + child output tail
 ├── autoflag_*.json   ← auto-captured evidence bundle on runtime errors
-├── screenshot.png    ← written when requested
+├── screenshot.png    ← default capture target; a request can name its own path
 └── trace.jsonl       ← written during trace recording
 ```
 
@@ -74,6 +74,37 @@ Because `status` is reserved for the envelope, actions that acknowledge themselv
 ```
 
 Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors` (plain strings — the `errors` action carries file and line), and optionally a `screenshot` path. A grab that failed returns `screenshotError` instead, and leaves `status.renderedAt` unset.
+
+#### Capture — framing, settling, comparison
+
+`"screenshot": true` writes `.clay/inspect/screenshot.png`, unchanged. Passing an object instead tells the renderer where the picture goes and how it is framed — the renderer already knows the framing, so nothing is left to copy, downscale or crop afterwards:
+
+```json
+{
+  "action": "snapshot",
+  "settle": true,
+  "screenshot": {"path": "shots/hud.png",
+                 "crop": {"objectName": "hud"},
+                 "scale": 0.5},
+  "diff": "shots/hud-baseline.png"
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `screenshot.path` | Where to write. A relative path resolves against the **sandbox directory**, never the loader's working directory; parent directories are created. Omit it to keep the default `.clay/inspect/screenshot.png`. |
+| `screenshot.crop` | `[x, y, width, height]` in captured-image pixels, or `{"objectName": "..."}` to frame exactly that item. Applied before scaling. A crop that lies outside the viewport is a `screenshotError`, not a silent clamp — a picture of the wrong thing is worse than no picture. |
+| `screenshot.scale`, `screenshot.width` | Downscale by a factor, or to a target width in pixels (`width` wins over `scale`). |
+| `settle` | `true`, or `{timeoutMs, stableFrames, intervalMs, tolerance}`. Waits for the picture to stop changing before grabbing it. |
+| `diff` | A baseline PNG path, or `{"baseline": "...", "tolerance": N}`. Compares the capture just taken against that file. |
+
+The response says what was actually produced: `screenshot` (the path written), `screenshotSize` (`{width, height}` after crop and scale) and `status.renderedAt` (the moment those pixels were grabbed).
+
+`settle` answers `{settled, waitedMs, framesCompared, lastDelta}`. It compares successive frames instead of asking the animation system, so it covers animation, physics and shader-driven motion alike. `settled: false` means the timeout hit while the scene was still moving — a bounded, reported fact rather than an error, because a scene in continuous motion never settles. Read it before trusting the picture: it is the difference between "quiet" and "gave up while it was still moving". `settle` works without a capture too, as a plain "wait until it is done".
+
+`diff` answers `{baseline, tolerance, delta, changedPixels, changedBounds}`, where `delta` is the fraction of pixels beyond tolerance (0..1) and `changedBounds` the rectangle they occupy (absent when nothing changed). `tolerance` defaults to 2 per channel, which absorbs the jitter between two GPU renders of the same scene. A baseline that cannot be read is a `diffError` — never a silently skipped comparison, which is how a regression check passes forever without comparing anything. `diff` without `screenshot` compares without writing a file.
+
+`settle` waits for the picture; the `time` action controls the clock (pause, single-step, timescale). They are separate knobs, and a deterministic frame usually wants both.
 
 ### errors — QML errors and warnings since load
 

@@ -17,6 +17,7 @@
 
 class QTimer;
 class QFile;
+class QImage;
 
 class HotReloadContainer;
 class ClayTimeControl;
@@ -111,6 +112,17 @@ private:
     void applyScenarioToRoot(const QString& name);
     void applyViewStateToRoot(const QJsonValue& state);
     void attachDiagnostics(QJsonObject& response) const;
+    // The snapshot capture pipeline (#167, #169): settle, grab, crop, scale,
+    // write, compare - all from one request instead of five tool calls.
+    void runSettle(const QJsonValue& spec, QJsonObject& response);
+    void runCapture(const QJsonObject& request, QQuickItem* rootItem,
+                    QJsonObject& response);
+    QJsonObject diffAgainstBaseline(const QJsonValue& spec, const QImage& shot,
+                                    QString* error) const;
+    // Caller-supplied artifact paths: absolute ones are taken as they are,
+    // relative ones resolve against the sandbox dir rather than against
+    // whatever directory the loader happens to have been started from.
+    QString resolveArtifactPath(const QString& path) const;
     // The status envelope that rides on every response (protocol v3).
     QJsonObject buildStatus() const;
     // The supervisor's own facts, read from <sandboxDir>/.clay/inspect/dojo.json

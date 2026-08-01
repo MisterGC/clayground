@@ -276,6 +276,134 @@ def run(insp, sandbox_dir, attended):
           f"moved={slow} (normal would be ~4.0)")
     insp.request({"action": "time", "scale": 1.0})
 
+    # -- 4b: capture — framing, settle, diff (#167, #169) ----------------
+    # One request does what used to be five tool calls: settle, grab, crop,
+    # scale, write where the caller asked, compare against a baseline.
+    insp.eval(["applyScenario('start')"])
+    shots = os.path.join(sandbox_dir, "shots")
+    insp.request({"action": "time", "paused": True})
+
+    full = insp.request({"action": "snapshot", "screenshot": True}, timeout=15)
+    fsize = full.get("screenshotSize", {})
+    check("capture: response reports the size actually produced",
+          fsize.get("width", 0) > 0 and fsize.get("height", 0) > 0, str(fsize))
+
+    # Device pixels per logical pixel, measured rather than assumed — every
+    # expected size below is derived from it, so the checks hold on a retina
+    # screen too.
+    root_w = insp.eval1("gym.width") or 0
+    dpr = fsize.get("width", 0) / root_w if root_w else 1.0
+
+    target = os.path.join(shots, "look.png")
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"path": target}}, timeout=15)
+    check("capture: written to the caller's own path",
+          resp.get("screenshot") == target and os.path.exists(target),
+          f"screenshot={resp.get('screenshot')} err={resp.get('screenshotError')}")
+
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"path": "shots/relative.png"}}, timeout=15)
+    check("capture: a relative path resolves against the sandbox dir",
+          os.path.exists(os.path.join(sandbox_dir, "shots", "relative.png")),
+          f"screenshot={resp.get('screenshot')}")
+
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"path": os.path.join(shots, "crop.png"),
+                                        "crop": [10, 20, 200, 100],
+                                        "scale": 0.5}}, timeout=15)
+    size = resp.get("screenshotSize", {})
+    check("capture: crop before scale gives the exact pixel size",
+          size.get("width") == 100 and size.get("height") == 50,
+          f"{size} err={resp.get('screenshotError')}")
+
+    # "Show me this thing" is the real intent; a pixel rectangle was only ever
+    # how it had to be expressed.
+    geom = insp.eval(["gym.mapFromItem(player, 0, 0).x",
+                      "gym.mapFromItem(player, 0, 0).y",
+                      "player.width", "player.height"])
+    exp_x = geom["gym.mapFromItem(player, 0, 0).x"] * dpr
+    exp_y = geom["gym.mapFromItem(player, 0, 0).y"] * dpr
+    exp_w = geom["player.width"] * dpr
+    exp_h = geom["player.height"] * dpr
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"path": os.path.join(shots, "player.png"),
+                                        "crop": {"objectName": "player"}}}, timeout=15)
+    size = resp.get("screenshotSize", {})
+    check("capture: crop by objectName frames that item",
+          abs(size.get("width", 0) - exp_w) <= 1
+          and abs(size.get("height", 0) - exp_h) <= 1,
+          f"{size} expected ~{exp_w:.0f}x{exp_h:.0f} "
+          f"err={resp.get('screenshotError')}")
+
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"crop": {"objectName": "no_such_item"}}},
+                        timeout=15)
+    check("capture: an unresolvable crop is an error, not a full-frame grab",
+          "screenshot" not in resp and "no_such_item" in resp.get("screenshotError", ""),
+          f"err={resp.get('screenshotError')}")
+
+    resp = insp.request({"action": "snapshot",
+                         "screenshot": {"crop": [99999, 99999, 10, 10]}}, timeout=15)
+    check("capture: a crop outside the viewport is an error, not a clamp",
+          "screenshot" not in resp and bool(resp.get("screenshotError")),
+          f"err={resp.get('screenshotError')}")
+
+    # Settle: the caller must be able to tell "quiet" from "gave up while it
+    # was still moving". Time is paused here, so the picture is standing still.
+    resp = insp.request({"action": "snapshot", "screenshot": True,
+                         "settle": True}, timeout=20)
+    s = resp.get("settle", {})
+    check("settle: a still scene reports settled with a wait time",
+          s.get("settled") is True and isinstance(s.get("waitedMs"), int),
+          str(s))
+
+    # Motion has to be *in frame* to be measurable, so drive the player (whose
+    # visibility the objectName crop above already proved) rather than the
+    # enemy, which patrols off the right edge of the viewport.
+    insp.request({"action": "time", "paused": False})
+    insp.request({"action": "input",
+                  "gamepad": {"axisX": -1.0, "durationMs": 1500}})
+    resp = insp.request({"action": "snapshot", "screenshot": True,
+                         "settle": {"timeoutMs": 800}}, timeout=20)
+    s = resp.get("settle", {})
+    check("settle: a scene still in motion says so instead of pretending",
+          s.get("settled") is False and s.get("lastDelta", 0) > 0, str(s))
+    time.sleep(0.8)
+    insp.eval(["applyScenario('start')"])
+    insp.request({"action": "time", "paused": True})
+
+    # Diff: visual regression at lab scale.
+    baseline = os.path.join(shots, "baseline.png")
+    insp.request({"action": "snapshot", "screenshot": {"path": baseline}},
+                 timeout=15)
+    resp = insp.request({"action": "snapshot", "diff": baseline}, timeout=15)
+    d = resp.get("diff", {})
+    check("diff: an unchanged scene against its baseline is zero",
+          d.get("delta") == 0 and d.get("changedPixels") == 0,
+          f"{d} err={resp.get('diffError')}")
+
+    insp.eval(["player.color = '#ffd93d'"])
+    resp = insp.request({"action": "snapshot", "diff": baseline}, timeout=15)
+    d = resp.get("diff", {})
+    b = d.get("changedBounds", {})
+    check("diff: a changed scene reports a non-zero delta",
+          d.get("delta", 0) > 0 and d.get("changedPixels", 0) > 0, str(d))
+    check("diff: changed bounds land on the item that changed",
+          abs(b.get("x", -999) - exp_x) <= 2 and abs(b.get("y", -999) - exp_y) <= 2
+          and abs(b.get("width", 0) - exp_w) <= 2
+          and abs(b.get("height", 0) - exp_h) <= 2,
+          f"{b} expected ~{exp_x:.0f},{exp_y:.0f} {exp_w:.0f}x{exp_h:.0f}")
+    insp.eval(["player.color = '#00d9ff'"])
+
+    resp = insp.request({"action": "snapshot",
+                         "diff": os.path.join(shots, "no_such_baseline.png")},
+                        timeout=15)
+    check("diff: a missing baseline is an error, not a silent skip",
+          "diff" not in resp and bool(resp.get("diffError")),
+          f"err={resp.get('diffError')}")
+
+    insp.request({"action": "time", "paused": False})
+
     # -- 5: synthetic input + trace --------------------------------------
     # Movement check drives AWAY from the coin: the vendored qml-box2d does
     # not re-fire begin-contact for a fixture pair that already met once, so
