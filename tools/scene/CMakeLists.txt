@@ -16,6 +16,8 @@ add_library (${PROJECT_NAME} STATIC
     clayscenehost.h
     clayscenequery.cpp
     clayscenequery.h
+    claysettle.cpp
+    claysettle.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC .)
