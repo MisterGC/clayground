@@ -50,15 +50,19 @@ Item {
     // Called from MainWindow when the surface is shown.
     function activate() {
         ClayAnnotations.reload();
+        // Placeholders left behind by a run that ended without a close.
+        ClayAnnotations.dropEmptyNotes();
         wipeArmed = false;
         sync();
         sceneNote.focusEditor();
     }
 
     // Called from MainWindow right before the surface is hidden - the last
-    // chance to get an unsaved keystroke into the store.
+    // chance to get an unsaved keystroke into the store, and the moment a
+    // frame nobody wrote on stops being feedback and becomes clutter.
     function deactivate() {
         commitAll();
+        ClayAnnotations.dropEmptyNotes();
     }
 
     function commitAll() {

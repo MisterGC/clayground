@@ -10,6 +10,8 @@
 #include <QString>
 #include <QVariantList>
 
+class ClayAnchorResolver;
+
 // The annotation store behind the dojo's annotation surface (issue #182).
 //
 // Owns <sandboxDir>/.clay/crew/annotations/index.json - the *authoring* half
@@ -18,6 +20,10 @@
 // rewritten here. Every save re-reads the file, patches only the fields this
 // class owns and commits through QSaveFile, so a concurrent "addressed" mark
 // survives a note edit that happens at the same moment.
+//
+// `anchorRef` is the one field that straddles the line: the anchor belongs to
+// the resolver, but where it pointed at the moment the rect was drawn belongs
+// to the rect, so it is written and owned here.
 //
 // The path matters: the dojo watches the whole sandbox tree and skips only
 // .clay/, so everything written here has to stay under .clay/ or every
@@ -36,8 +42,15 @@ public:
     void setSandboxDir(const QString& dir);
     QString sandboxDir() const { return m_sandboxDir; }
 
-    // The viewport the surface is drawn over. Part of every annotation's view
-    // fingerprint, so a resized window detaches what it can no longer place.
+    // What answers "what is this rect about" and "where is that now". Optional:
+    // without one the store still records rects and notes, they just cannot
+    // follow the scene.
+    void setAnchorResolver(ClayAnchorResolver* resolver);
+
+    // The SCENE viewport - the sandbox's own widget, not the dojo window and
+    // never the surface's layout. Rects are stored in this space and the
+    // fingerprint is taken against it, so a rect framed with the margin panel
+    // showing describes the same pixels once the panel is gone.
     void setViewSize(const QSize& size);
     QSize viewSize() const { return m_viewSize; }
 
@@ -66,6 +79,13 @@ public:
     Q_INVOKABLE void clearAddressed();
     Q_INVOKABLE void wipeAll();
 
+    // Drop every open annotation that carries no note. A click makes a rect on
+    // purpose, but a rect nobody wrote on is a stray click, not feedback -
+    // persisting it only buries the remarks that mean something. Called when
+    // the surface opens (leftovers from a run that ended without one) and when
+    // it closes.
+    Q_INVOKABLE void dropEmptyNotes();
+
     // The scene-level note, or an empty string when there is none yet. There
     // is at most one open scene annotation; a new one is only started when the
     // previous one has been addressed.
@@ -77,17 +97,33 @@ signals:
     void pauseOnOpenChanged();
 
 private:
+    // Where an annotation is drawn, and whether it may be drawn at all.
+    struct Placement
+    {
+        bool attached = false;
+        // True when `rect` came from the anchor rather than from the store -
+        // the note followed its object instead of trusting the fingerprint.
+        bool reprojected = false;
+        QRectF rect;
+    };
+
     QString indexPath() const;
     QJsonArray readFromDisk() const;
     void save();
+    // Ask the resolver what this rect is about and let it write anchor + crop,
+    // then re-read so the store sees them. No-op without a resolver.
+    void attachToScene(const QString& id, const QRectF& rect);
     int indexOf(const QString& id) const;
     QString nextId() const;
-    // An annotation is drawn over the scene only while its view fingerprint
+    // Where this annotation belongs on screen right now. An anchored one is
+    // re-projected and follows its object across a reload, a camera move or a
+    // restart; an unanchored one is drawn only while its view fingerprint
     // still describes what is on screen. Everything else lives in the margin
     // list as "detached" - a marker is never drawn over pixels that no longer
     // correspond to it.
-    bool isAttached(const QJsonObject& a) const;
+    Placement placement(const QJsonObject& a) const;
 
+    ClayAnchorResolver* m_resolver = nullptr;
     QString m_sandboxDir;
     QJsonArray m_annotations;
     // Ids created by this process. A note from an earlier run cannot claim to

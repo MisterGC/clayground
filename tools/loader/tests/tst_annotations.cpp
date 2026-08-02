@@ -3,6 +3,8 @@
 // The annotation surface (issue #182): the store on its own, and the whole
 // thing driven through real mouse and key events on a real MainWindow.
 
+#include "clayanchorresolver.h"
+#include "clayannotations.h"
 #include "clayannotationstore.h"
 #include "clayliveloader.h"
 #include "mainwindow.h"
@@ -33,9 +35,13 @@ private slots:
     void detachesOnGenerationBump();
     void detachesOnViewportChange();
     void idsAreMonotonicAcrossRestart();
+    void anchoredRegionSurvivesReloadAndResize();
+    void dropsNotesNobodyWrote();
 
     // --- surface ---
     void surfaceTogglesAndFramesRegions();
+    void surfaceKeepsRegionsAcrossToggle();
+    void surfaceReattachesAnchoredRegionAfterReload();
 
 private:
     QString readIndex() const;
@@ -252,6 +258,139 @@ void TestAnnotations::idsAreMonotonicAcrossRestart()
     QCOMPARE(restarted.addAnnotation("region", QRectF(0, 0, 10, 10), "three",
                                      false),
              QStringLiteral("a3"));
+}
+
+// A scene that can be asked where things are, without needing one to exist.
+// It answers for exactly one object and moves it on command, which is all the
+// re-projection rule needs to be pinned down.
+class FakeScene : public ClayAnchorResolver
+{
+public:
+    explicit FakeScene(const QString& crewDir) : m_crewDir(crewDir) {}
+
+    // Where the anchored object is right now.
+    QPointF where{100, 100};
+    bool findable = true;
+    bool onScreen = true;
+
+    // Writes the anchor into the file, exactly where ClayInspector writes it.
+    QVariantMap attachAnnotation(const QString& id, const QRectF&) override
+    {
+        QJsonObject patch;
+        patch["anchor"] = QJsonObject{{"resolved", true},
+                                      {"kind", "2d"},
+                                      {"objectName", "player"},
+                                      {"space", "scene"}};
+        patch["crop"] = QJsonValue::Null;
+        QString error;
+        ClayScene::Annotations::patchEntry(m_crewDir, id, patch, &error);
+        return {{"stored", error.isEmpty()}};
+    }
+
+    QVariantMap reprojectAnchor(const QVariantMap& anchor) const override
+    {
+        Q_UNUSED(anchor)
+        if (!findable)
+            return {{"resolved", false}, {"reason", "the object is gone"}};
+        return {{"resolved", true},
+                {"x", where.x()},
+                {"y", where.y()},
+                {"via", "objectName"},
+                {"insideViewport", onScreen}};
+    }
+
+private:
+    QString m_crewDir;
+};
+
+void TestAnnotations::anchoredRegionSurvivesReloadAndResize()
+{
+    QDir(m_sandboxDir).removeRecursively();
+    QDir().mkpath(m_sandboxDir);
+
+    FakeScene scene(m_sandboxDir + "/.clay/crew");
+    ClayAnnotationStore store;
+    store.setAnchorResolver(&scene);
+    store.setSandboxDir(m_sandboxDir);
+    store.setViewSize(QSize(800, 600));
+
+    const QString id = store.addAnnotation("region", QRectF(90, 90, 20, 20),
+                                           "this bit", false);
+    QVERIFY(!id.isEmpty());
+    // Nothing has moved, so re-projection must be a no-op: a frame that jumps
+    // the moment it is drawn is worse than one that never follows.
+    QVariantMap fresh = store.annotations().at(0).toMap();
+    QVERIFY(fresh.value("attached").toBool());
+    QCOMPARE(fresh.value("rectX").toDouble(), 90.0);
+    QCOMPARE(fresh.value("rectY").toDouble(), 90.0);
+
+    // Everything the fingerprint cares about changes at once: a reload, and a
+    // viewport it has never seen. The anchor is what carries it through.
+    store.bumpGeneration();
+    store.setViewSize(QSize(900, 640));
+    scene.where = QPointF(300, 250);
+
+    QVariantMap m = store.annotations().at(0).toMap();
+    QVERIFY2(m.value("attached").toBool(),
+             "an anchored annotation did not re-attach after a reload");
+    QVERIFY(m.value("reprojected").toBool());
+    // The frame keeps its size and follows the object: it was drawn 10px up
+    // and left of the anchor point, and stays that way.
+    QCOMPARE(m.value("rectW").toDouble(), 20.0);
+    QCOMPARE(m.value("rectX").toDouble(), 290.0);
+    QCOMPARE(m.value("rectY").toDouble(), 240.0);
+
+    // Off screen is not a place to draw a frame.
+    scene.onScreen = false;
+    QVERIFY(!store.annotations().at(0).toMap().value("attached").toBool());
+
+    // Neither is "the object this was about no longer exists" - and with the
+    // view changed underneath, the fingerprint cannot rescue it either.
+    scene.onScreen = true;
+    scene.findable = false;
+    QVERIFY(!store.annotations().at(0).toMap().value("attached").toBool());
+    QCOMPARE(store.annotations().at(0).toMap().value("note").toString(),
+             QStringLiteral("this bit"));
+}
+
+void TestAnnotations::dropsNotesNobodyWrote()
+{
+    QDir(m_sandboxDir).removeRecursively();
+    QDir().mkpath(m_sandboxDir);
+
+    ClayAnnotationStore store;
+    store.setSandboxDir(m_sandboxDir);
+    store.setViewSize(QSize(800, 600));
+    store.addAnnotation("region", QRectF(0, 0, 10, 10), "", false);
+    store.addAnnotation("region", QRectF(0, 0, 10, 10), "   ", false);
+    const QString written = store.addAnnotation("region", QRectF(0, 0, 10, 10),
+                                                "this one means something",
+                                                false);
+    QCOMPARE(annotationsOnDisk().size(), 3);
+
+    store.dropEmptyNotes();
+
+    const QJsonArray left = annotationsOnDisk();
+    QCOMPARE(left.size(), 1);
+    QCOMPARE(left.at(0).toObject().value("id").toString(), written);
+
+    // An addressed annotation is a record of a conversation, not a stray
+    // click: it stays even with nothing in its note field.
+    QJsonArray arr = left;
+    QJsonObject a = arr.at(0).toObject();
+    a["note"] = "";
+    a["status"] = "addressed";
+    arr.replace(0, a);
+    QJsonObject root;
+    root["version"] = 1;
+    root["annotations"] = arr;
+    QFile f(m_sandboxDir + "/.clay/crew/annotations/index.json");
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(QJsonDocument(root).toJson());
+    f.close();
+    store.reload();
+    store.dropEmptyNotes();
+    QCOMPARE(annotationsOnDisk().size(), 1);
 }
 
 void TestAnnotations::surfaceTogglesAndFramesRegions()
@@ -475,6 +614,158 @@ void TestAnnotations::surfaceTogglesAndFramesRegions()
         QTest::keyClick(surface, Qt::Key_Escape);
         QTest::qWait(300);
     }
+}
+
+namespace {
+
+QQuickWidget* annotationSurface(QWidget& window)
+{
+    for (auto* w : window.findChildren<QQuickWidget*>())
+        if (w->source().toString().contains("Annotation"))
+            return w;
+    return nullptr;
+}
+
+QVariantList regionsOf(QQuickWidget* surface)
+{
+    auto* root = surface ? surface->rootObject() : nullptr;
+    return root ? root->property("regionItems").toList() : QVariantList();
+}
+
+} // namespace
+
+// The report that started this round: frame a few things, Ctrl+F out, Ctrl+F
+// back in - and everything is marked DETACHED with no frame on the scene. The
+// margin panel is only up in one of the two states, so this is where a
+// fingerprint taken against the surface's own layout would go wrong.
+void TestAnnotations::surfaceKeepsRegionsAcrossToggle()
+{
+    QTemporaryDir sbxDir;
+    QVERIFY(sbxDir.isValid());
+    const QString sbxPath = sbxDir.path() + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath));
+
+    ClayLiveLoader loader;
+    loader.addSandboxes({sbxPath});
+    loader.setSbxIndex(0);
+
+    MainWindow window(&loader);
+    window.resize(1000, 700);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTest::qWait(1500);
+
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    QQuickWidget* surface = annotationSurface(window);
+    QVERIFY(surface);
+    QVERIFY(surface->isVisible());
+
+    // Three plain clicks - a click makes a rect on purpose - but only the last
+    // one gets written on.
+    const QList<QPoint> spots{{120, 120}, {420, 120}, {120, 420}};
+    for (const QPoint& p : spots) {
+        QTest::mouseClick(surface, Qt::LeftButton, {}, p);
+        QTest::qWait(300);
+    }
+    QCOMPARE(regionsOf(surface).size(), 3);
+    for (const auto& r : regionsOf(surface))
+        QVERIFY2(r.toMap().value("attached").toBool(),
+                 "a region was detached the moment it was framed");
+
+    QTest::keyClicks(surface, "the third one matters");
+    QTest::qWait(900);
+
+    // Out and back in on the same key the user uses.
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(500);
+    QVERIFY(!surface->isVisible());
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(700);
+    QVERIFY(surface->isVisible());
+
+    // The two nobody wrote on are gone; the one that carries a remark is
+    // still there AND still drawn on the scene.
+    const QVariantList after = regionsOf(surface);
+    QCOMPARE(after.size(), 1);
+    QCOMPARE(after.at(0).toMap().value("note").toString(),
+             QStringLiteral("the third one matters"));
+    QVERIFY2(after.at(0).toMap().value("attached").toBool(),
+             "toggling the surface off and on detached the annotation");
+
+    QFile idx(sbxDir.path() + "/.clay/crew/annotations/index.json");
+    QVERIFY(idx.open(QIODevice::ReadOnly));
+    QCOMPARE(QJsonDocument::fromJson(idx.readAll())
+                 .object().value("annotations").toArray().size(), 1);
+
+    QTest::keyClick(surface, Qt::Key_Escape);
+    QTest::qWait(300);
+}
+
+// The other half of attachment: a note framed on a NAMED thing comes back
+// after a hot reload, re-projected onto wherever that thing is now.
+void TestAnnotations::surfaceReattachesAnchoredRegionAfterReload()
+{
+    QTemporaryDir sbxDir;
+    QVERIFY(sbxDir.isValid());
+    const QString sbxPath = sbxDir.path() + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath));
+
+    ClayLiveLoader loader;
+    loader.addSandboxes({sbxPath});
+    loader.setSbxIndex(0);
+
+    MainWindow window(&loader);
+    window.resize(1000, 700);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTest::qWait(1500);
+
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    QQuickWidget* surface = annotationSurface(window);
+    QVERIFY(surface);
+
+    // TestSandbox.qml's "player" sits at 50,100 and is 16x16 - frame it.
+    QTest::mousePress(surface, Qt::LeftButton, {}, QPoint(40, 90));
+    for (int i = 1; i <= 4; ++i)
+        QTest::mouseMove(surface, QPoint(40 + i * 10, 90 + i * 10));
+    QTest::mouseRelease(surface, Qt::LeftButton, {}, QPoint(80, 130));
+    QTest::qWait(400);
+    QTest::keyClicks(surface, "the player is too small");
+    QTest::qWait(900);
+
+    QVariantList regions = regionsOf(surface);
+    QCOMPARE(regions.size(), 1);
+    QVERIFY2(regions.at(0).toMap().value("hasAnchor").toBool(),
+             "framing a named item did not produce an anchor");
+
+    // Touch the sandbox: a new engine, a new scene, a new generation - the
+    // fingerprint cannot possibly still apply.
+    QFile sbx(sbxPath);
+    QVERIFY(sbx.open(QIODevice::Append));
+    sbx.write("\n// touched\n");
+    sbx.close();
+    QTest::qWait(4000);
+
+    QQuickWidget* reborn = annotationSurface(window);
+    QVERIFY(reborn);
+    QVERIFY2(reborn->isVisible(), "the surface did not come back up");
+
+    regions = regionsOf(reborn);
+    QCOMPARE(regions.size(), 1);
+    const QVariantMap m = regions.at(0).toMap();
+    QVERIFY2(m.value("attached").toBool(),
+             "the anchored annotation did not re-attach after the reload");
+    QVERIFY2(m.value("reprojected").toBool(),
+             "it re-attached on the fingerprint instead of on its anchor");
+    // The player did not move, so the frame is where it was drawn.
+    QCOMPARE(qRound(m.value("rectW").toDouble()), 40);
+    QCOMPARE(qRound(m.value("rectX").toDouble()), 40);
+    QCOMPARE(qRound(m.value("rectY").toDouble()), 90);
+
+    QTest::keyClick(reborn, Qt::Key_Escape);
+    QTest::qWait(300);
 }
 
 QTEST_MAIN(TestAnnotations)
