@@ -88,7 +88,7 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // The annotation store (issue #182). Constructed before the first engine
     // is configured - it goes into every engine's root context.
     m_annotations = new ClayAnnotationStore(this);
-    m_annotations->setViewSize(size());
+    m_annotations->setViewSize(m_container->size());
     // Generation is taken from the same signal that drives the inspector's,
     // so the number in an annotation means what it means everywhere else.
     connect(m_container, &HotReloadContainer::loadSucceeded,
@@ -118,6 +118,10 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // Create inspector
     m_inspector = new ClayInspector(m_container, this);
     m_inspector->setControls(m_timeCtrl, m_inputCtrl);
+    // The inspector is the store's window into the scene: it is what turns a
+    // framed rect into "the coin sprite in Sandbox.qml" and what says where
+    // that sprite is after a reload.
+    m_annotations->setAnchorResolver(m_inspector);
     connect(m_inspector, &ClayInspector::flagReady,
             this, &MainWindow::onFlagReady);
 
@@ -212,10 +216,12 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     if (m_annotationOverlay) {
         m_annotationOverlay->setGeometry(0, 0, width(), height());
     }
-    // The viewport is half of every annotation's fingerprint: a resized window
-    // is a view its rects no longer describe, and they detach.
+    // The SCENE viewport - never the window and never the surface's layout -
+    // is half of every annotation's fingerprint. Taking it from the sandbox's
+    // own widget is what makes a rect framed with the margin panel showing
+    // compare equal to the same scene once the panel is gone.
     if (m_annotations)
-        m_annotations->setViewSize(size());
+        m_annotations->setViewSize(m_container->size());
     if (m_traceIndicator && m_traceIndicator->isVisible()) {
         m_traceIndicator->move(width() - m_traceIndicator->width() - 10, 10);
     }
@@ -399,6 +405,11 @@ void MainWindow::createOverlays()
     m_guideOverlay = new QQuickWidget(engine, centralWidget());
     m_guideOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_guideOverlay->setAttribute(Qt::WA_TranslucentBackground);
+    // NOTE: this one has the same trap as the annotation surface had -
+    // GuideOverlay.qml is a black scrim at 0.85 opacity, and without
+    // WA_AlwaysStackOnTop plus a transparent clear colour it wipes the scene
+    // to white instead of dimming it. Left alone here on purpose: it is a
+    // separate change to a settled overlay, not part of issue #182.
     m_guideOverlay->setGeometry(0, 0, width(), height());
     
     // Connect to status changes to catch errors
@@ -443,6 +454,12 @@ void MainWindow::createOverlays()
     m_annotationOverlay = new QQuickWidget(engine, centralWidget());
     m_annotationOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_annotationOverlay->setAttribute(Qt::WA_TranslucentBackground);
+    // WA_AlwaysStackOnTop is what makes a see-through QQuickWidget see
+    // through to the QQuickWidget below it. Without it the two are composited
+    // as opaque textures in child order and the sandbox is simply overwritten
+    // - the whole scene area goes black, which is what the old flag overlay
+    // hid by painting a screenshot of the scene as its own background.
+    m_annotationOverlay->setAttribute(Qt::WA_AlwaysStackOnTop);
     m_annotationOverlay->setClearColor(Qt::transparent);
     m_annotationOverlay->setFocusPolicy(Qt::StrongFocus);
     m_annotationOverlay->setGeometry(0, 0, width(), height());
@@ -481,7 +498,7 @@ void MainWindow::showAnnotationOverlay()
     if (!m_annotationOverlay || m_annotationVisible)
         return;
 
-    m_annotations->setViewSize(size());
+    m_annotations->setViewSize(m_container->size());
 
     // Pause on open, with the opt-out honoured. A scene the user had already
     // paused is left alone on close - we only undo a pause we caused.

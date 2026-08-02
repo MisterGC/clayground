@@ -2,6 +2,8 @@
 
 #include "clayannotationstore.h"
 
+#include "clayanchorresolver.h"
+
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
@@ -50,6 +52,16 @@ void ClayAnnotationStore::setSandboxDir(const QString& dir)
     m_sessionIds.clear();
     m_deleted.clear();
     reload();
+}
+
+void ClayAnnotationStore::setAnchorResolver(ClayAnchorResolver* resolver)
+{
+    if (resolver == m_resolver)
+        return;
+    m_resolver = resolver;
+    // Attachment is answered against the resolver, so the list changes meaning
+    // even though no annotation did.
+    emit annotationsChanged();
 }
 
 void ClayAnnotationStore::setViewSize(const QSize& size)
@@ -142,29 +154,63 @@ QString ClayAnnotationStore::nextId() const
     return QStringLiteral("a%1").arg(highest + 1);
 }
 
-bool ClayAnnotationStore::isAttached(const QJsonObject& a) const
+ClayAnnotationStore::Placement
+ClayAnnotationStore::placement(const QJsonObject& a) const
 {
+    Placement p;
     if (a.value("scope").toString() != QLatin1String("region"))
-        return false;
+        return p;
 
-    // --- RE-PROJECTION SEAM (issue #182, agent side) -----------------------
-    // Once anchors land, a non-null anchor means the annotation follows its
-    // object: resolve the anchor to viewport pixels here and return true, and
-    // have the caller use that rect instead of the stored one. Until then a
-    // filled anchor is treated like none, which only ever detaches - it never
-    // draws a marker over pixels that may have moved.
-    // -----------------------------------------------------------------------
+    const QJsonArray r = a.value("rect").toArray();
+    if (r.size() != 4)
+        return p;
+    p.rect = QRectF(r.at(0).toDouble(), r.at(1).toDouble(),
+                    r.at(2).toDouble(), r.at(3).toDouble());
 
-    // No anchor: the fingerprint has to still describe what is on screen.
+    // The anchor first: it is the only thing that survives a reload, a camera
+    // move or a restart, because it names what was framed instead of where it
+    // happened to be.
+    const QJsonObject anchor = a.value("anchor").toObject();
+    if (m_resolver && anchor.value("resolved").toBool(false)) {
+        const QVariantMap now =
+            m_resolver->reprojectAnchor(anchor.toVariantMap());
+        if (now.value("resolved").toBool()) {
+            // Re-projected but off screen: the thing this note is about is not
+            // visible, so nothing may be drawn - least of all the old rect,
+            // which now frames whatever moved into that spot.
+            if (!now.value(QStringLiteral("insideViewport"), true).toBool())
+                return p;
+            // The baseline written when the rect was framed; `at` is the
+            // fallback for an entry an agent anchored without one.
+            QJsonArray ref = a.value("anchorRef").toArray();
+            if (ref.size() != 2)
+                ref = anchor.value("at").toArray();
+            if (ref.size() == 2) {
+                p.rect.translate(now.value("x").toDouble() - ref.at(0).toDouble(),
+                                 now.value("y").toDouble() - ref.at(1).toDouble());
+            }
+            p.attached = true;
+            p.reprojected = true;
+            return p;
+        }
+        // Unresolvable (the object is gone, or the scene cannot be asked yet):
+        // fall through to the fingerprint, which is still honest about the
+        // case where nothing has changed at all.
+    }
+
+    // No usable anchor: the fingerprint has to still describe what is on
+    // screen. A note from an earlier run cannot qualify no matter what its
+    // fingerprint says - the scene was built from scratch since.
     if (!m_sessionIds.contains(a.value("id").toString()))
-        return false;
+        return p;
     if (a.value("generation").toInt() != m_generation)
-        return false;
+        return p;
     const QJsonArray size = a.value("view").toObject().value("size").toArray();
     if (size.size() != 2)
-        return false;
-    return size.at(0).toInt() == m_viewSize.width()
-        && size.at(1).toInt() == m_viewSize.height();
+        return p;
+    p.attached = size.at(0).toInt() == m_viewSize.width()
+              && size.at(1).toInt() == m_viewSize.height();
+    return p;
 }
 
 QVariantList ClayAnnotationStore::annotations() const
@@ -181,16 +227,21 @@ QVariantList ClayAnnotationStore::annotations() const
         m["status"] = a.value("status").toString(QStringLiteral("open"));
         m["addressedNote"] = a.value("addressedNote").toString();
         m["addressedAt"] = a.value("addressedAt").toString();
-        m["hasAnchor"] = !a.value("anchor").isNull()
-                      && !a.value("anchor").isUndefined();
+        m["hasAnchor"] = a.value("anchor").toObject()
+                          .value("resolved").toBool(false);
         const QJsonArray r = a.value("rect").toArray();
         const bool hasRect = r.size() == 4;
         m["hasRect"] = hasRect;
-        m["rectX"] = hasRect ? r.at(0).toDouble() : 0.0;
-        m["rectY"] = hasRect ? r.at(1).toDouble() : 0.0;
-        m["rectW"] = hasRect ? r.at(2).toDouble() : 0.0;
-        m["rectH"] = hasRect ? r.at(3).toDouble() : 0.0;
-        m["attached"] = isAttached(a);
+        // The drawn rect is the re-projected one when the annotation followed
+        // its object, so the frame lands on the thing and not on where the
+        // thing used to be.
+        const Placement p = placement(a);
+        m["rectX"] = hasRect ? p.rect.x() : 0.0;
+        m["rectY"] = hasRect ? p.rect.y() : 0.0;
+        m["rectW"] = hasRect ? p.rect.width() : 0.0;
+        m["rectH"] = hasRect ? p.rect.height() : 0.0;
+        m["attached"] = p.attached;
+        m["reprojected"] = p.reprojected;
         out.append(m);
     }
     return out;
@@ -258,8 +309,42 @@ QString ClayAnnotationStore::addAnnotation(const QString& scope,
     m_sessionIds.insert(id);
     m_deleted.remove(id);
     save();
+    if (scope != QLatin1String("scene"))
+        attachToScene(id, rect);
     emit annotationsChanged();
     return id;
+}
+
+void ClayAnnotationStore::attachToScene(const QString& id, const QRectF& rect)
+{
+    if (!m_resolver || id.isEmpty())
+        return;
+    // The resolver patches anchor and crop straight into the file - they are
+    // its fields, not ours - so the store has to re-read to see them. Both
+    // sides go through the same merge, so nothing this process owns is lost.
+    m_resolver->attachAnnotation(id, rect);
+    m_annotations = readFromDisk();
+
+    // Where the anchor projects to RIGHT NOW, recorded beside the rect that
+    // was framed against it. Re-projection is a difference, and without a
+    // baseline taken at the same moment as the rect it is a difference from
+    // the wrong thing: an anchor answers with its OBJECT's position, which is
+    // rarely the point the frame was centred on, so the frame would jump the
+    // instant it was drawn even though nothing had moved.
+    const int i = indexOf(id);
+    if (i < 0)
+        return;
+    QJsonObject a = m_annotations.at(i).toObject();
+    const QJsonObject anchor = a.value("anchor").toObject();
+    if (!anchor.value("resolved").toBool(false))
+        return;
+    const QVariantMap now = m_resolver->reprojectAnchor(anchor.toVariantMap());
+    if (!now.value("resolved").toBool())
+        return;
+    a["anchorRef"] = QJsonArray{now.value("x").toDouble(),
+                                now.value("y").toDouble()};
+    m_annotations.replace(i, a);
+    save();
 }
 
 void ClayAnnotationStore::setNote(const QString& id, const QString& note)
@@ -300,6 +385,9 @@ void ClayAnnotationStore::setRect(const QString& id, const QRectF& rect)
     m_annotations.replace(i, a);
     m_sessionIds.insert(id);
     save();
+    // A moved or resized frame is about something else now, so it is
+    // re-anchored against what it covers today.
+    attachToScene(id, rect);
     emit annotationsChanged();
 }
 
@@ -325,6 +413,28 @@ void ClayAnnotationStore::clearAddressed()
             kept.append(a);
         else
             m_deleted.insert(a.value("id").toString());
+    }
+    if (kept.size() == m_annotations.size())
+        return;
+    m_annotations = kept;
+    save();
+    emit annotationsChanged();
+}
+
+void ClayAnnotationStore::dropEmptyNotes()
+{
+    QJsonArray kept;
+    for (const QJsonValue& v : m_annotations) {
+        const QJsonObject a = v.toObject();
+        const bool open = a.value("status").toString(QStringLiteral("open"))
+                          == QLatin1String("open");
+        if (open && a.value("note").toString().trimmed().isEmpty()) {
+            const QString id = a.value("id").toString();
+            m_deleted.insert(id);
+            m_sessionIds.remove(id);
+            continue;
+        }
+        kept.append(a);
     }
     if (kept.size() == m_annotations.size())
         return;

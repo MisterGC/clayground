@@ -15,6 +15,7 @@
 #include <functional>
 #include <memory>
 
+#include "clayanchorresolver.h"
 #include "loaderscenehost.h"
 
 class QTimer;
@@ -25,7 +26,7 @@ class HotReloadContainer;
 class ClayTimeControl;
 class ClayInputControl;
 
-class ClayInspector : public QObject
+class ClayInspector : public QObject, public ClayAnchorResolver
 {
     Q_OBJECT
 
@@ -93,13 +94,14 @@ public:
     // viewport pixels). Patches `anchor` and `crop` into the entry with this
     // id, leaving every field the overlay owns untouched. Returns
     // {anchor, crop, cropClipped, cropError, stored, storeError}.
-    Q_INVOKABLE QVariantMap attachAnnotation(const QString& id, const QRectF& rect);
+    Q_INVOKABLE QVariantMap attachAnnotation(const QString& id,
+                                            const QRectF& rect) override;
     // The anchor alone - for a live preview of "what am I framing" before the
     // annotation exists.
     Q_INVOKABLE QVariantMap resolveAnchor(const QRectF& rect) const;
     // Where a stored anchor is on screen NOW: the call that lets a marker
     // follow its object across a camera move, a reload or a restart.
-    Q_INVOKABLE QVariantMap reprojectAnchor(const QVariantMap& anchor) const;
+    Q_INVOKABLE QVariantMap reprojectAnchor(const QVariantMap& anchor) const override;
     // How many annotations are still open - for the dojo's badge.
     Q_INVOKABLE int openAnnotationCount() const;
 
