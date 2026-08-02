@@ -20,24 +20,33 @@ Item {
     property bool detachable: true
     property int idx: -1
     property color accent: "#ff3366"
+    property color highlight: "#ffd93d"
     property bool selected: false
+    // The frame this card belongs to is under the cursor. A preview of the
+    // pairing, deliberately weaker than a selection.
+    property bool hovered: false
 
     readonly property bool addressed: status !== "open"
     readonly property color ink: addressed ? "#8a7f79" : "#6E2A1C"
     readonly property color paper: addressed ? "#E4DDD8" : "#F6E7DC"
     readonly property color edge: addressed ? "#A99E97" : "#B23A2A"
-    // The tail is a leader to a frame on the scene. A scene-level note has no
-    // frame, and a detached one no longer has a place to point at.
-    readonly property int tailW: (root.isScene || !root.attached
-                                  || root.addressed) ? 0 : 12
-
-    // The point the leader line starts from, in this item's coordinates.
-    readonly property point tailPoint: Qt.point(0, 26)
+    // Nothing on the scene corresponds to this card, so nothing will light up
+    // beside it when it is picked.
+    readonly property bool frameless: !root.isScene
+                                      && (!root.attached || root.addressed)
 
     signal noteCommitted(string text)
     signal submitted()
     signal removeRequested()
     signal selectRequested()
+    signal hoverRequested(bool on)
+
+    // Covers the card and everything in it, the text editor included: hovering
+    // a note is hovering the words, not just the paper around them.
+    HoverHandler {
+        id: hoverProbe
+        onHoveredChanged: root.hoverRequested(hoverProbe.hovered)
+    }
 
     implicitHeight: Math.max(54, column.implicitHeight + 18)
 
@@ -59,44 +68,56 @@ Item {
 
     onNoteTextChanged: if (!editor.activeFocus && editor.text !== noteText) editor.text = noteText
 
-    // Bubble body plus tail, one path so the tail is part of the outline.
+    // The bubble body. It used to carry a tail pointing at a leader line to
+    // the frame; both are gone, so the paper is a plain rounded card and the
+    // number badge carries the association on its own.
     Canvas {
         id: bubble
         anchors.fill: parent
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            var w = width, h = height, t = root.tailW, r = 7;
-            var l = t;
+            var w = width, h = height, r = 7;
             ctx.beginPath();
-            ctx.moveTo(l + r, 0);
+            ctx.moveTo(r, 0);
             ctx.lineTo(w - r, 0);
             ctx.quadraticCurveTo(w, 0, w, r);
             ctx.lineTo(w, h - r);
             ctx.quadraticCurveTo(w, h, w - r, h);
-            ctx.lineTo(l + r, h);
-            ctx.quadraticCurveTo(l, h, l, h - r);
-            if (t > 0) {
-                ctx.lineTo(l, root.tailPoint.y + 7);
-                ctx.lineTo(0, root.tailPoint.y);
-                ctx.lineTo(l, root.tailPoint.y - 7);
-            }
-            ctx.lineTo(l, r);
-            ctx.quadraticCurveTo(l, 0, l + r, 0);
+            ctx.lineTo(r, h);
+            ctx.quadraticCurveTo(0, h, 0, h - r);
+            ctx.lineTo(0, r);
+            ctx.quadraticCurveTo(0, 0, r, 0);
             ctx.closePath();
             ctx.fillStyle = root.paper;
             ctx.fill();
-            ctx.strokeStyle = root.selected ? Qt.lighter(root.accent, 1.0)
-                                            : root.edge;
-            ctx.lineWidth = root.selected ? 2.0 : 1.0;
+            ctx.strokeStyle = (root.selected || root.hovered) ? root.highlight
+                                                              : root.edge;
+            ctx.lineWidth = root.selected ? 2.2 : (root.hovered ? 1.5 : 1.0);
             ctx.stroke();
         }
         Connections {
             target: root
             function onSelectedChanged() { bubble.requestPaint() }
+            function onHoveredChanged() { bubble.requestPaint() }
             function onStatusChanged() { bubble.requestPaint() }
             function onAttachedChanged() { bubble.requestPaint() }
         }
+    }
+
+    // The spine down the left edge. Solid means picked, faint means the cursor
+    // is passing over the pair - the same distinction the frame draws with its
+    // halo, so both ends of a pairing read the same way.
+    Rectangle {
+        x: 2
+        y: 9
+        width: root.selected ? 4 : 3
+        height: Math.max(0, parent.height - 18)
+        radius: 2
+        color: root.highlight
+        visible: !root.isScene && opacity > 0.01
+        opacity: root.selected ? 1.0 : (root.hovered ? 0.45 : 0.0)
+        Behavior on opacity { NumberAnimation { duration: 110 } }
     }
 
     MouseArea {
@@ -108,7 +129,7 @@ Item {
     Column {
         id: column
         anchors.left: parent.left
-        anchors.leftMargin: root.tailW + 10
+        anchors.leftMargin: 12
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.top: parent.top
@@ -119,11 +140,19 @@ Item {
             width: parent.width
             spacing: 6
 
+            // The twin of the badge on the frame. Same number, and it turns
+            // gold at the same moment - this pair of numbers is the whole
+            // association cue now that there is no line to follow.
             Rectangle {
                 width: tag.width + 10
                 height: tag.height + 3
                 radius: 3
-                color: root.isScene ? "#00d9ff" : root.accent
+                color: root.isScene ? "#00d9ff"
+                                    : (root.selected ? root.highlight
+                                                     : root.accent)
+                border.color: root.hovered && !root.selected ? root.highlight
+                                                             : "transparent"
+                border.width: 1
                 visible: true
                 Text {
                     id: tag
@@ -171,6 +200,21 @@ Item {
             }
 
             Item { width: 1; height: 1 }
+        }
+
+        // Picking a card normally lights up its frame. When there is no frame,
+        // silence would read as "the highlight is broken" - so the card says
+        // so itself rather than letting you hunt the scene for a gold rect
+        // that is never coming.
+        Text {
+            width: parent.width - 18
+            visible: root.selected && root.frameless
+            text: "⌀ nothing on the scene corresponds"
+            wrapMode: Text.Wrap
+            color: Qt.darker(root.highlight, 2.1)
+            font.family: "monospace"
+            font.pixelSize: 10
+            font.bold: true
         }
 
         TextArea {
