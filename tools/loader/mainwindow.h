@@ -7,6 +7,7 @@
 class HotReloadContainer;
 class ClayLiveLoader;
 class ClayInspector;
+class ClayAnnotationStore;
 class ClayTimeControl;
 class ClayInputControl;
 class QQmlEngine;
@@ -38,6 +39,12 @@ private slots:
     void onRestarted();
     void toggleLogOverlay();
     void toggleGuideOverlay();
+    // The annotation surface (issue #182). Ctrl+F used to flag a moment on the
+    // spot; that instant note is now the surface's scene-level slot, and the
+    // shortcut toggles the whole surface in and out.
+    void toggleAnnotationOverlay();
+    void showAnnotationOverlay();
+    void hideAnnotationOverlay();
     void startFlag();
     void onFlagReady(const QString& screenshotPath);
     void onFlagConfirmed(const QString& annotation);
@@ -56,15 +63,21 @@ private:
     ClayLiveLoader* m_liveLoader = nullptr;
     HotReloadContainer* m_container = nullptr;
     ClayInspector* m_inspector = nullptr;
+    ClayAnnotationStore* m_annotations = nullptr;
     ClayTimeControl* m_timeCtrl = nullptr;
     ClayInputControl* m_inputCtrl = nullptr;
     QQuickWidget* m_logOverlay = nullptr;
     QQuickWidget* m_guideOverlay = nullptr;
     QQuickWidget* m_flagOverlay = nullptr;
+    QQuickWidget* m_annotationOverlay = nullptr;
 
     QLabel* m_traceIndicator = nullptr;
 
     bool m_logVisible = false;
     bool m_guideVisible = false;
     bool m_flagActive = false;
+    bool m_annotationVisible = false;
+    // True while the pause under the surface is ours to undo. A scene the user
+    // paused before opening the surface stays paused when it closes.
+    bool m_annotationPaused = false;
 };

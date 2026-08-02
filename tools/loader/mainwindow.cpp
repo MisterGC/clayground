@@ -4,6 +4,7 @@
 #include "hotreloadcontainer.h"
 #include "clayliveloader.h"
 #include "clayinspector.h"
+#include "clayannotations.h"
 #include "claycontrols.h"
 #include <QQuickWidget>
 #include <QQmlContext>
@@ -66,6 +67,16 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
             m_flagOverlay = nullptr;
             m_flagActive = false;
         }
+        if (m_annotationOverlay) {
+            // The store lives on; only the view dies with the engine. The
+            // surface is put back up after the reload (see engineCreated) so
+            // you keep the tool you were using - and watch the annotations
+            // that could not be re-projected move into the margin.
+            if (auto* r = m_annotationOverlay->rootObject())
+                QMetaObject::invokeMethod(r, "deactivate");
+            delete m_annotationOverlay;
+            m_annotationOverlay = nullptr;
+        }
     });
             
     // Agent control bridges: time (pause/step/scale) and synthetic input.
@@ -73,6 +84,15 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // SyntheticGamepad can bridge them without any hard dependency.
     m_timeCtrl = new ClayTimeControl(this);
     m_inputCtrl = new ClayInputControl(this);
+
+    // The annotation store (issue #182). Constructed before the first engine
+    // is configured - it goes into every engine's root context.
+    m_annotations = new ClayAnnotationStore(this);
+    m_annotations->setViewSize(size());
+    // Generation is taken from the same signal that drives the inspector's,
+    // so the number in an annotation means what it means everywhere else.
+    connect(m_container, &HotReloadContainer::loadSucceeded,
+            m_annotations, &ClayAnnotationStore::bumpGeneration);
 
     // Setup engine context
     configureEngine(m_container->engine());
@@ -87,7 +107,11 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // now current. Context properties were already installed above.
     connect(m_container, &HotReloadContainer::engineCreated, [this]() {
         QTimer::singleShot(200, this, [this]() {
+            const bool restoreSurface = m_annotationVisible;
+            m_annotationVisible = false;
             createOverlays();
+            if (restoreSurface)
+                showAnnotationOverlay();
         });
     });
     
@@ -185,6 +209,13 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     if (m_flagOverlay) {
         m_flagOverlay->setGeometry(0, 0, width(), height());
     }
+    if (m_annotationOverlay) {
+        m_annotationOverlay->setGeometry(0, 0, width(), height());
+    }
+    // The viewport is half of every annotation's fingerprint: a resized window
+    // is a view its rects no longer describe, and they detach.
+    if (m_annotations)
+        m_annotations->setViewSize(size());
     if (m_traceIndicator && m_traceIndicator->isVisible()) {
         m_traceIndicator->move(width() - m_traceIndicator->width() - 10, 10);
     }
@@ -200,6 +231,7 @@ void MainWindow::configureEngine(QQmlEngine* engine)
         context->setContextProperty("ClayLiveLoader", m_liveLoader);
         context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
         context->setContextProperty("ClayInputCtrl", m_inputCtrl);
+        context->setContextProperty("ClayAnnotations", m_annotations);
     }
 
     engine->addImportPath("qml");
@@ -228,6 +260,7 @@ void MainWindow::onSandboxUrlChanged()
     // when the first load's ready/error signal fires.
     m_inspector->setInstanceName(m_liveLoader->instanceName());
     m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
+    m_annotations->setSandboxDir(m_liveLoader->sandboxDir());
     m_container->setSource(url);
     showSandboxName();
     
@@ -300,9 +333,25 @@ void MainWindow::setupShortcuts()
     auto* guideShortcut = new QShortcut(QKeySequence("Ctrl+G"), this);
     connect(guideShortcut, &QShortcut::activated, this, &MainWindow::toggleGuideOverlay);
     
-    // Flag overlay shortcut
-    auto* flagShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
-    connect(flagShortcut, &QShortcut::activated, this, &MainWindow::startFlag);
+    // Annotation surface: in and out on the same key the instant flag used to
+    // sit on, because the instant flag is now the surface's scene-note slot.
+    auto* annotationShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
+    connect(annotationShortcut, &QShortcut::activated,
+            this, &MainWindow::toggleAnnotationOverlay);
+
+    // Quick clear: drop everything already marked addressed. Open notes are
+    // never touched by a shortcut - deleting your input is not a keystroke.
+    auto* clearShortcut = new QShortcut(QKeySequence("Ctrl+Shift+F"), this);
+    connect(clearShortcut, &QShortcut::activated, this, [this]() {
+        if (!m_annotations)
+            return;
+        m_annotations->reload();
+        m_annotations->clearAddressed();
+        if (m_annotationOverlay && m_annotationVisible) {
+            if (auto* r = m_annotationOverlay->rootObject())
+                QMetaObject::invokeMethod(r, "sync");
+        }
+    });
 
     // Trace toggle shortcut
     auto* traceShortcut = new QShortcut(QKeySequence("Ctrl+T"), this);
@@ -388,9 +437,86 @@ void MainWindow::createOverlays()
                 this, SLOT(onFlagCancelled()));
     }
 
+    // Create annotation surface (issue #182). Unlike the other overlays this
+    // one takes focus and the mouse: framing a region is a drag, and the
+    // scene-note field has to catch the first keystroke after Ctrl+F.
+    m_annotationOverlay = new QQuickWidget(engine, centralWidget());
+    m_annotationOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_annotationOverlay->setAttribute(Qt::WA_TranslucentBackground);
+    m_annotationOverlay->setClearColor(Qt::transparent);
+    m_annotationOverlay->setFocusPolicy(Qt::StrongFocus);
+    m_annotationOverlay->setGeometry(0, 0, width(), height());
+
+    connect(m_annotationOverlay, &QQuickWidget::statusChanged,
+            [this](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error)
+            qCritical() << "Failed to load AnnotationOverlay:"
+                        << m_annotationOverlay->errors();
+    });
+
+    m_annotationOverlay->setSource(QUrl("qrc:/clayground/AnnotationOverlay.qml"));
+    m_annotationOverlay->hide();
+    m_annotationOverlay->raise();
+
+    if (auto* annRoot = m_annotationOverlay->rootObject()) {
+        connect(annRoot, SIGNAL(closeRequested()),
+                this, SLOT(hideAnnotationOverlay()));
+    }
+
     qDebug() << "Overlays created successfully";
 
     // Engine recreation is handled in the constructor
+}
+
+void MainWindow::toggleAnnotationOverlay()
+{
+    if (m_annotationVisible)
+        hideAnnotationOverlay();
+    else
+        showAnnotationOverlay();
+}
+
+void MainWindow::showAnnotationOverlay()
+{
+    if (!m_annotationOverlay || m_annotationVisible)
+        return;
+
+    m_annotations->setViewSize(size());
+
+    // Pause on open, with the opt-out honoured. A scene the user had already
+    // paused is left alone on close - we only undo a pause we caused.
+    if (m_annotations->pauseOnOpen() && m_timeCtrl && !m_timeCtrl->paused()) {
+        m_timeCtrl->setPaused(true);
+        m_annotationPaused = true;
+    }
+
+    m_annotationOverlay->setGeometry(0, 0, width(), height());
+    m_annotationOverlay->show();
+    m_annotationOverlay->raise();
+    m_annotationOverlay->setFocus();
+    m_annotationVisible = true;
+
+    if (auto* r = m_annotationOverlay->rootObject())
+        QMetaObject::invokeMethod(r, "activate");
+}
+
+void MainWindow::hideAnnotationOverlay()
+{
+    if (!m_annotationVisible)
+        return;
+    m_annotationVisible = false;
+
+    if (m_annotationOverlay) {
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "deactivate");
+        m_annotationOverlay->hide();
+        m_annotationOverlay->clearFocus();
+    }
+
+    if (m_annotationPaused && m_timeCtrl) {
+        m_timeCtrl->setPaused(false);
+        m_annotationPaused = false;
+    }
 }
 
 void MainWindow::showSandboxName()
@@ -472,6 +598,10 @@ void MainWindow::showAltMessage()
     setCentralWidget(textWidget);
 }
 
+// The instant-flag path. No shortcut points at it any more - Ctrl+F opens the
+// annotation surface, whose scene-note slot is what the flag used to be. The
+// plumbing stays because the inspector still owns startFlag/completeFlag and
+// the protocol side decides what becomes of them.
 void MainWindow::startFlag()
 {
     if (m_flagActive)
