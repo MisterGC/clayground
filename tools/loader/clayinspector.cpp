@@ -297,6 +297,10 @@ void ClayInspector::writeState()
         state["lastLoadErrorAt"] = m_lastLoadErrorAt.toString(Qt::ISODateWithMs);
     if (!m_rearmScenario.isEmpty())
         state["rearmedScenario"] = m_rearmScenario;
+    // How many remarks are still waiting. Here rather than only behind an
+    // action so the dojo's badge - a different process - and an agent glancing
+    // at state.json both see them without asking.
+    state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     QSaveFile file(m_inspectDir + "/state.json");
@@ -838,9 +842,13 @@ QJsonObject ClayInspector::handleAnnotations(const QJsonObject& request)
             else
                 entry["cropMissing"] = true;
         }
-        if (reproject && rootItem && entry.value("anchor").isObject()) {
-            entry["now"] = ClayScene::reproject(
-                rootItem, entry.value("anchor").toObject());
+        if (reproject && entry.value("anchor").isObject()) {
+            // No root means no answer, said plainly - a missing 'now' that
+            // could equally mean "the anchor is gone" would be unreadable.
+            entry["now"] = rootItem
+                ? ClayScene::reproject(rootItem, entry.value("anchor").toObject())
+                : QJsonObject{{"resolved", false},
+                              {"reason", "nothing is loaded right now"}};
         }
         out.append(entry);
     }
@@ -902,8 +910,9 @@ QJsonObject ClayInspector::handleAnnotate(const QJsonObject& request)
     response["annotated"] = id;
     // Not "status": the envelope owns that key on every response and would
     // overwrite this one on its way out - silently, and only outside a batch,
-    // which is the worst way to find out.
-    response["addressed"] = true;
+    // which is the worst way to find out. Same convention as reloadStatus and
+    // traceStatus.
+    response["annotateStatus"] = "addressed";
     response["addressedNote"] = note;
     response["addressedAt"] = patch.value("addressedAt");
 

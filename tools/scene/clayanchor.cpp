@@ -248,14 +248,15 @@ QJsonObject resolve3d(QQuickItem* root, QQuickItem* view, const QPointF& point)
 
     // Up to something named, the same way the 2D side walks up: a Model deep
     // inside a component answers with the component's name when it has one.
+    // The view itself is checked first on purpose: a named View3D above an
+    // unnamed Model would otherwise be reported as the anchor, which says
+    // "the 3D view" about something inside it.
     QObject* reported = hit;
-    for (QObject* o = hit; o; o = o->parent()) {
+    for (QObject* o = hit; o && !isViewport3D(o); o = o->parent()) {
         if (!o->objectName().isEmpty()) {
             reported = o;
             break;
         }
-        if (isViewport3D(o))
-            break;
     }
 
     QJsonObject anchor;

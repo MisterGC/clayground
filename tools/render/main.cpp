@@ -344,6 +344,11 @@ int main(int argc, char* argv[])
             host.rootObject(),
             QRectF(parts[0].toDouble(), parts[1].toDouble(),
                    parts[2].toDouble(), parts[3].toDouble()));
+        // The round trip, as a check you can read: a resolved anchor that
+        // projects back somewhere else is a bad anchor, and this is the only
+        // place it is visible without a session.
+        if (anchor.value("resolved").toBool(false))
+            anchor["now"] = ClayScene::reproject(host.rootObject(), anchor);
         QTextStream(stdout)
             << QString::fromUtf8(QJsonDocument(anchor).toJson(QJsonDocument::Compact))
             << "\n";

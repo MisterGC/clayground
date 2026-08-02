@@ -4,10 +4,11 @@ description: >
   Collaborate on and verify Clayground QML sandboxes through the Dojo's
   built-in inspector. Use this skill when working on Clayground QML
   applications and needing to verify results, diagnose load failures or
-  crashes, read user flag feedback, search for entities, trace behavior,
-  or collaborate on visual output. Triggers when the context involves
-  .clay/inspect, .clay/crew, flagInfo, ClayInspector, canvas.find, trace,
-  or the user mentions verifying sandbox output.
+  crashes, read user flag and annotation feedback, search for entities,
+  trace behavior, or collaborate on visual output. Triggers when the
+  context involves .clay/inspect, .clay/crew, annotations, flagInfo,
+  ClayInspector, canvas.find, trace, or the user mentions verifying
+  sandbox output.
 ---
 
 # Clay Crew — AI-Agent Collaboration for Clayground
@@ -35,7 +36,9 @@ the lifecycle/failure artifacts, and the human collaboration channel.
   until the scene reaches the state (exit 3 and no image if it never
   does). It also answers numeric questions without a protocol: `--dump
   <Type>=out.json` (hooked types answer in their own terms, everything
-  else from its properties), `--project x,y,z`, `--pick x,y`. Exit 1 =
+  else from its properties), `--project x,y,z`, `--pick x,y`, `--anchor
+  x,y,w,h` (what a framed region is *about*: item or 3D node, with name,
+  type, source file and world position). Exit 1 =
   never loaded, 2 = rendered but the scene logged errors, 3 = the
   `--wait-for` state never arrived. See the manual page for the rest.
 - **The dojo** (the rest of this skill) — interaction, hot-reload
@@ -47,6 +50,48 @@ the lifecycle/failure artifacts, and the human collaboration channel.
   geometrically what I intended". Two rounds of a real session were once
   spent diagnosing an arrowhead from pixels when one query would have
   shown the resolved geometry immediately.
+
+## Read the user's annotations — first thing, and again before you report done
+
+The user frames regions over the running scene and writes a note on each.
+That is their spatial channel to you, and it is silent: nothing pushes it
+into the conversation, so **you have to look**. An open annotation you
+never read is feedback the user gave and you ignored.
+
+```json
+{"action": "annotations", "status": "open"}
+```
+
+Two moments, non-negotiable:
+
+- **When you attach**, before you form a plan. There may already be
+  remarks about the thing you are about to change, and they beat your
+  own reading of a screenshot every time.
+- **Before you say you are done.** New ones appear while you work — that
+  is the point of the surface.
+
+Each entry carries the note, the `rect`, a frozen `crop` (read
+`cropPath` — an actual image of what they framed) and, where resolvable,
+an `anchor` naming the object: `objectName`, `type`, `source`. When the
+anchor resolved, go to that source file; don't re-derive it from the
+picture. When it did not (`"resolved": false`), the crop and the rect are
+the whole record — that is honest, not broken.
+
+When you have acted on one, say so:
+
+```json
+{"action": "annotate", "annotationId": "a7",
+ "note": "raised the button to 44px and re-centred the label"}
+```
+
+`annotationId`, not `id` — `id` is your own request-correlation key.
+The note is required and is read by a human: write what you *did*, not
+"fixed". **You can never delete an annotation.** Clearing them is the
+user's alone, and an agent that could erase its own record would make the
+record worthless.
+
+Also check for annotations **without** a live session — `.clay/crew/annotations/index.json`
+is a plain file you can read directly when no loader is running.
 
 ## Two things that cost an hour each if you don't know them
 
@@ -189,7 +234,7 @@ without human help. Know these files:
 
 | File | Writer | Content |
 |---|---|---|
-| `state.json` | loader | `protocolVersion`, `runId` (unique per process), `pid`, `sandbox`, `phase`, `generation` (successful loads), `reloadCount` (attempts), `rearmedScenario`, `instanceId`, timestamps |
+| `state.json` | loader | `protocolVersion`, `runId` (unique per process), `pid`, `sandbox`, `phase`, `generation` (successful loads), `reloadCount` (attempts), `rearmedScenario`, `instanceId`, `openAnnotations`, timestamps |
 | `events.jsonl` (+ `events.rotated.jsonl`) | loader | append-only stream: `session_start`, `phase_change` (with `errorsTail` on load errors), `trace_start`, `trace_stop`, `flag`, `auto_flag`, `scenario_applied`; rotates at 5 MB |
 | `log.jsonl` (+ rotation) | loader | every console/Qt message as `{ts, level, category, text}` — tail this instead of relying on snapshot's 50-line `logTail` |
 | `autoflag_<ts>.json` (+ best-effort PNG) | loader | evidence bundle (trigger, tree, rootProperties, flagInfo, diagnostics) written automatically on the first runtime error per reload generation; last 3 kept |
@@ -456,6 +501,21 @@ click targets instead of hand-rolling `mapFrom3DScene` in a shell script.
 pickable — use `inspect`) **and the colour actually rendered there**, which
 works in a 2D scene too. Add `"view"` when there is more than one `View3D`.
 
+### annotations / annotate — the user's remarks about the scene
+
+```json
+{"id": "n1", "action": "annotations", "status": "open"}
+{"id": "n2", "action": "annotate", "annotationId": "a7",
+ "note": "raised the button to 44px and re-centred the label"}
+```
+
+See the rule at the top of this skill for *when*, and the
+`.clay/crew/annotations/` section for what an entry carries. `annotations`
+answers `annotations`, `count`, `total`, `openCount`, `addressedCount`,
+plus `cropPath` per entry (absolute, readable) or `cropMissing`. `annotate`
+answers `annotated` and `annotateStatus: "addressed"`; it needs
+`annotationId` (not `id`) and a real `note`, and it can never delete.
+
 ### trace — temporal observation
 
 ```json
@@ -612,6 +672,43 @@ notice new flags without polling the crew dir.
 Address the annotation using the captured state; `.clay/crew/` is the
 human's channel — don't write into it.
 
+### Annotations (`.clay/crew/annotations/`)
+
+The spatial half of the same channel, and the one you must poll (see the
+rule at the top of this skill). The store is
+`annotations/index.json`, one PNG per annotation beside it:
+
+```json
+{ "id": "a7", "created": "2026-08-02T10:11:12", "generation": 3,
+  "scope": "region", "rect": [x, y, w, h], "note": "...",
+  "status": "open", "addressedNote": null, "addressedAt": null,
+  "crop": "annotations/a7.png",
+  "view": { "size": [1280, 800], "camera": null, "paused": true },
+  "anchor": { "resolved": true, "kind": "2d", "objectName": "player",
+              "type": "RectBoxBody", "source": "Sandbox.qml",
+              "space": "world", "world": [5, 10], "at": [452, 372] } }
+```
+
+- `scope` is `region` (a framed rect) or `scene` (a whole-scene remark,
+  `rect` null) — the second is what `Ctrl+F` used to produce on its own.
+- `anchor.space` says how to read `anchor.world`: `world` = canvas world
+  units, `world3d` = Qt Quick 3D coordinates, `scene` = scene pixels
+  (a GUI app has no world). `"resolved": false` with a `reason` means
+  nothing meaningful was under the frame — empty space, a shader effect,
+  or instanced geometry, which Qt Quick 3D cannot pick.
+- `crop` is frozen at creation and never refreshed, so it shows what the
+  user actually saw. A rect partly off-screen is flagged `cropClipped`;
+  one entirely off-screen has no crop at all rather than a clamped
+  picture of somewhere else.
+
+`{"action": "annotations", "reproject": true}` adds `now` per anchored
+entry: where that anchor sits on screen at this moment. Useful when you
+want to capture the region again after your fix — the marker follows its
+object across a camera move or a reload.
+
+Filters: `status` (`open` / `addressed` / `any`), `sinceGeneration`,
+`limit`. A missing store is an empty list, not an error.
+
 ## The scenarios() convention
 
 Sibling of `flagInfo()`: the root may define `scenarios()` (name list,
@@ -715,7 +812,10 @@ Pick expressions that verify the **effect** of your change:
     screenshot.png             <- default target (a request can name its own)
     trace.jsonl                <- during/after trace
     i/<instance>/...           <- per-instance scope when --instance is used
-  crew/                        <- human -> agent (Ctrl+F flags)
+  crew/                        <- human -> agent (Ctrl+F)
     flag_<timestamp>.json
     flag_<timestamp>.png
+    annotations/
+      index.json               <- the annotation store (poll this!)
+      <id>.png                 <- the crop frozen when it was made
 ```

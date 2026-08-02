@@ -695,6 +695,15 @@ def run(insp, sandbox_dir, attended):
          "crop": None,
          "view": {"size": [800, 600], "camera": None, "paused": False},
          "anchor": None},
+        {"id": "a4", "created": "2026-08-02T10:30:00", "generation": 3,
+         "scope": "region", "rect": [1, 1, 4, 4], "note": "gone since",
+         "status": "open", "addressedNote": None, "addressedAt": None,
+         "crop": None,
+         "view": {"size": [800, 600], "camera": None, "paused": True},
+         "anchor": {"resolved": True, "kind": "2d",
+                    "objectName": "an_item_that_no_longer_exists",
+                    "type": "RectBoxBody", "source": "Sandbox.qml",
+                    "space": "world", "world": [12, 10], "at": [0, 0]}},
         {"id": "a3", "created": "2026-08-02T09:00:00", "generation": 2,
          "scope": "region", "rect": [10, 10, 40, 40], "note": "old remark",
          "status": "addressed", "addressedNote": "done earlier",
@@ -708,8 +717,8 @@ def run(insp, sandbox_dir, attended):
     lst = insp.request({"action": "annotations"})
     entries = lst.get("annotations", [])
     check("annotations: lists what the overlay wrote",
-          len(entries) == 3 and lst.get("total") == 3
-          and lst.get("openCount") == 2 and lst.get("addressedCount") == 1,
+          len(entries) == 4 and lst.get("total") == 4
+          and lst.get("openCount") == 3 and lst.get("addressedCount") == 1,
           f"count={lst.get('count')} open={lst.get('openCount')} "
           f"addressed={lst.get('addressedCount')}")
     a1 = next((e for e in entries if e.get("id") == "a1"), {})
@@ -730,8 +739,8 @@ def run(insp, sandbox_dir, attended):
 
     op = insp.request({"action": "annotations", "status": "open"})
     check("annotations: status filter",
-          [e["id"] for e in op.get("annotations", [])] == ["a1", "a2"]
-          and op.get("openCount") == 2,
+          [e["id"] for e in op.get("annotations", [])] == ["a1", "a2", "a4"]
+          and op.get("openCount") == 3,
           str([e.get("id") for e in op.get("annotations", [])]))
     ad = insp.request({"action": "annotations", "status": "addressed"})
     check("annotations: status=addressed filter",
@@ -739,7 +748,7 @@ def run(insp, sandbox_dir, attended):
           str([e.get("id") for e in ad.get("annotations", [])]))
     sg = insp.request({"action": "annotations", "sinceGeneration": 3})
     check("annotations: sinceGeneration filter",
-          [e["id"] for e in sg.get("annotations", [])] == ["a2"],
+          [e["id"] for e in sg.get("annotations", [])] == ["a2", "a4"],
           str([e.get("id") for e in sg.get("annotations", [])]))
     bad = insp.request({"action": "annotations", "status": "whatever"})
     check("annotations: an unknown status is an error, not a silent "
@@ -757,6 +766,15 @@ def run(insp, sandbox_dir, attended):
     a2 = next((e for e in rp.get("annotations", []) if e.get("id") == "a2"), {})
     check("annotations: an entry with no anchor gets no invented position",
           "now" not in a2, f"now={a2.get('now')}")
+    # The object is gone; the stored world point is what is left, and saying
+    # so is the difference between "it moved" and "I made this up".
+    gone = next((e.get("now", {}) for e in rp.get("annotations", [])
+                 if e.get("id") == "a4"), {})
+    check("annotations: an anchor whose object is gone falls back to the "
+          "world point and says so",
+          gone.get("resolved") is True and gone.get("via") == "world"
+          and isinstance(gone.get("x"), (int, float))
+          and "rect" not in gone, str(gone)[:160])
 
     # The user edits the store while the agent is working - the ordinary case
     # for two writers on one file. A read-modify-write of the whole document
@@ -770,7 +788,7 @@ def run(insp, sandbox_dir, attended):
     mark = insp.request({"action": "annotate", "annotationId": "a1",
                          "note": "recoloured the coin to gold and shrank it"})
     check("annotate: marks addressed with the note on what was done",
-          mark.get("annotated") == "a1" and mark.get("addressed") is True
+          mark.get("annotated") == "a1" and mark.get("annotateStatus") == "addressed"
           and bool(mark.get("addressedAt")), str(mark)[:160])
     check("annotate: the answer does not collide with the status envelope",
           isinstance(mark.get("status"), dict)
@@ -780,8 +798,8 @@ def run(insp, sandbox_dir, attended):
         after = json.load(f)
     stored = {e["id"]: e for e in after.get("annotations", [])}
     check("annotate: nothing is deleted",
-          len(after.get("annotations", [])) == 3
-          and set(stored) == {"a1", "a2", "a3"}, str(list(stored)))
+          len(after.get("annotations", [])) == 4
+          and set(stored) == {"a1", "a2", "a3", "a4"}, str(list(stored)))
     keep = stored.get("a1", {})
     check("annotate: the user's own fields survive untouched",
           keep.get("note") == "the coin reads as a wall tile"
@@ -818,8 +836,8 @@ def run(insp, sandbox_dir, attended):
 
     left = insp.request({"action": "annotations", "status": "open"})
     check("annotations: the addressed one drops out of the open list",
-          [e["id"] for e in left.get("annotations", [])] == ["a2"]
-          and left.get("openCount") == 1,
+          [e["id"] for e in left.get("annotations", [])] == ["a2", "a4"]
+          and left.get("openCount") == 2,
           str([e.get("id") for e in left.get("annotations", [])]))
 
     failed = [c for c in CHECKS if not c[1]]
