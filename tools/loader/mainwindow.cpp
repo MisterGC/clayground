@@ -179,6 +179,12 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
 MainWindow::~MainWindow()
 {
     saveWindowGeometry();
+    // Same reason as in closeEvent - a quit that never delivers a close event
+    // must not be the one path that eats a half-typed note.
+    if (m_annotationOverlay) {
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "commitAll");
+    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -189,6 +195,14 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveWindowGeometry();
+    // A note that still had the cursor in it when the window went away used to
+    // die with the editor: the store commits on Enter, on focus loss and after
+    // an idle beat, and closing the window is none of the three. Commit only -
+    // dropping empty notes stays a thing the surface does on deactivate.
+    if (m_annotationOverlay) {
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "commitAll");
+    }
     QMainWindow::closeEvent(event);
 }
 
@@ -344,6 +358,20 @@ void MainWindow::setupShortcuts()
     auto* annotationShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
     connect(annotationShortcut, &QShortcut::activated,
             this, &MainWindow::toggleAnnotationOverlay);
+
+    // Tab folds the margin panel out of the way and brings it back. It has to
+    // be a shortcut rather than a QML key handler: QWidget eats Tab for focus
+    // navigation before a QQuickWidget ever forwards it, so the panel would
+    // fold from some places and not others. Disabled while the surface is
+    // down, so Tab still belongs to the sandbox.
+    m_panelShortcut = new QShortcut(QKeySequence(Qt::Key_Tab), this);
+    m_panelShortcut->setEnabled(false);
+    connect(m_panelShortcut, &QShortcut::activated, this, [this]() {
+        if (!m_annotationOverlay || !m_annotationVisible)
+            return;
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "toggleCollapsed");
+    });
 
     // Quick clear: drop everything already marked addressed. Open notes are
     // never touched by a shortcut - deleting your input is not a keystroke.
@@ -512,6 +540,8 @@ void MainWindow::showAnnotationOverlay()
     m_annotationOverlay->raise();
     m_annotationOverlay->setFocus();
     m_annotationVisible = true;
+    if (m_panelShortcut)
+        m_panelShortcut->setEnabled(true);
 
     if (auto* r = m_annotationOverlay->rootObject())
         QMetaObject::invokeMethod(r, "activate");
@@ -522,6 +552,8 @@ void MainWindow::hideAnnotationOverlay()
     if (!m_annotationVisible)
         return;
     m_annotationVisible = false;
+    if (m_panelShortcut)
+        m_panelShortcut->setEnabled(false);
 
     if (m_annotationOverlay) {
         if (auto* r = m_annotationOverlay->rootObject())

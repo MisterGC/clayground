@@ -13,6 +13,7 @@ class ClayInputControl;
 class QQmlEngine;
 class QQuickWidget;
 class QLabel;
+class QShortcut;
 
 class MainWindow : public QMainWindow
 {
@@ -72,6 +73,9 @@ private:
     QQuickWidget* m_annotationOverlay = nullptr;
 
     QLabel* m_traceIndicator = nullptr;
+    // Tab, live only while the surface is up - a sandbox that uses Tab keeps
+    // it the rest of the time.
+    QShortcut* m_panelShortcut = nullptr;
 
     bool m_logVisible = false;
     bool m_guideVisible = false;
