@@ -4,6 +4,7 @@
 
 #include "renderhost.h"
 
+#include <clayanchor.h>
 #include <clayinspect.h>
 #include <clayscenecapture.h>
 #include <claysettle.h>
@@ -206,13 +207,19 @@ int main(int argc, char* argv[])
     QCommandLineOption pickOpt("pick",
         "What is under this pixel, with the colour rendered there: --pick x,y",
         "x,y");
+    QCommandLineOption anchorOpt("anchor",
+        "What a viewport rectangle is about: --anchor x,y,w,h. Reports the "
+        "item or 3D node under its centre with name, type, source file and "
+        "world position - or an explicitly unresolved anchor when nothing "
+        "meaningful is there.", "x,y,w,h");
     QCommandLineOption cropOpt("crop", "Crop before scaling: x,y,w,h.", "rect");
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
     parser.addOptions({outOpt, sizeOpt, setOpt, evalOpt, scriptOpt, waitForOpt,
                        waitMsOpt, framesOpt, settleOpt, settleMsOpt, dumpOpt,
-                       projectOpt, pickOpt, cropOpt, scaleOpt, widthOpt});
+                       projectOpt, pickOpt, anchorOpt, cropOpt, scaleOpt,
+                       widthOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -326,6 +333,24 @@ int main(int argc, char* argv[])
                                             parts[2].toDouble());
         QTextStream(stdout)
             << QString::fromUtf8(QJsonDocument(projected).toJson(QJsonDocument::Compact))
+            << "\n";
+    }
+
+    if (parser.isSet(anchorOpt)) {
+        const auto parts = parser.value(anchorOpt).split(',');
+        if (parts.size() != 4)
+            return fail("--anchor wants x,y,w,h");
+        auto anchor = ClayScene::resolveAnchor(
+            host.rootObject(),
+            QRectF(parts[0].toDouble(), parts[1].toDouble(),
+                   parts[2].toDouble(), parts[3].toDouble()));
+        // The round trip, as a check you can read: a resolved anchor that
+        // projects back somewhere else is a bad anchor, and this is the only
+        // place it is visible without a session.
+        if (anchor.value("resolved").toBool(false))
+            anchor["now"] = ClayScene::reproject(host.rootObject(), anchor);
+        QTextStream(stdout)
+            << QString::fromUtf8(QJsonDocument(anchor).toJson(QJsonDocument::Compact))
             << "\n";
     }
 

@@ -442,9 +442,9 @@ QJsonObject collectVectorProperties(QQuickItem* item)
     return vecs;
 }
 
-QString sourceFileName(QQuickItem* item)
+QString sourceFileName(const QObject* obj)
 {
-    auto* context = QQmlEngine::contextForObject(item);
+    auto* context = QQmlEngine::contextForObject(obj);
     if (!context)
         return {};
 
@@ -453,6 +453,93 @@ QString sourceFileName(QQuickItem* item)
         return {};
 
     return url.fileName();
+}
+
+void walkScene(QObject* root, const std::function<bool(QObject*)>& visit)
+{
+    if (!root)
+        return;
+    QSet<QObject*> seen;
+    bool done = false;
+    std::function<void(QObject*)> walk = [&](QObject* obj) {
+        if (done || !obj || seen.contains(obj))
+            return;
+        seen.insert(obj);
+        if (!visit(obj)) {
+            done = true;
+            return;
+        }
+        // Three ways an object hangs in a scene, and a walk that misses any of
+        // them reports "not there" for something that is: QObject children
+        // (the 3D scene graph), childItems() (2D items whose visual parent is
+        // not their QObject parent), and QObject-valued PROPERTIES (an
+        // instancing table or a material is assigned, not parented).
+        for (auto* child : obj->children())
+            walk(child);
+        if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+            for (auto* child : item->childItems())
+                walk(child);
+        }
+        const QMetaObject* meta = obj->metaObject();
+        for (int i = 0; i < meta->propertyCount(); ++i) {
+            auto prop = meta->property(i);
+            if (!prop.isReadable()
+                || !(prop.metaType().flags() & QMetaType::PointerToQObject))
+                continue;
+            // "parent" and friends walk back up and blow the traversal open.
+            const QByteArray name = prop.name();
+            if (name == "parent" || name == "window" || name == "scene")
+                continue;
+            walk(prop.read(obj).value<QObject*>());
+        }
+    };
+    walk(root);
+}
+
+QObject* findFirstOfType(QObject* root, const QString& type)
+{
+    QObject* found = nullptr;
+    walkScene(root, [&](QObject* obj) {
+        if (typeMatches(obj, type)) {
+            found = obj;
+            return false;
+        }
+        return true;
+    });
+    return found;
+}
+
+QQuickItem* findView3D(QQuickItem* root, const QString& viewId, QString* error)
+{
+    if (!root) {
+        if (error) *error = QStringLiteral("no root");
+        return nullptr;
+    }
+
+    if (!viewId.isEmpty()) {
+        if (auto* named = root->findChild<QQuickItem*>(viewId))
+            return named;
+        // Try it as a QML id in the root's context.
+        if (auto* ctx = QQmlEngine::contextForObject(root)) {
+            QQmlExpression expr(ctx, root, viewId);
+            QVariant v = expr.evaluate();
+            if (!expr.hasError()) {
+                if (auto* item = qobject_cast<QQuickItem*>(v.value<QObject*>()))
+                    return item;
+            }
+        }
+        if (error) *error = QStringLiteral("no View3D '%1'").arg(viewId);
+        return nullptr;
+    }
+
+    // A View3D inside a Loader is not a QObject child of the root, and looking
+    // only there is how you get "no View3D in this scene" for a scene full of
+    // them.
+    auto* view = qobject_cast<QQuickItem*>(
+        findFirstOfType(root, QStringLiteral("View3D")));
+    if (!view && error)
+        *error = QStringLiteral("no View3D in this scene");
+    return view;
 }
 
 QJsonObject buildItemTree(QQuickItem* item, int maxDepth, bool fullDetail)

@@ -3,6 +3,8 @@
 #include "clayinspector.h"
 #include "claycontrols.h"
 #include "hotreloadcontainer.h"
+#include <clayanchor.h>
+#include <clayannotations.h>
 #include <clayscenecapture.h>
 #include <clayinspect.h>
 #include <clayscenequery.h>
@@ -295,6 +297,10 @@ void ClayInspector::writeState()
         state["lastLoadErrorAt"] = m_lastLoadErrorAt.toString(Qt::ISODateWithMs);
     if (!m_rearmScenario.isEmpty())
         state["rearmedScenario"] = m_rearmScenario;
+    // How many remarks are still waiting. Here rather than only behind an
+    // action so the dojo's badge - a different process - and an agent glancing
+    // at state.json both see them without asking.
+    state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     QSaveFile file(m_inspectDir + "/state.json");
@@ -498,6 +504,10 @@ QJsonObject ClayInspector::dispatchAction(const QString& action,
         response = handleInput(request);
     else if (action == "errors")
         response = handleErrors(request);
+    else if (action == "annotations")
+        response = handleAnnotations(request);
+    else if (action == "annotate")
+        response = handleAnnotate(request);
     else if (action == "batch")
         response = handleBatch(request);
     else
@@ -776,6 +786,258 @@ QJsonObject ClayInspector::handleErrors(const QJsonObject& request)
     response["truncated"] = (m_errorBuffer.size() >= MAX_LOG_ENTRIES
                              || m_warningBuffer.size() >= MAX_LOG_ENTRIES);
     return response;
+}
+
+// --- Annotations (issue #182) ------------------------------------------------
+// The user's spatial remarks about the running scene. Additive to v3: nothing
+// existing changes shape. Two actions only, and neither of them deletes -
+// clearing an annotation is the user's, in their own overlay.
+
+QJsonObject ClayInspector::handleAnnotations(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    const QString status = request.value("status").toString();
+    if (!status.isEmpty() && status != "open" && status != "addressed"
+        && status != "any") {
+        response["error"] = QStringLiteral(
+            "annotations: \"status\" is \"open\", \"addressed\" or \"any\"");
+        return response;
+    }
+    // Absent means every generation; present means "since the scene I changed",
+    // the same contract the 'errors' action uses.
+    const int since = request.contains("sinceGeneration")
+                      ? request.value("sinceGeneration").toInt(0) : -1;
+    const int limit = request.value("limit").toInt(0);
+
+    QString error;
+    const QJsonArray all = ClayScene::Annotations::load(m_crewDir, &error);
+    if (!error.isEmpty()) {
+        response["error"] = error;
+        return response;
+    }
+
+    int open = 0, addressed = 0;
+    for (const auto& value : all) {
+        const QString s = value.toObject().value("status").toString("open");
+        if (s == "addressed") ++addressed; else ++open;
+    }
+
+    QJsonArray selected =
+        ClayScene::Annotations::filter(all, status, since, limit);
+
+    // Where the frozen crop actually is, and - on request - where the anchor
+    // points NOW, so an agent does not have to re-derive either.
+    const bool reproject = request.value("reproject").toBool(false);
+    auto* rootItem = sceneRoot();
+    QJsonArray out;
+    for (const auto& value : selected) {
+        QJsonObject entry = value.toObject();
+        const QString crop = entry.value("crop").toString();
+        if (!crop.isEmpty()) {
+            const QString abs =
+                ClayScene::Annotations::cropAbsolutePath(m_crewDir, crop);
+            if (QFile::exists(abs))
+                entry["cropPath"] = abs;
+            else
+                entry["cropMissing"] = true;
+        }
+        if (reproject && entry.value("anchor").isObject()) {
+            // No root means no answer, said plainly - a missing 'now' that
+            // could equally mean "the anchor is gone" would be unreadable.
+            entry["now"] = rootItem
+                ? ClayScene::reproject(rootItem, entry.value("anchor").toObject())
+                : QJsonObject{{"resolved", false},
+                              {"reason", "nothing is loaded right now"}};
+        }
+        out.append(entry);
+    }
+
+    response["annotations"] = out;
+    response["count"] = out.size();
+    response["total"] = all.size();
+    response["openCount"] = open;
+    response["addressedCount"] = addressed;
+    response["store"] = ClayScene::Annotations::indexPath(m_crewDir);
+    return response;
+}
+
+QJsonObject ClayInspector::handleAnnotate(const QJsonObject& request)
+{
+    QJsonObject response;
+
+    // Not "id": that key is the caller's own request-correlation id on every
+    // action, and letting the two share a name means a driver that stamps its
+    // requests silently addresses an annotation named after a UUID.
+    const QString id = request.value("annotationId").toString();
+    if (id.isEmpty()) {
+        response["error"] = QStringLiteral(
+            "annotate: give the \"annotationId\" of the annotation you "
+            "addressed (\"id\" is the request's own correlation id)");
+        return response;
+    }
+    const QString note = request.value("note").toString().trimmed();
+    if (note.isEmpty()) {
+        // The note is the point: "addressed" without saying what was done
+        // leaves the user re-deriving it from a diff.
+        response["error"] = QStringLiteral(
+            "annotate: give a short \"note\" saying what you did about it");
+        return response;
+    }
+    // The action has exactly one meaning. Re-opening and deleting are the
+    // user's, in the overlay - an agent that could undo its own record would
+    // make the record worthless.
+    if (request.contains("status")
+        && request.value("status").toString() != "addressed") {
+        response["error"] = QStringLiteral(
+            "annotate: only marks an annotation addressed; reopening and "
+            "clearing are the user's");
+        return response;
+    }
+
+    QJsonObject patch;
+    patch["status"] = "addressed";
+    patch["addressedNote"] = note;
+    patch["addressedAt"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    patch["addressedGeneration"] = m_generation;
+
+    QString error;
+    if (!ClayScene::Annotations::patchEntry(m_crewDir, id, patch, &error)) {
+        response["error"] = error;
+        return response;
+    }
+
+    response["annotated"] = id;
+    // Not "status": the envelope owns that key on every response and would
+    // overwrite this one on its way out - silently, and only outside a batch,
+    // which is the worst way to find out. Same convention as reloadStatus and
+    // traceStatus.
+    response["annotateStatus"] = "addressed";
+    response["addressedNote"] = note;
+    response["addressedAt"] = patch.value("addressedAt");
+
+    QJsonObject payload;
+    payload["id"] = id;
+    payload["note"] = note;
+    appendEvent("annotation_addressed", payload);
+    return response;
+}
+
+QJsonObject ClayInspector::writeAnnotationCrop(const QString& id,
+                                               const QRectF& rect)
+{
+    QJsonObject result;
+
+    auto* rootItem = sceneRoot();
+    if (!rootItem) {
+        result["error"] = QStringLiteral("no sandbox root to capture");
+        return result;
+    }
+    if (rect.isEmpty()) {
+        result["error"] = QStringLiteral("an empty rect has nothing to crop");
+        return result;
+    }
+
+    // The overlay works in logical pixels; the grab comes back in device
+    // pixels. Getting this wrong halves the crop on a retina screen.
+    auto* win = rootItem->window();
+    const qreal dpr = win ? win->effectiveDevicePixelRatio() : 1.0;
+    const QRect device(qFloor(rect.x() * dpr), qFloor(rect.y() * dpr),
+                       qCeil(rect.width() * dpr), qCeil(rect.height() * dpr));
+
+    ClayScene::CaptureRequest req;
+    req.crop = device;
+    // A rect entirely off-screen is an error here, not a clamp - and for an
+    // annotation that means "no crop", not "no annotation": the note and the
+    // rect are still the record. A rect that only partly overlaps yields the
+    // visible part, flagged, so nobody reads a half picture as the whole one.
+    auto shot = ClayScene::capture(*m_host, req);
+    if (!shot.ok()) {
+        result["error"] = shot.error;
+        return result;
+    }
+
+    const QString relative = ClayScene::Annotations::cropRelativePath(id);
+    const QString path =
+        ClayScene::Annotations::cropAbsolutePath(m_crewDir, relative);
+    QString saveError;
+    if (!ClayScene::saveImage(shot.image, path, &saveError)) {
+        result["error"] = saveError;
+        return result;
+    }
+
+    result["crop"] = relative;
+    result["cropPath"] = path;
+    if (shot.image.width() != device.width()
+        || shot.image.height() != device.height())
+        result["cropClipped"] = true;
+    return result;
+}
+
+QVariantMap ClayInspector::attachAnnotation(const QString& id, const QRectF& rect)
+{
+    QJsonObject result;
+
+    auto* rootItem = sceneRoot();
+    const QJsonObject anchor = rootItem
+        ? ClayScene::resolveAnchor(rootItem, rect)
+        : QJsonObject{{"resolved", false}, {"reason", "no sandbox root"}};
+    result["anchor"] = anchor;
+
+    QJsonObject patch;
+    patch["anchor"] = anchor;
+
+    const QJsonObject crop = writeAnnotationCrop(id, rect);
+    if (crop.contains("error")) {
+        // The crop is evidence, not the record. Losing it must not lose the
+        // annotation, so the failure is reported and the entry says the crop
+        // is absent rather than pointing at a file that is not there.
+        result["cropError"] = crop.value("error");
+        patch["crop"] = QJsonValue::Null;
+    } else {
+        result["crop"] = crop.value("crop");
+        result["cropPath"] = crop.value("cropPath");
+        patch["crop"] = crop.value("crop");
+        if (crop.contains("cropClipped")) {
+            result["cropClipped"] = true;
+            patch["cropClipped"] = true;
+        }
+    }
+
+    QString error;
+    const bool stored =
+        ClayScene::Annotations::patchEntry(m_crewDir, id, patch, &error);
+    result["stored"] = stored;
+    if (!stored)
+        result["storeError"] = error;
+    return result.toVariantMap();
+}
+
+QVariantMap ClayInspector::resolveAnchor(const QRectF& rect) const
+{
+    auto* rootItem = sceneRoot();
+    if (!rootItem)
+        return QVariantMap{{"resolved", false}, {"reason", "no sandbox root"}};
+    return ClayScene::resolveAnchor(rootItem, rect).toVariantMap();
+}
+
+QVariantMap ClayInspector::reprojectAnchor(const QVariantMap& anchor) const
+{
+    auto* rootItem = sceneRoot();
+    if (!rootItem)
+        return QVariantMap{{"resolved", false}, {"reason", "no sandbox root"}};
+    return ClayScene::reproject(rootItem, QJsonObject::fromVariantMap(anchor))
+        .toVariantMap();
+}
+
+int ClayInspector::openAnnotationCount() const
+{
+    int open = 0;
+    for (const auto& value : ClayScene::Annotations::load(m_crewDir)) {
+        if (value.toObject().value("status").toString("open") != "addressed")
+            ++open;
+    }
+    return open;
 }
 
 void ClayInspector::attachDiagnostics(QJsonObject& response) const

@@ -110,6 +110,16 @@ clayrender Sandbox.qml --out shot.png \
   position, normal — plus the colour actually rendered there. Note that
   *instanced* geometry (a `LineBatch3D`) is not pickable in Qt Quick 3D; use
   `--dump` for those.
+- `--anchor x,y,w,h` answers what a framed *region* is about, which is the
+  question behind an annotation: the item or 3D node at its centre, with
+  `objectName`, `type`, `source` file and world position. It walks up from an
+  anonymous internal item to the nearest thing declared in a QML file on disk,
+  and it says `"resolved": false` with a reason rather than guessing when
+  nothing meaningful is there. Same machinery the dojo's annotation surface
+  uses, so this is how you check an anchor without a session. A resolved
+  anchor also carries `now` — where it projects *back* to on screen. An anchor
+  that lands somewhere other than where you framed is a bad anchor, and this
+  is the only place that is visible without a running instance.
 
 ## Exit codes
 

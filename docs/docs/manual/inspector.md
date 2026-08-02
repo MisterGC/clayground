@@ -14,7 +14,7 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 <sandbox-dir>/.clay/inspect/
 ├── request.json      ← you (or your tool) write this
 ├── response.json     ← the inspector writes this (atomically)
-├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount
+├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount, openAnnotations
 ├── events.jsonl      ← append-only event stream (5 MB one-level rotation)
 ├── log.jsonl         ← every console/Qt message: ts, level, category, text
 ├── dojo.json         ← dojo supervisor state (generation, crash info)
@@ -57,7 +57,7 @@ Every response carries a `status` object, whatever the action was (protocol v3):
 | `lastError`, `lastErrorAt` | The newer of the most recent QML error and how the supervisor's last child died — so a crash loop is visible even from a loader that logged nothing. |
 | `supervisorGaveUp` | Present and `true` when the dojo stopped respawning (see `dojo.json`'s `gave_up` phase and its `reason`). |
 
-Because `status` is reserved for the envelope, actions that acknowledge themselves use their own key: `reload` answers `reloadStatus`, `trace` answers `traceStatus`.
+Because `status` is reserved for the envelope, actions that acknowledge themselves use their own key: `reload` answers `reloadStatus`, `trace` answers `traceStatus`, `annotate` answers `annotateStatus`. `id` is reserved the same way — it is the caller's request-correlation id on every action, which is why `annotate` selects its target with `annotationId`.
 
 **On the supervisor side**, `claydojo` forwards the child's stdout as well as its stderr (a rejected command line prints its usage to stdout), rejects unknown positional arguments and missing `--sbx` files at the front door instead of passing them to the child, and stops respawning once the crash threshold is reached without any child ever having run stably — writing `phase: "gave_up"` and a `reason` into `dojo.json` and printing both. A silent infinite restart loop is the worst failure mode for headless use.
 
@@ -116,6 +116,56 @@ The response says what was actually produced: `screenshot` (the path written), `
 Returns `errors` and `warnings` as objects — `{generation, ts, text, file, line}`, with `file`/`line` filled in when the message carried a location — plus `errorCount`, `warningCount` and `truncated` (each buffer holds 200 entries). Unhandled QML/JS exceptions (`TypeError`, `ReferenceError`, …) arrive as warnings, so read both lists.
 
 The buffers are cleared before every reload, so a bare `errors` request means "what has gone wrong with the current scene". `sinceGeneration: N` drops everything older than generation N. Diagnostics raised while a load is in flight are tagged with the generation being *attempted*, so a reload that failed leaves its errors at `status.generation + 1` — findable even though the generation itself never advanced.
+
+### annotations / annotate — the user's remarks about the running scene
+
+```json
+{"action": "annotations"}
+{"action": "annotations", "status": "open", "sinceGeneration": 8}
+{"action": "annotate", "annotationId": "a7", "note": "raised the button to 44px and re-centred the label"}
+```
+
+The user frames regions over the running sandbox and writes a note on each (`Ctrl+F` opens the surface). Those notes are the spatial channel from them to you — the thing a screenshot with an arrow drawn on it used to be, except each one carries the region, an image of it, and where resolvable the *object* it is about.
+
+`annotations` lists them. Filters: `status` (`open`, `addressed`, `any`), `sinceGeneration` (drops everything from an older load), `limit`. Each entry carries what the surface stored — `id`, `created`, `generation`, `scope` (`region` or `scene`), `rect` (`null` for a scene-wide note), `note`, `view` — plus `status`, `addressedNote`, `addressedAt`, `anchor` and `crop`. The response adds `cropPath` (absolute, ready to read) when the crop file is there and `cropMissing: true` when it is not, and reports `total`, `openCount` and `addressedCount` alongside the filtered `count`. **A missing store is an empty list, not an error** — it only exists once something has been annotated.
+
+`"reproject": true` adds a `now` object per anchored entry: where that anchor is on screen *at this moment*, as `{x, y, rect, via, insideViewport}`. `via` is `objectName` when the object was found again and asked where it is, `world` when it is gone and the stored world point was projected through the live camera, `stored` when there was nothing to project against.
+
+`annotate` marks one addressed. It takes `annotationId` (**not** `id` — that key is the request's own correlation id on every action) and a `note` saying what you actually did; a mark without one is refused, because "addressed" with no explanation leaves the user re-deriving it from a diff. It answers `{annotated, annotateStatus: "addressed", addressedNote, addressedAt}`. It is the only write an agent gets: **nothing here deletes**. Re-opening, clearing addressed and wiping the store are the user's, in their own overlay.
+
+#### What an anchor is
+
+The rect is pixels, and pixels never fail — but they stop meaning anything the moment the camera moves. The anchor is the other half: *what* those pixels were about, resolved once when the annotation was made.
+
+```json
+"anchor": {"resolved": true, "kind": "2d", "objectName": "player",
+           "type": "RectBoxBody", "source": "Sandbox.qml",
+           "space": "world", "world": [5, 10], "at": [452, 372],
+           "under": "Rectangle"}
+```
+
+- `kind` — `2d` (an item, resolved through the item tree) or `3d` (a node, picked through the `View3D`).
+- `objectName` / `type` / `source` — enough to go straight to a source line instead of hunting. `objectName` is absent when the item has none.
+- `space` / `world` — read `world` according to `space`: `world` is canvas world units, `world3d` is Qt Quick 3D scene coordinates, `scene` is scene pixels (a plain GUI app has no world, and calling pixels "world" would be a lie you could not detect).
+- `at` — the viewport point the resolution used, i.e. the rect's centre.
+- `under` — the innermost thing actually at that point, when the reported anchor is something else. Resolution walks *up* from an anonymous internal item to the nearest thing a note can be acted on: something declared in a QML file on disk, preferring one with an `objectName`. `under` keeps that walk visible rather than silent.
+
+**An anchor can be unresolved, and that is a real answer:**
+
+```json
+"anchor": {"resolved": false, "at": [40, 40],
+           "reason": "nothing specific enough under 40,40 (innermost: Item)"}
+```
+
+Empty space, a shader effect, an item that just fills the whole viewport, and instanced geometry (a `LineBatch3D` or a `VoxelMap` — Qt Quick 3D cannot pick those; use `inspect` for them) all resolve to nothing. A wrong anchor is worse than none: it sends you to the wrong file with confidence. When an anchor is unresolved, the crop and the rect are still the whole record, and they are enough.
+
+#### The crop, and where all this lives
+
+The store is `<sandboxDir>/.clay/crew/annotations/index.json`, with one PNG per annotation beside it. The crop is taken **once, when the annotation is made**, and never refreshed — it freezes the evidence, so what you look at is what the user framed rather than a scene that has moved on since.
+
+A rect that hangs partly off-screen yields the part that was visible, flagged with `cropClipped: true`. A rect entirely outside the viewport yields no crop at all: `crop` is `null` and the failure is reported. That is deliberate — a clamped crop of somewhere else would be a picture of the wrong thing — and it costs nothing, because the note and the rect are the record; the crop is evidence about it.
+
+Two writers share the store (the overlay creates entries, the inspector marks them addressed), so every write re-reads the file, patches only its own fields and commits atomically. Editing `index.json` by hand while a session runs is safe.
 
 ### eval — Expression evaluation
 

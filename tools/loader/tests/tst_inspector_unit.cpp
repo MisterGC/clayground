@@ -5,7 +5,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QTemporaryDir>
+#include <QDir>
 #include <QFile>
+#include <QRectF>
 
 #include "clayinspector.h"
 
@@ -42,6 +44,7 @@ private slots:
     void testBatchStopsAtFirstFailingStep();
     void testBatchStepNeedsAnAction();
     void testBatchRejectsNesting();
+    void annotationCropFailureKeepsTheAnnotation();
 
 private:
     // Round-trips one request through the file protocol and returns the
@@ -892,6 +895,58 @@ void TestInspectorUnit::testBatchRejectsNesting()
     empty["steps"] = QJsonArray{};
     auto eresp = roundtrip(inspector, tmpDir.path(), empty);
     QVERIFY(eresp["error"].toString().contains("empty"));
+}
+
+// The overlay's creation-side call, when there is no scene to capture or to
+// resolve against. Neither failure may cost the annotation: the note and the
+// rect are the record, the crop and the anchor are evidence about it.
+void TestInspectorUnit::annotationCropFailureKeepsTheAnnotation()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+
+    const QString crew = tmpDir.path() + "/.clay/crew";
+    QDir().mkpath(crew + "/annotations");
+    QJsonObject entry{
+        {"id", "a1"},
+        {"created", "2026-08-02T10:11:12"},
+        {"generation", 2},
+        {"scope", "region"},
+        {"rect", QJsonArray{10, 20, 30, 40}},
+        {"note", "the label is clipped"},
+        {"status", "open"},
+    };
+    QJsonObject doc{{"version", 1}, {"annotations", QJsonArray{entry}}};
+    QFile store(crew + "/annotations/index.json");
+    QVERIFY(store.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    store.write(QJsonDocument(doc).toJson());
+    store.close();
+
+    auto result = inspector.attachAnnotation("a1", QRectF(10, 20, 30, 40));
+    QVERIFY(result.value("stored").toBool());
+    QVERIFY(!result.value("cropError").toString().isEmpty());
+    QCOMPARE(result.value("anchor").toMap().value("resolved").toBool(), false);
+
+    QVERIFY(store.open(QIODevice::ReadOnly));
+    auto written = QJsonDocument::fromJson(store.readAll())
+                       .object().value("annotations").toArray()
+                       .at(0).toObject();
+    store.close();
+    // The user's fields untouched, the crop honestly absent rather than
+    // pointing at a file that was never written.
+    QCOMPARE(written.value("note").toString(), QStringLiteral("the label is clipped"));
+    QCOMPARE(written.value("generation").toInt(), 2);
+    QCOMPARE(written.value("status").toString(), QStringLiteral("open"));
+    QVERIFY(written.value("crop").isNull());
+    QCOMPARE(written.value("anchor").toObject().value("resolved").toBool(), false);
+
+    // And an id nobody created is a reported failure, not a silent write.
+    auto orphan = inspector.attachAnnotation("nope", QRectF(0, 0, 5, 5));
+    QVERIFY(!orphan.value("stored").toBool());
+    QVERIFY(orphan.value("storeError").toString().contains("nope"));
 }
 
 QTEST_MAIN(TestInspectorUnit)
