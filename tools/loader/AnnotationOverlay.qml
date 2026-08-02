@@ -9,14 +9,22 @@ import QtQuick.Controls
 //
 // Two kinds of note, one view. The scene-level note sits at the top of the
 // margin panel (this is what Ctrl+F used to produce in one shot). Region
-// notes are framed on the scene and written in the margin below it, joined by
-// a leader line - text never floats over the pixels it is about.
+// notes are framed on the scene and written in the margin below it - text
+// never floats over the pixels it is about.
 //
 // The panel FLOATS over the scene rather than taking layout space from it. The
 // sandbox keeps its full size while the surface is open: shrinking it would
 // reflow every responsive layout and change the very thing being annotated,
 // and it would put a third of the viewport out of reach of a frame. Tab folds
 // the panel away when it is in front of what you want to look at.
+//
+// A frame and its card used to be joined by a drawn leader line. That is gone.
+// A line only means something while the two ends hold still relative to each
+// other, and the panel now floats, folds and scrolls - the lines crossed the
+// panel, pointed at cards that were not there, and vanished on Tab. What
+// replaces them is a PAIRING: the matching number on frame and card is the
+// static cue, and picking either end lights up the other. Hover previews the
+// pair, a click makes it stick, and the two never look alike.
 Item {
     id: root
 
@@ -28,9 +36,11 @@ Item {
     // Half the height, parked at the bottom: the top-left of a scene is where
     // most of it lives, so that is the corner the panel never covers.
     readonly property int dockH: Math.max(260, Math.round(height * 0.5))
-    readonly property color ink: "#6E2A1C"
-    readonly property color edge: "#B23A2A"
+    // Frames are pink, the picked pair is gold, addressed is teal - the same
+    // three the panel already used. No new colour comes in with the pairing:
+    // gold was already "this is the one", it just now means it at both ends.
     readonly property color accent: "#ff3366"
+    readonly property color pick: "#ffd93d"
 
     // Folded state belongs to the store, not here - the surface is rebuilt
     // with every engine, and a panel that unfolds itself on each hot reload is
@@ -42,11 +52,54 @@ Item {
     // being typed in.
     property var items: []
     property var regionItems: []
+    // At most one of each, ever. Two selections would make "the other end" a
+    // question rather than an answer.
     property string selectedId: ""
+    property string hoveredId: ""
     property string sceneId: ""
     property bool wipeArmed: false
+    // How many times the list actually moved. The scroll rule is "only when
+    // the card cannot be seen", and the only way to hold that rule honest is
+    // to be able to count the moves that did not need to happen.
+    property int scrollCount: 0
 
     FontLoader { id: hand; source: "qrc:/clayground/fonts/Caveat.ttf" }
+
+    // Picking one end of a pair. `reveal` is set when the pick came from the
+    // scene, where the card may be scrolled out of sight; a pick made IN the
+    // list needs no scrolling, because you were already looking at it.
+    function selectAnnotation(id, reveal) {
+        selectedId = id;
+        if (reveal) revealCard(id);
+    }
+
+    function clearSelection() { selectedId = ""; }
+
+    function setHovered(id, on) {
+        if (on) hoveredId = id;
+        else if (hoveredId === id) hoveredId = "";
+    }
+
+    function revealCard(id) {
+        for (var i = 0; i < regionItems.length; ++i) {
+            if (regionItems[i].id === id) {
+                var card = noteRepeater.itemAt(i);
+                if (card) notesFlick.ensureVisible(card);
+                return;
+            }
+        }
+    }
+
+    // A card that has just been added is not yet where it is going to be: the
+    // delegate exists but the column lays out on the next frame, so asking to
+    // scroll to it now measures a position it does not have. Selecting an
+    // existing frame needs none of this - nothing moved.
+    Timer {
+        id: revealLater
+        interval: 32
+        property string annId: ""
+        onTriggered: root.revealCard(annId)
+    }
 
     function sync() {
         var all = ClayAnnotations.annotations;
@@ -60,7 +113,6 @@ Item {
         for (var j = 0; j < all.length; ++j)
             if (all[j].id === sceneId) scene = all[j];
         sceneNote.noteText = scene ? scene.note : "";
-        leaders.requestPaint();
     }
 
     // Called from MainWindow when the surface is shown.
@@ -69,6 +121,11 @@ Item {
         // Placeholders left behind by a run that ended without a close.
         ClayAnnotations.dropEmptyNotes();
         wipeArmed = false;
+        // A session starts with nothing picked: the selection from last time
+        // would be pointing at a scene you have since walked away from.
+        selectedId = "";
+        hoveredId = "";
+        scrollCount = 0;
         sync();
         if (root.collapsed) root.forceActiveFocus();
         else sceneNote.focusEditor();
@@ -98,7 +155,6 @@ Item {
         ClayAnnotations.panelCollapsed = !ClayAnnotations.panelCollapsed;
         if (ClayAnnotations.panelCollapsed)
             root.forceActiveFocus();
-        leaders.requestPaint();
     }
 
     function commitSceneNote(text) {
@@ -124,10 +180,12 @@ Item {
         for (var i = 0; i < regionItems.length; ++i) {
             if (regionItems[i].id === id) {
                 var card = noteRepeater.itemAt(i);
-                if (card) { notesFlick.ensureVisible(card); card.focusEditor(); }
+                if (card) card.focusEditor();
                 break;
             }
         }
+        revealLater.annId = id;
+        revealLater.restart();
     }
 
     function removeAnnotation(id) {
@@ -185,9 +243,20 @@ Item {
                 dragging = false;
                 var w = band.width, h = band.height;
                 var x = band.x, y = band.y;
+                var isClick = (w < 24 || h < 24);
+                // Empty scene, no drag, something picked: that is how you let
+                // go of a pair. Esc is not available for it - Esc closes the
+                // surface and always has. A drag always frames, and a click
+                // with nothing picked frames too, so this costs a gesture only
+                // when you are actually holding one.
+                if (isClick && root.selectedId !== "") {
+                    band.width = 0; band.height = 0;
+                    root.clearSelection();
+                    return;
+                }
                 // A plain click still gets you something grabbable - a
                 // zero-size rect would be a marker you cannot take hold of.
-                if (w < 24 || h < 24) {
+                if (isClick) {
                     w = 150; h = 100;
                     x = mouse.x - w / 2; y = mouse.y - h / 2;
                 }
@@ -195,41 +264,6 @@ Item {
                 y = Math.max(0, Math.min(y, height - h));
                 band.width = 0; band.height = 0;
                 root.createRegion(x, y, w, h);
-            }
-        }
-
-        Canvas {
-            id: leaders
-            anchors.fill: parent
-            onPaint: {
-                var ctx = getContext("2d");
-                ctx.reset();
-                if (root.collapsed) return;
-                ctx.strokeStyle = root.edge;
-                ctx.lineWidth = 1.5;
-                for (var i = 0; i < regionRepeater.count; ++i) {
-                    var reg = regionRepeater.itemAt(i);
-                    var card = noteRepeater.itemAt(i);
-                    if (!reg || !card || !reg.visible || !card.visible) continue;
-                    var to = card.mapToItem(leaders, card.tailPoint.x,
-                                            card.tailPoint.y);
-                    // The frame can sit anywhere now, the panel included, so
-                    // the line leaves it by whichever edge faces the card.
-                    var from;
-                    if (to.x >= reg.x + reg.width)
-                        from = Qt.point(reg.x + reg.width, reg.y + reg.height / 2);
-                    else if (to.x <= reg.x)
-                        from = Qt.point(reg.x, reg.y + reg.height / 2);
-                    else
-                        from = Qt.point(reg.x + reg.width / 2,
-                                        to.y < reg.y + reg.height / 2
-                                            ? reg.y : reg.y + reg.height);
-                    ctx.beginPath();
-                    ctx.moveTo(from.x, from.y);
-                    var mx = (from.x + to.x) / 2;
-                    ctx.bezierCurveTo(mx, from.y, mx, to.y, to.x, to.y);
-                    ctx.stroke();
-                }
             }
         }
 
@@ -248,18 +282,17 @@ Item {
                 // correspond to it - a detached note lives in the margin only.
                 visible: modelData.attached && modelData.status === "open"
                 enabled: visible
+                baseColor: root.accent
+                highlightColor: root.pick
                 selected: root.selectedId === modelData.id
-                frameColor: root.selectedId === modelData.id ? "#ffd93d"
-                                                             : root.accent
-                onSelectRequested: root.selectedId = modelData.id
-                onGeometryEdited: {
-                    ClayAnnotations.setRect(annId, Qt.rect(x, y, width, height));
-                    leaders.requestPaint();
-                }
-                onXChanged: leaders.requestPaint()
-                onYChanged: leaders.requestPaint()
-                onWidthChanged: leaders.requestPaint()
-                onHeightChanged: leaders.requestPaint()
+                hovered: root.hoveredId === modelData.id
+                          && root.selectedId !== modelData.id
+                // Picked from the scene, so the card may well be somewhere
+                // down the list - this is the one direction that scrolls.
+                onSelectRequested: root.selectAnnotation(modelData.id, true)
+                onHoverRequested: function(on) { root.setHovered(modelData.id, on) }
+                onGeometryEdited: ClayAnnotations.setRect(
+                    annId, Qt.rect(x, y, width, height))
             }
         }
 
@@ -497,8 +530,13 @@ Item {
                     detachable: sceneNote.noteText !== ""
                     handFamily: hand.name
                     placeholder: "the lighting is too dark ..."
+                    accent: root.accent
+                    highlight: root.pick
                     onNoteCommitted: function(text) { root.commitSceneNote(text) }
                     onSubmitted: root.closeRequested()
+                    // The subject moved to the whole scene, so no single frame
+                    // is the one being talked about any more.
+                    onSelectRequested: root.clearSelection()
                     onRemoveRequested: {
                         if (root.sceneId !== "") root.removeAnnotation(root.sceneId);
                         sceneNote.noteText = "";
@@ -523,6 +561,7 @@ Item {
 
             Flickable {
                 id: notesFlick
+                objectName: "annotationNotes"
                 anchors.top: head.bottom
                 anchors.topMargin: 6
                 anchors.left: parent.left
@@ -533,14 +572,35 @@ Item {
                 clip: true
                 contentHeight: noteColumn.height
                 boundsBehavior: Flickable.StopAtBounds
-                onContentYChanged: leaders.requestPaint()
 
+                // Deliberately NOT a Behavior on contentY: that would animate
+                // the wheel and the scrollbar too, and a list that lags your
+                // own dragging is a list that feels broken.
+                NumberAnimation {
+                    id: scrollTo
+                    target: notesFlick
+                    property: "contentY"
+                    duration: 170
+                    easing.type: Easing.OutCubic
+                }
+
+                // Scroll ON DEMAND. If the card is already on screen this does
+                // nothing at all: a list that jumps when nothing needed to
+                // move costs you your place for no reason, which is worse than
+                // one that never moves.
                 function ensureVisible(item) {
-                    var top = item.y;
-                    var bottom = item.y + item.height;
-                    if (top < contentY) contentY = top;
-                    else if (bottom > contentY + height)
-                        contentY = Math.max(0, bottom - height);
+                    var pad = 6;
+                    var target = contentY;
+                    if (item.y - pad < contentY)
+                        target = Math.max(0, item.y - pad);
+                    else if (item.y + item.height + pad > contentY + height)
+                        target = Math.max(0, item.y + item.height + pad - height);
+                    target = Math.min(target, Math.max(0, contentHeight - height));
+                    if (Math.abs(target - contentY) < 1.0) return;
+                    root.scrollCount += 1;
+                    scrollTo.stop();
+                    scrollTo.to = target;
+                    scrollTo.start();
                 }
 
                 ScrollBar.vertical: ScrollBar { }
@@ -549,12 +609,12 @@ Item {
                     id: noteColumn
                     width: notesFlick.width
                     spacing: 8
-                    onHeightChanged: leaders.requestPaint()
 
                     Repeater {
                         id: noteRepeater
                         model: root.regionItems
                         AnnotationNote {
+                            objectName: "annotationCard"
                             width: noteColumn.width
                             annId: modelData.id
                             idx: index
@@ -563,16 +623,30 @@ Item {
                             status: modelData.status
                             addressedNote: modelData.addressedNote
                             attached: modelData.attached
+                            accent: root.accent
+                            highlight: root.pick
                             placeholder: "what is wrong here?"
                             selected: root.selectedId === modelData.id
+                            hovered: root.hoveredId === modelData.id
+                                      && root.selectedId !== modelData.id
                             onNoteCommitted: function(text) {
                                 ClayAnnotations.setNote(annId, text);
                             }
-                            onSubmitted: root.forceActiveFocus()
-                            onSelectRequested: root.selectedId = modelData.id
+                            // Done with this one: the pair lets go, so the
+                            // next click on the scene frames rather than
+                            // deselects.
+                            onSubmitted: {
+                                root.clearSelection();
+                                root.forceActiveFocus();
+                            }
+                            // Picked in the list, where it is by definition
+                            // already visible - nothing to scroll to.
+                            onSelectRequested: root.selectAnnotation(modelData.id,
+                                                                    false)
+                            onHoverRequested: function(on) {
+                                root.setHovered(modelData.id, on);
+                            }
                             onRemoveRequested: root.removeAnnotation(annId)
-                            onYChanged: leaders.requestPaint()
-                            onHeightChanged: leaders.requestPaint()
                         }
                     }
                 }
@@ -592,12 +666,19 @@ Item {
                     color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
                 }
                 Text {
-                    text: "drag  frame a region   ·   click  default rect"
+                    text: "drag  frame   ·   click  rect   ·   Enter  save"
                     color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
                 }
+                // The one line that changes: holding a pick is the only state
+                // in which clicking the empty scene means something other than
+                // framing, so it is the only state that says so. Four lines
+                // either way - the list is short enough already.
                 Text {
-                    text: "Enter  save (scene note also closes)"
-                    color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
+                    text: root.selectedId !== ""
+                          ? "click empty scene  ·  drop the pick"
+                          : "click a frame or its card  ·  they pair"
+                    color: root.selectedId !== "" ? "#ffd93d" : "#6f7680"
+                    font.family: "monospace"; font.pixelSize: 10
                 }
                 Text {
                     text: "Ctrl+Shift+F  clear addressed"
@@ -606,10 +687,6 @@ Item {
             }
         }
     }
-
-    onCollapsedChanged: leaders.requestPaint()
-    onWidthChanged: leaders.requestPaint()
-    onHeightChanged: leaders.requestPaint()
 
     // The store changes under us when an agent marks something addressed. A
     // generation bump rebuilds every card, so whatever was half-typed goes in

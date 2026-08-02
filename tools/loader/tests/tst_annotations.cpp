@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QSettings>
@@ -20,6 +21,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+
+#include <functional>
 
 class TestAnnotations : public QObject
 {
@@ -46,6 +49,17 @@ private slots:
     void framesRegionInTheRightThird();
     void tabFoldsThePanelAndItStaysFolded();
     void commitsFocusedNoteWhenTheSurfaceCloses();
+
+    // --- selection pairing (replaces the leader lines) ---
+    void pairsFrameAndCardBothWays();
+    void scrollsOnlyWhenTheCardIsOutOfView();
+    void noLeaderLinesAreDrawn();
+    void detachedAnnotationHighlightsNoFrame();
+    void badgeStaysLegibleAtTheEdge();
+
+    // Off unless asked for - see the comments on the slots.
+    void capturesPairingShots();
+    void capturesDetachedShot();
 
 private:
     QString readIndex() const;
@@ -696,19 +710,22 @@ void TestAnnotations::surfaceKeepsRegionsAcrossToggle()
     QVERIFY(surface->isVisible());
 
     // Three plain clicks - a click makes a rect on purpose - but only the last
-    // one gets written on.
+    // one gets written on. Enter after each: it saves the note and lets go of
+    // the pair, which is what leaves the next click free to frame rather than
+    // to drop the selection.
     const QList<QPoint> spots{{120, 120}, {420, 120}, {120, 420}};
-    for (const QPoint& p : spots) {
-        QTest::mouseClick(surface, Qt::LeftButton, {}, p);
+    for (int i = 0; i < spots.size(); ++i) {
+        QTest::mouseClick(surface, Qt::LeftButton, {}, spots.at(i));
         QTest::qWait(300);
+        if (i == spots.size() - 1)
+            QTest::keyClicks(surface, "the third one matters");
+        QTest::keyClick(surface, Qt::Key_Return);
+        QTest::qWait(250);
     }
     QCOMPARE(regionsOf(surface).size(), 3);
     for (const auto& r : regionsOf(surface))
         QVERIFY2(r.toMap().value("attached").toBool(),
                  "a region was detached the moment it was framed");
-
-    QTest::keyClicks(surface, "the third one matters");
-    QTest::qWait(900);
 
     // Out and back in on the same key the user uses.
     QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
@@ -1045,6 +1062,532 @@ void TestAnnotations::commitsFocusedNoteWhenTheSurfaceCloses()
             found = true;
     }
     QVERIFY2(found, "a note still being typed was lost when the window closed");
+}
+
+// ------------------------------------------------------- selection pairing
+// The leader lines are gone (they crossed the floating panel, pointed at cards
+// that had scrolled away, and drew nothing at all once Tab folded the panel).
+// What ties a frame to its card now is the matching number plus a selection
+// that lights up both ends at once.
+
+namespace {
+
+// Bring the surface up over a throwaway sandbox. Everything below needs the
+// same six lines, and the sandbox has to outlive the window.
+struct Surface
+{
+    QTemporaryDir dir;
+    QString sbxPath;
+    ClayLiveLoader loader;
+    MainWindow* window = nullptr;
+    QQuickWidget* widget = nullptr;
+    QQuickItem* root = nullptr;
+
+    // `over` names a real sandbox to open instead of the throwaway one - that
+    // is how the surface gets looked at over something other than a grey
+    // rectangle.
+    bool open(const QString& over = QString())
+    {
+        if (!over.isEmpty()) {
+            sbxPath = over;
+        } else {
+            if (!dir.isValid())
+                return false;
+            sbxPath = dir.path() + "/Sandbox.qml";
+            if (!QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath))
+                return false;
+        }
+        loader.addSandboxes({sbxPath});
+        loader.setSbxIndex(0);
+        window = new MainWindow(&loader);
+        window->resize(1000, 700);
+        window->show();
+        // Raised and active on purpose: a screen capture photographs whatever
+        // is in front, so a window sitting behind the terminal would produce a
+        // picture of the terminal.
+        window->raise();
+        window->activateWindow();
+        if (!QTest::qWaitForWindowExposed(window))
+            return false;
+        QTest::qWait(1500);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QTest::qWait(600);
+        return refresh();
+    }
+
+    // The surface is rebuilt with the engine, so a hot reload invalidates
+    // every pointer held here.
+    bool refresh()
+    {
+        widget = annotationSurface(*window);
+        root = widget ? widget->rootObject() : nullptr;
+        return widget && widget->isVisible() && root;
+    }
+
+    ~Surface()
+    {
+        if (window) {
+            window->close();
+            delete window;
+        }
+    }
+};
+
+// Frame a region by clicking, write its note, and press Enter - which saves
+// and lets go of the pair, leaving the next click free to frame.
+void frameAndWrite(QQuickWidget* surface, const QPoint& at, const QString& note)
+{
+    QTest::mouseClick(surface, Qt::LeftButton, {}, at);
+    QTest::qWait(300);
+    QTest::keyClicks(surface, note);
+    QTest::qWait(150);
+    QTest::keyClick(surface, Qt::Key_Return);
+    QTest::qWait(250);
+}
+
+// A point on a margin card, in the surface widget's coordinates. The surface
+// covers the whole window at 0,0, so scene coordinates are widget ones.
+QPoint pointOn(QQuickItem* card, qreal dx, qreal dy)
+{
+    return card->mapToScene(QPointF(dx, dy)).toPoint();
+}
+
+QPoint centreOfRegion(const QVariantMap& m)
+{
+    return QPoint(qRound(m.value("rectX").toDouble() + m.value("rectW").toDouble() / 2),
+                  qRound(m.value("rectY").toDouble() + m.value("rectH").toDouble() / 2));
+}
+
+QQuickItem* visibleMarkerAt(QQuickItem* root, int idx)
+{
+    const auto markers = itemsNamed(root, "annotationRegion");
+    return idx < markers.size() ? markers.at(idx) : nullptr;
+}
+
+} // namespace
+
+// Both directions of the pairing, plus the two things that keep a selection
+// meaningful: hover only previews it, and clicking empty scene drops it.
+void TestAnnotations::pairsFrameAndCardBothWays()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    frameAndWrite(s.widget, QPoint(120, 120), "the first one");
+    frameAndWrite(s.widget, QPoint(350, 120), "the second one");
+
+    const QVariantList regions = regionsOf(s.widget);
+    QCOMPARE(regions.size(), 2);
+    const QString id1 = regions.at(0).toMap().value("id").toString();
+    const QString id2 = regions.at(1).toMap().value("id").toString();
+    // Enter let go of the pair, so nothing is carried into the test.
+    QCOMPARE(s.root->property("selectedId").toString(), QString());
+
+    auto cards = itemsNamed(s.root, "annotationCard");
+    QCOMPARE(cards.size(), 2);
+
+    // --- scene -> panel: click the frame, the card lights up ---------------
+    QTest::mouseClick(s.widget, Qt::LeftButton, {},
+                      centreOfRegion(regions.at(0).toMap()));
+    QTest::qWait(300);
+    QCOMPARE(s.root->property("selectedId").toString(), id1);
+    QVERIFY2(cards.at(0)->property("selected").toBool(),
+             "selecting a frame did not mark its card");
+    QVERIFY(!cards.at(1)->property("selected").toBool());
+    QVERIFY2(visibleMarkerAt(s.root, 0)->property("selected").toBool(),
+             "the frame did not mark itself");
+    QVERIFY(!visibleMarkerAt(s.root, 1)->property("selected").toBool());
+
+    // --- panel -> scene: click the card, the frame lights up ---------------
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, pointOn(cards.at(1), 5, 20));
+    QTest::qWait(300);
+    QCOMPARE(s.root->property("selectedId").toString(), id2);
+    QVERIFY2(visibleMarkerAt(s.root, 1)->property("selected").toBool(),
+             "selecting a card did not mark its frame");
+    QVERIFY(!visibleMarkerAt(s.root, 0)->property("selected").toBool());
+
+    // --- hover previews, it does not choose --------------------------------
+    QTest::mouseMove(s.widget, centreOfRegion(regions.at(0).toMap()));
+    QTest::qWait(300);
+    QCOMPARE(s.root->property("hoveredId").toString(), id1);
+    QVERIFY2(cards.at(0)->property("hovered").toBool(),
+             "hovering a frame did not preview its card");
+    QVERIFY2(s.root->property("selectedId").toString() == id2,
+             "a hover moved the selection - hover must never choose");
+    // A previewed card is never also a selected one, or the two would be
+    // indistinguishable exactly where it matters.
+    QVERIFY(!cards.at(0)->property("selected").toBool());
+    QVERIFY(!cards.at(1)->property("hovered").toBool());
+
+    // Off the frame again and the preview goes with it.
+    QTest::mouseMove(s.widget, QPoint(560, 300));
+    QTest::qWait(300);
+    QCOMPARE(s.root->property("hoveredId").toString(), QString());
+
+    // --- empty scene drops the pick, and Esc is left alone -----------------
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, QPoint(560, 300));
+    QTest::qWait(300);
+    QCOMPARE(s.root->property("selectedId").toString(), QString());
+    QVERIFY2(regionsOf(s.widget).size() == 2,
+             "the deselecting click framed a region as well");
+    QVERIFY2(s.widget->isVisible(), "deselecting closed the surface");
+
+    // With nothing held, the very same click frames again.
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, QPoint(560, 300));
+    QTest::qWait(300);
+    QCOMPARE(regionsOf(s.widget).size(), 3);
+}
+
+// The rule: bring a card into view when it cannot be seen, and do not move the
+// list by so much as a pixel when it can. A list that jumps for no reason
+// costs you your place.
+void TestAnnotations::scrollsOnlyWhenTheCardIsOutOfView()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    const QList<QPoint> spots{{90, 70}, {260, 70}, {430, 70}, {90, 200}, {260, 200}};
+    for (int i = 0; i < spots.size(); ++i)
+        frameAndWrite(s.widget, spots.at(i), QStringLiteral("note %1").arg(i + 1));
+    QCOMPARE(regionsOf(s.widget).size(), 5);
+
+    auto* flick = itemNamed(s.root, "annotationNotes");
+    QVERIFY(flick);
+    // Without an overflowing list there is nothing to prove either way.
+    QVERIFY2(flick->property("contentHeight").toReal() > flick->height() + 20,
+             "the list fits - this test cannot say anything about scrolling");
+
+    // The last card was brought into view as it was created, so the top of the
+    // list is off screen right now.
+    const qreal parked = flick->property("contentY").toReal();
+    QVERIFY2(parked > 1.0, "the list never scrolled to the card being written");
+
+    // --- out of view: the list moves --------------------------------------
+    const int before = s.root->property("scrollCount").toInt();
+    QTest::mouseClick(s.widget, Qt::LeftButton, {},
+                      centreOfRegion(regionsOf(s.widget).at(0).toMap()));
+    QTest::qWait(500);   // the scroll is animated, ~170ms
+    QCOMPARE(s.root->property("scrollCount").toInt(), before + 1);
+    QVERIFY2(flick->property("contentY").toReal() < parked - 1.0,
+             "the first card was out of view and the list did not scroll to it");
+
+    auto cards = itemsNamed(s.root, "annotationCard");
+    QCOMPARE(cards.size(), 5);
+    const qreal settled = flick->property("contentY").toReal();
+    QVERIFY2(cards.at(0)->y() >= settled - 1.0
+                 && cards.at(0)->y() + cards.at(0)->height()
+                        <= settled + flick->height() + 1.0,
+             "the card was scrolled to but still is not fully visible");
+
+    // --- already visible: the list holds still ----------------------------
+    QTest::mouseClick(s.widget, Qt::LeftButton, {},
+                      centreOfRegion(regionsOf(s.widget).at(0).toMap()));
+    QTest::qWait(500);
+    QCOMPARE(s.root->property("scrollCount").toInt(), before + 1);
+    QCOMPARE(flick->property("contentY").toReal(), settled);
+
+    // A card picked IN the list never scrolls either - you were looking at it.
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, pointOn(cards.at(1), 5, 20));
+    QTest::qWait(400);
+    QCOMPARE(s.root->property("scrollCount").toInt(), before + 1);
+    QCOMPARE(flick->property("contentY").toReal(), settled);
+}
+
+// Nothing is drawn between a frame and its card any more. The leader layer was
+// a Canvas over the scene area and the cards grew a tail to meet it; both are
+// deleted, not merely hidden.
+void TestAnnotations::noLeaderLinesAreDrawn()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    frameAndWrite(s.widget, QPoint(120, 120), "one");
+    frameAndWrite(s.widget, QPoint(350, 260), "two");
+    QCOMPARE(regionsOf(s.widget).size(), 2);
+
+    auto* scene = itemNamed(s.root, "annotationSceneArea");
+    QVERIFY(scene);
+
+    // Walk everything the scene area draws - Repeater delegates included,
+    // which findChildren() would miss.
+    QList<QQuickItem*> all;
+    std::function<void(QQuickItem*)> walk = [&](QQuickItem* it) {
+        if (!it)
+            return;
+        all.append(it);
+        for (auto* k : it->childItems())
+            walk(k);
+    };
+    walk(scene);
+    QVERIFY(all.size() > 2);
+
+    for (auto* it : all) {
+        const QString cls = QString::fromLatin1(it->metaObject()->className());
+        QVERIFY2(!cls.contains("Canvas"),
+                 qPrintable("a canvas is still being drawn over the scene: "
+                            + cls + " " + it->objectName()));
+    }
+
+    // The card no longer carries the leader's attachment point either.
+    auto cards = itemsNamed(s.root, "annotationCard");
+    QCOMPARE(cards.size(), 2);
+    QVERIFY2(!cards.at(0)->property("tailPoint").isValid(),
+             "the card still exposes a leader-line anchor");
+    QVERIFY2(!cards.at(0)->property("tailW").isValid(),
+             "the card still reserves room for a leader tail");
+}
+
+// A detached note has no place on the scene at all. Picking it must highlight
+// the card and mark nothing - and say so, because silence would read as a
+// broken highlight rather than as an absent frame.
+void TestAnnotations::detachedAnnotationHighlightsNoFrame()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    // Empty space, so there is no anchor to re-project from after the reload.
+    frameAndWrite(s.widget, QPoint(600, 200), "nothing in particular");
+    QCOMPARE(regionsOf(s.widget).size(), 1);
+    QVERIFY(regionsOf(s.widget).at(0).toMap().value("attached").toBool());
+
+    // A new engine, a new scene: the fingerprint cannot apply any more.
+    QFile sbx(s.sbxPath);
+    QVERIFY(sbx.open(QIODevice::Append));
+    sbx.write("\n// touched\n");
+    sbx.close();
+    QTest::qWait(4000);
+    QVERIFY(s.refresh());
+
+    const QVariantList regions = regionsOf(s.widget);
+    QCOMPARE(regions.size(), 1);
+    QVERIFY2(!regions.at(0).toMap().value("attached").toBool(),
+             "the annotation did not detach across the reload");
+    const QString id = regions.at(0).toMap().value("id").toString();
+
+    // No frame is drawn for it, so there is nothing on the scene to click.
+    for (auto* marker : itemsNamed(s.root, "annotationRegion"))
+        QVERIFY2(!marker->isVisible(),
+                 "a detached annotation is still drawn on the scene");
+
+    auto cards = itemsNamed(s.root, "annotationCard");
+    QCOMPARE(cards.size(), 1);
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, pointOn(cards.at(0), 5, 20));
+    QTest::qWait(300);
+
+    QCOMPARE(s.root->property("selectedId").toString(), id);
+    QVERIFY2(cards.at(0)->property("selected").toBool(),
+             "picking a detached card did not mark it");
+    // The card knows it has no counterpart, which is what lets it say so
+    // instead of leaving you hunting the scene for a highlight.
+    QVERIFY2(cards.at(0)->property("frameless").toBool(),
+             "a detached card does not know that no frame corresponds to it");
+
+    // And nothing on the scene claims to be the other end.
+    for (auto* marker : itemsNamed(s.root, "annotationRegion")) {
+        QVERIFY2(!(marker->isVisible() && marker->property("selected").toBool()),
+                 "selecting a detached annotation marked a frame anyway");
+    }
+}
+
+// The number is the only static thing that says a frame and a card belong
+// together, so it may never be clipped away. It sits above the frame when
+// there is room, drops inside when the frame hugs the top edge, and slides
+// along to stay inside sideways - and it keeps its size when the frame is
+// tiny, sticking out of a 24px frame rather than shrinking to match it.
+void TestAnnotations::badgeStaysLegibleAtTheEdge()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    auto* scene = itemNamed(s.root, "annotationSceneArea");
+    QVERIFY(scene);
+    const qreal W = scene->width();
+    const qreal H = scene->height();
+
+    // Jammed into the top-left corner, and small.
+    QTest::mousePress(s.widget, Qt::LeftButton, {}, QPoint(2, 2));
+    for (int i = 1; i <= 4; ++i)
+        QTest::mouseMove(s.widget, QPoint(2 + i * 8, 2 + i * 8));
+    QTest::mouseRelease(s.widget, Qt::LeftButton, {}, QPoint(34, 34));
+    QTest::qWait(300);
+    QTest::keyClicks(s.widget, "in the corner");
+    QTest::qWait(250);
+    QTest::keyClick(s.widget, Qt::Key_Return);
+    QTest::qWait(250);
+
+    // ... and one shoved against the right edge.
+    QTest::mousePress(s.widget, Qt::LeftButton, {}, QPoint(qRound(W) - 60, 300));
+    for (int i = 1; i <= 4; ++i)
+        QTest::mouseMove(s.widget, QPoint(qRound(W) - 60 + i * 14, 300 + i * 12));
+    QTest::mouseRelease(s.widget, Qt::LeftButton, {}, QPoint(qRound(W) + 40, 350));
+    QTest::qWait(300);
+    QTest::keyClicks(s.widget, "against the edge");
+    QTest::qWait(250);
+    QTest::keyClick(s.widget, Qt::Key_Return);
+    QTest::qWait(250);
+
+    const auto badges = itemsNamed(s.root, "annotationRegionBadge");
+    QCOMPARE(badges.size(), 2);
+    for (auto* b : badges) {
+        QVERIFY2(b->isVisible(), "a frame carries no number");
+        QVERIFY2(b->width() >= 18.0 && b->height() >= 14.0,
+                 "the number shrank with its frame");
+        const QRectF r = b->mapRectToItem(scene,
+                                          QRectF(0, 0, b->width(), b->height()));
+        QVERIFY2(r.left() >= -0.5 && r.top() >= -0.5,
+                 qPrintable(QStringLiteral("the number is clipped off the top "
+                                           "or left: %1,%2")
+                                .arg(r.left()).arg(r.top())));
+        QVERIFY2(r.right() <= W + 0.5 && r.bottom() <= H + 0.5,
+                 qPrintable(QStringLiteral("the number runs off the viewport: "
+                                           "%1,%2").arg(r.right()).arg(r.bottom())));
+    }
+}
+
+// Not a check - a camera. window.grab() re-renders each QQuickWidget on its
+// own and so lies about how the surface composites over the sandbox; the only
+// honest picture is one taken off the screen. Runs only when asked:
+//
+//   CLAY_ANN_SBX=<abs path to a Sandbox.qml> CLAY_ANN_SHOT=<dir> \
+//     ./bin/tst_annotations capturesPairingShots
+//
+// and needs a real window server, so no offscreen platform.
+void TestAnnotations::capturesPairingShots()
+{
+    const QString shotDir = qEnvironmentVariable("CLAY_ANN_SHOT");
+    const QString sbx = qEnvironmentVariable("CLAY_ANN_SBX");
+    if (shotDir.isEmpty() || sbx.isEmpty())
+        QSKIP("set CLAY_ANN_SBX and CLAY_ANN_SHOT to capture the surface");
+    QVERIFY2(QFile::exists(sbx), qPrintable(sbx));
+    QDir().mkpath(shotDir);
+
+    Surface s;
+    QVERIFY(s.open(sbx));
+    // Real sandboxes take longer than a grey rectangle to settle.
+    QTest::qWait(2500);
+    QVERIFY(s.refresh());
+
+    const QString tag = QFileInfo(QFileInfo(sbx).absolutePath()).fileName();
+    int nr = 0;
+    auto shot = [&](const QString& what) {
+        QTest::qWait(700);
+        const QRect g = s.window->frameGeometry();
+        QProcess::execute(
+            "screencapture",
+            {"-x", "-o",
+             QStringLiteral("-R%1,%2,%3,%4").arg(g.x()).arg(g.y())
+                 .arg(g.width()).arg(g.height()),
+             QStringLiteral("%1/%2-%3-%4.png").arg(shotDir).arg(tag)
+                 .arg(++nr, 2, 10, QLatin1Char('0')).arg(what)});
+    };
+
+    // What the sandbox looks like with the surface down, so the surface's own
+    // effect on it can be judged rather than guessed at.
+    QTest::keyClick(s.widget, Qt::Key_Escape);
+    QTest::qWait(500);
+    shot("scene-only");
+    QTest::keyClick(s.window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(800);
+    QVERIFY(s.refresh());
+
+    frameAndWrite(s.widget, QPoint(180, 150), "this one is too big");
+    frameAndWrite(s.widget, QPoint(430, 320), "and this one is off-colour");
+    frameAndWrite(s.widget, QPoint(720, 160), "third, so the list overflows");
+    shot("nothing-picked");
+
+    const QVariantList regions = regionsOf(s.widget);
+    QCOMPARE(regions.size(), 3);
+
+    // A selected pair: frame 1 gold and haloed, card 1 spined and gold-badged.
+    QTest::mouseClick(s.widget, Qt::LeftButton, {},
+                      centreOfRegion(regions.at(0).toMap()));
+    shot("selected-pair");
+
+    // A hovered pair beside it: gold, but no halo and no gold badge.
+    //
+    // Hover and the Tab shortcut both need the window to be ACTIVE in the eyes
+    // of the window server, and a test process rarely gets to keep the focus
+    // it asks for - synthetic moves and shortcuts silently do nothing here.
+    // So the states are set through the same entry points the input paths call
+    // into; that the input paths reach them is what the headless cases above
+    // check. These pictures are about appearance, and appearance is the one
+    // thing a headless run cannot show.
+    QMetaObject::invokeMethod(s.root, "setHovered",
+                              Q_ARG(QVariant, regions.at(1).toMap().value("id")),
+                              Q_ARG(QVariant, true));
+    shot("hovered-pair-plus-selection");
+    QMetaObject::invokeMethod(s.root, "setHovered",
+                              Q_ARG(QVariant, regions.at(1).toMap().value("id")),
+                              Q_ARG(QVariant, false));
+
+    // Folded away with the pick still held - the frame keeps its halo and the
+    // count on the handle keeps the panel from being forgotten.
+    QMetaObject::invokeMethod(s.root, "toggleCollapsed");
+    shot("folded-with-selection");
+    QMetaObject::invokeMethod(s.root, "toggleCollapsed");
+    QTest::qWait(400);
+
+    // A viewport change: anchored notes follow their object and keep the pair,
+    // unanchored ones detach into the list. Which of the two happens is the
+    // sandbox's business, not the surface's - this is here to show that the
+    // pairing survives the frames moving underneath it.
+    s.window->resize(1040, 700);
+    QTest::qWait(1200);
+    shot("after-viewport-change");
+
+    // Leave the sandbox as it was found - these are somebody's real files.
+    QTest::keyClick(s.widget, Qt::Key_Escape);
+    QTest::qWait(400);
+    QDir(QFileInfo(sbx).absolutePath() + "/.clay/crew/annotations")
+        .removeRecursively();
+}
+
+// The detached case, photographed. It needs a hot reload to produce, so it
+// runs against the THROWAWAY sandbox only - forcing a reload of somebody's
+// real sandbox by writing into it is not something a capture gets to do.
+// Needs CLAY_ANN_SHOT and a real window server.
+void TestAnnotations::capturesDetachedShot()
+{
+    const QString shotDir = qEnvironmentVariable("CLAY_ANN_SHOT");
+    if (shotDir.isEmpty())
+        QSKIP("set CLAY_ANN_SHOT to capture the detached card");
+    QDir().mkpath(shotDir);
+
+    Surface s;
+    QVERIFY(s.open());
+
+    // One on the named "player", one over nothing: after the reload the first
+    // re-projects and keeps its frame, the second has nothing to follow.
+    frameAndWrite(s.widget, QPoint(58, 108), "this one is anchored");
+    frameAndWrite(s.widget, QPoint(600, 300), "this one is about empty space");
+
+    QFile sbx(s.sbxPath);
+    QVERIFY(sbx.open(QIODevice::Append));
+    sbx.write("\n// touched\n");
+    sbx.close();
+    QTest::qWait(4500);
+    QVERIFY(s.refresh());
+
+    bool picked = false;
+    for (const auto& r : regionsOf(s.widget)) {
+        const QVariantMap m = r.toMap();
+        if (!m.value("attached").toBool()) {
+            QMetaObject::invokeMethod(s.root, "selectAnnotation",
+                                      Q_ARG(QVariant, m.value("id")),
+                                      Q_ARG(QVariant, true));
+            picked = true;
+            break;
+        }
+    }
+    QVERIFY2(picked, "nothing detached across the reload - nothing to show");
+
+    QTest::qWait(700);
+    const QRect g = s.window->frameGeometry();
+    QProcess::execute("screencapture",
+                      {"-x", "-o",
+                       QStringLiteral("-R%1,%2,%3,%4").arg(g.x()).arg(g.y())
+                           .arg(g.width()).arg(g.height()),
+                       shotDir + "/detached-selected.png"});
 }
 
 QTEST_MAIN(TestAnnotations)
