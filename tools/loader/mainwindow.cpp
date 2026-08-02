@@ -433,11 +433,12 @@ void MainWindow::createOverlays()
     m_guideOverlay = new QQuickWidget(engine, centralWidget());
     m_guideOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_guideOverlay->setAttribute(Qt::WA_TranslucentBackground);
-    // NOTE: this one has the same trap as the annotation surface had -
-    // GuideOverlay.qml is a black scrim at 0.85 opacity, and without
-    // WA_AlwaysStackOnTop plus a transparent clear colour it wipes the scene
-    // to white instead of dimming it. Left alone here on purpose: it is a
-    // separate change to a settled overlay, not part of issue #182.
+    // Same trap as the annotation surface: GuideOverlay.qml is a black scrim at
+    // 0.85 opacity, and two QQuickWidgets composite as opaque textures in child
+    // order unless the top one asks not to. Without these two lines Ctrl+G wiped
+    // the scene to the widget's clear colour instead of dimming it.
+    m_guideOverlay->setAttribute(Qt::WA_AlwaysStackOnTop);
+    m_guideOverlay->setClearColor(Qt::transparent);
     m_guideOverlay->setGeometry(0, 0, width(), height());
     
     // Connect to status changes to catch errors
@@ -452,6 +453,13 @@ void MainWindow::createOverlays()
     m_guideOverlay->setSource(QUrl("qrc:/clayground/GuideOverlay.qml"));
     m_guideOverlay->hide();
     m_guideOverlay->raise();
+
+    // Click anywhere on the scrim to dismiss - the guide only ever emits this
+    // while it is up, so a toggle is a close.
+    if (auto* guideRoot = m_guideOverlay->rootObject()) {
+        connect(guideRoot, SIGNAL(closeRequested()),
+                this, SLOT(toggleGuideOverlay()));
+    }
 
     // Create flag overlay
     m_flagOverlay = new QQuickWidget(engine, centralWidget());
