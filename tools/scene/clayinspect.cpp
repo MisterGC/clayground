@@ -223,65 +223,6 @@ void collect(QObject* obj, const InspectSelector& selector, QJsonArray& out,
     }
 }
 
-// Finds a View3D by id, objectName, or "the only one in the scene".
-QQuickItem* findView3D(QQuickItem* root, const QString& viewId, QString* error)
-{
-    if (!viewId.isEmpty()) {
-        auto* named = root->findChild<QQuickItem*>(viewId);
-        if (named)
-            return named;
-        // Try it as a QML id in the root's context.
-        if (auto* ctx = QQmlEngine::contextForObject(root)) {
-            QQmlExpression expr(ctx, root, viewId);
-            QVariant v = expr.evaluate();
-            if (!expr.hasError()) {
-                if (auto* item = qobject_cast<QQuickItem*>(v.value<QObject*>()))
-                    return item;
-            }
-        }
-        if (error) *error = QStringLiteral("no View3D '%1'").arg(viewId);
-        return nullptr;
-    }
-
-    // Same three-way walk the inspection uses - a View3D inside a Loader is
-    // not a QObject child of the root, and looking only there is how you get
-    // "no View3D in this scene" for a scene full of them.
-    QList<QQuickItem*> views;
-    QSet<QObject*> seen;
-    std::function<void(QObject*)> walk = [&](QObject* obj) {
-        if (!obj || seen.contains(obj)) return;
-        seen.insert(obj);
-        if (typeMatches(obj, QStringLiteral("View3D"))) {
-            if (auto* item = qobject_cast<QQuickItem*>(obj))
-                views << item;
-        }
-        for (auto* child : obj->children())
-            walk(child);
-        if (auto* item = qobject_cast<QQuickItem*>(obj)) {
-            for (auto* child : item->childItems())
-                walk(child);
-        }
-        const QMetaObject* meta = obj->metaObject();
-        for (int i = 0; i < meta->propertyCount(); ++i) {
-            auto prop = meta->property(i);
-            if (!prop.isReadable()
-                || !(prop.metaType().flags() & QMetaType::PointerToQObject))
-                continue;
-            const QByteArray name = prop.name();
-            if (name == "parent" || name == "window" || name == "scene")
-                continue;
-            walk(prop.read(obj).value<QObject*>());
-        }
-    };
-    walk(root);
-
-    if (views.isEmpty()) {
-        if (error) *error = QStringLiteral("no View3D in this scene");
-        return nullptr;
-    }
-    return views.first();
-}
-
 } // namespace
 
 QJsonArray inspect(QObject* root, const InspectSelector& selector)

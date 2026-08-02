@@ -4,7 +4,8 @@
 
 Drives the gym sandbox exclusively through the file-based protocol an agent
 uses (.clay/inspect/), covering: attach, log stream, scenarios + rearm,
-time control (pause/step/scale), synthetic input, trace, and auto-flag.
+time control (pause/step/scale), synthetic input, trace, auto-flag and
+annotations.
 
 Default mode copies the gym into a temp dir and spawns clayliveloader
 offscreen (CI-safe, source tree stays clean). --attach <sandbox-dir> runs
@@ -12,6 +13,7 @@ the same checks against an already-running loader/dojo instance.
 """
 
 import argparse
+import base64
 import glob
 import json
 import os
@@ -655,6 +657,170 @@ def run(insp, sandbox_dir, attended):
     check("errors: sinceGeneration filters",
           future.get("errorCount") == 0 and future.get("warningCount") == 0,
           f"errors={future.get('errorCount')} warnings={future.get('warningCount')}")
+
+    # -- 9: annotations ---------------------------------------------------
+    # The user's spatial remarks about the running scene (#182). The overlay
+    # writes them; this side lists them and marks them addressed, and must
+    # never lose a field it does not own.
+    crew = os.path.join(sandbox_dir, ".clay", "crew", "annotations")
+    index_path = os.path.join(crew, "index.json")
+
+    # Before anything has been annotated there is no store at all. That is
+    # "nothing to do", not a broken instance - and an agent that treated it as
+    # an error would stop checking.
+    empty = insp.request({"action": "annotations"})
+    check("annotations: a missing store is an empty list, not an error",
+          empty.get("annotations") == [] and empty.get("count") == 0
+          and not empty.get("error"), f"error={empty.get('error')}")
+
+    os.makedirs(crew, exist_ok=True)
+    # 1x1 PNG - the crop only has to exist for the path check.
+    with open(os.path.join(crew, "a1.png"), "wb") as f:
+        f.write(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="))
+    fixture = {"version": 1, "annotations": [
+        {"id": "a1", "created": "2026-08-02T10:11:12", "generation": 1,
+         "scope": "region", "rect": [100, 120, 80, 60],
+         "note": "the coin reads as a wall tile",
+         "status": "open", "addressedNote": None, "addressedAt": None,
+         "crop": "annotations/a1.png",
+         "view": {"size": [800, 600], "camera": None, "paused": True},
+         "anchor": {"resolved": True, "kind": "2d", "objectName": "player",
+                    "type": "RectBoxBody", "source": "Sandbox.qml",
+                    "space": "world", "world": [5, 10], "at": [140, 150]}},
+        {"id": "a2", "created": "2026-08-02T10:20:00", "generation": 3,
+         "scope": "scene", "rect": None, "note": "the whole scene is too dark",
+         "status": "open", "addressedNote": None, "addressedAt": None,
+         "crop": None,
+         "view": {"size": [800, 600], "camera": None, "paused": False},
+         "anchor": None},
+        {"id": "a3", "created": "2026-08-02T09:00:00", "generation": 2,
+         "scope": "region", "rect": [10, 10, 40, 40], "note": "old remark",
+         "status": "addressed", "addressedNote": "done earlier",
+         "addressedAt": "2026-08-02T09:30:00", "crop": "annotations/gone.png",
+         "view": {"size": [800, 600], "camera": None, "paused": True},
+         "anchor": None},
+    ]}
+    with open(index_path, "w") as f:
+        json.dump(fixture, f, indent=2)
+
+    lst = insp.request({"action": "annotations"})
+    entries = lst.get("annotations", [])
+    check("annotations: lists what the overlay wrote",
+          len(entries) == 3 and lst.get("total") == 3
+          and lst.get("openCount") == 2 and lst.get("addressedCount") == 1,
+          f"count={lst.get('count')} open={lst.get('openCount')} "
+          f"addressed={lst.get('addressedCount')}")
+    a1 = next((e for e in entries if e.get("id") == "a1"), {})
+    check("annotations: an entry carries note, rect, scope and anchor",
+          a1.get("note") == "the coin reads as a wall tile"
+          and a1.get("rect") == [100, 120, 80, 60]
+          and a1.get("scope") == "region"
+          and a1.get("anchor", {}).get("objectName") == "player",
+          str(a1)[:160])
+    check("annotations: the crop is reported as a path that can be read",
+          a1.get("cropPath", "").endswith("a1.png")
+          and os.path.exists(a1.get("cropPath", "")),
+          f"cropPath={a1.get('cropPath')}")
+    a3 = next((e for e in entries if e.get("id") == "a3"), {})
+    check("annotations: a crop file that is gone says so instead of "
+          "handing out a dead path",
+          a3.get("cropMissing") is True and "cropPath" not in a3, str(a3)[:120])
+
+    op = insp.request({"action": "annotations", "status": "open"})
+    check("annotations: status filter",
+          [e["id"] for e in op.get("annotations", [])] == ["a1", "a2"]
+          and op.get("openCount") == 2,
+          str([e.get("id") for e in op.get("annotations", [])]))
+    ad = insp.request({"action": "annotations", "status": "addressed"})
+    check("annotations: status=addressed filter",
+          [e["id"] for e in ad.get("annotations", [])] == ["a3"],
+          str([e.get("id") for e in ad.get("annotations", [])]))
+    sg = insp.request({"action": "annotations", "sinceGeneration": 3})
+    check("annotations: sinceGeneration filter",
+          [e["id"] for e in sg.get("annotations", [])] == ["a2"],
+          str([e.get("id") for e in sg.get("annotations", [])]))
+    bad = insp.request({"action": "annotations", "status": "whatever"})
+    check("annotations: an unknown status is an error, not a silent "
+          "everything", bool(bad.get("error")), f"error={bad.get('error')}")
+
+    # Where the anchor points NOW - the half that lets a marker follow its
+    # object after the camera moved or the scene reloaded.
+    rp = insp.request({"action": "annotations", "reproject": True})
+    now = next((e.get("now", {}) for e in rp.get("annotations", [])
+                if e.get("id") == "a1"), {})
+    check("annotations: reproject answers where the anchor is on screen now",
+          now.get("resolved") is True and now.get("via") == "objectName"
+          and isinstance(now.get("x"), (int, float))
+          and isinstance(now.get("rect"), list), str(now)[:160])
+    a2 = next((e for e in rp.get("annotations", []) if e.get("id") == "a2"), {})
+    check("annotations: an entry with no anchor gets no invented position",
+          "now" not in a2, f"now={a2.get('now')}")
+
+    # The user edits the store while the agent is working - the ordinary case
+    # for two writers on one file. A read-modify-write of the whole document
+    # would silently roll that edit back.
+    with open(index_path) as f:
+        live = json.load(f)
+    live["annotations"][1]["note"] = "edited by the user mid-session"
+    with open(index_path, "w") as f:
+        json.dump(live, f, indent=2)
+
+    mark = insp.request({"action": "annotate", "annotationId": "a1",
+                         "note": "recoloured the coin to gold and shrank it"})
+    check("annotate: marks addressed with the note on what was done",
+          mark.get("annotated") == "a1" and mark.get("addressed") is True
+          and bool(mark.get("addressedAt")), str(mark)[:160])
+    check("annotate: the answer does not collide with the status envelope",
+          isinstance(mark.get("status"), dict)
+          and mark["status"].get("alive") is True, str(mark.get("status"))[:120])
+
+    with open(index_path) as f:
+        after = json.load(f)
+    stored = {e["id"]: e for e in after.get("annotations", [])}
+    check("annotate: nothing is deleted",
+          len(after.get("annotations", [])) == 3
+          and set(stored) == {"a1", "a2", "a3"}, str(list(stored)))
+    keep = stored.get("a1", {})
+    check("annotate: the user's own fields survive untouched",
+          keep.get("note") == "the coin reads as a wall tile"
+          and keep.get("rect") == [100, 120, 80, 60]
+          and keep.get("created") == "2026-08-02T10:11:12"
+          and keep.get("generation") == 1
+          and keep.get("scope") == "region"
+          and keep.get("view", {}).get("size") == [800, 600]
+          and keep.get("crop") == "annotations/a1.png"
+          and keep.get("anchor", {}).get("objectName") == "player",
+          str(keep)[:200])
+    check("annotate: the status fields are the only ones that changed",
+          keep.get("status") == "addressed"
+          and keep.get("addressedNote")
+             == "recoloured the coin to gold and shrank it"
+          and bool(keep.get("addressedAt")),
+          f"status={keep.get('status')} note={keep.get('addressedNote')}")
+    check("annotate: a concurrent edit by the user is not rolled back",
+          stored.get("a2", {}).get("note") == "edited by the user mid-session",
+          f"a2.note={stored.get('a2', {}).get('note')}")
+
+    nonote = insp.request({"action": "annotate", "annotationId": "a2"})
+    check("annotate: refuses to mark addressed without saying what was done",
+          "note" in nonote.get("error", "") and not nonote.get("annotated"),
+          f"error={nonote.get('error')}")
+    unknown = insp.request({"action": "annotate", "annotationId": "nope",
+                            "note": "x"})
+    check("annotate: an unknown id is an error",
+          "nope" in unknown.get("error", ""), f"error={unknown.get('error')}")
+    reopen = insp.request({"action": "annotate", "annotationId": "a1",
+                           "note": "x", "status": "open"})
+    check("annotate: reopening and clearing stay the user's",
+          bool(reopen.get("error")), f"error={reopen.get('error')}")
+
+    left = insp.request({"action": "annotations", "status": "open"})
+    check("annotations: the addressed one drops out of the open list",
+          [e["id"] for e in left.get("annotations", [])] == ["a2"]
+          and left.get("openCount") == 1,
+          str([e.get("id") for e in left.get("annotations", [])]))
 
     failed = [c for c in CHECKS if not c[1]]
     print(f"\n{len(CHECKS) - len(failed)}/{len(CHECKS)} checks passed")

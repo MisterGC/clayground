@@ -10,6 +10,10 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_library (${PROJECT_NAME} STATIC
+    clayanchor.cpp
+    clayanchor.h
+    clayannotations.cpp
+    clayannotations.h
     clayinspect.cpp
     clayinspect.h
     clayscenecapture.cpp

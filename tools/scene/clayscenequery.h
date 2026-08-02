@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QString>
+#include <functional>
 
 class QObject;
 class QQuickItem;
@@ -34,7 +35,25 @@ QJsonObject describeObject(QObject* obj, bool fullDetail = false);
 QJsonObject collectCustomProperties(QQuickItem* item);
 QJsonArray collectComplexPropertyNames(QQuickItem* item);
 QJsonObject collectVectorProperties(QQuickItem* item);
-QString sourceFileName(QQuickItem* item);
+// The QML file this object was DECLARED in - which is what makes a component
+// boundary visible. Takes any QObject, because a 3D node is not a QQuickItem.
+QString sourceFileName(const QObject* obj);
+
+// --- Traversal --------------------------------------------------------------
+
+// Visits every object under root exactly once, following all three ways an
+// object can hang in a scene (QObject children, childItems, QObject-valued
+// properties). Return false from `visit` to stop the walk.
+void walkScene(QObject* root, const std::function<bool(QObject*)>& visit);
+
+// The first object of this type anywhere under root, or null.
+QObject* findFirstOfType(QObject* root, const QString& type);
+
+// Finds a View3D by id, objectName, or "the only one in the scene". Shared,
+// because a few C++ classes are known by another name in QML and every place
+// that re-derived this got QQuick3DViewport wrong on its own.
+QQuickItem* findView3D(QQuickItem* root, const QString& viewId = QString(),
+                       QString* error = nullptr);
 
 // --- Item tree --------------------------------------------------------------
 

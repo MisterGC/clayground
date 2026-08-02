@@ -9,6 +9,8 @@
 #include <QJsonValue>
 #include <QStringList>
 #include <QQuickItem>
+#include <QRectF>
+#include <QVariantMap>
 #include <QElapsedTimer>
 #include <functional>
 #include <memory>
@@ -76,6 +78,31 @@ public:
     void completeFlag(const QString& annotation);
     void cancelFlag();
 
+    // --- Annotations (issue #182) -------------------------------------------
+    // The overlay's seam into the anchor/crop/store machinery. Invokable so
+    // the annotation surface - which is QML in the loader's overlay layer -
+    // can call it after it has written its own fields; expose this object to
+    // that overlay's context as `ClayAnnotations`.
+    //
+    // Everything here is best-effort and says so in its answer: an annotation
+    // whose anchor did not resolve, or whose crop could not be taken, is still
+    // a valid annotation with a rect and a note.
+
+    // What the rect is about, plus the crop, in one call - the creation-side
+    // entry point. `rect` is in the loaded scene root's coordinates (logical
+    // viewport pixels). Patches `anchor` and `crop` into the entry with this
+    // id, leaving every field the overlay owns untouched. Returns
+    // {anchor, crop, cropClipped, cropError, stored, storeError}.
+    Q_INVOKABLE QVariantMap attachAnnotation(const QString& id, const QRectF& rect);
+    // The anchor alone - for a live preview of "what am I framing" before the
+    // annotation exists.
+    Q_INVOKABLE QVariantMap resolveAnchor(const QRectF& rect) const;
+    // Where a stored anchor is on screen NOW: the call that lets a marker
+    // follow its object across a camera move, a reload or a restart.
+    Q_INVOKABLE QVariantMap reprojectAnchor(const QVariantMap& anchor) const;
+    // How many annotations are still open - for the dojo's badge.
+    Q_INVOKABLE int openAnnotationCount() const;
+
     void toggleTrace();
     bool isTracing() const;
 
@@ -112,6 +139,12 @@ private:
     QJsonObject handleTime(const QJsonObject& request);
     QJsonObject handleInput(const QJsonObject& request);
     QJsonObject handleErrors(const QJsonObject& request);
+    QJsonObject handleAnnotations(const QJsonObject& request);
+    QJsonObject handleAnnotate(const QJsonObject& request);
+    // Grabs the frame, crops it to `rect` and writes
+    // .clay/crew/annotations/<id>.png. Returns {crop, cropClipped} or
+    // {error}: a rect entirely off-screen is an error, never a clamp.
+    QJsonObject writeAnnotationCrop(const QString& id, const QRectF& rect);
     void applyScenarioToRoot(const QString& name);
     void applyViewStateToRoot(const QJsonValue& state);
     void attachDiagnostics(QJsonObject& response) const;
