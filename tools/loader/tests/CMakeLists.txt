@@ -36,8 +36,8 @@ set_tests_properties(inspector_unit PROPERTIES LABELS "inspector;unit")
 # --- Annotation surface (issue #182): store + the surface driven for real ---
 add_executable(tst_annotations
     tst_annotations.cpp
-    ../clayannotations.cpp
-    ../clayannotations.h
+    ../clayannotationstore.cpp
+    ../clayannotationstore.h
     ../clayinspector.cpp
     ../clayinspector.h
     ../claycontrols.cpp

@@ -4,7 +4,7 @@
 #include "hotreloadcontainer.h"
 #include "clayliveloader.h"
 #include "clayinspector.h"
-#include "clayannotations.h"
+#include "clayannotationstore.h"
 #include "claycontrols.h"
 #include <QQuickWidget>
 #include <QQmlContext>

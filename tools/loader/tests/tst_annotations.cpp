@@ -3,7 +3,7 @@
 // The annotation surface (issue #182): the store on its own, and the whole
 // thing driven through real mouse and key events on a real MainWindow.
 
-#include "clayannotations.h"
+#include "clayannotationstore.h"
 #include "clayliveloader.h"
 #include "mainwindow.h"
 
