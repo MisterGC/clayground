@@ -50,6 +50,13 @@ Item {
 
     function focusEditor() { editor.forceActiveFocus(); editor.cursorPosition = editor.length; }
 
+    // Last line of defence. Cards are delegates over a list that is rebuilt on
+    // every structural change, so a card can go away with keystrokes in it
+    // that no focus change and no idle timer ever saw.
+    Component.onDestruction: {
+        try { root.commit(); } catch (e) { }
+    }
+
     onNoteTextChanged: if (!editor.activeFocus && editor.text !== noteText) editor.text = noteText
 
     // Bubble body plus tail, one path so the tail is part of the outline.

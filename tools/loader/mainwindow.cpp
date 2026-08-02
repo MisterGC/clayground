@@ -179,6 +179,12 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
 MainWindow::~MainWindow()
 {
     saveWindowGeometry();
+    // Same reason as in closeEvent - a quit that never delivers a close event
+    // must not be the one path that eats a half-typed note.
+    if (m_annotationOverlay) {
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "commitAll");
+    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -189,6 +195,14 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveWindowGeometry();
+    // A note that still had the cursor in it when the window went away used to
+    // die with the editor: the store commits on Enter, on focus loss and after
+    // an idle beat, and closing the window is none of the three. Commit only -
+    // dropping empty notes stays a thing the surface does on deactivate.
+    if (m_annotationOverlay) {
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "commitAll");
+    }
     QMainWindow::closeEvent(event);
 }
 
@@ -345,6 +359,20 @@ void MainWindow::setupShortcuts()
     connect(annotationShortcut, &QShortcut::activated,
             this, &MainWindow::toggleAnnotationOverlay);
 
+    // Tab folds the margin panel out of the way and brings it back. It has to
+    // be a shortcut rather than a QML key handler: QWidget eats Tab for focus
+    // navigation before a QQuickWidget ever forwards it, so the panel would
+    // fold from some places and not others. Disabled while the surface is
+    // down, so Tab still belongs to the sandbox.
+    m_panelShortcut = new QShortcut(QKeySequence(Qt::Key_Tab), this);
+    m_panelShortcut->setEnabled(false);
+    connect(m_panelShortcut, &QShortcut::activated, this, [this]() {
+        if (!m_annotationOverlay || !m_annotationVisible)
+            return;
+        if (auto* r = m_annotationOverlay->rootObject())
+            QMetaObject::invokeMethod(r, "toggleCollapsed");
+    });
+
     // Quick clear: drop everything already marked addressed. Open notes are
     // never touched by a shortcut - deleting your input is not a keystroke.
     auto* clearShortcut = new QShortcut(QKeySequence("Ctrl+Shift+F"), this);
@@ -405,11 +433,12 @@ void MainWindow::createOverlays()
     m_guideOverlay = new QQuickWidget(engine, centralWidget());
     m_guideOverlay->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_guideOverlay->setAttribute(Qt::WA_TranslucentBackground);
-    // NOTE: this one has the same trap as the annotation surface had -
-    // GuideOverlay.qml is a black scrim at 0.85 opacity, and without
-    // WA_AlwaysStackOnTop plus a transparent clear colour it wipes the scene
-    // to white instead of dimming it. Left alone here on purpose: it is a
-    // separate change to a settled overlay, not part of issue #182.
+    // Same trap as the annotation surface: GuideOverlay.qml is a black scrim at
+    // 0.85 opacity, and two QQuickWidgets composite as opaque textures in child
+    // order unless the top one asks not to. Without these two lines Ctrl+G wiped
+    // the scene to the widget's clear colour instead of dimming it.
+    m_guideOverlay->setAttribute(Qt::WA_AlwaysStackOnTop);
+    m_guideOverlay->setClearColor(Qt::transparent);
     m_guideOverlay->setGeometry(0, 0, width(), height());
     
     // Connect to status changes to catch errors
@@ -424,6 +453,13 @@ void MainWindow::createOverlays()
     m_guideOverlay->setSource(QUrl("qrc:/clayground/GuideOverlay.qml"));
     m_guideOverlay->hide();
     m_guideOverlay->raise();
+
+    // Click anywhere on the scrim to dismiss - the guide only ever emits this
+    // while it is up, so a toggle is a close.
+    if (auto* guideRoot = m_guideOverlay->rootObject()) {
+        connect(guideRoot, SIGNAL(closeRequested()),
+                this, SLOT(toggleGuideOverlay()));
+    }
 
     // Create flag overlay
     m_flagOverlay = new QQuickWidget(engine, centralWidget());
@@ -512,6 +548,8 @@ void MainWindow::showAnnotationOverlay()
     m_annotationOverlay->raise();
     m_annotationOverlay->setFocus();
     m_annotationVisible = true;
+    if (m_panelShortcut)
+        m_panelShortcut->setEnabled(true);
 
     if (auto* r = m_annotationOverlay->rootObject())
         QMetaObject::invokeMethod(r, "activate");
@@ -522,6 +560,8 @@ void MainWindow::hideAnnotationOverlay()
     if (!m_annotationVisible)
         return;
     m_annotationVisible = false;
+    if (m_panelShortcut)
+        m_panelShortcut->setEnabled(false);
 
     if (m_annotationOverlay) {
         if (auto* r = m_annotationOverlay->rootObject())

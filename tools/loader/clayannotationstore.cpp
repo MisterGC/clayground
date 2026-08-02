@@ -42,6 +42,7 @@ ClayAnnotationStore::ClayAnnotationStore(QObject* parent)
 {
     QSettings settings("Clayground", "LiveLoader");
     m_pauseOnOpen = settings.value("annotations/pauseOnOpen", true).toBool();
+    m_panelCollapsed = settings.value("annotations/panelCollapsed", false).toBool();
 }
 
 void ClayAnnotationStore::setSandboxDir(const QString& dir)
@@ -89,6 +90,16 @@ void ClayAnnotationStore::setPauseOnOpen(bool on)
     QSettings settings("Clayground", "LiveLoader");
     settings.setValue("annotations/pauseOnOpen", on);
     emit pauseOnOpenChanged();
+}
+
+void ClayAnnotationStore::setPanelCollapsed(bool on)
+{
+    if (on == m_panelCollapsed)
+        return;
+    m_panelCollapsed = on;
+    QSettings settings("Clayground", "LiveLoader");
+    settings.setValue("annotations/panelCollapsed", on);
+    emit panelCollapsedChanged();
 }
 
 QString ClayAnnotationStore::indexPath() const

@@ -35,6 +35,10 @@ class ClayAnnotationStore : public QObject
     Q_PROPERTY(int openCount READ openCount NOTIFY annotationsChanged)
     Q_PROPERTY(int generation READ generation NOTIFY generationChanged)
     Q_PROPERTY(bool pauseOnOpen READ pauseOnOpen WRITE setPauseOnOpen NOTIFY pauseOnOpenChanged)
+    // Whether the margin panel is folded away. Lives here rather than in the
+    // surface because the surface is rebuilt with every engine, and a panel
+    // that unfolds itself on each hot reload is a panel you fight.
+    Q_PROPERTY(bool panelCollapsed READ panelCollapsed WRITE setPanelCollapsed NOTIFY panelCollapsedChanged)
 
 public:
     explicit ClayAnnotationStore(QObject* parent = nullptr);
@@ -64,6 +68,9 @@ public:
 
     bool pauseOnOpen() const { return m_pauseOnOpen; }
     void setPauseOnOpen(bool on);
+
+    bool panelCollapsed() const { return m_panelCollapsed; }
+    void setPanelCollapsed(bool on);
 
     // Re-read the file. Called when the sandbox dir is set and whenever the
     // surface opens, so an agent's "addressed" marks show up.
@@ -95,6 +102,7 @@ signals:
     void annotationsChanged();
     void generationChanged();
     void pauseOnOpenChanged();
+    void panelCollapsedChanged();
 
 private:
     // Where an annotation is drawn, and whether it may be drawn at all.
@@ -135,4 +143,5 @@ private:
     QSize m_viewSize;
     int m_generation = 0;
     bool m_pauseOnOpen = true;
+    bool m_panelCollapsed = false;
 };

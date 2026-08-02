@@ -15,6 +15,7 @@
 #include <QJsonObject>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -42,6 +43,9 @@ private slots:
     void surfaceTogglesAndFramesRegions();
     void surfaceKeepsRegionsAcrossToggle();
     void surfaceReattachesAnchoredRegionAfterReload();
+    void framesRegionInTheRightThird();
+    void tabFoldsThePanelAndItStaysFolded();
+    void commitsFocusedNoteWhenTheSurfaceCloses();
 
 private:
     QString readIndex() const;
@@ -69,6 +73,10 @@ void TestAnnotations::initTestCase()
 {
     QVERIFY(m_dir.isValid());
     m_sandboxDir = m_dir.path();
+    // The folded/unfolded state is remembered in QSettings, which is shared
+    // with whatever this machine did last. Start from a known one.
+    QSettings("Clayground", "LiveLoader")
+        .setValue("annotations/panelCollapsed", false);
 }
 
 void TestAnnotations::addsSceneAndRegion()
@@ -632,6 +640,32 @@ QVariantList regionsOf(QQuickWidget* surface)
     return root ? root->property("regionItems").toList() : QVariantList();
 }
 
+// Repeater delegates hang off the scene graph, not off the QObject tree, so
+// findChildren() never sees them. Walk childItems() instead.
+void collectItems(QQuickItem* item, const QString& name, QList<QQuickItem*>& out)
+{
+    if (!item)
+        return;
+    if (item->objectName() == name)
+        out.append(item);
+    const auto kids = item->childItems();
+    for (auto* k : kids)
+        collectItems(k, name, out);
+}
+
+QList<QQuickItem*> itemsNamed(QQuickItem* root, const QString& name)
+{
+    QList<QQuickItem*> out;
+    collectItems(root, name, out);
+    return out;
+}
+
+QQuickItem* itemNamed(QQuickItem* root, const QString& name)
+{
+    const auto all = itemsNamed(root, name);
+    return all.isEmpty() ? nullptr : all.first();
+}
+
 } // namespace
 
 // The report that started this round: frame a few things, Ctrl+F out, Ctrl+F
@@ -766,6 +800,251 @@ void TestAnnotations::surfaceReattachesAnchoredRegionAfterReload()
 
     QTest::keyClick(reborn, Qt::Key_Escape);
     QTest::qWait(300);
+}
+
+namespace {
+
+QJsonArray diskOf(const QString& sandboxDir)
+{
+    QFile f(sandboxDir + "/.clay/crew/annotations/index.json");
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(f.readAll())
+        .object().value("annotations").toArray();
+}
+
+QJsonObject regionOnDisk(const QString& sandboxDir)
+{
+    for (const auto& v : diskOf(sandboxDir))
+        if (v.toObject().value("scope").toString() == QLatin1String("region"))
+            return v.toObject();
+    return {};
+}
+
+} // namespace
+
+// The report that started THIS round: the panel took the right third of the
+// window and the scene was clipped to what was left, so the right third could
+// not be framed at all - and a note re-projected into it claimed to be
+// attached while its frame had been clipped away. The panel floats now, and
+// the scene is the whole viewport.
+void TestAnnotations::framesRegionInTheRightThird()
+{
+    QTemporaryDir sbxDir;
+    QVERIFY(sbxDir.isValid());
+    const QString sbxPath = sbxDir.path() + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath));
+
+    ClayLiveLoader loader;
+    loader.addSandboxes({sbxPath});
+    loader.setSbxIndex(0);
+
+    MainWindow window(&loader);
+    window.resize(1000, 700);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTest::qWait(1500);
+
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    QQuickWidget* surface = annotationSurface(window);
+    QVERIFY(surface);
+    QVERIFY(surface->isVisible());
+    auto* root = surface->rootObject();
+    QVERIFY(root);
+
+    const qreal W = root->width();
+    const qreal H = root->height();
+    QVERIFY(W > 600 && H > 400);
+
+    // The scene area is the whole surface: the panel takes no layout space
+    // from it, so nothing in the sandbox is out of reach or reflowed.
+    auto* scene = itemNamed(root, "annotationSceneArea");
+    QVERIFY2(scene, "no scene area on the surface");
+    QCOMPARE(scene->width(), W);
+    QCOMPARE(scene->height(), H);
+
+    // The panel floats over the bottom-right and is half the height, so the
+    // top-left - where most of a scene lives - is never covered.
+    auto* dock = itemNamed(root, "annotationDock");
+    QVERIFY(dock);
+    QVERIFY2(dock->height() < H * 0.75, "the panel still owns the full height");
+    QVERIFY2(dock->y() > H * 0.25, "the panel is not parked at the bottom");
+
+    // Frame something in the right third, above the panel.
+    const QPoint from(qRound(W * 0.70), qRound(H * 0.10));
+    const QPoint to(qRound(W * 0.95), qRound(H * 0.30));
+    QTest::mousePress(surface, Qt::LeftButton, {}, from);
+    for (int i = 1; i <= 8; ++i)
+        QTest::mouseMove(surface, from + (to - from) * i / 8);
+    QTest::mouseRelease(surface, Qt::LeftButton, {}, to);
+    QTest::qWait(400);
+    QTest::keyClicks(surface, "the right third is reachable");
+    QTest::qWait(900);
+
+    const QJsonObject region = regionOnDisk(sbxDir.path());
+    QVERIFY2(!region.isEmpty(), "no region was created in the right third");
+    const QJsonArray rect = region.value("rect").toArray();
+    QCOMPARE(rect.size(), 4);
+    QVERIFY2(rect.at(0).toInt() > W * 2.0 / 3.0,
+             "the frame was clamped out of the right third");
+    QCOMPARE(rect.at(0).toInt(), from.x());
+    QCOMPARE(rect.at(1).toInt(), from.y());
+    QCOMPARE(region.value("note").toString(),
+             QStringLiteral("the right third is reachable"));
+
+    // Kept, and actually drawn: the marker exists on the scene, is visible,
+    // and sits where it was framed rather than somewhere it was clipped to.
+    const QVariantList regions = regionsOf(surface);
+    QCOMPARE(regions.size(), 1);
+    QVERIFY2(regions.at(0).toMap().value("attached").toBool(),
+             "a region framed in the right third was not attached");
+
+    const auto markers = itemsNamed(root, "annotationRegion");
+    QCOMPARE(markers.size(), 1);
+    QVERIFY2(markers.at(0)->isVisible(), "the frame was not drawn");
+    QCOMPARE(qRound(markers.at(0)->x()), from.x());
+    QVERIFY2(markers.at(0)->x() + markers.at(0)->width() <= W + 1,
+             "the frame ran off the viewport");
+
+    QTest::keyClick(surface, Qt::Key_Escape);
+    QTest::qWait(300);
+}
+
+// Tab folds the panel out of the way and brings it back, and the choice is
+// remembered - a panel that unfolds itself every time the surface reopens is a
+// panel you fight.
+void TestAnnotations::tabFoldsThePanelAndItStaysFolded()
+{
+    QSettings("Clayground", "LiveLoader")
+        .setValue("annotations/panelCollapsed", false);
+
+    QTemporaryDir sbxDir;
+    QVERIFY(sbxDir.isValid());
+    const QString sbxPath = sbxDir.path() + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath));
+
+    ClayLiveLoader loader;
+    loader.addSandboxes({sbxPath});
+    loader.setSbxIndex(0);
+
+    MainWindow window(&loader);
+    window.resize(1000, 700);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTest::qWait(1500);
+
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    QQuickWidget* surface = annotationSurface(window);
+    QVERIFY(surface);
+    auto* root = surface->rootObject();
+    QVERIFY(root);
+    QVERIFY(!root->property("collapsed").toBool());
+
+    auto* dock = itemNamed(root, "annotationDock");
+    auto* handle = itemNamed(root, "annotationHandle");
+    QVERIFY(dock && handle);
+    const qreal openX = dock->x();
+    const qreal W = root->width();
+
+    QTest::keyClick(&window, Qt::Key_Tab);
+    QTest::qWait(500);
+    QVERIFY2(root->property("collapsed").toBool(), "Tab did not fold the panel");
+    QVERIFY2(dock->x() > openX, "the panel did not move out of the way");
+    // Only the handle is left on screen, and it is still there to grab.
+    QVERIFY2(handle->isVisible(), "the handle went away with the panel");
+    QVERIFY2(qAbs(dock->x() + handle->x() + handle->width() - W) < 2.0,
+             "the handle is not the only thing left showing");
+
+    // Out of the surface and back in: still folded.
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(500);
+    QVERIFY(!surface->isVisible());
+    QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(700);
+    QVERIFY(surface->isVisible());
+    QVERIFY2(annotationSurface(window)->rootObject()
+                 ->property("collapsed").toBool(),
+             "the folded panel unfolded itself across a surface toggle");
+
+    // Tab brings it back, exactly where it was.
+    QTest::keyClick(&window, Qt::Key_Tab);
+    QTest::qWait(500);
+    QVERIFY2(!root->property("collapsed").toBool(), "Tab did not unfold the panel");
+    QVERIFY(qAbs(dock->x() - openX) < 2.0);
+
+    QTest::keyClick(surface, Qt::Key_Escape);
+    QTest::qWait(300);
+    QSettings("Clayground", "LiveLoader")
+        .setValue("annotations/panelCollapsed", false);
+}
+
+// The store commits on Enter, on focus loss and after an idle beat. None of
+// the three is "the surface just went away with the cursor still in the
+// field", and a note nobody can see again is worse than no note at all.
+void TestAnnotations::commitsFocusedNoteWhenTheSurfaceCloses()
+{
+    QTemporaryDir sbxDir;
+    QVERIFY(sbxDir.isValid());
+    const QString sbxPath = sbxDir.path() + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QStringLiteral(SRCDIR "/TestSandbox.qml"), sbxPath));
+
+    ClayLiveLoader loader;
+    loader.addSandboxes({sbxPath});
+    loader.setSbxIndex(0);
+
+    auto* window = new MainWindow(&loader);
+    window->resize(1000, 700);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    QTest::qWait(1500);
+
+    QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    QQuickWidget* surface = annotationSurface(*window);
+    QVERIFY(surface);
+
+    // Frame something, type into it, and close the surface INSIDE the idle
+    // window without ever pressing Enter or clicking away.
+    QTest::mouseClick(surface, Qt::LeftButton, {}, QPoint(200, 200));
+    QTest::qWait(300);
+    QTest::keyClicks(surface, "still typing when it closed");
+    QTest::qWait(120);   // well under the 700ms idle commit
+    QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(500);
+    QVERIFY(!surface->isVisible());
+
+    QJsonObject region = regionOnDisk(sbxDir.path());
+    QVERIFY2(!region.isEmpty(),
+             "the note was dropped as empty - nothing was committed on close");
+    QCOMPARE(region.value("note").toString(),
+             QStringLiteral("still typing when it closed"));
+
+    // Same again, but this time the WINDOW goes away with the cursor in the
+    // field. The surface never deactivates on this path.
+    QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+    QTest::qWait(600);
+    surface = annotationSurface(*window);
+    QVERIFY(surface && surface->isVisible());
+    QTest::mouseClick(surface, Qt::LeftButton, {}, QPoint(200, 450));
+    QTest::qWait(300);
+    QTest::keyClicks(surface, "typed as the window closed");
+    QTest::qWait(120);
+
+    window->close();
+    QTest::qWait(300);
+    delete window;
+    QTest::qWait(200);
+
+    const QJsonArray left = diskOf(sbxDir.path());
+    bool found = false;
+    for (const auto& v : left) {
+        if (v.toObject().value("note").toString()
+            == QLatin1String("typed as the window closed"))
+            found = true;
+    }
+    QVERIFY2(found, "a note still being typed was lost when the window closed");
 }
 
 QTEST_MAIN(TestAnnotations)
