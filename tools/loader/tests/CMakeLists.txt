@@ -33,6 +33,58 @@ target_link_libraries(tst_inspector_unit PRIVATE
 add_test(NAME inspector_unit COMMAND tst_inspector_unit)
 set_tests_properties(inspector_unit PROPERTIES LABELS "inspector;unit")
 
+# --- Annotation surface (issue #182): store + the surface driven for real ---
+add_executable(tst_annotations
+    tst_annotations.cpp
+    ../clayannotations.cpp
+    ../clayannotations.h
+    ../clayinspector.cpp
+    ../clayinspector.h
+    ../claycontrols.cpp
+    ../claycontrols.h
+    ../clayliveloader.cpp
+    ../clayliveloader.h
+    ../hotreloadcontainer.cpp
+    ../hotreloadcontainer.h
+    ../mainwindow.cpp
+    ../mainwindow.h
+    ../retroeffect.cpp
+    ../retroeffect.h
+    ../qmlres.qrc
+)
+
+set_target_properties(tst_annotations PROPERTIES AUTOMOC ON AUTORCC ON)
+
+target_compile_definitions(tst_annotations PRIVATE
+    SRCDIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    CLAY_LOADER_VERSION="${CLAYGROUND_PROJECT_VERSION}"
+)
+
+target_include_directories(tst_annotations PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_BINARY_DIR}/tst_annotations_autogen/include
+)
+
+target_link_libraries(tst_annotations PRIVATE
+    claytoolscommon
+    clayscene
+    Qt6::Core
+    Qt6::Test
+    Qt6::Quick
+    Qt6::Qml
+    Qt6::QuickControls2
+    Qt6::QuickWidgets
+    Qt6::Sql
+    Qt6::Widgets
+)
+
+add_test(NAME annotations COMMAND tst_annotations)
+set_tests_properties(annotations PROPERTIES
+    LABELS "annotations;gui"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+    TIMEOUT 120
+)
+
 # --- Integration tests (launches clayliveloader, exercises file protocol) ---
 add_executable(tst_inspector_dojo
     tst_inspector_dojo.cpp

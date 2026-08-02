@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -49,6 +50,31 @@ ClayDojo::ClayDojo(QObject *parent):
 
     restart_.setSingleShot(true);
     connect(&restart_, &QTimer::timeout, this, &Cdo::onTimeToRestart);
+
+    annotationPoll_.setInterval(1000);
+    connect(&annotationPoll_, &QTimer::timeout,
+            this, &Cdo::refreshAnnotationCount);
+    annotationPoll_.start();
+}
+
+void ClayDojo::refreshAnnotationCount()
+{
+    int open = 0;
+    for (auto const& dir: sandboxDirs_) {
+        QFile file(dir + "/.clay/crew/annotations/index.json");
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        const auto doc = QJsonDocument::fromJson(file.readAll());
+        if (!doc.isObject()) continue;
+        const auto arr = doc.object().value("annotations").toArray();
+        for (auto const& v: arr) {
+            if (v.toObject().value("status").toString(QStringLiteral("open"))
+                == QLatin1String("open"))
+                ++open;
+        }
+    }
+    if (open == openAnnotations_) return;
+    openAnnotations_ = open;
+    emit openAnnotationsChanged();
 }
 
 ClayDojo::~ClayDojo()

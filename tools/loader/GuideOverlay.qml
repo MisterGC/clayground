@@ -39,7 +39,12 @@ Rectangle {
 
         ShortcutDescr {
             keys: "Ctrl+F"
-            descr: "Flag: screenshot + annotation"
+            descr: "Show/Hide annotation surface"
+        }
+
+        ShortcutDescr {
+            keys: "Ctrl+Shift+F"
+            descr: "Clear annotations marked addressed"
         }
 
         ShortcutDescr {

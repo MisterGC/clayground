@@ -9,6 +9,8 @@ find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2 QuickWidgets Sql 
 add_executable(${PROJECT_NAME}
     main.cpp
     qmlres.qrc
+    clayannotations.cpp
+    clayannotations.h
     clayinspector.cpp
     clayinspector.h
     claycontrols.cpp

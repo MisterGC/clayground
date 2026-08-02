@@ -17,9 +17,13 @@
 #include <memory>
 #include <mutex>
 
-class ClayDojo: public QObject 
+class ClayDojo: public QObject
 {
     Q_OBJECT
+    // How many annotations are still open across the supervised sandboxes
+    // (issue #182). The control window shows it so feedback you left in the
+    // loader cannot rot unnoticed and confuse the next conversation.
+    Q_PROPERTY(int openAnnotations READ openAnnotations NOTIFY openAnnotationsChanged)
 
 public:
     ClayDojo(QObject* parent = nullptr);
@@ -28,6 +32,8 @@ public:
     // False when the file does not exist - the caller is expected to say so
     // and stop, rather than start a dojo that supervises nothing.
     bool addSandboxDir(const QString& sandboxFile);
+
+    int openAnnotations() const { return openAnnotations_; }
 
 public slots:
     void run();
@@ -41,6 +47,7 @@ private slots:
 signals:
     void aboutToRestart();
     void restarted();
+    void openAnnotationsChanged();
 
 private:
     void writeDojoState(const QString& phase, int exitCode,
@@ -49,6 +56,9 @@ private:
                        const QString& reason = {});
     void writeCrashArtifact(int exitCode, const QString& exitStatus);
     void appendOutputLine(const QString& line);
+    // Read-only poll of the loader's annotation store. The dojo never writes
+    // that file - it only counts what is still open.
+    void refreshAnnotationCount();
 
 private:
     std::timed_mutex mutex_;
@@ -77,5 +87,7 @@ private:
     // broken invocation stayed invisible.
     std::deque<QString> recentOutput_;
     QTimer restart_;
+    QTimer annotationPoll_;
+    int openAnnotations_ = 0;
     QLoggingCategory logCat_;
 };
