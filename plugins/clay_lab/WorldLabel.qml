@@ -114,9 +114,15 @@ Rectangle {
 
     readonly property vector3d _screen: {
         if (!root.view || !root.camera) return Qt.vector3d(0, 0, -1)
-        // the two dependencies that make this track a moving camera
+        // mapFrom3DScene projects to PIXELS, so all four of these change the
+        // result while the function body names none of them. The camera pair
+        // tracks orbiting; the size pair tracks window resizes AND the initial
+        // layout — without it a label projected while the View3D is still 0x0
+        // stays at (0,0) until something moves the camera.
         root.camera.scenePosition
         root.camera.sceneRotation
+        root.view.width
+        root.view.height
         return root.view.mapFrom3DScene(root.worldPosition)
     }
 
