@@ -2,6 +2,7 @@
 #define BOX3DGEOMETRY_H
 
 #include <QQuick3DGeometry>
+#include <QColor>
 #include <QVector3D>
 #include <QVector2D>
 
@@ -18,6 +19,7 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
     Q_PROPERTY(float edgeThickness READ edgeThickness WRITE setEdgeThickness NOTIFY edgeThicknessChanged)
     Q_PROPERTY(float edgeColorFactor READ edgeColorFactor WRITE setEdgeColorFactor NOTIFY edgeColorFactorChanged)
+    Q_PROPERTY(QColor edgeColor READ edgeColor WRITE setEdgeColor NOTIFY edgeColorChanged)
     Q_PROPERTY(int edgeMask READ edgeMask WRITE setEdgeMask NOTIFY edgeMaskChanged)
 
 public:
@@ -76,6 +78,9 @@ public:
     float edgeColorFactor() const;
     void setEdgeColorFactor(float factor);
 
+    QColor edgeColor() const;
+    void setEdgeColor(const QColor &color);
+
     int edgeMask() const;
     void setEdgeMask(int mask);
 
@@ -88,6 +93,7 @@ signals:
     void showEdgesChanged();
     void edgeThicknessChanged();
     void edgeColorFactorChanged();
+    void edgeColorChanged();
     void edgeMaskChanged();
 
 private:
@@ -100,6 +106,8 @@ private:
     bool m_showEdges = true;
     float m_edgeThickness = 0.03f;
     float m_edgeColorFactor = 0.4f;
+    // Fully transparent means "unset" - see setEdgeColor()
+    QColor m_edgeColor = QColor(0, 0, 0, 0);
     int m_edgeMask = AllEdges;  // Default to showing all edges
 };
 

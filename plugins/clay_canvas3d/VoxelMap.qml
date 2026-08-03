@@ -2,7 +2,6 @@
 
 import QtQuick
 import QtQuick3D
-import QtQuick.Window
 
 /*!
     \qmltype VoxelMap
@@ -93,19 +92,39 @@ Model {
 
     /*!
         \qmlproperty real VoxelMap::edgeThickness
-        \brief Thickness of grid edge lines.
+        \brief Thickness of grid edge lines, in pixels.
 
-        Defaults to 0.05.
+        Screen-space, so an edge keeps its weight as the camera moves, and the
+        same unit Box3D::edgeThickness uses: a cell border comes out this many
+        pixels wide, half on either side of the border.
+
+        Defaults to 1.0, a one pixel hairline.
     */
-    property real edgeThickness: 0.05
+    property real edgeThickness: 1.0
 
     /*!
         \qmlproperty real VoxelMap::edgeColorFactor
         \brief Darkening factor for edges.
 
-        Defaults to 1.0.
+        Defaults to 1.0. Ignored once edgeColor is set.
     */
     property real edgeColorFactor: 1.0
+
+    /*!
+        \qmlproperty color VoxelMap::edgeColor
+        \brief The edge color, as an absolute color rather than a factor.
+
+        Wins over edgeColorFactor as soon as it has a visible alpha, which is
+        what counts as set here - a fully transparent edge has no meaning, so
+        it serves as the unset sentinel and leaves opaque black reachable.
+
+        \qml
+        StaticVoxelMap {
+            edgeColor: "#2f3437"    // dark grey borders, whatever the voxel
+        }
+        \endqml
+    */
+    property color edgeColor: "transparent"
 
     /*!
         \qmlproperty bool VoxelMap::showEdges
@@ -355,19 +374,13 @@ Model {
             // Edge properties
             property real edgeThickness: _voxelMap.edgeThickness
             property real edgeColorFactor: _voxelMap.edgeColorFactor
+            property color edgeColor: _voxelMap.edgeColor
             property bool showEdges: _voxelMap.showEdges
 
             // Toon shading control
             // When true, applies cartoon-style lighting with half-lambert formula
             // Creates blocky shadow patterns perfect for voxel aesthetics
             property bool useToonShading: false
-
-            // Is expose to allows drawing edges in pixels instead of
-            // of world units or pure relative voxel size - this allows
-            // same edgethickness across voxelmaps with different voxel
-            // sizes - TODO: Don't use
-            property real viewportHeight: Screen.desktopAvailableHeight
-
         }
     ]
 

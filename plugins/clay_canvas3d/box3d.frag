@@ -12,8 +12,8 @@ VARYING float vFaceID;
 // - bool showEdges
 // - float edgeThickness         // thickness in pixels
 // - float edgeColorFactor
+// - vec4 edgeColor              // absolute edge colour; alpha 0 means "unset"
 // - int edgeMask                // bit mask for selective edge rendering
-// - float viewportHeight        // still exposed for compatibility, but not used here
 // - bool useToonShading         // enables toon/cartoon style lighting
 
 // Helper function to check if an edge should be displayed based on the mask
@@ -105,8 +105,13 @@ void MAIN()
         bool showThisEdge = shouldShowEdge(vFaceID, vUV);
 
         if (edgeFactor > 0.0 && showThisEdge) {
-            vec3 edgeColor = colorOut.rgb * edgeColorFactor;
-            finalColor = mix(finalColor, vec4(edgeColor, 1.0), edgeFactor);
+            // edgeColor wins whenever it is set at all, and "set" means a
+            // visible alpha - a fully transparent edge has no meaning, so it
+            // is free to serve as the sentinel. Without one, "unset" and an
+            // opaque black edge would be the same value.
+            vec3 e = edgeColor.a > 0.0 ? edgeColor.rgb
+                                       : colorOut.rgb * edgeColorFactor;
+            finalColor = mix(finalColor, vec4(e, 1.0), edgeFactor);
         }
     }
 
