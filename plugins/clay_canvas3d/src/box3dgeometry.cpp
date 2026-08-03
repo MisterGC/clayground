@@ -74,9 +74,15 @@
     \qmlproperty real Box3DGeometry::edgeThickness
     \brief The thickness of edge lines in pixels.
 
-    Screen-space, so an edge keeps its weight as the camera moves. The same
-    unit VoxelMap::edgeThickness uses. Defaults to 0.03, which is thinner than
-    one pixel - set it to a few pixels to see anything.
+    Screen-space, so an edge keeps its weight as the camera moves - and the
+    same width VoxelMap::edgeThickness produces, not just the same unit. A
+    line straddles the boundary it marks and each surface draws half of it, so
+    a box border and a voxel map's border come out equal at the same setting;
+    a voxel map's interior grid lines sit entirely on one face and so draw the
+    full width.
+
+    Defaults to 0.03, which is thinner than one pixel - set it to a few pixels
+    to see anything.
 */
 
 /*!
