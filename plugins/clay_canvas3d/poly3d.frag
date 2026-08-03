@@ -23,18 +23,23 @@ void MAIN()
     vec4 finalColor = colorOut;
 
     if (showEdges) {
-        // edgeCoord is the corner's barycentric coordinate, plus
-        // EDGE_SUPPRESS_OFFSET on every component whose opposite edge is an
-        // interior diagonal rather than a polygon ring edge. A barycentric
-        // coordinate lives in [0, 1], so a component above half the offset is
-        // unambiguously a lifted one.
+        // edgeCoord is the corner's barycentric coordinate, lifted by a
+        // multiple of EDGE_SUPPRESS_OFFSET that says what sits on the other
+        // side of the edge opposite that corner:
         //
-        // Taking the offset back out gives the plain barycentric triangle;
-        // the step() that found it also tells us, per component, whether the
-        // edge opposite that corner is a diagonal or part of a ring - which is
-        // what lets the two be drawn at different widths below.
-        vec3 interior = step(vec3(EDGE_SUPPRESS_OFFSET * 0.5), edgeCoord);
-        vec3 b = edgeCoord - interior * EDGE_SUPPRESS_OFFSET;
+        //   0x  a rim, with nothing on the other side
+        //   1x  an interior diagonal of the triangulation
+        //   2x  a seam with another surface of the same object - the cap rim,
+        //       a wall's upright or its foot on an extruded polygon
+        //
+        // A barycentric coordinate lives in [0, 1], so steps at half and one
+        // and a half offsets read the multiple back with room to spare, and
+        // taking it out again leaves the plain barycentric triangle. The lift
+        // is the same on all three corners of a triangle, so it survives
+        // interpolation untouched and never disturbs the gradients below.
+        vec3 lifted = step(vec3(EDGE_SUPPRESS_OFFSET * 0.5), edgeCoord);
+        vec3 seamed = step(vec3(EDGE_SUPPRESS_OFFSET * 1.5), edgeCoord);
+        vec3 b = edgeCoord - (lifted + seamed) * EDGE_SUPPRESS_OFFSET;
 
         // Distance to each of the triangle's three edges, in barycentric
         // units, turned into pixels by its own screen-space gradient. That is
@@ -53,27 +58,33 @@ void MAIN()
                         b.y / max(length(vec2(dFdx(b.y), dFdy(b.y))), 1e-8),
                         b.z / max(length(vec2(dFdx(b.z), dFdy(b.z))), 1e-8));
 
-        // Split the three by what kind of edge each one is. A ring edge is the
-        // outline of the polygon: only the triangle inside it draws anything,
-        // so the outward half of the line falls on nothing and it must be laid
-        // down at full width to read as edgeThickness pixels. An interior
-        // diagonal is shared by the two triangles either side, so each draws
-        // half - the same straddling rule that makes a box border and a voxel
-        // map border come out the same weight.
+        // Split the three by what kind of edge each one is. A rim has nothing
+        // on the other side: only the triangle inside it draws anything, so the
+        // outward half of the line falls on nowhere and it must be laid down at
+        // full width to read as edgeThickness pixels. Everything shared - an
+        // interior diagonal between two triangles, or a seam where a prism's
+        // cap meets a wall - is drawn from both sides at half width, which is
+        // the straddling rule that makes a box border, a voxel map border and
+        // an extruded polygon's border come out the same weight.
         const float kFar = 1.0e6;
-        vec3 ringPix = mix(pix, vec3(kFar), interior);
-        vec3 diagPix = mix(vec3(kFar), pix, interior);
+        vec3 rimPix  = mix(pix, vec3(kFar), lifted);
+        vec3 seamPix = mix(vec3(kFar), pix, seamed);
+        vec3 diagPix = mix(vec3(kFar), pix, lifted - seamed);
 
         // Solid out to the width, then one pixel of ramp so the line does not
         // crawl when the camera moves.
         float halfWidth = edgeThickness * 0.5;
-        float ring = 1.0 - smoothstep(edgeThickness - 0.5, edgeThickness + 0.5,
-                                      min(min(ringPix.x, ringPix.y), ringPix.z));
+        float rim = 1.0 - smoothstep(edgeThickness - 0.5, edgeThickness + 0.5,
+                                     min(min(rimPix.x, rimPix.y), rimPix.z));
+        float seam = 1.0 - smoothstep(halfWidth - 0.5, halfWidth + 0.5,
+                                      min(min(seamPix.x, seamPix.y), seamPix.z));
         float diag = 1.0 - smoothstep(halfWidth - 0.5, halfWidth + 0.5,
                                       min(min(diagPix.x, diagPix.y), diagPix.z));
 
-        // FaceBorders draws the outline only; Triangles adds the diagonals.
-        float edgeFactor = (edgeMode == 1) ? max(ring, diag) : ring;
+        // Both modes draw the object's face borders - the rims, and the seams
+        // between its own surfaces. Triangles adds the triangulation on top.
+        float border = max(rim, seam);
+        float edgeFactor = (edgeMode == 1) ? max(border, diag) : border;
 
         if (edgeFactor > 0.0) {
             // edgeColor wins whenever it is set at all, and "set" means a

@@ -67,7 +67,13 @@ QString shaderUrl(const char *fileName)
 // A square, four points, which earcut turns into exactly two triangles sharing
 // one diagonal. The smallest shape in which "is the diagonal drawn?" is a
 // question with a visible answer.
-QString sceneSource(const QString &edgeMode)
+//
+// With extrude above zero the same square becomes a prism, and the question
+// changes: seen from straight above, its rim is no longer a rim but the seam
+// where the top cap meets a wall. Both are lines the object's face borders
+// include, and only the triangulation diagonal is not - which is the whole of
+// what the second lift level encodes.
+QString sceneSource(const QString &edgeMode, double extrude = 0.0)
 {
     return QStringLiteral(R"(
 import QtQuick
@@ -97,6 +103,7 @@ Item {
                            Qt.vector2d(60, 60), Qt.vector2d(-60, 60)]
                 showEdges: true
                 edgeMode: %1
+                extrude: %4
             }
             materials: CustomMaterial {
                 property color baseColor: "#ffffff"
@@ -114,7 +121,8 @@ Item {
     }
 }
 )")
-        .arg(edgeMode, shaderUrl("poly3d.vert"), shaderUrl("poly3d.frag"));
+        .arg(edgeMode, shaderUrl("poly3d.vert"), shaderUrl("poly3d.frag"))
+        .arg(extrude);
 }
 
 } // namespace
@@ -127,12 +135,13 @@ private slots:
     void initTestCase();
     void trianglesShowTheDiagonal();
     void faceBordersHideTheDiagonal();
+    void extrudedFaceBordersKeepTheCapRim();
 
 private:
     // Renders one scene. Returns a null image and fills errorOut when the scene
     // could not be built or the window never came up - which has to be reported
     // as an error rather than silently sampled as "all black".
-    QImage render(const QString &edgeMode, QString *errorOut);
+    QImage render(const QString &edgeMode, QString *errorOut, double extrude = 0.0);
 
     QTemporaryDir m_sceneDir;
 };
@@ -151,16 +160,17 @@ void TestPoly3DWireframe::initTestCase()
     QVERIFY(m_sceneDir.isValid());
 }
 
-QImage TestPoly3DWireframe::render(const QString &edgeMode, QString *errorOut)
+QImage TestPoly3DWireframe::render(const QString &edgeMode, QString *errorOut, double extrude)
 {
-    const QString path = m_sceneDir.filePath(QStringLiteral("scene_%1.qml").arg(edgeMode.mid(
-        edgeMode.lastIndexOf(QLatin1Char('.')) + 1)));
+    const QString name = edgeMode.mid(edgeMode.lastIndexOf(QLatin1Char('.')) + 1)
+                         + (extrude > 0.0 ? QStringLiteral("_prism") : QString());
+    const QString path = m_sceneDir.filePath(QStringLiteral("scene_%1.qml").arg(name));
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         *errorOut = QStringLiteral("could not write the scene to ") + path;
         return QImage();
     }
-    file.write(sceneSource(edgeMode).toUtf8());
+    file.write(sceneSource(edgeMode, extrude).toUtf8());
     file.close();
 
     QQuickView view;
@@ -200,8 +210,7 @@ QImage TestPoly3DWireframe::render(const QString &edgeMode, QString *errorOut)
     const QByteArray dumpDir = qgetenv("CLAY_TEST_IMAGE_DIR");
     if (!dumpDir.isEmpty()) {
         image.save(QString::fromLocal8Bit(dumpDir) + QStringLiteral("/poly3d_")
-                   + edgeMode.mid(edgeMode.lastIndexOf(QLatin1Char('.')) + 1)
-                   + QStringLiteral(".png"));
+                   + name + QStringLiteral(".png"));
     }
 
     return image.convertToFormat(QImage::Format_RGB32);
@@ -318,6 +327,55 @@ void TestPoly3DWireframe::faceBordersHideTheDiagonal()
                  "luminance near the top edge was %1 against a fill of %2. With the diagonal "
                  "hidden and the rim missing, the barycentric channel is carrying nothing at "
                  "all rather than carrying it correctly.")
+                            .arg(rimDarkest).arg(fill)));
+}
+
+// Extruding moves the square's rim from "nothing on the other side" to "the
+// seam where the cap meets a wall". Both are face borders, so FaceBorders must
+// still draw it - while the diagonal, which is neither, stays hidden. A shader
+// that read the seam lift as an ordinary interior edge would pass the diagonal
+// half of this and lose the outline entirely, and nothing else in the suite
+// would notice.
+void TestPoly3DWireframe::extrudedFaceBordersKeepTheCapRim()
+{
+    QString error;
+    const QImage image = render(QStringLiteral("Poly3DGeometry.FaceBorders"), &error, 40.0);
+    QVERIFY2(!image.isNull(), qPrintable(error));
+
+    QRect bounds;
+    QVERIFY2(findPolygonBounds(image, &bounds),
+             "nothing was drawn at all - every pixel is still the clear colour.");
+
+    const QPoint centre = bounds.center();
+    const QPoint inside(centre.x(), centre.y() - bounds.height() / 4);
+
+    const double fill = luminance(image.pixel(inside));
+    const double diagonal = luminance(image.pixel(centre));
+
+    QVERIFY2(fill > 0.25,
+             qPrintable(QStringLiteral(
+                 "a quarter of the way into the top cap the prism sampled at luminance %1 - "
+                 "that is not a lit fill.")
+                            .arg(fill)));
+
+    QVERIFY2(diagonal > 0.85 * fill,
+             qPrintable(QStringLiteral(
+                 "edgeMode: FaceBorders drew the top cap's triangulation diagonal on an "
+                 "extruded polygon - luminance %1 against a fill of %2. Extruding must not "
+                 "turn an interior edge into a face border.")
+                            .arg(diagonal).arg(fill)));
+
+    double rimDarkest = 1.0;
+    for (int y = bounds.top(); y <= bounds.top() + qMax(4, bounds.height() / 12); ++y)
+        rimDarkest = qMin(rimDarkest, luminance(image.pixel(centre.x(), y)));
+
+    QVERIFY2(rimDarkest < 0.5 * fill,
+             qPrintable(QStringLiteral(
+                 "the extruded polygon's cap rim is not drawn in FaceBorders mode - darkest "
+                 "luminance near the top edge was %1 against a fill of %2. That rim is a seam "
+                 "with the wall below it, and a seam is a face border: the shader is reading "
+                 "the second lift level as an ordinary interior diagonal, so an extruded "
+                 "Poly3D has lost its outline.")
                             .arg(rimDarkest).arg(fill)));
 }
 
