@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import QtQuick.Window // For Screen
 
 import Clayground.Canvas3D
 
@@ -91,7 +90,10 @@ Model {
 
     /*!
         \qmlproperty real Box3D::edgeThickness
-        \brief Thickness of edge lines.
+        \brief Thickness of edge lines, in pixels.
+
+        Screen-space, so an edge keeps its weight as the camera moves. The
+        same unit VoxelMap::edgeThickness uses.
     */
     property alias edgeThickness: _geometry.edgeThickness
 
@@ -99,9 +101,26 @@ Model {
         \qmlproperty real Box3D::edgeColorFactor
         \brief Darkening factor for edges (0-1).
 
-        Lower values create darker edges.
+        Lower values create darker edges. Ignored once edgeColor is set.
     */
     property alias edgeColorFactor: _geometry.edgeColorFactor
+
+    /*!
+        \qmlproperty color Box3D::edgeColor
+        \brief The edge color, as an absolute color rather than a factor.
+
+        Wins over edgeColorFactor as soon as it has a visible alpha, which is
+        what counts as set here - a fully transparent edge has no meaning, so
+        it serves as the unset sentinel and leaves opaque black reachable.
+
+        \qml
+        Box3D {
+            color: "#e6d2f2"
+            edgeColor: "#2f3437"    // dark grey edges on a light face
+        }
+        \endqml
+    */
+    property alias edgeColor: _geometry.edgeColor
 
     /*!
         \qmlproperty int Box3D::edgeMask
@@ -164,10 +183,8 @@ Model {
             property bool showEdges: _geometry.showEdges
             property real edgeThickness: _geometry.edgeThickness
             property real edgeColorFactor: _geometry.edgeColorFactor
+            property color edgeColor: _geometry.edgeColor
             property int edgeMask: _geometry.edgeMask
-
-            // Add viewport height for consistent edge thickness
-            property real viewportHeight: Screen.desktopAvailableHeight
         }
     ]
 }

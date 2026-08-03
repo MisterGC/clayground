@@ -1,5 +1,4 @@
 VARYING vec3 vNormal;
-VARYING vec3 vViewVec;
 VARYING vec4 colorOut;
 VARYING vec3 pos;
 
@@ -7,15 +6,18 @@ VARYING vec3 pos;
 // - float voxelSize
 // - vec3 voxelOffset
 // - bool showEdges
-// - float edgeThickness
+// - float edgeThickness         // thickness in pixels, as in box3d.frag
 // - float edgeColorFactor
-// - float viewportHeight
+// - vec4 edgeColor              // absolute edge colour; alpha 0 means "unset"
 // - bool useToonShading         // enables toon/cartoon style lighting
 
 void MAIN()
 {
     if (showEdges){
-        // Calculate grid lines based on world position
+        // Calculate grid lines based on world position. The grid is procedural
+        // and at voxel cadence on purpose: greedy meshing merges a run of
+        // voxels into one quad, and only a mesh-independent grid still draws
+        // every cell border inside that merged quad.
         vec3 gridPos = (pos - voxelOffset) / voxelSize;
 
         // Calculate distance to nearest grid line for each axis
@@ -24,23 +26,44 @@ void MAIN()
                              min(1-f.y, f.y),
                              min(1-f.z, f.z));
 
-        // Convert pixel width to view space based on distance from camera and viewport size
-        float distanceToCamera = length(vViewVec);
-        float pixelSizeAtDistance = distanceToCamera * edgeThickness / viewportHeight;
+        // How much of a voxel one pixel covers, per axis (#184). Taken on
+        // gridPos rather than on its fract(), which would blow up at the
+        // seam. Unlike the distanceToCamera / viewportHeight ratio this
+        // replaces, it follows the FOV, the actual viewport and the
+        // foreshortening of the surface - so a pixel is really a pixel.
+        //
+        // The floor keeps the axis a face is flat in usable: there the
+        // derivative is zero and gridDist is zero up to float noise, and the
+        // ratio has to come out as "on the line" rather than as 0/0.
+        vec3 fw = max(fwidth(gridPos), vec3(1e-4));
 
-        // Account for perspective by scaling with distance
-        float lineWidthVoxelSpace = pixelSizeAtDistance / voxelSize;
+        // Distance to the nearest grid line in pixels - the same unit
+        // box3d.frag measures edgeThickness in.
+        vec3 pixelDist = gridDist / fw;
 
-        // Line is visible if any axis is close to a grid line
+        // Half of edgeThickness, because the line straddles its grid plane.
+        // That is what makes the knob mean the same number of pixels on a
+        // voxel map and on a box: box3d.frag ramps its edge out over
+        // edgeThickness pixels, so its line is edgeThickness wide at half
+        // intensity, and this one is edgeThickness wide outright.
+        float halfWidth = edgeThickness * 0.5;
+
+        // Line is visible if two axes are close to a grid line. On a face the
+        // axis the face is flat in always qualifies, which leaves the two
+        // running across it to draw the grid.
         float line = (
-                     (gridDist.x < lineWidthVoxelSpace && gridDist.y < lineWidthVoxelSpace) ||
-                     (gridDist.x < lineWidthVoxelSpace && gridDist.z < lineWidthVoxelSpace) ||
-                     (gridDist.y < lineWidthVoxelSpace && gridDist.z < lineWidthVoxelSpace))
+                     (pixelDist.x < halfWidth && pixelDist.y < halfWidth) ||
+                     (pixelDist.x < halfWidth && pixelDist.z < halfWidth) ||
+                     (pixelDist.y < halfWidth && pixelDist.z < halfWidth))
                      ? 1.0 : 0.0;
 
-        // Mix the voxel color with the grid line color
-        vec3 edgeColor = colorOut.xyz * edgeColorFactor;
-        BASE_COLOR = mix(colorOut, vec4(edgeColor.x, edgeColor.y, edgeColor.z, 1.0), line);
+        // Mix the voxel color with the grid line color. edgeColor wins
+        // whenever it is set at all, and "set" means a visible alpha - a fully
+        // transparent edge has no meaning, so it is free to serve as the
+        // sentinel. Without one, "unset" and an opaque black edge would be the
+        // same value.
+        vec3 e = edgeColor.a > 0.0 ? edgeColor.rgb : colorOut.rgb * edgeColorFactor;
+        BASE_COLOR = mix(colorOut, vec4(e.x, e.y, e.z, 1.0), line);
     }
     else {
         BASE_COLOR = colorOut;

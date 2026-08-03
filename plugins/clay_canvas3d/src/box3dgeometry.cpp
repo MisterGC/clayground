@@ -72,9 +72,11 @@
 
 /*!
     \qmlproperty real Box3DGeometry::edgeThickness
-    \brief The thickness of edge lines in normalized units.
+    \brief The thickness of edge lines in pixels.
 
-    Controls how thick the edge lines appear. Defaults to 0.03.
+    Screen-space, so an edge keeps its weight as the camera moves. The same
+    unit VoxelMap::edgeThickness uses. Defaults to 0.03, which is thinner than
+    one pixel - set it to a few pixels to see anything.
 */
 
 /*!
@@ -84,6 +86,18 @@
     A value between 0 and 1 that determines how dark the edges appear
     relative to the base color. Lower values create darker edges.
     Defaults to 0.4.
+
+    Ignored once edgeColor is set.
+*/
+
+/*!
+    \qmlproperty color Box3DGeometry::edgeColor
+    \brief The edge color, as an absolute color rather than a factor.
+
+    Takes precedence over edgeColorFactor as soon as it has a visible alpha,
+    which is what "set" means here - a fully transparent edge has no meaning,
+    so it serves as the unset sentinel and leaves opaque black reachable.
+    Defaults to transparent, so edgeColorFactor keeps deciding.
 */
 
 /*!
@@ -406,6 +420,20 @@ void Box3dGeometry::setEdgeColorFactor(float factor)
         return;
     m_edgeColorFactor = factor;
     emit edgeColorFactorChanged();
+    update();
+}
+
+QColor Box3dGeometry::edgeColor() const
+{
+    return m_edgeColor;
+}
+
+void Box3dGeometry::setEdgeColor(const QColor &color)
+{
+    if (m_edgeColor == color)
+        return;
+    m_edgeColor = color;
+    emit edgeColorChanged();
     update();
 }
 
