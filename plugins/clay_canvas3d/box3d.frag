@@ -156,7 +156,7 @@ void MAIN()
     }
 
     BASE_COLOR = finalColor;
-    
+
     // Set material properties appropriate for toon shading
     // When toon shading is enabled, we want:
     // - No metallic properties (toon is typically matte)
@@ -189,7 +189,7 @@ void DIRECTIONAL_LIGHT() {
     if (useToonShading) {
         // Calculate toon diffuse lighting
         vec3 diffuse = diffuseToonSimple(NORMAL, TO_LIGHT_DIR);
-        
+
         // Apply lighting with shadow contribution
         // SHADOW_CONTRIB creates the hard light/dark transitions characteristic of toon shading
         // Strong shadows (shadowFactor ~78) create distinct bands of light and shadow
