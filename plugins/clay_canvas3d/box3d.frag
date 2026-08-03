@@ -110,8 +110,18 @@ void MAIN()
             // it belongs to, so the smallest of its three components is the
             // distance to the nearest one. edgeMask does not apply here - a
             // triangulation missing some of its lines is not a triangulation.
-            float d = min(min(vBary.x, vBary.y), vBary.z);
-            float p = d / max(fwidth(d), 1e-8);
+            // Pixel distance per component from the true screen-space
+            // gradient, length(dFdx, dFdy), not fwidth. fwidth is the sum of
+            // the two, which on a diagonal - where they are equal - overstates
+            // the gradient by up to sqrt(2) and draws the line that much too
+            // wide. A face border is axis-aligned and unaffected, so the error
+            // shows up precisely as diagonals heavier than the borders they
+            // sit between.
+            vec3 pix = vec3(
+                vBary.x / max(length(vec2(dFdx(vBary.x), dFdy(vBary.x))), 1e-8),
+                vBary.y / max(length(vec2(dFdx(vBary.y), dFdy(vBary.y))), 1e-8),
+                vBary.z / max(length(vec2(dFdx(vBary.z), dFdy(vBary.z))), 1e-8));
+            float p = min(min(pix.x, pix.y), pix.z);
             edgeFactor = 1.0 - smoothstep(halfWidth - 0.5, halfWidth + 0.5, p);
         } else {
             // FaceBorders: the twelve borders, read off the per-face UVs.
