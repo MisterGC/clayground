@@ -7,6 +7,7 @@ VARYING vec2 vUV;
 VARYING vec3 vOrigPosition;
 VARYING vec3 vWorldPosition;
 VARYING float vFaceID;
+VARYING vec3 vBary;
 
 // Uniforms exposed from the CustomMaterial
 // - bool showEdges
@@ -14,6 +15,7 @@ VARYING float vFaceID;
 // - float edgeColorFactor
 // - vec4 edgeColor              // absolute edge colour; alpha 0 means "unset"
 // - int edgeMask                // bit mask for selective edge rendering
+// - int edgeMode                // 0 = FaceBorders, 1 = Triangles
 // - bool useToonShading         // enables toon/cartoon style lighting
 
 // Helper function to check if an edge should be displayed based on the mask
@@ -86,23 +88,38 @@ void MAIN()
     vec4 finalColor = colorOut;
 
     if (showEdges) {
-        // Compute distance from nearest U and V edges
-        float dU = min(vUV.x, 1.0 - vUV.x);
-        float dV = min(vUV.y, 1.0 - vUV.y);
+        float edgeFactor = 0.0;
+        bool showThisEdge = true;
 
-        // Screen-space derivatives give us pixel-relative UV size
-        float fwU = fwidth(vUV.x);
-        float fwV = fwidth(vUV.y);
+        if (edgeMode == 1) {
+            // Triangles: the box's own triangulation, diagonals included. The
+            // barycentric coordinate is zero along every edge of the triangle
+            // it belongs to, so the smallest of its three components is the
+            // distance to the nearest one. edgeMask does not apply here - a
+            // triangulation missing some of its lines is not a triangulation.
+            float d = min(min(vBary.x, vBary.y), vBary.z);
+            float w = fwidth(d);
+            edgeFactor = 1.0 - smoothstep(0.0, w * edgeThickness, d);
+        } else {
+            // FaceBorders: the twelve borders, read off the per-face UVs.
+            // Compute distance from nearest U and V edges
+            float dU = min(vUV.x, 1.0 - vUV.x);
+            float dV = min(vUV.y, 1.0 - vUV.y);
 
-        // Convert edgeThickness (pixels) to UV space via fwidth
-        float edgeU = smoothstep(0.0, fwU * edgeThickness, dU);
-        float edgeV = smoothstep(0.0, fwV * edgeThickness, dV);
+            // Screen-space derivatives give us pixel-relative UV size
+            float fwU = fwidth(vUV.x);
+            float fwV = fwidth(vUV.y);
 
-        // Combine: 0 near edge, 1 in center; we want the inverse
-        float edgeFactor = 1.0 - min(edgeU, edgeV);
+            // Convert edgeThickness (pixels) to UV space via fwidth
+            float edgeU = smoothstep(0.0, fwU * edgeThickness, dU);
+            float edgeV = smoothstep(0.0, fwV * edgeThickness, dV);
 
-        // Check if we should show this edge based on the mask
-        bool showThisEdge = shouldShowEdge(vFaceID, vUV);
+            // Combine: 0 near edge, 1 in center; we want the inverse
+            edgeFactor = 1.0 - min(edgeU, edgeV);
+
+            // Check if we should show this edge based on the mask
+            showThisEdge = shouldShowEdge(vFaceID, vUV);
+        }
 
         if (edgeFactor > 0.0 && showThisEdge) {
             // edgeColor wins whenever it is set at all, and "set" means a

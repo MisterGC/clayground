@@ -21,6 +21,7 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(float edgeColorFactor READ edgeColorFactor WRITE setEdgeColorFactor NOTIFY edgeColorFactorChanged)
     Q_PROPERTY(QColor edgeColor READ edgeColor WRITE setEdgeColor NOTIFY edgeColorChanged)
     Q_PROPERTY(int edgeMask READ edgeMask WRITE setEdgeMask NOTIFY edgeMaskChanged)
+    Q_PROPERTY(EdgeMode edgeMode READ edgeMode WRITE setEdgeMode NOTIFY edgeModeChanged)
 
 public:
     enum ScaledFace {
@@ -57,6 +58,16 @@ public:
     };
     Q_ENUM(EdgeFlags)
 
+    // Which lines "edges" means. The barycentric attribute both modes could
+    // want is always in the buffer (36 unshared vertices anyway, so it costs
+    // 432 bytes once), which is why this switches a uniform and never a
+    // layout.
+    enum EdgeMode {
+        FaceBorders,    // the twelve borders of the six faces
+        Triangles       // the actual triangulation, diagonals included
+    };
+    Q_ENUM(EdgeMode)
+
     Box3dGeometry();
 
     QVector3D size() const;
@@ -84,6 +95,9 @@ public:
     int edgeMask() const;
     void setEdgeMask(int mask);
 
+    EdgeMode edgeMode() const;
+    void setEdgeMode(EdgeMode mode);
+
 signals:
     void sizeChanged();
     void faceScaleChanged();
@@ -95,6 +109,7 @@ signals:
     void edgeColorFactorChanged();
     void edgeColorChanged();
     void edgeMaskChanged();
+    void edgeModeChanged();
 
 private:
     void updateData();
@@ -109,6 +124,7 @@ private:
     // Fully transparent means "unset" - see setEdgeColor()
     QColor m_edgeColor = QColor(0, 0, 0, 0);
     int m_edgeMask = AllEdges;  // Default to showing all edges
+    EdgeMode m_edgeMode = FaceBorders;
 };
 
 #endif // BOX3DGEOMETRY_H

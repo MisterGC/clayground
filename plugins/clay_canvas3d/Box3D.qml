@@ -31,6 +31,12 @@ import Clayground.Canvas3D
     \sa Box3DGeometry
 */
 Model {
+    id: root
+
+    // Mirrors Box3DGeometry::EdgeMode so the documented "edgeMode:
+    // Box3D.Triangles" spelling resolves without naming the geometry.
+    enum EdgeMode { FaceBorders, Triangles }
+
     /*!
         \qmlproperty color Box3D::color
         \brief The base color of the box.
@@ -126,9 +132,37 @@ Model {
         \qmlproperty int Box3D::edgeMask
         \brief Bitmask controlling which edges are visible.
 
-        Use allEdges, topEdges, bottomEdges, etc.
+        Use allEdges, topEdges, bottomEdges, etc. Applies in the default
+        \c FaceBorders mode only - see \l edgeMode.
     */
     property alias edgeMask: _geometry.edgeMask
+
+    /*!
+        \qmlproperty enumeration Box3D::edgeMode
+        \brief Which lines showEdges draws.
+
+        \value Box3D.FaceBorders The twelve borders of the six faces - a box
+               drawn as a box. The default.
+        \value Box3D.Triangles The box's actual triangulation, so every face
+               also shows the diagonal splitting it into two triangles. For
+               showing how the mesh is built rather than what it depicts.
+
+        \l edgeMask selects among the face borders and applies to
+        \c FaceBorders only; in \c Triangles mode every triangle edge is drawn
+        and the mask is ignored.
+
+        \qml
+        Box3D {
+            color: "#0f9d9a"
+            edgeMode: Box3D.Triangles
+            edgeColor: "#101820"
+            edgeThickness: 2
+        }
+        \endqml
+
+        \sa Box3DGeometry::edgeMode
+    */
+    property int edgeMode: Box3D.FaceBorders
 
     property bool cullMode: false
     property alias lighting: _material.lighting
@@ -161,6 +195,7 @@ Model {
         size: Qt.vector3d(width, height, depth)
         edgeColorFactor: 0.4
         edgeMask: Box3DGeometry.AllEdges
+        edgeMode: root.edgeMode
     }
 
     materials: [
@@ -185,6 +220,7 @@ Model {
             property real edgeColorFactor: _geometry.edgeColorFactor
             property color edgeColor: _geometry.edgeColor
             property int edgeMask: _geometry.edgeMask
+            property int edgeMode: root.edgeMode
         }
     ]
 }

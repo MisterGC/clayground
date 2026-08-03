@@ -6,9 +6,17 @@ VARYING vec2 vUV;
 VARYING vec3 vOrigPosition;
 VARYING vec3 vWorldPosition;
 VARYING float vFaceID;
+VARYING vec3 vBary;
 
 void MAIN()
 {
+    // Barycentric coordinates for edgeMode: Triangles. They travel on the
+    // tangent slot - Box3DGeometry writes (1,0,0)/(0,1,0)/(0,0,1) per
+    // triangle corner there - so this is a data channel, not a tangent, and
+    // it is passed through untouched. Nothing on this material may enable
+    // normal mapping.
+    vBary = TANGENT;
+
     // Pass the color through (baseColor is auto-connected from CustomMaterial)
     colorOut = baseColor.a > 0.0 ? baseColor : COLOR;
 
