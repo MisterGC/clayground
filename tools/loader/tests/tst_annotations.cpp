@@ -53,6 +53,9 @@ private slots:
     // --- selection pairing (replaces the leader lines) ---
     void pairsFrameAndCardBothWays();
     void scrollsOnlyWhenTheCardIsOutOfView();
+    void bringsACardCreatedOffTheBottomIntoView();
+    void followsTheCardThatGrowsWhileItIsWrittenIn();
+    void keepsTheCaretEndOfAnOversizedCardVisible();
     void noLeaderLinesAreDrawn();
     void detachedAnnotationHighlightsNoFrame();
     void badgeStaysLegibleAtTheEdge();
@@ -1291,6 +1294,144 @@ void TestAnnotations::scrollsOnlyWhenTheCardIsOutOfView()
     QTest::qWait(400);
     QCOMPARE(s.root->property("scrollCount").toInt(), before + 1);
     QCOMPARE(flick->property("contentY").toReal(), settled);
+}
+
+namespace {
+
+// Frame regions until the list of cards is longer than the panel can show.
+// Everything about the scroll rule is vacuous while the list still fits, so
+// the caller checks that it does not.
+bool fillPastTheBottom(Surface& s, QQuickItem* flick)
+{
+    const QList<QPoint> spots{{90, 70}, {260, 70}, {430, 70}, {90, 200}};
+    for (int i = 0; i < spots.size(); ++i)
+        frameAndWrite(s.widget, spots.at(i), QStringLiteral("note %1").arg(i + 1));
+    return flick->property("contentHeight").toReal() > flick->height() + 20;
+}
+
+// Is every pixel of the card inside the part of the list that is on screen?
+bool fullyVisible(QQuickItem* card, QQuickItem* flick)
+{
+    const qreal top = flick->property("contentY").toReal();
+    return card->y() >= top - 1.0
+           && card->y() + card->height() <= top + flick->height() + 1.0;
+}
+
+QString placement(QQuickItem* card, QQuickItem* flick)
+{
+    const qreal top = flick->property("contentY").toReal();
+    return QStringLiteral("card %1..%2, list shows %3..%4")
+        .arg(card->y()).arg(card->y() + card->height())
+        .arg(top).arg(top + flick->height());
+}
+
+} // namespace
+
+// Case one of the report: a new card is appended to the END of the list, so
+// when the list already overflows it is created out of sight - and the cursor
+// goes into it anyway. Writing into something you cannot see is the complaint.
+void TestAnnotations::bringsACardCreatedOffTheBottomIntoView()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    auto* flick = itemNamed(s.root, "annotationNotes");
+    QVERIFY(flick);
+    QVERIFY2(fillPastTheBottom(s, flick),
+             "the list still fits - this test cannot say anything");
+
+    // One more, and this time no Enter: this is the moment the cursor lands in
+    // a card that was appended below the visible area.
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, QPoint(260, 200));
+    QTest::qWait(600);
+
+    const auto cards = itemsNamed(s.root, "annotationCard");
+    QCOMPARE(cards.size(), 5);
+    auto* fresh = cards.last();
+    QVERIFY2(fresh->property("editing").toBool(),
+             "the card was created without the cursor landing in it");
+    QVERIFY2(fullyVisible(fresh, flick),
+             qPrintable("the new card was created out of sight: "
+                        + placement(fresh, flick)));
+    // And not jammed flat against the bottom edge either. A Flickable cannot
+    // scroll past its own content, so the last card used to land with its
+    // underside exactly on the edge - visible, but one wrapped word away from
+    // not being, which from the outside looks like it never scrolled at all.
+    QVERIFY2(fresh->y() + fresh->height() + 5.0
+                 <= flick->property("contentY").toReal() + flick->height(),
+             qPrintable("the new card landed flush against the bottom edge: "
+                        + placement(fresh, flick)));
+}
+
+// Case two, and the one nothing was watching for: the card being written in
+// grows as the note wraps onto another line, and the line being typed slides
+// under the bottom edge. The list has to follow the card, not just the cursor.
+void TestAnnotations::followsTheCardThatGrowsWhileItIsWrittenIn()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    auto* flick = itemNamed(s.root, "annotationNotes");
+    QVERIFY(flick);
+    QVERIFY2(fillPastTheBottom(s, flick),
+             "the list still fits - this test cannot say anything");
+
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, QPoint(260, 200));
+    QTest::qWait(600);
+    auto* card = itemsNamed(s.root, "annotationCard").last();
+    QVERIFY(card && card->property("editing").toBool());
+
+    const qreal oneLine = card->height();
+    const int scrollsBefore = s.root->property("scrollCount").toInt();
+
+    QTest::keyClicks(s.widget, "the platform hit box is wider than it looks and ");
+    QTest::qWait(300);
+    QTest::keyClicks(s.widget, "the player snags on the corner every single time");
+    QTest::qWait(700);
+
+    QVERIFY2(card->height() > oneLine + 10,
+             "the note did not wrap - there is no growth to follow");
+    QVERIFY2(s.root->property("scrollCount").toInt() > scrollsBefore,
+             "the card grew past the bottom edge and the list never moved");
+    QVERIFY2(fullyVisible(card, flick),
+             qPrintable("the card being written in grew out of sight: "
+                        + placement(card, flick)));
+}
+
+// The third case is the one where "fully visible" cannot be granted: a note
+// long enough to be taller than the whole list. One end has to go over an edge,
+// and it must be the top - the caret is at the bottom, and the bottom is the
+// only end that being able to see is worth anything while typing.
+void TestAnnotations::keepsTheCaretEndOfAnOversizedCardVisible()
+{
+    Surface s;
+    QVERIFY(s.open());
+
+    auto* flick = itemNamed(s.root, "annotationNotes");
+    QVERIFY(flick);
+
+    QTest::mouseClick(s.widget, Qt::LeftButton, {}, QPoint(200, 200));
+    QTest::qWait(400);
+    for (int i = 0; i < 8; ++i) {
+        QTest::keyClicks(s.widget, "wrapping words wrapping words ");
+        QTest::qWait(150);
+    }
+    QTest::qWait(700);
+
+    auto* card = itemsNamed(s.root, "annotationCard").last();
+    QVERIFY(card);
+    QVERIFY2(card->height() > flick->height(),
+             "the card never outgrew the list - nothing to choose between here");
+
+    const qreal top = flick->property("contentY").toReal();
+    const qreal bottom = card->y() + card->height();
+    QVERIFY2(bottom >= top && bottom <= top + flick->height() + 1.0,
+             qPrintable("the caret end of an oversized card is off screen: "
+                        + placement(card, flick)));
+    QVERIFY2(card->y() < top - 1.0,
+             qPrintable("an oversized card was lined up by its top, which puts "
+                        "the line being typed below the edge: "
+                        + placement(card, flick)));
 }
 
 // Nothing is drawn between a frame and its card any more. The leader layer was

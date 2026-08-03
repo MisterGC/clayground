@@ -58,8 +58,9 @@ Item {
     property string hoveredId: ""
     property string sceneId: ""
     property bool wipeArmed: false
-    // How many times the list actually moved. The scroll rule is "only when
-    // the card cannot be seen", and the only way to hold that rule honest is
+    // How many times the list actually moved. The scroll rule is "the card
+    // being written in is always fully visible, and the list moves only when
+    // it is not" - and the only way to hold the second half of that honest is
     // to be able to count the moves that did not need to happen.
     property int scrollCount: 0
 
@@ -90,10 +91,18 @@ Item {
         }
     }
 
-    // A card that has just been added is not yet where it is going to be: the
-    // delegate exists but the column lays out on the next frame, so asking to
-    // scroll to it now measures a position it does not have. Selecting an
-    // existing frame needs none of this - nothing moved.
+    // A card that has just been added - or has just grown another line - is not
+    // yet where it is going to be: the delegate exists but the column lays out
+    // on the next frame, so asking to scroll to it now measures a size and a
+    // position it does not have. Every reveal that follows a layout change goes
+    // through here. Selecting an existing frame needs none of it - nothing
+    // moved - and a coalescing timer also means one scroll per burst of typing
+    // rather than one per wrapped line.
+    function revealCardLater(id) {
+        revealLater.annId = id;
+        revealLater.restart();
+    }
+
     Timer {
         id: revealLater
         interval: 32
@@ -184,8 +193,7 @@ Item {
                 break;
             }
         }
-        revealLater.annId = id;
-        revealLater.restart();
+        revealCardLater(id);
     }
 
     function removeAnnotation(id) {
@@ -590,12 +598,23 @@ Item {
                 // one that never moves.
                 function ensureVisible(item) {
                     var pad = 6;
+                    var top = item.y - pad;
+                    var bottom = item.y + item.height + pad;
                     var target = contentY;
-                    if (item.y - pad < contentY)
-                        target = Math.max(0, item.y - pad);
-                    else if (item.y + item.height + pad > contentY + height)
-                        target = Math.max(0, item.y + item.height + pad - height);
-                    target = Math.min(target, Math.max(0, contentHeight - height));
+                    if (bottom - top > height) {
+                        // Taller than the list itself, so one end of it has to
+                        // go over the edge. It is the top that goes: the caret
+                        // is at the bottom, and a card you are writing in whose
+                        // last line you cannot see is the whole complaint.
+                        if (bottom < contentY || bottom > contentY + height)
+                            target = bottom - height;
+                    } else if (top < contentY) {
+                        target = top;
+                    } else if (bottom > contentY + height) {
+                        target = bottom - height;
+                    }
+                    target = Math.max(0, Math.min(target,
+                                                  Math.max(0, contentHeight - height)));
                     if (Math.abs(target - contentY) < 1.0) return;
                     root.scrollCount += 1;
                     scrollTo.stop();
@@ -609,6 +628,12 @@ Item {
                     id: noteColumn
                     width: notesFlick.width
                     spacing: 8
+                    // Room under the last card. The card being written in is
+                    // almost always the last one, and a Flickable cannot scroll
+                    // past its own content: without this the final card lands
+                    // flush against the bottom edge and the next line typed
+                    // goes straight under it.
+                    bottomPadding: 6
 
                     Repeater {
                         id: noteRepeater
@@ -643,6 +668,11 @@ Item {
                             // already visible - nothing to scroll to.
                             onSelectRequested: root.selectAnnotation(modelData.id,
                                                                     false)
+                            // The card being written in is a different matter:
+                            // it has to stay whole on screen from the moment it
+                            // takes the cursor, and again every time another
+                            // wrapped line makes it taller.
+                            onRevealRequested: root.revealCardLater(annId)
                             onHoverRequested: function(on) {
                                 root.setHovered(modelData.id, on);
                             }
