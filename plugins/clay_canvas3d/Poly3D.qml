@@ -21,6 +21,10 @@ import Clayground.Canvas3D
     against LabelBatch3D: one Model and one draw call per polygon, meant for
     tens of areas rather than thousands.
 
+    It can also show its own edges - either the outline it was given or the
+    triangulation underneath it, see \l showEdges and \l edgeMode. Edges are off
+    by default and cost nothing until asked for.
+
     A polygon lying at exactly the same height as another surface z-fights with
     it. Lift it a hair along its normal - \c {y: 0.5} for a polygon on the
     ground - which is the only reliable fix. Model's own \c depthBias is not
@@ -66,6 +70,9 @@ Model {
     // Mirrors Poly3DGeometry::Plane so the documented "plane: Poly3D.XZ"
     // spelling resolves without naming the geometry.
     enum Plane { XZ, XY, YZ }
+
+    // Mirrors Poly3DGeometry::EdgeMode, same reason.
+    enum EdgeMode { FaceBorders, Triangles }
 
     /*!
         \qmlproperty list<vector2d> Poly3D::vertices
@@ -141,6 +148,85 @@ Model {
     */
     property int plane: Poly3D.XZ
 
+    /*!
+        \qmlproperty bool Poly3D::showEdges
+        \brief Whether the polygon draws its own edges.
+
+        Defaults to false, unlike Box3D, where it defaults to true: a box's
+        borders are its look, while a polygon's edges are a deliberate choice -
+        an area on the ground usually wants to be an area, not a diagram of one.
+
+        The mesh a polygon needs in order to draw edges is wider than the one it
+        needs to be filled, so setting this true for the first time rebuilds it.
+        That wider mesh is then kept, which is what makes
+        \c {showEdges: hoverHandler.hovered} a reasonable thing to write: one
+        rebuild for the object's lifetime, and a uniform write per toggle after
+        that.
+
+        \sa edgeMode
+    */
+    property alias showEdges: _geometry.showEdges
+
+    /*!
+        \qmlproperty enumeration Poly3D::edgeMode
+        \brief Which lines \l showEdges draws.
+
+        \value Poly3D.FaceBorders The polygon outline only - the rings that were
+               handed over, including the rims of any holes. Interior lines the
+               triangulation invented stay hidden. The default, and the same
+               thing Box3D and VoxelMap edges have always meant.
+        \value Poly3D.Triangles Every edge of the triangulation, the mesh's own
+               structure. What a lab explaining how a shape is built wants.
+
+        Switching between the two costs nothing - both read the same channel.
+
+        \qml
+        Poly3D {
+            vertices: ring
+            showEdges: true
+            edgeMode: Poly3D.Triangles
+            edgeColor: "#2f3437"
+        }
+        \endqml
+    */
+    property alias edgeMode: _geometry.edgeMode
+
+    /*!
+        \qmlproperty real Poly3D::edgeThickness
+        \brief Thickness of the edge lines, in pixels.
+
+        Screen-space, so a line keeps its weight as the camera moves or the
+        polygon tilts away. The same unit Box3D::edgeThickness and
+        VoxelMap::edgeThickness use. Defaults to 1.0.
+
+        An edge shared by two triangles is drawn from both sides and so comes
+        out about twice as wide as one on the polygon's rim.
+    */
+    property alias edgeThickness: _geometry.edgeThickness
+
+    /*!
+        \qmlproperty real Poly3D::edgeColorFactor
+        \brief Darkening factor for edges (0-1).
+
+        Lower values give darker edges. Ignored once \l edgeColor is set.
+        Defaults to 0.4.
+    */
+    property alias edgeColorFactor: _geometry.edgeColorFactor
+
+    /*!
+        \qmlproperty color Poly3D::edgeColor
+        \brief The edge color, as an absolute color rather than a factor.
+
+        Wins over \l edgeColorFactor as soon as it has a visible alpha, which is
+        what counts as set here - a fully transparent edge has no meaning, so it
+        serves as the unset sentinel and leaves opaque black reachable.
+
+        On a light fill this is the difference between edges that read and edges
+        that barely exist: \c edgeColorFactor can only ever darken the fill
+        towards black by a fraction of itself.
+    */
+    property alias edgeColor: _geometry.edgeColor
+
     geometry: Poly3DGeometry {
         id: _geometry
         plane: root.plane
@@ -151,6 +237,14 @@ Model {
             id: _material
             property color baseColor: "#0f9d9a"
             property bool useToonShading: false
+
+            // Edge settings, read off the geometry: it owns them because it is
+            // what has to change shape when edges are switched on.
+            property bool showEdges: _geometry.showEdges
+            property int edgeMode: _geometry.edgeMode
+            property real edgeThickness: _geometry.edgeThickness
+            property real edgeColorFactor: _geometry.edgeColorFactor
+            property color edgeColor: _geometry.edgeColor
 
             vertexShader: "poly3d.vert"
             fragmentShader: "poly3d.frag"

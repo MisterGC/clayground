@@ -50,3 +50,37 @@ target_link_libraries(tst_poly3dgeometry PRIVATE
 
 add_test(NAME canvas3d_poly3dgeometry COMMAND tst_poly3dgeometry)
 set_tests_properties(canvas3d_poly3dgeometry PROPERTIES LABELS "canvas3d;unit")
+
+# The one test that actually renders. It guards the attribute contract behind
+# the Poly3D wireframe - that barycentric coordinates smuggled through
+# TangentSemantic arrive in the fragment shader untouched - which no amount of
+# CPU-side checking can establish. It builds its own tiny QML module rather than
+# importing Clayground.Canvas3D so that it needs no installed plugin, and points
+# CustomMaterial straight at the shader sources next door.
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+
+add_executable(tst_poly3dwireframe
+    tst_poly3dwireframe.cpp
+    ../src/poly3dgeometry.cpp
+)
+
+set_target_properties(tst_poly3dwireframe PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_poly3dwireframe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+
+target_compile_definitions(tst_poly3dwireframe PRIVATE
+    POLY3D_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+)
+
+target_link_libraries(tst_poly3dwireframe PRIVATE
+    earcut
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::Quick3D
+    Qt6::Test
+)
+
+add_test(NAME canvas3d_poly3dwireframe COMMAND tst_poly3dwireframe)
+set_tests_properties(canvas3d_poly3dwireframe PROPERTIES LABELS "canvas3d;render")

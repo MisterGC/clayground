@@ -1,10 +1,17 @@
-// Poly3D Examples - filled planar areas: convex, concave, holes, three planes
+// Poly3D Examples - filled planar areas, and the edges they can show
 //
 // The area primitive of Canvas3D. Every shape here is one Poly3D with one ring
-// of 2D points; the holes are inner rings, and the walls are the same ring
-// under a different plane value.
+// of 2D points; the holes are inner rings, and the wall is the same ring under
+// a different plane value.
+//
+// The top row is the same four shapes throughout - toggle showEdges and watch
+// the fill stay exactly as it was, then switch between the two edge modes:
+// FaceBorders draws the rings that were handed over, Triangles draws the mesh
+// underneath them. The bottom pair is the edgeColor question on a light fill,
+// where a factor on the fill has nowhere dark to go.
 
 import QtQuick
+import QtQuick.Controls
 import QtQuick3D
 import QtQuick3D.Helpers
 import Clayground.Canvas3D
@@ -17,6 +24,13 @@ View3D {
     // rendered on its own rather than from the sandbox.
     property var cameraStore: parent ? parent.cameraStore : null
 
+    // One set of knobs drives every polygon in the top row, so the comparison
+    // stays honest.
+    property bool edgesOn: edgeSwitch.checked
+    property int edgeMode: modeBox.currentIndex === 0 ? Poly3D.FaceBorders
+                                                      : Poly3D.Triangles
+    property real thickness: thicknessSlider.value
+
     environment: SceneEnvironment {
         clearColor: "#101820"
         backgroundMode: SceneEnvironment.Color
@@ -26,8 +40,8 @@ View3D {
 
     PerspectiveCamera {
         id: camera
-        position: Qt.vector3d(0, 520, 560)
-        eulerRotation.x: -42
+        position: Qt.vector3d(0, 560, 520)
+        eulerRotation.x: -46
 
         Component.onCompleted: {
             if (cameraStore && cameraStore.has("poly3d_camPos"))
@@ -62,25 +76,35 @@ View3D {
 
     // The ground everything else lies on.
     Poly3D {
-        vertices: [Qt.vector2d(-520, -320), Qt.vector2d(520, -320),
-                   Qt.vector2d(520, 320), Qt.vector2d(-520, 320)]
+        vertices: [Qt.vector2d(-520, -340), Qt.vector2d(520, -340),
+                   Qt.vector2d(520, 300), Qt.vector2d(-520, 300)]
         color: "#22303c"
         useToonShading: true
     }
 
-    // 1 - convex: a hexagon. Lifted a hair off the ground: two surfaces at the
-    // same height fight over the depth buffer, and Model's depthBias only
-    // decides draw order, it does not offset the depth itself.
+    // --- the shape gallery, all under the same edge settings --------------
+    //
+    // Lifted a hair off the ground: two surfaces at the same height fight over
+    // the depth buffer, and Model's depthBias only decides draw order, it does
+    // not offset the depth itself.
+
+    // 1 - convex: a hexagon. Its triangulation is a fan, which FaceBorders
+    // hides entirely and Triangles shows as spokes.
     Poly3D {
-        x: -360
+        x: -390
         y: 0.5
+        z: -150
         color: "#00d9ff"
         useToonShading: true
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#eafeff"
         vertices: {
             var pts = []
             for (var i = 0; i < 6; ++i) {
                 var a = i * Math.PI / 3.0
-                pts.push(Qt.vector2d(90 * Math.cos(a), 90 * Math.sin(a)))
+                pts.push(Qt.vector2d(80 * Math.cos(a), 80 * Math.sin(a)))
             }
             return pts
         }
@@ -89,25 +113,36 @@ View3D {
     // 2 - concave: an L, handed over clockwise on purpose. Winding is
     // normalised while the mesh is built, so it faces up either way.
     Poly3D {
-        x: -120
+        x: -130
         y: 0.5
+        z: -150
         color: "#ff3366"
         useToonShading: true
-        vertices: [Qt.vector2d(-90, -90), Qt.vector2d(-90, 90),
-                   Qt.vector2d(-20, 90), Qt.vector2d(-20, 0),
-                   Qt.vector2d(90, 0), Qt.vector2d(90, -90)]
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#ffe3ea"
+        vertices: [Qt.vector2d(-80, -80), Qt.vector2d(-80, 80),
+                   Qt.vector2d(-18, 80), Qt.vector2d(-18, 0),
+                   Qt.vector2d(80, 0), Qt.vector2d(80, -80)]
     }
 
-    // 3 - concave: a star, the shape a triangle fan cannot fake.
+    // 3 - concave: a star, the shape a triangle fan cannot fake. The notch at
+    // every second point is where FaceBorders and Triangles differ most.
     Poly3D {
         x: 130
         y: 0.5
+        z: -150
         color: "#ffd93d"
         useToonShading: true
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#fff8dc"
         vertices: {
             var pts = []
             for (var i = 0; i < 10; ++i) {
-                var r = (i % 2 === 0) ? 105 : 42
+                var r = (i % 2 === 0) ? 92 : 38
                 var a = -Math.PI / 2 + i * Math.PI / 5.0
                 pts.push(Qt.vector2d(r * Math.cos(a), r * Math.sin(a)))
             }
@@ -115,38 +150,161 @@ View3D {
         }
     }
 
-    // 4 - two holes cut out of one square.
+    // 4 - two holes cut out of one square. A hole's rim is a ring edge like any
+    // other, so FaceBorders outlines the holes too; only the bridges earcut
+    // builds between outer ring and holes are hidden.
     Poly3D {
-        x: 380
+        x: 390
         y: 0.5
+        z: -150
         color: "#0f9d9a"
         useToonShading: true
-        vertices: [Qt.vector2d(-95, -95), Qt.vector2d(95, -95),
-                   Qt.vector2d(95, 95), Qt.vector2d(-95, 95)]
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#dbfffe"
+        vertices: [Qt.vector2d(-88, -88), Qt.vector2d(88, -88),
+                   Qt.vector2d(88, 88), Qt.vector2d(-88, 88)]
         holes: [
-            [Qt.vector2d(-70, -70), Qt.vector2d(-15, -70),
-             Qt.vector2d(-15, -15), Qt.vector2d(-70, -15)],
-            [Qt.vector2d(15, 15), Qt.vector2d(70, 15), Qt.vector2d(42, 75)]
+            [Qt.vector2d(-62, -62), Qt.vector2d(-12, -62),
+             Qt.vector2d(-12, -12), Qt.vector2d(-62, -12)],
+            [Qt.vector2d(14, 14), Qt.vector2d(66, 14), Qt.vector2d(40, 70)]
         ]
     }
 
-    // 5 - the same ring standing up: plane XY makes a wall, and a Box3D in
-    // front of it shows the polygons take part in the shadow pass.
+    // --- edgeColor against edgeColorFactor, on a light fill ---------------
+    //
+    // The same shape twice, same thickness, same mode. edgeColorFactor can only
+    // scale the fill towards black by a fraction of itself, so on a pale
+    // surface it produces pale lines; edgeColor names the colour outright.
+
     Poly3D {
-        z: -300
+        x: -130
+        y: 0.5
+        z: 120
+        color: "#e6d2f2"
+        useToonShading: true
+        showEdges: true
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColorFactor: 0.4
+        vertices: [Qt.vector2d(-88, -70), Qt.vector2d(88, -70),
+                   Qt.vector2d(58, 70), Qt.vector2d(-58, 70)]
+    }
+
+    Poly3D {
+        x: 130
+        y: 0.5
+        z: 120
+        color: "#e6d2f2"
+        useToonShading: true
+        showEdges: true
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#2f3437"
+        vertices: [Qt.vector2d(-88, -70), Qt.vector2d(88, -70),
+                   Qt.vector2d(58, 70), Qt.vector2d(-58, 70)]
+    }
+
+    // --- the same ring standing up ----------------------------------------
+    //
+    // plane XY makes a wall, and a Box3D in front of it shows that polygons
+    // take part in the shadow pass.
+    Poly3D {
+        z: -330
         plane: Poly3D.XY
         color: "#3d2c5c"
         useToonShading: true
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#c9b8e8"
         vertices: [Qt.vector2d(-200, 0), Qt.vector2d(200, 0),
-                   Qt.vector2d(200, 220), Qt.vector2d(-200, 220)]
+                   Qt.vector2d(200, 200), Qt.vector2d(-200, 200)]
     }
 
     Box3D {
-        z: -180
-        width: 70
-        height: 90
-        depth: 70
+        x: 0
+        z: -280
+        width: 60
+        height: 80
+        depth: 60
         color: "#e8e8e8"
         useToonShading: true
+    }
+
+    // --- controls ---------------------------------------------------------
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 16
+        width: 350
+        height: content.implicitHeight + 24
+        radius: 8
+        color: "#cc16213e"
+        border.color: "#0f9d9a"
+        border.width: 2
+
+        Column {
+            id: content
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            Row {
+                spacing: 10
+
+                Switch {
+                    id: edgeSwitch
+                    text: "showEdges"
+                    checked: true
+                }
+
+                ComboBox {
+                    id: modeBox
+                    width: 150
+                    model: ["FaceBorders", "Triangles"]
+                    currentIndex: 1
+                }
+            }
+
+            Text {
+                text: "edgeThickness: " + view3D.thickness.toFixed(2) + " px"
+                color: "#eaeaea"
+                font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
+                font.pixelSize: 13
+                font.bold: true
+            }
+
+            // Well above the 1.0 default on purpose. A rim line is drawn on the
+            // inside of the shape only, so at one pixel it is indistinguishable
+            // from the silhouette; a diagonal is drawn from both triangles and
+            // comes out twice as wide. Three pixels lets the two be compared.
+            Slider {
+                id: thicknessSlider
+                width: parent.width - 8
+                from: 0.5
+                to: 8.0
+                value: 3.0
+            }
+
+            Text {
+                width: parent.width - 8
+                wrapMode: Text.WordWrap
+                text: "Top row: four rings under one edge setting. " +
+                      "FaceBorders draws only what was handed over - the outer " +
+                      "ring and the rims of the holes. Triangles draws the " +
+                      "triangulation as well.\n\nTurning showEdges off leaves " +
+                      "the fill untouched; the mesh keeps the wider layout it " +
+                      "was built with, so turning it back on costs nothing.\n\n" +
+                      "Bottom pair: the same pale shape with edgeColorFactor " +
+                      "0.4 on the left and edgeColor \"#2f3437\" on the right."
+                color: "#8a8a8a"
+                font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
+                font.pixelSize: 11
+                lineHeight: 1.3
+            }
+        }
     }
 }
