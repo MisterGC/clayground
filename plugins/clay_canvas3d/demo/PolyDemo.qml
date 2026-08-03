@@ -7,8 +7,13 @@
 // The top row is the same four shapes throughout - toggle showEdges and watch
 // the fill stay exactly as it was, then switch between the two edge modes:
 // FaceBorders draws the rings that were handed over, Triangles draws the mesh
-// underneath them. The bottom pair is the edgeColor question on a light fill,
+// underneath them. The middle pair is the edgeColor question on a light fill,
 // where a factor on the fill has nowhere dark to go.
+//
+// The front row is the same rings under extrude: the flat area becomes a prism,
+// holes become courtyards, and the rightmost pair is an extruded square beside
+// a Box3D of the same size and the same edgeThickness - their borders are meant
+// to be indistinguishable.
 
 import QtQuick
 import QtQuick.Controls
@@ -30,6 +35,31 @@ View3D {
     property int edgeMode: modeBox.currentIndex === 0 ? Poly3D.FaceBorders
                                                       : Poly3D.Triangles
     property real thickness: thicknessSlider.value
+    property real prismHeight: heightSlider.value
+    // The documented way to animate a prism's height: the geometry is built
+    // once and the node is scaled, so nothing is retriangulated per frame and
+    // the edge lines - measured in pixels - keep their weight throughout.
+    // Driving extrude itself from an animation would rebuild the mesh on every
+    // frame instead, which is the mistake this is here to make unnecessary.
+    property real heightScale: growSwitch.checked ? grow.value : 1.0
+
+    QtObject {
+        id: grow
+        property real value: 1.0
+    }
+
+    SequentialAnimation {
+        running: growSwitch.checked
+        loops: Animation.Infinite
+        NumberAnimation {
+            target: grow; property: "value"
+            from: 0.15; to: 1.0; duration: 1400; easing.type: Easing.InOutQuad
+        }
+        NumberAnimation {
+            target: grow; property: "value"
+            from: 1.0; to: 0.15; duration: 1400; easing.type: Easing.InOutQuad
+        }
+    }
 
     environment: SceneEnvironment {
         clearColor: "#101820"
@@ -40,8 +70,8 @@ View3D {
 
     PerspectiveCamera {
         id: camera
-        position: Qt.vector3d(0, 560, 520)
-        eulerRotation.x: -46
+        position: Qt.vector3d(30, 800, 960)
+        eulerRotation.x: -40
 
         Component.onCompleted: {
             if (cameraStore && cameraStore.has("poly3d_camPos"))
@@ -76,8 +106,8 @@ View3D {
 
     // The ground everything else lies on.
     Poly3D {
-        vertices: [Qt.vector2d(-520, -340), Qt.vector2d(520, -340),
-                   Qt.vector2d(520, 300), Qt.vector2d(-520, 300)]
+        vertices: [Qt.vector2d(-620, -340), Qt.vector2d(660, -340),
+                   Qt.vector2d(660, 520), Qt.vector2d(-620, 520)]
         color: "#22303c"
         useToonShading: true
     }
@@ -206,6 +236,104 @@ View3D {
                    Qt.vector2d(58, 70), Qt.vector2d(-58, 70)]
     }
 
+    // --- extrude: the same rings as solids ---------------------------------
+    //
+    // A prism, not a lid on a block: the walls follow every ring the polygon
+    // has, so the courtyard in the middle one goes all the way through. Each
+    // wall carries its own normal, which is what keeps the hexagon reading as
+    // six flat faces under toon shading rather than as a cylinder.
+
+    // 5 - the L again, standing up. Its notch stays a notch all the way up.
+    Poly3D {
+        x: -280
+        z: 380
+        scale.y: view3D.heightScale
+        color: "#ff3366"
+        useToonShading: true
+        extrude: view3D.prismHeight
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#ffe3ea"
+        vertices: [Qt.vector2d(-80, -80), Qt.vector2d(-80, 80),
+                   Qt.vector2d(-18, 80), Qt.vector2d(-18, 0),
+                   Qt.vector2d(80, 0), Qt.vector2d(80, -80)]
+    }
+
+    // 6 - a ring with a courtyard: the hole gets walls of its own, facing in.
+    Poly3D {
+        x: -30
+        z: 380
+        scale.y: view3D.heightScale
+        color: "#0f9d9a"
+        useToonShading: true
+        extrude: view3D.prismHeight
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#dbfffe"
+        vertices: [Qt.vector2d(-88, -88), Qt.vector2d(88, -88),
+                   Qt.vector2d(88, 88), Qt.vector2d(-88, 88)]
+        holes: [[Qt.vector2d(-44, -44), Qt.vector2d(44, -44),
+                 Qt.vector2d(44, 44), Qt.vector2d(-44, 44)]]
+    }
+
+    // 7 - a hexagonal column: the facet test.
+    Poly3D {
+        x: 220
+        z: 380
+        scale.y: view3D.heightScale
+        color: "#00d9ff"
+        useToonShading: true
+        extrude: view3D.prismHeight
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#eafeff"
+        vertices: {
+            var pts = []
+            for (var i = 0; i < 6; ++i) {
+                var a = i * Math.PI / 3.0
+                pts.push(Qt.vector2d(80 * Math.cos(a), 80 * Math.sin(a)))
+            }
+            return pts
+        }
+    }
+
+    // 8 - the calibration pair: a Box3D and an extruded square, same size, same
+    // edgeThickness. An extruded polygon's border is a line two of its own
+    // surfaces share, so each draws half of it - exactly what a box does - and
+    // the two come out the same weight. Anything else here is a bug.
+    Box3D {
+        x: 430
+        z: 380
+        scale.y: view3D.heightScale
+        width: 120
+        height: view3D.prismHeight
+        depth: 120
+        color: "#ffd93d"
+        useToonShading: true
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#4a3d0d"
+    }
+
+    Poly3D {
+        x: 570
+        z: 380
+        scale.y: view3D.heightScale
+        color: "#ffd93d"
+        useToonShading: true
+        extrude: view3D.prismHeight
+        showEdges: view3D.edgesOn
+        edgeMode: view3D.edgeMode
+        edgeThickness: view3D.thickness
+        edgeColor: "#4a3d0d"
+        vertices: [Qt.vector2d(-60, -60), Qt.vector2d(60, -60),
+                   Qt.vector2d(60, 60), Qt.vector2d(-60, 60)]
+    }
+
     // --- the same ring standing up ----------------------------------------
     //
     // plane XY makes a wall, and a Box3D in front of it shows that polygons
@@ -290,6 +418,30 @@ View3D {
             }
 
             Text {
+                text: "extrude: " + view3D.prismHeight.toFixed(0)
+                color: "#eaeaea"
+                font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
+                font.pixelSize: 13
+                font.bold: true
+            }
+
+            // Front row only. 0 puts every prism back to the flat area it was
+            // built from - the same mesh, not a flattened solid.
+            Slider {
+                id: heightSlider
+                width: parent.width - 8
+                from: 0.0
+                to: 200.0
+                value: 90.0
+            }
+
+            Switch {
+                id: growSwitch
+                text: "animate height (scale.y)"
+                checked: false
+            }
+
+            Text {
                 width: parent.width - 8
                 wrapMode: Text.WordWrap
                 text: "Top row: four rings under one edge setting. " +
@@ -298,8 +450,13 @@ View3D {
                       "triangulation as well.\n\nTurning showEdges off leaves " +
                       "the fill untouched; the mesh keeps the wider layout it " +
                       "was built with, so turning it back on costs nothing.\n\n" +
-                      "Bottom pair: the same pale shape with edgeColorFactor " +
-                      "0.4 on the left and edgeColor \"#2f3437\" on the right."
+                      "Middle pair: the same pale shape with edgeColorFactor " +
+                      "0.4 on the left and edgeColor \"#2f3437\" on the right.\n\n" +
+                      "Front row: the same rings extruded. The rightmost pair " +
+                      "is a Box3D and an extruded Poly3D of the same size - " +
+                      "their borders read the same at every thickness. The " +
+                      "switch animates scale.y rather than extrude, which is " +
+                      "the way to move a prism's height without rebuilding it."
                 color: "#8a8a8a"
                 font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
                 font.pixelSize: 11

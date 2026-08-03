@@ -27,25 +27,48 @@
 #include <QVector2D>
 #include <QVector3D>
 
-// How far a barycentric component is lifted when the edge opposite its corner
-// is an interior diagonal rather than a ring edge. Any value well above the
-// [0, 1] range a barycentric coordinate lives in would do; the shader tells the
-// two apart with a step() at half of it, and subtracts it again in Triangles
-// mode. poly3d.frag repeats the number - keep the two in step.
+// How far a barycentric component is lifted per step of the edge kind below.
+// Any value well above the [0, 1] range a barycentric coordinate lives in would
+// do; the shader reads the multiple back with step()s at 0.5 and 1.5 of it and
+// subtracts it again. poly3d.frag repeats the number - keep the two in step.
 constexpr float kPoly3DEdgeSuppressOffset = 10.0f;
+
+// What sits on the other side of a triangle edge, which is what decides how the
+// edge is drawn. The lift a barycentric component carries is the enum value
+// times kPoly3DEdgeSuppressOffset.
+//
+// The distinction that matters is "is anything else drawing this line too":
+// a rim with nothing on the other side has to be laid down at full width to
+// read as edgeThickness pixels, while a line two surfaces share is drawn at
+// half width from each side. Extruding moves edges between the two - a flat
+// polygon's rim becomes the seam between a cap and a wall - which is why the
+// kind is a property of the emitted triangle rather than of the input ring.
+enum class Poly3DEdgeKind {
+    Rim = 0,       // nothing on the other side: full width, drawn in both modes
+    Diagonal = 1,  // interior triangulation edge: half width, Triangles mode only
+    Seam = 2       // shared with another surface of the same object: half width,
+                   // but a face border, so drawn in both modes
+};
 
 // The result of turning rings of 2D points into a triangle mesh. Kept as a
 // plain struct so the builder can be unit tested without a scene graph.
 struct Poly3DMesh
 {
     QVector<QVector3D> positions;
+    // One per position. Not one shared face normal any more: an extruded
+    // polygon's side walls each face their own way, and averaging across the
+    // ring would turn a hexagonal column into something that shades like a
+    // cylinder. Flat polygons put the same plane normal in every entry.
+    QVector<QVector3D> normals;
     QVector<quint32> indices;
     // One entry per index, so three per triangle: the corner's barycentric
-    // coordinate plus kPoly3DEdgeSuppressOffset on every component whose
-    // opposite edge is an interior diagonal. Only the wireframe layout writes
-    // these, but they are always computed - they cost one pass over the
-    // triangles and keep the builder's output independent of the layout.
+    // coordinate plus the Poly3DEdgeKind lift of the edge opposite that corner.
+    // Only the wireframe layout writes these, but they are always computed -
+    // they cost one pass over the triangles and keep the builder's output
+    // independent of the layout.
     QVector<QVector3D> edgeCodes;
+    // The plane normal - which is also the direction an extrusion grows in, and
+    // the way the top cap faces.
     QVector3D normal;
     QVector3D minBounds;
     QVector3D maxBounds;
@@ -61,6 +84,7 @@ class Poly3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(QVariantList vertices READ vertices WRITE setVertices NOTIFY verticesChanged)
     Q_PROPERTY(QVariantList holes READ holes WRITE setHoles NOTIFY holesChanged)
     Q_PROPERTY(Plane plane READ plane WRITE setPlane NOTIFY planeChanged)
+    Q_PROPERTY(float extrude READ extrude WRITE setExtrude NOTIFY extrudeChanged)
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
     Q_PROPERTY(EdgeMode edgeMode READ edgeMode WRITE setEdgeMode NOTIFY edgeModeChanged)
     Q_PROPERTY(float edgeThickness READ edgeThickness WRITE setEdgeThickness NOTIFY edgeThicknessChanged)
@@ -98,6 +122,9 @@ public:
     Plane plane() const;
     void setPlane(Plane newPlane);
 
+    float extrude() const;
+    void setExtrude(float newExtrude);
+
     bool showEdges() const;
     void setShowEdges(bool newShowEdges);
 
@@ -121,6 +148,7 @@ signals:
     void verticesChanged();
     void holesChanged();
     void planeChanged();
+    void extrudeChanged();
     void showEdgesChanged();
     void edgeModeChanged();
     void edgeThicknessChanged();
@@ -143,6 +171,7 @@ private:
     QVariantList m_vertices;
     QVariantList m_holes;
     Plane m_plane = XZ;
+    float m_extrude = 0.0f;
     bool m_showEdges = false;
     EdgeMode m_edgeMode = FaceBorders;
     float m_edgeThickness = 1.0f;
@@ -159,11 +188,19 @@ private:
 // CCW, holes CW) and the emitted triangles always face the plane's normal, so
 // the caller is free to hand over either orientation.
 //
+// extrude turns the same ring into a prism: the ring stays at the local origin
+// plane as the base, side walls rise along the plane normal and a cap closes
+// the top - the direction and origin Box3D uses. Holes get walls too, so a ring
+// with a courtyard extrudes into a building with a courtyard. At extrude 0 -
+// the default - nothing of that is emitted and the mesh is the flat area it
+// always was, down to the byte.
+//
 // Degenerate input - fewer than three points, all-collinear, zero area,
 // non-finite coordinates - yields an empty mesh and one warning under the
 // "clay.poly" logging category rather than a broken triangle fan.
 Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
-                           Poly3dGeometry::Plane plane);
+                           Poly3dGeometry::Plane plane,
+                           float extrude = 0.0f);
 
 // Reads the ring shapes QML can hand over: Qt.vector2d(), a {x, y} object (what
 // a point that has been through JSON or a spread survives as), Qt.point() and a

@@ -15,6 +15,8 @@
 
 #include "poly3dgeometry.h"
 
+#include <cmath>
+
 namespace {
 
 QVector<QVector2D> ring(std::initializer_list<QPair<float, float>> points)
@@ -91,11 +93,63 @@ bool readEdgeCodes(const Poly3DMesh &mesh, int triangle, QVector3D *suppressOut)
         return false;
     for (int axis = 0; axis < 3; ++axis) {
         const float value = suppress[axis];
-        if (value != 0.0f && value != kPoly3DEdgeSuppressOffset)
+        if (value != 0.0f && value != kPoly3DEdgeSuppressOffset
+            && value != 2.0f * kPoly3DEdgeSuppressOffset)
             return false;
     }
     *suppressOut = suppress;
     return true;
+}
+
+// The kind of the edge opposite corner `axis` of a triangle, read back out of
+// the lift the barycentric component carries.
+Poly3DEdgeKind edgeKind(const Poly3DMesh &mesh, int triangle, int axis)
+{
+    const QVector3D suppress = mesh.edgeCodes.at(triangle * 3) - QVector3D(1, 0, 0);
+    return Poly3DEdgeKind(qRound(suppress[axis] / kPoly3DEdgeSuppressOffset));
+}
+
+int countEdgeKind(const Poly3DMesh &mesh, Poly3DEdgeKind kind)
+{
+    int count = 0;
+    for (int t = 0; t * 3 < mesh.indices.size(); ++t) {
+        for (int axis = 0; axis < 3; ++axis)
+            if (edgeKind(mesh, t, axis) == kind)
+                ++count;
+    }
+    return count;
+}
+
+// The winding of a triangle judged against the normals its own vertices carry -
+// which is the only question that matters once every surface has its own.
+bool everyTriangleFacesItsOwnNormal(const Poly3DMesh &mesh)
+{
+    for (int t = 0; t * 3 < mesh.indices.size(); ++t) {
+        const QVector3D geometric = triangleNormal(mesh, t);
+        for (int corner = 0; corner < 3; ++corner) {
+            const QVector3D stored =
+                mesh.normals.at(int(mesh.indices.at(t * 3 + corner)));
+            if (QVector3D::dotProduct(geometric, stored) < 0.99f)
+                return false;
+        }
+    }
+    return true;
+}
+
+bool sameMesh(const Poly3DMesh &a, const Poly3DMesh &b)
+{
+    return a.positions == b.positions && a.normals == b.normals
+           && a.indices == b.indices && a.edgeCodes == b.edgeCodes
+           && a.normal == b.normal && a.minBounds == b.minBounds
+           && a.maxBounds == b.maxBounds;
+}
+
+QVariantList asVariantRing(const QVector<QVector2D> &points)
+{
+    QVariantList list;
+    for (const QVector2D &p : points)
+        list.append(QVariant::fromValue(p));
+    return list;
 }
 
 } // namespace
@@ -468,6 +522,307 @@ private slots:
         geometry.setShowEdges(true);
         QCoreApplication::processEvents();
         QVERIFY(geometry.hasEdgeAttributes());
+    }
+
+    // ===== extrude (issue #183, P4) =====
+
+    // The whole point of the phase: extrude 0 has to be the flat area it always
+    // was, not "the prism code with a height of nothing".
+    void extrudeZeroIsExactlyTheFlatMesh_data()
+    {
+        QTest::addColumn<float>("extrude");
+        QTest::newRow("explicit zero") << 0.0f;
+        // A negative height has no meaning, and inventing one - a prism growing
+        // the other way - would be a second thing to explain. It reads as flat.
+        QTest::newRow("negative") << -40.0f;
+    }
+
+    void extrudeZeroIsExactlyTheFlatMesh()
+    {
+        QFETCH(float, extrude);
+
+        const QVector<QVector2D> hole = ring({{25, 25}, {75, 25}, {75, 75}, {25, 75}});
+        const Poly3DMesh flat = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ);
+        const Poly3DMesh same = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ, extrude);
+
+        QVERIFY2(sameMesh(flat, same),
+                 "extrude 0 changed the mesh - the flat polygon is meant to come "
+                 "out of the builder untouched, down to the vertex order");
+    }
+
+    // ... and the buffers it uploads have to be untouched too, including after a
+    // round trip through a real extrusion.
+    void extrudeRoundTripRestoresTheFlatBuffers()
+    {
+        Poly3dGeometry geometry;
+        geometry.setVertices(asVariantRing(square));
+        geometry.setShowEdges(true);
+
+        const QByteArray vertexData = geometry.vertexData();
+        const QByteArray indexData = geometry.indexData();
+        QVERIFY(!vertexData.isEmpty());
+
+        geometry.setExtrude(40.0f);
+        QVERIFY(geometry.vertexData() != vertexData);
+
+        geometry.setExtrude(0.0f);
+        QCOMPARE(geometry.vertexData(), vertexData);
+        QCOMPARE(geometry.indexData(), indexData);
+    }
+
+    // A square prism: two caps of two triangles each, four walls of two.
+    void extrudeAddsWallsAndACap()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({square}, Poly3dGeometry::XZ, 30.0f);
+
+        // Nothing is shared between the surfaces: base and top face opposite
+        // ways, and two walls meeting at a corner face different ways again.
+        QCOMPARE(mesh.positions.size(), 2 * 4 + 4 * 4);
+        QCOMPARE(mesh.normals.size(), mesh.positions.size());
+        QCOMPARE(mesh.indices.size(), (2 * 2 + 4 * 2) * 3);
+        QCOMPARE(mesh.edgeCodes.size(), mesh.indices.size());
+        QVERIFY2(everyTriangleFacesItsOwnNormal(mesh),
+                 "a triangle is wound against the normal its vertices carry - it "
+                 "would be lit from the wrong side, or culled away");
+
+        // Base down, top up, and the walls neither.
+        int down = 0, up = 0, sideways = 0;
+        for (const QVector3D &n : mesh.normals) {
+            const float alongPlane = QVector3D::dotProduct(n, mesh.normal);
+            if (alongPlane > 0.99f) ++up;
+            else if (alongPlane < -0.99f) ++down;
+            else if (qAbs(alongPlane) < 0.01f) ++sideways;
+        }
+        QCOMPARE(down, 4);
+        QCOMPARE(up, 4);
+        QCOMPARE(sideways, 16);
+
+        // The solid is closed: 2 x 100x100 of cap plus 4 x 100x30 of wall.
+        const double expected = 2.0 * 100.0 * 100.0 + 4.0 * 100.0 * 30.0;
+        QVERIFY2(qAbs(triangleAreaSum(mesh) - expected) < 1e-3,
+                 qPrintable(QString("surface area %1, expected %2")
+                                .arg(triangleAreaSum(mesh)).arg(expected)));
+    }
+
+    // Toon shading reads a surface by its facets, so a wall must not borrow its
+    // neighbour's normal - a hexagonal column has to stay six flat faces.
+    void wallsAreFacetedNotSmoothed()
+    {
+        QVector<QVector2D> hexagon;
+        for (int i = 0; i < 6; ++i) {
+            const double a = i * M_PI / 3.0;
+            hexagon.append(QVector2D(float(80.0 * std::cos(a)), float(80.0 * std::sin(a))));
+        }
+
+        const Poly3DMesh mesh = buildPoly3DMesh({hexagon}, Poly3dGeometry::XZ, 50.0f);
+
+        // Every wall quad's four vertices share one normal, and no two walls
+        // share theirs: six walls, six distinct sideways normals.
+        QVector<QVector3D> wallNormals;
+        for (int i = 2 * 6; i < mesh.normals.size(); i += 4) {
+            const QVector3D n = mesh.normals.at(i);
+            for (int k = 1; k < 4; ++k)
+                QCOMPARE(mesh.normals.at(i + k), n);
+            for (const QVector3D &seen : wallNormals) {
+                QVERIFY2(QVector3D::dotProduct(seen, n) < 0.99f,
+                         "two walls of the hexagon carry the same normal - the ring "
+                         "has been smoothed, and the column will shade like a cylinder");
+            }
+            wallNormals.append(n);
+        }
+        QCOMPARE(wallNormals.size(), 6);
+    }
+
+    // Outer walls face away from the solid; a hole's walls face into the hole.
+    void wallsFaceOutwardAndHoleWallsFaceIn()
+    {
+        const QVector<QVector2D> hole = ring({{40, 40}, {60, 40}, {60, 60}, {40, 60}});
+        const Poly3DMesh mesh = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ, 20.0f);
+
+        // Both rings are centred on the same point here, which is what lets one
+        // comparison serve for "away from it" and "towards it".
+        const QVector3D centre(50, 0, 50);
+
+        const int capVertices = 2 * (square.size() + hole.size());
+        int outerWalls = 0, holeWalls = 0;
+        for (int i = capVertices; i < mesh.positions.size(); i += 4) {
+            // The quad's own midpoint, at the base height so the comparison is
+            // in the plane rather than up the wall.
+            QVector3D mid = mesh.positions.at(i) + mesh.positions.at(i + 1);
+            mid *= 0.5f;
+            const QVector3D n = mesh.normals.at(i);
+
+            const bool onHole = i >= capVertices + 4 * square.size();
+            if (onHole) {
+                // Facing the hole's centre means facing inwards.
+                QVERIFY2(QVector3D::dotProduct(n, centre - mid) > 0.0f,
+                         "a hole's wall faces away from the hole - the courtyard "
+                         "would be inside out");
+                ++holeWalls;
+            } else {
+                QVERIFY2(QVector3D::dotProduct(n, mid - centre) > 0.0f,
+                         "an outer wall faces into the solid");
+                ++outerWalls;
+            }
+        }
+        QCOMPARE(outerWalls, 4);
+        QCOMPARE(holeWalls, 4);
+    }
+
+    // A hole is extruded too: the ring becomes a building with a courtyard, not
+    // a solid block with a lid.
+    void holesGetWallsOfTheirOwn()
+    {
+        const QVector<QVector2D> hole = ring({{25, 25}, {75, 25}, {75, 75}, {25, 75}});
+
+        const Poly3DMesh flat = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ);
+        const Poly3DMesh mesh = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ, 10.0f);
+
+        const int capTriangles = flat.indices.size() / 3;
+        QCOMPARE(mesh.indices.size(), (2 * capTriangles + 8 * 2) * 3);
+        QCOMPARE(mesh.positions.size(), 2 * 8 + 4 * 8);
+
+        // Cap area is unchanged - the hole is still a hole - and the walls add
+        // the outer skirt plus the courtyard's.
+        const double caps = 2.0 * (100.0 * 100.0 - 50.0 * 50.0);
+        const double walls = (4.0 * 100.0 + 4.0 * 50.0) * 10.0;
+        QVERIFY2(qAbs(triangleAreaSum(mesh) - (caps + walls)) < 1e-3,
+                 qPrintable(QString("surface area %1, expected %2 - the hole's walls "
+                                    "are missing or the cap was filled in")
+                                .arg(triangleAreaSum(mesh)).arg(caps + walls)));
+    }
+
+    void boundsIncludeTheExtrudedHeight()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({square}, Poly3dGeometry::XZ, 45.0f);
+
+        QCOMPARE(mesh.minBounds, QVector3D(0, 0, 0));
+        QVERIFY2(mesh.maxBounds == QVector3D(100, 45, 100),
+                 "the bounding box stops at the base plane - the shadow-map fit "
+                 "would then slice through the solid");
+    }
+
+    void boundsFollowThePlane_data()
+    {
+        QTest::addColumn<int>("plane");
+        QTest::addColumn<QVector3D>("maxBounds");
+
+        QTest::newRow("XZ") << int(Poly3dGeometry::XZ) << QVector3D(100, 45, 100);
+        QTest::newRow("XY") << int(Poly3dGeometry::XY) << QVector3D(100, 100, 45);
+        QTest::newRow("YZ") << int(Poly3dGeometry::YZ) << QVector3D(45, 100, 100);
+    }
+
+    void boundsFollowThePlane()
+    {
+        QFETCH(int, plane);
+        QFETCH(QVector3D, maxBounds);
+
+        const Poly3DMesh mesh =
+            buildPoly3DMesh({square}, Poly3dGeometry::Plane(plane), 45.0f);
+
+        QCOMPARE(mesh.maxBounds, maxBounds);
+        QVERIFY2(everyTriangleFacesItsOwnNormal(mesh),
+                 "the wall winding does not follow the plane's handedness");
+    }
+
+    // The edge flags are what makes an extruded polygon's border read at the
+    // same weight as a Box3D's: a line two surfaces share is drawn at half
+    // width from each side, and only a rim with nothing on the other side is
+    // laid down whole.
+    void extrudingTurnsRimsIntoSeams()
+    {
+        const Poly3DMesh flat = buildPoly3DMesh({square}, Poly3dGeometry::XZ);
+        const Poly3DMesh prism = buildPoly3DMesh({square}, Poly3dGeometry::XZ, 30.0f);
+
+        // Flat: the four sides of the square are rims, the shared diagonal is
+        // counted once from each triangle.
+        QCOMPARE(countEdgeKind(flat, Poly3DEdgeKind::Rim), 4);
+        QCOMPARE(countEdgeKind(flat, Poly3DEdgeKind::Diagonal), 2);
+        QCOMPARE(countEdgeKind(flat, Poly3DEdgeKind::Seam), 0);
+
+        // Extruded: nothing is a rim any more. Every cap edge that was one is
+        // now the seam with a wall, and the walls bring their own.
+        QVERIFY2(countEdgeKind(prism, Poly3DEdgeKind::Rim) == 0,
+                 "an extruded polygon still marks an edge as a rim - that edge "
+                 "would be drawn at full width from one side and half from the "
+                 "other, and come out heavier than the same edge on a Box3D");
+
+        // Per triangle: the two caps contribute 4 seams (the square's sides,
+        // once each) and 2 diagonals; each of the four wall quads contributes 4
+        // seams and 2 diagonals.
+        QCOMPARE(countEdgeKind(prism, Poly3DEdgeKind::Seam), 2 * 4 + 4 * 4);
+        QCOMPARE(countEdgeKind(prism, Poly3DEdgeKind::Diagonal), 2 * 2 + 4 * 2);
+    }
+
+    // Each wall quad is one seam per side and one diagonal across it.
+    void everyWallQuadIsFourSeamsAndOneDiagonal()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({lShape}, Poly3dGeometry::XZ, 25.0f);
+
+        const int capTriangles = 2 * (lShape.size() - 2);
+        int quad = 0;
+        for (int t = capTriangles; t * 3 < mesh.indices.size(); t += 2, ++quad) {
+            int seams = 0, diagonals = 0;
+            for (int half = 0; half < 2; ++half) {
+                for (int axis = 0; axis < 3; ++axis) {
+                    switch (edgeKind(mesh, t + half, axis)) {
+                    case Poly3DEdgeKind::Seam: ++seams; break;
+                    case Poly3DEdgeKind::Diagonal: ++diagonals; break;
+                    case Poly3DEdgeKind::Rim: QFAIL("a wall carries a rim edge"); break;
+                    }
+                }
+            }
+            QVERIFY2(seams == 4 && diagonals == 2,
+                     qPrintable(QStringLiteral("wall quad %1 has %2 seams and %3 "
+                                               "diagonals, expected 4 and 2")
+                                    .arg(quad).arg(seams).arg(diagonals)));
+        }
+        QCOMPARE(quad, int(lShape.size()));
+    }
+
+    // Both layouts have to survive the extrusion, and the upgrade-never-
+    // downgrade rule still holds across it.
+    void bothLayoutsCarryThePrism()
+    {
+        Poly3dGeometry geometry;
+        geometry.setVertices(asVariantRing(square));
+        geometry.setExtrude(20.0f);
+
+        // Lean: indexed, one vertex per position.
+        QVERIFY(!geometry.hasEdgeAttributes());
+        QCOMPARE(geometry.stride(), 6 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 24 * 6 * int(sizeof(float)));
+        QCOMPARE(geometry.indexData().size(), 36 * int(sizeof(quint32)));
+
+        geometry.setShowEdges(true);
+
+        // Wireframe: unshared, one vertex per corner of every triangle.
+        QVERIFY(geometry.hasEdgeAttributes());
+        QCOMPARE(geometry.stride(), 9 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 36 * 9 * int(sizeof(float)));
+        QVERIFY(geometry.indexData().isEmpty());
+
+        geometry.setShowEdges(false);
+        QCOMPARE(geometry.stride(), 9 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 36 * 9 * int(sizeof(float)));
+    }
+
+    // A repeated point in the middle of a ring is not an area error, so it does
+    // not stop the polygon - but the wall it would raise has no width and no
+    // direction to face, so it is left out rather than emitted as NaN.
+    void aZeroLengthRingEdgeRaisesNoWall()
+    {
+        const QVector<QVector2D> doubled = ring({{0, 0}, {100, 0}, {100, 0},
+                                                 {100, 100}, {0, 100}});
+
+        const Poly3DMesh mesh = buildPoly3DMesh({doubled}, Poly3dGeometry::XZ, 10.0f);
+
+        for (const QVector3D &n : mesh.normals) {
+            QVERIFY2(std::isfinite(n.x()) && std::isfinite(n.y()) && std::isfinite(n.z()),
+                     "a zero-length ring edge produced a normal that is not a number");
+        }
+        // Five points, four of them raising a wall.
+        QCOMPARE(mesh.positions.size(), 2 * 5 + 4 * 4);
     }
 };
 

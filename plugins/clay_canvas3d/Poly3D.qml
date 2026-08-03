@@ -10,7 +10,9 @@ import Clayground.Canvas3D
 
     Poly3D is the area primitive of Clayground.Canvas3D: hand it a ring of 2D
     points and it draws the filled region they enclose - a lake, a plaza, a
-    footprint, a zone on the ground. Inner rings cut holes out of it.
+    footprint, a zone on the ground. Inner rings cut holes out of it, and
+    \l extrude raises the whole thing into a prism when the area is meant to be
+    a solid.
 
     The ring closes implicitly and its winding does not matter; both are sorted
     out while the mesh is built. Points that do not enclose an area (fewer than
@@ -123,11 +125,15 @@ Model {
         \qmlproperty enumeration Poly3D::cullMode
         \brief Which side of the polygon is drawn.
 
-        A polygon is a single-sided surface: with the default
+        A flat polygon is a single-sided surface: with the default
         \c Material.BackFaceCulling it disappears when seen from behind, which
         is what a ground plane wants. Set \c Material.NoCulling for one meant
         to be read from both sides - the lighting then still uses the front
         normal.
+
+        An extruded one is a closed solid with every face turned outwards, so
+        the default is what it wants and \c Material.NoCulling only costs the
+        fragments of the far side.
     */
     property alias cullMode: _material.cullMode
 
@@ -147,6 +153,44 @@ Model {
         \sa Poly3DGeometry::plane
     */
     property int plane: Poly3D.XZ
+
+    /*!
+        \qmlproperty real Poly3D::extrude
+        \brief How far the polygon rises along its plane normal.
+
+        0, the default, is the flat area. Anything above it turns the same ring
+        into a prism: the ring is the base, side walls rise along the plane
+        normal and a cap closes the top. Holes are extruded too, so a ring with
+        a courtyard becomes a building with a courtyard rather than a solid
+        block.
+
+        Direction and origin follow Box3D: the ring sits at the node's own
+        origin plane and the solid grows from there - \c {+Y} for
+        \c Poly3D.XZ, \c {+Z} for \c Poly3D.XY, \c {+X} for \c Poly3D.YZ.
+
+        Side walls are faceted, not smoothed: each wall carries its own normal,
+        so a hexagonal column reads as six flat faces rather than as a cylinder,
+        which is what \l useToonShading wants.
+
+        Changing \c extrude rebuilds the mesh. To animate the height, scale the
+        node along the extrusion axis instead - the geometry is untouched, and
+        because the edge lines are measured in screen space they keep their
+        weight while it moves:
+
+        \qml
+        Poly3D {
+            vertices: footprint
+            extrude: 100
+            showEdges: true
+            NumberAnimation on scale.y {
+                from: 0.2; to: 1.0; duration: 1200; loops: Animation.Infinite
+            }
+        }
+        \endqml
+
+        \sa plane
+    */
+    property alias extrude: _geometry.extrude
 
     /*!
         \qmlproperty bool Poly3D::showEdges
@@ -171,10 +215,13 @@ Model {
         \qmlproperty enumeration Poly3D::edgeMode
         \brief Which lines \l showEdges draws.
 
-        \value Poly3D.FaceBorders The polygon outline only - the rings that were
-               handed over, including the rims of any holes. Interior lines the
-               triangulation invented stay hidden. The default, and the same
-               thing Box3D and VoxelMap edges have always meant.
+        \value Poly3D.FaceBorders The borders of the polygon's own faces - the
+               rings that were handed over, including the rims of any holes,
+               and on an extruded polygon the seams where cap and walls meet.
+               Interior lines the triangulation invented stay hidden. The
+               default, and the same thing Box3D and VoxelMap edges have always
+               meant: an extruded Poly3D and a Box3D at the same
+               \l edgeThickness draw the same weight of line.
         \value Poly3D.Triangles Every edge of the triangulation, the mesh's own
                structure. What a lab explaining how a shape is built wants.
 
@@ -199,8 +246,11 @@ Model {
         polygon tilts away. The same unit Box3D::edgeThickness and
         VoxelMap::edgeThickness use. Defaults to 1.0.
 
-        An edge shared by two triangles is drawn from both sides and so comes
-        out about twice as wide as one on the polygon's rim.
+        A line every surface on either side of it draws is laid down at half
+        width from each, so it comes out at \c edgeThickness either way. A rim
+        with nothing on the other side is drawn at full width for the same
+        reason - which is why a flat polygon's outline, an extruded one's face
+        borders and a Box3D border all read the same.
     */
     property alias edgeThickness: _geometry.edgeThickness
 
