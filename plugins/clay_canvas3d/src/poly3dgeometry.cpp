@@ -25,7 +25,9 @@ Q_LOGGING_CATEGORY(lcPoly, "clay.poly")
     through the Poly3D component rather than directly.
 
     The mesh is indexed and carries positions and one shared face normal - the
-    smallest layout that draws a filled area.
+    smallest layout that draws a filled area. Asking for edges swaps in a second
+    layout that adds the barycentric channel the wireframe shader reads; which
+    of the two is in use is not something a caller has to think about.
 
     Example usage:
     \qml
@@ -69,12 +71,52 @@ Q_LOGGING_CATEGORY(lcPoly, "clay.poly")
     \value Poly3DGeometry.YZ (u, v) becomes (0, u, v), normal +X
 */
 
+/*!
+    \qmlproperty bool Poly3DGeometry::showEdges
+    \brief Whether the polygon draws its own edges.
+
+    Setting it true for the first time rebuilds the mesh in the layout that
+    carries the barycentric channel. That layout is kept from then on, so
+    toggling the property afterwards costs a uniform write rather than a
+    rebuild. Defaults to false.
+*/
+
+/*!
+    \qmlproperty enumeration Poly3DGeometry::edgeMode
+    \brief Which lines the wireframe draws.
+
+    \value Poly3DGeometry.FaceBorders the polygon outline only (default)
+    \value Poly3DGeometry.Triangles every edge of the triangulation
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::edgeThickness
+    \brief Edge line thickness in pixels.
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::edgeColorFactor
+    \brief Darkening factor applied to the fill when edgeColor is unset.
+*/
+
+/*!
+    \qmlproperty color Poly3DGeometry::edgeColor
+    \brief Absolute edge color; a visible alpha is what counts as set.
+*/
+
+/*!
+    \qmlproperty bool Poly3DGeometry::hasEdgeAttributes
+    \readonly
+    \brief Whether the uploaded buffer carries the barycentric channel.
+*/
+
 namespace {
 
 // earcut's default accessor goes through std::get, which std::array serves.
 using EarcutPoint = std::array<double, 2>;
 
-constexpr int kFloatsPerVertex = 6;  // position (3) + normal (3)
+constexpr int kLeanFloatsPerVertex = 6;       // position (3) + normal (3)
+constexpr int kWireframeFloatsPerVertex = 9;  // + barycentric channel (3)
 
 bool isUsable(const QVector2D &p)
 {
@@ -144,6 +186,38 @@ double cross2d(const QVector2D &a, const QVector2D &b, const QVector2D &c)
     return (double(b.x()) - a.x()) * (double(c.y()) - a.y())
          - (double(b.y()) - a.y()) * (double(c.x()) - a.x());
 }
+
+// Tells a triangle edge that lies on one of the input rings from one earcut
+// invented while cutting the interior up. The rings are laid out back to back
+// in the flat point list, so "on a ring" is "neighbours within the same span,
+// wrapping at its ends" - which is why this has to be worked out here, where
+// the rings are still known, and not later from the triangles alone.
+class RingAdjacency
+{
+public:
+    void addRing(int start, int count)
+    {
+        m_starts.append(start);
+        m_counts.append(count);
+    }
+
+    bool isRingEdge(int i, int j) const
+    {
+        for (int r = 0; r < m_starts.size(); ++r) {
+            const int start = m_starts.at(r);
+            const int count = m_counts.at(r);
+            if (i < start || j < start || i >= start + count || j >= start + count)
+                continue;
+            const int diff = qAbs(i - j);
+            return diff == 1 || diff == count - 1;
+        }
+        return false;
+    }
+
+private:
+    QVector<int> m_starts;
+    QVector<int> m_counts;
+};
 
 bool pointFromVariant(const QVariant &value, QVector2D *out)
 {
@@ -325,8 +399,11 @@ Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
 
     // Flat point list in earcut's index space: outer ring first, then holes.
     QVector<QVector2D> flat;
-    for (const QVector<QVector2D> &ring : cleaned)
+    RingAdjacency adjacency;
+    for (const QVector<QVector2D> &ring : cleaned) {
+        adjacency.addRing(flat.size(), ring.size());
         flat.append(ring);
+    }
 
     mesh.positions.reserve(flat.size());
     for (const QVector2D &p : flat)
@@ -338,17 +415,29 @@ Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
     // output winding.
     const double wanted = wantedCrossSign(plane);
     mesh.indices.reserve(int(triangles.size()));
+    mesh.edgeCodes.reserve(int(triangles.size()));
     for (size_t i = 0; i + 2 < triangles.size(); i += 3) {
         const uint32_t a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
         const double sign = cross2d(flat.at(int(a)), flat.at(int(b)), flat.at(int(c)));
-        mesh.indices.append(a);
-        if (sign * wanted >= 0.0) {
-            mesh.indices.append(b);
-            mesh.indices.append(c);
-        } else {
-            mesh.indices.append(c);
-            mesh.indices.append(b);
-        }
+        const bool keepOrder = sign * wanted >= 0.0;
+        const uint32_t i0 = a;
+        const uint32_t i1 = keepOrder ? b : c;
+        const uint32_t i2 = keepOrder ? c : b;
+        mesh.indices.append(i0);
+        mesh.indices.append(i1);
+        mesh.indices.append(i2);
+
+        // Barycentric component n is the one that falls to zero along the edge
+        // opposite corner n, so that is the component to lift when that edge is
+        // a diagonal we would rather not see.
+        const float lift = kPoly3DEdgeSuppressOffset;
+        const QVector3D suppress(
+            adjacency.isRingEdge(int(i1), int(i2)) ? 0.0f : lift,
+            adjacency.isRingEdge(int(i2), int(i0)) ? 0.0f : lift,
+            adjacency.isRingEdge(int(i0), int(i1)) ? 0.0f : lift);
+        mesh.edgeCodes.append(QVector3D(1.0f, 0.0f, 0.0f) + suppress);
+        mesh.edgeCodes.append(QVector3D(0.0f, 1.0f, 0.0f) + suppress);
+        mesh.edgeCodes.append(QVector3D(0.0f, 0.0f, 1.0f) + suppress);
     }
 
     // Real bounds: a wrong box lets the shadow frustum slice through the
@@ -416,19 +505,145 @@ void Poly3dGeometry::setPlane(Plane newPlane)
     updateData();
 }
 
+bool Poly3dGeometry::showEdges() const
+{
+    return m_showEdges;
+}
+
+void Poly3dGeometry::setShowEdges(bool newShowEdges)
+{
+    if (m_showEdges == newShowEdges)
+        return;
+    m_showEdges = newShowEdges;
+    emit showEdgesChanged();
+
+    // Upgrade, never downgrade. Binding showEdges to a hover state would
+    // otherwise rebuild the mesh on every mouse-over; this way it rebuilds once
+    // and every toggle after that is a uniform write. The cost of keeping the
+    // wider buffer around is memory on a type that is explicitly not a
+    // mass-scale one.
+    if (m_showEdges && !m_hasEdgeAttributes)
+        updateData();
+    else
+        scheduleEdgeContractCheck();
+}
+
+Poly3dGeometry::EdgeMode Poly3dGeometry::edgeMode() const
+{
+    return m_edgeMode;
+}
+
+void Poly3dGeometry::setEdgeMode(EdgeMode newEdgeMode)
+{
+    if (m_edgeMode == newEdgeMode)
+        return;
+    m_edgeMode = newEdgeMode;
+    emit edgeModeChanged();
+    // No rebuild: both modes read the same channel, the shader just stops
+    // subtracting the lift.
+    scheduleEdgeContractCheck();
+}
+
+float Poly3dGeometry::edgeThickness() const
+{
+    return m_edgeThickness;
+}
+
+void Poly3dGeometry::setEdgeThickness(float newEdgeThickness)
+{
+    if (qFuzzyCompare(m_edgeThickness, newEdgeThickness))
+        return;
+    m_edgeThickness = newEdgeThickness;
+    emit edgeThicknessChanged();
+}
+
+float Poly3dGeometry::edgeColorFactor() const
+{
+    return m_edgeColorFactor;
+}
+
+void Poly3dGeometry::setEdgeColorFactor(float newEdgeColorFactor)
+{
+    if (qFuzzyCompare(m_edgeColorFactor, newEdgeColorFactor))
+        return;
+    m_edgeColorFactor = newEdgeColorFactor;
+    emit edgeColorFactorChanged();
+}
+
+QColor Poly3dGeometry::edgeColor() const
+{
+    return m_edgeColor;
+}
+
+void Poly3dGeometry::setEdgeColor(const QColor &newEdgeColor)
+{
+    if (m_edgeColor == newEdgeColor)
+        return;
+    m_edgeColor = newEdgeColor;
+    emit edgeColorChanged();
+}
+
+bool Poly3dGeometry::hasEdgeAttributes() const
+{
+    return m_hasEdgeAttributes;
+}
+
+void Poly3dGeometry::checkEdgeContract() const
+{
+    if (m_edgeMode != Triangles || m_hasEdgeAttributes)
+        return;
+    // Without this the polygon simply draws no lines at all, which reads like a
+    // mistake in the ring rather than a missing channel.
+    qCWarning(lcPoly) << "poly3d: edgeMode Triangles was asked for, but this"
+                      << "geometry carries no barycentric channel, so no"
+                      << "triangulation lines can be drawn. showEdges has to be"
+                      << "true for the channel to be built at all - and if it is,"
+                      << "then the TangentSemantic attribute the channel rides on"
+                      << "stopped arriving.";
+}
+
+void Poly3dGeometry::scheduleEdgeContractCheck()
+{
+    if (m_edgeCheckPending)
+        return;
+    m_edgeCheckPending = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_edgeCheckPending = false;
+        checkEdgeContract();
+    }, Qt::QueuedConnection);
+}
+
 void Poly3dGeometry::updateData()
 {
+    // Once asked for, the barycentric channel stays for good - see setShowEdges.
+    const bool wireframe = m_hasEdgeAttributes || m_showEdges;
+    const int floatsPerVertex = wireframe ? kWireframeFloatsPerVertex
+                                          : kLeanFloatsPerVertex;
+
     // clear() first - addAttribute() appends, so rebuilding without it would
     // stack a second set of attributes on every property change.
     clear();
-    setStride(kFloatsPerVertex * int(sizeof(float)));
+    setStride(floatsPerVertex * int(sizeof(float)));
     setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
     addAttribute(QQuick3DGeometry::Attribute::PositionSemantic, 0,
                  QQuick3DGeometry::Attribute::F32Type);
     addAttribute(QQuick3DGeometry::Attribute::NormalSemantic, 3 * int(sizeof(float)),
                  QQuick3DGeometry::Attribute::F32Type);
-    addAttribute(QQuick3DGeometry::Attribute::IndexSemantic, 0,
-                 QQuick3DGeometry::Attribute::U32Type);
+    if (wireframe) {
+        // TangentSemantic as a data channel, not a tangent frame: it is the one
+        // free vec3 slot that leaves Color free for a per-vertex tint and
+        // TexCoord0 free for texturing.
+        addAttribute(QQuick3DGeometry::Attribute::TangentSemantic, 6 * int(sizeof(float)),
+                     QQuick3DGeometry::Attribute::F32Type);
+    } else {
+        addAttribute(QQuick3DGeometry::Attribute::IndexSemantic, 0,
+                     QQuick3DGeometry::Attribute::U32Type);
+    }
+
+    if (m_hasEdgeAttributes != wireframe) {
+        m_hasEdgeAttributes = wireframe;
+        emit hasEdgeAttributesChanged();
+    }
 
     // An unset polygon is not a mistake - it draws nothing and says nothing.
     if (m_vertices.isEmpty()) {
@@ -453,22 +668,40 @@ void Poly3dGeometry::updateData()
     const Poly3DMesh mesh = rings.isEmpty() ? Poly3DMesh()
                                             : buildPoly3DMesh(rings, m_plane);
 
+    // The wireframe layout cannot share a vertex between two triangles: a
+    // corner's barycentric coordinate is (1, 0, 0) in one and something else in
+    // the next. So the index buffer goes away and every triangle carries its
+    // own three vertices - the honest price of the feature, roughly 3x the lean
+    // layout for a ring of a few dozen points.
+    const int vertexCount = wireframe ? mesh.indices.size() : mesh.positions.size();
+
     QByteArray vertexData;
-    vertexData.resize(mesh.positions.size() * kFloatsPerVertex * int(sizeof(float)));
+    vertexData.resize(vertexCount * floatsPerVertex * int(sizeof(float)));
     float *cursor = reinterpret_cast<float *>(vertexData.data());
-    for (const QVector3D &p : mesh.positions) {
+    for (int i = 0; i < vertexCount; ++i) {
+        const QVector3D &p = wireframe ? mesh.positions.at(int(mesh.indices.at(i)))
+                                       : mesh.positions.at(i);
         *cursor++ = p.x();
         *cursor++ = p.y();
         *cursor++ = p.z();
         *cursor++ = mesh.normal.x();
         *cursor++ = mesh.normal.y();
         *cursor++ = mesh.normal.z();
+        if (wireframe) {
+            const QVector3D &code = mesh.edgeCodes.at(i);
+            *cursor++ = code.x();
+            *cursor++ = code.y();
+            *cursor++ = code.z();
+        }
     }
     setVertexData(vertexData);
 
-    setIndexData(QByteArray(reinterpret_cast<const char *>(mesh.indices.constData()),
-                            mesh.indices.size() * int(sizeof(quint32))));
+    setIndexData(wireframe
+                     ? QByteArray()
+                     : QByteArray(reinterpret_cast<const char *>(mesh.indices.constData()),
+                                  mesh.indices.size() * int(sizeof(quint32))));
     setBounds(mesh.minBounds, mesh.maxBounds);
 
     update();
+    scheduleEdgeContractCheck();
 }

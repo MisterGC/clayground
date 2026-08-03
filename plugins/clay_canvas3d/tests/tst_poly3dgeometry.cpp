@@ -62,6 +62,42 @@ const QVector<QVector2D> square = ring({{0, 0}, {100, 0}, {100, 100}, {0, 100}})
 const QVector<QVector2D> lShape = ring({{0, 0}, {100, 0}, {100, 40},
                                         {40, 40}, {40, 100}, {0, 100}});
 
+// Whether two flat indices are neighbours on the same input ring, worked out
+// from the ring sizes alone. Deliberately not the builder's own routine: an
+// independent answer is the only kind worth checking against.
+bool expectRingEdge(const QVector<int> &ringSizes, int i, int j)
+{
+    int start = 0;
+    for (int size : ringSizes) {
+        if (i >= start && j >= start && i < start + size && j < start + size) {
+            const int diff = qAbs(i - j);
+            return diff == 1 || diff == size - 1;
+        }
+        start += size;
+    }
+    return false;
+}
+
+// Reads back what a triangle's three edge codes say: the per-triangle
+// suppression vector, and whether the codes are the barycentric basis under it.
+bool readEdgeCodes(const Poly3DMesh &mesh, int triangle, QVector3D *suppressOut)
+{
+    const QVector3D c0 = mesh.edgeCodes.at(triangle * 3);
+    const QVector3D c1 = mesh.edgeCodes.at(triangle * 3 + 1);
+    const QVector3D c2 = mesh.edgeCodes.at(triangle * 3 + 2);
+
+    const QVector3D suppress = c0 - QVector3D(1, 0, 0);
+    if (c1 - QVector3D(0, 1, 0) != suppress || c2 - QVector3D(0, 0, 1) != suppress)
+        return false;
+    for (int axis = 0; axis < 3; ++axis) {
+        const float value = suppress[axis];
+        if (value != 0.0f && value != kPoly3DEdgeSuppressOffset)
+            return false;
+    }
+    *suppressOut = suppress;
+    return true;
+}
+
 } // namespace
 
 class TstPoly3DGeometry : public QObject
@@ -277,6 +313,161 @@ private slots:
         QVector<QVector2D> parsed;
         QVERIFY(!poly3dRingFromVariant({QStringLiteral("over there")}, &parsed));
         QVERIFY(parsed.isEmpty());
+    }
+
+    // ===== The wireframe channel (issue #183, P3) =====
+    //
+    // What the shader reads is decided here, in the one place that still knows
+    // which points came from which ring. Once the triangles are on their own,
+    // a diagonal and a polygon edge are indistinguishable.
+
+    void everyCornerCarriesItsBarycentricCoordinate()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({lShape}, Poly3dGeometry::XZ);
+
+        QCOMPARE(mesh.edgeCodes.size(), mesh.indices.size());
+        for (int t = 0; t * 3 < mesh.indices.size(); ++t) {
+            QVector3D suppress;
+            QVERIFY2(readEdgeCodes(mesh, t, &suppress),
+                     qPrintable(QStringLiteral("triangle %1 does not carry the barycentric basis "
+                                               "under one shared per-triangle lift").arg(t)));
+        }
+    }
+
+    // A square is two triangles across one diagonal, which is the smallest case
+    // where "ring edge" and "edge the triangulator invented" both occur.
+    void theDiagonalOfASquareIsTheOnlyInteriorEdge()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({square}, Poly3dGeometry::XZ);
+        QCOMPARE(mesh.indices.size(), 6);
+
+        int interiorEdges = 0;
+        for (int t = 0; t < 2; ++t) {
+            QVector3D suppress;
+            QVERIFY(readEdgeCodes(mesh, t, &suppress));
+            for (int axis = 0; axis < 3; ++axis)
+                if (suppress[axis] != 0.0f)
+                    ++interiorEdges;
+        }
+
+        // One per triangle: they share the diagonal, so each hides it once.
+        QCOMPARE(interiorEdges, 2);
+    }
+
+    void ringEdgesAndDiagonalsAreToldApart()
+    {
+        const Poly3DMesh mesh = buildPoly3DMesh({lShape}, Poly3dGeometry::XZ);
+        const QVector<int> ringSizes = {int(lShape.size())};
+
+        for (int t = 0; t * 3 < mesh.indices.size(); ++t) {
+            QVector3D suppress;
+            QVERIFY(readEdgeCodes(mesh, t, &suppress));
+
+            const int i0 = int(mesh.indices.at(t * 3));
+            const int i1 = int(mesh.indices.at(t * 3 + 1));
+            const int i2 = int(mesh.indices.at(t * 3 + 2));
+
+            // Component n falls to zero along the edge opposite corner n, so
+            // that is the edge whose nature component n has to reflect.
+            const bool edges[3] = {expectRingEdge(ringSizes, i1, i2),
+                                   expectRingEdge(ringSizes, i2, i0),
+                                   expectRingEdge(ringSizes, i0, i1)};
+            for (int axis = 0; axis < 3; ++axis) {
+                const bool suppressed = suppress[axis] != 0.0f;
+                QVERIFY2(suppressed != edges[axis],
+                         qPrintable(QStringLiteral("triangle %1, component %2: the edge is %3 but "
+                                                   "the code says %4")
+                                        .arg(t).arg(axis)
+                                        .arg(edges[axis] ? "on the ring" : "a diagonal")
+                                        .arg(suppressed ? "diagonal" : "on the ring")));
+            }
+        }
+    }
+
+    // A hole's rim is as much a polygon edge as the outer ring is, including the
+    // bridge earcut runs between the two - which must not be mistaken for one.
+    void holeRimsCountAsRingEdges()
+    {
+        const QVector<QVector2D> hole = ring({{60, 60}, {80, 60}, {80, 80}, {60, 80}});
+        const Poly3DMesh mesh = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ);
+        const QVector<int> ringSizes = {int(square.size()), int(hole.size())};
+
+        int holeRimEdges = 0;
+        for (int t = 0; t * 3 < mesh.indices.size(); ++t) {
+            QVector3D suppress;
+            QVERIFY(readEdgeCodes(mesh, t, &suppress));
+
+            const int corner[3] = {int(mesh.indices.at(t * 3)), int(mesh.indices.at(t * 3 + 1)),
+                                   int(mesh.indices.at(t * 3 + 2))};
+            for (int axis = 0; axis < 3; ++axis) {
+                const int a = corner[(axis + 1) % 3];
+                const int b = corner[(axis + 2) % 3];
+                const bool isRing = expectRingEdge(ringSizes, a, b);
+                QVERIFY(isRing == (suppress[axis] == 0.0f));
+                if (isRing && a >= square.size() && b >= square.size())
+                    ++holeRimEdges;
+            }
+        }
+
+        // All four sides of the hole, each drawn from the one triangle that
+        // borders it.
+        QCOMPARE(holeRimEdges, 4);
+    }
+
+    // ===== The two layouts (D2) =====
+
+    void theBufferUpgradesForEdgesAndNeverGoesBack()
+    {
+        Poly3dGeometry geometry;
+        QVariantList points;
+        for (const QVector2D &p : square)
+            points.append(QVariant::fromValue(p));
+        geometry.setVertices(points);
+
+        // Lean by default: indexed, shared, position + normal.
+        QVERIFY(!geometry.hasEdgeAttributes());
+        QCOMPARE(geometry.stride(), 6 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 4 * 6 * int(sizeof(float)));
+        QCOMPARE(geometry.indexData().size(), 6 * int(sizeof(quint32)));
+
+        geometry.setShowEdges(true);
+
+        // Wireframe: unshared, no index buffer, one vertex per corner.
+        QVERIFY(geometry.hasEdgeAttributes());
+        QCOMPARE(geometry.stride(), 9 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 6 * 9 * int(sizeof(float)));
+        QVERIFY(geometry.indexData().isEmpty());
+
+        // Switching edges back off must not rebuild: that is what makes
+        // binding showEdges to a hover state affordable.
+        geometry.setShowEdges(false);
+        QVERIFY(geometry.hasEdgeAttributes());
+        QCOMPARE(geometry.stride(), 9 * int(sizeof(float)));
+        QCOMPARE(geometry.vertexData().size(), 6 * 9 * int(sizeof(float)));
+    }
+
+    // The silent-nothing case: asking for triangulation lines while nothing ever
+    // built the channel to draw them from must say so, rather than look like a
+    // mistake in the ring.
+    void trianglesWithoutTheChannelWarn()
+    {
+        Poly3dGeometry geometry;
+        QTest::ignoreMessage(QtWarningMsg,
+                             QRegularExpression("edgeMode Triangles was asked for"));
+        geometry.setEdgeMode(Poly3dGeometry::Triangles);
+        QCoreApplication::processEvents();
+    }
+
+    // ... and it must not fire on the ordinary spelling, whichever order the two
+    // properties happen to be written in. QML applies them in file order, so the
+    // check has to wait for the turn of the event loop to be over.
+    void trianglesWithTheChannelStayQuiet()
+    {
+        Poly3dGeometry geometry;
+        geometry.setEdgeMode(Poly3dGeometry::Triangles);
+        geometry.setShowEdges(true);
+        QCoreApplication::processEvents();
+        QVERIFY(geometry.hasEdgeAttributes());
     }
 };
 
