@@ -41,11 +41,12 @@ void MAIN()
         // box3d.frag measures edgeThickness in.
         vec3 pixelDist = gridDist / fw;
 
-        // Half of edgeThickness, because the line straddles its grid plane.
-        // That is what makes the knob mean the same number of pixels on a
-        // voxel map and on a box: box3d.frag ramps its edge out over
-        // edgeThickness pixels, so its line is edgeThickness wide at half
-        // intensity, and this one is edgeThickness wide outright.
+        // Half of edgeThickness, because a line straddles the boundary it
+        // marks and each surface draws its own half. box3d.frag follows the
+        // same rule, so a box border and a voxel map's border come out the
+        // same weight at the same edgeThickness. A grid line in the interior
+        // of a face is not shared with anything, so it draws both halves and
+        // is correctly twice the width of a border.
         float halfWidth = edgeThickness * 0.5;
 
         // Line is visible if two axes are close to a grid line. On a face the
