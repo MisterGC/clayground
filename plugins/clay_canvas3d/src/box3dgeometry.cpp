@@ -74,9 +74,15 @@
     \qmlproperty real Box3DGeometry::edgeThickness
     \brief The thickness of edge lines in pixels.
 
-    Screen-space, so an edge keeps its weight as the camera moves. The same
-    unit VoxelMap::edgeThickness uses. Defaults to 0.03, which is thinner than
-    one pixel - set it to a few pixels to see anything.
+    Screen-space, so an edge keeps its weight as the camera moves - and the
+    same width VoxelMap::edgeThickness produces, not just the same unit. A
+    line straddles the boundary it marks and each surface draws half of it, so
+    a box border and a voxel map's border come out equal at the same setting;
+    a voxel map's interior grid lines sit entirely on one face and so draw the
+    full width.
+
+    Defaults to 0.03, which is thinner than one pixel - set it to a few pixels
+    to see anything.
 */
 
 /*!
@@ -114,6 +120,24 @@
     \value Box3DGeometry.BackEdges Show only back face edges
     \value Box3DGeometry.LeftEdges Show only left face edges
     \value Box3DGeometry.RightEdges Show only right face edges
+*/
+
+/*!
+    \qmlproperty enumeration Box3DGeometry::edgeMode
+    \brief Which lines showEdges draws.
+
+    \value Box3DGeometry.FaceBorders The twelve borders of the six faces - a
+           box drawn as a box. The default, and what edgeMask selects from.
+    \value Box3DGeometry.Triangles The box's actual triangulation, so every
+           face also shows the diagonal that splits it into two triangles.
+           For showing how the mesh is built rather than what it depicts.
+
+    edgeMask applies to FaceBorders only. In Triangles mode every triangle
+    edge is drawn and the mask is ignored, because a triangulation with parts
+    of it missing is not a triangulation.
+
+    Switching modes costs a uniform write, not a rebuild: the barycentric
+    coordinates Triangles needs sit in the vertex buffer either way.
 */
 
 Box3dGeometry::Box3dGeometry() : m_size(1, 1, 1), m_faceScale(1, 1), m_scaledFace(NoFace),
@@ -166,6 +190,12 @@ void Box3dGeometry::setScaledFace(ScaledFace newScaledFace)
 
 void Box3dGeometry::updateData()
 {
+    // addAttribute() appends, so a rebuild without this stacks a second copy
+    // of every attribute on top of the first and eventually runs the geometry
+    // out of attribute slots. Everything clear() drops - vertex data, stride,
+    // bounds, primitive type - is set again below.
+    clear();
+
     // Define the 8 vertices of the box
     QVector3D v0, v1, v2, v3, v4, v5, v6, v7;
 
@@ -263,14 +293,31 @@ void Box3dGeometry::updateData()
     const QVector2D uvTR(1.0f, 1.0f);
     const QVector2D uvTL(0.0f, 1.0f);
 
-    // Create a QByteArray to store interleaved vertex, normal, and UV data
+    // Create a QByteArray to store interleaved vertex, normal, UV and
+    // barycentric data
     QByteArray vertexData;
 
-    // Lambda function to append vertex, normal, and UV data to vertexData
+    // The barycentric coordinate rides along unconditionally. It is what
+    // edgeMode: Triangles derives its lines from, and since the box is
+    // already 36 unshared vertices with no index buffer it costs 432 bytes
+    // and no second code path. See box3d.frag for what the shader does with
+    // it - and note that it travels as TANGENT, which is a data channel here
+    // and not a tangent: nothing on this material may enable normal mapping.
+    const QVector3D bary[3] = { QVector3D(1, 0, 0),
+                                QVector3D(0, 1, 0),
+                                QVector3D(0, 0, 1) };
+    int corner = 0;
+
+    // Lambda function to append vertex, normal, UV and barycentric data.
+    // Vertices are emitted strictly three at a time, one triangle after the
+    // other, so the corner index alone identifies which coordinate is due.
     auto appendVertexData = [&](const QVector3D& vertex, const QVector3D& normal, const QVector2D& uv) {
         vertexData.append(reinterpret_cast<const char*>(&vertex), sizeof(QVector3D));
         vertexData.append(reinterpret_cast<const char*>(&normal), sizeof(QVector3D));
         vertexData.append(reinterpret_cast<const char*>(&uv), sizeof(QVector2D));
+        const QVector3D b = bary[corner];
+        vertexData.append(reinterpret_cast<const char*>(&b), sizeof(QVector3D));
+        corner = (corner + 1) % 3;
     };
 
     // Define triangles directly with explicit winding using counter-clockwise order when viewed from outside
@@ -331,8 +378,9 @@ void Box3dGeometry::updateData()
     // Set the vertex data
     setVertexData(vertexData);
 
-    // Set up attribute information for vertices, normals, and UV coordinates
-    setStride(sizeof(QVector3D) + sizeof(QVector3D) + sizeof(QVector2D));  // Position + Normal + UV data
+    // Set up attribute information for vertices, normals, UV coordinates and
+    // barycentrics
+    setStride(sizeof(QVector3D) + sizeof(QVector3D) + sizeof(QVector2D) + sizeof(QVector3D));
 
     // Update the bounds to account for the scaled face
     QVector3D maxBounds(halfX, height, halfZ);
@@ -373,6 +421,13 @@ void Box3dGeometry::updateData()
     // Add texture coordinates (UV) attribute for edge detection
     addAttribute(QQuick3DGeometry::Attribute::TexCoordSemantic,
                  sizeof(QVector3D) + sizeof(QVector3D),
+                 QQuick3DGeometry::Attribute::F32Type);
+
+    // Barycentric coordinates, carried on the tangent slot - unused for
+    // tangents across the whole plugin, and a vec3, which is exactly the
+    // shape of the data. Reaches the shader as TANGENT.
+    addAttribute(QQuick3DGeometry::Attribute::TangentSemantic,
+                 sizeof(QVector3D) + sizeof(QVector3D) + sizeof(QVector2D),
                  QQuick3DGeometry::Attribute::F32Type);
 
     setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
@@ -448,5 +503,20 @@ void Box3dGeometry::setEdgeMask(int mask)
         return;
     m_edgeMask = mask;
     emit edgeMaskChanged();
+    update();
+}
+
+Box3dGeometry::EdgeMode Box3dGeometry::edgeMode() const
+{
+    return m_edgeMode;
+}
+
+void Box3dGeometry::setEdgeMode(EdgeMode mode)
+{
+    if (m_edgeMode == mode)
+        return;
+    m_edgeMode = mode;
+    emit edgeModeChanged();
+    // No rebuild: both modes read the same vertex buffer.
     update();
 }

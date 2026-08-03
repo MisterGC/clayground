@@ -71,13 +71,12 @@ View3D {
 
     // --- edgeColor: the same pale box, twice ------------------------------
     //
-    // boxEdgeScale is the honest part of this demo: Box3D and VoxelMap both
-    // call the knob edgeThickness and both feed it through fwidth, but they do
-    // not yet produce the same width. VoxelMap draws a solid line of that many
-    // pixels; Box3D smoothsteps its border over that distance in UV space, so
-    // the visible line comes out several times thinner. One slider drives both
-    // here, and the boxes take a factor so the pair can actually be compared.
-    property real boxEdgeScale: 4.0
+    // One slider drives every edge below at face value. Box3D and VoxelMap
+    // now agree on what a pixel is: a line straddles the boundary it marks,
+    // so each surface draws half of it, and a box's border comes out the same
+    // weight as the border of a voxel map at the same edgeThickness. The
+    // voxel map's interior grid lines sit entirely on one face, so they draw
+    // the full width - twice the border, correctly.
 
     // Only edgeColorFactor available: it scales the fill, so a light fill can
     // only ever produce light edges.
@@ -86,7 +85,7 @@ View3D {
         width: 70; height: 70; depth: 70
         color: "#e6d2f2"
         showEdges: true
-        edgeThickness: view3D.thickness * view3D.boxEdgeScale
+        edgeThickness: view3D.thickness
         edgeColorFactor: 0.4
     }
 
@@ -96,7 +95,7 @@ View3D {
         width: 70; height: 70; depth: 70
         color: "#e6d2f2"
         showEdges: true
-        edgeThickness: view3D.thickness * view3D.boxEdgeScale
+        edgeThickness: view3D.thickness
         edgeColor: "#2f3437"
     }
 
@@ -181,10 +180,11 @@ View3D {
                       "Right: edgeColor \"#2f3437\" - an actual colour.\n\n" +
                       "Resize the window: the line width in pixels does not " +
                       "move. Below 1 px lines start dropping out, which is " +
-                      "why 1.0 is the VoxelMap default.\n\nKnown gap: the " +
-                      "boxes multiply this value by " + view3D.boxEdgeScale +
-                      " to match the voxel maps. Box3D and VoxelMap share " +
-                      "the property name but not yet the resulting width."
+                      "why 1.0 is the VoxelMap default.\n\nBoxes and voxel " +
+                      "maps take this slider unscaled: a border is the same " +
+                      "weight on both. The voxel grid lines inside a face " +
+                      "are twice that, because a border only ever shows its " +
+                      "half."
                 color: "#8a8a8a"
                 font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
                 font.pixelSize: 11

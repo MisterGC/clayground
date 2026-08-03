@@ -7,6 +7,7 @@ VARYING vec2 vUV;
 VARYING vec3 vOrigPosition;
 VARYING vec3 vWorldPosition;
 VARYING float vFaceID;
+VARYING vec3 vBary;
 
 // Uniforms exposed from the CustomMaterial
 // - bool showEdges
@@ -14,15 +15,20 @@ VARYING float vFaceID;
 // - float edgeColorFactor
 // - vec4 edgeColor              // absolute edge colour; alpha 0 means "unset"
 // - int edgeMask                // bit mask for selective edge rendering
+// - int edgeMode                // 0 = FaceBorders, 1 = Triangles
 // - bool useToonShading         // enables toon/cartoon style lighting
 
-// Helper function to check if an edge should be displayed based on the mask
-bool shouldShowEdge(float faceId, vec2 uv) {
+// Helper function to check if an edge should be displayed based on the mask.
+// The distances arrive in pixels - .x to u=0, .y to u=1, .z to v=0, .w to v=1 -
+// so this test tracks the band MAIN actually draws at any zoom. A fixed UV
+// threshold stops agreeing with it the moment the face is small on screen,
+// which clipped masked edges at the wide end of edgeThickness.
+bool shouldShowEdge(float faceId, vec4 pixDist, float limit) {
     // First, identify which edge we're on
-    bool isLeftEdge = uv.x < 0.05;
-    bool isRightEdge = uv.x > 0.95;
-    bool isBottomEdge = uv.y < 0.05;
-    bool isTopEdge = uv.y > 0.95;
+    bool isLeftEdge = pixDist.x <= limit;
+    bool isRightEdge = pixDist.y <= limit;
+    bool isBottomEdge = pixDist.z <= limit;
+    bool isTopEdge = pixDist.w <= limit;
 
     // If we're not on any edge, return false
     if (!(isLeftEdge || isRightEdge || isBottomEdge || isTopEdge)) {
@@ -86,23 +92,47 @@ void MAIN()
     vec4 finalColor = colorOut;
 
     if (showEdges) {
-        // Compute distance from nearest U and V edges
-        float dU = min(vUV.x, 1.0 - vUV.x);
-        float dV = min(vUV.y, 1.0 - vUV.y);
+        float edgeFactor = 0.0;
+        bool showThisEdge = true;
 
-        // Screen-space derivatives give us pixel-relative UV size
-        float fwU = fwidth(vUV.x);
-        float fwV = fwidth(vUV.y);
+        // A line straddles the boundary it marks, so each side draws half of
+        // it - the same rule voxel_map.frag follows, and what makes
+        // edgeThickness: N mean the same visible width on both types. What
+        // used to happen here was a smoothstep ramping out over the whole of
+        // edgeThickness in UV space, which reads several times thinner than a
+        // voxel grid line at the same setting; the demo carried a x4 factor
+        // on the boxes to compensate.
+        float halfWidth = edgeThickness * 0.5;
 
-        // Convert edgeThickness (pixels) to UV space via fwidth
-        float edgeU = smoothstep(0.0, fwU * edgeThickness, dU);
-        float edgeV = smoothstep(0.0, fwV * edgeThickness, dV);
+        if (edgeMode == 1) {
+            // Triangles: the box's own triangulation, diagonals included. The
+            // barycentric coordinate is zero along every edge of the triangle
+            // it belongs to, so the smallest of its three components is the
+            // distance to the nearest one. edgeMask does not apply here - a
+            // triangulation missing some of its lines is not a triangulation.
+            float d = min(min(vBary.x, vBary.y), vBary.z);
+            float p = d / max(fwidth(d), 1e-8);
+            edgeFactor = 1.0 - smoothstep(halfWidth - 0.5, halfWidth + 0.5, p);
+        } else {
+            // FaceBorders: the twelve borders, read off the per-face UVs.
+            // Screen-space derivatives give us how much UV one pixel covers,
+            // so a UV distance divided by one of them is a pixel count.
+            float fwU = max(fwidth(vUV.x), 1e-8);
+            float fwV = max(fwidth(vUV.y), 1e-8);
 
-        // Combine: 0 near edge, 1 in center; we want the inverse
-        float edgeFactor = 1.0 - min(edgeU, edgeV);
+            // Pixels to each of the four borders of this face
+            vec4 pixDist = vec4(vUV.x, 1.0 - vUV.x, vUV.y, 1.0 - vUV.y)
+                         / vec4(fwU, fwU, fwV, fwV);
 
-        // Check if we should show this edge based on the mask
-        bool showThisEdge = shouldShowEdge(vFaceID, vUV);
+            // Solid out to halfWidth, then one pixel of ramp to keep it from
+            // aliasing - which is the one thing the voxel grid, with its hard
+            // threshold, does worse.
+            float p = min(min(pixDist.x, pixDist.y), min(pixDist.z, pixDist.w));
+            edgeFactor = 1.0 - smoothstep(halfWidth - 0.5, halfWidth + 0.5, p);
+
+            // Check if we should show this edge based on the mask
+            showThisEdge = shouldShowEdge(vFaceID, pixDist, halfWidth + 0.5);
+        }
 
         if (edgeFactor > 0.0 && showThisEdge) {
             // edgeColor wins whenever it is set at all, and "set" means a
