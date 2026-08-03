@@ -26,6 +26,11 @@ Item {
     // pairing, deliberately weaker than a selection.
     property bool hovered: false
 
+    // This is the card the cursor is in. Nothing else in the list can tell:
+    // the editor is buried two levels down, and its focus is the only honest
+    // answer to "which note is being written right now".
+    readonly property bool editing: editor.activeFocus
+
     readonly property bool addressed: status !== "open"
     readonly property color ink: addressed ? "#8a7f79" : "#6E2A1C"
     readonly property color paper: addressed ? "#E4DDD8" : "#F6E7DC"
@@ -40,6 +45,17 @@ Item {
     signal removeRequested()
     signal selectRequested()
     signal hoverRequested(bool on)
+    // "I am the card being written in, and I am not the size I was." The list
+    // is the only one that can act on it, so the card only says so.
+    signal revealRequested()
+
+    // Two moments, one rule: the card being edited is always fully visible.
+    // Focus is the one that catches a card created off the bottom of the list;
+    // growth is the one nothing watched at all, and it is the one that bites
+    // every time a note wraps onto another line and takes its own caret out of
+    // sight with it.
+    onEditingChanged: if (editing) revealRequested()
+    onHeightChanged: if (editing) revealRequested()
 
     // Covers the card and everything in it, the text editor included: hovering
     // a note is hovering the words, not just the paper around them.
