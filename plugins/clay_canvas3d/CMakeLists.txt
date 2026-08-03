@@ -15,6 +15,8 @@ clay_plugin( Canvas3D
         src/dynamicinstancing.h
         src/perfregistry.cpp
         src/perfregistry.h
+        src/poly3dgeometry.cpp
+        src/poly3dgeometry.h
         src/line3dinstancing.cpp
         src/line3dinstancing.h
         src/linebatchgeometry.cpp
@@ -52,6 +54,8 @@ clay_plugin( Canvas3D
         voxel_map.vert
         box3d.frag
         box3d.vert
+        poly3d.frag
+        poly3d.vert
 
     QML_FILES
         Box3D.qml
@@ -66,6 +70,7 @@ clay_plugin( Canvas3D
         Line3D.qml
         LineBatch3D.qml
         MultiLine3D.qml
+        Poly3D.qml
         VoxelMap.qml
         DynamicVoxelMap.qml
         StaticVoxelMap.qml
@@ -73,6 +78,7 @@ clay_plugin( Canvas3D
         BenchLogger.qml
 
     LINK_LIBS
+        earcut
         Qt::Core
         Qt::Quick
         Qt::Quick3D
