@@ -59,6 +59,7 @@ Rectangle {
                 Repeater {
                     model: [
                         { name: "Box3D Examples", component: "Box3DDemo.qml" },
+                        { name: "Poly3D Examples", component: "PolyDemo.qml" },
                         { name: "Line Examples", component: "LineDemo.qml" },
                         { name: "LineBatch3D", component: "LineBatchDemo.qml" },
                         { name: "Line Styles", component: "LineStylesShowcase.qml" },

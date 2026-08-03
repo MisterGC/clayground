@@ -84,6 +84,7 @@ if (TARGET Box2Dplugin)
 endif()
 add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (thirdparty/csv-parser)
+add_subdirectory (thirdparty/earcut)
 
 
 # ============================
