@@ -379,6 +379,25 @@ void TestPoly3DWireframe::extrudedFaceBordersKeepTheCapRim()
                             .arg(rimDarkest).arg(fill)));
 }
 
-QTEST_MAIN(TestPoly3DWireframe)
+// Hand-rolled instead of QTEST_MAIN so the no-display case degrades to a skip
+// rather than an abort. QGuiApplication qFatal's when it cannot load a platform
+// plugin, which is what a headless CI runner gives it. Falling back to
+// offscreen *only when there is no display* keeps the test honest: on a real
+// desktop it still renders and still checks pixels, and pinning the platform in
+// CMake instead would have silently retired it everywhere.
+int main(int argc, char *argv[])
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")
+        && qEnvironmentVariableIsEmpty("DISPLAY")
+        && qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
+#endif
+    QGuiApplication app(argc, argv);
+    TestPoly3DWireframe tc;
+    QTEST_SET_MAIN_SOURCE_PATH
+    return QTest::qExec(&tc, argc, argv);
+}
 
 #include "tst_poly3dwireframe.moc"

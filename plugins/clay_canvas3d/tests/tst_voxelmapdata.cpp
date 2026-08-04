@@ -174,5 +174,5 @@ private:
     QScopedPointer<VoxelMapData> m_map;
 };
 
-QTEST_MAIN(TstVoxelMapData)
+QTEST_GUILESS_MAIN(TstVoxelMapData)
 #include "tst_voxelmapdata.moc"

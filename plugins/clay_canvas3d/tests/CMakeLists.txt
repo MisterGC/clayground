@@ -49,7 +49,11 @@ target_link_libraries(tst_poly3dgeometry PRIVATE
 )
 
 add_test(NAME canvas3d_poly3dgeometry COMMAND tst_poly3dgeometry)
-set_tests_properties(canvas3d_poly3dgeometry PROPERTIES LABELS "canvas3d;unit")
+# Constructs a QQuick3DGeometry, so it needs a QGuiApplication - but never a
+# display. Without this it tries to open one and aborts on a headless runner.
+set_tests_properties(canvas3d_poly3dgeometry PROPERTIES
+    LABELS "canvas3d;unit"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The one test that actually renders. It guards the attribute contract behind
 # the Poly3D wireframe - that barycentric coordinates smuggled through
@@ -83,4 +87,9 @@ target_link_libraries(tst_poly3dwireframe PRIVATE
 )
 
 add_test(NAME canvas3d_poly3dwireframe COMMAND tst_poly3dwireframe)
+# Needs a GPU and a window to mean anything, and says so: under offscreen it
+# QSKIPs with an explicit message rather than sampling a blank frame. The
+# platform is NOT pinned here on purpose - its main() falls back to offscreen
+# only when there is no display, so it still renders for real on a desktop and
+# only skips where it genuinely cannot run.
 set_tests_properties(canvas3d_poly3dwireframe PROPERTIES LABELS "canvas3d;render")
