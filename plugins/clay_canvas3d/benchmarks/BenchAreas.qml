@@ -34,7 +34,7 @@ View3D {
 
     // --- fixed scenario parameters (keep identical across compared runs) ---
     readonly property int seed: 1337
-    readonly property var counts: [10, 25, 50, 100, 200]
+    readonly property var counts: [50, 200, 500, 1000, 2000]
     readonly property var modes: ["strips", "poly"]
     readonly property real warmupMs: 2000
     readonly property real stepDurationMs: 8000
