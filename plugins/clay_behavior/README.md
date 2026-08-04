@@ -33,7 +33,7 @@ import Clayground.Physics
 RectBoxBody {
     id: enemy
     bodyType: Body.Kinematic
-    
+
     MoveTo {
         world: theWorld
         destXWu: player.xWu
@@ -53,7 +53,7 @@ import Clayground.Behavior
 RectBoxBody {
     id: guard
     bodyType: Body.Kinematic
-    
+
     FollowPath {
         world: theWorld
         wpsWu: [
@@ -82,7 +82,7 @@ RectTrigger {
     visible: true
     color: "yellow"
     opacity: 0.5
-    
+
     onEntered: (entity) => {
         console.log("Entity entered:", entity)
         // Trigger game logic
@@ -98,12 +98,12 @@ import Clayground.World
 
 ClayWorld2d {
     id: theWorld
-    
+
     // Door builder automatically creates doors from map data
     DoorBuilder {
         world: theWorld
     }
-    
+
     // Map should contain groups named "door*" with:
     // - Door entities (component: "Door")
     // - DoorOpener entities (component: "DoorOpener")

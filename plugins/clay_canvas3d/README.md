@@ -3,7 +3,7 @@
 ## Overview
 
 The Canvas3D plugin provides components for creating 3D visualizations in
-Clayground applications. It offers primitives for 3D boxes, lines, and
+Clayground applications. It offers primitives for 3D boxes, areas, lines, and
 voxel-based structures with support for custom edge rendering, toon shading,
 and efficient batch rendering.
 
@@ -78,6 +78,97 @@ Box3D {
     edgeMask: topEdges | bottomEdges  // Only horizontal edges
 }
 ```
+
+### Poly3D
+
+The area primitive: hand it a ring of 2D points and it fills the polygon.
+Anything region-shaped — a lake, a plaza, a footprint, a zone on the ground —
+is one `Poly3D` rather than a fan of faked strips.
+
+```qml
+Poly3D {
+    vertices: [Qt.vector2d(-50, -50), Qt.vector2d(50, -50),
+               Qt.vector2d(50, 50), Qt.vector2d(-50, 50)]
+    color: "#0f9d9a"
+    useToonShading: true
+}
+```
+
+Concave rings are triangulated properly, and `holes` takes inner rings, so a
+courtyard is part of the same object rather than a second shape punched
+through it:
+
+```qml
+Poly3D {
+    vertices: [...]                 // outer ring
+    holes: [[...], [...]]           // inner rings
+}
+```
+
+#### Planes and orientation
+
+The ring is 2D, so `plane` decides which two world axes its points map to —
+`Poly3D.XZ` (default, flat on the ground), `Poly3D.XY` (a wall) or
+`Poly3D.YZ`. Any other orientation is the node's own `eulerRotation`; a
+`Poly3D` is a `Model`, so it moves, rotates and scales like anything else.
+
+A polygon lying exactly on another surface will z-fight. Lift it slightly
+along its normal — `Model`'s `depthBias` biases the *sort* distance and does
+not offset depth, so it is not the fix here.
+
+#### Extrusion
+
+`extrude` turns the same ring into a prism: the polygon is the base, walls
+rise along the plane normal, and a cap closes the top. Holes get walls too,
+so a ring with a courtyard extrudes into a building with a courtyard.
+
+```qml
+Poly3D {
+    vertices: [...]
+    extrude: 120        // 0 = flat area (default)
+    color: "#00d9ff"
+}
+```
+
+Walls are faceted, never smoothed across the ring, so a hexagonal column
+reads as six flat faces under toon shading rather than as a cylinder.
+
+To **animate a prism's height, scale the node** (`scale.y` for `XZ`) rather
+than animating `extrude`. Scaling touches no geometry at all; changing
+`extrude` rebuilds the mesh.
+
+#### Wireframe
+
+`showEdges` is off by default on `Poly3D` — a box's borders are its look, but
+a polygon's triangulation is a deliberate choice. `edgeMode` picks what the
+lines mean:
+
+```qml
+Poly3D {
+    vertices: [...]
+    showEdges: true
+    edgeMode: Poly3D.Triangles      // or Poly3D.FaceBorders
+    edgeThickness: 1.5              // pixels
+    edgeColor: "#2f3437"
+}
+```
+
+- `FaceBorders` — the outline of every ring, plus the seams of a prism.
+- `Triangles` — the above plus the triangulation itself, for when the mesh
+  is the subject rather than the shape.
+
+Edges are not free: they need one vertex per index instead of a shared,
+indexed mesh, which costs roughly 3x the vertex memory for a flat polygon.
+That is why the lean layout is the default. The buffer upgrades the first
+time edges are switched on and never downgrades, so binding `showEdges` to a
+hover or selection state costs one rebuild rather than one per toggle.
+
+#### Scale
+
+One `Poly3D` is one `Model` and one draw call — sized for tens of areas, not
+thousands. It is the rich end of the family, the way `Label3D` is next to
+`LabelBatch3D`; there is no batched sibling yet.
+
 
 ### Lines
 
@@ -372,6 +463,47 @@ StaticVoxelMap {
 ```
 
 ## Edge Rendering
+
+`Box3D`, `VoxelMap` and `Poly3D` all draw their edges by the same rule, so a
+scene made of all three reads as one thing.
+
+### Thickness is a count of pixels
+
+`edgeThickness` is measured on screen, not in world units, so a line keeps its
+weight as the camera pulls back, as the window resizes and as a surface turns
+away. A line straddles the boundary it marks and each surface draws half of
+it, which is why a box border, a voxel map's border and an extruded polygon's
+border all come out the same width at the same setting. A voxel map's interior
+grid lines sit inside one face and are shared with nothing, so they draw both
+halves and are correctly twice that width.
+
+Below about 1 px lines start dropping out of the pixel grid, so `1.0` is the
+practical floor rather than a soft limit.
+
+### Edge colour
+
+`edgeColor` names the colour outright:
+
+```qml
+Box3D {
+    color: "#e6d2f2"
+    showEdges: true
+    edgeColor: "#2f3437"    // dark edges on a light face
+}
+```
+
+Without it, `edgeColorFactor` scales the fill instead — which can only ever
+darken, so a light surface gets washed-out edges and "dark grey on pale
+lilac" is inexpressible. `edgeColor` wins whenever its alpha is above zero;
+leave it unset to keep the `edgeColorFactor` behaviour.
+
+### Face borders or triangulation
+
+`Box3D` and `Poly3D` both take `edgeMode`. `FaceBorders` draws the object's
+own borders — a box's twelve edges, a polygon's rings. `Triangles` draws the
+mesh's triangulation instead, for when how a shape is built is the point.
+`edgeMask`, which selects individual box borders, applies to `FaceBorders`
+only; a triangulation missing some of its lines is not a triangulation.
 
 ### Edge Artifacts with Greedy Meshing
 

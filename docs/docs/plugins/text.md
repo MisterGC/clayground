@@ -4,6 +4,7 @@ title: Text Plugin
 permalink: /docs/plugins/text/
 ---
 
+
 The Clay Text plugin provides advanced text processing capabilities for
 Clayground applications, including CSV file handling, text highlighting with
 regular expressions, and JSON data transformation using JSONata query language.
@@ -153,6 +154,90 @@ JsonataTransform {
 }
 ```
 
+### Complex Game Statistics
+
+```qml
+JsonataTransform {
+    id: gameStats
+
+    inputObject: playerData
+
+    // Find best performing weapon
+    jsonataString: `
+        weapons[damage = $max(weapons.damage)] {
+            "name": name,
+            "damage": damage,
+            "efficiency": damage / weight
+        }
+    `
+
+    onJsonOutputChanged: {
+        console.log("Best weapon:", JSON.stringify(jsonOutput))
+    }
+}
+```
+
+### Localization System
+
+```qml
+Item {
+    property string language: "en"
+
+    CsvModel {
+        id: translations
+        source: "translations.csv"
+
+        rowFilter: (vals) => {
+            return vals[0] === language
+        }
+
+        Component.onCompleted: load()
+    }
+
+    function translate(key) {
+        for (let i = 0; i < translations.tableModel.rowCount; i++) {
+            let row = translations.tableModel.rows[i]
+            if (row.key === key) {
+                return row.text
+            }
+        }
+        return key
+    }
+}
+```
+
+### Quest Dialog System
+
+```qml
+HighlightedText {
+    id: dialogText
+
+    // Highlight character names
+    searchRegEx: "^\\[([^\\]]+)\\]:"
+
+    property var dialogData: []
+    property int currentLine: 0
+
+    CsvReader {
+        source: "dialog_quest_01.csv"
+        onRow: (values) => {
+            dialogData.push({
+                character: values[0],
+                text: values[1],
+                choices: values[2]
+            })
+        }
+        Component.onCompleted: load()
+    }
+
+    function showCurrentDialog() {
+        if (currentLine < dialogData.length) {
+            text = `[${dialogData[currentLine].character}]: ${dialogData[currentLine].text}`
+        }
+    }
+}
+```
+
 ## Best Practices
 
 1. **CSV Format**: Use consistent delimiters and quote characters across your data files.
@@ -179,8 +264,6 @@ The Clay Text plugin provides:
 - **Unicode Support**: Proper handling of international characters
 
 The plugin handles various text processing needs from simple CSV configuration files to complex data transformations, making it versatile for data-driven game development.
-
----
 
 ## API Reference
 

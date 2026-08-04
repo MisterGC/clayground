@@ -4,6 +4,7 @@ title: World Plugin
 permalink: /docs/plugins/world/
 ---
 
+
 The Clay World plugin provides comprehensive game world management for both 2D
 and 3D games. It integrates canvas rendering, physics simulation, and SVG-based
 level loading into cohesive world components. The plugin offers separate
@@ -236,6 +237,29 @@ ClayWorld2d {
 }
 ```
 
+### Physics Configuration
+
+```qml
+ClayWorld2d {
+    // Platformer physics
+    gravity: Qt.point(0, 20)
+    timeStep: 1/60
+
+    // Top-down physics
+    // gravity: Qt.point(0, 0)
+
+    // Debug rendering
+    debugPhysics: true
+    debugRendering: true
+
+    // Pause physics
+    MouseArea {
+        anchors.fill: parent
+        onClicked: parent.physicsEnabled = !parent.physicsEnabled
+    }
+}
+```
+
 ## Best Practices
 
 1. **Scene Organization**: Use SVG groups to organize level elements logically.
@@ -262,8 +286,6 @@ The Clay World plugin provides:
 - **Component Factory**: Map SVG descriptions to QML components
 
 The plugin handles coordinate transformations, physics body creation, and proper parent-child relationships automatically, making it easy to create complex game worlds from simple SVG layouts.
-
----
 
 ## API Reference
 

@@ -40,7 +40,7 @@ import Clayground.Common
 Rectangle {
     id: player
     property real velocity: 0
-    
+
     Component.onCompleted: {
         // Watch velocity changes for debugging
         Clayground.watch(player, "velocity", true)
@@ -58,7 +58,7 @@ Item {
     ClayStopWatch {
         id: stopwatch
     }
-    
+
     Button {
         text: stopwatch.running ? "Stop" : "Start"
         onClicked: {

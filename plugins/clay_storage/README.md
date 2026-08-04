@@ -30,22 +30,22 @@ Item {
         id: storage
         name: "MyGameData"
     }
-    
+
     Component.onCompleted: {
         // Store data
         storage.set("playerName", "Hero")
         storage.set("highScore", "10000")
         storage.set("level", "5")
-        
+
         // Retrieve data
         let name = storage.get("playerName", "Unknown")
         let score = storage.get("highScore", "0")
-        
+
         // Check existence
         if (storage.has("level")) {
             console.log("Level data exists")
         }
-        
+
         // Remove data
         storage.remove("tempData")
     }
@@ -58,23 +58,23 @@ Item {
 KeyValueStore {
     id: settings
     name: "GameSettings"
-    
+
     function saveSoundSettings(enabled, volume) {
         set("soundEnabled", enabled.toString())
         set("soundVolume", volume.toString())
     }
-    
+
     function loadSoundSettings() {
         return {
             enabled: get("soundEnabled", "true") === "true",
             volume: parseFloat(get("soundVolume", "1.0"))
         }
     }
-    
+
     function saveGraphicsQuality(quality) {
         set("graphicsQuality", quality)
     }
-    
+
     function loadGraphicsQuality() {
         return get("graphicsQuality", "medium")
     }
@@ -89,19 +89,19 @@ Item {
         id: progressStore
         name: "PlayerProgress"
     }
-    
+
     function saveProgress(level, checkpoint, inventory) {
         progressStore.set("currentLevel", level.toString())
         progressStore.set("checkpoint", checkpoint)
         progressStore.set("inventory", JSON.stringify(inventory))
         progressStore.set("lastSaved", new Date().toISOString())
     }
-    
+
     function loadProgress() {
         if (!progressStore.has("currentLevel")) {
             return null
         }
-        
+
         return {
             level: parseInt(progressStore.get("currentLevel", "1")),
             checkpoint: progressStore.get("checkpoint", "start"),
@@ -109,7 +109,7 @@ Item {
             lastSaved: progressStore.get("lastSaved", "")
         }
     }
-    
+
     function resetProgress() {
         progressStore.remove("currentLevel")
         progressStore.remove("checkpoint")
@@ -125,17 +125,17 @@ Item {
 KeyValueStore {
     id: scoreStore
     name: "HighScores"
-    
+
     function saveHighScores(scores) {
         // Save array of score objects
         set("highScores", JSON.stringify(scores))
     }
-    
+
     function loadHighScores() {
         let data = get("highScores", "[]")
         return JSON.parse(data)
     }
-    
+
     function addHighScore(name, score) {
         let scores = loadHighScores()
         scores.push({
@@ -143,13 +143,13 @@ KeyValueStore {
             score: score,
             date: new Date().toISOString()
         })
-        
+
         // Sort by score descending
         scores.sort((a, b) => b.score - a.score)
-        
+
         // Keep only top 10
         scores = scores.slice(0, 10)
-        
+
         saveHighScores(scores)
         return scores
     }
@@ -164,7 +164,7 @@ Item {
         id: prefStore
         name: "UserPreferences"
     }
-    
+
     // Complex preferences object
     property var preferences: ({
         controls: {
@@ -181,11 +181,11 @@ Item {
             hints: true
         }
     })
-    
+
     function savePreferences() {
         prefStore.set("preferences", JSON.stringify(preferences))
     }
-    
+
     function loadPreferences() {
         if (prefStore.has("preferences")) {
             let loaded = JSON.parse(prefStore.get("preferences", "{}"))
@@ -202,22 +202,22 @@ Item {
 KeyValueStore {
     id: versionedStore
     name: "GameDataV2"
-    
+
     property string currentVersion: "2.0"
-    
+
     Component.onCompleted: {
         let storedVersion = get("dataVersion", "1.0")
-        
+
         if (storedVersion < currentVersion) {
             migrateData(storedVersion, currentVersion)
         }
-        
+
         set("dataVersion", currentVersion)
     }
-    
+
     function migrateData(fromVersion, toVersion) {
         console.log("Migrating data from", fromVersion, "to", toVersion)
-        
+
         if (fromVersion === "1.0" && toVersion === "2.0") {
             // Perform migration
             let oldScore = get("score", "0")

@@ -310,6 +310,13 @@ Rules that make labs read as one product:
   can't cast shadows, and flat buys chevron flow animation. Direction is
   a chevron pattern; speed is bucketed **relative to the scene's own
   maximum**, so a junction visibly splits.
+- **Areas are `Poly3D`**, never a fan of line ribbons faked into a fill.
+  Hand it a ring (`vertices`), inner rings as `holes`, and `extrude` for a
+  prism — a lake, a plaza, a footprint, a building. Lift it slightly along
+  its normal when it shares a plane with the ground; `depthBias` biases
+  sort order, not depth, so it will not settle z-fighting. `showEdges` with
+  `edgeMode: Triangles` is for labs where the *mesh* is the lesson; leave
+  it off otherwise.
 - **Print identity onto parts** (render-to-texture dials, labels,
   ON/OFF plates) instead of 3D glyphs. Teach the real convention
   wherever a decoration would do: actual resistor color code, IEC

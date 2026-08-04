@@ -23,6 +23,24 @@ writing lab code; skim again when something "impossible" happens.
 - **`Label3D.showLeader` defaults to false** — callouts with leaders
   must opt in.
 
+## Canvas3D edges
+
+- **`edgeThickness` is pixels on screen**, shared by `Box3D`, `VoxelMap`
+  and `Poly3D`: a line straddles the boundary it marks and each surface
+  draws half, so a box border and a prism border match at the same
+  setting. A voxel map's *interior* grid lines are shared with nothing and
+  correctly draw twice that. Below ~1 px lines drop out of the pixel grid.
+- **`edgeColorFactor` can only darken the fill** — on a light surface the
+  edges wash out and there is no way to ask for dark grey on pale lilac.
+  Use `edgeColor`; it wins whenever its alpha is above zero.
+- **`Poly3D` and `Box3D` smuggle barycentric coordinates through
+  `TangentSemantic`.** It is a data channel, not a tangent: nothing on
+  those materials may enable normal mapping, and Qt must not be given a
+  reason to normalise or regenerate the attribute. If a Qt upgrade ever
+  does, `edgeMode: Triangles` silently loses its diagonals while
+  `FaceBorders` keeps working — `tst_poly3dwireframe` is the test that
+  catches exactly that, so do not skip it when it fails.
+
 ## QML data-flow traps
 
 - **`Repeater3D` COPIES plain-JS model objects.** Mutating the original
