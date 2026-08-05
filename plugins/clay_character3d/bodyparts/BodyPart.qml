@@ -52,7 +52,12 @@ Box3D {
     position: basePos
     eulerRotation: baseEuler
     showEdges: true
-    edgeThickness: 7
+    // Was 7 while edgeThickness meant a soft ramp of that many pixels, which
+    // rendered as roughly 1.8 px of line. The unit was corrected to a solid
+    // band, doubling what the same number draws, so the number is halved to
+    // keep the outline characters have always had. The look did not change -
+    // only the unit it is written in.
+    edgeThickness: 3.5
     edgeColorFactor: 0.4
     castsShadows: true
     pickable: true
