@@ -824,6 +824,128 @@ private slots:
         // Five points, four of them raising a wall.
         QCOMPARE(mesh.positions.size(), 2 * 5 + 4 * 4);
     }
+
+    // ===== surfaceOffset =====
+
+    // The promise the default rests on: asking for no lift is not a translation
+    // by zero, it is no translation, and the mesh comes out as it did before the
+    // property existed.
+    void surfaceOffsetZeroIsExactlyTheUnliftedMesh_data()
+    {
+        QTest::addColumn<float>("extrude");
+        QTest::newRow("flat") << 0.0f;
+        QTest::newRow("prism") << 30.0f;
+    }
+
+    void surfaceOffsetZeroIsExactlyTheUnliftedMesh()
+    {
+        QFETCH(float, extrude);
+
+        const QVector<QVector2D> hole = ring({{25, 25}, {75, 25}, {75, 75}, {25, 75}});
+        const Poly3DMesh plain = buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ, extrude);
+        const Poly3DMesh same =
+            buildPoly3DMesh({square, hole}, Poly3dGeometry::XZ, extrude, 0.0f);
+
+        QVERIFY2(sameMesh(plain, same),
+                 "surfaceOffset 0 changed the mesh - it is meant to be no "
+                 "translation at all, down to the vertex order");
+    }
+
+    // Every plane lifts along its own normal, and only along that one.
+    void surfaceOffsetSlidesAlongThePlaneNormal_data()
+    {
+        QTest::addColumn<int>("plane");
+        QTest::newRow("XZ") << int(Poly3dGeometry::XZ);
+        QTest::newRow("XY") << int(Poly3dGeometry::XY);
+        QTest::newRow("YZ") << int(Poly3dGeometry::YZ);
+    }
+
+    void surfaceOffsetSlidesAlongThePlaneNormal()
+    {
+        QFETCH(int, plane);
+        const float offset = 0.5f;
+
+        const Poly3DMesh flat = buildPoly3DMesh({square}, Poly3dGeometry::Plane(plane));
+        const Poly3DMesh lifted =
+            buildPoly3DMesh({square}, Poly3dGeometry::Plane(plane), 0.0f, offset);
+
+        QCOMPARE(lifted.positions.size(), flat.positions.size());
+        const QVector3D expected = flat.normal * offset;
+        for (int i = 0; i < flat.positions.size(); ++i)
+            QCOMPARE(lifted.positions.at(i) - flat.positions.at(i), expected);
+
+        // A translation is not a rotation: the shading has to be untouched, and
+        // so does everything the edge shader reads.
+        QCOMPARE(lifted.normals, flat.normals);
+        QCOMPARE(lifted.indices, flat.indices);
+        QCOMPARE(lifted.edgeCodes, flat.edgeCodes);
+        QCOMPARE(lifted.normal, flat.normal);
+
+        // Bounds move with the mesh, or the shadow frustum cuts through it.
+        QCOMPARE(lifted.minBounds - flat.minBounds, expected);
+        QCOMPARE(lifted.maxBounds - flat.maxBounds, expected);
+    }
+
+    // A negative offset is meaningful - it puts the polygon under whatever it
+    // shares the plane with - unlike a negative extrude, which reads as flat.
+    void surfaceOffsetTakesNegativeValues()
+    {
+        const Poly3DMesh flat = buildPoly3DMesh({square}, Poly3dGeometry::XZ);
+        const Poly3DMesh sunk = buildPoly3DMesh({square}, Poly3dGeometry::XZ, 0.0f, -2.0f);
+
+        for (int i = 0; i < flat.positions.size(); ++i)
+            QCOMPARE(sunk.positions.at(i).y(), flat.positions.at(i).y() - 2.0f);
+    }
+
+    // The point of applying the lift last: extrude keeps measuring from the
+    // ring's own plane, so a lifted prism is displaced, never resized.
+    void surfaceOffsetLeavesTheExtrusionHeightAlone()
+    {
+        const float extrude = 45.0f;
+        const float offset = 7.0f;
+
+        const Poly3DMesh prism = buildPoly3DMesh({square}, Poly3dGeometry::XZ, extrude);
+        const Poly3DMesh lifted =
+            buildPoly3DMesh({square}, Poly3dGeometry::XZ, extrude, offset);
+
+        // Same height, just higher up.
+        QCOMPARE(lifted.maxBounds.y() - lifted.minBounds.y(),
+                 prism.maxBounds.y() - prism.minBounds.y());
+        QCOMPARE(lifted.minBounds.y(), prism.minBounds.y() + offset);
+        QCOMPARE(lifted.maxBounds.y(), prism.maxBounds.y() + offset);
+
+        // The base ring sits at the offset, not at the origin plane, and the cap
+        // a full extrude above it - the whole solid moved as one.
+        QCOMPARE(lifted.minBounds.y(), offset);
+        QCOMPARE(lifted.maxBounds.y(), offset + extrude);
+
+        // ... and the walls did not shear: every vertex moved by the same lift.
+        QCOMPARE(lifted.positions.size(), prism.positions.size());
+        for (int i = 0; i < prism.positions.size(); ++i)
+            QCOMPARE(lifted.positions.at(i) - prism.positions.at(i),
+                     QVector3D(0.0f, offset, 0.0f));
+    }
+
+    // Through the geometry class: the uploaded buffers follow the property, and
+    // a round trip back to 0 restores them byte for byte.
+    void surfaceOffsetRoundTripRestoresTheUnliftedBuffers()
+    {
+        Poly3dGeometry geometry;
+        geometry.setVertices(asVariantRing(square));
+        geometry.setShowEdges(true);
+
+        const QByteArray vertexData = geometry.vertexData();
+        QVERIFY(!vertexData.isEmpty());
+        const QVector3D minBounds = geometry.boundsMin();
+
+        geometry.setSurfaceOffset(0.5f);
+        QVERIFY(geometry.vertexData() != vertexData);
+        QCOMPARE(geometry.boundsMin().y(), minBounds.y() + 0.5f);
+
+        geometry.setSurfaceOffset(0.0f);
+        QCOMPARE(geometry.vertexData(), vertexData);
+        QCOMPARE(geometry.boundsMin(), minBounds);
+    }
 };
 
 QTEST_MAIN(TstPoly3DGeometry)
