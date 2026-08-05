@@ -60,10 +60,28 @@ function(clay_plugin PLUGIN_NAME)
     # Custom depdendencies
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${CLAY_PLUGIN_LINK_LIBS})
 
+    # See init_static_plugin_cfg(): this is what lets an app wait for bin/qml
+    # to be complete before copying it (#188).
+    if(TARGET clay_qml_modules)
+        add_dependencies(clay_qml_modules ${PLUGIN_NAME})
+    endif()
+
 endfunction()
 
 
 function(init_static_plugin_cfg)
+    # Every clay_plugin() attaches itself to this, and every app depends on it.
+    # Apps copy the whole of bin/qml into their .app bundle after linking, but
+    # bin/qml is written by the QML modules of all the plugins - which have no
+    # build-order relationship to the apps otherwise. On a first parallel build
+    # the copy then runs against a half-filled directory and the app starts
+    # without its plugins, which surfaces as several testsbx_* failures that
+    # vanish on an immediate rebuild (#188). One aggregate edge removes the
+    # race; per-app dependencies on individual plugins would need each app to
+    # declare what it imports at runtime, which it does not know.
+    if(NOT TARGET clay_qml_modules)
+        add_custom_target(clay_qml_modules)
+    endif()
     set(CLAYGROUND_STATIC_PLUGINS "" CACHE INTERNAL "")
     set(CLAYGROUND_IMPORT_PLUGINS "" CACHE INTERNAL "")
     if ("${CLAYPLUGIN_LINKING}" STREQUAL "STATIC")
