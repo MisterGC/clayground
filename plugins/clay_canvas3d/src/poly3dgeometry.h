@@ -85,6 +85,7 @@ class Poly3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(QVariantList holes READ holes WRITE setHoles NOTIFY holesChanged)
     Q_PROPERTY(Plane plane READ plane WRITE setPlane NOTIFY planeChanged)
     Q_PROPERTY(float extrude READ extrude WRITE setExtrude NOTIFY extrudeChanged)
+    Q_PROPERTY(float surfaceOffset READ surfaceOffset WRITE setSurfaceOffset NOTIFY surfaceOffsetChanged)
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
     Q_PROPERTY(EdgeMode edgeMode READ edgeMode WRITE setEdgeMode NOTIFY edgeModeChanged)
     Q_PROPERTY(float edgeThickness READ edgeThickness WRITE setEdgeThickness NOTIFY edgeThicknessChanged)
@@ -125,6 +126,9 @@ public:
     float extrude() const;
     void setExtrude(float newExtrude);
 
+    float surfaceOffset() const;
+    void setSurfaceOffset(float newSurfaceOffset);
+
     bool showEdges() const;
     void setShowEdges(bool newShowEdges);
 
@@ -149,6 +153,7 @@ signals:
     void holesChanged();
     void planeChanged();
     void extrudeChanged();
+    void surfaceOffsetChanged();
     void showEdgesChanged();
     void edgeModeChanged();
     void edgeThicknessChanged();
@@ -172,6 +177,7 @@ private:
     QVariantList m_holes;
     Plane m_plane = XZ;
     float m_extrude = 0.0f;
+    float m_surfaceOffset = 0.0f;
     bool m_showEdges = false;
     EdgeMode m_edgeMode = FaceBorders;
     float m_edgeThickness = 1.0f;
@@ -195,12 +201,18 @@ private:
 // the default - nothing of that is emitted and the mesh is the flat area it
 // always was, down to the byte.
 //
+// surfaceOffset slides the finished mesh along the plane normal, every vertex
+// by the same amount. It is applied last, on purpose: extrude keeps measuring
+// from the ring's own plane, so lifting a prism moves it without making it
+// taller or shorter. At offset 0 - the default - not a single float is touched.
+//
 // Degenerate input - fewer than three points, all-collinear, zero area,
 // non-finite coordinates - yields an empty mesh and one warning under the
 // "clay.poly" logging category rather than a broken triangle fan.
 Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
                            Poly3dGeometry::Plane plane,
-                           float extrude = 0.0f);
+                           float extrude = 0.0f,
+                           float surfaceOffset = 0.0f);
 
 // Reads the ring shapes QML can hand over: Qt.vector2d(), a {x, y} object (what
 // a point that has been through JSON or a spread survives as), Qt.point() and a

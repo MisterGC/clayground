@@ -114,15 +114,16 @@ View3D {
 
     // --- the shape gallery, all under the same edge settings --------------
     //
-    // Lifted a hair off the ground: two surfaces at the same height fight over
-    // the depth buffer, and Model's depthBias only decides draw order, it does
-    // not offset the depth itself.
+    // Lifted a hair off the ground with surfaceOffset: two surfaces at the same
+    // height fight over the depth buffer, and Model's depthBias only decides
+    // draw order, it does not offset the depth itself. The lift goes into the
+    // geometry, so x/y/z stay free for placing the shape.
 
     // 1 - convex: a hexagon. Its triangulation is a fan, which FaceBorders
     // hides entirely and Triangles shows as spokes.
     Poly3D {
         x: -390
-        y: 0.5
+        surfaceOffset: 0.5
         z: -150
         color: "#00d9ff"
         useToonShading: true
@@ -144,7 +145,7 @@ View3D {
     // normalised while the mesh is built, so it faces up either way.
     Poly3D {
         x: -130
-        y: 0.5
+        surfaceOffset: 0.5
         z: -150
         color: "#ff3366"
         useToonShading: true
@@ -161,7 +162,7 @@ View3D {
     // every second point is where FaceBorders and Triangles differ most.
     Poly3D {
         x: 130
-        y: 0.5
+        surfaceOffset: 0.5
         z: -150
         color: "#ffd93d"
         useToonShading: true
@@ -185,7 +186,7 @@ View3D {
     // builds between outer ring and holes are hidden.
     Poly3D {
         x: 390
-        y: 0.5
+        surfaceOffset: 0.5
         z: -150
         color: "#0f9d9a"
         useToonShading: true
@@ -210,7 +211,7 @@ View3D {
 
     Poly3D {
         x: -130
-        y: 0.5
+        surfaceOffset: 0.5
         z: 120
         color: "#e6d2f2"
         useToonShading: true
@@ -224,7 +225,7 @@ View3D {
 
     Poly3D {
         x: 130
-        y: 0.5
+        surfaceOffset: 0.5
         z: 120
         color: "#e6d2f2"
         useToonShading: true

@@ -84,6 +84,16 @@ Q_LOGGING_CATEGORY(lcPoly, "clay.poly", QtInfoMsg)
 */
 
 /*!
+    \qmlproperty real Poly3DGeometry::surfaceOffset
+    \brief How far the finished mesh is slid along the plane normal.
+
+    Applied after the ring is triangulated and after \l extrude, so a prism is
+    displaced rather than resized: the height keeps measuring from the ring's
+    own plane. Negative values push the polygon the other way. Defaults to 0,
+    which leaves the mesh byte for byte as it would be without the property.
+*/
+
+/*!
     \qmlproperty bool Poly3DGeometry::showEdges
     \brief Whether the polygon draws its own edges.
 
@@ -310,7 +320,8 @@ bool poly3dRingFromVariant(const QVariantList &points, QVector<QVector2D> *out)
 
 Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
                            Poly3dGeometry::Plane plane,
-                           float extrude)
+                           float extrude,
+                           float surfaceOffset)
 {
     Poly3DMesh mesh;
     mesh.normal = planeNormal(plane);
@@ -562,6 +573,18 @@ Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
         }
     }
 
+    // The lift, applied to the finished mesh rather than woven into the
+    // vertices as they are made. Two things fall out of that: extrude keeps
+    // measuring from the ring's own plane - the base and the cap move together,
+    // so the prism is displaced, not resized - and offset 0 leaves every float
+    // exactly as it was, which is what makes the default byte-identical to a
+    // build that never heard of the property.
+    if (surfaceOffset != 0.0f && std::isfinite(surfaceOffset)) {
+        const QVector3D lift = normal * surfaceOffset;
+        for (QVector3D &p : mesh.positions)
+            p += lift;
+    }
+
     // Real bounds: a wrong box lets the shadow frustum slice through the
     // polygon, which reads as the geometry being broken.
     QVector3D minBounds = mesh.positions.first();
@@ -638,6 +661,20 @@ void Poly3dGeometry::setExtrude(float newExtrude)
         return;
     m_extrude = newExtrude;
     emit extrudeChanged();
+    updateData();
+}
+
+float Poly3dGeometry::surfaceOffset() const
+{
+    return m_surfaceOffset;
+}
+
+void Poly3dGeometry::setSurfaceOffset(float newSurfaceOffset)
+{
+    if (qFuzzyCompare(m_surfaceOffset, newSurfaceOffset))
+        return;
+    m_surfaceOffset = newSurfaceOffset;
+    emit surfaceOffsetChanged();
     updateData();
 }
 
@@ -801,8 +838,9 @@ void Poly3dGeometry::updateData()
             rings.append(hole);
     }
 
-    const Poly3DMesh mesh = rings.isEmpty() ? Poly3DMesh()
-                                            : buildPoly3DMesh(rings, m_plane, m_extrude);
+    const Poly3DMesh mesh = rings.isEmpty()
+                                ? Poly3DMesh()
+                                : buildPoly3DMesh(rings, m_plane, m_extrude, m_surfaceOffset);
 
     // The wireframe layout cannot share a vertex between two triangles: a
     // corner's barycentric coordinate is (1, 0, 0) in one and something else in
