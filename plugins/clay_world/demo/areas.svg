@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   width="100mm"
+   height="100mm"
+   viewBox="0 0 100 100"
+   version="1.1"
+   id="areas">
+  <g
+     id="layer1">
+    <rect
+       id="marker"
+       x="5"
+       y="5"
+       width="20"
+       height="10"
+       fill="#ffd93d">
+      <desc id="desc-marker">{"component":"Marker","properties":{"y":4}}</desc>
+    </rect>
+    <polygon
+       id="plaza"
+       points="10,30 50,30 50,50 30,50 30,70 10,70"
+       fill="#00d9ff">
+      <desc id="desc-plaza">{"component":"Area"}</desc>
+    </polygon>
+    <polygon
+       id="arch"
+       points="60,15 90,15 90,40 80,40 80,25 70,25 70,40 60,40"
+       fill="#ff3366">
+      <desc id="desc-arch">{"component":"Area","properties":{"extrude":12}}</desc>
+    </polygon>
+    <polygon
+       id="pond"
+       points="58,58 95,58 95,95 58,95"
+       fill="#0f9d9a" />
+  </g>
+</svg>

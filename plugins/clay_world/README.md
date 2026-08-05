@@ -129,6 +129,58 @@ ClayWorld3d {
 }
 ```
 
+### Areas in a 3D World
+
+A polygon in the map - a lake, a plaza, a building footprint - becomes a 3D
+entity the same way a rectangle does: its description names a registered
+component, and the loader hands over the ring in world coordinates plus the
+SVG fill as `color`. A `Poly3D` needs nothing else.
+
+```qml
+ClayWorld3d {
+    id: world
+    scene: "levels/town.svg"
+    components: new Map([["Area", areaComponent]])
+
+    Component {
+        id: areaComponent
+        Poly3D { useToonShading: true }
+    }
+}
+```
+
+Height is not a mechanism of its own: it rides the `properties` section every
+loaded entity has, so a footprint that should stand up says so in its SVG
+description.
+
+```json
+{"component":"Area","properties":{"extrude":12}}
+```
+
+The scene coordinates a loader works in are Y-up with the origin at the map's
+bottom left, while a 3D world spans `x: [0, xWuMax]` and `z: [0, zWuMax]`. So
+the map's Y becomes `zWuMax - y` - the conversion `SceneLoader3d::toWorldRing()`
+does, and the same one the rectangle handler applies to a rectangle's center.
+Seen from above, the world is the SVG as it was drawn.
+
+A polygon whose description names no registered component is not dropped: it
+reaches `polygonLoaded` with its scene points untouched, so a sandbox can build
+something the loader would not have guessed - an area with holes, for instance,
+which an SVG polygon cannot express on its own.
+
+```qml
+ClayWorld3d {
+    id: world
+
+    onPolygonLoaded: (id, groupId, points, fillColor, strokeColor, description) => {
+        let ring = points.map(p => Qt.vector2d(p.x, world.zWuMax - p.y));
+        pondComponent.createObject(world.root, {vertices: ring, color: fillColor});
+    }
+}
+```
+
+See `demo/Sandbox3dScene.qml` and `demo/areas.svg` for both routes side by side.
+
 ### Minimap Implementation
 
 ```qml
