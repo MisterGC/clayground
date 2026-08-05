@@ -31,3 +31,8 @@ qt6_add_shaders(ClayWorld "clay_world_shaders"
     FILES
         anchored_mask.frag
 )
+
+# QML checks on the loaders and the world types. They run against the built
+# module in bin/qml, so the suite needs nothing beyond the default import dir.
+include(claytest)
+clay_add_qml_test(world_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)

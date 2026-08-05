@@ -40,6 +40,32 @@ function(clay_add_qml_test NAME)
         message(WARNING "qmltestrunner not found via hints; relying on PATH. Set QT_HOST_PATH or ensure Qt bin is on PATH.")
     endif()
 
+    # macOS: the shipped qmltestrunner is signed with Qt's team ID and runs with
+    # the hardened runtime, which refuses to dlopen the ad-hoc signed plugins
+    # this build produces - "mapping process and mapped file (non-platform) have
+    # different Team IDs". So a suite that imports a built Clayground module
+    # cannot run against it at all. An ad-hoc signed copy in the build tree has
+    # no such restriction; it needs DYLD_FRAMEWORK_PATH because the copy no
+    # longer sits next to Qt's lib directory.
+    set(_runner "${QMLTESTRUNNER_EXECUTABLE}")
+    set(_runner_env)
+    if(APPLE AND _qt_prefix AND EXISTS "${QMLTESTRUNNER_EXECUTABLE}")
+        find_program(CODESIGN_EXECUTABLE NAMES codesign)
+        if(CODESIGN_EXECUTABLE)
+            set(_runner_copy "${CMAKE_BINARY_DIR}/test-tools/qmltestrunner")
+            file(COPY "${QMLTESTRUNNER_EXECUTABLE}"
+                 DESTINATION "${CMAKE_BINARY_DIR}/test-tools")
+            execute_process(
+                COMMAND ${CODESIGN_EXECUTABLE} --force --sign - "${_runner_copy}"
+                RESULT_VARIABLE _codesign_result
+                OUTPUT_QUIET ERROR_QUIET)
+            if(_codesign_result EQUAL 0)
+                set(_runner "${_runner_copy}")
+                set(_runner_env "DYLD_FRAMEWORK_PATH=${_qt_prefix}/lib")
+            endif()
+        endif()
+    endif()
+
     # Compose QML import path (build path + optional extras)
     set(_imports "${CMAKE_BINARY_DIR}/bin/qml")
     if(T_IMPORT_DIRS)
@@ -58,7 +84,7 @@ function(clay_add_qml_test NAME)
 
     # Register with CTest. QTest spells the report "-o <file>,<format>".
     add_test(NAME qml_${NAME}
-        COMMAND ${QMLTESTRUNNER_EXECUTABLE}
+        COMMAND ${_runner}
                 -input ${T_DIRECTORY}
                 ${_import_args}
                 -o ${CMAKE_BINARY_DIR}/test-results/${NAME}.xml,junitxml
@@ -67,7 +93,7 @@ function(clay_add_qml_test NAME)
 
     # Run headless, with software backend for stability
     set_tests_properties(qml_${NAME} PROPERTIES
-        ENVIRONMENT "QML2_IMPORT_PATH=${_imports_env};QT_QPA_PLATFORM=minimal;QT_OPENGL=software"
+        ENVIRONMENT "QML2_IMPORT_PATH=${_imports_env};QT_QPA_PLATFORM=minimal;QT_OPENGL=software;${_runner_env}"
         LABELS "qml"
     )
 endfunction()
