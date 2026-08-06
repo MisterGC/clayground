@@ -46,3 +46,10 @@ clay_plugin( Lab
         Qt::Quick
         Qt::Qml
 )
+
+# Pure-QML checks on the kernel types that carry logic. IMPORTS_BUILT_MODULE:
+# the suite needs the Lab singleton, and a singleton cannot be picked up by a
+# plain directory import - there is no qmldir beside the sources to declare it.
+include(claytest)
+clay_add_qml_test(lab_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)

@@ -240,8 +240,7 @@ Item {
 
     // --- editing -----------------------------------------------------------
     function snapWorld(v, modifiers) {
-        return modifiers === undefined ? (grid.snap ? Math.round(v / cell) * cell : v)
-                                       : grid.quantize(v, modifiers)
+        return grid.quantize(v, modifiers === undefined ? Qt.NoModifier : modifiers)
     }
     function inBoard(x, z) {
         return Math.abs(x) <= boardW / 2 && Math.abs(z) <= boardH / 2
@@ -997,19 +996,16 @@ Item {
         property real lastX: 0
         property real lastY: 0
 
-        function snapping(mods) {
-            return root.snapToGrid !== ((mods & Qt.AltModifier) !== 0)
-        }
+        // The grid mode owns both rules - Alt inverting the mode for one
+        // gesture, and the rounding itself - so every lab quantizes alike.
+        function snapping(mods) { return grid.snapping(mods) }
         function worldAt(mx, my) {
             const res = view3d.pick(mx, my)
             if (res && res.objectHit === sheet) return res.scenePosition
             return null
         }
         function snapped(w, mods) {
-            return snapping(mods)
-                ? { x: Math.round(w.x / root.cell) * root.cell,
-                    z: Math.round(w.z / root.cell) * root.cell }
-                : { x: w.x, z: w.z }
+            return { x: grid.quantize(w.x, mods), z: grid.quantize(w.z, mods) }
         }
 
         onWheel: (wheel) => rig.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
@@ -1259,7 +1255,7 @@ Item {
                         onClicked: {
                             if (modelData.key === "lanes") root.showLanes = !root.showLanes
                             else if (modelData.key === "values") root.showValues = !root.showValues
-                            else root.snapToGrid = !root.snapToGrid
+                            else grid.toggle()
                         }
                     }
                 }
@@ -1576,12 +1572,18 @@ Item {
     // The toggle that states the lesson: with V on, every road shows what is
     // actually flowing along it, so a grid and a tree of cul-de-sacs stop
     // needing to be explained.
+    //
+    // Every label takes its camera from the VIEW rather than from the rig: a
+    // label projects through view3d, so the camera it must wait for is the one
+    // view3d is actually rendering with. Naming the rig's camera instead gets
+    // the label past its own null-guard while the view still has none, and the
+    // first projection of the session goes through a warning.
     Repeater {
         model: root.showValues ? root.net.roads : []
         WorldLabel {
             required property var modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: Qt.vector3d((modelData.x0 + modelData.x1) / 2, 1.2,
                                        (modelData.z0 + modelData.z1) / 2)
             placement: WorldLabel.Centered
@@ -1607,7 +1609,7 @@ Item {
         WorldLabel {
             required property var modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: {
                 root.graphRev
                 return root.legAnchor(root.activeNode, modelData)
@@ -1625,7 +1627,7 @@ Item {
             required property var modelData
             readonly property int rid: modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: {
                 root.graphRev
                 const m = root.roadMidpoint(rid)
@@ -1661,7 +1663,7 @@ Item {
             return root.selectedRoad === -1 ? null : root.roadRecord(root.selectedRoad)
         }
         view: view3d
-        camera: rig.camera
+        camera: view3d.camera
         active: road !== null
         worldPosition: road ? Qt.vector3d((road.x0 + road.x1) / 2, 0,
                                           (road.z0 + road.z1) / 2)
@@ -1730,7 +1732,7 @@ Item {
                 readonly property bool watched:
                     selCard.road !== null && root.isWatched(selCard.road.id)
                 readonly property bool full:
-                    !watched && root.watch.length >= root.watchMax
+                    !watched && root.watch.length >= monitor.maxSeries
                 width: watchLabel.width + 16; height: 20
                 radius: LabTheme.radius
                 color: watched ? root.watchColorOf(selCard.road.id) : LabTheme.panel

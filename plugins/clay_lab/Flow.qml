@@ -139,7 +139,14 @@ Item {
 
     property real stepTime: 0        // sim seconds spent in this step
     property var _names: ({})        // flow-local part names -> lab ids
-    property var _checkpoints: ({})  // step index -> lab viewState
+    // step index -> { view: lab viewState, names: the name table as it stood }.
+    // The names belong in the checkpoint, not beside it: a later step refers to
+    // what an earlier one bound ("let bat"), so entering a step from its
+    // checkpoint has to restore the bindings that step was written against.
+    // Otherwise a jump into the middle of a flow leaves every name unresolved
+    // and each demo verb operates on the literal string instead - which fails
+    // silently, because a lab verb given an unknown id simply does nothing.
+    property var _checkpoints: ({})
 
     /*!
         \qmlmethod void Flow::start()
@@ -172,10 +179,13 @@ Item {
     */
     function goTo(i) {
         if (i < 0 || i >= steps.length) { stop(); return }
-        if (_checkpoints[i] !== undefined && lab && lab.applyViewState)
-            lab.applyViewState(JSON.parse(JSON.stringify(_checkpoints[i])))
-        else if (lab && lab.viewState)
-            _checkpoints[i] = JSON.parse(JSON.stringify(lab.viewState()))
+        const cp = _checkpoints[i]
+        if (cp !== undefined && lab && lab.applyViewState) {
+            _names = _clone(cp.names)
+            lab.applyViewState(_clone(cp.view))
+        } else if (lab && lab.viewState) {
+            _checkpoints[i] = { view: _clone(lab.viewState()), names: _clone(_names) }
+        }
         index = i
         stepTime = 0
         hintShown = false
@@ -224,6 +234,10 @@ Item {
         return (lab && lab.flowActions) ? lab.flowActions() : ({})
     }
     function nameOf(n) { return _names[n] !== undefined ? _names[n] : n }
+
+    // A checkpoint has to be a snapshot, not a view: the lab keeps mutating the
+    // object it handed over, and _names keeps growing as later steps bind.
+    function _clone(o) { return JSON.parse(JSON.stringify(o)) }
 
     /*!
         \qmlmethod void Flow::run(var actions)

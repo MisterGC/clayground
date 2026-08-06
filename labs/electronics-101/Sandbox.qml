@@ -237,7 +237,9 @@ Item {
         wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
         elements = elements.filter(el => el.id !== id)
         if (selectedId === id) selectedId = -1
-        if (isWatched(id)) watch = watch.filter(x => x !== id)
+        // `watch` is a readonly alias onto the monitor's set - a deleted part
+        // leaves through the monitor's own API, never by assigning the alias
+        monitor.setWatched(id, false)
         resolve()
     }
     // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
@@ -1642,7 +1644,7 @@ Item {
                 readonly property bool watched:
                     selCard.el !== null && root.isWatched(selCard.el.id)
                 readonly property bool full:
-                    !watched && root.watch.length >= root.watchMax
+                    !watched && root.watch.length >= monitor.maxSeries
                 color: watched ? root.watchColorOf(selCard.el.id) : LabTheme.panel
                 border.color: watched ? LabTheme.panelEdge
                             : (full ? LabTheme.panelEdge : LabTheme.secondary)
