@@ -100,6 +100,35 @@ writing lab code; skim again when something "impossible" happens.
   `OrbitCamera3D` implements this; don't hand-roll.
 - A follow camera that feeds `Label3D` sizing must be top-level, not
   nested in a moving rig (`Label3D` reads `camera.position`).
+- **`OrbitCamera3D` eases its own moves** (`smoothMs`). Declaring your own
+  `Behavior on distance` on top of it is a duplicate binding; and because
+  a Behavior defers the write, the pose properties hold an *interpolant*
+  mid-move — read `goalYaw`/`goalPitch`/`goalDistance`/`goalPivot`, or
+  `state()`, when you want the destination. Two writes are two glides:
+  `rig.pivot = p; rig.setDistance(d)` slides sideways while it zooms, where
+  `rig.applyState({px, py, pz, distance})` is one move.
+- **A pan on an endless ground needs a leash.** `panLeash` measured from
+  `homePivot` is soft (the pull-back grows past the radius) rather than a
+  wall, because a drag that stops dead reads as a broken drag.
+- **`focusOn` must special-case a single point.** `Array.isArray`, not a
+  duck-typed `length` check: a `vector3d` HAS a `length` — it is the method
+  that measures the vector — so the obvious test says "array" for exactly
+  the one point the branch exists for, and the frame maths comes back NaN.
+
+## Kernel widgets and id shadowing
+
+`WatchChip`, `WatchMark` and `OrbitInput3D` declare properties named
+`monitor` and `rig` — the very ids a lab gives those objects. Inside the
+widget the property **shadows the id**, so `monitor: monitor` assigns the
+property to itself. Nothing throws; the chip is simply invisible and the
+mark never appears. Expose the object under a second name on the root and
+wire through that:
+
+```qml
+readonly property alias watchMonitor: monitor    // on the sandbox root
+...
+WatchChip { monitor: root.watchMonitor; target: card.id }
+```
 
 ## Publishing to the web
 

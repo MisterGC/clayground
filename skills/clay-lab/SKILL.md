@@ -259,7 +259,12 @@ View3D {
         shadowMapFar: 250                                // measured, per lab
     }
     environment: stage.environment
-    OrbitCamera3D { id: rig }
+    OrbitCamera3D {
+        id: rig
+        homePivot: Qt.vector3d(0, 0, 0)
+        panLeash: stage.workRadius                       // how far you may wander
+        viewpoints: ({ "top": { pitch: 84, distance: 140 } })
+    }
     camera: rig.camera
 }
 ```
@@ -291,6 +296,63 @@ takes its camera from the **view** (`camera: view3d.camera`), never from the
 rig. Naming the rig's camera gets the label past its own null-guard while
 the view still has none, and the first projection goes through a
 *Cannot resolve view position* warning.
+
+### Getting around
+
+`OrbitCamera3D` turns and zooms; **`OrbitInput3D`** is what turns gestures
+into those moves, so a lab never writes degrees-per-pixel again. It is
+deliberately *not* a MouseArea: a lab that also picks, draws or drags keeps
+its own MouseArea and hands over only the gestures it does not want.
+
+```qml
+OrbitInput3D { id: nav; rig: rig; view: view3d }
+
+MouseArea {
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+    onPressed: (m) => {
+        if (myTool.wants(m)) return                 // the lab's own gesture
+        nav.begin(m.x, m.y, m.button, m.modifiers)  // returns "orbit"/"pan"/""
+    }
+    onPositionChanged: (m) => { if (!nav.move(m.x, m.y)) myTool.moveTo(m.x, m.y) }
+    onReleased: nav.end()
+    onWheel: (w) => nav.wheel(w.angleDelta.y)
+    onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
+}
+```
+
+`nav.beginAs("orbit"|"pan", x, y)` is for a lab whose own rule decides (empty
+board orbits, an object drags). Four things worth knowing:
+
+- **The pivot travels, on a leash.** `panBy` slides it along the ground;
+  `panLeash` (from `homePivot`) keeps it near the work, softly — past the
+  radius the pull-back grows, so there is a furthest point but no wall. The
+  ground is endless; without this you get lost and there is nothing to
+  navigate back by.
+- **The goal pose is what serializes.** With `smoothMs` above zero the rig
+  glides, so `yaw`/`pitch`/`distance`/`pivot` hold an interpolant mid-move
+  while `goalYaw`…`goalPivot` hold the destination — and `state()` returns
+  the goal. A `viewState()` taken mid-glide therefore restores where the
+  camera was *going*. **Do not declare your own `Behavior` on a pose
+  property** (duplicate binding); set `smoothMs` / `travelMs` instead, and
+  move the rig with one call — a `pivot` write plus a `setDistance` starts
+  two glides and the scene slides while it zooms. `applyState({px, py, pz,
+  distance})` is the one-call form.
+- **`viewpoints` + `goTo(name, ms)`** are named places, any subset of a pose
+  (`{ pitch: 84 }` means "look down from wherever you are"), and yaw takes
+  the short way round. `focusOn(points|point, pad)` is the verb a lab's own
+  picking calls — a single point re-centres without diving at it.
+- **`FlowStep.view`** aims the camera on entering a step, once the `Flow` has
+  a `camera:`: `{viewpoint: "top"}`, `{focus: [pts], pad}` or `{pose: {...}}`,
+  applied *after* the demo so a step can frame what it just built. Steps
+  without it behave exactly as before.
+
+One trap, and it cost a render: `WatchChip`, `WatchMark` and `OrbitInput3D`
+all declare a property whose name matches the id a lab habitually uses
+(`monitor`, `rig`). Inside them `monitor: monitor` is a property assigned to
+**itself** — it fails silently as an invisible chip. Expose the object under
+a second name on the root (`readonly property alias watchMonitor: monitor`)
+and wire `monitor: root.watchMonitor`.
 
 Framework blocks labs lean on: `ClayWorld3d` + `OrbitCamera3D`
 (`Clayground.Canvas3D` — yaw/pitch/distance on a leash, `F` frames,
@@ -498,11 +560,15 @@ checked against.
 ### Canonical key map
 
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
-view · `W` watch/plot · `F` frame selection · `0` reset view · `R`
+view · `W` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
 rotate · `Del` delete · `#` grid mode · `T` flow · `Space`/`→` next,
 `←` back, `Esc` cancel/leave · `Shift+R` record CSV ·
-`Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size. A lab may add
+`Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows travel across the
+scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
 keys, never reassign these. Key letters stay physical across languages.
+The arrows used to turn, which a drag already did well; crossing the scene
+had no key at all, so turning moved onto `Shift`. While a flow runs `→`/`←`
+are the flow's, so the arrows are the camera's only when nothing narrates.
 Surface every key you handle: palette buttons carry their shortcut,
 the hint bar teaches the rest, and the header comment lists them all.
 
