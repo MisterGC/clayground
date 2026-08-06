@@ -5,10 +5,13 @@ import QtQuick
 /*!
     \qmltype Plot2D
     \inqmlmodule Clayground.Lab
-    \brief Live time-series plot of probe samples.
+    \brief Live time-series plot of probe samples: lines, scatter, uncertainty bands.
 
     Autoscaled strip chart over a sliding sim-time window, one colored
-    series per probe with a legend showing the latest values.
+    series per probe with a legend showing the latest values. Hover the chart
+    and it reads back every visible series at the sample nearest the cursor,
+    which is the difference between "the curves crossed somewhere here" and a
+    number you can write down.
 
     Example usage:
     \qml
@@ -19,9 +22,16 @@ import QtQuick
         width: parent.width; height: 150
         probes: ["kineticEnergy", "avgHeight"]
     }
+
+    Plot2D {                                     // a fix and what it is worth
+        series: [{ probe: "estimate", label: "fused", color: LabTheme.secondary,
+                   sigmaProbe: "estimateSigma" },
+                 { probe: "gpsFix", label: "GPS", color: LabTheme.rose,
+                   style: "scatter" }]
+    }
     \endqml
 
-    \sa Probe, Lab
+    \sa Probe, Lab, WatchMonitor
 */
 Rectangle {
     id: _plot
@@ -34,7 +44,8 @@ Rectangle {
 
     /*!
         \qmlproperty var Plot2D::series
-        \brief Explicit series as \c {[{probe, label, color}]}, overriding \l probes.
+        \brief Explicit series as \c {[{probe, label, color, style, sigmaProbe}]},
+        overriding \l probes.
 
         Use this when the plotted set is built at runtime and the lab owns the
         naming and colouring - a probe name like \c "part7" then still reads as
@@ -42,6 +53,19 @@ Rectangle {
         elsewhere. \c label and \c color are optional (probe name and the
         cycled \l seriesColors are the fallbacks). With series set, legend
         entries become clickable and emit \l seriesClicked.
+
+        Two optional keys change how a series is drawn:
+
+        \list
+        \li \c style - \c "line" (the default) or \c "scatter". A quantity that
+            arrives in discrete events - a GPS fix, a measurement, a spawn -
+            is not a curve, and joining its samples with a line invents values
+            between them that were never measured.
+        \li \c sigmaProbe - the name of a probe carrying this series'
+            uncertainty. The band \c {value ± sigma} is filled translucently
+            behind the curve, so "the estimate is here" and "the estimate is
+            worth this much" are one picture instead of two panels.
+        \endlist
 
         Null (the default) hands control back to \l probes. An \e empty array
         is not the same thing: it means the lab has nothing to plot right now,
@@ -75,13 +99,23 @@ Rectangle {
     */
     property var seriesColors: LabTheme.seriesColors
 
+    /*!
+        \qmlproperty bool Plot2D::cursorReadout
+        \brief Read every series back at the hovered sample.
+    */
+    property bool cursorReadout: true
+
     // legend hit boxes, filled while painting: {probe, x, w}
     property var _legendHits: []
     property int _hoverIndex: -1
+    // cursor position in canvas pixels, or -1 while the pointer is away
+    property real _cursorX: -1
+    property real _cursorY: -1
 
     onSeriesChanged: _canvas.requestPaint()
     onProbesChanged: _canvas.requestPaint()
     onPlaceholderChanged: _canvas.requestPaint()
+    on_CursorXChanged: _canvas.requestPaint()
 
     color: LabTheme.panel
     border.color: LabTheme.panelEdge
@@ -96,12 +130,21 @@ Rectangle {
         target: LabLang
         function onLangChanged() { _canvas.requestPaint() }
     }
+    Connections {
+        target: LabTheme
+        function onModeChanged() { _canvas.requestPaint() }
+        function onUiScaleChanged() { _canvas.requestPaint() }
+    }
 
     Canvas {
         id: _canvas
         anchors.fill: parent
-        anchors.margins: 8
+        anchors.margins: LabTheme.spaceL
         clip: true      // a long placeholder or legend must stay in the panel
+
+        // the legend band's height, so the two hit areas agree on where the
+        // legend stops and the chart starts
+        readonly property real bandHeight: LabTheme.fontMicro + LabTheme.spaceL
 
         onPaint: {
             const ctx = getContext("2d")
@@ -123,12 +166,19 @@ Rectangle {
                 const pr = Lab.probe(en.probe)
                 if (!pr) continue
                 const pts = pr.samples.filter(s => s.t >= t0)
-                for (const s of pts) {
-                    if (s.v < vMin) vMin = s.v
-                    if (s.v > vMax) vMax = s.v
+                // an uncertainty band widens the axis: a curve that leaves its
+                // own band would be a plot lying about what it shows
+                const sigPr = en.sigmaProbe ? Lab.probe(en.sigmaProbe) : null
+                const sig = sigPr ? sigPr.samples.filter(s => s.t >= t0) : null
+                for (let k = 0; k < pts.length; ++k) {
+                    const s = pts[k]
+                    const w = sig ? _sigmaAt(sig, s.t) : 0
+                    if (s.v - w < vMin) vMin = s.v - w
+                    if (s.v + w > vMax) vMax = s.v + w
                 }
                 series.push({probe: en.probe, name: en.label ? en.label : en.probe,
-                             pts: pts, unit: pr.unit,
+                             pts: pts, unit: pr.unit, sig: sig,
+                             scatter: en.style === "scatter",
                              color: en.color ? String(en.color)
                                   : _plot.seriesColors[series.length % _plot.seriesColors.length]})
             }
@@ -138,9 +188,9 @@ Rectangle {
                 // quoted: a family with a space in it ("Patrick Hand",
                 // "DejaVu Sans Mono") is not a valid CSS font shorthand
                 // unquoted, and Context2D rejects the whole declaration
-                ctx.font = '13px "' + LabTheme.handFont + '"'
+                ctx.font = LabTheme.fontLabel + 'px "' + LabTheme.handFont + '"'
                 ctx.textAlign = "center"
-                ctx.fillText(_plot.placeholder, width / 2, height / 2 + 4)
+                ctx.fillText(_plot.placeholder, width / 2, height / 2 + LabTheme.spaceS)
                 ctx.textAlign = "left"
                 return
             }
@@ -151,16 +201,17 @@ Rectangle {
 
             // Legend band on top, axis gutter on the left: the curves get a
             // rect of their own so a spike can never run through a label.
-            ctx.font = '10px "' + LabTheme.monoFont + '"'
+            ctx.font = LabTheme.fontMicro + 'px "' + LabTheme.monoFont + '"'
             // a flat-zero series must not read as "-0.00", and the decimal
             // separator follows the lab's language
             const fmt = v => LabLang.num(Math.abs(v) < 5e-3 ? 0 : v, 2)
             const ticks = [vMax, (vMax + vMin) / 2, vMin].map(fmt)
             let gutter = 0
             for (const tk of ticks) gutter = Math.max(gutter, ctx.measureText(tk).width)
-            gutter += 8
+            gutter += LabTheme.spaceL
 
-            const padT = 16, padB = 6, padR = 4
+            const padT = _canvas.bandHeight
+            const padB = LabTheme.spaceM, padR = LabTheme.spaceS
             const pw = Math.max(1, width - gutter - padR)
             const ph = Math.max(1, height - padT - padB)
 
@@ -176,11 +227,44 @@ Rectangle {
 
             ctx.save()
             ctx.beginPath(); ctx.rect(gutter, padT, pw, ph); ctx.clip()
+
+            // bands first, behind every curve: the uncertainty is the ground
+            // the estimates are drawn on, not something layered over them
             for (let i = 0; i < series.length; ++i) {
                 const s = series[i]
+                if (!s.sig || s.pts.length < 2) continue
+                ctx.fillStyle = _plot._translucent(s.color, 0.22)
+                ctx.beginPath()
+                for (let k = 0; k < s.pts.length; ++k) {
+                    const p = s.pts[k], w = _sigmaAt(s.sig, p.t)
+                    const x = xOf(p.t), y = yOf(p.v + w)
+                    if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+                }
+                for (let k = s.pts.length - 1; k >= 0; --k) {
+                    const p = s.pts[k], w = _sigmaAt(s.sig, p.t)
+                    ctx.lineTo(xOf(p.t), yOf(p.v - w))
+                }
+                ctx.closePath()
+                ctx.fill()
+            }
+
+            const dot = Math.max(1.5, LabTheme.px(2.2))
+            for (let i = 0; i < series.length; ++i) {
+                const s = series[i]
+                if (s.scatter) {
+                    // discrete events stay discrete: no line is drawn between
+                    // two fixes, because nothing was measured in between
+                    ctx.fillStyle = s.color
+                    for (let k = 0; k < s.pts.length; ++k) {
+                        ctx.beginPath()
+                        ctx.arc(xOf(s.pts[k].t), yOf(s.pts[k].v), dot, 0, 2 * Math.PI)
+                        ctx.fill()
+                    }
+                    continue
+                }
                 if (s.pts.length < 2) continue
                 ctx.strokeStyle = s.color
-                ctx.lineWidth = 1.5
+                ctx.lineWidth = Math.max(1, LabTheme.px(1.5))
                 ctx.beginPath()
                 ctx.moveTo(xOf(s.pts[0].t), yOf(s.pts[0].v))
                 for (let k = 1; k < s.pts.length; ++k)
@@ -192,8 +276,9 @@ Rectangle {
             ctx.fillStyle = LabTheme.inkFaint.toString()
             for (let i = 0; i <= 2; ++i) {
                 const y = padT + ph * i / 2
-                ctx.fillText(ticks[i], gutter - 6 - ctx.measureText(ticks[i]).width,
-                             y + (i === 0 ? 8 : (i === 2 ? 0 : 4)))
+                ctx.fillText(ticks[i], gutter - LabTheme.spaceM - ctx.measureText(ticks[i]).width,
+                             y + (i === 0 ? LabTheme.fontMicro * 0.8
+                                : (i === 2 ? 0 : LabTheme.fontMicro * 0.4)))
             }
 
             const clickable = driven
@@ -207,12 +292,94 @@ Rectangle {
                 const w = ctx.measureText(txt).width
                 if (lx + w > width - padR) break
                 ctx.fillStyle = s.color
-                ctx.fillText(txt, lx, 11)
-                if (clickable) hits.push({ probe: s.probe, x: lx - 4, w: w + 8 })
-                lx += w + 16
+                ctx.fillText(txt, lx, LabTheme.fontMicro + 1)
+                if (clickable) hits.push({ probe: s.probe, x: lx - LabTheme.spaceS,
+                                           w: w + 2 * LabTheme.spaceS })
+                lx += w + LabTheme.spaceXxl
             }
             _plot._legendHits = hits
+
+            // --- the cursor readout ----------------------------------------
+            if (_plot.cursorReadout && _plot._cursorX >= gutter
+                && _plot._cursorX <= gutter + pw && series.length > 0) {
+                const cx = _plot._cursorX
+                const tAt = t0 + (cx - gutter) / pw * (t1 - t0)
+                ctx.strokeStyle = LabTheme.inkFaint.toString()
+                ctx.lineWidth = 1
+                ctx.beginPath()
+                ctx.moveTo(Math.round(cx) + 0.5, padT)
+                ctx.lineTo(Math.round(cx) + 0.5, padT + ph)
+                ctx.stroke()
+
+                const rows = []
+                for (const s of series) {
+                    const p = _nearest(s.pts, tAt)
+                    if (!p) continue
+                    rows.push({ color: s.color,
+                                text: s.name + " " + LabLang.num(p.v, 2)
+                                      + (s.unit ? " " + s.unit : ""),
+                                v: p.v })
+                    ctx.fillStyle = s.color
+                    ctx.beginPath()
+                    ctx.arc(xOf(p.t), yOf(p.v), dot + 1, 0, 2 * Math.PI)
+                    ctx.fill()
+                }
+                if (rows.length > 0) {
+                    const lh = LabTheme.fontMicro + LabTheme.spaceS
+                    let bw = ctx.measureText("t " + LabLang.num(tAt, 2)).width
+                    for (const r of rows) bw = Math.max(bw, ctx.measureText(r.text).width)
+                    bw += 2 * LabTheme.spaceM
+                    const bh = (rows.length + 1) * lh + LabTheme.spaceS
+                    // flips to the other side of the cursor near the right
+                    // edge rather than being clamped onto the curve it reads
+                    let bx = cx + LabTheme.spaceM
+                    if (bx + bw > width) bx = cx - LabTheme.spaceM - bw
+                    let by = Math.min(Math.max(padT, _plot._cursorY - bh / 2),
+                                      padT + ph - bh)
+                    ctx.fillStyle = LabTheme.panel.toString()
+                    ctx.strokeStyle = LabTheme.panelEdge.toString()
+                    ctx.lineWidth = LabTheme.borderWidth
+                    ctx.beginPath()
+                    ctx.rect(bx, by, bw, bh)
+                    ctx.fill(); ctx.stroke()
+                    let ty = by + LabTheme.spaceS + LabTheme.fontMicro
+                    ctx.fillStyle = LabTheme.inkFaint.toString()
+                    ctx.fillText("t " + LabLang.num(tAt, 2), bx + LabTheme.spaceM, ty)
+                    for (const r of rows) {
+                        ty += lh
+                        ctx.fillStyle = r.color
+                        ctx.fillText(r.text, bx + LabTheme.spaceM, ty)
+                    }
+                }
+            }
         }
+
+        // The sigma series is sampled on the same grid as its value series
+        // (both are probes on one clock), so a straight index scan is enough -
+        // but never assume it: a lab may add a sigma probe later, with fewer
+        // samples than the curve it belongs to.
+        function _sigmaAt(sig, t) {
+            const p = _nearest(sig, t)
+            return p ? Math.abs(p.v) : 0
+        }
+
+        function _nearest(pts, t) {
+            if (!pts || pts.length === 0) return null
+            let best = pts[0], bd = Math.abs(pts[0].t - t)
+            for (let i = 1; i < pts.length; ++i) {
+                const d = Math.abs(pts[i].t - t)
+                if (d < bd) { bd = d; best = pts[i] }
+            }
+            return best
+        }
+    }
+
+    // "rgba(r,g,b,a)": Context2D takes a colour object for fillStyle, but not
+    // one with an alpha applied after the fact - so the band builds the string.
+    function _translucent(c, alpha) {
+        const q = Qt.color(c)
+        return "rgba(" + Math.round(q.r * 255) + "," + Math.round(q.g * 255)
+             + "," + Math.round(q.b * 255) + "," + alpha + ")"
     }
 
     // The legend doubles as the remove control: a curve is dropped where it is
@@ -220,7 +387,7 @@ Rectangle {
     MouseArea {
         id: _legendArea
         x: _canvas.x; y: _canvas.y
-        width: _canvas.width; height: 20
+        width: _canvas.width; height: _canvas.bandHeight
         enabled: _plot.series !== null && _plot.series !== undefined
         hoverEnabled: enabled
         cursorShape: _plot._hoverIndex >= 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -242,5 +409,23 @@ Rectangle {
             const i = indexAt(m.x)
             if (i >= 0) _plot.seriesClicked(_plot._legendHits[i].probe)
         }
+    }
+
+    // Everything below the legend band reads values back. Hover only - a
+    // click here belongs to whatever the lab put underneath.
+    MouseArea {
+        id: _cursorArea
+        x: _canvas.x
+        y: _canvas.y + _canvas.bandHeight
+        width: _canvas.width
+        height: Math.max(0, _canvas.height - _canvas.bandHeight)
+        enabled: _plot.cursorReadout
+        hoverEnabled: enabled
+        acceptedButtons: Qt.NoButton
+        onPositionChanged: (m) => {
+            _plot._cursorX = m.x
+            _plot._cursorY = m.y + _canvas.bandHeight
+        }
+        onExited: { _plot._cursorX = -1; _canvas.requestPaint() }
     }
 }
