@@ -74,6 +74,18 @@ Node {
     property real majorEvery: 5
 
     /*!
+        \qmlproperty vector2d LabStage3D::rasterOrigin
+        \brief A world point that an intersection of the raster sits on.
+
+        Defaults to the origin, which is what a lab whose raster is centred on
+        it wants. A board with an even number of cells is not: electronics-101
+        has 20 columns of 5, so its pegs land on the half-cells and the crosses
+        have to land with them. Any point on the raster does - the shader only
+        reads it modulo the cell.
+    */
+    property vector2d rasterOrigin: Qt.vector2d(0, 0)
+
+    /*!
         \qmlproperty var LabStage3D::gridMode
         \brief The \l GridMode whose mode the surface shows, or a plain bool.
 
@@ -311,6 +323,7 @@ Node {
             property color edgeColor: root.edgeColor
 
             property real cellSize: Math.max(0.001, root.cellSize)
+            property vector2d rasterOrigin: root.rasterOrigin
             property real majorEvery: Math.max(1, root.majorEvery)
             property real minorWidth: root.minorWidth
             property real majorWidth: root.majorWidth

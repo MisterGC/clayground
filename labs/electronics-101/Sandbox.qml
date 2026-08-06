@@ -533,10 +533,8 @@ Item {
     // --- interaction state ------------------------------------------------
     // Grid mode follows grafli's contract: # cycles it, Alt inverts it for one
     // drag, and the pegs show which mode is on (crosses while snapping, dots
-    // when free).
-    GridMode { id: grid }
-    // readable from inside delegates, where an outer id is not in scope
-    readonly property bool snapToGrid: grid.snap
+    // when free). GridMode itself draws nothing - the stage does, from here.
+    GridMode { id: grid; step: root.cell }
 
     property var wiringFrom: null       // {el, ti} while a wire is dangling
     property bool eraser: false
@@ -653,26 +651,24 @@ Item {
         anchors.fill: parent
         camera: rig.camera
 
-        environment: SceneEnvironment {
-            // slightly lighter than the table below, so that a horizon line
-            // appears at low camera angles - the eye keeps a reference
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
+        // The whole stage - ground, light rig, environment - in one block. The
+        // pegboard is the shared lab surface: an endless sheet of squared paper
+        // whose raster is drawn in the fragment shader, so the pegs are crosses
+        // while the grid snaps and dots when placement is free without a single
+        // Model per peg. Everything on the board maps through it (see worldAt).
+        LabStage3D {
+            id: stage
+            cellSize: root.cell
+            majorEvery: 4                 // a heavier rule every four pegs
+            // 20 columns of 5 puts the pegs on the half-cells, not on the
+            // origin - the crosses have to land where the parts do
+            rasterOrigin: Qt.vector2d(root.cellX(0), root.cellZ(0))
+            gridMode: grid
+            workExtent: Qt.vector2d(root.cols * root.cell, root.rows * root.cell)
+            shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
+        environment: stage.environment
 
-        Model {  // the table the board lies on: grounds the view from any angle
-            source: "#Cube"
-            position: Qt.vector3d(0, -4.2, 0)
-            // deliberately modest: the shadow volume grows with the scene, and
-            // a table the size of the horizon would starve the shadow map
-            scale: Qt.vector3d(2.4, 0.02, 1.9)
-            castsShadows: false
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.table
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
         OrbitCamera3D {
             id: rig
             pivot: Qt.vector3d(0, 2, 0)
@@ -686,80 +682,6 @@ Item {
             minHeight: 9          // taller than anything standing on the board
             Behavior on pivot { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
             Behavior on distance { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-        }
-
-        // Three soft lights instead of one hard one: key with shadows, side
-        // fill, and a low camera-side fill so unlit faces still separate.
-        // Nothing in the scene is glossy, so depth comes from value, not glare.
-        //
-        // The shadows are real (GPU shadow map), kept legible by keeping the
-        // shadow volume small: shadowMapFar bounds it to the table instead of
-        // the horizon and the cascades spend their texels near the camera.
-        // That is what lets a 0.55-unit wire cast a readable shadow.
-        DirectionalLight {
-            id: keyLight
-            eulerRotation.x: -35
-            eulerRotation.y: -25
-            brightness: 0.9
-            castsShadow: true
-            shadowFactor: LabTheme.shadowFactor   // present, not dramatic
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            // far enough to still cover the setup at maximum zoom-out (the
-            // range is measured from the camera), with cascades spending the
-            // texels near it; a small bias - 10+ pushes thin shadows off the
-            // board entirely, 0 turns the whole board into acne
-            shadowMapFar: 250
-            csmNumSplits: 2
-            shadowBias: 3
-            softShadowQuality: Light.PCF4
-            pcfFactor: 1
-        }
-        DirectionalLight {
-            eulerRotation.x: -60
-            eulerRotation.y: 140
-            brightness: 0.35
-        }
-        DirectionalLight {
-            eulerRotation.x: -25
-            eulerRotation.y: 20
-            brightness: 0.28
-        }
-
-        Model {  // pegboard - the only pickable model; everything maps through it
-            id: boardModel
-            source: "#Cube"
-            pickable: true
-            position: Qt.vector3d(0, -2, 0)
-            scale: Qt.vector3d(1.06, 0.04, 0.66)
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.sheet
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-        Box3D {  // rim
-            width: 112; height: 1.6; depth: 72
-            position: Qt.vector3d(0, -3.8, 0)
-            color: LabTheme.inkSolid
-            useToonShading: true
-        }
-        // Peg marks: round dots when parts move freely, crisp squares while
-        // the grid snaps - the board itself tells you which mode you are in
-        // (that cue is borrowed from grafli's grid modes). One model per peg,
-        // so the denser raster stays cheap.
-        Repeater3D {
-            model: root.cols * root.rows
-            Model {
-                source: root.snapToGrid ? "#Cube" : "#Cylinder"
-                castsShadows: false   // they are print on the board, not objects
-                position: Qt.vector3d(root.cellX(index % root.cols), 0.05,
-                                      root.cellZ(Math.floor(index / root.cols)))
-                scale: root.snapToGrid ? Qt.vector3d(0.006, 0.0008, 0.006)
-                                       : Qt.vector3d(0.005, 0.001, 0.005)
-                materials: PrincipledMaterial {
-                    baseColor: LabTheme.grid
-                    lighting: PrincipledMaterial.NoLighting
-                }
-            }
         }
 
         Repeater3D {  // the parts
@@ -878,11 +800,7 @@ Item {
             return grid.snapping(mods)
         }
 
-        function worldAt(mx, my) {
-            const res = view3d.pick(mx, my)
-            if (res && res.objectHit === boardModel) return res.scenePosition
-            return null
-        }
+        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
 
         onWheel: (wheel) => root.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
 

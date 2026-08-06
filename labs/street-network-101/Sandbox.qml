@@ -751,13 +751,20 @@ Item {
         anchors.fill: parent
         camera: rig.camera
 
-        environment: SceneEnvironment {
-            // a touch lighter than the table, so a horizon line appears at low
-            // camera angles and the eye keeps a reference
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
+        // The whole stage - ground, light rig, environment - in one block. The
+        // plan sheet is the shared lab surface: an endless sheet of squared
+        // paper whose raster is drawn in the fragment shader, showing crosses
+        // while the grid snaps and dots when placement is free. Everything the
+        // mouse does maps through it (see worldAt).
+        LabStage3D {
+            id: stage
+            cellSize: root.cell
+            majorEvery: 5                 // a heavier rule every 50 units
+            gridMode: grid
+            workExtent: Qt.vector2d(root.boardW, root.boardH)
+            shadowMapFar: 420             // measured: covers the plan at maxDistance 420
         }
+        environment: stage.environment
 
         OrbitCamera3D {
             id: rig
@@ -770,76 +777,6 @@ Item {
             minDistance: 30
             maxDistance: 420
             minHeight: 14        // taller than anything on the plan
-        }
-
-        // Key light with real shadows, plus two fills. Nothing here is glossy;
-        // depth comes from value, not glare. shadowMapFar has to cover the
-        // board at full zoom-out (the range is camera-relative) and the table
-        // is kept modest, because a ground plane the size of the horizon
-        // starves the shadow map.
-        DirectionalLight {
-            eulerRotation.x: -38
-            eulerRotation.y: -28
-            brightness: 0.92
-            castsShadow: true
-            shadowFactor: LabTheme.shadowFactor
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            shadowMapFar: 420
-            csmNumSplits: 2
-            shadowBias: 3
-            softShadowQuality: Light.PCF4
-            pcfFactor: 1
-        }
-        DirectionalLight { eulerRotation.x: -60; eulerRotation.y: 145; brightness: 0.34 }
-        DirectionalLight { eulerRotation.x: -22; eulerRotation.y: 18; brightness: 0.26 }
-
-        Model {  // the table the plan lies on
-            source: "#Cube"
-            position: Qt.vector3d(0, -3.0, 0)
-            scale: Qt.vector3d(root.boardW * 1.22 / 100, 0.02, root.boardH * 1.3 / 100)
-            castsShadows: false
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.table
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-
-        Model {  // the plan sheet - the only pickable model; everything maps through it
-            id: sheet
-            source: "#Cube"
-            pickable: true
-            position: Qt.vector3d(0, -0.4, 0)
-            scale: Qt.vector3d(root.boardW / 100, 0.008, root.boardH / 100)
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.sheet
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-        Box3D {  // the sheet's ink rim
-            width: root.boardW + 2.4; height: 0.9; depth: root.boardH + 2.4
-            position: Qt.vector3d(0, -1.3, 0)
-            color: LabTheme.inkSolid
-            useToonShading: true
-        }
-
-        // Plan grid: crosses while the grid snaps, dots when placement is
-        // free - the sheet itself says which mode you are in (grafli's cue).
-        Repeater3D {
-            model: root.cols * root.rows
-            Model {
-                required property int index
-                source: root.snapToGrid ? "#Cube" : "#Cylinder"
-                castsShadows: false
-                position: Qt.vector3d(
-                    (index % root.cols - (root.cols - 1) / 2) * root.cell, 0.02,
-                    (Math.floor(index / root.cols) - (root.rows - 1) / 2) * root.cell)
-                scale: root.snapToGrid ? Qt.vector3d(0.010, 0.0006, 0.010)
-                                       : Qt.vector3d(0.008, 0.0008, 0.008)
-                materials: PrincipledMaterial {
-                    baseColor: LabTheme.grid
-                    lighting: PrincipledMaterial.NoLighting
-                }
-            }
         }
 
         Streets3D {
@@ -999,11 +936,7 @@ Item {
         // The grid mode owns both rules - Alt inverting the mode for one
         // gesture, and the rounding itself - so every lab quantizes alike.
         function snapping(mods) { return grid.snapping(mods) }
-        function worldAt(mx, my) {
-            const res = view3d.pick(mx, my)
-            if (res && res.objectHit === sheet) return res.scenePosition
-            return null
-        }
+        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
         function snapped(w, mods) {
             return { x: grid.quantize(w.x, mods), z: grid.quantize(w.z, mods) }
         }

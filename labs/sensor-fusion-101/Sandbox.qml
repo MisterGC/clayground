@@ -261,13 +261,27 @@ Item {
 
     // --- 3D scene -------------------------------------------------------
     View3D {
-        anchors.fill: parent
-        environment: SceneEnvironment {
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
-        }
         id: view3d
+        anchors.fill: parent
+
+        // Ground, light rig and environment in one block. The city stands on
+        // the shared lab stage: an endless sheet of squared paper whose raster
+        // is drawn in the fragment shader, so the scale reference holds at any
+        // zoom and there is no board edge to run out of. `#` still turns the
+        // rules off. No snap cue - the raster here is a ruler, not a pegboard,
+        // and nothing in this lab places anything on it.
+        LabStage3D {
+            id: stage
+            cellSize: 4
+            majorEvery: 5                 // a heavier rule every 20 m, as before
+            workExtent: Qt.vector2d(88, 56)
+            shadowMapFar: 300             // covers the city at maxDistance 220
+            cueSize: 0
+            minorWidth: root.showGrid ? 1.0 : 0
+            majorWidth: root.showGrid ? 1.6 : 0
+        }
+        environment: stage.environment
+
         camera: root.followCam ? camFollow : orbit.camera
 
         // free look: drag to orbit, wheel to zoom, 0 to reframe. On a leash -
@@ -289,77 +303,6 @@ Item {
                 eulerRotation: Qt.vector3d(-36, 0, 0)
             }
         }
-        DirectionalLight {
-            eulerRotation.x: -35
-            castsShadow: true
-            // The theme owns the strength, because how much darkening a board
-            // can take depends on how bright it is. What made it moderate on
-            // paper still holds: a hard-edged shadow at full strength read as
-            // a black hole punched in the sheet, and the road (a flat
-            // LineBatch3D, an unshaded material the shadow pass skips) cannot
-            // receive it - so the darker the shadow, the more obvious the seam
-            // where it stops at the kerb.
-            shadowFactor: LabTheme.shadowFactor
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            ambientColor: LabTheme.ambient3d
-            // Without these three the shadows detach from the buildings: Qt's
-            // default bias pushes them off the ground, and the default map
-            // range spreads the texels over a volume thousands of units deep,
-            // so what is left is a blurry smudge beside each block rather than
-            // a shadow under it. The range only has to cover this city at the
-            // camera's furthest (maxDistance 220 plus the scene radius), and
-            // the cascades spend the resolution near the viewer.
-            shadowBias: 3
-            shadowMapFar: 300
-            // Crisp rather than soft: everything else in the scene is flat
-            // toon shading with no specular, and a feathered shadow is the one
-            // element that would look photographic next to it. Two cascades
-            // keep the texels dense enough near the viewer for a hard edge to
-            // read as an edge rather than as stair-steps - a third was measured
-            // against this scene and changed nothing visible, so it is not
-            // worth the extra shadow pass every frame.
-            csmNumSplits: 2
-            softShadowQuality: Light.Hard
-        }
-
-        // Box3D's y is the BOTTOM of the box: -0.5 with height 0.5 puts the
-        // ground surface at exactly 0, which is what everything else assumes.
-        Box3D {
-            width: 92; height: 0.5; depth: 62; y: -0.5
-            color: LabTheme.sheet
-            useToonShading: true
-        }
-
-        // A modelling-viewport grid: minor lines every 4 units, a stronger one
-        // every 20, all flat on the paper and just under the road. It gives
-        // the eye a scale reference for "how far did it drift?".
-        LineBatch3D {
-            visible: root.showGrid
-            widthUnits: LineBatch3D.World
-            orientation: LineBatch3D.Flat
-            opaque: true
-            depthBias: 1
-            lines: {
-                const out = []
-                const hx = 44, hz = 28, y = 0.012
-                const minor = LabTheme.step(LabTheme.sheet, 1.05)
-                const major = LabTheme.step(LabTheme.sheet, 1.14)
-                for (let x = -hx; x <= hx; x += 4) {
-                    const big = (x % 20) === 0
-                    out.push({ points: [Qt.vector3d(x, y, -hz), Qt.vector3d(x, y, hz)],
-                               color: big ? major : minor,
-                               width: big ? 0.10 : 0.05, styleId: 0 })
-                }
-                for (let z = -hz; z <= hz; z += 4) {
-                    const big = (z % 20) === 0
-                    out.push({ points: [Qt.vector3d(-hx, y, z), Qt.vector3d(hx, y, z)],
-                               color: big ? major : minor,
-                               width: big ? 0.10 : 0.05, styleId: 0 })
-                }
-                return out
-            }
-        }
-
         // the street: a marking on the ground, so it lies FLAT - a billboard
         // ribbon splays on curves and breaks the road into wedges. Opaque with
         // a depth bias so it sits on the ground plane instead of fighting it.

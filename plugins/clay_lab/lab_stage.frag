@@ -18,6 +18,7 @@ VARYING vec3 vWorld;
 // - vec4  minorColor, majorColor               the rules
 // - vec4  cueColor, edgeColor                  peg marks, work-area boundary
 // - float cellSize, majorEvery                 the raster, in world units
+// - vec2  rasterOrigin                         a point the raster passes through
 // - float minorWidth, majorWidth, edgeWidth    line weights, in PIXELS
 // - float cueArm, cueWidth, cueRadius          the snap cue, in PIXELS
 // - bool  snapping                             GridMode's mode
@@ -83,9 +84,12 @@ void MAIN()
     vec3 paper = mix(tableColor.rgb, sheetColor.rgb, sheetMask);
 
     // --- the rules -------------------------------------------------------
+    // The raster is read relative to rasterOrigin: a board with an even number
+    // of cells has its intersections on the half-cells, not on the origin.
+    vec2 pr = p - rasterOrigin;
     float majorPeriod = cellSize * majorEvery;
-    vec2 minorPix = rasterPixels(p, wpp, cellSize);
-    vec2 majorPix = rasterPixels(p, wpp, majorPeriod);
+    vec2 minorPix = rasterPixels(pr, wpp, cellSize);
+    vec2 majorPix = rasterPixels(pr, wpp, majorPeriod);
 
     float minorFade = densityFade(cellSize, wpp);
     float majorFade = densityFade(majorPeriod, wpp);
