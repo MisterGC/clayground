@@ -284,8 +284,9 @@ Item {
 
         camera: root.followCam ? camFollow : orbit.camera
 
-        // free look: drag to orbit, wheel to zoom, 0 to reframe. On a leash -
-        // it always looks at the city and never sinks through the ground.
+        // free look: drag to orbit, shift- or right-drag to travel, wheel to
+        // zoom, 0 to reframe. On a leash - it always looks at the city, never
+        // sinks through the ground, and cannot wander off into the empty plane.
         OrbitCamera3D {
             id: orbit
             pivot: Qt.vector3d(0, 0, -2)
@@ -293,6 +294,16 @@ Item {
             minPitch: 8; maxPitch: 84
             minDistance: 14; maxDistance: 220
             minHeight: 6
+            homePivot: Qt.vector3d(0, 0, -2)
+            // the city is 88 x 56; a little over its diagonal, so the far
+            // corner can be brought to the middle and no further
+            panLeash: stage.workRadius * 1.2
+            viewpoints: ({
+                "city":   { yaw: 0, pitch: 42, distance: 78,
+                            px: 0, py: 0, pz: -2 },
+                "top":    { pitch: 82, distance: 120 },
+                "street": { pitch: 14, distance: 40 }
+            })
         }
         // close-up rig translating with the true car, fixed viewing angle
         Node {
@@ -568,18 +579,25 @@ Item {
     }
     // Free-look input. Declared before the panels so a drag on the legend or
     // the monitor belongs to that panel, not to the camera.
+    //
+    // The gestures themselves are the kernel's now (OrbitInput3D): left drag
+    // turns, right or shift drag travels across the city, wheel zooms,
+    // double-click puts the pivot where you clicked. This lab has no picking
+    // of its own, so the whole pointer belongs to the navigation.
+    OrbitInput3D {
+        id: nav
+        rig: orbit
+        view: view3d
+    }
     MouseArea {
         anchors.fill: parent
         enabled: !root.followCam
-        acceptedButtons: Qt.LeftButton
-        property real lastX: 0
-        property real lastY: 0
-        onPressed: (m) => { lastX = m.x; lastY = m.y }
-        onPositionChanged: (m) => {
-            orbit.orbitBy((m.x - lastX) * 0.35, (m.y - lastY) * 0.25)
-            lastX = m.x; lastY = m.y
-        }
-        onWheel: (w) => orbit.zoomBy(w.angleDelta.y > 0 ? 0.9 : 1.12)
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onPressed: (m) => nav.begin(m.x, m.y, m.button, m.modifiers)
+        onPositionChanged: (m) => nav.move(m.x, m.y)
+        onReleased: nav.end()
+        onWheel: (w) => nav.wheel(w.angleDelta.y)
+        onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
     }
 
     // --- legend --------------------------------------------------------
@@ -889,6 +907,7 @@ Item {
     Flow {
         id: fusionFlow
         lab: root
+        camera: orbit                     // so a step may name where to watch from
         flowId: "fusion-basics"
         titleKey: "flow.fusion-basics.title"
 

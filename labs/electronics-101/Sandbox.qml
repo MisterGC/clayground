@@ -329,8 +329,10 @@ Item {
     // without also blocking a zoom onto a single part.
     function frameCells(cells) {
         if (!cells || !cells.length) {
-            rig.pivot = Qt.vector3d(0, 2, 0)
-            rig.setDistance(rig.maxDistance)
+            // one applyState, not a pivot write plus a setDistance: the rig
+            // eases, so two writes would start two glides and the board would
+            // slide sideways while it zoomed out
+            rig.applyState({ px: 0, py: 2, pz: 0, distance: rig.maxDistance })
             return
         }
         // a single part is a point; give the frame some extent so the camera
@@ -348,8 +350,13 @@ Item {
         const el = elemAt(selectedId)
         frameCells(el ? [el] : elements)
     }
+    // The camera verbs a flow (or an agent) can call by name. The rig itself
+    // is reachable as `rig`; these exist so a flow's action list reads like
+    // something a user could have done.
     function orbitBy(dYaw, dPitch) { rig.orbitBy(dYaw, -dPitch) }
     function zoomBy(f) { rig.zoomBy(f) }
+    function goToView(name) { return rig.goTo(name) }
+    function focusOn(pts, pad) { rig.focusOn(pts, pad) }
 
     // --- serialization (survives reloads via the viewState convention) ---
     function circuitState() {
@@ -503,7 +510,8 @@ Item {
             "showValues": (on) => { showValues = on },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
-            "frame":      (what) => what === "selection" ? frameSelection() : frameSetup()
+            "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
+            "view":       (name) => rig.goTo(name)
         }
     }
     function flows() { return [ledFlow.flowId] }
@@ -682,8 +690,18 @@ Item {
             minDistance: 20       // clears a single part
             maxDistance: 170
             minHeight: 9          // taller than anything standing on the board
-            Behavior on pivot { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
-            Behavior on distance { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            smoothMs: 140         // the rig's own easing now, on all four axes
+            // The pan leash. The board is 100 x 60 and the ground around it is
+            // endless, so travelling is tethered to a little over the board's
+            // own reach - far enough to put any corner in the middle, near
+            // enough that the parts never leave the picture.
+            homePivot: Qt.vector3d(0, 2, 0)
+            panLeash: stage.workRadius * 0.9
+            viewpoints: ({
+                "board":  { yaw: 0, pitch: 48, distance: 80, px: 0, py: 2, pz: 0 },
+                "top":    { yaw: 0, pitch: 84, distance: 120 },
+                "eye":    { pitch: 24, distance: 60 }
+            })
         }
 
         Repeater3D {  // the parts
@@ -785,6 +803,19 @@ Item {
         }
     }
 
+    // --- navigation --------------------------------------------------------
+    // The camera gestures are the kernel's (OrbitInput3D): it owns the
+    // arithmetic that turns pixels into degrees and metres, this lab owns the
+    // rule for WHICH gestures are the camera's - which here is "whatever the
+    // board does not want". Empty ground turns the view, the right button and
+    // Shift travel across it, and anything over a part or a wire stays the
+    // board's, exactly as before.
+    OrbitInput3D {
+        id: nav
+        rig: rig
+        view: view3d
+    }
+
     // --- mouse interaction ------------------------------------------------
     MouseArea {
         id: boardMouse
@@ -794,9 +825,6 @@ Item {
         property var dragElem: null
         property bool dragged: false
         property var pressW: null
-        property bool orbiting: false
-        property real lastX: 0
-        property real lastY: 0
         // Alt inverts the current grid mode for the length of one drag
         function snapping(mods) {
             return grid.snapping(mods)
@@ -804,47 +832,80 @@ Item {
 
         function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
 
-        onWheel: (wheel) => root.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
-
-        onPositionChanged: (mouse) => {
-            if (pressed && orbiting) {
-                root.orbitBy((mouse.x - lastX) * 0.32, (mouse.y - lastY) * 0.22)
-                lastX = mouse.x; lastY = mouse.y
-                return
-            }
-            const w = worldAt(mouse.x, mouse.y)
+        // The gesture lives in named functions rather than in the signal
+        // handlers, so a flow, a test or an agent can perform the SAME drag a
+        // hand does - the inspector can synthesize a click but not a drag, and
+        // wiring two pads together is the one thing this lab is for. The
+        // handlers below are three one-liners that forward to them.
+        function moveAt(mx, my, mods, isDown) {
+            if (isDown && nav.active) { nav.move(mx, my); return }
+            const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
-            if (pressed && dragElem) {
+            if (isDown && dragElem) {
                 if (!dragged && pressW && Math.hypot(w.x - pressW.x, w.z - pressW.z) > 1.2)
                     dragged = true
                 if (dragged)
                     root.moveElement(dragElem,
                                      w.x / root.cell + (root.cols - 1) / 2,
                                      w.z / root.cell + (root.rows - 1) / 2,
-                                     snapping(mouse.modifiers))
+                                     snapping(mods))
             } else {
                 root.hoverHit = root.hitAt(w.x, w.z)
             }
         }
-        onPressed: (mouse) => {
-            root.forceActiveFocus()
+
+        // A click, as one call: press and release with no movement between.
+        function clickAt(x, y, mods) {
+            pressAt(x, y, Qt.LeftButton, mods || 0)
+            releaseAt()
+        }
+        // Drag a part from one window point to another, in one call.
+        function dragFrom(x1, y1, x2, y2, mods) {
+            pressAt(x1, y1, Qt.LeftButton, mods || 0)
+            moveAt(x2, y2, mods || 0, true)
+            releaseAt()
+        }
+
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y)
+
+        onDoubleClicked: (mouse) => {
+            // only over bare board: a double-click on a part belongs to the part
             const w = worldAt(mouse.x, mouse.y)
+            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
+        }
+
+        onPositionChanged: (mouse) => moveAt(mouse.x, mouse.y, mouse.modifiers, pressed)
+        onPressed: (mouse) => pressAt(mouse.x, mouse.y, mouse.button, mouse.modifiers)
+        onReleased: releaseAt()
+
+        function pressAt(mx, my, button, mods) {
+            root.forceActiveFocus()
+            nav.cancel()
+            const w = worldAt(mx, my)
             pressW = w; dragged = false; dragElem = null
-            orbiting = false; lastX = mouse.x; lastY = mouse.y
             const hit = w ? root.hitAt(w.x, w.z) : null
-            if (mouse.button === Qt.RightButton) {
+            if (button === Qt.RightButton) {
                 if (hit && (hit.kind === "element" || hit.kind === "terminal")) {
                     root.selectedId = hit.el
                     root.rotateElement(hit.el)
+                    return
                 }
+                // right button over bare board: travel
+                nav.beginAs("pan", mx, my)
+                return
+            }
+            // Shift outranks whatever is under the cursor: it is the one
+            // gesture that has to work over a crowded board too.
+            if (mods & Qt.ShiftModifier) {
+                nav.beginAs("pan", mx, my)
                 return
             }
             // empty board (or off-board): the drag turns the view instead
             if (!hit) {
                 root.selectedId = -1
                 if (!root.eraser) root.wiringFrom = null
-                orbiting = true
+                nav.beginAs("orbit", mx, my)
                 return
             }
             if (root.eraser) {
@@ -890,13 +951,15 @@ Item {
             }
             ledFlow.takeOver()   // the learner is driving now, not the flow
         }
-        onReleased: {
+
+        function releaseAt() {
+            nav.end()          // a flicked drag coasts to a stop from here
             if (dragElem && !dragged) {
                 const el = root.elemAt(dragElem)
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
                 // a resistor is set with the slider on its selection card
             }
-            dragElem = null; dragged = false; orbiting = false
+            dragElem = null; dragged = false
         }
     }
 
@@ -1034,6 +1097,7 @@ Item {
     Flow {
         id: ledFlow
         lab: root
+        camera: rig                       // so a step may name where to look from
         flowId: "led-basics"
         titleKey: "flow.led-basics.title"
 

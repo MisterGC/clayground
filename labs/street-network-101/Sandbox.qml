@@ -515,8 +515,10 @@ Item {
     // --- camera ------------------------------------------------------------
     function framePoints(pts) {
         if (!pts || !pts.length) {
-            rig.pivot = Qt.vector3d(0, 0, 0)
-            rig.setDistance(210)
+            // one applyState, not a pivot write plus a setDistance: the rig
+            // eases, so two writes would start two glides and the sheet would
+            // slide sideways while it zoomed back out
+            rig.applyState({ px: 0, py: 0, pz: 0, distance: 210 })
             return
         }
         rig.frame(pts, 1.12)
@@ -715,7 +717,8 @@ Item {
             "scenario": (n) => applyScenario(n),
             "showLanes": (on) => { showLanes = on },
             "showValues": (on) => { showValues = on },
-            "frame":    (what) => what === "selection" ? frameSelection() : framePlan()
+            "frame":    (what) => what === "selection" ? frameSelection() : framePlan(),
+            "view":     (name) => rig.goTo(name)
         }
     }
 
@@ -777,6 +780,16 @@ Item {
             minDistance: 30
             maxDistance: 420
             minHeight: 14        // taller than anything on the plan
+            // The pan leash. A plan is drawn edge to edge, so travelling has
+            // to reach a full plan-width out - but no further, or the sheet
+            // disappears behind you on an endless ground.
+            homePivot: Qt.vector3d(0, 0, 0)
+            panLeash: stage.workRadius
+            viewpoints: ({
+                "plan":  { yaw: 0, pitch: 52, distance: 210, px: 0, py: 0, pz: 0 },
+                "top":   { yaw: 0, pitch: 86, distance: 260 },
+                "kerb":  { pitch: 22, distance: 70 }
+            })
         }
 
         Streets3D {
@@ -920,6 +933,20 @@ Item {
         }
     }
 
+    // --- navigation ---------------------------------------------------------
+    // The camera gestures are the kernel's (OrbitInput3D); this lab keeps its
+    // own rule for which gesture belongs to whom, because that rule is the
+    // whole ergonomics of a drawing lab. Right drag still TURNS - that is what
+    // this lab's hands already know - Shift or the middle button TRAVELS, and
+    // the left button stays the pen.
+    OrbitInput3D {
+        id: nav
+        rig: rig
+        view: view3d
+        orbitButtons: Qt.RightButton
+        panButtons: Qt.MiddleButton
+    }
+
     // --- mouse -------------------------------------------------------------
     // Left drag DRAWS - it is what this lab is for. The view is on the right
     // button, so building never fights with looking.
@@ -927,11 +954,8 @@ Item {
         id: planMouse
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        property bool orbiting: false
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         property var dragNode: null
-        property real lastX: 0
-        property real lastY: 0
 
         // The grid mode owns both rules - Alt inverting the mode for one
         // gesture, and the rounding itself - so every lab quantizes alike.
@@ -941,7 +965,14 @@ Item {
             return { x: grid.quantize(w.x, mods), z: grid.quantize(w.z, mods) }
         }
 
-        onWheel: (wheel) => rig.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y)
+
+        onDoubleClicked: (mouse) => {
+            // only over bare sheet: a double-click on a road or a junction is
+            // the plan's, not the camera's
+            const w = worldAt(mouse.x, mouse.y)
+            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
+        }
 
         // The gesture lives in named functions rather than in the signal
         // handlers, so a flow, a test or an agent can perform the SAME drag a
@@ -963,15 +994,23 @@ Item {
 
         function pressAt(mx, my, button, mods) {
             root.forceActiveFocus()
-            lastX = mx; lastY = my
-            orbiting = false; dragNode = null; mode = ""
+            nav.cancel()
+            dragNode = null; mode = ""
             pressHit = null; pressW = null
             root.drawFrom = null; root.drawTo = null
 
-            if (button === Qt.RightButton) { orbiting = true; mode = "orbit"; return }
+            // Shift travels, whatever is under the cursor and whichever button
+            // is down - the one navigation gesture that has to work over a
+            // plan drawn edge to edge.
+            if (mods & Qt.ShiftModifier) {
+                mode = "nav"; nav.beginAs("pan", mx, my); return
+            }
+            const g = nav.wants(button, mods)
+            if (g !== "") { mode = "nav"; nav.beginAs(g, mx, my); return }
 
             const w = worldAt(mx, my)
-            if (!w) { orbiting = true; mode = "orbit"; return }
+            // aimed at the sky: nothing to draw on, so the drag turns the view
+            if (!w) { mode = "nav"; nav.beginAs("orbit", mx, my); return }
 
             const hit = root.hitAt(w.x, w.z)
             pressHit = hit
@@ -1001,11 +1040,7 @@ Item {
         }
 
         function moveAt(mx, my, mods, isDown) {
-            if (isDown && orbiting) {
-                rig.orbitBy((mx - lastX) * 0.34, -(my - lastY) * 0.24)
-                lastX = mx; lastY = my
-                return
-            }
+            if (isDown && mode === "nav") { nav.move(mx, my); return }
             const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = w
@@ -1048,6 +1083,11 @@ Item {
         }
 
         function releaseAt() {
+            if (mode === "nav") {
+                nav.end()          // a flicked drag coasts to a stop from here
+                mode = ""; dragNode = null
+                return
+            }
             if (mode === "draw" && root.drawFrom && root.drawTo) {
                 const r = root.addRoad(root.drawFrom.x, root.drawFrom.z,
                                        root.drawTo.x, root.drawTo.z)
@@ -1061,7 +1101,7 @@ Item {
             }
             root.drawFrom = null; root.drawTo = null
             root.drawFromSnap = null; root.drawToSnap = null
-            dragNode = null; orbiting = false; mode = ""
+            dragNode = null; mode = ""
             pressHit = null; pressW = null
         }
 
