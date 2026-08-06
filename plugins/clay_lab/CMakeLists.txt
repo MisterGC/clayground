@@ -8,6 +8,10 @@ clay_plugin( Lab
 
     VERSION 1.0
 
+    RESOURCES
+        lab_stage.frag
+        lab_stage.vert
+
     QML_FILES
         Lab.qml
         LabTheme.qml
@@ -30,6 +34,7 @@ clay_plugin( Lab
         FlowChip.qml
         WorldLabel.qml
         SelectionFrame3D.qml
+        LabStage3D.qml
         LabPanel.qml
         LabKeys.qml
         LabHelp.qml

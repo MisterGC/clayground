@@ -14,6 +14,7 @@ function(clay_plugin PLUGIN_NAME)
     set(multiValueArgs
         SOURCES
         QML_FILES
+        RESOURCES
         QT_LIBS
         LINK_LIBS)
     cmake_parse_arguments(CLAY_PLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -44,6 +45,16 @@ function(clay_plugin PLUGIN_NAME)
         set(PLUGIN_NAME "Clay${PLUGIN_NAME}")
     endif()
 
+    # RESOURCES are files that ship beside the QML but are not QML - shader
+    # snippets, above all. They used to reach qt_add_qml_module by accident:
+    # the keyword was unknown here, so it and everything after it was swallowed
+    # by SOURCES and then parsed again on the other side. Named here, it also
+    # works for a plugin that has no C++ sources at all to hide behind.
+    set(_clay_resources)
+    if(CLAY_PLUGIN_RESOURCES)
+        set(_clay_resources RESOURCES ${CLAY_PLUGIN_RESOURCES})
+    endif()
+
     qt6_policy(SET QTP0001 NEW)
     qt_add_qml_module(${PLUGIN_NAME}
             URI ${CLAY_PLUGIN_URI}
@@ -52,6 +63,7 @@ function(clay_plugin PLUGIN_NAME)
             ${CLAYPLUGIN_LINKING}
             SOURCES ${CLAY_PLUGIN_SOURCES}
             QML_FILES ${CLAY_PLUGIN_QML_FILES}
+            ${_clay_resources}
             NO_CACHEGEN
             )
 
