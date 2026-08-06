@@ -585,7 +585,9 @@ Item {
     // single draw call however many wires the board grows. Nothing expects a
     // shadow from a line lying on the paper, so the shadow question is simply
     // gone (a batch could not cast one anyway - see LineBatch3D).
-    readonly property real wireY: 0.12
+    // The top of the stage's overlay budget: as high as a marking may sit and
+    // still belong to the paper rather than float above it.
+    readonly property real wireY: stage.overlayMaxY
 
     function wireEnds(w) {
         const a = terminalPos(w.a[0], w.a[1])

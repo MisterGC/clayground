@@ -782,7 +782,7 @@ Item {
         Streets3D {
             id: streets
             net: root.net
-            surfaceY: 0.07
+            surfaceY: stage.overlayY(3)   // inside the stage's overlay budget
             showLanes: root.showLanes
             hoveredRoad: root.hoverHit && root.hoverHit.kind === "road"
                          ? root.hoverHit.id : -1
