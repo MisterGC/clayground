@@ -2,6 +2,7 @@
 
 pragma Singleton
 import QtQuick
+import "format.js" as Format
 
 /*!
     \qmltype LabLang
@@ -120,6 +121,39 @@ QtObject {
     function num(v, digits) {
         const s = digits === undefined ? String(v) : Number(v).toFixed(digits)
         return decimalPoint === "." ? s : s.replace(".", decimalPoint)
+    }
+
+    /*!
+        \qmlmethod string LabLang::qty(real v, string unit, int digits)
+        \brief A quantity with its SI prefix chosen for readability.
+
+        \c {qty(0.05, "A")} is \c {"50.0 mA"}, \c {qty(1500, "Ω")} is
+        \c {"1.50 kΩ"}, and both follow the language's decimal separator.
+        Every lab so far hand-rolled its own mA/A crossover, differently and
+        once per unit; this is that rule, in one place, with a node suite
+        behind it.
+
+        \a digits is optional - without it the value gets three significant
+        figures, which is what an instrument reading is worth. Units that
+        cannot take a prefix (\c "%", \c "/min", a bare count) are printed
+        as they stand.
+
+        \sa num()
+    */
+    function qty(v, unit, digits) {
+        return Format.qty(v, unit, digits, decimalPoint)
+    }
+
+    /*!
+        \qmlmethod var LabLang::qtyParts(real v, string unit, int digits)
+        \brief \l qty() split into \c {{number, prefix, unit, fullUnit}}.
+
+        For a readout that sets the number and the unit in different type - a
+        gauge, a big status figure - so it never has to re-split a formatted
+        string to get there.
+    */
+    function qtyParts(v, unit, digits) {
+        return Format.parts(v, unit, digits, decimalPoint)
     }
 
     /*!

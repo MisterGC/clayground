@@ -19,6 +19,7 @@ clay_plugin( Lab
         LabPrefs.qml
         palette.js
         tokens.js
+        format.js
         LabLang.qml
         LangSwitch.qml
         ThemeSwitch.qml
