@@ -81,10 +81,10 @@ Item {
     property real windowSeconds: 30
 
     /*! \qmlproperty real WatchMonitor::plotWidth \brief Chart width. */
-    property real plotWidth: 330
+    property real plotWidth: LabTheme.px(330)
 
     /*! \qmlproperty real WatchMonitor::plotHeight \brief Chart height. */
-    property real plotHeight: 140
+    property real plotHeight: LabTheme.px(140)
 
     /*! \qmlproperty string WatchMonitor::unitText \readonly \brief Unit of the active quantity. */
     readonly property string unitText: {
@@ -96,7 +96,7 @@ Item {
     signal changed()
 
     implicitWidth: plotWidth
-    implicitHeight: _chips.height + 6 + plotHeight
+    implicitHeight: _chips.height + LabTheme.spaceM + plotHeight
     width: implicitWidth
     height: implicitHeight
 
@@ -173,15 +173,15 @@ Item {
         id: _chips
         anchors.top: parent.top
         anchors.right: parent.right
-        spacing: 6
+        spacing: LabTheme.spaceM
 
         Repeater {
             model: root.quantities
             Rectangle {
                 required property var modelData
                 readonly property bool active: modelData.key === root.quantity
-                width: _chipLabel.implicitWidth + 16
-                height: 22
+                width: _chipLabel.implicitWidth + LabTheme.spaceXxl
+                height: LabTheme.px(22)
                 radius: LabTheme.radius
                 color: active ? LabTheme.secondary : LabTheme.panel
                 border.color: active ? LabTheme.secondary : LabTheme.panelEdge
@@ -192,7 +192,7 @@ Item {
                     text: LabLang.t(modelData.label)
                           + (modelData.unit ? " (" + modelData.unit + ")" : "")
                     color: LabTheme.inkOn(parent.color)
-                    font.pixelSize: 12
+                    font.pixelSize: LabTheme.fontBody
                     font.family: LabTheme.handFont
                 }
                 MouseArea {

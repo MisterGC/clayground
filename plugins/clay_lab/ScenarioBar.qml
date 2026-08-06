@@ -41,11 +41,11 @@ Column {
     /*! \qmlproperty bool ScenarioBar::showNote \brief Show the active preset's one-liner. */
     property bool showNote: true
 
-    spacing: 4
+    spacing: LabTheme.spaceS
 
     Flow {
         width: root.width
-        spacing: 4
+        spacing: LabTheme.spaceS
 
         Repeater {
             model: root.names
@@ -53,8 +53,8 @@ Column {
                 required property var modelData
                 required property int index
                 readonly property bool active: Lab.scenario === modelData
-                height: 24; radius: LabTheme.radius
-                width: _label.implicitWidth + 22
+                height: LabTheme.px(24); radius: LabTheme.radius
+                width: _label.implicitWidth + LabTheme.px(22)
                 color: active ? LabTheme.secondary : LabTheme.paper
                 border.color: active ? LabTheme.secondary : LabTheme.panelEdge
                 border.width: LabTheme.borderWidth
@@ -66,7 +66,7 @@ Column {
                     text: (index < 9 ? (index + 1) + " " : "")
                           + LabLang.t(root.namePrefix + modelData)
                     color: LabTheme.inkOn(parent.color)
-                    font.pixelSize: 11
+                    font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea {
@@ -91,7 +91,7 @@ Column {
             return s === key ? "" : s
         }
         color: LabTheme.accent
-        font.pixelSize: 13
+        font.pixelSize: LabTheme.fontLabel
         font.family: LabTheme.handFont
     }
 }

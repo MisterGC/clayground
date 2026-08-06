@@ -73,7 +73,7 @@ Rectangle {
     property int placement: WorldLabel.Above
 
     /*! \qmlproperty real WorldLabel::gap \brief Pixels between the point and the chip. */
-    property real gap: 6
+    property real gap: LabTheme.spaceM
 
     /*! \qmlproperty point WorldLabel::offset \brief Extra pixel nudge, applied after placement. */
     property point offset: Qt.point(0, 0)
@@ -89,7 +89,7 @@ Rectangle {
     property bool keepInView: true
 
     /*! \qmlproperty real WorldLabel::margin \brief Closest the chip may come to the window edge. */
-    property real margin: 4
+    property real margin: LabTheme.spaceS
 
     /*! \qmlproperty string WorldLabel::text \brief Convenience one-line content. */
     property string text: ""
@@ -127,8 +127,8 @@ Rectangle {
     }
 
     visible: root.active && root.onScreen
-    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + 16
-    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + 10
+    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + LabTheme.spaceXxl
+    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + LabTheme.px(10)
     width: implicitWidth
     height: implicitHeight
 
@@ -168,7 +168,7 @@ Rectangle {
         visible: root.text !== ""
         text: root.text
         color: LabTheme.ink
-        font.pixelSize: 12
+        font.pixelSize: LabTheme.fontBody
         font.bold: true
         font.family: LabTheme.monoFont
     }

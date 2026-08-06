@@ -30,7 +30,7 @@ Row {
     property var languages: LabLang.languages
 
     visible: languages.length > 1
-    spacing: 6
+    spacing: LabTheme.spaceM
 
     Repeater {
         model: _switch.languages
@@ -38,7 +38,7 @@ Row {
             id: _chip
             required property string modelData
             readonly property bool active: modelData === LabLang.lang
-            width: 38; height: 26
+            width: LabTheme.px(38); height: LabTheme.px(26)
             radius: LabTheme.radius
             color: _chip.active ? LabTheme.secondary : LabTheme.panel
             border.color: _chip.active ? LabTheme.secondary : LabTheme.panelEdge
@@ -47,7 +47,7 @@ Row {
                 anchors.centerIn: parent
                 text: LabLang.langName(_chip.modelData)
                 color: LabTheme.inkOn(_chip.color)
-                font.pixelSize: 12; font.bold: _chip.active
+                font.pixelSize: LabTheme.fontBody; font.bold: _chip.active
                 font.letterSpacing: 0.5
                 font.family: LabTheme.monoFont
             }

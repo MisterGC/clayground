@@ -32,27 +32,29 @@ LabPanel {
     Repeater {
         model: root.keymap ? root.keymap.entries : []
         Row {
-            spacing: 10
+            spacing: LabTheme.spaceL
             Rectangle {
-                width: 62; height: 19; radius: 4
+                width: LabTheme.px(62); height: LabTheme.px(19)
+                radius: LabTheme.px(4)
                 color: LabTheme.paperDeep
                 border.color: LabTheme.panelEdge; border.width: 1
                 Text {
                     anchors.centerIn: parent
-                    width: parent.width - 6
+                    width: parent.width - LabTheme.spaceM
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                     text: modelData.key
-                    color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                    color: LabTheme.ink
+                    font.pixelSize: LabTheme.fontSmall; font.bold: true
                     font.family: LabTheme.monoFont
                 }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 190
+                width: LabTheme.px(190)
                 elide: Text.ElideRight
                 text: LabLang.t(modelData.label)
-                color: LabTheme.inkSoft; font.pixelSize: 13
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontLabel
                 font.family: LabTheme.handFont
             }
         }
