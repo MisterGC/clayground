@@ -15,6 +15,8 @@ import "strings.js" as Strings
 // odometry and landmark lidar against a map into one estimate (2D Kalman
 // filter). Keys: 1-3 presets · T flow · C camera · M lidar panel · # grid ·
 // F frame the car · 0 frame the city · ⇧R record · ? every key.
+// View (free look, C off): drag turns, Shift- or right-drag travels,
+// double-click re-centres, wheel zooms; arrows travel, Shift+arrows turn.
 Item {
     id: root
     anchors.fill: parent
@@ -25,6 +27,19 @@ Item {
         forceActiveFocus()
         applyScenario("open-sky")
     }
+
+    // Does the left column still fit above the plot? Measured against what the
+    // panels actually want at the current text size, so the answer changes with
+    // the window as well as with the scale.
+    readonly property bool roomyColumn:
+        plot.y - LabTheme.px(20) > legendPanel.height + fusionPanel.height
+                                   + presets.height + compass.height + LabTheme.px(30)
+
+    // ...and does the scan display still fit under the parameters? At a large
+    // text size the parameter panel alone reaches the plot, so the monitor
+    // steps left out of that column rather than sitting on top of the sliders.
+    readonly property real monitorRoom: plot.y - (params.y + params.height)
+    readonly property bool monitorUnderParams: monitorRoom > LabTheme.px(340)
 
     // view-only toggles (LabKeys drives them, viewState carries them)
     property bool followCam: true
@@ -552,24 +567,25 @@ Item {
     // experiment and everything about who can read it.
     Row {
         id: topSwitches
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
-        spacing: 6
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
+        spacing: LabTheme.spaceM
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
     ParamPanel {
         id: params
         anchors.right: parent.right; anchors.top: topSwitches.bottom
-        anchors.rightMargin: 10; anchors.topMargin: 10
+        anchors.rightMargin: LabTheme.px(10); anchors.topMargin: LabTheme.px(10)
     }
     Plot2D {
         id: plot
         anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
-        anchors.margins: 10
+        anchors.margins: LabTheme.px(10)
         // this lab's plot spans the full width, so it has to yield the
         // bottom-centre slot the hint bar owns in every lab
-        anchors.bottomMargin: 38
-        height: 150
+        anchors.bottomMargin: LabTheme.px(38)
+        height: LabTheme.px(150)
         series: [
             { probe: "errGps", label: LabLang.t("quantity.errGps"), color: LabTheme.rose },
             { probe: "errOdo", label: LabLang.t("quantity.errOdo"), color: LabTheme.plum },
@@ -605,8 +621,8 @@ Item {
     // never overlapping, and the swatches are how you tell the scene apart.
     LabPanel {
         id: legendPanel
-        x: 10; y: 10
-        width: 258
+        x: LabTheme.px(10); y: LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("legend.title")
 
         // sampled at 4 Hz: at the 20 Hz sim rate the last digit is a blur
@@ -633,19 +649,19 @@ Item {
             property string label: ""
             property string value: ""
             width: legendPanel.body.width
-            height: 17
+            height: LabTheme.px(17)
             Rectangle {
-                width: 10; height: 10; radius: 5
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 color: parent.swatch
             }
             Text {
-                x: 18
-                width: parent.width - 18 - _val.width - 6
+                x: LabTheme.px(18)
+                width: parent.width - LabTheme.px(18) - _val.width - LabTheme.spaceM
                 elide: Text.ElideRight
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.label
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -653,7 +669,7 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.value
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -684,10 +700,10 @@ Item {
             width: legendPanel.body.width
             wrapMode: Text.WordWrap
             text: LabLang.t("legend.caption")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
-        Item { width: 1; height: 4 }
+        Item { width: LabTheme.px(1); height: LabTheme.px(4) }
         // the causal chain, in one line: what the receiver can see, the
         // geometry that gives, and what the fix is therefore worth
         Text {
@@ -695,7 +711,7 @@ Item {
             text: LabLang.tf("legend.gpsChain", gps.visibleCount, root.satCount,
                              LabLang.num(gps.hdop, 1), LabLang.num(gps.posSigma, 1))
             color: gps.available ? LabTheme.ink : LabTheme.alarm
-            font.pixelSize: 11; font.bold: true
+            font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
         }
         Text {
@@ -704,7 +720,7 @@ Item {
             text: gps.available
                   ? LabLang.tf("legend.gpsWhy", LabLang.num(gps.sigmaM, 1))
                   : LabLang.tf("legend.gpsNone", gps.minSats)
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
         // the same chain for the lidar, so the two are comparable at a
@@ -717,7 +733,7 @@ Item {
                                LabLang.num(lidar.posSigma, 2))
                   : LabLang.t("sensor.lidar") + ": " + LabLang.t("sensor.noFix")
             color: lidar.available ? LabTheme.ink : LabTheme.alarm
-            font.pixelSize: 11; font.bold: true
+            font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
         }
         Text {
@@ -727,7 +743,7 @@ Item {
                   ? LabLang.t("legend.lidarWhy")
                   : (lidar.enabled ? LabLang.tf("legend.lidarNone", lidar.minLandmarks)
                                    : LabLang.t("legend.lidarOff"))
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
     }
@@ -738,10 +754,10 @@ Item {
     // are the ones actually applied, K = P / (P + R).
     LabPanel {
         id: fusionPanel
-        x: 10; y: legendPanel.y + legendPanel.height + 10
-        width: 258
+        x: LabTheme.px(10); y: legendPanel.y + legendPanel.height + LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("fusion.title")
-        spacing: 6
+        spacing: LabTheme.spaceM
 
         // recency of each sensor, so a row can light up as its fix lands
         function freshness(key) {
@@ -753,16 +769,16 @@ Item {
 
         // prediction: where the motion model says we are, before any sensor
         Row {
-            spacing: 6
+            spacing: LabTheme.spaceM
             Rectangle {
-                width: 10; height: 10; radius: 2
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(2)
                 anchors.verticalCenter: parent.verticalCenter
                 color: LabTheme.inkFaint
             }
             Text {
                 text: LabLang.t("sensor.predict") + "  \u00b1"
                       + LabLang.num(root.sigmaPredicted, 1) + " m"
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
@@ -774,7 +790,7 @@ Item {
             property string label: ""
             property bool live: true
             width: fusionPanel.body.width
-            height: 30
+            height: LabTheme.px(30)
             readonly property var upd: {
                 root.fusionRev
                 return root.lastUpdate[sensorKey]
@@ -782,15 +798,15 @@ Item {
             readonly property real fresh: fusionPanel.freshness(sensorKey)
 
             Rectangle {
-                width: 10; height: 10; radius: 5
-                y: 2
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
+                y: LabTheme.px(2)
                 color: parent.live ? parent.swatch : LabTheme.muted
                 opacity: 0.45 + 0.55 * parent.fresh
             }
             Text {
-                x: 18; y: 0
+                x: LabTheme.px(18); y: 0
                 text: parent.label
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -798,27 +814,27 @@ Item {
                 text: parent.live && parent.upd
                       ? "\u00b1" + LabLang.num(parent.upd.sigma, 1) + " m"
                       : "\u2014"
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
             // the gain bar: how far this measurement pulled the estimate
             Rectangle {
-                x: 18; y: 17
-                width: parent.width - 60; height: 6; radius: 3
+                x: LabTheme.px(18); y: LabTheme.px(17)
+                width: parent.width - LabTheme.px(60); height: LabTheme.px(6); radius: LabTheme.px(3)
                 color: LabTheme.paperDeep
                 Rectangle {
                     width: parent.width * (parent.parent.live && parent.parent.upd
                                            ? parent.parent.upd.gain : 0)
-                    height: parent.height; radius: 3
+                    height: parent.height; radius: LabTheme.px(3)
                     color: parent.parent.swatch
                     Behavior on width { NumberAnimation { duration: 180 } }
                 }
             }
             Text {
-                anchors.right: parent.right; y: 15
+                anchors.right: parent.right; y: LabTheme.px(15)
                 text: parent.live && parent.upd
                       ? "K " + LabLang.num(parent.upd.gain, 2) : ""
-                color: LabTheme.inkFaint; font.pixelSize: 10
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontMicro
                 font.family: LabTheme.monoFont
             }
         }
@@ -832,19 +848,19 @@ Item {
             live: lidar.available
         }
 
-        Rectangle { width: fusionPanel.body.width; height: 1; color: LabTheme.panelEdge }
+        Rectangle { width: fusionPanel.body.width; height: LabTheme.px(1); color: LabTheme.panelEdge }
 
         Row {
-            spacing: 6
+            spacing: LabTheme.spaceM
             Rectangle {
-                width: 10; height: 10; radius: 5
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 color: LabTheme.secondary
             }
             Text {
                 text: LabLang.t("sensor.fused") + "  \u00b1"
                       + LabLang.num(Math.hypot(kf.sigmaX, kf.sigmaY) / Math.SQRT2, 1) + " m"
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -852,7 +868,7 @@ Item {
             width: fusionPanel.body.width
             wrapMode: Text.WordWrap
             text: LabLang.t("fusion.law")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
     }
@@ -862,18 +878,33 @@ Item {
         carPose: root.carPose
         lidar: lidar
         visible: root.showMonitor
-        anchors.right: parent.right; anchors.bottom: plot.top; anchors.margins: 10
+        anchors.right: root.monitorUnderParams ? parent.right : params.left
+        anchors.bottom: plot.top
+        anchors.margins: LabTheme.px(10)
+        // under the parameters it takes what is left between them and the
+        // plot; stepped out to their left it gets its full size back
+        canvasHeight: Math.min(LabTheme.px(210),
+                               root.monitorUnderParams
+                               ? root.monitorRoom - LabTheme.px(170)
+                               : plot.y - (presets.y + presets.height) - LabTheme.px(190))
     }
 
     // --- presets, orientation, the offer to be taught ---------------------
     // Presets are the best teaching material this lab has, so they are
     // clickable and each carries the one line saying why it exists.
+    //
+    // The left column reflows rather than overflowing: turn the text size up
+    // and legend + fusion alone fill the height, so the presets and the
+    // compass step sideways into the empty middle instead of sliding under
+    // the plot. Room is measured, not guessed from the scale - the same lab
+    // on a taller screen keeps the single column.
     LabPanel {
         id: presets
-        anchors.left: parent.left
-        anchors.top: fusionPanel.bottom
-        anchors.leftMargin: 10; anchors.topMargin: 10
-        width: 258
+        anchors.left: root.roomyColumn ? parent.left : legendPanel.right
+        anchors.top: root.roomyColumn ? fusionPanel.bottom : parent.top
+        anchors.leftMargin: LabTheme.px(10)
+        anchors.topMargin: LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("lab.title")
 
         ScenarioBar { lab: root; width: presets.body.width }
@@ -882,16 +913,18 @@ Item {
 
     Compass {
         id: compass
-        anchors.left: parent.left
+        anchors.left: presets.left
         anchors.top: presets.bottom
-        anchors.leftMargin: 10; anchors.topMargin: 10
+        anchors.topMargin: LabTheme.px(10)
         yaw: orbit.yaw
         aspect: 1.4
     }
 
     HintBar {
         flow: fusionFlow
-        rightGuard: monitor
+        // whichever panel is actually on the right: once the monitor steps
+        // into the middle column the parameters become the wall
+        rightGuard: root.monitorUnderParams ? monitor : params
         text: {
             if (root.tunnelOn && root.carInTunnel) return LabLang.t("hint.tunnel")
             if (!root._lidarOn) return LabLang.t("hint.lidarOut")
@@ -945,8 +978,8 @@ Item {
         // above the error plot, not on top of it: this lab's bottom slot is
         // already taken (exactly the HUD-slot rule from the harvest note)
         anchors.bottom: plot.top
-        anchors.bottomMargin: 10
-        width: Math.min(680, root.width - 40)
+        anchors.bottomMargin: LabTheme.px(10)
+        width: Math.min(LabTheme.px(680), root.width - LabTheme.px(40))
     }
 
     // --- keys -------------------------------------------------------------
@@ -969,7 +1002,7 @@ Item {
     LabHelp {
         keymap: keymap
         anchors.centerIn: parent
-        width: 320
+        width: LabTheme.px(320)
     }
 
     Keys.onPressed: (ev) => {
@@ -977,14 +1010,20 @@ Item {
         if (ev.key === Qt.Key_Escape) root.followCam = true
     }
 
-    // recording indicator: the one piece of the old status line worth keeping
-    Text {
-        anchors.left: parent.left; anchors.leftMargin: 12
-        anchors.bottom: plot.top; anchors.bottomMargin: 8
-        visible: recorder.recording
-        text: "\u25cf REC (" + recorder.rows + ")"
-        color: LabTheme.alarm
-        font.family: LabTheme.monoFont
-        font.pixelSize: 12
+    // The recording dot is the kernel's, so the dot, the word and the row
+    // count read the same here as in every other lab.
+    RecIndicator {
+        recorder: recorder
+        anchors.left: parent.left; anchors.leftMargin: LabTheme.spaceXl
+        anchors.bottom: plot.top; anchors.bottomMargin: LabTheme.spaceL
+    }
+
+    // The clock, on screen. This lab runs on its own and its whole argument is
+    // about how the error grows with time - and until now nothing said what
+    // time it was, or offered to stop it at the interesting moment.
+    TransportChip {
+        clock: clock
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top; anchors.topMargin: LabTheme.spaceXl
     }
 }
