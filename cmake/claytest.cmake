@@ -71,7 +71,6 @@ function(clay_add_qml_test NAME)
     if(T_IMPORT_DIRS)
         list(APPEND _imports ${T_IMPORT_DIRS})
     endif()
-    string(REPLACE ";" ":" _imports_env "${_imports}")
 
     # One -import per directory; qmltestrunner takes the flag repeatedly rather
     # than a joined path.
@@ -93,7 +92,29 @@ function(clay_add_qml_test NAME)
 
     # Run headless, with software backend for stability
     set_tests_properties(qml_${NAME} PROPERTIES
-        ENVIRONMENT "QML2_IMPORT_PATH=${_imports_env};QT_QPA_PLATFORM=minimal;QT_OPENGL=software;${_runner_env}"
+        ENVIRONMENT "QT_QPA_PLATFORM=minimal;QT_OPENGL=software;${_runner_env}"
         LABELS "qml"
     )
+
+    # QML2_IMPORT_PATH goes through ENVIRONMENT_MODIFICATION rather than being
+    # spliced into ENVIRONMENT by hand: its entries are joined with the
+    # platform's path separator, and a Windows path starts "C:/", so a
+    # hand-written ":" would split at the drive letter.
+    set(_env_mod)
+    foreach(_dir IN LISTS _imports)
+        list(APPEND _env_mod "QML2_IMPORT_PATH=path_list_append:${_dir}")
+    endforeach()
+
+    # A suite that imports a *built* Clayground module loads a plugin binary,
+    # and that binary links against the other Clayground libraries in bin/.
+    # Windows resolves a DLL's dependencies from PATH and nothing else, so
+    # without this the plugin fails to load, qmltestrunner exits immediately and
+    # the test fails with no output at all. Suites that import QML sources by
+    # directory never noticed.
+    if(WIN32)
+        list(APPEND _env_mod "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/bin")
+    endif()
+
+    set_tests_properties(qml_${NAME} PROPERTIES
+        ENVIRONMENT_MODIFICATION "${_env_mod}")
 endfunction()
