@@ -274,16 +274,26 @@ Node {
         \qmlmethod var LabStage3D::worldAt(var view, real mx, real my)
         \brief The point on the ground under viewport pixel (\a mx, \a my).
 
-        Returns a \c vector3d on the y = 0 plane, or null when the ray misses
-        the ground entirely (it is aimed at the sky, or something opaque is in
-        the way). Mouse editing in a lab goes through here rather than through
-        an intersection of its own: the plane is the only pickable thing the
-        stage puts in the scene, so what comes back is unambiguous.
+        Returns a \c vector3d on the y = 0 plane, or null when the ray never
+        gets there - it is aimed at the sky, or runs parallel to the ground.
+
+        Where the ray crosses y = 0, worked out from the ray itself rather than
+        picked against the quad. Two reasons, both of which cost a session
+        elsewhere: a pick is a triangle test, and the quad's own diagonal runs
+        exactly through the world origin - the one point every lab cares about,
+        and the one pixel where the pick comes back empty. And a pick answers
+        "what is in front", so the day a lab makes anything else pickable, its
+        mouse editing quietly stops working over that object.
     */
     function worldAt(view, mx, my) {
-        if (!view) return null
-        const res = view.pick(mx, my)
-        return (res && res.objectHit === _ground) ? res.scenePosition : null
+        if (!view || !view.camera) return null
+        const a = view.mapTo3DScene(Qt.vector3d(mx, my, 1))
+        const b = view.mapTo3DScene(Qt.vector3d(mx, my, 100))
+        const dy = b.y - a.y
+        if (Math.abs(dy) < 1e-9) return null
+        const t = -a.y / dy
+        if (t < 0) return null
+        return Qt.vector3d(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t)
     }
 
     /*!
