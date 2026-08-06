@@ -82,6 +82,15 @@ Item {
     property bool viewKeys: true
 
     /*!
+        \qmlproperty bool LabKeys::scaleKeys
+        \brief Handle \c Ctrl+Plus / \c Ctrl+Minus / \c Ctrl+0 for \l LabTheme::uiScale.
+
+        On by default, so every lab that already has a keymap gained the text
+        size control for free the day it landed.
+    */
+    property bool scaleKeys: true
+
+    /*!
         \qmlproperty var LabKeys::frameAll
         \brief Called on \c 0; defaults to the lab's \c frameAll().
     */
@@ -114,6 +123,7 @@ Item {
             out.push({ key: "F", label: "keys.frame" })
             out.push({ key: "0", label: "keys.reset" })
         }
+        if (scaleKeys) out.push({ key: "⌃+ ⌃− ⌃0", label: "keys.uiscale" })
         if (recorder) out.push({ key: "⇧R", label: "keys.record" })
         out.push({ key: "Esc", label: "keys.cancel" })
         out.push({ key: "?", label: "keys.help" })
@@ -137,6 +147,20 @@ Item {
         working throughout - a flow never locks the lab.
     */
     function handle(ev) {
+        // --- text size, BEFORE everything else: the bare +/-/0 keys are the
+        // camera's, and a modifier is the only thing telling the two apart.
+        // Accepts Meta as well as Control because Qt swaps the two on macOS,
+        // where the natural chord is Cmd+Plus.
+        if (scaleKeys && (ev.modifiers & (Qt.ControlModifier | Qt.MetaModifier))) {
+            if (ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) {
+                LabTheme.stepScale(1); return true
+            }
+            if (ev.key === Qt.Key_Minus || ev.key === Qt.Key_Underscore) {
+                LabTheme.stepScale(-1); return true
+            }
+            if (ev.key === Qt.Key_0) { LabTheme.resetScale(); return true }
+        }
+
         // --- flow transport (only while one runs, so arrows stay the view's)
         if (flow && flow.running) {
             if (ev.key === Qt.Key_Space || ev.key === Qt.Key_Right) { flow.next(); return true }

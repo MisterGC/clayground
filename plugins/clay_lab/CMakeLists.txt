@@ -2,7 +2,8 @@ include (clayplugin)
 
 # Needs to be told first otherwise clay_plugin / qt_add_qml_module don't
 # generate instructions for singletons
-set_source_files_properties(Lab.qml LabTheme.qml LabLang.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(Lab.qml LabTheme.qml LabLang.qml LabPrefs.qml
+                            PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 clay_plugin( Lab
 
@@ -15,10 +16,13 @@ clay_plugin( Lab
     QML_FILES
         Lab.qml
         LabTheme.qml
+        LabPrefs.qml
         palette.js
+        tokens.js
         LabLang.qml
         LangSwitch.qml
         ThemeSwitch.qml
+        ScaleSwitch.qml
         Parameter.qml
         Probe.qml
         SimClock.qml

@@ -131,6 +131,22 @@ QtObject {
         return names[code] ? names[code] : code.toUpperCase()
     }
 
+    onLangChanged: LabPrefs.set("ui.lang", lang)
+
+    // The language a lab is read in belongs to the reader, not to the run.
+    // Applied only once a dictionary actually offers it, so an early restore
+    // cannot strand the lab in a language nothing is registered for.
+    property string _wanted: ""
+    function _applyWanted() {
+        if (_wanted !== "" && languages.indexOf(_wanted) !== -1 && lang !== _wanted)
+            lang = _wanted
+    }
+    onLanguagesChanged: _applyWanted()
+    Component.onCompleted: {
+        _wanted = String(LabPrefs.get("ui.lang", ""))
+        _applyWanted()
+    }
+
     // The kernel's own strings, so a lab gets its chrome translated without
     // registering anything itself. Everything a KERNEL widget renders belongs
     // here - the flow chrome lived in two labs' dictionaries word for word
@@ -164,7 +180,14 @@ QtObject {
             "keys.cancel": "cancel",
             "keys.help": "this list",
             "keys.view": "turn · zoom the view",
-            "scenario.pick": "presets"
+            "keys.uiscale": "text size",
+            "scenario.pick": "presets",
+            "watch.add": "watch",
+            "watch.on": "watching",
+            "watch.full": "plot full",
+            "time.pause": "pause",
+            "time.resume": "resume",
+            "rec.label": "REC"
         },
         "de": {
             "lab.parameters": "PARAMETER",
@@ -188,7 +211,14 @@ QtObject {
             "keys.cancel": "abbrechen",
             "keys.help": "diese Liste",
             "keys.view": "Ansicht drehen · zoomen",
-            "scenario.pick": "Vorlagen"
+            "keys.uiscale": "Schriftgröße",
+            "scenario.pick": "Vorlagen",
+            "watch.add": "beobachten",
+            "watch.on": "beobachtet",
+            "watch.full": "Plot voll",
+            "time.pause": "Pause",
+            "time.resume": "weiter",
+            "rec.label": "AUFN"
         }
     })
 }
