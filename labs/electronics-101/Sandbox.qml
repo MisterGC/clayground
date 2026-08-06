@@ -18,8 +18,10 @@ import "strings.js" as Strings
 // the on-screen list: press ? to see the whole map. The short version:
 // 1..4 presets · T the guided tour · C clear · E eraser · V values ·
 // M schematic · W plot the selected part · # grid mode · R turn · Del ·
-// Shift+R record · Esc cancel. View: drag the empty board to orbit,
-// wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
+// Shift+R record · Esc cancel. View: drag the empty board to turn it,
+// right-drag or Shift+drag to travel across it, double-click bare board to
+// re-centre there, wheel zooms; arrows travel, Shift+arrows turn, +/- zoom,
+// F frames the selection, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -68,6 +70,12 @@ Item {
     // The mechanism itself lives in the kernel's WatchMonitor now - what stays
     // here is only what a part is worth, and what it is called.
     readonly property alias watch: monitor.watched
+
+    // The monitor under a name the kernel's own widgets can reach. A WatchChip
+    // and a WatchMark both declare a property CALLED monitor, which shadows the
+    // id inside them - `monitor: monitor` there is a property assigned to
+    // itself, and it fails silently as an invisible chip.
+    readonly property alias watchMonitor: monitor
 
     function watchValueOf(id) {
         const s = simOf(id)
@@ -963,6 +971,17 @@ Item {
         }
     }
 
+    // --- how much page there is -------------------------------------------
+    // Turn the text size up and the left column stops fitting. Two answers,
+    // both measured rather than switched on the scale: the palette lays its
+    // parts and tools two across and drops their one-line hints (captions give
+    // way before things you click), and the schematic steps out from under it
+    // into the empty middle. On a tall screen at the same scale neither fires.
+    readonly property bool compactPalette:
+        root.height < LabTheme.px(760)
+    readonly property bool planUnderPalette:
+        plan.y > palette.y + palette.height + LabTheme.px(16)
+
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
         { type: "battery", color: "#3e9b92" },
@@ -976,8 +995,8 @@ Item {
 
     LabPanel {
         id: palette
-        x: 12; y: 12
-        width: 208
+        x: LabTheme.px(12); y: LabTheme.px(12)
+        width: LabTheme.px(208)
         title: LabLang.t("lab.title")
 
         // The presets, clickable and each carrying what it is worth noticing.
@@ -985,39 +1004,59 @@ Item {
         // the active name on screen - the best material in the lab, hidden.
         ScenarioBar {
             lab: root
-            width: 188
+            width: LabTheme.px(188)
         }
         // and the offer to be taught, from the first frame
         FlowChip { flow: ledFlow }
-        Item { width: 1; height: 2 }
-        Column {
-            spacing: 4
+        Item { width: LabTheme.px(1); height: LabTheme.px(2) }
+        // The parts. Turn the text size up and this list alone is taller than
+        // the window, so it reflows into two columns and drops the one-line
+        // hints - captions give way before the things you click, and the
+        // symbol beside each name still says what the part is.
+        Grid {
+            id: partGrid
+            columns: root.compactPalette ? 2 : 1
+            spacing: LabTheme.spaceS
+            readonly property real cellW: columns === 1 ? LabTheme.px(188)
+                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
             Repeater {
                 model: root.partCatalog
                 Rectangle {
-                    width: 188; height: 40; radius: 6
+                    width: partGrid.cellW
+                    height: root.compactPalette ? LabTheme.px(28) : LabTheme.px(40)
+                    radius: LabTheme.px(6)
                     color: partArea.containsMouse ? LabTheme.panel : LabTheme.paper
                     border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
                     Rectangle {  // the part's colour on the board
-                        x: 6; y: 15; width: 10; height: 10; radius: 3
+                        x: LabTheme.px(6); anchors.verticalCenter: parent.verticalCenter
+                        width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(3)
                         color: modelData.color
                     }
                     // and its schematic symbol: the palette is where a kit can
                     // teach "this lump is that squiggle" for free
                     SymbolIcon {
-                        x: 20; anchors.verticalCenter: parent.verticalCenter
+                        visible: !root.compactPalette
+                        x: LabTheme.px(20); anchors.verticalCenter: parent.verticalCenter
                         type: modelData.type
                         ink: LabTheme.inkSoft
                     }
                     Column {
-                        x: 60; anchors.verticalCenter: parent.verticalCenter
-                        Text { text: LabLang.t("part." + modelData.type); color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
+                        x: root.compactPalette ? LabTheme.px(22) : LabTheme.px(60)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            text: LabLang.t("part." + modelData.type)
+                            width: partGrid.cellW - LabTheme.px(28)
+                            elide: Text.ElideRight
+                            color: LabTheme.ink; font.pixelSize: LabTheme.fontBody
+                            font.bold: true; font.family: LabTheme.monoFont
+                        }
                         // bounded: a translated hint is often longer than the
                         // English one and must not run out of the panel
                         Text {
+                            visible: !root.compactPalette
                             text: LabLang.t("part." + modelData.type + ".hint")
-                            width: 122; elide: Text.ElideRight
-                            color: LabTheme.inkFaint; font.pixelSize: 12
+                            width: LabTheme.px(122); elide: Text.ElideRight
+                            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                             font.family: LabTheme.handFont
                         }
                     }
@@ -1040,50 +1079,70 @@ Item {
                     }
                 }
             }
-            Item { width: 1; height: 4 }
+        }
+        Item { width: LabTheme.px(1); height: LabTheme.px(4) }
+        // The tools. Two across when the column is tight, one when it is not.
+        Grid {
+            id: toolGrid
+            columns: root.compactPalette ? 2 : 1
+            spacing: LabTheme.spaceS
+            readonly property real cellW: columns === 1 ? LabTheme.px(188)
+                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: root.eraser ? LabTheme.clay : LabTheme.paper
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
-                    color: LabTheme.inkOn(parent.color); font.pixelSize: 11
+                    color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper
                 border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(root.showValues ? "btn.values.on" : "btn.values.off")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper
                 border.color: grid.snap ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(grid.snap ? "btn.grid.snap" : "btn.grid.free")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: grid.toggle() }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t("btn.clear")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
@@ -1156,7 +1215,7 @@ Item {
         flow: ledFlow
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 12
+        anchors.bottomMargin: LabTheme.spaceXl
         width: Math.min(680, root.width - 2 * (root.width - monitor.x) - 24)
     }
 
@@ -1169,9 +1228,10 @@ Item {
         id: topSwitches
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 12
-        spacing: 6
+        anchors.margins: LabTheme.spaceXl
+        spacing: LabTheme.spaceM
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
@@ -1180,8 +1240,8 @@ Item {
         // beside the palette rather than under it: the palette carries the
         // presets and the tour offer now, and the slot below it is the
         // schematic's
-        x: palette.x + palette.width + 10
-        y: 12
+        x: palette.x + palette.width + LabTheme.px(10)
+        y: LabTheme.px(12)
         yaw: rig.yaw
         aspect: root.cols / root.rows
     }
@@ -1189,14 +1249,14 @@ Item {
     // drag ghost following the cursor while dragging out of the palette
     Rectangle {
         visible: root.paletteDrag !== "" && ghostArea.mx > 0
-        x: ghostArea.mx + 10; y: ghostArea.my - 14
-        width: ghostLabel.width + 18; height: 26; radius: 6
+        x: ghostArea.mx + LabTheme.px(10); y: ghostArea.my - LabTheme.px(14)
+        width: ghostLabel.width + LabTheme.px(18); height: LabTheme.px(26); radius: LabTheme.px(6)
         color: LabTheme.panel; border.color: LabTheme.secondary
         Text {
             id: ghostLabel
             anchors.centerIn: parent
             text: root.paletteDrag === "" ? "" : LabLang.t("part." + root.paletteDrag)
-            color: LabTheme.primary; font.pixelSize: 12
+            color: LabTheme.primary; font.pixelSize: LabTheme.fontBody
             font.family: LabTheme.monoFont
         }
     }
@@ -1233,16 +1293,16 @@ Item {
             x: Math.max(4, Math.min(root.width - width - 4, screenAt.x - width / 2))
             y: Math.max(4, Math.min(root.height - height - 4, screenAt.y - height))
             width: readingText.width + 18
-            height: 24
-            radius: 12
+            height: LabTheme.px(24)
+            radius: LabTheme.px(12)
             color: LabTheme.panel
             border.color: modelData.type === "ammeter" ? LabTheme.forest : LabTheme.plum
-            border.width: 1.5
+            border.width: Math.max(1, 1.5 * LabTheme.uiScale)
             Text {
                 id: readingText
                 anchors.centerIn: parent
                 text: (modelData.type === "ammeter" ? "A " : "V ") + parent.reading
-                color: LabTheme.ink; font.pixelSize: 13; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontLabel; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -1256,12 +1316,13 @@ Item {
     LabPanel {
         id: plan
         visible: root.showPlan
-        anchors.left: parent.left
+        // steps out from under the palette when the palette reaches it
+        anchors.left: root.planUnderPalette ? parent.left : palette.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 12
-        anchors.bottomMargin: 44
-        width: 250
-        height: 176
+        anchors.leftMargin: LabTheme.spaceXl
+        anchors.bottomMargin: LabTheme.px(44)
+        width: LabTheme.px(250)
+        height: LabTheme.px(176)
         title: LabLang.t("plan.title")
         tag: "M"
 
@@ -1370,10 +1431,10 @@ Item {
             x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
             y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
             width: valueText.width + 12
-            height: 20
-            radius: 5
+            height: LabTheme.px(20)
+            radius: LabTheme.px(5)
             color: LabTheme.panel
-            border.color: LabTheme.panelEdge; border.width: 1
+            border.color: LabTheme.panelEdge; border.width: LabTheme.px(1)
             opacity: 0.94
             Text {
                 id: valueText
@@ -1384,7 +1445,7 @@ Item {
                     const s = root.simOf(modelData.id)
                     return root.fmtA(Math.abs(s.i)) + "  " + root.fmtV(Math.abs(s.v))
                 }
-                color: LabTheme.primary; font.pixelSize: 11
+                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
@@ -1406,7 +1467,7 @@ Item {
                 if (i === null || i === undefined) return "?"
                 return root.fmtA(Math.abs(i))
             }
-            color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
+            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
             style: Text.Outline; styleColor: LabTheme.paperDeep
         }
@@ -1417,8 +1478,10 @@ Item {
     // off the board instead of guessed from the legend order.
     Repeater {
         model: root.watch
-        Rectangle {
+        WatchMark {
             readonly property int pid: modelData
+            // the projection needs the camera's own scene transform listed, or
+            // the binding freezes the moment the rig moves
             readonly property var screenAt: {
                 root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(pid)
@@ -1426,33 +1489,15 @@ Item {
                 return view3d.mapFrom3DScene(Qt.vector3d(
                     root.cellX(e.col), 6.0, root.cellZ(e.row)))
             }
-            visible: screenAt.z > 0
+            monitor: root.watchMonitor
+            target: pid
+            label: { root.elemRev; return root.partLabel(pid) }
+            visible: screenAt.z > 0 && root.isWatched(pid)
             x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
             // steps aside for the value label when V is on
             y: Math.max(2, Math.min(root.height - height - 2,
-                                    screenAt.y - height - (root.showValues ? 23 : 0)))
-            width: markRow.width + 12
-            height: 18
-            radius: 9
-            color: LabTheme.panel
-            border.color: root.watchColorOf(pid); border.width: 2
-            opacity: 0.94
-            Row {
-                id: markRow
-                x: 6
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 7; height: 7; radius: 4
-                    color: root.watchColorOf(pid)
-                }
-                Text {
-                    text: { root.elemRev; return root.partLabel(pid) }
-                    color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
-                    font.family: LabTheme.monoFont
-                }
-            }
+                                    screenAt.y - height
+                                    - (root.showValues ? LabTheme.px(23) : 0)))
         }
     }
 
@@ -1460,7 +1505,7 @@ Item {
     LabPanel {
         id: selCard
         padding: 10
-        spacing: 1
+        spacing: LabTheme.px(1)
         border.color: LabTheme.secondary
         readonly property var el: {
             root.elemRev
@@ -1488,7 +1533,7 @@ Item {
 
         Column {
             id: selCol
-            spacing: 1
+            spacing: LabTheme.px(1)
             Text {
                 text: {
                     // elemRev per binding: `el` hands back the same object
@@ -1508,7 +1553,7 @@ Item {
                         return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
                     return name
                 }
-                color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.letterSpacing: 1.0; font.family: LabTheme.monoFont
             }
             Text {
@@ -1518,7 +1563,7 @@ Item {
                     const s = root.simOf(selCard.el.id)
                     return root.fmtV(s.v) + "   " + root.fmtA(s.i)
                 }
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             // Resistance slider: drag it and the colour bands on the part
@@ -1531,7 +1576,7 @@ Item {
                 Item {
                     id: rSlider
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width; height: 16
+                    width: parent.width; height: LabTheme.px(16)
                     readonly property int steps: selCard.isBattery
                         ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
                     readonly property real ratio: {
@@ -1544,21 +1589,21 @@ Item {
 
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width; height: 4; radius: 2
+                        width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
                         color: LabTheme.panelEdge
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: rSlider.ratio * parent.width
-                        height: 4; radius: 2
+                        height: LabTheme.px(4); radius: LabTheme.px(2)
                         color: LabTheme.secondary
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         x: rSlider.ratio * (parent.width - width)
-                        width: 12; height: 12; radius: 6
+                        width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
                         color: LabTheme.panel
-                        border.color: LabTheme.ink; border.width: 2
+                        border.color: LabTheme.ink; border.width: LabTheme.px(2)
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -1614,44 +1659,26 @@ Item {
                 color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
                      : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
                      : LabTheme.inkFaint
-                font.pixelSize: 12
+                font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.handFont
             }
             // Monitoring is a per-part act, like selecting: this puts the part
-            // on the plot in the colour it then wears on the board.
-            Rectangle {
-                id: watchChip
-                visible: selCard.el !== null && selCard.el.type !== "junction"
-                width: watchLabel.width + 16
-                height: visible ? 21 : 0
-                radius: LabTheme.radius
-                readonly property bool watched:
-                    selCard.el !== null && root.isWatched(selCard.el.id)
-                readonly property bool full:
-                    !watched && root.watch.length >= monitor.maxSeries
-                color: watched ? root.watchColorOf(selCard.el.id) : LabTheme.panel
-                border.color: watched ? LabTheme.panelEdge
-                            : (full ? LabTheme.panelEdge : LabTheme.secondary)
-                border.width: LabTheme.borderWidth
-                Text {
-                    id: watchLabel
-                    anchors.centerIn: parent
-                    text: LabLang.t(watchChip.watched ? "card.watched"
-                        : (watchChip.full ? "card.watch.full" : "card.watch"))
-                    color: watchChip.watched ? LabTheme.paper
-                         : (watchChip.full ? LabTheme.inkFaint : LabTheme.secondary)
-                    font.pixelSize: 12; font.family: LabTheme.handFont
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: !watchChip.full
-                    onClicked: if (selCard.el) root.toggleWatch(selCard.el.id)
-                }
+            // on the plot in the colour it then wears on the board. The chip
+            // is the kernel's - it reads the series limit off the monitor
+            // itself, so this card can no longer disagree with the plot about
+            // whether there is a colour left - and a junction hides it by
+            // having no target rather than by a second visibility rule.
+            WatchChip {
+                monitor: root.watchMonitor
+                target: selCard.el !== null && selCard.el.type !== "junction"
+                        ? selCard.el.id : undefined
+                labels: ({ add: "card.watch", on: "card.watched",
+                           full: "card.watch.full" })
             }
             Text {
                 text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
                      : selCard.isBattery ? "card.hint.battery" : "card.hint.part")
-                color: LabTheme.inkFaint; font.pixelSize: 12
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.handFont
             }
         }
@@ -1660,25 +1687,27 @@ Item {
     // --- short-circuit banner ---------------------------------------------
     // Two different faults, two different messages. Drawing more current than
     // the cell is rated for is not a short - the old banner cried short at any
-    // load above 1.5 A, which taught the wrong lesson.
-    Rectangle {
-        visible: root.sim.shorted || root.sim.overloaded
+    // load above 1.5 A, which taught the wrong lesson. Only the short blinks:
+    // a banner that always pulses stops meaning anything.
+    LabBanner {
+        active: root.sim.shorted || root.sim.overloaded
+        alarm: root.sim.shorted
+        blink: root.sim.shorted
+        guard: palette                // never grows in under the parts list
+        maxWidth: LabTheme.px(560)    // both messages are a whole sentence
+        text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
+    }
+
+    // The clock, on screen: this lab's solver runs continuously and its plot
+    // is a time series, so "how long has that LED been at 40 mA" was a
+    // question the page could not answer.
+    TransportChip {
+        clock: clock
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 16
-        width: shortText.width + 40; height: 36; radius: 8
-        color: root.sim.shorted ? LabTheme.alarm : LabTheme.highlight
-        Text {
-            id: shortText
-            anchors.centerIn: parent
-            text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
-            color: LabTheme.inkOn(parent.color)
-            font.pixelSize: 14; font.bold: true
-        }
-        SequentialAnimation on opacity {
-            running: root.sim.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
-            NumberAnimation { to: 0.55; duration: 300 }
-            NumberAnimation { to: 1.0; duration: 300 }
-        }
+        anchors.top: parent.top
+        // under the banner's slot, not in it: a short circuit outranks the
+        // clock for the top line of the page
+        anchors.topMargin: LabTheme.px(58)
     }
 
     // --- hint bar ----------------------------------------------------------
@@ -1705,7 +1734,7 @@ Item {
     WatchMonitor {
         id: monitor
         anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.margins: 10
+        anchors.margins: LabTheme.px(10)
         idPrefix: "part"
         quantities: [
             { key: "I", label: "quantity.current", unit: "mA" },
@@ -1753,7 +1782,7 @@ Item {
     LabHelp {
         keymap: keymap
         anchors.centerIn: parent
-        width: 300
+        width: LabTheme.px(300)
     }
 
     Keys.onPressed: (ev) => {
