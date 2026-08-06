@@ -64,6 +64,7 @@ clay_plugin( Canvas3D
         ConnectorLayer3D.qml
         Label3D.qml
         OrbitCamera3D.qml
+        OrbitInput3D.qml
         Label3DRegistry.qml
         LabelBatch3D.qml
         PathLabel3D.qml
