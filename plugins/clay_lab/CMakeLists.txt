@@ -46,6 +46,15 @@ clay_plugin( Lab
         HintBar.qml
         ScenarioBar.qml
         WatchMonitor.qml
+        WatchChip.qml
+        WatchMark.qml
+        Gauge.qml
+        ReadoutRow.qml
+        ReadoutPanel.qml
+        MiniMap.qml
+        LabBanner.qml
+        TransportChip.qml
+        RecIndicator.qml
         Compass.qml
         GridMode.qml
         Tour.qml
