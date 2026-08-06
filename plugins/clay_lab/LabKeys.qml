@@ -14,6 +14,14 @@ import QtQuick
     as data, and can then \e describe the whole map, which is how a lab stops
     hiding its features behind undocumented letters.
 
+    The navigation half, on a camera that has the exploration layer
+    (\c panBy / \c goalDistance - see \l {OrbitCamera3D}): \b arrows move
+    across the scene, \b {Shift+arrows} turn it, \c + / \c - zoom, \c F frames
+    the selection and \c 0 or \c Home frames everything. The arrows used to
+    turn, which is what a drag already did; travelling was the thing a
+    keyboard could not do at all. While a flow runs, \c → and \c ← belong to
+    the flow, so the arrows are the camera's only when nothing is narrating.
+
     Non-visual: keep focus handling where it is and call \l handle() from the
     lab's own key handler.
 
@@ -82,6 +90,20 @@ Item {
     property bool viewKeys: true
 
     /*!
+        \qmlproperty real LabKeys::panStep
+        \brief One arrow-key pan, as a fraction of the camera's distance.
+
+        Relative rather than absolute so the same key press covers the same
+        part of the picture at every zoom - a fixed step in world units either
+        crawls when you are far out or throws you off the board when you are
+        close in.
+    */
+    property real panStep: 0.14
+
+    /*! \qmlproperty real LabKeys::orbitStep \brief Degrees of yaw per \c Shift+Left / \c Shift+Right. */
+    property real orbitStep: 6
+
+    /*!
         \qmlproperty bool LabKeys::scaleKeys
         \brief Handle \c Ctrl+Plus / \c Ctrl+Minus / \c Ctrl+0 for \l LabTheme::uiScale.
 
@@ -119,7 +141,9 @@ Item {
             out.push({ key: "␣", label: "keys.next" })
         }
         if (viewKeys) {
-            out.push({ key: "←↑↓→ +-", label: "keys.view" })
+            out.push({ key: "←↑↓→", label: "keys.pan" })
+            out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
+            out.push({ key: "+-", label: "keys.zoom" })
             out.push({ key: "F", label: "keys.frame" })
             out.push({ key: "0", label: "keys.reset" })
         }
@@ -208,10 +232,28 @@ Item {
         }
 
         if (!viewKeys) return false
-        if (ev.key === Qt.Key_Left && camera) { camera.orbitBy(-6, 0); return true }
-        if (ev.key === Qt.Key_Right && camera) { camera.orbitBy(6, 0); return true }
-        if (ev.key === Qt.Key_Up && camera) { camera.orbitBy(0, 4); return true }
-        if (ev.key === Qt.Key_Down && camera) { camera.orbitBy(0, -4); return true }
+
+        // The arrows TRAVEL. They used to turn the view, which is the one
+        // thing a mouse drag already did well, while the thing a keyboard
+        // user could not do at all - cross the scene - had no key at all.
+        // Turning moved onto Shift, where it is still one hand's reach.
+        const arrow = _arrow(ev)
+        if (arrow !== null && camera) {
+            if (ev.modifiers & Qt.ShiftModifier) {
+                camera.orbitBy(arrow.x * orbitStep, -arrow.y * orbitStep * 0.66)
+                return true
+            }
+            if (camera.panBy) {
+                const step = (camera.goalDistance !== undefined
+                              ? camera.goalDistance : camera.distance) * panStep
+                camera.panBy(arrow.x * step, -arrow.y * step)
+                return true
+            }
+            // a rig without the exploration layer keeps the old meaning
+            camera.orbitBy(arrow.x * orbitStep, -arrow.y * orbitStep * 0.66)
+            return true
+        }
+
         if ((ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) && camera) {
             camera.zoomBy(0.88); return true
         }
@@ -221,6 +263,16 @@ Item {
             frameAll(); return true
         }
         return false
+    }
+
+    // Screen directions, +y being down as a screen counts: what both the pan
+    // and the orbit branch above are expressed in.
+    function _arrow(ev) {
+        if (ev.key === Qt.Key_Left) return { x: -1, y: 0 }
+        if (ev.key === Qt.Key_Right) return { x: 1, y: 0 }
+        if (ev.key === Qt.Key_Up) return { x: 0, y: -1 }
+        if (ev.key === Qt.Key_Down) return { x: 0, y: 1 }
+        return null
     }
 
     // Key letters stay PHYSICAL across languages - a German keyboard must not

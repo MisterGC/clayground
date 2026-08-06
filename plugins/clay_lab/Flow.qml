@@ -51,6 +51,17 @@ Item {
     property var lab: null
 
     /*!
+        \qmlproperty var Flow::camera
+        \brief The lab's camera rig, for steps that carry a \l {FlowStep::view}.
+
+        An \l OrbitCamera3D (anything with \c goTo / \c focusOn / \c applyState
+        will do). Left null, \c FlowStep.view is ignored - which is the whole
+        of the compatibility story: a flow that never wires a camera behaves
+        exactly as it did before the property existed.
+    */
+    property var camera: null
+
+    /*!
         \qmlproperty string Flow::flowId
         \brief Stable id; prefixes narration keys and identifies the flow.
     */
@@ -192,7 +203,19 @@ Item {
         paused = false
         const s = steps[i]
         if (s.demo && s.demo.length) run(s.demo)
+        applyView(s.view)          // after the demo: a step may frame what it built
         narrated(narration, LabLang.lang, s.key)
+    }
+
+    /*!
+        \qmlmethod void Flow::applyView(var v)
+        \brief Moves \l camera as a \l {FlowStep::view} asks; a no-op without one.
+    */
+    function applyView(v) {
+        if (!v || !camera) return
+        if (v.viewpoint !== undefined && camera.goTo) camera.goTo(v.viewpoint, v.ms)
+        else if (v.focus !== undefined && camera.focusOn) camera.focusOn(v.focus, v.pad, v.ms)
+        else if (v.pose !== undefined && camera.applyState) camera.applyState(v.pose)
     }
 
     /*!

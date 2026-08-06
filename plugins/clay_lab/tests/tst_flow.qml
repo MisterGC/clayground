@@ -46,6 +46,31 @@ Item {
         }
     }
 
+    // A camera just real enough to be aimed: it records what it was asked for
+    // and in which order, which is the only thing FlowStep.view promises.
+    Item {
+        id: fakeCam
+
+        property string lastCall: ""
+        property var lastArg: null
+        property int calls: 0
+        property int partsWhenAimed: -1     // proof the view is applied AFTER the demo
+
+        function goTo(name, ms) {
+            lastCall = "goTo"; lastArg = name; calls += 1
+            partsWhenAimed = fakeLab.parts.length
+            return true
+        }
+        function focusOn(what, pad, ms) {
+            lastCall = "focusOn"; lastArg = what; calls += 1
+            partsWhenAimed = fakeLab.parts.length
+        }
+        function applyState(s) {
+            lastCall = "applyState"; lastArg = s; calls += 1
+            partsWhenAimed = fakeLab.parts.length
+        }
+    }
+
     Flow {
         id: flow
         lab: fakeLab
@@ -57,6 +82,37 @@ Item {
         FlowStep { key: "tag"; say: "mark it"; demo: [["tagPart", "bat"]] }
     }
 
+    // The camera-carrying flow. Separate from the one above so the checkpoint
+    // cases keep proving that a flow WITHOUT a camera is untouched.
+    Flow {
+        id: viewFlow
+        lab: fakeLab
+        flowId: "tstview"
+        pacing: "manual"
+        camera: fakeCam
+
+        FlowStep { key: "plain"; say: "no view of its own" }
+        FlowStep { key: "named"; say: "from above"; view: ({ viewpoint: "top", ms: 0 }) }
+        FlowStep {
+            key: "framed"
+            say: "look at what we built"
+            demo: [["addPart", "led"]]
+            view: ({ focus: [Qt.vector3d(0, 0, 0), Qt.vector3d(10, 0, 10)], pad: 1.2, ms: 0 })
+        }
+        FlowStep { key: "posed"; say: "exactly here"; view: ({ pose: { yaw: 30, distance: 90 } }) }
+    }
+
+    // The same steps with no camera wired: nothing may throw, nothing may move.
+    Flow {
+        id: blindFlow
+        lab: fakeLab
+        flowId: "tstblind"
+        pacing: "manual"
+
+        FlowStep { key: "named"; view: ({ viewpoint: "top" }) }
+        FlowStep { key: "posed"; view: ({ pose: { yaw: 30 } }) }
+    }
+
     TestCase {
         name: "Flow"
 
@@ -64,7 +120,9 @@ Item {
             fakeLab.parts = []
             fakeLab.nextId = 1
             fakeLab.tagged = -1
-            flow.stop()
+            flow.stop(); viewFlow.stop(); blindFlow.stop()
+            fakeCam.lastCall = ""; fakeCam.lastArg = null
+            fakeCam.calls = 0; fakeCam.partsWhenAimed = -1
         }
 
         // The plain forward run: the name bound in one step resolves in the next.
@@ -113,6 +171,55 @@ Item {
             compare(flow.nameOf("bat"), 1)
             flow.start()
             compare(flow.nameOf("bat"), "bat")
+        }
+
+        // --- FlowStep.view ---------------------------------------------------
+
+        // A step with no view of its own leaves the camera exactly where the
+        // learner left it. This is the property that makes the feature
+        // non-breaking: every existing step is a step without a view.
+        function test_a_stepWithoutAViewNeverTouchesTheCamera() {
+            viewFlow.start()
+            compare(fakeCam.calls, 0, "the first step names no view")
+            viewFlow.next()
+            compare(fakeCam.calls, 1, "the second one does")
+            viewFlow.prev()
+            compare(fakeCam.calls, 1, "and stepping back onto the first moves nothing")
+        }
+
+        function test_aNamedViewpointIsRequested() {
+            viewFlow.start()
+            viewFlow.next()
+            compare(fakeCam.lastCall, "goTo")
+            compare(fakeCam.lastArg, "top")
+        }
+
+        // The order that matters: a step that builds something and then frames
+        // it has to be framed around what it built, not around what was there
+        // when it was entered.
+        function test_theViewIsAppliedAfterTheDemo() {
+            viewFlow.start()
+            viewFlow.next(); viewFlow.next()
+            compare(fakeCam.lastCall, "focusOn")
+            compare(fakeCam.lastArg.length, 2, "the points it named")
+            compare(fakeCam.partsWhenAimed, 1, "the demo's part existed by then")
+        }
+
+        function test_aLiteralPoseIsApplied() {
+            viewFlow.start()
+            viewFlow.next(); viewFlow.next(); viewFlow.next()
+            compare(fakeCam.lastCall, "applyState")
+            compare(fakeCam.lastArg.yaw, 30)
+            compare(fakeCam.lastArg.distance, 90)
+        }
+
+        // A flow with no camera runs its view-carrying steps and simply does
+        // not aim - it must not throw, and it must still advance.
+        function test_aFlowWithoutACameraIgnoresTheView() {
+            blindFlow.start()
+            blindFlow.next()
+            compare(blindFlow.index, 1, "it walked the steps")
+            compare(fakeCam.calls, 0, "and aimed nothing")
         }
     }
 }
