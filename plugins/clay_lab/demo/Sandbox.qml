@@ -176,8 +176,11 @@ Rectangle {
             height: LabTheme.px(112)
             symbol: "V"
             unit: "V"
-            // the ranges a bench meter of this kind would have
-            ranges: [0.25, 0.5, 1, 2, 5]
+            // the ranges a bench meter of this kind would have. It tops out
+            // at 2 V on purpose: the "over range" preset then pins the needle
+            // at full scale, which is a lesson an instrument that silently
+            // rescales forever cannot teach.
+            ranges: [0.25, 0.5, 1, 2]
             value: sandbox.signal
             accent: LabTheme.primary
             needleColor: LabTheme.clay
@@ -438,7 +441,7 @@ Rectangle {
         text: LabLang.t(sandbox.overRange ? "banner.loud" : "banner.damped")
     }
 
-    readonly property bool overRange: Math.abs(signal) > 5
+    readonly property bool overRange: Math.abs(signal) > 2
     readonly property bool dampedOut: pAmp.value > 0
                                       && envelope < 0.02 * pAmp.value
 
@@ -570,7 +573,11 @@ Rectangle {
 
     DataRecorder {
         id: recorder
-        destination: "lab_demo_recording.csv"
+        // Resolved against THIS file, not the process CWD: a relative name
+        // lands wherever the loader happened to be started, which is how a
+        // stray run.csv ends up in the repo root.
+        destination: Qt.resolvedUrl("lab_demo_recording.csv")
+                        .toString().replace("file://", "")
         probes: ["signal", "envelope", "measured"]
     }
 
