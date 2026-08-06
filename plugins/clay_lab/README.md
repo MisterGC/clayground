@@ -14,30 +14,44 @@ interactive, deterministic, agent-verifiable experimentation space.
   time advances with the physics steps (exact under the inspector's
   `time`/`step` action); seeded `random()`/`randomRange()` are the only
   randomness a lab may use.
-- **ParamPanel** — auto-generated slider panel for all parameters.
+- **ParamPanel** — auto-generated slider panel for all parameters. Rows are
+  `Tab`-reachable and arrow-operable, with a visible focus ring.
 - **Plot2D** — live autoscaled strip chart of probes. Pass `probes` for a
-  fixed set, or `series: [{probe, label, color}]` when the plotted set is
-  built at runtime: the lab then owns naming and colouring, an empty array
-  draws `placeholder` instead of every probe, and legend entries become
-  clickable (`seriesClicked`) so the user can drop a curve where it is named.
+  fixed set, or `series: [{probe, label, color, style, sigmaProbe}]` when the
+  plotted set is built at runtime: the lab then owns naming and colouring, an
+  empty array draws `placeholder` instead of every probe, and legend entries
+  become clickable (`seriesClicked`) so the user can drop a curve where it is
+  named. `style: "scatter"` leaves discrete measurements unjoined,
+  `sigmaProbe` fills a translucent ±σ band behind a curve, and hovering the
+  chart reads every visible series back at the nearest sample.
 - **DataRecorder** — probe samples to CSV (via `Clayground.Text`).
-- **LabTheme / ThemeSwitch** — every colour, shape and type token, in a
-  light and a dark palette that swap at runtime. The two are counterparts
+- **LabTheme / ThemeSwitch / ScaleSwitch** — every colour, shape, type and
+  spacing token, in a light and a dark palette that swap at runtime, all
+  multiplied by one `uiScale` factor. The two palettes are counterparts
   rather than inversions, and the rules that make them so live (and are
   tested) in `palette.js` — most importantly `LabTheme.inkOn(fill)`, which
   every chip and badge must use instead of naming an ink, and
   `LabTheme.step(c, amount)`, which moves a colour away from the ground in
-  whichever direction the palette has room. `node palette.test.js` checks
-  the relationships, not the colours.
+  whichever direction the palette has room. The measurement half is
+  `tokens.js`: seven type roles (`fontMicro` … `fontTitle`), six spacing
+  steps (`spaceXs` … `spaceXxl`) and `LabTheme.px(n)` for one-off geometry.
+  `node palette.test.js` and `node tokens.test.js` check the relationships,
+  not the values.
+- **LabPrefs** — the three settings that belong to the person rather than to
+  the run: `ui.theme`, `ui.scale`, `ui.lang`. Backed by `Clayground.Storage`
+  when it is present and by memory when it is not, so a lab that never links
+  the storage plugin still runs — it just forgets on exit.
 - **LabLang / LangSwitch** — runtime language switch for a published lab.
   Whoever owns a vocabulary registers it (`LabLang.register(dict)` with
   `{lang: {key: text}}`), strings are ordinary bindings on `LabLang.t(key)`
   / `tf(key, ...)`, and `LabLang.num(v, digits)` prints numbers in the
   language's notation (German gets a decimal comma; `Plot2D`, `BudgetBar`
-  and `ParamPanel` already use it). Not `qsTr`: retranslating a live engine
-  is a C++ call on the `QQmlEngine`, which a lab hosted by the dojo or
-  exported to WASM does not own. Drop `LangSwitch` in a corner and it
-  offers exactly the registered languages.
+  and `ParamPanel` already use it). `LabLang.qty(v, unit, digits)` adds the
+  quantity layer on top — SI prefixes with the mA↔A, ms↔s and k/M crossovers
+  every lab used to hand-roll (`format.js`, `node format.test.js`). Not
+  `qsTr`: retranslating a live engine is a C++ call on the `QQmlEngine`,
+  which a lab hosted by the dojo or exported to WASM does not own. Drop
+  `LangSwitch` in a corner and it offers exactly the registered languages.
 - **Scenario / ScenarioSet** — named, scripted situations wiring the
   `scenarios()`/`applyScenario()` inspector convention; applying resets
   the clock so runs are reproducible.
@@ -63,9 +77,14 @@ Everything below was hand-rolled in two labs before it moved here.
   it exists (`scenario.note.<name>`).
 - **WatchMonitor** — watch a thing, get a probe, a colour and a curve;
   owns probe lifecycle, stable names and the one-quantity-per-axis rule.
+  **WatchChip** is the per-object toggle that feeds it (watch / watched /
+  plot full, the limit read off the monitor), **WatchMark** the dot the
+  object then wears in the world, in its curve's colour.
 - **WorldLabel** — 2D paper chip pinned to a 3D point.
 - **SelectionFrame3D** — the shared hover/select language on the work
   surface (thin outline hovering, full frame plus facing mark selected).
+  Used by the circuit kit; note that its lift is measured from the object,
+  so a part sunk into its board needs a matching `height`.
 - **Compass** — which way the work surface faces while you circle it.
 - **GridMode** — snap/free placement with grafli's contract (`#` cycles,
   `Alt` inverts for one gesture). It holds the mode and draws nothing;
@@ -80,6 +99,24 @@ Everything below was hand-rolled in two labs before it moved here.
   publishes the height/`depthBias` budget flat overlays have to stay
   inside. Three labs built a table, a sheet, a rim, a light rig and 585 peg
   `Model`s between them before this existed.
+
+### Instruments — the shelf
+
+Promoted from the labs, which had proved each of them (some three times over):
+
+- **Gauge** — a needle dial that selects its own range from the ones the
+  instrument has, and prints the one it settled on. Laid out in fractions of
+  its own size, so the same component serves a HUD dial and a `Texture`
+  baked onto a 3D part.
+- **ReadoutPanel / ReadoutRow** — swatch · name · live value rows, built from
+  data, with an optional share bar per row.
+- **MiniMap** — the abstract view: fit-to-content projection plus the repaint
+  plumbing, driven by a `draw(ctx, map)` callback the lab supplies.
+- **LabBanner** — the centred status pill, severity in the fill and the ink
+  from `inkOn()`, blinking only for a live fault.
+- **TransportChip** — sim time, pause and speed, driving `SimClock.timeScale`
+  from outside.
+- **RecIndicator** — the recording dot, so a growing CSV is never a secret.
 
 ## The determinism contract
 
@@ -110,5 +147,14 @@ Item {
 }
 ```
 
-See `demo/Sandbox.qml` (kernel-only damped oscillator) and
-`labs/electronics-101/` for a full lab.
+See `demo/Sandbox.qml` — a damped oscillator with a noisy measurement, used
+as an excuse to put every instrument on one page, and the fastest way to see
+whether a change to the palette or the scale has broken anything. Render it at
+two scales in two themes:
+
+```bash
+clayrender plugins/clay_lab/demo/Sandbox.qml --out shot.png --size 1400x900 \
+    --eval 'LabTheme.mode = "dark"' --eval 'LabTheme.uiScale = 1.6' --frames 300
+```
+
+`labs/electronics-101/` is a full lab.

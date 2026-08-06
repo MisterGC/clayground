@@ -118,10 +118,12 @@ Work in this order; each step has a verification before the next.
    reproducibility anchor.
 5. **Conventions block** (skeleton below) — this is what makes the lab
    operable by the inspector, by flows, and by you.
-6. **Theme + i18n from the first commit.** Only `LabTheme` tokens; no
-   bare user-visible literal, ever — `LabLang.t("key")` and
-   `LabLang.num(v, digits)` from the start (retrofitting 80 sites is a
-   whole session).
+6. **Theme + i18n from the first commit.** Only `LabTheme` tokens — for
+   sizes and spacing as much as for colour: `font.pixelSize:
+   LabTheme.fontBody`, `LabTheme.spaceL`, `LabTheme.px(280)`, never a bare
+   number. And no bare user-visible literal, ever — `LabLang.t("key")`,
+   `LabLang.num(v, digits)`, `LabLang.qty(v, unit)` from the start
+   (retrofitting 80 sites is a whole session).
 7. **Flow(s).** At least one, bilingual, with a real learner task —
    `references/flows.md`.
 8. **Verify** with clay-crew: load check, determinism run, behavior
@@ -146,10 +148,16 @@ Kernel (`import Clayground.Lab`):
   a global in favor of per-object made electronics simpler *and* more
   capable.
 - **`Probe` + `Plot2D`** — time series. `Plot2D.series:
-  [{probe, label, color}]` when the plotted set is runtime-chosen;
-  `series: []` draws the placeholder, `null` falls back to all probes.
-  One autoscaled axis ⇒ plot **one quantity at a time** (I/V/P switch
-  pattern), clear samples on switch.
+  [{probe, label, color, style, sigmaProbe}]` when the plotted set is
+  runtime-chosen; `series: []` draws the placeholder, `null` falls back to
+  all probes. One autoscaled axis ⇒ plot **one quantity at a time** (I/V/P
+  switch pattern), clear samples on switch. `style: "scatter"` for a
+  quantity that arrives as discrete events — joining fixes with a line
+  invents values nobody measured; `sigmaProbe` fills the ±σ band behind a
+  curve, so "where it is" and "what that is worth" are one picture.
+  Hovering the chart reads every series back at the nearest sample.
+  `Probe.summary()` carries `mean` and `stddev` (Welford, stable over the
+  full 1200-sample ring).
 - **`BudgetBar`** — composition of a fixed total (where the EMF goes);
   use it when shares-of-a-whole is the lesson, not a trend.
 - **`DataRecorder`** — probes → CSV. Always set an explicit destination
@@ -164,13 +172,21 @@ Kernel (`import Clayground.Lab`):
 - **`WorldLabel`** — 2D paper chip pinned to a 3D point (meter pills,
   value tags, selection cards). Sibling of the View3D, not inside it; it
   already carries the camera-dependency fix from the pitfall list.
-- **`LabTheme`** / **`ThemeSwitch`** — all colors/shape/type tokens in a
-  light and a dark palette, plus `inkOn()` and `step()`; see Design
-  language. Drop `ThemeSwitch` beside `LangSwitch` top-right.
+- **`LabTheme`** / **`ThemeSwitch`** / **`ScaleSwitch`** — all
+  colour/shape/type/spacing tokens in a light and a dark palette, plus
+  `inkOn()` and `step()`; see Design language. Drop the switches beside
+  `LangSwitch` top-right.
 - **`LabLang` / `LangSwitch`** — runtime dictionary i18n (deliberately
   not `qsTr`: a dojo-hosted or WASM lab doesn't own the engine). Kernel
-  chrome strings (`flow.*`, `keys.*`) are a built-in fallback layer — a
-  lab never copies them, and anything it *does* register wins.
+  chrome strings (`flow.*`, `keys.*`, `watch.*`, `rec.*`) are a built-in
+  fallback layer — a lab never copies them, and anything it *does*
+  register wins. `LabLang.qty(v, unit, digits)` is the quantity layer:
+  SI prefixes with the mA↔A and ms↔s crossovers, in the language's
+  notation. Never hand-roll one again.
+- **`LabPrefs`** — theme, language and text size, persisted. Facts about
+  the reader and the room, not about the run, so they survive a reload.
+  Degrades to memory when `Clayground.Storage` is absent; a lab never has
+  to think about it.
 
 **Chrome — reach for these before writing a Rectangle.** They exist
 because two labs hand-rolled each one; a third must not:
@@ -192,11 +208,40 @@ because two labs hand-rolled each one; a third must not:
 - **`WatchMonitor`** — the watch→probe→curve loop. Supply only `valueOf`,
   `labelOf`, `quantities` (and `canWatch` for things with no reading);
   `watched` is the lab's watch set, and `prune()`/`clear()` keep it honest
-  when objects are deleted.
+  when objects are deleted. **`WatchChip`** is the per-object toggle
+  (watch / watched / plot full — it reads the limit off the monitor, so a
+  lab's own copy of it cannot disagree) and **`WatchMark`** the dot the
+  object then wears in the world, in its curve's colour.
 - **`Compass`**, **`GridMode`**, **`SelectionFrame3D`** — orientation,
-  grafli's snap contract, and the shared hover/select language.
+  grafli's snap contract, and the shared hover/select language. The frame
+  is what the circuit kit draws around a selected part; its lift is
+  measured from the *object*, so a part sunk into its board needs a
+  matching `height` or the bars end up inside the board.
 - **`LabStage3D`** — the ground, the lights and the environment. See below;
   never build a 3D lab's ground by hand again.
+
+**Instruments — the shelf.** Promoted from the labs, which proved each of
+them (some three times over). Reach for one before drawing a dial:
+
+- **`Gauge`** — a needle dial that picks the smallest of its `ranges` the
+  reading still fits and prints the one it settled on. Laid out in
+  fractions of its own size, so it serves a HUD dial and a `Texture` baked
+  onto a 3D part equally. `settleTime: 0` for a continuously moving signal
+  — an animation restarted every frame never arrives, and the needle then
+  visibly disagrees with its own readout.
+- **`ReadoutPanel`** / **`ReadoutRow`** — swatch · name · live value, from
+  data. `revision` re-reads it after an in-place mutation; `dim` fades a
+  stale source and `bar` adds the share bar under a row.
+- **`MiniMap`** — the abstract half of *dual representation*: fit-to-content
+  projection plus the repaint plumbing, driven by a `draw(ctx, map)` the lab
+  supplies. `map.px()` / `map.py()`, so the lab's paint code never does
+  arithmetic on the panel's size.
+- **`LabBanner`** — the centred status pill. Severity in the fill, ink from
+  `inkOn()`, blink only for a live fault, width capped against a `guard`.
+- **`TransportChip`** — sim time, pause and speed, driving
+  `SimClock.timeScale` from outside. Until it existed no lab showed its
+  clock, which is a strange gap in a framework that sells determinism.
+- **`RecIndicator`** — the recording dot, so a growing CSV is never a secret.
 
 ### The stage
 
@@ -385,6 +430,33 @@ Rules that make labs read as one product:
   thick + a nose mark showing facing + a 2D card with the per-object
   controls.
 
+### One scale for the whole page
+
+Type and spacing are tokens too, and all of them are multiplied by
+`LabTheme.uiScale` (0.75–2.0, `ScaleSwitch` or `Ctrl+Plus`/`Minus`/`0`).
+Seven type roles named by job — `fontMicro` (axis ticks) through `fontBody`
+(chips, readouts) to `fontTitle` (narration, back of the room) — six
+spacing steps `spaceXs`…`spaceXxl`, and `LabTheme.px(n)` for the one-off
+geometry a named role would only obscure. The rules that make it a scale
+(monotonic, growing at every rung, never collapsing a step to zero) are in
+`tokens.js` and asserted by `node tokens.test.js`.
+
+The reason it exists: a lab shown on a large external screen had HUD
+controls nobody could read and nothing to turn, because every size in the
+chrome was a bare pixel literal. So: **a bare `pixelSize:` in a lab is a
+bug**, and a panel with a fixed width writes `LabTheme.px(280)`.
+
+Turning it up is a stress test of the layout, and a page that only works at
+100% has not been laid out. Anchor panels to each other rather than to the
+window, and decide what gives way first — captions before instruments, the
+second view of the same data before the first. `plugins/clay_lab/demo/`
+reflows its plot row from *under* the instrument column to *beside* it when
+the column no longer fits; copy that shape.
+
+Theme, language and scale are persisted through `LabPrefs` — they belong to
+the reader, so a lab that came back small after every reload was the
+original bug report.
+
 ### Light and dark — the four rules
 
 Both palettes live in `plugins/clay_lab/palette.js`, and
@@ -418,14 +490,18 @@ shared with both to the byte.
 
 Verify a new lab in both: toggle via the inspector
 (`{"action":"eval","eval":["LabTheme.toggle()"]}`), screenshot each, and
-look for anything that got *brighter* when the room got darker.
+look for anything that got *brighter* when the room got darker. Do the same
+sweep at two scales — four pictures, one command each — and
+`plugins/clay_lab/demo/Sandbox.qml` is the reference the chrome itself is
+checked against.
 
 ### Canonical key map
 
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
 view · `W` watch/plot · `F` frame selection · `0` reset view · `R`
 rotate · `Del` delete · `#` grid mode · `T` flow · `Space`/`→` next,
-`←` back, `Esc` cancel/leave · `Shift+R` record CSV. A lab may add
+`←` back, `Esc` cancel/leave · `Shift+R` record CSV ·
+`Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size. A lab may add
 keys, never reassign these. Key letters stay physical across languages.
 Surface every key you handle: palette buttons carry their shortcut,
 the hint bar teaches the rest, and the header comment lists them all.
