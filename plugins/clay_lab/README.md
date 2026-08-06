@@ -68,7 +68,18 @@ Everything below was hand-rolled in two labs before it moved here.
   surface (thin outline hovering, full frame plus facing mark selected).
 - **Compass** — which way the work surface faces while you circle it.
 - **GridMode** — snap/free placement with grafli's contract (`#` cycles,
-  `Alt` inverts for one gesture).
+  `Alt` inverts for one gesture). It holds the mode and draws nothing;
+  **LabStage3D** is what shows it.
+- **LabStage3D** — the ground every 3D lab stands on, plus the light rig
+  and the `SceneEnvironment` that go with it. One quad, no texture: the
+  raster is computed in the fragment shader from world coordinates, so it
+  is millimeter paper on the light palette and blueprint on the dark one,
+  one line weight at any zoom, and it dissolves into the sky rather than
+  ending at a board edge. It shows `GridMode`'s mode as crosses or dots at
+  the intersections, answers `worldAt(view, mx, my)` for mouse editing, and
+  publishes the height/`depthBias` budget flat overlays have to stay
+  inside. Three labs built a table, a sheet, a rim, a light rig and 585 peg
+  `Model`s between them before this existed.
 
 ## The determinism contract
 

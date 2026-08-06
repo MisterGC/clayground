@@ -195,6 +195,57 @@ because two labs hand-rolled each one; a third must not:
   when objects are deleted.
 - **`Compass`**, **`GridMode`**, **`SelectionFrame3D`** — orientation,
   grafli's snap contract, and the shared hover/select language.
+- **`LabStage3D`** — the ground, the lights and the environment. See below;
+  never build a 3D lab's ground by hand again.
+
+### The stage
+
+Every 3D lab stands on `LabStage3D`, and wiring it is the whole of a lab's
+stage setup:
+
+```qml
+View3D {
+    id: view3d
+    LabStage3D {
+        id: stage
+        cellSize: root.cell
+        gridMode: grid                                   // crosses vs dots
+        workExtent: Qt.vector2d(root.boardW, root.boardH)
+        shadowMapFar: 250                                // measured, per lab
+    }
+    environment: stage.environment
+    OrbitCamera3D { id: rig }
+    camera: rig.camera
+}
+```
+
+What it owns, so a lab does not: the `SceneEnvironment`, the three-light rig
+with its measured shadow knobs, and one endless ground plane whose raster —
+millimeter paper light, blueprint dark — is computed in the fragment shader
+from world XZ, one line weight at any zoom, dissolving into the sky long
+before the quad ends. No image, no board edge, and no peg `Model`s.
+
+Three things to know:
+
+- **`GridMode` draws nothing** — it holds the mode; the stage draws it, as
+  crosses at the intersections while snapping and dots when free. Hand it
+  over with `gridMode:`, and set `cueSize: 0` in a lab that places nothing
+  (a snap cue on a surface nobody snaps to is a lie).
+- **`worldAt(view3d, mx, my)`** is the pick: the plane is the only pickable
+  thing the stage adds, so a mouse handler asks it rather than intersecting
+  by hand. A raster that is not centred on the origin (an even column count
+  puts the pegs on the half-cells) says so with `rasterOrigin`.
+- **The overlay budget** is published, and nothing may z-fight the plane:
+  flat markings sit between `stage.overlayMinY` (0.012) and
+  `stage.overlayMaxY` (0.12) — `stage.overlayY(layer)` stacks them — with
+  `depthBias` in `overlayMinBias..overlayMaxBias`. `depthBias` only settles
+  sort order, so the lift is what actually does the work.
+
+One trap the migration turned up, and it is not the stage's: a `WorldLabel`
+takes its camera from the **view** (`camera: view3d.camera`), never from the
+rig. Naming the rig's camera gets the label past its own null-guard while
+the view still has none, and the first projection goes through a
+*Cannot resolve view position* warning.
 
 Framework blocks labs lean on: `ClayWorld3d` + `OrbitCamera3D`
 (`Clayground.Canvas3D` — yaw/pitch/distance on a leash, `F` frames,

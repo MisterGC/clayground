@@ -47,10 +47,6 @@ import QtQuick3D
     }
     \endqml
 
-    Declare the stage \e before the \c environment binding: bindings evaluate
-    in source order, and an environment named ahead of the object that owns it
-    resolves to nothing.
-
     \sa GridMode, LabTheme, SelectionFrame3D
 */
 Node {
