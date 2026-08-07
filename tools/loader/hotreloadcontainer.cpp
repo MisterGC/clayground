@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "hotreloadcontainer.h"
+#include "claystorage.h"
 #include <QVBoxLayout>
 #include <QQmlContext>
 #include <QQmlError>
@@ -49,7 +50,7 @@ HotReloadContainer::HotReloadContainer(QWidget *parent)
     m_engine = std::make_unique<QQmlEngine>(this);
     m_engine->setProperty("QML_DISABLE_DISK_CACHE", true);
     m_engine->addImportPath("qml");
-    m_engine->setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    ClayScene::applyStorageDir(m_engine.get());
     emit engineCreated();
 }
 
@@ -209,7 +210,7 @@ void HotReloadContainer::createCandidate()
     m_nextEngine = std::make_unique<QQmlEngine>(this);
     m_nextEngine->setProperty("QML_DISABLE_DISK_CACHE", true);
     m_nextEngine->addImportPath("qml");
-    m_nextEngine->setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    ClayScene::applyStorageDir(m_nextEngine.get());
 
     // Deliberately outside the layout and hidden: a candidate must neither be
     // visible nor squeeze the live scene into half the container. It is sized

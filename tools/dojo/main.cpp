@@ -2,6 +2,7 @@
 
 #include "utilityfunctions.h"
 #include "claydojo.h"
+#include "claystorage.h"
 #include <QTimer>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -70,7 +71,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.addImportPath("qml");
-    engine.setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    ClayScene::applyStorageDir(&engine);
 
     ClayDojo dojo;
     if (!processCmdLineArgs(app, dojo))

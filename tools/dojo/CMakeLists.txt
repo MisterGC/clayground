@@ -21,8 +21,9 @@ target_compile_definitions(${PROJECT_NAME}
     PUBLIC CLAY_DOJO_VERSION="${CLAYGROUND_PROJECT_VERSION}")
 
 target_link_libraries(${PROJECT_NAME}
-PRIVATE 
+PRIVATE
   claytoolscommon
+  clayscene
   Qt::Core
   Qt::Quick
   Qt::QuickWidgets
