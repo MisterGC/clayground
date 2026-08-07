@@ -8,17 +8,20 @@
 #include <clayinspect.h>
 #include <clayscenecapture.h>
 #include <claysettle.h>
+#include <claystorage.h>
 
 #include <QJsonDocument>
 #include <QJsonObject>
 
 #include <QCommandLineParser>
+#include <QDir>
 #include <QGuiApplication>
 #include <QQuickWindow>
 #include <QFile>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QQuickItem>
+#include <QTemporaryDir>
 #include <QTextStream>
 
 namespace {
@@ -166,11 +169,31 @@ int main(int argc, char* argv[])
         "Rendering goes through the real GPU into a window that is never\n"
         "shown, so it does not steal focus - but it does need a graphics\n"
         "session. It will NOT work under QT_QPA_PLATFORM=offscreen or over a\n"
-        "bare ssh connection (View3D content comes out blank there).");
+        "bare ssh connection (View3D content comes out blank there).\n"
+        "\n"
+        "Renders do not touch your settings: everything the sandbox persists\n"
+        "(LabPrefs' theme, language and UI scale) goes to a throwaway store\n"
+        "that is deleted on exit, so a render always starts from the defaults\n"
+        "and cannot leave the next dojo session dark at 160%. See --prefs.");
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument("sandbox", "Sandbox.qml to render.");
+    parser.addPositionalArgument("sandbox",
+        "Sandbox.qml to render (or --sbx, as the dojo spells it).");
 
+    QCommandLineOption sbxOpt("sbx",
+        "The sandbox to render - the same thing as the positional argument, "
+        "spelled the way claydojo spells it, so one script can drive both. "
+        "Giving both is an error.", "file");
+    QCommandLineOption prefsOpt("prefs",
+        QStringLiteral(
+            "Where the sandbox may persist things: 'isolated' (default) uses "
+            "a throwaway store deleted on exit, 'user' uses your real one "
+            "(the store the dojo reads, so a theme or scale flipped here "
+            "stays flipped), or a directory to keep one across a render "
+            "series without touching yours. Carried to the engine as $%1, "
+            "which any other headless host can set the same way.")
+            .arg(QLatin1String(ClayScene::StorageDirEnvVar)),
+        "isolated|user|dir", "isolated");
     QCommandLineOption outOpt({"o", "out"}, "Write the PNG here.", "file", "shot.png");
     QCommandLineOption sizeOpt("size", "Viewport size, e.g. 1600x1000.", "WxH", "1280x800");
     QCommandLineOption setOpt("set",
@@ -216,16 +239,44 @@ int main(int argc, char* argv[])
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
-    parser.addOptions({outOpt, sizeOpt, setOpt, evalOpt, scriptOpt, waitForOpt,
-                       waitMsOpt, framesOpt, settleOpt, settleMsOpt, dumpOpt,
-                       projectOpt, pickOpt, anchorOpt, cropOpt, scaleOpt,
-                       widthOpt});
+    parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
+                       scriptOpt, waitForOpt, waitMsOpt, framesOpt, settleOpt,
+                       settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
+                       cropOpt, scaleOpt, widthOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
-    if (positional.size() != 1) {
+    // Two ways to name the sandbox, one sandbox. Silently preferring one of
+    // them would render something other than what the command says.
+    if (parser.isSet(sbxOpt) && !positional.isEmpty())
+        return fail(QString("sandbox given twice: '%1' and --sbx '%2' - use one")
+                    .arg(positional.first(), parser.value(sbxOpt)));
+    if (positional.size() > 1)
+        return fail(QString("one sandbox at a time, got %1").arg(positional.size()));
+    const QString sandbox = parser.isSet(sbxOpt) ? parser.value(sbxOpt)
+                                                 : positional.value(0);
+    if (sandbox.isEmpty()) {
         parser.showHelp(1);
         return 1;
+    }
+
+    // Prefs before the engine exists: RenderHost reads the environment when it
+    // sets the engine's offline storage path, and a store is chosen once.
+    QTemporaryDir isolatedPrefs(QDir::tempPath() + "/clayrender-prefs-XXXXXX");
+    const QString prefs = parser.value(prefsOpt);
+    if (prefs == QLatin1String("user")) {
+        // Whatever the caller's environment says - including their own
+        // CLAY_STORAGE_DIR, which is the point of the variable.
+    } else if (prefs == QLatin1String("isolated")) {
+        if (!isolatedPrefs.isValid())
+            return fail(QString("cannot create a throwaway prefs store: %1")
+                        .arg(isolatedPrefs.errorString()));
+        qputenv(ClayScene::StorageDirEnvVar, isolatedPrefs.path().toUtf8());
+    } else {
+        QDir dir(prefs);
+        if (!dir.exists() && !dir.mkpath("."))
+            return fail(QString("cannot create the prefs store %1").arg(prefs));
+        qputenv(ClayScene::StorageDirEnvVar, dir.absolutePath().toUtf8());
     }
 
     bool ok = false;
@@ -234,7 +285,7 @@ int main(int argc, char* argv[])
         return fail(QString("cannot parse --size '%1'").arg(parser.value(sizeOpt)));
 
     RenderHost host;
-    if (!host.load(positional.first(), size)) {
+    if (!host.load(sandbox, size)) {
         for (const auto& e : host.errors())
             QTextStream(stderr) << "clayrender: " << e << "\n";
         return 1;

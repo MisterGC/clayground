@@ -3,9 +3,9 @@
 #include "renderhost.h"
 
 #include <clayscenequery.h>
+#include <claystorage.h>
 
 #include <QCoreApplication>
-#include <QDir>
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QQmlComponent>
@@ -78,7 +78,10 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     // clayrender is meant to be run from anywhere.
     m_engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_engine->addImportPath(fi.absolutePath());
-    m_engine->setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    // Where anything the sandbox persists goes. Isolated by default (main
+    // points CLAY_STORAGE_DIR at a throwaway directory), the person's real
+    // store only when they asked for it with --prefs user.
+    ClayScene::applyStorageDir(m_engine.get());
 
     m_loaderContext = std::make_unique<RenderLoaderContext>(
         fi.absolutePath(), fi.absoluteFilePath());

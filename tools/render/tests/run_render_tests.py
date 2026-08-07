@@ -390,6 +390,74 @@ Item {
           len(kid) == 1 and kid[0]["via"] == "properties",
           json.dumps(kid)[:160])
 
+    # The sandbox can be named the way the dojo names it, and only once (#200).
+    out_sbx = os.path.join(tmp, "sbx.png")
+    code, _, err = run(args.clayrender,
+                       ["--sbx", os.path.join(tmp, "Flat.qml"), "--out", out_sbx,
+                        "--size", "120x80"])
+    check("--sbx renders the same as the positional argument",
+          code == 0 and centre_of(out_sbx) == (0, 0xD9, 0xFF),
+          f"exit {code} {err.strip()[:80]}")
+
+    code, _, err = run(args.clayrender,
+                       [os.path.join(tmp, "Flat.qml"),
+                        "--sbx", os.path.join(tmp, "Flat.qml"),
+                        "--out", os.path.join(tmp, "twice.png")])
+    check("naming the sandbox twice is an error, not a guess",
+          code == 1 and "twice" in err, f"exit {code} {err.strip()[:80]}")
+
+    # Prefs isolation (#200): what a render persists must not outlive it, or a
+    # scripted theme flip leaves the next dojo session dark.
+    write(os.path.join(tmp, "Prefs.qml"), """
+import QtQuick
+import QtQuick.LocalStorage
+Item {
+    id: root
+    property string seen: "<none>"
+    property var handle: null
+    function db() {
+        if (!handle) {
+            handle = LocalStorage.openDatabaseSync("clayrender-prefs-check", "0.1", "check", 10000)
+            handle.transaction(function(tx) {
+                tx.executeSql('CREATE TABLE IF NOT EXISTS kv(key TEXT UNIQUE, value TEXT)') })
+        }
+        return handle
+    }
+    function remember(v) {
+        db().transaction(function(tx) {
+            tx.executeSql('INSERT OR REPLACE INTO kv VALUES (?,?)', ['theme', String(v)]) })
+    }
+    function clayInspect() { return { seen: root.seen } }
+    Component.onCompleted: db().transaction(function(tx) {
+        var rs = tx.executeSql('SELECT value FROM kv WHERE key=?', ['theme'])
+        if (rs.rows.length === 1) root.seen = rs.rows.item(0).value
+    })
+}
+""")
+    probe = os.path.join(tmp, "Prefs.qml")
+    shot = os.path.join(tmp, "prefs.png")
+
+    def seen_by(extra):
+        report = os.path.join(tmp, "prefs.json")
+        if os.path.exists(report):
+            os.remove(report)
+        run(args.clayrender, [probe, "--out", shot, "--size", "60x40",
+                              "--dump", f"Item={report}"] + extra)
+        found = json.load(open(report))
+        return found[0]["data"]["seen"] if found else None
+
+    seen_by(["--eval", 'remember("dark")'])
+    check("an isolated render forgets what it stored", seen_by([]) == "<none>",
+          str(seen_by([])))
+
+    store = os.path.join(tmp, "kept-prefs")
+    seen_by(["--prefs", store, "--eval", 'remember("dark")'])
+    check("--prefs <dir> keeps a store across runs",
+          seen_by(["--prefs", store]) == "dark",
+          str(seen_by(["--prefs", store])))
+    check("the opt-in store is the only one that got written",
+          os.path.isdir(os.path.join(store, "Databases")), store)
+
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(
         [args.clayrender, os.path.join(tmp, "Flat.qml"),

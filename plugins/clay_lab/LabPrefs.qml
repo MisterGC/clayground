@@ -30,6 +30,18 @@ import QtQuick
     A lab may store its own under any other key; prefix them with the lab's
     slug so two labs sharing the store cannot collide.
 
+    \section2 Where the store lives
+
+    Nowhere in QML: the store is a QML LocalStorage database, so it lands in
+    whatever directory the host gave its engine. The dojo points that at
+    \c ~/.clayground - the person's real settings - and a headless host that
+    should not write there points it somewhere throwaway by setting
+    \c CLAY_STORAGE_DIR before it builds its engine. \c clayrender does that
+    by default (\c {--prefs isolated}), which is why a scripted
+    \c {--eval 'LabTheme.mode="dark"'} cannot leave the next dojo session
+    dark, and why a render always starts from the defaults unless it was run
+    with \c {--prefs user}.
+
     \sa LabTheme, LabLang, ScaleSwitch
 */
 QtObject {
