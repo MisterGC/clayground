@@ -65,6 +65,30 @@ costs one convention — **every directory the lab imports needs a `qmldir`**,
 including the lab's own, because a directory cannot be listed over HTTP. See
 *Publishing to the web* in the pitfalls.
 
+## Bootstrap a fresh session
+
+Every fresh worktree rediscovers these the hard way. In order, before any
+lab work:
+
+1. **The base may be stale** — a worktree is often cut from an older
+   branch than the one you were told to build on. `git log --oneline -1`,
+   compare against that branch, and if it differs `git rebase <branch>`
+   and check again. Everything below fails confusingly on a stale base.
+2. `git submodule update --init --recursive` — Box2D, jsonata and the
+   csv-parser live there; configure fails without them.
+3. Configure with `cmake --preset default`. Explicit-flags fallback:
+   `cmake -B build -DCMAKE_PREFIX_PATH=<Qt>/macos
+   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+   -DOPENSSL_ROOT_DIR=$(brew --prefix openssl) -DBUILD_TESTING=ON`.
+4. **Build targets are QML module names, not directory names**: `ClayLab`
+   (never `clay_lab`), `ClayCanvas3D`. Each module also has a *plugin*
+   half (`ClayLabplugin`) that is what a running sandbox actually loads —
+   building only `ClayLab` gives you `plugin "ClayLabplugin" not found`.
+   Build everything once (`cmake --build build -j 8`); target-build after.
+5. Verify with `clayrender` — the cheat-sheet at the end of this file.
+   It needs a real GUI session (never `QT_QPA_PLATFORM=offscreen`), and
+   never start or kill a dojo the person may be sitting in front of.
+
 ## Layout, running, boundaries
 
 ```
@@ -517,7 +541,8 @@ the column no longer fits; copy that shape.
 
 Theme, language and scale are persisted through `LabPrefs` — they belong to
 the reader, so a lab that came back small after every reload was the
-original bug report.
+original bug report. That store is the dojo's; a `clayrender` run gets a
+throwaway one unless it asks for `--prefs user`.
 
 ### Light and dark — the four rules
 
@@ -639,6 +664,16 @@ clayrender labs/electronics-101/Sandbox.qml --out shot.png --size 1400x900 \
     --settle --scale 0.6
 ```
 
+The sandbox is positional or `--sbx <file>`, whichever the surrounding
+script already speaks — the dojo's spelling works here too, and giving both
+is an error rather than a guess. It renders through the GPU into a window
+that is never shown, so it needs a real graphics session: under
+`QT_QPA_PLATFORM=offscreen` or bare ssh, View3D content comes out blank.
+Exit codes are the report: **0** rendered clean, **1** never loaded (or a
+`--set`/`--eval` failed), **2** rendered but the scene logged warnings or
+errors — treat it as a failed render, not a picture with a footnote — and
+**3** a `--wait-for` that never came true, with no image written.
+
 `--set` **assigns**, it does not call — use `--eval` for anything that runs
 code, and `--script file.js` for a setup too long for one line. They apply in
 command-line order, so this is one command, not a dojo session:
@@ -652,6 +687,17 @@ clayrender labs/electronics-101/Sandbox.qml --out shot.png \
 `--wait-for` holds the capture until the expression is truthy; if it never is,
 clayrender exits 3 and writes **no** image, so a picture of a state you never
 reached cannot end up in your evidence.
+
+**Renders cannot dirty the person's settings.** Whatever a render persists
+through `LabPrefs` — theme, language, UI scale — goes to a throwaway store
+that dies with the process, so `--eval 'LabTheme.mode="dark"'` stays inside
+that one render and the next one is light at 100% again. No reset ritual at
+the end of a render series. Two escapes when you need them: `--prefs user`
+writes the real store the dojo reads (so a flip there *does* stick — end
+that series at `LabTheme.mode="light"` and `LabTheme.resetScale()`), and
+`--prefs <dir>` keeps one throwaway store across a series. The carrier is
+`CLAY_STORAGE_DIR`, honoured by any host that sets it before building its
+engine.
 
 Use the dojo for interaction, hot-reload iteration and anything stateful
 (driving a flow, real input, a determinism run across steps). Query the
