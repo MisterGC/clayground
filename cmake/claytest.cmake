@@ -129,3 +129,50 @@ function(clay_add_qml_test NAME)
         set_tests_properties(qml_${NAME} PROPERTIES DISABLED TRUE)
     endif()
 endfunction()
+
+# Registers a pure-JS suite (kits and the lab kernel) with CTest, run by node.
+# Usage:
+#   clay_add_node_test(<Name> SCRIPT <path-to-*.test.js>)
+#
+# The suites these register are Qt-free by design: a kit's model code is
+# `.pragma library` with no engine, no clock and no randomness of its own,
+# precisely so it can be checked in a second by node. They were runnable by
+# hand long before this - what was missing was anything turning a failure red,
+# which is all this function adds (#199).
+#
+# node is optional: a contributor building only the Qt side, or a CI image
+# without it, gets the tests skipped rather than a configure error. Every suite
+# ends in `process.exit(K.report(...))`, so a failed assertion is a non-zero
+# exit and therefore a failed test - CTest needs nothing further.
+function(clay_add_node_test NAME)
+    set(oneValueArgs SCRIPT)
+    cmake_parse_arguments(T "" "${oneValueArgs}" "" ${ARGN})
+
+    if(NOT T_SCRIPT)
+        message(FATAL_ERROR "clay_add_node_test: SCRIPT is required")
+    endif()
+    if(NOT EXISTS "${T_SCRIPT}")
+        message(FATAL_ERROR "clay_add_node_test: no such script: ${T_SCRIPT}")
+    endif()
+
+    # A WASM build cross-compiles for the browser and runs nothing locally;
+    # these host-side suites belong to the desktop build only.
+    if(EMSCRIPTEN)
+        return()
+    endif()
+
+    # Cached by find_program, so the search happens once per build tree.
+    find_program(NODE_EXECUTABLE NAMES node nodejs)
+    if(NOT NODE_EXECUTABLE)
+        if(NOT CLAY_NODE_MISSING_WARNED)
+            message(STATUS
+                "node not found - the pure-JS lab/kit suites will be skipped. "
+                "Install node to run them.")
+            set(CLAY_NODE_MISSING_WARNED TRUE CACHE INTERNAL "")
+        endif()
+        return()
+    endif()
+
+    add_test(NAME node_${NAME} COMMAND ${NODE_EXECUTABLE} ${T_SCRIPT})
+    set_tests_properties(node_${NAME} PROPERTIES LABELS "node")
+endfunction()

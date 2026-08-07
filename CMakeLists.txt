@@ -103,6 +103,9 @@ if(CLAYGROUND_WITH_EXAMPLES)
     add_subdirectory (examples)
 endif()
 
+# Builds nothing - it only registers the kits' node suites with CTest (#199).
+add_subdirectory (labs)
+
 
 # ================
 # WEBSITE BUILD

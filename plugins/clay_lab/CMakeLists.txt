@@ -72,3 +72,12 @@ clay_plugin( Lab
 include(claytest)
 clay_add_qml_test(lab_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+# The kernel's three pure-JS modules carry rules rather than components -
+# palette relationships that must survive a light/dark switch, the type and
+# spacing scale, the number formatting the readouts quote - so they are checked
+# by node, with no engine. Registering them here is what makes a broken rule
+# fail a build instead of only printing in red (#199).
+clay_add_node_test(lab_palette SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/palette.test.js)
+clay_add_node_test(lab_tokens  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tokens.test.js)
+clay_add_node_test(lab_format  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/format.test.js)
