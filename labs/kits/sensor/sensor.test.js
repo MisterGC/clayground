@@ -232,6 +232,17 @@ section('trilateration - the heading unknown (lidar)')
            s && errOf(s, TRUTH) < 1e-6)
         near('...and the heading comes back (heading ' + h + ')', s.heading, h, 1e-9)
     }
+
+    // The returned heading is wrapped: converging from a guess a full half
+    // turn out must report ~0, not 2*pi - a consumer comparing against a
+    // wrapped truth would otherwise see a phantom full-circle error.
+    var FRONT = [{ x: 4, y: 0, z: 60 }, { x: -30, y: 0, z: 30 }, { x: 30, y: 0, z: 25 }]
+    var wrapped = T.solve(FRONT, rangeBearingTo(FRONT, TRUTH, 0),
+                          { guess: { x: 0, z: 0 }, heading: Math.PI,
+                            headingUnknown: true,
+                            sigmaRange: 0.1, sigmaBearing: 0.01 })
+    ok('a solve started half a turn off reports the wrapped heading',
+       wrapped !== null && Math.abs(wrapped.heading) < 1e-6)
 }
 {
     // Row counting with bearings: each bearing is a second constraint, so two
@@ -324,17 +335,14 @@ section('trilateration - degenerate input')
                { guess: { x: WIDE[0].x, z: WIDE[0].z }, sigmaRange: 1 }),
        null)
 
-    // KNOWN GAP, asserted so it cannot change silently: a NaN measurement is
-    // not rejected. It poisons the normal equations and the solver returns a
-    // NaN fix instead of null, so a caller that only checks `if (!sol)` will
-    // publish NaN. See the note in the suite's report.
+    // A poisoned measurement rides through the normal equations without ever
+    // failing the inversion, so the solver guards its own return: a fix a
+    // caller cannot trust is null, never a number-shaped lie - which is what
+    // lets the sensors' plain `if (!sol)` check skip the epoch.
     var poisoned = rangesTo(WIDE, TRUTH)
     poisoned[1].range = NaN
-    var bad = T.solve(WIDE, poisoned, { sigmaRange: 1 })
-    ok('a NaN range is NOT rejected - it yields a NaN fix, not null',
-       bad !== null && isNaN(bad.x) && isNaN(bad.z))
-    ok('...and sigma is NaN too, so the caller has no healthy-looking number',
-       isNaN(bad.sigma))
+    eq('a NaN range yields null, not a NaN fix',
+       T.solve(WIDE, poisoned, { sigmaRange: 1 }), null)
 }
 {
     // The nuisance unknown is optional in both directions and never invents
