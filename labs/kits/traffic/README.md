@@ -6,7 +6,7 @@ junctions, lanes, turn connectors and conflicts all appear because they were
 *derived*, not authored.
 
 Used by `labs/street-network-101/`. Checked by
-`node labs/kits/traffic/traffic.test.js` (110 assertions).
+`node labs/kits/traffic/traffic.test.js` (135 assertions).
 
 ## Model card
 
@@ -65,6 +65,26 @@ Cars spawn **anywhere there is room on any lane**, which is what makes the
 *network* the subject rather than an entry point. `demand` is therefore a
 request, not a command: a spawn still needs a clear gap.
 
+**(4) Houses — fixed origins and sinks, opt-in.** Pass `par.houses` (node
+ids) and journeys stop being anonymous: a car is placed only on a lane
+*leaving* a house, and a car reaching the far end of a lane *arriving* at one
+is absorbed there and counted (`arrived`, `arrivedAt`, and a smoothed
+`arrivalRate` in cars per minute, over the same 12 s window as the per-road
+rate). Pair it with `par.target`, an explicit fleet size that overrides the
+lane-length rule.
+
+That pairing is the point. Without it `demand` scales with lane length, so a
+larger network silently gets more cars and a comparison of two *shapes*
+measures how much road was drawn. Pin the houses and pin the fleet, and two
+plans over the same four points differ only in their topology — which is what
+makes `labs/street-network-101/studies/` possible at all.
+
+What houses are **not**: destinations. There is still no routing (see below).
+A car leaving house A does not aim for house B; it walks the network at
+random and is absorbed by whichever house it reaches first. "Arrivals" is
+therefore a measure of how well the network *delivers traffic between fixed
+points*, not of anybody completing an intended trip.
+
 ### Deliberate simplifications
 
 - **Roads are straight segments**; curves are several of them. No
@@ -74,10 +94,12 @@ request, not a command: a spawn still needs a clear gap.
   first-come-first-served by booking. Turn bans are the only junction
   control on offer.
 - **No routing.** At a junction a car picks **uniformly** among its legal
-  exits. There is no origin, no destination and no shortest path — the
-  subject is what the *network* does, not what a commuter wants. Trip length
-  is therefore a random walk, and dead-end absorption governs how long a car
-  lives.
+  exits. There is no shortest path and no destination *choice* — the subject
+  is what the *network* does, not what a commuter wants. Trip length is
+  therefore a random walk, and absorption (at a dead end, or at a house)
+  governs how long a car lives. Houses fix *where* journeys begin and end;
+  they do not give a car anywhere it is trying to get to, so an "A→B trip
+  time" is not a quantity this kit has.
 - **No lane changing.** A car keeps its lane until a turn moves it, so on a
   two-lane road a slow leader blocks its lane permanently and overtaking can
   never relieve congestion.
@@ -127,6 +149,8 @@ request, not a command: a spawn still needs a clear gap.
 | `accel` / `brake` | 7.0 / 18.0 | source-level |
 | `headway` / `minGap` | 0.85 s / 2.4 | source-level |
 | `maxCars` | 140 | source-level ceiling |
+| `houses` | `null` (open model) | node ids; journeys start and end there |
+| `target` | `null` (lane-length rule) | explicit fleet size, clamped by `maxCars` |
 
 Plus the network itself, which is the real knob: insert and remove roads and
 nodes, split a road, set 1 or 2 lanes per direction, and ban any individual
@@ -135,7 +159,10 @@ turn.
 ### What you can measure
 
 `summary()` gives `cars`, `target`, `spawned`, `goneAtDeadEnds`,
-`meanSpeed`, `stoppedShare` and `simTime`; `roadRate(roadId)` gives a
+`meanSpeed`, `stoppedShare` and `simTime`; with houses declared it also gives
+`arrived` (journeys that reached a house — kept apart from `goneAtDeadEnds`,
+which is journeys that ran out of road), `arrivedAt` (per house node) and
+`arrivalRate`. `roadRate(roadId)` gives a
 smoothed per-road flow in cars per minute. The lane model publishes
 `stats`: nodes, roads, lanes, connectors, banned turns, junctions, dead
 ends, total lane length and **conflict pairs**. Derived quantities the
@@ -147,6 +174,11 @@ lane is terminal.
 
 - What does a network's *shape* cost, holding demand fixed? (Grid versus
   ring versus cul-de-sac at the same `demand` and seed.)
+- Which of several networks over the **same fixed points** moves traffic
+  between them most, or most steadily? (Houses + `target`, several seeds —
+  `labs/street-network-101/studies/topology-four-houses/` is the worked
+  example.) The answer is about delivery between fixed points, not about
+  anyone's commute.
 - Where is the capacity ceiling of a given layout, and what is binding at
   it — junction conflicts, dead ends, or lane length?
 - What does one banned turn do to the whole network, and is the effect local?
@@ -160,8 +192,14 @@ lane is terminal.
 
 - *"Should this junction be signalised?"* — there are no signals to compare
   against.
-- *"Will this change reduce commute times?"* — no origins, no destinations,
-  no routing; a trip here is a random walk.
+- *"Will this change reduce commute times?"* — houses give journeys fixed
+  ends, but no driver chooses one, so a trip here is still a random walk.
+- *"How much traffic goes from house A to house B?"* — arrivals are counted
+  per house, never per origin/destination pair; a car's origin is not carried
+  with it, and no car is trying to reach a particular house anyway.
+- *"Is the traffic between the houses fairly shared?"* — `arrivedAt` gives
+  per-house totals, but they are not a recorded series, so a study can quote
+  a final split and not its behaviour over time.
 - *"What is the road's capacity in veh/h?"* — the follow model is
   uncalibrated and the spawn rule, not driver behaviour, sets the plateau.
 - Anything about overtaking, weaving, or multi-lane strategy.
@@ -176,7 +214,8 @@ lane is terminal.
   render helpers `surfaceRuns`, `laneRuns`, `markingRuns` (all emitting
   plain coordinate runs, never Qt types, so the kit runs under node).
 - `traffic.js` — `defaultParams`, `createState`, `step`, `rehome`,
-  `targetCount`, `meanSpeed`, `stoppedShare`, `roadRate`, `summary`.
+  `targetCount`, `originLanes`, `meanSpeed`, `stoppedShare`, `roadRate`,
+  `arrivalRate`, `summary`.
 - QML: `Cars3D` (one instanced fleet, slots held for a car's lifetime so it
   does not flicker through the palette), `Streets3D`.
 - `strings.js` — the kit's EN/DE vocabulary.

@@ -115,7 +115,10 @@ var dict = {
         "hint.tooShort": "too short to be a road",
 
         "sim.stopped": "stopped",
-        "sim.running": "running"
+        "sim.running": "running",
+
+        // houses - fixed origins and sinks, placed by a scenario or a study
+        "house.unbound": "(no road here)"
     },
     "de": {
         "lab.title": "STRASSENNETZ 101",
@@ -214,6 +217,8 @@ var dict = {
         "hint.tooShort": "zu kurz für eine Straße",
 
         "sim.stopped": "angehalten",
-        "sim.running": "läuft"
+        "sim.running": "läuft",
+
+        "house.unbound": "(keine Straße hier)"
     }
 }

@@ -110,6 +110,14 @@ Item {
         name: "waiting"; unit: "%"
         expr: () => Traffic.stoppedShare(root.simState) * 100
     }
+    // The throughput of a plan whose journeys have somewhere to end: cars
+    // reaching a house, per minute, smoothed over the kit's 12 s window. Flat
+    // zero without houses, which is the honest reading - nothing arrives
+    // anywhere when there is nowhere to arrive.
+    Probe {
+        name: "arrivals"; unit: "/min"
+        expr: () => Traffic.arrivalRate(root.simState)
+    }
 
     // Shift+R writes a scratch run record into the lab's own records/ dir. No
     // command: a frame-driven session cannot be regenerated, and the citable
@@ -164,6 +172,51 @@ Item {
 
     property bool running: false
 
+    // --- houses ------------------------------------------------------------
+    // Four fixed places traffic comes from and goes to. Without them `demand`
+    // spreads over lane length, so drawing more road quietly buys more cars and
+    // "which network shape is better?" turns into "which one did I draw more
+    // of". Pinning the houses - and with them the fleet size - is what makes
+    // two plans over the same four points comparable, which is the whole reason
+    // the studies under studies/ can be run at all.
+    //
+    // A house is a POINT, declared by a scenario or a study; it binds to
+    // whatever node lands under it. It is not a destination anybody drives
+    // TOWARDS: the sim has no routing, so a car leaving one house wanders until
+    // it happens to reach a house. Every study using them has to say so.
+    property var houses: []                 // [{x, z}] as declared
+    readonly property real houseSnap: 9.0   // how close a node must be to count
+
+    // Which nodes the declared houses actually landed on. Re-derived on every
+    // graph edit, so declaring houses before drawing the roads works - which is
+    // the order a study writes anyway.
+    readonly property var houseNodes: {
+        graphRev
+        const out = []
+        for (const h of houses) {
+            const nd = RoadGraph.nearestNode(graph, h.x, h.z, houseSnap)
+            if (nd && out.indexOf(nd.id) === -1) out.push(nd.id)
+        }
+        return out
+    }
+    // A house with no node under it is drawn differently rather than ignored
+    // silently - "why is nothing moving?" should be answerable by looking.
+    function houseNodeAt(h) {
+        const nd = RoadGraph.nearestNode(graph, h.x, h.z, houseSnap)
+        return nd ? nd.id : -1
+    }
+    // cars per house at demand 1.0; the fleet is then demand x this x houses
+    readonly property int carsPerHouse: 10
+
+    function setHouses(list) {
+        const out = []
+        for (const h of (list || []))
+            out.push(Array.isArray(h) ? { x: h[0], z: h[1] } : { x: h.x, z: h.z })
+        houses = out
+        rebuild()
+    }
+    function houseLabel(i) { return String.fromCharCode(65 + i) }   // A, B, C, D
+
     // --- starting and stopping ---------------------------------------------
     // Stopping is not pausing: the cars dissolve and the plan is handed back
     // empty, because the reason to stop is to model without traffic in the way.
@@ -215,6 +268,14 @@ Item {
         const p = Traffic.defaultParams()
         p.demand = Lab.p("demand")
         p.vmax = Lab.p("speed")
+        const hn = houseNodes
+        if (hn.length) {
+            p.houses = hn
+            // With houses the fleet is pinned to the HOUSES, not to how much
+            // road there is - see the houses block above for why that is the
+            // difference between a comparison and a coincidence.
+            p.target = Math.round(Lab.p("demand") * carsPerHouse * hn.length)
+        }
         return p
     }
 
@@ -292,6 +353,9 @@ Item {
     }
     function clearPlan() {
         graph = RoadGraph.empty()
+        // houses belong to the plan they were declared for; leaving them behind
+        // would strand four markers on the next scenario's empty sheet
+        houses = []
         simState = Traffic.createState()
         clearSelection()
         monitor.clear()
@@ -609,11 +673,13 @@ Item {
 
     // --- serialization (the viewState convention) --------------------------
     function planState() {
-        return { graph: RoadGraph.clone(graph), newLanes: newLanes }
+        return { graph: RoadGraph.clone(graph), newLanes: newLanes,
+                 houses: houses.map(h => ({ x: h.x, z: h.z })) }
     }
     function loadPlan(s) {
         graph = RoadGraph.clone(s.graph)
         if (s.newLanes) newLanes = s.newLanes
+        houses = (s.houses || []).map(h => ({ x: h.x, z: h.z }))
         clearSelection()
         simState = Traffic.createState()
         rebuild()
@@ -721,6 +787,7 @@ Item {
     function flowActions() {
         return {
             "road":     (x1, z1, x2, z2) => addRoad(x1, z1, x2, z2),
+            "houses":   (list) => setHouses(list),
             "remove":   (id) => removeRoad(id),
             "lanes":    (id, n) => setRoadLanes(id, n),
             "select":   (kind, id) => root.select(kind, id),
@@ -745,6 +812,15 @@ Item {
             lanes: net.stats.lanes, turns: net.stats.connectors,
             laneLength: Math.round(net.stats.laneLength),
             conflictPairs: net.stats.conflictPairs
+        }
+        // Declared vs bound is the distinction that matters: a house floating
+        // off the road network is why a run produced no traffic, and an agent
+        // has to be able to see that without a screenshot.
+        info.network.houses = {
+            declared: houses.length, bound: houseNodes.length,
+            nodes: houseNodes.slice(),
+            at: houses.map((h, i) => ({ label: houseLabel(i), x: h.x, z: h.z,
+                                        node: houseNodeAt(h) }))
         }
         info.traffic = Traffic.summary(net, simState, simParams())
         info.traffic.running = running
@@ -838,6 +914,46 @@ Item {
                 Box3D {
                     width: modelData.width * 0.94; height: 0.7; depth: 0.9
                     position: Qt.vector3d(0, 0.1, 0)
+                    color: LabTheme.accent
+                    useToonShading: true
+                }
+            }
+        }
+
+        // The houses: where journeys start and end once a study pins them down.
+        // A body and a gable, nothing more - at this camera pitch a plain box
+        // reads as a building only once it has a roof line, and a roof is one
+        // box turned 45 degrees whose lower half hides inside the walls.
+        //
+        // A house that found no node under it is drawn in the muted grey and
+        // sunk to the sheet, because it is doing nothing: no traffic will start
+        // or end there, and that has to be visible rather than merely reported.
+        Repeater3D {
+            model: { root.graphRev; return root.houses }
+            Node {
+                required property var modelData
+                required property int index
+                // graphRev is READ, not merely implied: houseNodeAt() looks at
+                // the graph inside a function call, which a binding cannot see,
+                // so without this a house declared before its roads were drawn
+                // stays "unbound" for ever - grey and flat next to a road that
+                // is plainly there.
+                readonly property bool bound: {
+                    root.graphRev
+                    return root.houseNodeAt(modelData) !== -1
+                }
+                position: Qt.vector3d(modelData.x, 0, modelData.z)
+                Box3D {
+                    width: 7.6; height: bound ? 4.4 : 1.0; depth: 7.6
+                    position: Qt.vector3d(0, height / 2, 0)
+                    color: bound ? LabTheme.clay : LabTheme.muted
+                    useToonShading: true
+                }
+                Box3D {
+                    visible: bound
+                    width: 5.6; height: 5.6; depth: 8.0
+                    position: Qt.vector3d(0, 6.2, 0)
+                    eulerRotation.z: 45
                     color: LabTheme.accent
                     useToonShading: true
                 }
@@ -1588,6 +1704,35 @@ Item {
                 root.flowRev
                 return LabLang.num(Traffic.roadRate(root.simState, modelData.id), 0)
                      + LabLang.t("unit.perMin")
+            }
+        }
+    }
+
+    // --- house names -------------------------------------------------------
+    // A, B, C, D - so a study can say "the road from A to C" and mean something
+    // anyone looking at the plan can find. The chip carries the arrivals at
+    // that house while the traffic runs, because per-house arrival counts are
+    // the one thing the plan cannot show by itself.
+    Repeater {
+        model: { root.graphRev; return root.houses }
+        WorldLabel {
+            required property var modelData
+            required property int index
+            readonly property int node: {
+                root.graphRev
+                return root.houseNodeAt(modelData)
+            }
+            view: view3d
+            camera: view3d.camera
+            worldPosition: Qt.vector3d(modelData.x, 9.5, modelData.z)
+            placement: WorldLabel.Above
+            accent: node === -1 ? LabTheme.muted : LabTheme.accent
+            text: {
+                root.flowRev
+                const name = root.houseLabel(index)
+                if (node === -1) return name + " " + LabLang.t("house.unbound")
+                const n = root.simState.arrivedAt[node] || 0
+                return n > 0 ? name + "  " + n : name
             }
         }
     }
