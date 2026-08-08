@@ -95,6 +95,11 @@ docs/api/version.json
 # Lab payloads (copied from labs/ by CMake at build time)
 docs/labs-run/
 
+# Scratch run records from an interactive Shift+R. The CITABLE records under
+# labs/<lab>/records/ are committed - these are the ones a session leaves behind,
+# and a frame-driven run is not reproducible, so it must not be quoted anywhere.
+labs/*/records/session.labrec
+
 # WebDojo examples (copied from source by CMake at build time)
 # Keep source directories (empty/, platform/), ignore generated ones
 docs/webdojo-examples/*/

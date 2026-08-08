@@ -20,6 +20,7 @@ clay_plugin( Lab
         palette.js
         tokens.js
         format.js
+        record.js
         LabLang.qml
         LangSwitch.qml
         ThemeSwitch.qml
@@ -90,3 +91,6 @@ clay_add_node_test(lab_palette SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/palette.test.j
 clay_add_node_test(lab_tokens  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tokens.test.js)
 clay_add_node_test(lab_format  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/format.test.js)
 clay_add_node_test(lab_scale   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scale.test.js)
+# The run record is what a paper cites, so its serialization is checked the same
+# way: round trip, byte stability for the same run, and the size tripwire (#203).
+clay_add_node_test(lab_record  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/record.test.js)
