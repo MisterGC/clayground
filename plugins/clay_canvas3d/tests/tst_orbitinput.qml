@@ -44,15 +44,23 @@ Item {
         view: fakeView
     }
 
+    SignalSpy {
+        id: picks
+        target: nav
+        signalName: "pickedAt"
+    }
+
     TestCase {
         name: "OrbitInput3D"
         when: windowShown
 
         function init() {
+            nav.modes = ["build", "explore", "measure"]
             nav.mode = "build"
             nav.springExplore = false
             nav.modeLocked = false
             nav.cancel()
+            picks.clear()
             rig.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
         }
 
@@ -93,18 +101,63 @@ Item {
             compare(nav.mode, "build", "the sticky mode never moved")
         }
 
-        function test_toggling_and_locking() {
-            nav.toggleMode()
+        // B walks the modes the scene declared, in the order it declared them,
+        // and comes back round.
+        function test_cycling_walks_the_modes_and_wraps() {
+            nav.cycleMode()
             compare(nav.mode, "explore")
+            nav.cycleMode()
+            compare(nav.mode, "measure")
+            nav.cycleMode()
+            compare(nav.mode, "build", "and round again")
+        }
+
+        function test_toggle_is_still_the_cycle() {
             nav.toggleMode()
-            compare(nav.mode, "build")
-            nav.setMode("explore")
-            compare(nav.mode, "explore")
+            compare(nav.mode, "explore", "the old name still moves the mode on")
+        }
+
+        function test_setting_and_locking() {
+            nav.setMode("measure")
+            compare(nav.mode, "measure")
             nav.modeLocked = true
-            nav.toggleMode()
-            compare(nav.mode, "explore", "a locked scene stays where it is")
+            nav.cycleMode()
+            compare(nav.mode, "measure", "a locked scene stays where it is")
             nav.setMode("build")
+            compare(nav.mode, "measure")
+            verify(!nav.modeSwitchable, "and says so, for the chrome")
+        }
+
+        // The lock generalized: sensor-fusion has nothing to build but plenty
+        // to measure, which one boolean could not say.
+        function test_a_scene_can_offer_only_some_of_the_modes() {
+            nav.modes = ["explore", "measure"]
+            nav.mode = "explore"
+            verify(nav.modeSwitchable, "two modes are still a switch")
+            verify(!nav.allows("build"), "but build is not one of them")
+            nav.cycleMode()
+            compare(nav.mode, "measure")
+            nav.cycleMode()
+            compare(nav.mode, "explore", "it never passes through build")
+            nav.setMode("build")
+            compare(nav.mode, "explore", "and cannot be put there either")
+        }
+
+        function test_one_mode_is_no_mode_control() {
+            nav.modes = ["explore"]
+            nav.mode = "explore"
+            verify(!nav.modeSwitchable, "nothing to switch between")
+            nav.cycleMode()
             compare(nav.mode, "explore")
+        }
+
+        // A list narrowed while the scene sits in a mode it no longer offers
+        // must not strand the cycle.
+        function test_a_mode_outside_the_list_cycles_back_in() {
+            nav.mode = "build"
+            nav.modes = ["explore", "measure"]
+            nav.cycleMode()
+            compare(nav.mode, "explore", "the first one it does offer")
         }
 
         // The pointer says which mode you are in before you press anything.
@@ -157,6 +210,111 @@ Item {
             nav.cancel()
             verify(rig.goalPivot.z < before.z - 1,
                    "dragging down walks the pivot away: " + rig.goalPivot.z)
+        }
+
+        // --- measure mode -----------------------------------------------------
+        //
+        // One button, two meanings, and only the distance travelled tells them
+        // apart: a click drops a point, anything further is explore's pan.
+
+        function test_measure_answers_the_pointer_like_explore_does() {
+            nav.mode = "measure"
+            compare(nav.wants(Qt.LeftButton, 0), "pan", "left still drags the world")
+            compare(nav.wants(Qt.RightButton, 0), "orbit", "right still turns it")
+            compare(nav.wants(Qt.MiddleButton, 0), "pan", "and the middle is universal")
+        }
+
+        function test_a_measure_click_reports_the_point_under_it() {
+            nav.mode = "measure"
+            const before = copyOf(rig.goalPivot)
+            compare(nav.begin(60, -40, Qt.LeftButton, 0), "pan",
+                    "the press is taken as a pan - a click is not knowable yet")
+            nav.end()
+            compare(picks.count, 1, "and comes out as a point")
+            const p = picks.signalArguments[0][0]
+            verify(near(p.x, 60) && near(p.z, -40), "where it was clicked: " + p)
+            verify(apart(before, rig.goalPivot) < 1e-6, "and the camera never stirred")
+        }
+
+        // The point is taken at the PRESS: a click that trembles still pans a
+        // pixel or two, which moves the ground the release would ask about.
+        function test_a_trembling_click_still_measures_where_it_pressed() {
+            nav.mode = "measure"
+            nav.begin(60, -40, Qt.LeftButton, 0)
+            nav.move(62, -39)
+            nav.end()
+            compare(picks.count, 1)
+            const p = picks.signalArguments[0][0]
+            verify(near(p.x, 60) && near(p.z, -40),
+                   "the pressed point, not the released one: " + p)
+        }
+
+        function test_a_measure_drag_pans_and_measures_nothing() {
+            nav.mode = "measure"
+            const before = copyOf(rig.goalPivot)
+            compare(nav.begin(120, 40, Qt.LeftButton, 0), "pan")
+            nav.move(60, 40)
+            nav.end()
+            compare(picks.count, 0, "a drag is not a click")
+            verify(rig.goalPivot.x > before.x + 1,
+                   "and it carried the ground: " + rig.goalPivot.x)
+        }
+
+        function test_a_right_drag_still_orbits_while_measuring() {
+            nav.mode = "measure"
+            compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit")
+            verify(nav.anchor !== null, "anchored at the cursor as ever")
+            nav.move(90, -40)
+            nav.cancel()
+            verify(!near(rig.goalYaw, 0), "and it turned: " + rig.goalYaw)
+            compare(picks.count, 0, "the right button never measures")
+        }
+
+        function test_only_measure_mode_measures() {
+            for (const m of ["build", "explore"]) {
+                nav.mode = m
+                nav.begin(60, -40, Qt.LeftButton, 0)
+                nav.end()
+                compare(picks.count, 0, m + ": a click means what it always did")
+            }
+        }
+
+        // The quasimode borrows the camera, and while it is held the click is
+        // explore's - i.e. nothing. A held key must not drop points.
+        function test_the_spring_suspends_measuring() {
+            nav.mode = "measure"
+            nav.springExplore = true
+            nav.begin(60, -40, Qt.LeftButton, 0)
+            nav.end()
+            compare(picks.count, 0, "nothing measured while the hand is borrowed")
+            nav.springExplore = false
+            nav.begin(60, -40, Qt.LeftButton, 0)
+            nav.end()
+            compare(picks.count, 1, "and it measures again when it comes back")
+        }
+
+        function test_the_middle_button_never_measures() {
+            nav.mode = "measure"
+            nav.begin(60, -40, Qt.MiddleButton, 0)
+            nav.end()
+            compare(picks.count, 0, "the pan button pans, whatever the mode")
+        }
+
+        function test_the_cursor_shows_measure_too() {
+            nav.mode = "measure"
+            compare(nav.cursorShape, Qt.CrossCursor, "a crosshair aims")
+            nav.begin(10, 10, Qt.RightButton, 0)
+            compare(nav.cursorShape, Qt.ClosedHandCursor, "and a drag grabs")
+            nav.cancel()
+        }
+
+        function test_a_measure_click_off_the_plane_reports_nothing() {
+            nav.view = null
+            nav.mode = "measure"
+            nav.begin(60, -40, Qt.LeftButton, 0)
+            nav.end()
+            compare(picks.count, 0, "no ray, no point - and no crash")
+            nav.view = fakeView
         }
 
         // --- the anchored orbit ----------------------------------------------
