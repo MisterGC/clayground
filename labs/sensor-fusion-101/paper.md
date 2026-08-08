@@ -40,14 +40,22 @@ K = P H^T (H P H^T + R)^{-1}, \qquad
 \mathbf{x}_k = \mathbf{x}_{k|k-1} + K(\mathbf{z} - H\,\mathbf{x}_{k|k-1})
 $$
 
-That single equation *is* the lesson: a precise lidar fix (measured
-$\sigma \approx 0.3\,\mathrm{m}$ with four landmarks in view) moves the
-estimate almost all the way — gain 0.58 in the panel — while a GPS fix
-worth $\pm 3.7\,\mathrm{m}$ only nudges it, gain 0.01. No sensor is
-trusted; every sensor is *weighed*. And since $\sigma$ is what does the
-weighing, a sensor that reports an over-optimistic $\sigma$ is far more
-dangerous than a sensor that is merely imprecise — see the caveats under
-"Measured results" for a live example of exactly that.
+That single equation *is* the lesson, and the record `open-sky-42` holds
+the arithmetic: over 1200 fixes the lidar reported $\sigma$ between 0.26
+and 0.74 m (mean 0.36 m) and earned a mean gain of **0.21**, peaking at
+1.00 when the geometry was good; GPS reported 3.58 to 9.03 m (mean
+4.26 m) and earned a mean gain of **0.0015**. The same filter weighs one
+sensor about 140 times as heavily as the other, and nothing anywhere says
+"trust the lidar" — every sensor is *weighed*, by the $\sigma$ it hands
+in.
+
+Which is why a sensor that reports an over-optimistic $\sigma$ is far
+more dangerous than a sensor that is merely imprecise. The record
+`tunnel-42` has one of each: the lidar's reported $\sigma$ runs up to
+20.98 m on a bad landmark geometry — and that fix is *harmless*, because
+the gain collapses with it. It is the fix that is wrong while reporting a
+small $\sigma$ that moves the estimate, and the caveats under "Measured
+results" describe the one case where that still happens here.
 
 ## Why the lidar needs a map
 
@@ -109,43 +117,109 @@ cross-range error that grows with range.
 
 ## Measured results
 
-60 simulated seconds, seed 42, default parameters, sampled at 20 Hz
-(1200 samples):
+Every number below comes out of a committed **run record** in
+`records/`, and each row names the record it is read from. Regenerate all
+three, and with them this table:
 
-| scenario | max err GPS | max err odometry | max err **fused** | mean err fused | max $\sigma$ |
-|---|---|---|---|---|---|
-| open-sky | 15.01 m | 3.66 m | **3.16 m** | 0.78 m | 0.33 m |
-| tunnel | *see the caveat below* | | | | |
+```bash
+labs/sensor-fusion-101/records/make.sh
+```
 
-Readings: in open sky the fused estimate beats GPS by roughly a factor
-of 5 while staying an order of magnitude tighter than its worst source,
-and the uncertainty it reports (0.33 m) is consistent with the error it
-actually makes (mean 0.78 m, so within about 2σ).
+60 simulated seconds, seed 42, default parameters, sampled every 0.05 s
+(1201 samples), stepped at 1/60 s:
 
-Two caveats, both honest and both open:
+| scenario | record | max err GPS | max err odometry | mean err **fused** | max err **fused** | mean $\sigma$ |
+|---|---|---|---|---|---|---|
+| open-sky | `open-sky-42` | 13.66 m | 21.41 m | **0.76 m** | 3.09 m | 0.24 m |
+| tunnel | `tunnel-42` | 33.50 m | 12.15 m | **2.47 m** | 15.08 m | 0.49 m |
+| lidar-out | `lidar-out-42` | 18.17 m | 7.53 m | **15.28 m** | 28.55 m | 3.72 m |
 
-- **The tunnel row is withheld.** With the heading solved and no prior
-  on it, two landmarks in a near-collinear arrangement admit a
-  rotation-flipped second solution: a fix measured 30 m from truth while
-  reporting $\sigma = 0.60\,\mathrm{m}$, which the filter then believed.
-  A wilder one (374 m) was *harmless* because its $\sigma$ came out at
-  17.6 m and the gain collapsed to 0.0003 — the difference between the
-  two is the whole argument for reporting uncertainty honestly. The fix
-  is a heading prior plus a residual gate; until then the tunnel numbers
-  would document a bug rather than the physics.
-- **Run-to-run reproducibility is currently not exact.** Sensors tick on
-  the fixed sample grid, but the truth pose is a binding on the clock's
-  *continuous* time, so a sample reads the pose wherever the last frame
-  left it — and frame timing is wall-clock. Two same-seed runs therefore
-  diverge from the first sample (measured: `errOdo` 0.163 vs 0.240 m at
-  $t=0$). The numbers above are representative of a run, not bit-exact,
-  until sampling reads the pose at the instant it claims.
+Readings, in the order they matter:
+
+- **In open sky the fusion works.** The fused estimate is 0.76 m out on
+  average against a GPS fix that is 4.84 m out on average and an odometry
+  belief that has drifted 18.8 m by the end of the minute: an order of
+  magnitude better than either source, which is the whole claim of the
+  lab.
+- **In the tunnel it degrades gracefully rather than failing.** Three
+  passes through the blackout show up as three humps in `errFused`
+  (mean per 6 s: 0.26, 1.49, **5.77**, 0.86, 0.81, **3.85**, **3.63**,
+  0.66, 1.09, **6.21**), peaking at 15.08 m at $t = 37.3\,\mathrm{s}$ —
+  and recovering to sub-metre within seconds of the exit each time.
+  Running on prediction alone for a few seconds costs metres, not the
+  track.
+- **With lidar out, fusion is worse than the GPS it is fusing.** Mean
+  fused error 15.28 m against a mean GPS fix error of 5.34 m. That is not
+  noise, it is model error: a constant-velocity filter corrected once a
+  second cannot hold a car going round a bend, so it consistently cuts
+  the corner and each 1 Hz fix only pulls it part of the way back. Raise
+  `gpsRate` and the row improves; it is an honest limitation of the
+  motion model, not of the sensor. The gain tells the same story from the
+  other side: with lidar gone, GPS's mean gain rises from 0.0015 to
+  **0.33** — the filter now leans on the sensor it barely used, because
+  there is nothing else.
+- **A blackout makes the filter humble, briefly.** In `tunnel-42` the GPS
+  gain peaks at 0.042, an order of magnitude above its open-sky peak:
+  while prediction alone inflates $P$, the next fix out of the tunnel is
+  worth much more. That is the covariance doing its job.
+
+**The filter is over-confident, in every scenario.** This is the most
+important reading in the table and the one the earlier version of this
+paper got wrong. In open sky it reports $\sigma \approx 0.24\,\mathrm{m}$
+while making a 0.76 m error — the error exceeds $2\sigma$ in **53 %** of
+samples, and in `lidar-out` in **88 %** of them. A well-tuned filter
+should be outside $2\sigma$ about 5 % of the time. The cause is visible
+in the model section: process noise is a single scalar (`processNoise:
+1.2`) covering an unmodelled turn rate. Read the glowing disc as "how
+sure the filter *claims* to be", never as an error bar you can trust.
+
+Two caveats on reading the table:
+
+- **Scenarios are not comparable at one seed.** A sensor that produces no
+  fix also draws no random numbers, so switching lidar off or putting a
+  tunnel in the way shifts every later draw in the shared stream. That is
+  why `errOdo` differs across the rows (21.41 / 12.15 / 7.53 m) although
+  odometry is untouched by all three changes: each row is a different
+  noise realisation, not a different odometry. Compare *within* a row, or
+  give each sensor its own stream first.
+- **The rotation-flip in the lidar fix is still open.** With the heading
+  solved and no prior on it, two landmarks in a near-collinear
+  arrangement admit a rotation-flipped second solution: a fix 30 m from
+  truth reporting $\sigma = 0.60\,\mathrm{m}$, which the filter then
+  believes. A wilder one (374 m) was *harmless* because its $\sigma$ came
+  out at 17.6 m and the gain collapsed to 0.0003 — the difference between
+  the two is the whole argument for reporting uncertainty honestly. The
+  fix is a heading prior plus a residual gate. The tunnel row is no
+  longer withheld for it, but it is a reason the tunnel peak is a ceiling
+  rather than a physical constant.
+
+**Reproducibility is now exact, and this is what changed.** The earlier
+version of this paper reported that two same-seed runs diverged from the
+first sample. They did: the truth pose is a binding on the clock's
+*continuous* time, and a frame is a wall-clock interval, so a live run
+samples the pose wherever the last frame happened to leave it. The
+records above are not produced by a live run — `make.sh` stops the frame
+ticker and advances the clock in fixed 1/60 s steps, which makes sim time
+a pure function of the step count. Two runs of the same scenario and seed
+now produce **byte-identical** records:
+
+```bash
+labs/sensor-fusion-101/records/make.sh --verify
+```
+
+One residual offset comes with that, and it explains why `errOdo` and
+`errFused` both start at exactly 0.100 m: a sample labelled $t$ is taken
+just after the step that crossed it, so the pose it reads is up to one
+step (1/60 s, 0.1 m at 6 m/s) ahead of the label.
 
 A detail worth noticing in the live plot: the GPS error is a **sawtooth**,
 not white noise — at 1 Hz and 6 m/s the car outruns each fix by up to
 6 m before the next one arrives. GPS error here is dominated by
 *staleness*, not by $\sigma$; raising `gpsRate` flattens the teeth,
-raising `gpsSigma` only lifts their base.
+raising `gpsSigma` only lifts their base. Note that `errGps` measures the
+error of the *most recent* fix, so during a blackout it ages rather than
+disappearing — that, not a sudden loss of accuracy, is the 33.50 m in the
+tunnel row.
 
 ## Things to try
 
@@ -170,7 +244,7 @@ raising `gpsSigma` only lifts their base.
 Keys follow the shared lab map, and `?` lists all of them in-app: `1-3`
 presets · `T` guided flow · `C` chase/free camera · `M` the lidar → map
 panel · `#` ground grid · `F` frame the car · `0` frame the city ·
-arrows/`+`/`-` orbit · `⇧R` record CSV · `Esc` back to the car. Language
+arrows/`+`/`-` orbit · `⇧R` record a run · `Esc` back to the car. Language
 switches EN/DE top-right. Agents attach via `.clay/inspect/`
 (`Lab.labInfo()`, probes `errGps`/`errOdo`/`errFused`/`uncertainty`).
 
@@ -184,12 +258,18 @@ switches EN/DE top-right. Agents attach via `.clay/inspect/`
   `labs/kits/sensor/LidarSensor.qml:1`
 - Shared localisation solver: `labs/kits/sensor/trilateration.js:1`
 - Determinism/steppability: `plugins/clay_lab/SimClock.qml:1`
+- The records this paper quotes: `labs/sensor-fusion-101/records/`
+- How they are produced: `labs/sensor-fusion-101/records/make.sh:1`
+- The record format: `plugins/clay_lab/record.js:1`
 
 *Verified via the clay-crew inspector. What is confirmed: the solver
 recovers position, clock bias and heading exactly on synthetic input
 (13/13 headless assertions, including that a stale heading biases a fix
 while its $\sigma$ keeps flattering it); the tunnel blackout is caused by
 its walls rather than by a flag (47/47 samples inside: 0 satellites, 0
-landmarks, no fix); and the open-sky numbers above come from a recorded
-1201-sample run. What is NOT yet confirmed is bit-exact reproducibility —
-see the caveats above.*
+landmarks, no fix); every number in the results table is read out of a
+committed record rather than out of a memory of a run; and bit-exact
+reproducibility now holds for stepped runs — `make.sh --verify` compares
+two same-seed records byte for byte and all three scenarios pass. What is
+NOT confirmed is that a live, frame-driven session reproduces those
+numbers: it does not, and it is not meant to.*

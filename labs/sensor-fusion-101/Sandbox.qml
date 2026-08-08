@@ -121,6 +121,12 @@ Item {
             root._lastT = -1
             const p = Track.poseAt(0)
             kf.reset(p.x, p.y)
+            // The last weighing belongs to the run that just ended. Leaving it
+            // in place put a fix from the cold-open scenario into the record of
+            // the next one, where the sensor never fired at all.
+            root.lastUpdate = { gps: { sigma: 0, gain: 0, t: -99 },
+                                lidar: { sigma: 0, gain: 0, t: -99 } }
+            root.fusionRev++
         }
     }
     Connections {
@@ -183,6 +189,24 @@ Item {
         expr: () => gps.lastFix ? root._dist(gps.lastFix.x, gps.lastFix.y) : NaN
     }
     Probe { name: "uncertainty"; unit: "m"; expr: () => Math.hypot(kf.sigmaX, kf.sigmaY) }
+    // The weighing itself, so the paper can quote it out of a record instead of
+    // out of a memory of the panel. A gain holds until the next fix from that
+    // sensor, so the series is a staircase - which is what the arithmetic
+    // actually is: nothing happens to the weight between measurements.
+    // Before the first fix there is no weight, and a probe that answered 0
+    // would put "we weighed it at nothing" into the record instead of "it never
+    // fired". NaN is not recorded at all, so those ticks stay blank.
+    function _upd(key, field) {
+        const u = lastUpdate[key]
+        return u.t < 0 ? NaN : u[field]
+    }
+    Probe { name: "gainGps"; expr: () => root._upd("gps", "gain") }
+    Probe { name: "gainLidar"; expr: () => root._upd("lidar", "gain") }
+    // ...and what each sensor claimed its fix was worth, since that is the half
+    // of K = P/(P+R) the sensor supplies. A record holding both makes the
+    // weighing argument checkable rather than quotable from memory.
+    Probe { name: "sigmaGps"; unit: "m"; expr: () => root._upd("gps", "sigma") }
+    Probe { name: "sigmaLidar"; unit: "m"; expr: () => root._upd("lidar", "sigma") }
 
     // --- scenarios ------------------------------------------------------
     ScenarioSet {
