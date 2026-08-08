@@ -247,12 +247,11 @@ because two labs hand-rolled each one; a third must not:
 **Instruments — the shelf.** Promoted from the labs, which proved each of
 them (some three times over). Reach for one before drawing a dial:
 
-- **`Gauge`** — a needle dial that picks the smallest of its `ranges` the
-  reading still fits and prints the one it settled on. Laid out in
-  fractions of its own size, so it serves a HUD dial and a `Texture` baked
-  onto a 3D part equally. `settleTime: 0` for a continuously moving signal
-  — an animation restarted every frame never arrives, and the needle then
-  visibly disagrees with its own readout.
+- **`InstrumentScale`** + **`Gauge`** / **`BarFace`** / **`ColumnFace`** /
+  **`DigitFace`** — the measurement and the faces that draw it. See
+  *Choosing an instrument* below.
+- **`InstrumentDock`** + **`DockedInstrument`** — HUD instruments the
+  reader can put away. Also below.
 - **`ReadoutPanel`** / **`ReadoutRow`** — swatch · name · live value, from
   data. `revision` re-reads it after an in-place mutation; `dim` fades a
   stale source and `bar` adds the share bar under a row.
@@ -266,6 +265,52 @@ them (some three times over). Reach for one before drawing a dial:
   `SimClock.timeScale` from outside. Until it existed no lab showed its
   clock, which is a strange gap in a framework that sells determinism.
 - **`RecIndicator`** — the recording dot, so a growing CSV is never a secret.
+
+### Choosing an instrument
+
+**The split, in one line:** an `InstrumentScale` says what a reading
+*means* — value or `probe`, unit, `min`/`max` or self-ranging `ranges`,
+`logScale`, severity bands, `damping`/`settleTime`, `peakHold` — and a
+*face* only draws it. Declare one scale, hand it to as many faces as the
+page shows; they cannot disagree, because there is nothing to disagree
+about. Adaptability lives in the model × face matrix: a music VU meter is
+a `BarFace` on a log scale with peak-hold, **not** a new component.
+
+Which face for which quantity:
+
+- **`Gauge`** (needle) — *what is this relative to what the instrument can
+  take*. The default for a self-ranging bench meter: give it `ranges` and
+  it prints the one it settled on. Laid out in fractions of its own size,
+  so it serves a HUD dial and a `Texture` baked onto a 3D part equally.
+- **`BarFace`** — *how far along*: a level, a load, a share of capacity,
+  an audio meter. Horizontal or vertical; `segments` turns the fill into
+  the LED ladder a level meter has; peak-hold draws its marker here.
+- **`ColumnFace`** — *how much*, read **off** the scale: a temperature, a
+  wind speed, a tank. Thermometer-shaped, every major gradation labelled.
+- **`DigitFace`** — *what is the number*. Mono digits through
+  `LabLang.qty()`, so the SI prefix and the decimal separator match the
+  readout beside it. Pair it with a needle or a column; alone it says
+  nothing about what the number is worth.
+
+Bands (`okUntil`/`warnUntil`, or an explicit `zones` list) are the
+*scale's*, not the face's: declaring them once colours the needle, the
+fill, the digits and the tint behind them, from `LabTheme`'s severity
+tokens. A reading past the end of the scale takes the band at that end —
+a pinned needle on a red-topped dial must not read back "ok".
+`settleTime` is a swing for a value that changes on an *action*;
+`damping` is the lag of a real movement, for a continuously noisy one.
+Never both.
+
+**The dock.** `InstrumentDock` is the HUD column: the lab declares each
+instrument as a `DockedInstrument` (a `key`, a caption, a face inside),
+the reader dismisses any of them with the ✕ in its corner, a tray at the
+foot offers them back, and `dock.viewState()` merges into the lab's so the
+set survives a reload. Which instruments are essential is a per-lab call —
+the kernel only provides the mechanics.
+
+`plugins/clay_lab/demo/Instruments.qml` is the reference page: one scale
+under four faces, then the same faces skinned as an electrical bench
+meter, an audio VU and a wind gauge.
 
 ### The stage
 
