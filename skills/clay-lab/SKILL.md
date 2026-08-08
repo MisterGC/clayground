@@ -95,6 +95,8 @@ lab work:
 plugins/clay_lab/        the kernel (import Clayground.Lab)
 labs/kits/<domain>/      domain kits: pure-JS model + QML visuals + strings.js
 labs/<lab>/              one lab = one situation, dojo-runnable
+labs/<lab>/records/      committed run records + the driver that makes them
+labs/<lab>/studies/<slug>/   one question asked of the lab (see Studies)
 ```
 
 - Labs are **not CMake targets**. Run them live:
@@ -193,7 +195,12 @@ Kernel (`import Clayground.Lab`):
   littered the repo root), and set `command` to whatever regenerates the
   run — a record that cannot say how it was made is the thing this replaced.
 - **`Scenario` / `ScenarioSet`** — named situations; imperative setup in
-  `script` (initial QML property values don't fire change handlers).
+  `script` (initial QML property values don't fire change handlers). A
+  *scenario* is a situation the lab ships and a learner can click; a **study**
+  is a question asked of the lab and lives outside the ScenarioSet, built in
+  `--eval` by a sweep. Do not grow the preset bar for every configuration a
+  study wants to compare — four candidate networks belong in a manifest, not
+  on four more buttons.
 - **`Flow` / `FlowStep` / `Narrator` / `FlowChip`** — the guided, narrated
   walkthrough; the teaching spine. `FlowChip` is the visible offer to be
   taught — always ship one, or the flow is hidden behind a key nobody
@@ -751,6 +758,11 @@ The loop, in order:
    Then quote by id, with the regeneration command once per section. The
    staleness contract in `references/triad.md` is the full rule.
 
+When the numbers are meant to answer a *specific question* rather than to
+document the lab, the loop above is wrapped by a **study** — same records,
+plus the question and its validity argument, and a runner that expands the
+matrix for you. See *Studies* below.
+
 Two traps this loop has already caught, both worth expecting:
 
 - **State that survives a scenario reset leaks into the record.** A
@@ -800,6 +812,115 @@ When a question fails the gate for a *mechanical* reason — a knob that
 does not exist — the honest options are to add the knob (and say the lab
 changed) or to reduce the question; never to approximate the knob with
 something adjacent and not mention it.
+
+## Studies — a question asked of a lab
+
+A lab is a *capability space*: what can be done here. A **study** is one
+specific question posed against it, with its validity argument, its method,
+its data and its write-up in one reviewable place.
+
+```
+labs/<lab>/studies/<slug>/
+    study.md      the question, the answerability mapping, the method,
+                  the manifest, and — after the sweep — results + conclusion
+    records/      one committed .labrec per run
+    results.md    generated FROM those records by lab-sweep; never hand-edited
+    figures/      optional, with a make.sh that regenerates them
+```
+
+Reference: `labs/street-network-101/studies/topology-four-houses/`.
+
+**`study.md`, in this order**, and the order is the point — the validity
+argument is made *before* any number exists, so it cannot be written to fit
+the answer:
+
+1. **The question**, in one sentence, plus what "better" means and why that
+   is the right objective.
+2. **Answerability** — the table from the section above, every quantity the
+   question needs mapped to a parameter, a probe or a model-card claim, and
+   an explicit list of what had to be **reduced** or added. If nothing was
+   reduced, say so; a mapping with no losses is suspicious often enough to
+   be worth stating.
+3. **Method** — what a run is, why the warm-up is that long, and the
+   manifest.
+4. **Results**, quoted by record id.
+5. **Conclusion**, with its limits attached.
+
+A **student assignment is the same file with the answer cut off.** Put a
+`<!-- results:begin -->` marker before Results, and the student edition is
+everything above it, without `records/` and `results.md`. That is why the
+question, the honesty argument and the method come first: they are the
+assignment, and the results are what the student is meant to produce.
+
+### The manifest
+
+One fenced `json` block inside `study.md`, declaring
+`"manifest": "clay-lab-study/1"`. It lives inside the prose so that reviewing
+the study *is* reviewing what was run; JSON rather than YAML because the
+runner is stdlib-only and a hand-rolled YAML subset would be a parser with
+its own bugs between a claim and its evidence. Multi-line JS is written as an
+**array of lines**, which diffs one statement at a time.
+
+```json
+{
+  "manifest": "clay-lab-study/1",
+  "study": "topology-four-houses",
+  "lab": "labs/street-network-101/Sandbox.qml",
+  "objective": { "probe": "arrivals", "statistic": "stddev",
+                 "normalize": "mean", "direction": "minimize" },
+  "report":  [ { "probe": "waiting", "statistic": "mean" } ],
+  "record":  { "probes": ["arrivals", "waiting"] },
+  "run":     { "warmupSteps": 1800, "steps": 3600, "stepHz": 60, "budget": 16 },
+  "fixed":   { "demand": 0.5 },
+  "setup":   ["clearPlan()", "setHouses([[-70,-45],[70,-45]])"],
+  "parameters": [
+    { "name": "topology", "kind": "eval", "levels": [
+        { "id": "ring", "eval": ["addRoad(-70,-45, 70,-45)"] } ] }
+  ],
+  "seeds": [11, 23, 42, 57]
+}
+```
+
+`kind` is `eval` (build it through the lab's action API), `scenario` (a name
+the lab ships) or `param` (a `Parameter` value). `run.budget` is a **hard
+cap** on matrix size — widening a sweep has to be a deliberate edit, not
+something that happens.
+
+### Running it
+
+```bash
+tools/lab-sweep/lab-sweep <study-dir> --check     # answerability, no runs
+tools/lab-sweep/lab-sweep <study-dir> --dry-run   # print the matrix
+tools/lab-sweep/lab-sweep <study-dir>             # run it, write results.md
+tools/lab-sweep/lab-sweep <study-dir> --only topology=ring --seed 42
+```
+
+`--check` loads the lab, reads `labInfo()`, and proves every probe and
+parameter the study names exists — the mechanical half of the gate, and it
+says on success that it is only the half. Run it before every sweep; a
+misspelled probe otherwise costs a full matrix.
+
+`lab-sweep` is deliberately dumb: no search, no early stopping, no fitting.
+It steps the clock by hand (so records are byte-stable), isolates every run's
+prefs, and reads the results table back out of the records rather than out of
+whatever the runs returned. Deciding *what* to sweep next stays with you.
+Details: `tools/lab-sweep/README.md`.
+
+### Three traps this study already hit
+
+- **A spread is not comparable across cells of different scale.** Ranking
+  four networks by raw `stddev(arrivals)` ranked them by their means, because
+  the means differed fourfold. `"normalize": "mean"` (a coefficient of
+  variation) asks the question that was intended. Check your objective
+  against the levels' *magnitudes* before you trust a ranking.
+- **Record the warm-up and every cell looks alike.** From cold, a rate climbs
+  from zero; that ramp is identical in every configuration and swamps the
+  difference you are measuring. Warm up unrecorded, then record.
+- **Pin the fleet, not the density.** If demand scales with the size of the
+  thing being varied, a comparison of shapes secretly measures size. Whatever
+  the domain, find the quantity that has to be held constant for the
+  comparison to mean anything, and check it in the results (the study quotes
+  `mean(cars)` per network for exactly this).
 
 ## Agent operation cheat-sheet
 
