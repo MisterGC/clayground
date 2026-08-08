@@ -53,14 +53,14 @@ import QtQuick3D
             viewpoints: ({ "top": { pitch: 84, distance: 140 } })
         }
     }
-    OrbitInput3D { id: nav; rig: rig; view: view3d }
+    OrbitInput3D { id: nav; rig: rig; view: view3d; mode: "explore" }
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         onPressed: (m) => nav.begin(m.x, m.y, m.button, m.modifiers)
         onPositionChanged: (m) => nav.move(m.x, m.y)
         onReleased: nav.end()
-        onWheel: (w) => nav.wheel(w.angleDelta.y)
+        onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)
     }
     \endqml
 
@@ -221,12 +221,20 @@ Node {
         return Math.max(minPitch, Math.min(maxPitch, p))
     }
 
-    function _fitDistance(d, p) {
+    // The height floor is absolute - measured from homePivot's plane, not from
+    // wherever the pivot currently sits. The two are the same thing for a pivot
+    // on the ground, which is every ordinary pose; they part company after a
+    // reanchor, which parks the pivot on the view axis and therefore possibly
+    // below the floor. Measured from THERE the rule would happily let the
+    // camera under the ground, which is the one thing it exists to prevent.
+    function _fitDistance(d, p, pivotY) {
         d = Math.max(minDistance, Math.min(maxDistance, d))
         if (minHeight > 0) {
+            const py = pivotY === undefined ? _goal.pivot.y : pivotY
+            const need = minHeight + (homePivot.y - py)
             const sinP = Math.sin(p * Math.PI / 180)
-            if (d * sinP < minHeight)
-                d = Math.min(maxDistance, minHeight / Math.max(0.08, sinP))
+            if (need > 0 && d * sinP < need)
+                d = Math.min(maxDistance, need / Math.max(0.08, sinP))
         }
         return d
     }
@@ -250,8 +258,10 @@ Node {
     property int _writing: 0
     function _apply(y, p, d, pv) {
         p = _fitPitch(p)
-        d = _fitDistance(d, p)
+        // the pivot first: the leash never touches its height, and the height
+        // is what the distance's floor is measured against
         pv = _fitPivot(pv)
+        d = _fitDistance(d, p, pv.y)
         _goal.yaw = y; _goal.pitch = p; _goal.distance = d; _goal.pivot = pv
         _writing += 1
         yaw = y; pitch = p; distance = d; pivot = pv
@@ -312,7 +322,9 @@ Node {
         Returns false when there was nothing to anchor to. The leash still
         applies: re-anchoring outside \l panLeash is pulled back like any
         other pivot move, and that pull is the only thing that can shift the
-        camera here.
+        camera here. A point so far away that the axis has already dived under
+        the ground anchors as deep as the rig can still climb back out of -
+        see \l minHeight.
     */
     function reanchor(p) {
         if (!p) return false
@@ -320,13 +332,30 @@ Node {
         const c = goalPosition
         // depth of p along the view axis: how far in front of the camera it is
         const depth = (c.x - p.x) * dir.x + (c.y - p.y) * dir.y + (c.z - p.z) * dir.z
-        // fit FIRST, then place the pivot from the fitted distance - that way
-        // pivot + d * dir is the old camera position whether or not a limit
-        // bit, instead of the limit dragging the camera along with it
-        const d = _fitDistance(depth, _goal.pitch)
+        // clamp FIRST, then place the pivot from the clamped distance - that
+        // way pivot + d * dir is the old camera position whether or not a limit
+        // bit, instead of the limit dragging the camera along with it. The
+        // height floor is not consulted: it is a rule about where the camera
+        // may be, and the camera does not move here.
+        //
+        // What IS consulted is how deep the pivot may go. Anchoring past the
+        // point where the view axis meets the ground parks the pivot under it,
+        // and from far enough under, no legal pose can still hold the camera
+        // above the floor - the rig would have to back off further than
+        // maxDistance. So the pivot may sink exactly as far as it can climb
+        // back out of, and a point beyond that anchors as deep as it may.
+        const d = Math.max(minDistance,
+                           Math.min(maxDistance, depth, _maxDepth(dir, c)))
         _apply(_goal.yaw, _goal.pitch, d,
                Qt.vector3d(c.x - d * dir.x, c.y - d * dir.y, c.z - d * dir.z))
         return true
+    }
+
+    function _maxDepth(dir, c) {
+        if (dir.y <= 1e-6) return Infinity
+        const reach = maxDistance * Math.sin(minPitch * Math.PI / 180)
+        const drop = Math.max(0, reach - minHeight)
+        return (c.y - homePivot.y + drop) / dir.y
     }
 
     /*!
@@ -347,10 +376,18 @@ Node {
     function zoomToward(p, factor) {
         if (!p) { zoomBy(factor); return }
         const d0 = _goal.distance
-        const d1 = _fitDistance(d0 * factor, _goal.pitch)
+        // twice, because the height floor is measured against the pivot's own
+        // height and the pivot is about to move: the first pass says how far,
+        // the second fits the distance where the pivot will actually be. Both
+        // passes agree whenever the pivot and the point share a plane, which
+        // is every zoom on flat ground.
+        let d1 = _fitDistance(d0 * factor, _goal.pitch, _goal.pivot.y)
+        let k = d0 > 1e-9 ? d1 / d0 : 1
+        d1 = _fitDistance(d0 * factor, _goal.pitch,
+                          _goal.pivot.y + (p.y - _goal.pivot.y) * (1 - k))
         // the limits may have granted less than was asked for; the pivot moves
         // by what was granted, or the point under the cursor drifts off it
-        const k = d0 > 1e-9 ? d1 / d0 : 1
+        k = d0 > 1e-9 ? d1 / d0 : 1
         _apply(_goal.yaw, _goal.pitch, d1,
                Qt.vector3d(_goal.pivot.x + (p.x - _goal.pivot.x) * (1 - k),
                            _goal.pivot.y + (p.y - _goal.pivot.y) * (1 - k),

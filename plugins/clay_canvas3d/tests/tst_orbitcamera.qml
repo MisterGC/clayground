@@ -320,6 +320,24 @@ Item {
             verify(farApart(near0, plain.goalPosition) < 1e-3, "still no jump")
         }
 
+        // Anchoring past the point where the view axis meets the ground parks
+        // the pivot BELOW it - the axis goes there, and refusing to follow it
+        // would mean nothing far away could ever be turned about. The anti-clip
+        // rule therefore measures from the home plane, not from the pivot:
+        // measured from a sunken pivot it would cheerfully let the camera under
+        // the floor.
+        function test_the_height_floor_survives_a_sunken_pivot() {
+            plain.homePivot = Qt.vector3d(0, 0, 0)
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            plain.reanchor(Qt.vector3d(0, 0, -140))
+            verify(plain.goalPivot.y < -1, "the pivot went under: " + plain.goalPivot.y)
+            plain.orbitBy(0, -90)               // flatten it as far as it goes
+            plain.setDistance(0)                // and come in as close as it goes
+            compare(plain.goalPitch, 22, "pitch is at its minimum")
+            const camY = plain.goalPosition.y
+            verify(camY >= 9 - 1e-3, "still nine above the ground: " + camY)
+        }
+
         function test_reanchor_refuses_a_missing_point() {
             plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
             verify(!plain.reanchor(null), "nothing to anchor to")
