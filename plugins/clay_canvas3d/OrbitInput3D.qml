@@ -25,7 +25,9 @@ import QtQuick3D
     \list
     \li \c "explore" - the whole pointer is the camera's. \b LMB drags the
         world along, \b RMB turns it \e about the point under the cursor
-        (see \l {OrbitCamera3D::reanchor}{reanchor}), double-click focuses.
+        (\l {OrbitCamera3D::reanchor}{reanchor} at the press,
+        \l {OrbitCamera3D::orbitAround}{orbitAround} for the turn itself),
+        double-click focuses.
     \li \c "build" - LMB and RMB are the scene's, completely. Nothing is
         taken, and nothing has to be given back.
     \endlist
