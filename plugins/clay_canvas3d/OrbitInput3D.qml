@@ -260,6 +260,16 @@ Item {
     /*! \qmlproperty bool OrbitInput3D::active \readonly \brief A drag is in progress. */
     readonly property bool active: _s.gesture !== ""
 
+    /*!
+        \qmlproperty var OrbitInput3D::anchor
+        \readonly
+        \brief The world point this orbit is turning about, or null.
+
+        Taken at press and held for the whole drag - including the coast out of
+        a flick, so a thrown orbit keeps spinning about the same thing.
+    */
+    readonly property alias anchor: _s.anchor
+
     QtObject {
         id: _s
         property string gesture: ""
@@ -267,6 +277,7 @@ Item {
         property real lastY: 0
         property real vx: 0
         property real vy: 0
+        property var anchor: null
     }
 
     /*!
@@ -309,8 +320,16 @@ Item {
         _s.gesture = (g === "orbit" || g === "pan") ? g : ""
         _s.lastX = x; _s.lastY = y
         _s.vx = 0; _s.vy = 0
-        if (_s.gesture === "orbit" && anchorOrbit && rig && rig.reanchor)
-            rig.reanchor(groundAt(x, y))
+        _s.anchor = null
+        // Two halves of the same gesture, and both are needed. reanchor moves
+        // the pivot onto the view axis at the point's depth - invisible, and
+        // it is what keeps the pivot near the anchor while the drag turns, so
+        // the rig stays well behaved. The anchor itself is then what the turn
+        // rotates about, which is what actually pins the point to the cursor.
+        if (_s.gesture === "orbit" && anchorOrbit && rig) {
+            _s.anchor = groundAt(x, y)
+            if (rig.reanchor) rig.reanchor(_s.anchor)
+        }
         return _s.gesture
     }
 
@@ -331,11 +350,13 @@ Item {
     function end() {
         if (_s.gesture === "") return
         if (flick && Math.hypot(_s.vx, _s.vy) >= flickThreshold) _coast.start()
-        else _s.gesture = ""
+        else { _s.gesture = ""; _s.anchor = null }
     }
 
     /*! \qmlmethod void OrbitInput3D::cancel() \brief Ends the drag with no coast. */
-    function cancel() { _coast.stop(); _s.gesture = ""; _s.vx = 0; _s.vy = 0 }
+    function cancel() {
+        _coast.stop(); _s.gesture = ""; _s.anchor = null; _s.vx = 0; _s.vy = 0
+    }
 
     /*!
         \qmlmethod void OrbitInput3D::wheel(real angleDelta, real x, real y)
@@ -392,8 +413,10 @@ Item {
 
     function _step(dx, dy) {
         if (_s.gesture === "orbit") {
-            rig.orbitBy(dx * yawPerPixel,
-                        (invertPitch ? dy : -dy) * pitchPerPixel)
+            const dYaw = dx * yawPerPixel
+            const dPitch = (invertPitch ? dy : -dy) * pitchPerPixel
+            if (_s.anchor && rig.orbitAround) rig.orbitAround(_s.anchor, dYaw, dPitch)
+            else rig.orbitBy(dYaw, dPitch)
             return
         }
         // grab-the-ground: the point under the cursor stays under the cursor,
@@ -413,7 +436,7 @@ Item {
             _s.vx *= root.flickDecay
             _s.vy *= root.flickDecay
             if (!root.rig || Math.hypot(_s.vx, _s.vy) < 0.35) {
-                stop(); _s.gesture = ""; _s.vx = 0; _s.vy = 0
+                stop(); _s.gesture = ""; _s.anchor = null; _s.vx = 0; _s.vy = 0
                 return
             }
             root._step(_s.vx, _s.vy)

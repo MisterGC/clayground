@@ -285,6 +285,63 @@ Node {
     }
 
     /*!
+        \qmlmethod void OrbitCamera3D::orbitAround(var anchor, real dYaw, real dPitch)
+        \brief Turns the rig about \a anchor instead of about the pivot.
+
+        The point of the gesture: \a anchor keeps its place on screen while
+        everything else swings around it, because the rig is rotated
+        \e rigidly - camera and pivot together, about the axes through
+        \a anchor. \l orbitBy turns about the pivot, so anything else you were
+        looking at slides off; this is what "turn about what I am pointing at"
+        actually means.
+
+        The rotation is applied to the pivot, so the pivot generally leaves the
+        ground plane - that is the price, and \l reanchor is what keeps it
+        small: from a pivot already at the anchor's depth the two are almost
+        the same point. Pitch clamping is honoured (only the allowed part of
+        \a dPitch is applied to both), and the leash and the height floor still
+        outrank the anchor - they are the only things that can shift it on
+        screen. With no \a anchor it is \l orbitBy.
+    */
+    function orbitAround(anchor, dYaw, dPitch) {
+        if (!anchor) { orbitBy(dYaw, dPitch); return }
+        const p1 = _fitPitch(_goal.pitch + dPitch)
+        const dp = p1 - _goal.pitch          // what the clamp actually allowed
+        const y1 = _goal.yaw + dYaw
+        var v = Qt.vector3d(_goal.pivot.x - anchor.x, _goal.pivot.y - anchor.y,
+                            _goal.pivot.z - anchor.z)
+        v = _spin(v, dYaw)
+        // ...then about the camera's right axis AT THE NEW YAW, which is the
+        // axis the pitch is measured around once the yaw has moved
+        v = _tilt(v, y1, dp)
+        _apply(y1, p1, _goal.distance,
+               Qt.vector3d(anchor.x + v.x, anchor.y + v.y, anchor.z + v.z))
+    }
+
+    // Rotation about the world vertical, in the sense the yaw is measured in:
+    // it maps the rig's own offset vector at yaw a to the one at yaw a + t.
+    function _spin(v, t) {
+        const c = Math.cos(t * Math.PI / 180), s = Math.sin(t * Math.PI / 180)
+        return Qt.vector3d(v.x * c + v.z * s, v.y, -v.x * s + v.z * c)
+    }
+
+    // Rotation about the camera's right axis (cos y, 0, -sin y). Raising the
+    // pitch by t turns the offset by -t about it, which is the same sign trap
+    // the drag handlers keep rediscovering - here it is written down once.
+    function _tilt(v, y, t) {
+        const a = y * Math.PI / 180, f = -t * Math.PI / 180
+        const k = Qt.vector3d(Math.cos(a), 0, -Math.sin(a))
+        const c = Math.cos(f), s = Math.sin(f)
+        const kv = Qt.vector3d(k.y * v.z - k.z * v.y,
+                               k.z * v.x - k.x * v.z,
+                               k.x * v.y - k.y * v.x)
+        const kd = (k.x * v.x + k.y * v.y + k.z * v.z) * (1 - c)
+        return Qt.vector3d(v.x * c + kv.x * s + k.x * kd,
+                           v.y * c + kv.y * s + k.y * kd,
+                           v.z * c + kv.z * s + k.z * kd)
+    }
+
+    /*!
         \qmlmethod void OrbitCamera3D::zoomBy(real factor)
         \brief Multiplies the distance (0.9 zooms in, 1.1 out).
     */

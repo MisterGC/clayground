@@ -359,6 +359,79 @@ Item {
             verify(farApart(before, eased.goalPosition) < 1e-3, "and it lands there")
         }
 
+        // --- turning about a point --------------------------------------------
+        // The claim is geometric and can be checked as one: the rig is rotated
+        // RIGIDLY about the anchor, so the anchor keeps both its distance from
+        // the camera and its bearing in camera space - which is the same thing
+        // as keeping its pixel.
+
+        function bearing(rigg, w) {
+            // where w sits in the camera's own frame: forward, right, up
+            const c = rigg.goalPosition
+            const a = rigg.goalYaw * Math.PI / 180, b = rigg.goalPitch * Math.PI / 180
+            const back = Qt.vector3d(Math.cos(b) * Math.sin(a), Math.sin(b),
+                                     Math.cos(b) * Math.cos(a))
+            const right = Qt.vector3d(Math.cos(a), 0, -Math.sin(a))
+            const up = Qt.vector3d(back.y * right.z - back.z * right.y,
+                                   back.z * right.x - back.x * right.z,
+                                   back.x * right.y - back.y * right.x)
+            const v = Qt.vector3d(w.x - c.x, w.y - c.y, w.z - c.z)
+            return { f: -v.dotProduct(back), r: v.dotProduct(right),
+                     u: v.dotProduct(up) }
+        }
+
+        function test_orbit_around_keeps_the_anchor_where_it_is() {
+            const w = Qt.vector3d(40, 0, 25)
+            for (const step of [[30, 0], [0, 15], [-45, -10], [120, 25]]) {
+                plain.applyState({ yaw: 0, pitch: 48, distance: 80,
+                                   px: 0, py: 0, pz: 0 })
+                const b0 = bearing(plain, w)
+                plain.orbitAround(w, step[0], step[1])
+                const b1 = bearing(plain, w)
+                verify(near(plain.goalYaw, step[0]), "the yaw turned: " + plain.goalYaw)
+                verify(near(b0.f, b1.f, 1e-3) && near(b0.r, b1.r, 1e-3)
+                       && near(b0.u, b1.u, 1e-3),
+                       "step " + step + " moved the anchor: "
+                       + JSON.stringify(b0) + " -> " + JSON.stringify(b1))
+            }
+        }
+
+        // Orbiting about the pivot is the special case, and must stay exactly
+        // what orbitBy does - a lab that anchors on its own pivot cannot end up
+        // somewhere else.
+        function test_orbit_around_the_pivot_is_a_plain_orbit() {
+            plain.applyState({ yaw: 10, pitch: 48, distance: 80, px: 5, py: 0, pz: -5 })
+            plain.orbitAround(Qt.vector3d(5, 0, -5), 20, -6)
+            const y = plain.goalYaw, p = plain.goalPitch
+            const pv = copyOf(plain.goalPivot)
+            plain.applyState({ yaw: 10, pitch: 48, distance: 80, px: 5, py: 0, pz: -5 })
+            plain.orbitBy(20, -6)
+            compare(plain.goalYaw, y)
+            compare(plain.goalPitch, p)
+            verify(farApart(pv, plain.goalPivot) < 1e-3, "and the same pivot")
+        }
+
+        // Only the allowed part of a clamped pitch may be applied - to BOTH
+        // halves, or the pivot swings further than the camera and the anchor
+        // slides away exactly when you are pushing hardest against the limit.
+        function test_a_clamped_pitch_clamps_the_rotation_too() {
+            const w = Qt.vector3d(30, 0, 0)
+            plain.applyState({ yaw: 0, pitch: 80, distance: 80, px: 0, py: 0, pz: 0 })
+            const b0 = bearing(plain, w)
+            plain.orbitAround(w, 0, 40)             // 80 + 40, capped at 84
+            compare(plain.goalPitch, 84, "the pitch stopped at its maximum")
+            const b1 = bearing(plain, w)
+            verify(near(b0.f, b1.f, 1e-3) && near(b0.r, b1.r, 1e-3)
+                   && near(b0.u, b1.u, 1e-3), "and the anchor held anyway")
+        }
+
+        function test_orbit_around_without_an_anchor_is_a_plain_orbit() {
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            plain.orbitAround(null, 15, 0)
+            compare(plain.goalYaw, 15)
+            verify(near(plain.goalPivot.x, 0), "and the pivot stayed")
+        }
+
         // --- zoom towards a point --------------------------------------------
 
         // The whole claim: the camera slides along the line to the point, and

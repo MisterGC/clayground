@@ -152,7 +152,9 @@ Item {
         function test_a_right_drag_anchors_at_the_cursor_without_a_jump() {
             nav.mode = "explore"
             const before = copyOf(rig.goalPosition)
+            const d0 = Math.hypot(60 - before.x, 0 - before.y, -40 - before.z)
             compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit")
+            verify(nav.anchor !== null, "the press took an anchor")
             verify(apart(before, rig.goalPosition) < 1e-3,
                    "the camera stayed put: " + apart(before, rig.goalPosition))
             // the pivot lands at the picked point's DEPTH: the offset from it
@@ -167,8 +169,14 @@ Item {
                    "square across the view: " + off.dotProduct(dir))
             verify(apart(pv, Qt.vector3d(0, 0, 0)) > 1, "and it did move: " + pv)
             nav.move(90, -40)
-            nav.cancel()
             verify(!near(rig.goalYaw, 0), "then the drag turned it: " + rig.goalYaw)
+            // and the point pressed on is still where it was, in camera terms:
+            // the whole rig turned about it
+            const c = copyOf(rig.goalPosition)
+            verify(near(Math.hypot(60 - c.x, 0 - c.y, -40 - c.z), d0, 1e-2),
+                   "the anchor kept its distance from the camera")
+            nav.cancel()
+            verify(nav.anchor === null, "and the anchor is dropped with the drag")
         }
 
         function test_anchoring_can_be_switched_off() {
