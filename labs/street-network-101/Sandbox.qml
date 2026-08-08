@@ -29,12 +29,13 @@ import "strings.js" as Strings
 // selected junction · # grid mode · Del remove · Esc cancel · Shift+R record.
 //
 // The lab opens in BUILD mode: both mouse buttons are the plan's, whole. B
-// switches to explore (drag moves the world, right-drag turns it about the
-// point under the cursor) and holding Space explores while held; the chip top
-// right says which you are in. Universal in both: the wheel zooms towards the
-// cursor, the middle button drags the world, double-click on bare sheet
-// re-centres there; arrows travel, Shift+arrows turn, +/- zoom, F frames,
-// 0 resets.
+// cycles on to explore (drag moves the world, right-drag turns it about the
+// point under the cursor) and then to measure (click drops a measuring point,
+// Backspace takes one back, Esc clears); holding Space explores while held,
+// and the chip top right says which you are in. Universal in all three: the
+// wheel zooms towards the cursor, the middle button drags the world,
+// double-click on bare sheet re-centres there; arrows travel, Shift+arrows
+// turn, +/- zoom, F frames, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -865,6 +866,11 @@ Item {
             shadowMapFar: 420             // measured: covers the plan at maxDistance 420
         }
         CameraAnchorMark { pointer: nav }
+        // The tape measure, in the same screen space and for the same reason:
+        // "how long is that road, and how sharp is that junction" is asked of
+        // a plan constantly, and until now the only answer was counting grid
+        // squares. The plan is in the lab's own units, so "u" it is.
+        MeasureTool { id: measure; pointer: nav }
         environment: stage.environment
 
         OrbitCamera3D {
@@ -2147,6 +2153,7 @@ Item {
             // the mode outranks everything: while the pointer is the camera's,
             // a hint about drawing describes a lab you are not in
             if (nav.exploring) return LabLang.t("hint.explore")
+            if (nav.measuring) return LabLang.t("mode.hint.measure")
             if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
             if (root.eraser) return LabLang.t("hint.erasing")
             if (root.drawFrom) return LabLang.t("hint.drawing")
@@ -2188,6 +2195,7 @@ Item {
         lab: root
         camera: rig
         pointer: nav
+        measure: measure
         recorder: recorder
         keys: [
             { key: "S", label: "key.simulate", action: () => root.toggleSim() },

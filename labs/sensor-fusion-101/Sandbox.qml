@@ -15,10 +15,12 @@ import "strings.js" as Strings
 // odometry and landmark lidar against a map into one estimate (2D Kalman
 // filter). Keys: 1-3 presets · T flow · C camera · M lidar panel · # grid ·
 // F frame the car · 0 frame the city · ⇧R record · ? every key.
-// Nothing here is built, so the pointer is permanently the camera's (explore
-// mode, no chip): drag carries the world along, right-drag turns it about the
-// point under the cursor, the middle button drags too, double-click re-centres,
-// the wheel zooms towards the cursor; arrows travel, Shift+arrows turn.
+// Nothing here is built, so the pointer is the camera's: drag carries the
+// world along, right-drag turns it about the point under the cursor, the
+// middle button drags too, double-click re-centres, the wheel zooms towards
+// the cursor; arrows travel, Shift+arrows turn. B is the one mode switch this
+// lab has - explore and measure, never build: in measure a click drops a
+// measuring point, Backspace takes one back and Esc clears the run.
 Item {
     id: root
     anchors.fill: parent
@@ -332,6 +334,11 @@ Item {
             majorWidth: root.showGrid ? 1.6 : 0
         }
         CameraAnchorMark { pointer: nav }
+        // The tape measure, in metres, because that is what this city is in:
+        // "how far did the fix land from the truth" is the lab's whole
+        // question, and now it can be asked of any two points on the ground
+        // rather than only of the pairs the legend happens to list.
+        MeasureTool { id: measure; pointer: nav; measureUnit: "m" }
         environment: stage.environment
 
         camera: root.followCam ? camFollow : orbit.camera
@@ -606,6 +613,13 @@ Item {
         id: topSwitches
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
         spacing: LabTheme.spaceM
+        // what the mouse currently means - two modes here, not three: this lab
+        // has nothing to build
+        ModeChip {
+            pointer: nav
+            key: keymap.modeKey
+            anchors.verticalCenter: parent.verticalCenter
+        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -638,15 +652,15 @@ Item {
     // under the cursor, the middle button drags in either mode, the wheel zooms
     // towards the cursor, double-click puts the pivot where you clicked.
     //
-    // This lab builds nothing, so the mode is LOCKED to explore: the whole
-    // pointer is the camera's for good, there is no chip to switch it with, and
-    // B and Space stay out of this lab's key map.
+    // This lab builds nothing - but it has plenty to measure, which is why the
+    // mode is a LIST rather than a lock: explore and measure, never build. B
+    // walks the two and the chip says which one you are in.
     OrbitInput3D {
         id: nav
         rig: orbit
         view: view3d
         mode: "explore"
-        modeLocked: true
+        modes: ["explore", "measure"]
     }
     MouseArea {
         anchors.fill: parent
@@ -658,6 +672,15 @@ Item {
         onReleased: nav.end()
         onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)
         onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
+    }
+    // Measuring needs the pointer, and while the camera is chasing the car the
+    // pointer is not the viewer's - so taking the tape out lets the car go.
+    // The same thing F and 0 already do, for the same reason.
+    Connections {
+        target: nav
+        function onModeChanged() {
+            if (nav.mode === "measure") root.followCam = false
+        }
     }
 
     // --- legend --------------------------------------------------------
@@ -970,6 +993,9 @@ Item {
         // into the middle column the parameters become the wall
         rightGuard: root.monitorUnderParams ? monitor : params
         text: {
+            // the mode outranks the story: while the tape measure is out, a
+            // hint about the fusion describes something you are not doing
+            if (nav.measuring) return LabLang.t("mode.hint.measure")
             if (root.tunnelOn && root.carInTunnel) return LabLang.t("hint.tunnel")
             if (!root._lidarOn) return LabLang.t("hint.lidarOut")
             if (!root.followCam) return LabLang.t("hint.free")
@@ -1035,6 +1061,7 @@ Item {
         lab: root
         camera: orbit
         pointer: nav
+        measure: measure
         flow: fusionFlow
         recorder: recorder
         keys: [

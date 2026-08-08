@@ -21,12 +21,14 @@ import "strings.js" as Strings
 // Shift+R record · Esc cancel.
 //
 // The lab opens in BUILD mode: both mouse buttons are the board's, whole, and
-// only the middle button and the wheel are the camera's. B switches to explore
-// (drag moves the world, right-drag turns it about the cursor) and holding
-// Space explores for as long as you hold it; the chip top right says which you
-// are in. Universal in both: wheel zooms towards the cursor, middle-drag moves
-// the world, double-click bare board re-centres there; arrows travel,
-// Shift+arrows turn, +/- zoom, F frames the selection, 0 resets.
+// only the middle button and the wheel are the camera's. B cycles on to
+// explore (drag moves the world, right-drag turns it about the cursor) and
+// then to measure (click drops a measuring point, Backspace takes one back,
+// Esc clears); holding Space explores for as long as you hold it, and the chip
+// top right says which you are in. Universal in all three: wheel zooms towards
+// the cursor, middle-drag moves the world, double-click bare board re-centres
+// there; arrows travel, Shift+arrows turn, +/- zoom, F frames the selection,
+// 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -699,6 +701,10 @@ Item {
             shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
         CameraAnchorMark { pointer: nav }
+        // The tape measure, in the same screen space and for the same reason:
+        // it answers "how far apart are those pads" without a mode that could
+        // disturb the board, and it never clips into a part.
+        MeasureTool { id: measure; pointer: nav }
         environment: stage.environment
 
         OrbitCamera3D {
@@ -1738,6 +1744,7 @@ Item {
             // the mode outranks everything: while the pointer is the camera's,
             // a hint about clicking pads describes a lab you are not in
             if (nav.exploring) return LabLang.t("hint.explore")
+            if (nav.measuring) return LabLang.t("mode.hint.measure")
             if (root.eraser) return LabLang.t("hint.eraser")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
@@ -1786,6 +1793,7 @@ Item {
         lab: root
         camera: rig
         pointer: nav
+        measure: measure
         flow: ledFlow
         recorder: recorder
         keys: [
