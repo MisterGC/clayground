@@ -60,7 +60,14 @@ Item {
         }
     }
 
-    DataRecorder { id: recorder; destination: "electronics-101-run.csv" }
+    // Shift+R writes a scratch run record into the lab's own records/ dir. No
+    // command: a frame-driven session cannot be regenerated, and the citable
+    // records are the ones a committed driver steps out (see the clay-lab skill).
+    DataRecorder {
+        id: recorder
+        lab: "electronics-101"
+        destination: "labs/electronics-101/records/session.labrec"
+    }
 
     // --- monitoring -------------------------------------------------------
     // What the plot shows comes from the board, never from a fixed list: watch

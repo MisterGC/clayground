@@ -111,7 +111,14 @@ Item {
         expr: () => Traffic.stoppedShare(root.simState) * 100
     }
 
-    DataRecorder { id: recorder; destination: "street-network-101-run.csv" }
+    // Shift+R writes a scratch run record into the lab's own records/ dir. No
+    // command: a frame-driven session cannot be regenerated, and the citable
+    // records are the ones a committed driver steps out (see the clay-lab skill).
+    DataRecorder {
+        id: recorder
+        lab: "street-network-101"
+        destination: "labs/street-network-101/records/session.labrec"
+    }
 
     // --- monitoring --------------------------------------------------------
     // The plotted set is the WATCHED set, and what you watch is a road you

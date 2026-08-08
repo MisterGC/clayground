@@ -206,7 +206,7 @@ the core physical lesson of the lab.
 Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
 `E` eraser · `C` clear · `#` grid mode · `R` turn the selected part ·
 `W` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
-view · `Esc` cancel · `Shift+R` record CSV. `EN`/`DE` in the top right
+view · `Esc` cancel · `Shift+R` record a run. `EN`/`DE` in the top right
 switch the language.
 
 Drag parts from the palette onto the board, click two gold terminals to
