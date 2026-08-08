@@ -2,8 +2,52 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QLoggingCategory>
 #include <random>
 #include <QtMath>
+
+Q_LOGGING_CATEGORY(lcVoxel, "clay.voxel")
+
+namespace {
+
+// A colour in a fill distribution can arrive in several shapes. QML hands over
+// a `color` property or a Qt.rgba() as a QColor variant and a literal as a
+// string; a colour that has been through JS - spread, or deep-copied via JSON -
+// arrives as a plain {r,g,b,a} map instead.
+//
+// This used to read every one of them with toString(). QColor happens to
+// survive that on current Qt, but the channel map does not: it stringifies to
+// nothing, becomes QColor(""), and the whole fill turns out a solid invalid
+// colour with no warning (#178). Read the variant for what it is instead of
+// leaning on an implicit conversion.
+QColor colorFromVariant(const QVariant &value)
+{
+    if (!value.isValid()) return QColor();
+
+    switch (value.metaType().id()) {
+    case QMetaType::QColor:
+        return value.value<QColor>();
+    case QMetaType::QString:
+        return QColor(value.toString());
+    case QMetaType::QVariantMap: {
+        const QVariantMap m = value.toMap();
+        if (m.contains("r") && m.contains("g") && m.contains("b")) {
+            return QColor::fromRgbF(float(m.value("r").toFloat()),
+                                    float(m.value("g").toFloat()),
+                                    float(m.value("b").toFloat()),
+                                    m.contains("a") ? m.value("a").toFloat() : 1.0f);
+        }
+        return QColor();
+    }
+    default:
+        break;
+    }
+
+    if (value.canConvert<QColor>()) return value.value<QColor>();
+    return QColor();
+}
+
+} // namespace
 
 VoxelMapData::VoxelMapData(QObject *parent)
     : QObject(parent)
@@ -247,21 +291,45 @@ QVector<ColorProb> VoxelMapData::prepareColorDistribution(const QVariantList &co
     float totalWeight = 0.0f;
 
     for (const QVariant &item : colorDistribution) {
-        QVariantMap entry = item.toMap();
-        if (entry.contains("color") && entry.contains("weight")) {
-            QColor color = QColor(entry["color"].toString());
-            float weight = entry["weight"].toFloat();
-            if (weight > 0.0f) {
-                totalWeight += weight;
-                distribution.append({color, weight});
+        const QVariantMap entry = item.toMap();
+        if (!entry.contains("color")) {
+            qCWarning(lcVoxel) << "voxel fill: distribution entry has no 'color', ignored:" << item;
+            continue;
+        }
+
+        const QColor color = colorFromVariant(entry.value("color"));
+        if (!color.isValid()) {
+            qCWarning(lcVoxel) << "voxel fill: unusable color" << entry.value("color") << "- entry ignored";
+            continue;
+        }
+
+        // A missing weight means "this colour, all of it" - the common single
+        // colour case - rather than a silently dropped entry.
+        float weight = 1.0f;
+        if (entry.contains("weight")) {
+            bool ok = false;
+            weight = entry.value("weight").toFloat(&ok);
+            if (!ok) {
+                qCWarning(lcVoxel) << "voxel fill: non-numeric weight" << entry.value("weight")
+                                   << "- entry ignored";
+                continue;
             }
         }
+        if (weight <= 0.0f) {
+            qCWarning(lcVoxel) << "voxel fill: weight" << weight << "is not positive - entry ignored";
+            continue;
+        }
+
+        totalWeight += weight;
+        distribution.append({color, weight});
     }
 
     if (!distribution.isEmpty()) {
         for (auto &item : distribution) {
             item.probability /= totalWeight;
         }
+    } else if (!colorDistribution.isEmpty()) {
+        qCWarning(lcVoxel) << "voxel fill: no usable color in the distribution - nothing filled";
     }
 
     return distribution;

@@ -300,7 +300,7 @@ plan always produces the same traffic.
 Keys: `1`–`4` scenarios · `S` simulate · `C` clear · `E` erase · `L` lane
 model · `V` flow numbers · `M` lane graph · `W` plot the selected road ·
 `X` close/open every movement at the selected junction · `#` grid mode ·
-`Del` remove · `Esc` cancel · `Shift+R` record CSV · `F` frame selection ·
+`Del` remove · `Esc` cancel · `Shift+R` record a run · `F` frame selection ·
 `0` reset view.
 
 ## Source map

@@ -32,25 +32,25 @@ Item {
     SvgReader {
         id: levelReader
         source: "levels/level1.svg"
-        
+
         onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
             // Parse description for game object type
             let data = JSON.parse(description)
-            
+
             if (data.type === "platform") {
                 createPlatform(x, y, width, height)
             } else if (data.type === "enemy") {
                 createEnemy(x, y, width, height, data.enemyType)
             }
         }
-        
+
         onCircle: (id, x, y, radius, fillColor, strokeColor, description) => {
             let data = JSON.parse(description)
             if (data.type === "coin") {
                 createCoin(x, y, radius)
             }
         }
-        
+
         onPolyline: (id, points, fillColor, strokeColor, description) => {
             let data = JSON.parse(description)
             if (data.type === "patrol_path") {
@@ -67,10 +67,10 @@ Item {
 SvgWriter {
     id: mapWriter
     path: "output/game_map.svg"
-    
+
     function saveGameState(world) {
         begin(world.width, world.height)
-        
+
         // Save platforms
         for (let platform of world.platforms) {
             rectangle(
@@ -84,7 +84,7 @@ SvgWriter {
                 })
             )
         }
-        
+
         // Save collectibles
         for (let coin of world.coins) {
             circle(
@@ -97,7 +97,7 @@ SvgWriter {
                 })
             )
         }
-        
+
         // Save paths
         for (let path of world.paths) {
             polyline(
@@ -108,7 +108,7 @@ SvgWriter {
                 })
             )
         }
-        
+
         end()
     }
 }
@@ -125,13 +125,13 @@ Item {
         svgPath: "assets/game_sprites.svg"
         annotationRRGGBB: "FF00FF"  // Ignore magenta annotations
     }
-    
+
     Image {
         source: svgAssets.source("player_idle")
         width: 64
         height: 64
     }
-    
+
     Image {
         source: svgAssets.source("enemy_sprite")
         visible: svgAssets.has("enemy_sprite")
@@ -147,15 +147,15 @@ Item {
     SvgReader {
         id: templateReader
         source: "templates/base_level.svg"
-        
+
         property var objects: []
-        
+
         onBegin: {
             // Clear existing objects
             for (let obj of objects) obj.destroy()
             objects = []
         }
-        
+
         onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
             let obj = gameObjectComponent.createObject(gameWorld, {
                 x: x,
@@ -167,15 +167,15 @@ Item {
             objects.push(obj)
         }
     }
-    
+
     // Save edited level
     SvgWriter {
         id: levelSaver
-        
+
         function saveLevel(filename) {
             path = filename
             begin(gameWorld.width, gameWorld.height)
-            
+
             for (let obj of templateReader.objects) {
                 if (obj.shape === "rectangle") {
                     rectangle(
@@ -187,7 +187,7 @@ Item {
                     )
                 }
             }
-            
+
             end()
         }
     }
@@ -199,19 +199,19 @@ Item {
 ```qml
 Item {
     property var svgSources: ({})
-    
+
     function loadSvgAssets(category) {
         let source = svgSourceComponent.createObject(this, {
             svgPath: `assets/${category}_sprites.svg`
         })
         svgSources[category] = source
     }
-    
+
     Component {
         id: svgSourceComponent
         SvgImageSource {}
     }
-    
+
     function getAssetSource(category, assetId) {
         if (svgSources[category] && svgSources[category].has(assetId)) {
             return svgSources[category].source(assetId)
@@ -232,7 +232,7 @@ SvgImageSource {
 AnimatedImage {
     property int frame: 0
     source: animationFrames.source("walk_frame_" + frame)
-    
+
     Timer {
         interval: 100
         repeat: true

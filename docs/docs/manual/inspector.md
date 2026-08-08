@@ -14,21 +14,52 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 <sandbox-dir>/.clay/inspect/
 ├── request.json      ← you (or your tool) write this
 ├── response.json     ← the inspector writes this (atomically)
-├── state.json        ← lifecycle: phase, pid, protocolVersion, reloadCount
+├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount, openAnnotations
 ├── events.jsonl      ← append-only event stream (5 MB one-level rotation)
 ├── log.jsonl         ← every console/Qt message: ts, level, category, text
 ├── dojo.json         ← dojo supervisor state (generation, crash info)
-├── crash.json        ← after crash loops: exit info + stderr tail
+├── crash.json        ← after crash loops: exit info + child output tail
 ├── autoflag_*.json   ← auto-captured evidence bundle on runtime errors
-├── screenshot.png    ← written when requested
+├── screenshot.png    ← default capture target; a request can name its own path
 └── trace.jsonl       ← written during trace recording
 ```
 
 The `.clay/` directory is created automatically in the directory where the sandbox QML file lives.
 
-**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 2) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
+**Correlation:** put a unique `"id"` into every request — the response echoes it as `"requestId"` so stale responses (from earlier roundtrips or a previous process generation) can be rejected. `state.json` carries `protocolVersion` (currently 3) so tools can check capabilities before relying on them, and `runId` — unique per loader process. On startup a loader removes a previous run's `state.json`/`response.json`; drivers relaunching an instance should still either clean the instance dir first or wait for `runId` to change, since a just-spawned process needs a moment before its first write.
 
-**Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default.
+**One request at a time:** wait for your reply before writing the next request. Blocking actions (`waitForRoot`, a settling capture, a `batch`) spin the event loop, so a request written while one is in flight would be answered into the same `response.json` and lost; the loader drops it instead and reports `reentrantDropped` on the response it does send. Use `batch` when you want several things done without waiting in between.
+
+**Multiple instances:** networked games run several instances of the same sandbox. Start each loader with `--instance <name>` and it serves its protocol under `.clay/inspect/i/<name>/` instead (with `instanceId` stamped into its `state.json`); the flat layout remains the single-instance default. `dojo.json` stays at `<sandbox-dir>/.clay/inspect/dojo.json` in every case — there is one supervisor per sandbox dir, whatever the instance layout.
+
+## The status envelope
+
+Every response carries a `status` object, whatever the action was (protocol v3):
+
+```json
+"status": {
+  "alive": true, "rootLoaded": true, "generation": 7, "phase": "ready",
+  "reloadCount": 9, "runId": "84b55d33", "supervised": true, "restarts": 3,
+  "sandbox": "/path/Sandbox.qml",
+  "renderedAt": "2026-08-01T10:21:07.412",
+  "lastError": "child exited 0 (normal)", "lastErrorAt": "2026-08-01T10:20:58.101"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `alive` | The inspector reached the point of writing this response. Not a measurement — a dead inspector writes nothing, but a *stale* `response.json` still says `true`, so pair it with `requestId`. |
+| `rootLoaded` | A root object exists. |
+| `generation` | Successful loads. Does not advance on a reload that failed, which is exactly what makes "am I measuring the scene I edited?" answerable. `reloadCount` counts attempts. |
+| `phase`, `runId`, `sandbox`, `instanceId` | The same facts as `state.json`, so one response answers them. |
+| `renderedAt` | Present **only** when this response carries a capture, and set to the moment the image was grabbed. A `snapshot` with `"screenshot": true` that returns no `renderedAt` produced no image (see `screenshotError`); any PNG on disk is then from an earlier request. |
+| `supervised`, `restarts` | Read from the dojo's `dojo.json`. `restarts` counts respawns, i.e. every child after the first. |
+| `lastError`, `lastErrorAt` | The newer of the most recent QML error and how the supervisor's last child died — so a crash loop is visible even from a loader that logged nothing. |
+| `supervisorGaveUp` | Present and `true` when the dojo stopped respawning (see `dojo.json`'s `gave_up` phase and its `reason`). |
+
+Because `status` is reserved for the envelope, actions that acknowledge themselves use their own key: `reload` answers `reloadStatus`, `trace` answers `traceStatus`, `annotate` answers `annotateStatus`. `id` is reserved the same way — it is the caller's request-correlation id on every action, which is why `annotate` selects its target with `annotationId`.
+
+**On the supervisor side**, `claydojo` forwards the child's stdout as well as its stderr (a rejected command line prints its usage to stdout), rejects unknown positional arguments and missing `--sbx` files at the front door instead of passing them to the child, and stops respawning once the crash threshold is reached without any child ever having run stably — writing `phase: "gave_up"` and a `reason` into `dojo.json` and printing both. A silent infinite restart loop is the worst failure mode for headless use.
 
 ## Actions
 
@@ -42,7 +73,99 @@ The `.clay/` directory is created automatically in the directory where the sandb
 }
 ```
 
-Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors`, and optionally a `screenshot` path.
+Returns: `rootProperties` (auto-captured primitive properties on the sandbox root), `flagInfo` (if the root defines a `flagInfo()` function), `viewState` (if the root implements it, see below), `eval` results, `logTail` (last 50 log entries), `warnings`, `errors` (plain strings — the `errors` action carries file and line), and optionally a `screenshot` path. A grab that failed returns `screenshotError` instead, and leaves `status.renderedAt` unset.
+
+#### Capture — framing, settling, comparison
+
+`"screenshot": true` writes `.clay/inspect/screenshot.png`, unchanged. Passing an object instead tells the renderer where the picture goes and how it is framed — the renderer already knows the framing, so nothing is left to copy, downscale or crop afterwards:
+
+```json
+{
+  "action": "snapshot",
+  "settle": true,
+  "screenshot": {"path": "shots/hud.png",
+                 "crop": {"objectName": "hud"},
+                 "scale": 0.5},
+  "diff": "shots/hud-baseline.png"
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `screenshot.path` | Where to write. A relative path resolves under **`.clay/inspect/`**, never the loader's working directory; parent directories are created. Omit it to keep the default `.clay/inspect/screenshot.png`. Absolute paths go wherever you say — but **not into the sandbox directory**: the dojo watches that whole tree (it skips only `.clay/`), so a capture written there triggers a reload and your next step measures a different scene. |
+| `screenshot.crop` | `[x, y, width, height]` in captured-image pixels, or `{"objectName": "..."}` to frame exactly that item. Applied before scaling. A crop that lies outside the viewport is a `screenshotError`, not a silent clamp — a picture of the wrong thing is worse than no picture. |
+| `screenshot.scale`, `screenshot.width` | Downscale by a factor, or to a target width in pixels (`width` wins over `scale`). |
+| `settle` | `true`, or `{timeoutMs, stableFrames, intervalMs, tolerance}`. Waits for the picture to stop changing before grabbing it. |
+| `diff` | A baseline PNG path, or `{"baseline": "...", "tolerance": N}`. Compares the capture just taken against that file. |
+
+The response says what was actually produced: `screenshot` (the path written), `screenshotSize` (`{width, height}` after crop and scale) and `status.renderedAt` (the moment those pixels were grabbed).
+
+`settle` answers `{settled, waitedMs, framesCompared, lastDelta}`. It compares successive frames instead of asking the animation system, so it covers animation, physics and shader-driven motion alike. `settled: false` means the timeout hit while the scene was still moving — a bounded, reported fact rather than an error, because a scene in continuous motion never settles. Read it before trusting the picture: it is the difference between "quiet" and "gave up while it was still moving". `settle` works without a capture too, as a plain "wait until it is done".
+
+`diff` answers `{baseline, tolerance, delta, changedPixels, changedBounds}`, where `delta` is the fraction of pixels beyond tolerance (0..1) and `changedBounds` the rectangle they occupy (absent when nothing changed). `tolerance` defaults to 2 per channel, which absorbs the jitter between two GPU renders of the same scene. A baseline that cannot be read is a `diffError` — never a silently skipped comparison, which is how a regression check passes forever without comparing anything. `diff` without `screenshot` compares without writing a file.
+
+`settle` waits for the picture; the `time` action controls the clock (pause, single-step, timescale). They are separate knobs, and a deterministic frame usually wants both.
+
+### errors — QML errors and warnings since load
+
+```json
+{"action": "errors"}
+{"action": "errors", "sinceGeneration": 8}
+```
+
+Returns `errors` and `warnings` as objects — `{generation, ts, text, file, line}`, with `file`/`line` filled in when the message carried a location — plus `errorCount`, `warningCount` and `truncated` (each buffer holds 200 entries). Unhandled QML/JS exceptions (`TypeError`, `ReferenceError`, …) arrive as warnings, so read both lists.
+
+The buffers are cleared before every reload, so a bare `errors` request means "what has gone wrong with the current scene". `sinceGeneration: N` drops everything older than generation N. Diagnostics raised while a load is in flight are tagged with the generation being *attempted*, so a reload that failed leaves its errors at `status.generation + 1` — findable even though the generation itself never advanced.
+
+### annotations / annotate — the user's remarks about the running scene
+
+```json
+{"action": "annotations"}
+{"action": "annotations", "status": "open", "sinceGeneration": 8}
+{"action": "annotate", "annotationId": "a7", "note": "raised the button to 44px and re-centred the label"}
+```
+
+The user frames regions over the running sandbox and writes a note on each (`Ctrl+F` opens the surface). Those notes are the spatial channel from them to you — the thing a screenshot with an arrow drawn on it used to be, except each one carries the region, an image of it, and where resolvable the *object* it is about.
+
+`annotations` lists them. Filters: `status` (`open`, `addressed`, `any`), `sinceGeneration` (drops everything from an older load), `limit`. Each entry carries what the surface stored — `id`, `created`, `generation`, `scope` (`region` or `scene`), `rect` (`null` for a scene-wide note), `note`, `view` — plus `status`, `addressedNote`, `addressedAt`, `anchor` and `crop`. The response adds `cropPath` (absolute, ready to read) when the crop file is there and `cropMissing: true` when it is not, and reports `total`, `openCount` and `addressedCount` alongside the filtered `count`. **A missing store is an empty list, not an error** — it only exists once something has been annotated.
+
+`"reproject": true` adds a `now` object per anchored entry: where that anchor is on screen *at this moment*, as `{x, y, rect, via, insideViewport}`. `via` is `objectName` when the object was found again and asked where it is, `world` when it is gone and the stored world point was projected through the live camera, `stored` when there was nothing to project against.
+
+`annotate` marks one addressed. It takes `annotationId` (**not** `id` — that key is the request's own correlation id on every action) and a `note` saying what you actually did; a mark without one is refused, because "addressed" with no explanation leaves the user re-deriving it from a diff. It answers `{annotated, annotateStatus: "addressed", addressedNote, addressedAt}`. It is the only write an agent gets: **nothing here deletes**. Re-opening, clearing addressed and wiping the store are the user's, in their own overlay.
+
+#### What an anchor is
+
+The rect is pixels, and pixels never fail — but they stop meaning anything the moment the camera moves. The anchor is the other half: *what* those pixels were about, resolved once when the annotation was made.
+
+```json
+"anchor": {"resolved": true, "kind": "2d", "objectName": "player",
+           "type": "RectBoxBody", "source": "Sandbox.qml",
+           "space": "world", "world": [5, 10], "at": [452, 372],
+           "under": "Rectangle"}
+```
+
+- `kind` — `2d` (an item, resolved through the item tree) or `3d` (a node, picked through the `View3D`).
+- `objectName` / `type` / `source` — enough to go straight to a source line instead of hunting. `objectName` is absent when the item has none.
+- `space` / `world` — read `world` according to `space`: `world` is canvas world units, `world3d` is Qt Quick 3D scene coordinates, `scene` is scene pixels (a plain GUI app has no world, and calling pixels "world" would be a lie you could not detect).
+- `at` — the viewport point the resolution used, i.e. the rect's centre.
+- `under` — the innermost thing actually at that point, when the reported anchor is something else. Resolution walks *up* from an anonymous internal item to the nearest thing a note can be acted on: something declared in a QML file on disk, preferring one with an `objectName`. `under` keeps that walk visible rather than silent.
+
+**An anchor can be unresolved, and that is a real answer:**
+
+```json
+"anchor": {"resolved": false, "at": [40, 40],
+           "reason": "nothing specific enough under 40,40 (innermost: Item)"}
+```
+
+Empty space, a shader effect, an item that just fills the whole viewport, and instanced geometry (a `LineBatch3D` or a `VoxelMap` — Qt Quick 3D cannot pick those; use `inspect` for them) all resolve to nothing. A wrong anchor is worse than none: it sends you to the wrong file with confidence. When an anchor is unresolved, the crop and the rect are still the whole record, and they are enough.
+
+#### The crop, and where all this lives
+
+The store is `<sandboxDir>/.clay/crew/annotations/index.json`, with one PNG per annotation beside it. The crop is taken **once, when the annotation is made**, and never refreshed — it freezes the evidence, so what you look at is what the user framed rather than a scene that has moved on since.
+
+A rect that hangs partly off-screen yields the part that was visible, flagged with `cropClipped: true`. A rect entirely outside the viewport yields no crop at all: `crop` is `null` and the failure is reported. That is deliberate — a clamped crop of somewhere else would be a picture of the wrong thing — and it costs nothing, because the note and the rect are the record; the crop is evidence about it.
+
+Two writers share the store (the overlay creates entries, the inspector marks them addressed), so every write re-reads the file, patches only its own fields and commits atomically. Editing `index.json` by hand while a session runs is safe.
 
 ### eval — Expression evaluation
 
@@ -65,6 +188,46 @@ Evaluates JavaScript/QML expressions in the sandbox root context. This is the br
 Returns a JSON tree of the QML item hierarchy. **Overview** mode (default) includes type, objectName, source file, custom properties, complex property names, and visible/enabled state. **Full** mode adds vector properties, z-order, opacity, clip, state, and childrenRect.
 
 When a child list exceeds 20 items, the tree truncates to the first 5 items plus a summary of all children — type counts and mini-dumps of rare or named items. This surfaces interesting entities (player, enemies) among hundreds of walls.
+
+```json
+{"action": "tree", "select": "Rectangle", "limit": 5}
+{"action": "tree", "objectName": "hud", "maxDepth": 2}
+```
+
+A full tree costs a few hundred milliseconds and dumps the whole scene, which is too expensive inside a verification loop. With `select` (type) or `objectName` you get an `items` array of just those nodes, at depth 0 unless you ask for more. A selector that matches nothing returns an empty list — never the whole tree.
+
+### inspect — Ask the renderer what it actually got
+
+```json
+{"action": "inspect", "select": "lines"}
+{"action": "inspect", "select": "LabelBatch3D", "objectName": "roadNames"}
+```
+
+Most verification questions are numeric — *is that arrowhead full size? did the second line get drawn at all? where is the player, in world units?* — and a screenshot answers none of them. `inspect` walks the scene and returns the data **as the renderer received it**, after all bindings and JS have run.
+
+Two kinds of answer, and every entry says which it gave via `"via"`:
+
+- `"via": "hook"` — the type implements `clayInspect()` and answers in its own terms.
+- `"via": "properties"` — no hook, so the answer is read generically: geometry, app-level properties, source file. This only happens when you asked for something specific (`select` or `objectName`); with no selector, only hooked objects answer, which keeps the default cheap.
+
+`select` matches the type name, the class name, **any base type** (so `select: "PhysicsItem"` finds every body, and `select: "ClayWorld2d"` finds a sandbox root that derives from it), or the type a hook reports for itself; `lines` is shorthand for `LineBatch3D`. Types shipping a hook today: `LineBatch3D` (per line: resolved world points, width, colour, styleId, length; plus batch bounds and instance count), `LabelBatch3D` (text, size, position, colour per label, including curved path labels), `VoxelMap` (grid, solid count, palette, storage), `ClayCanvas` (pixelPerUnit, the visible world rect, canvas size), `ClayWorld2d` (world bounds, entity count, registered components, gravity), `ClayWorld2dCamera` (mode, target, centre, look-ahead offset) and `PhysicsItem` (world-unit position and size, body type, velocity, sensor/categories).
+
+The inspector knows none of these types by name — a type opts in by implementing `Q_INVOKABLE QVariantMap clayInspect() const` in C++ or a plain `function clayInspect()` in QML. The contract for anyone adding one: **pull-only**. Read state the renderer already keeps, compute nothing on your own schedule, never maintain bookkeeping for the inspector's benefit. That is what keeps this free in a shipped app, where nothing ever calls it. A hook belongs to the object that declares it: children of the same file do not answer with it.
+
+`tree` and `inspect` overlap but are not the same view: `tree` gives you the item *hierarchy* (2D items only — a `LineBatch3D` is a `Model`, not an `Item`), while `inspect` gives a flat list of matches across the whole scene, 2D and 3D alike. For "what is in my scene", reach for `inspect`.
+
+### project / pick — Screen space and what's under a pixel
+
+```json
+{"action": "project", "world": [0, 0, 0]}
+{"action": "pick", "x": 640, "y": 400}
+```
+
+`project` maps a world point through the live camera and viewport, answering `x`, `y`, `depth`, `behindCamera` and `insideViewport` — a point behind the camera is never reported as inside the viewport, since those are different failures. It removes the need to hand-roll `mapFrom3DScene` arithmetic in a shell script.
+
+`pick` answers what is under that pixel: the object hit, distance, world position and normal, **plus the colour actually rendered there**. The colour works in a 2D-only scene too; the hit needs a `View3D`. Instanced geometry (a `LineBatch3D`) is not pickable in Qt Quick 3D — use `inspect` for those.
+
+Both take an optional `"view"` (id or objectName) when the scene has several `View3D`s.
 
 ### trace — Temporal observation
 
@@ -105,6 +268,7 @@ The response includes a summary — often sufficient without reading the full tr
 
 ```json
 {
+  "traceStatus": "stopped",
   "stoppedBy": "condition",
   "samples": 42,
   "duration": 8400,
@@ -124,7 +288,9 @@ The response includes a summary — often sufficient without reading the full tr
 ```
 
 Runs the same path as a file-watch reload (full engine recreation — no scene
-state survives). With `scenario`, the named checkpoint is applied via the
+state survives). The response acknowledges with `reloadStatus: "requested"`;
+the reload itself has not happened yet, so follow with `waitForRoot` and
+confirm `status.generation` advanced. With `scenario`, the named checkpoint is applied via the
 root's `applyScenario()` once the new root is ready. With `rearm: true`, the
 scenario is re-applied after *every* subsequent reload (including file-watch
 reloads while you edit) until a reload request passes `rearm: false`. The
@@ -181,6 +347,39 @@ Three channels, combinable in one request:
   world units (`xWu`/`yWu`, canvas apps — resolved via
   `canvas.worldToScene()`, clean error otherwise), or `objectName`
   (resolves the item's center; nicest for Controls-style UIs).
+
+### batch — several steps in one round trip
+
+```json
+{"action": "batch", "steps": [
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true},
+  {"action": "input", "key": {"key": "V"}},
+  {"action": "snapshot", "screenshot": true}
+]}
+```
+
+A step *is* a request — same keys, same handler, nothing new to learn. Anything
+that works standalone works as a step, with one difference: a step must spell
+out its `action`. There is no `snapshot` default inside a batch, so a step
+written as `{"input": {...}}` fails loudly instead of quietly taking a picture.
+
+Returns `steps` — one result per step, in the same order, each carrying the
+action it ran and the `generation` it ran at — plus `stepsRun` and
+`stepsTotal`. The `status` envelope is attached once, for the whole batch; the
+per-step `generation` is what makes a reload landing mid-batch visible instead
+of silently changing what the later steps measured.
+
+**A batch stops at the first failing step.** The response then carries
+`failedStep` (the index) and an `error` reading `batch: step 1 failed: …`, and
+`steps` ends there — nothing after it ran. Continuing past a failure would be
+worse than not batching at all.
+
+Batches do not nest, and 32 steps is the ceiling: a batch runs synchronously
+inside one file-watch callback. A `trace` step may start or stop a trace, but a
+batch never waits for one — a trace answers later, from its own timer, as its
+own response. Trace sampling is suspended for the duration of a batch so that
+completion cannot land in the middle and overwrite the batch's own reply.
 
 ## Scenario Checkpoints
 

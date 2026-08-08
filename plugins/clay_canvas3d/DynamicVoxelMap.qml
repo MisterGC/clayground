@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import QtQuick.Window
 
 /*!
     \qmltype DynamicVoxelMap
@@ -94,8 +93,6 @@ VoxelMap {
             property real edgeThickness: _voxelMap.edgeThickness
             property real edgeColorFactor: _voxelMap.edgeColorFactor
             property bool showEdges: _voxelMap.showEdges
-
-            property real viewportHeight: Screen.desktopAvailableHeight
         }
     ]
 }

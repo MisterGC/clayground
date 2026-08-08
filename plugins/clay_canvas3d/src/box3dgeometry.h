@@ -2,6 +2,7 @@
 #define BOX3DGEOMETRY_H
 
 #include <QQuick3DGeometry>
+#include <QColor>
 #include <QVector3D>
 #include <QVector2D>
 
@@ -18,7 +19,9 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
     Q_PROPERTY(float edgeThickness READ edgeThickness WRITE setEdgeThickness NOTIFY edgeThicknessChanged)
     Q_PROPERTY(float edgeColorFactor READ edgeColorFactor WRITE setEdgeColorFactor NOTIFY edgeColorFactorChanged)
+    Q_PROPERTY(QColor edgeColor READ edgeColor WRITE setEdgeColor NOTIFY edgeColorChanged)
     Q_PROPERTY(int edgeMask READ edgeMask WRITE setEdgeMask NOTIFY edgeMaskChanged)
+    Q_PROPERTY(EdgeMode edgeMode READ edgeMode WRITE setEdgeMode NOTIFY edgeModeChanged)
 
 public:
     enum ScaledFace {
@@ -55,6 +58,16 @@ public:
     };
     Q_ENUM(EdgeFlags)
 
+    // Which lines "edges" means. The barycentric attribute both modes could
+    // want is always in the buffer (36 unshared vertices anyway, so it costs
+    // 432 bytes once), which is why this switches a uniform and never a
+    // layout.
+    enum EdgeMode {
+        FaceBorders,    // the twelve borders of the six faces
+        Triangles       // the actual triangulation, diagonals included
+    };
+    Q_ENUM(EdgeMode)
+
     Box3dGeometry();
 
     QVector3D size() const;
@@ -76,8 +89,14 @@ public:
     float edgeColorFactor() const;
     void setEdgeColorFactor(float factor);
 
+    QColor edgeColor() const;
+    void setEdgeColor(const QColor &color);
+
     int edgeMask() const;
     void setEdgeMask(int mask);
+
+    EdgeMode edgeMode() const;
+    void setEdgeMode(EdgeMode mode);
 
 signals:
     void sizeChanged();
@@ -88,7 +107,9 @@ signals:
     void showEdgesChanged();
     void edgeThicknessChanged();
     void edgeColorFactorChanged();
+    void edgeColorChanged();
     void edgeMaskChanged();
+    void edgeModeChanged();
 
 private:
     void updateData();
@@ -100,7 +121,10 @@ private:
     bool m_showEdges = true;
     float m_edgeThickness = 0.03f;
     float m_edgeColorFactor = 0.4f;
+    // Fully transparent means "unset" - see setEdgeColor()
+    QColor m_edgeColor = QColor(0, 0, 0, 0);
     int m_edgeMask = AllEdges;  // Default to showing all edges
+    EdgeMode m_edgeMode = FaceBorders;
 };
 
 #endif // BOX3DGEOMETRY_H

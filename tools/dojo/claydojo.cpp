@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -29,8 +30,8 @@ static constexpr int BACKOFF_MAX_MS = 30000;
 // After this many rapid crashes in a row we persist a crash.json artifact
 // so an external agent can read a machine-readable summary.
 static constexpr int CRASH_REPORT_THRESHOLD = 3;
-// Stderr ring buffer size for crash-report snippets.
-static constexpr size_t STDERR_BUFFER_MAX_LINES = 200;
+// Output ring buffer size for crash-report snippets (stdout and stderr).
+static constexpr size_t OUTPUT_BUFFER_MAX_LINES = 200;
 
 ClayDojo::ClayDojo(QObject *parent):
     QObject(parent),
@@ -49,29 +50,58 @@ ClayDojo::ClayDojo(QObject *parent):
 
     restart_.setSingleShot(true);
     connect(&restart_, &QTimer::timeout, this, &Cdo::onTimeToRestart);
+
+    annotationPoll_.setInterval(1000);
+    connect(&annotationPoll_, &QTimer::timeout,
+            this, &Cdo::refreshAnnotationCount);
+    annotationPoll_.start();
+}
+
+void ClayDojo::refreshAnnotationCount()
+{
+    int open = 0;
+    for (auto const& dir: sandboxDirs_) {
+        QFile file(dir + "/.clay/crew/annotations/index.json");
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        const auto doc = QJsonDocument::fromJson(file.readAll());
+        if (!doc.isObject()) continue;
+        const auto arr = doc.object().value("annotations").toArray();
+        for (auto const& v: arr) {
+            if (v.toObject().value("status").toString(QStringLiteral("open"))
+                == QLatin1String("open"))
+                ++open;
+        }
+    }
+    if (open == openAnnotations_) return;
+    openAnnotations_ = open;
+    emit openAnnotationsChanged();
 }
 
 ClayDojo::~ClayDojo()
 {
+   if (!restarterStarted_) return;
    std::unique_lock<std::timed_mutex> ul(mutex_);
    shallStop_ = true;
-   restarterStopped_.wait(ul);
+   // Predicate form: the respawn loop may already have given up and left,
+   // in which case there is no notification left to wait for.
+   restarterStopped_.wait(ul, [this]{ return restarterDone_.load(); });
 }
 
-void ClayDojo::addSandboxDir(const QString& sandboxFile)
+bool ClayDojo::addSandboxDir(const QString& sandboxFile)
 {
     QFileInfo fi(sandboxFile);
-    if (!fi.exists()) return;
+    if (!fi.exists()) return false;
     auto const dir = fi.absoluteDir().absolutePath();
     if (!sandboxDirs_.contains(dir))
         sandboxDirs_.append(dir);
+    return true;
 }
 
-void ClayDojo::appendStderrLine(const QString& line)
+void ClayDojo::appendOutputLine(const QString& line)
 {
-    recentStderr_.push_back(line);
-    while (recentStderr_.size() > STDERR_BUFFER_MAX_LINES)
-        recentStderr_.pop_front();
+    recentOutput_.push_back(line);
+    while (recentOutput_.size() > OUTPUT_BUFFER_MAX_LINES)
+        recentOutput_.pop_front();
 }
 
 static void writeJsonAtomic(const QString& path, const QJsonObject& obj)
@@ -86,7 +116,8 @@ static void writeJsonAtomic(const QString& path, const QJsonObject& obj)
 
 void ClayDojo::writeDojoState(const QString& phase, int exitCode,
                               const QString& exitStatus,
-                              bool backingOff, int backoffMs)
+                              bool backingOff, int backoffMs,
+                              const QString& reason)
 {
     if (sandboxDirs_.isEmpty()) return;
 
@@ -96,10 +127,12 @@ void ClayDojo::writeDojoState(const QString& phase, int exitCode,
     state["generation"] = generation_;
     state["phase"] = phase;
     state["rapidCrashCount"] = rapidCrashCount_;
+    state["everRanStably"] = everRanStably_;
     state["backingOff"] = backingOff;
     if (backingOff) state["backoffMs"] = backoffMs;
     if (exitCode != INT_MIN) state["lastExitCode"] = exitCode;
     if (!exitStatus.isEmpty()) state["lastExitStatus"] = exitStatus;
+    if (!reason.isEmpty()) state["reason"] = reason;
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
     for (auto const& dir: sandboxDirs_)
@@ -117,10 +150,12 @@ void ClayDojo::writeCrashArtifact(int exitCode, const QString& exitStatus)
     crash["exitCode"] = exitCode;
     crash["exitStatus"] = exitStatus;
 
-    QJsonArray stderrTail;
-    for (auto const& line: recentStderr_)
-        stderrTail.append(line);
-    crash["stderrTail"] = stderrTail;
+    // Named stderrTail for continuity with protocol v2 readers, but it now
+    // carries stdout too - the child's usage text lands there.
+    QJsonArray outputTail;
+    for (auto const& line: recentOutput_)
+        outputTail.append(line);
+    crash["stderrTail"] = outputTail;
 
     for (auto const& dir: sandboxDirs_)
         writeJsonAtomic(dir + "/.clay/inspect/crash.json", crash);
@@ -143,6 +178,7 @@ void ClayDojo::addDynPluginDepedency(const QString& srcPath,
 
 void ClayDojo::run()
 {
+    restarterStarted_ = true;
     std::thread t([this] {
         const auto loaderCmd = QString("%1/clayliveloader").arg(QCoreApplication::applicationDirPath());
         while(true) {
@@ -152,12 +188,17 @@ void ClayDojo::run()
                 if (sbx_.get()) {
                     auto& p = *sbx_.release();
                     disconnect(&p, &QProcess::readyReadStandardError, this, &ClayDojo::onSbxOutput);
+                    disconnect(&p, &QProcess::readyReadStandardOutput, this, &ClayDojo::onSbxOutput);
                     p.deleteLater();
                 }
             }
             sbx_.reset(new QProcess());
             auto& p = *sbx_.get();
             connect(&p, &QProcess::readyReadStandardError, this, &ClayDojo::onSbxOutput);
+            // Both channels. QCommandLineParser writes its usage text to
+            // stdout, so a child rejecting its arguments used to explain the
+            // problem in full into a pipe nobody read (issue #166).
+            connect(&p, &QProcess::readyReadStandardOutput, this, &ClayDojo::onSbxOutput);
             ++generation_;
             writeDojoState("starting_child", INT_MIN, {}, false, 0);
             if (buildWaitList_.empty()){
@@ -202,11 +243,16 @@ void ClayDojo::run()
                     killedByUs = true;
                     if (shallStop_) {
                         writeDojoState("stopped", p.exitCode(), "killed", false, 0);
-                        restarterStopped_.notify_one();
+                        restarterDone_ = true;
+                        restarterStopped_.notify_all();
                         return;
                     }
                     if (shallRestart_) {
                         shallRestart_ = false;
+                        // A child we killed after it had been up this long was
+                        // working - the invocation is not broken.
+                        if (childRunTime.elapsed() >= STABLE_RUN_MS)
+                            everRanStably_ = true;
                         // User-intent restart (file change): reset backoff.
                         rapidCrashCount_ = 0;
                         break;
@@ -227,8 +273,10 @@ void ClayDojo::run()
 
                 // A child that ran stably before exiting proves the startup
                 // path is not fragile — clear any prior rapid-crash tally.
-                if (lived >= STABLE_RUN_MS)
+                if (lived >= STABLE_RUN_MS) {
                     rapidCrashCount_ = 0;
+                    everRanStably_ = true;
+                }
 
                 if (rapid)
                     ++rapidCrashCount_;
@@ -246,6 +294,25 @@ void ClayDojo::run()
                 if (rapidCrashCount_ >= CRASH_REPORT_THRESHOLD)
                     writeCrashArtifact(exitCode, status);
 
+                // Nothing has ever worked, and it just failed for the Nth time
+                // in a row: respawning again cannot help. Stop, say why on
+                // stderr directly (never through a logging category that can
+                // be filtered away) and leave the reason in dojo.json - a
+                // silent infinite restart loop is the worst failure mode for
+                // headless use. The crash artifact was already written above.
+                if (rapidCrashCount_ >= CRASH_REPORT_THRESHOLD && !everRanStably_) {
+                    auto const reason =
+                        QString("giving up: no child ever ran stably; "
+                                "%1 rapid exits in a row, last one %2 after %3ms")
+                            .arg(rapidCrashCount_).arg(status).arg(lived);
+                    writeDojoState("gave_up", exitCode, status, false, 0, reason);
+                    std::cerr << "ClayDojo: " << reason.toStdString() << std::endl;
+                    std::cerr << "ClayDojo: check the child output above "
+                                 "(and .clay/inspect/crash.json) for the cause."
+                              << std::endl;
+                    break;
+                }
+
                 if (backoffMs > 0) {
                     // Sleep in small slices so shallStop_/shallRestart_
                     // can break the wait promptly.
@@ -258,7 +325,8 @@ void ClayDojo::run()
                             writeDojoState("stopped", exitCode, "stopped_during_backoff",
                                            false, 0);
                             std::lock_guard<std::timed_mutex> l(mutex_);
-                            restarterStopped_.notify_one();
+                            restarterDone_ = true;
+                            restarterStopped_.notify_all();
                             return;
                         }
                         if (shallRestart_) {
@@ -270,6 +338,14 @@ void ClayDojo::run()
                 }
             }
         }
+        // Every break out of the respawn loop is terminal (start_failed,
+        // gave_up). Release the destructor's wait - it used to block forever
+        // on a notification that could no longer come.
+        {
+            std::lock_guard<std::timed_mutex> l(mutex_);
+            restarterDone_ = true;
+        }
+        restarterStopped_.notify_all();
     });
     t.detach();
 }
@@ -285,18 +361,21 @@ void ClayDojo::onSbxOutput()
     auto constexpr MAX_TIME_PER_TRY = 250;
     if (!mutex_.try_lock_for(std::chrono::milliseconds(MAX_TIME_PER_TRY))) return;
     std::lock_guard<std::timed_mutex> l(mutex_, std::adopt_lock);
-    sbx_->setReadChannel(QProcess::StandardError);
-    auto const msgs = sbx_->readAll();
-    if (!msgs.isEmpty()) {
-        auto const text = QString::fromUtf8(msgs);
+
+    auto forward = [this](const QByteArray& raw) {
+        if (raw.isEmpty()) return;
+        auto const text = QString::fromUtf8(raw);
         for (auto const& line: text.split('\n', Qt::SkipEmptyParts))
-            appendStderrLine(line);
-        auto isErr = (msgs.startsWith("ERROR") ||
-                      msgs.startsWith("WARN") ||
-                      msgs.startsWith("FATAL"));
-        if (isErr)  qWarning("%s", qUtf8Printable(msgs));
-        else  std::cout << msgs.toStdString() << std::endl;
-    }
+            appendOutputLine(line);
+        auto isErr = (text.startsWith("ERROR") ||
+                      text.startsWith("WARN") ||
+                      text.startsWith("FATAL"));
+        if (isErr)  qWarning("%s", qUtf8Printable(text));
+        else  std::cout << text.toStdString() << std::endl;
+    };
+
+    forward(sbx_->readAllStandardError());
+    forward(sbx_->readAllStandardOutput());
 }
 
 void ClayDojo::onFileSysChange(const QString &path)

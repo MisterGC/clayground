@@ -78,8 +78,11 @@ parameter range — the reader is on rails on purpose.
 
 The board is a model diagram: what feeds what, where each assumption
 sits, which quantities are measured and which derived. Determinism and
-CSV export are load-bearing rather than nice to have, and the staleness
-contract below bites hardest here.
+run records are load-bearing rather than nice to have, and the staleness
+contract below bites hardest here. A research paper also states, before
+the method, **which question the lab can hold** — see *Answerability* in
+`SKILL.md`; a reduced question stated up front is a result, a silently
+reduced one is a lie.
 
 ### When the purpose shifts
 
@@ -102,9 +105,11 @@ both teaching labs):
    are a *feature* provided each one is declared (constant-resistance
    bulb, DC-only, kinematic traffic). Every simplification a learner
    could trip over in-app belongs here AND in the app.
-4. **Measured results** — a table of numbers from real runs, with the
-   seed, scenario, and step count that produced them, and one sentence
-   on how to reproduce ("seed 42, `open-sky`, 3600 steps").
+4. **Measured results** — a table of numbers read out of committed run
+   records, one column naming the record each row comes from, with the
+   regeneration command given once for the whole section. See the
+   staleness contract below; `labs/sensor-fusion-101/paper.md` is the
+   reference.
 5. **How to run + key map** — must list *every* handled key, including
    the flow keys (`T`, `Space`).
 6. **Source map** — `path:line` references into the lab source (textli
@@ -113,21 +118,55 @@ both teaching labs):
 ### The staleness contract — the one rule that matters most
 
 **A paper that quotes numbers the code cannot reproduce is worse than no
-paper.** The papers advertise reproducibility; readers will verify.
-Therefore:
+paper.** The papers advertise reproducibility; readers will verify. The
+rule used to be *re-measure before quoting*, which is discipline and
+therefore decays. It is now mechanical:
 
-- Every number in the results table comes from a run of the *current*
-  code, never from memory or estimation.
+> **Quote only what a record holds.**
+
+A **run record** (`plugins/clay_lab/record.js`) is one committed text
+file per run: lab, scenario, seed, every parameter, per-probe series with
+their summaries, and the command that regenerates it. It carries no wall
+clock, so two runs of one seed produce the same bytes — which turns "is
+this still true?" from an argument into a `diff`. Records live in
+`labs/<lab>/records/` and are committed; papers cite them by id.
+
+- **Every number in the results table names its record**, and the
+  regeneration command appears once in the section. If you cannot point
+  at the record a number came out of, the number does not go in.
+- A number you cannot get out of a record is a **missing probe**, not a
+  licence to quote from the panel. Add the probe, re-record, then quote.
+  (sensor-fusion probes the Kalman gain and each sensor's reported σ for
+  exactly this reason — its central claim was otherwise unciteable.)
+- **Records must come from a stepped run, never a live one.** A frame is
+  a wall-clock interval, so a lab left to play itself samples wherever
+  the last frame landed and two same-seed runs diverge from the first
+  tick. Stop the ticker and advance the clock yourself:
+  `clock._frameTicker.running = false` then `clock._advance(1/60)` in a
+  loop. Commit the driver beside the records
+  (`labs/<lab>/records/make.sh` is the pattern) and give it a `--verify`
+  that runs a scenario twice and `cmp`s the two files.
 - Any change to the model, sensors, RNG consumption pattern, or
-  measurement weighting **invalidates the results table** — re-measure
-  before shipping the change, or mark the section stale in the same
-  commit.
+  measurement weighting **invalidates the records** — re-run `make.sh`
+  and re-read the table off the new files in the same commit. The diff
+  in the record is the review.
+- **A record above ~200 KB** has its sample table thinned automatically
+  and says so in its header; the summaries stay over every sample, so a
+  quoted number is never the thinned one.
 - Source-map line numbers drift with every edit — re-check them as the
   last step before handover.
 - The paper, the board, the hint bar and the flow narration must agree
   on key bindings and on what things are called. (A board that says "R
   records CSV" when `R` rotates and `Shift+R` records sends a learner
   destroying their layout.)
+
+What the contract does *not* cover, and where judgement stays yours: a
+record proves a number was produced, not that it means what you say it
+means. `labs/sensor-fusion-101/paper.md` is the worked example — the
+retrofit that introduced records also found the old prose overstating how
+well-calibrated the filter was, and the honest reading ("the error
+exceeds 2σ in 53 % of samples") only became sayable because both series
+were in one file.
 
 ## overview.grafli
 

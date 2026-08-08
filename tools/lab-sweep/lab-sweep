@@ -1,0 +1,6 @@
+#!/bin/sh
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# The spelling the study documents and the records use. Keeping the entry point
+# free of the .py suffix means a record's "command" field reads as a command.
+exec python3 "$(dirname "$0")/lab_sweep.py" "$@"

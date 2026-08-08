@@ -1,0 +1,60 @@
+---
+layout: null
+permalink: /labs/run/
+sitemap: false
+---
+<!--
+  The lab launcher.
+
+  Labs get a URL of their own - /labs/run/?lab=<slug> - rather than linking
+  straight at the Web Dojo. Two reasons: a lab is a thing you use, not a demo
+  of the framework, and when the labs move to their own subdomain this page is
+  the single place that has to learn a new home. Every lab page links here.
+
+  Today it hands off to the Web Runtime with all of the dojo's chrome switched
+  off, which is what makes the lab fill the window.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starting lab…</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #1e1c19; color: #e8e4dd;
+               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { height: 100%; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 1rem; text-align: center; padding: 1.5rem; }
+  .spinner { width: 34px; height: 34px; border: 3px solid #3b372f;
+             border-top-color: #d4ba6a; border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .note { color: #8c877f; font-size: 0.9rem; max-width: 30rem; line-height: 1.5; }
+  a { color: #94d1ff; }
+</style>
+<div class="wrap">
+  <div class="spinner" id="spinner"></div>
+  <div id="msg">Starting the lab…</div>
+  <div class="note" id="note">The Web Runtime is around 36&nbsp;MB and is cached after the first visit.</div>
+</div>
+<script>
+(function () {
+  var baseurl = "{{ site.baseurl }}";
+  var slug = new URLSearchParams(location.search).get('lab') || '';
+
+  function fail(text, withLink) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('msg').textContent = text;
+    document.getElementById('note').innerHTML = withLink
+      ? 'Back to <a href="' + baseurl + '/labs/">the labs</a>.' : '';
+  }
+
+  // Only a slug this site actually publishes may be launched - the value
+  // lands in a URL the runtime then fetches, so it is never taken on trust.
+  var known = [{% for lab in site.data.labs %}"{{ lab.slug }}"{% unless forloop.last %}, {% endunless %}{% endfor %}];
+  if (known.indexOf(slug) === -1) { fail('Unknown lab.', true); return; }
+
+  var origin = location.origin + baseurl;
+  var src = origin + '/labs-run/' + slug + '/Sandbox.qml';
+  // clay-hd/ed/con/br=0: no header, editor, console or branding - the lab owns
+  // the whole window, which is the difference between using it and inspecting it.
+  location.replace(origin + '/webdojo/#clay-src=' + src
+                   + '&clay-hd=0&clay-ed=0&clay-con=0&clay-br=0');
+})();
+</script>

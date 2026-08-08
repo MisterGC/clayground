@@ -35,7 +35,7 @@ is ever drawn by hand
 
 # ── readouts ──
 @ box dual "lane graph (M)\nthe same model drawn as\nwhat it IS: one arrow per\nlane, rings at dead ends" 1020,250 275x140 %primary &link:./paper.md#measured-results
-@ box monitor "monitor\nwatch roads (W)\nflow /min · load · speed\nShift+R records CSV" 1020,620 275x130 %rose &link:./paper.md#run-it
+@ box monitor "monitor\nwatch roads (W)\nflow /min · load · speed\nShift+R records a run" 1020,620 275x130 %rose &link:./paper.md#run-it
 
 # ── the three results ──
 @ note shape 60,680 """

@@ -4,6 +4,7 @@ title: GameController Plugin
 permalink: /docs/plugins/gamecontroller/
 ---
 
+
 The Clay GameController plugin provides a unified game input system that
 supports multiple input sources including keyboard, physical gamepads, and
 touchscreen controls. It's designed with simplicity in mind, offering NES-style
@@ -178,8 +179,6 @@ The GameController plugin implements:
 - **Simple Design**: NES-inspired two-button controller for broad compatibility
 
 Note: Physical gamepad support is currently disabled due to Qt6 compatibility issues but the architecture supports it for future versions.
-
----
 
 ## API Reference
 

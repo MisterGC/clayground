@@ -97,6 +97,43 @@ Item {
 
     property real _lastTime: 0
 
+    /*!
+        \qmlmethod object ClayWorld2dCamera::clayInspect()
+        \brief Reports mode, target and current framing as plain JSON, for
+               tooling.
+
+        Pull-only and side-effect free: the offsets are recomputed from the
+        live target on demand, nothing is cached, observed or written back
+        into the camera state.
+    */
+    function clayInspect() {
+        var modeNames = ["Follow", "LookAhead"];
+        var hasTarget = target !== null && target !== undefined;
+        // The offset the camera actually sits at right now, and - in LookAhead
+        // - the offset it is currently steering towards. In Follow the two are
+        // the same by definition, so the desired one is left out.
+        var offset = null;
+        var lookAhead = null;
+        if (hasTarget) {
+            offset = [cameraX - target.xWu, cameraY - target.yWu];
+            if (mode === ClayWorld2dCamera.LookAhead && target.linearVelocity)
+                lookAhead = [target.linearVelocity.x * lookAheadFactor,
+                             -target.linearVelocity.y * lookAheadFactor];
+        }
+        return {
+            "type": "ClayWorld2dCamera",
+            "mode": modeNames[mode] !== undefined ? modeNames[mode] : mode,
+            "target": (hasTarget && target.objectName) ? target.objectName : null,
+            "hasTarget": hasTarget,
+            "targetWu": hasTarget ? [target.xWu, target.yWu] : null,
+            "centerWu": [cameraX, cameraY],
+            "offsetWu": offset,
+            "lookAheadWu": lookAhead,
+            "lookAheadFactor": lookAheadFactor,
+            "smoothing": smoothing
+        };
+    }
+
     function _update() {
         if (!target) return
 

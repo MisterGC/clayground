@@ -1,0 +1,7 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# A directory import resolves by listing the directory, which is impossible
+# over HTTP - so a lab served by the Web Dojo needs its types named here.
+# Harmless on the desktop, where Qt scans the directory either way.
+Cars3D 1.0 Cars3D.qml
+Streets3D 1.0 Streets3D.qml

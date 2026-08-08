@@ -11,37 +11,60 @@ import QtQuick3D
     The camera every 3D lab and demo ends up hand-rolling. It looks at \l pivot
     from a yaw/pitch/distance rig, clamps itself so the viewer cannot get lost,
     and can frame a set of world points so a scene arrives properly composed.
+    It also \e travels: \l panBy slides the pivot along the ground plane on a
+    soft leash, and \l viewpoints gives the scene named places to go.
 
     The anti-clip rule is a \b {minimum height above the pivot plane}, not a
     minimum distance: a distance sphere wrongly blocks zooming onto a small
     focused object, while a height floor pushes the rig outward as the angle
     flattens and can never end up under the ground.
 
+    \section2 The goal pose
+
+    The rig has two poses, and the difference is the whole reason the mutators
+    exist. \l yaw, \l pitch, \l distance and \l pivot are where the camera
+    \e is - with \l smoothMs above zero they are animated, so mid-glide they
+    hold an interpolant. \l goalYaw, \l goalPitch, \l goalDistance and
+    \l goalPivot are where it is \e headed, and that is what the limits are
+    applied to, what \l state() serializes and what the next \l orbitBy adds
+    to. A rig read back mid-animation therefore round-trips to the move that
+    was asked for, not to the frame it happened to be caught on.
+
+    \note Move the rig with \l orbitBy, \l zoomBy, \l setDistance, \l setPivot,
+    \l panBy, \l frame, \l focusOn and \l goTo rather than by writing the pose
+    properties. Every one of them computes the limited value first and writes
+    it \e once, which is what makes an animated rig correct: a Behavior defers
+    the write, so a write-then-clamp reads back what was there before and
+    silently cancels its own move. Direct writes are for the declared initial
+    pose (they are adopted as the goal while nothing is animating).
+
     Example usage:
     \qml
     import Clayground.Canvas3D
 
     View3D {
+        id: view3d
         camera: rig.camera
         OrbitCamera3D {
             id: rig
             pivot: Qt.vector3d(0, 0, 0)
             distance: 60
+            panLeash: 120                      // how far you may wander
+            viewpoints: ({ "top": { pitch: 84, distance: 140 } })
         }
     }
+    OrbitInput3D { id: nav; rig: rig; view: view3d }
     MouseArea {
         anchors.fill: parent
-        property point last
-        onPressed: (m) => last = Qt.point(m.x, m.y)
-        onPositionChanged: (m) => {
-            rig.orbitBy((m.x - last.x) * 0.4, (m.y - last.y) * 0.3)
-            last = Qt.point(m.x, m.y)
-        }
-        onWheel: (w) => rig.zoomBy(w.angleDelta.y > 0 ? 0.9 : 1.1)
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: (m) => nav.begin(m.x, m.y, m.button, m.modifiers)
+        onPositionChanged: (m) => nav.move(m.x, m.y)
+        onReleased: nav.end()
+        onWheel: (w) => nav.wheel(w.angleDelta.y)
     }
     \endqml
 
-    \sa Label3D
+    \sa Label3D, OrbitInput3D
 */
 Node {
     id: root
@@ -72,43 +95,229 @@ Node {
     */
     property real minHeight: 4
 
+    // --- the pan leash -----------------------------------------------------
+    // The other half of "never get lost". An endless ground plane has no edge
+    // to stop at, so the pivot is tethered to a home point instead - softly,
+    // because a hard wall reads as a bug ("the drag stopped working") while a
+    // rubber band reads as a boundary.
+
+    /*!
+        \qmlproperty vector3d OrbitCamera3D::homePivot
+        \brief The point \l panLeash measures from. Defaults to the origin.
+    */
+    property vector3d homePivot: Qt.vector3d(0, 0, 0)
+
+    /*!
+        \qmlproperty real OrbitCamera3D::panLeash
+        \brief Furthest the pivot may wander from \l homePivot; 0 is no limit.
+
+        Measured in the ground plane (XZ), so height never counts against it.
+    */
+    property real panLeash: 0
+
+    /*!
+        \qmlproperty real OrbitCamera3D::leashSoftness
+        \brief How much overshoot the leash allows, as a fraction of itself.
+
+        Past \l panLeash the pull-back grows exponentially, so the pivot can
+        never get further than \c {panLeash * (1 + leashSoftness)} but the drag
+        never stops dead either.
+    */
+    property real leashSoftness: 0.25
+
+    // --- smoothing ---------------------------------------------------------
+
+    /*!
+        \qmlproperty int OrbitCamera3D::smoothMs
+        \brief Glide time for every move, in milliseconds; 0 snaps.
+
+        Built in rather than left to the lab so that all four pose properties
+        ease together - a rig with a \c {Behavior on distance} and none on
+        \c pivot swings while it zooms. Declaring your own Behavior on a pose
+        property is a duplicate-binding error; change this instead.
+    */
+    property int smoothMs: 150
+
+    /*!
+        \qmlproperty int OrbitCamera3D::travelMs
+        \brief Glide time for a \l goTo / \l focusOn journey, in milliseconds.
+
+        Longer than \l smoothMs on purpose: a hand-driven orbit wants to feel
+        immediate, a jump across the scene wants to be followed with the eye.
+    */
+    property int travelMs: 550
+
     /*! \qmlproperty real OrbitCamera3D::fieldOfView \brief Vertical FOV of the camera. */
     property real fieldOfView: 60
 
+    /*!
+        \qmlproperty var OrbitCamera3D::viewpoints
+        \brief Named poses, as \c {{ name: {yaw, pitch, distance, px, py, pz} }}.
+
+        Any subset of the fields a \l state() carries; what is left out keeps
+        its current value, so \c {{ pitch: 84 }} is a legal "look straight
+        down from wherever you are". \l goTo travels to one.
+    */
+    property var viewpoints: ({})
+
     /*! \qmlproperty PerspectiveCamera OrbitCamera3D::camera \readonly */
     readonly property alias camera: _cam
+
+    // --- where the rig is HEADED -------------------------------------------
+    // Bound to the declared pose, so an untouched rig reports what its QML
+    // says; the first mutator breaks the binding and owns it from then on.
+
+    /*! \qmlproperty real OrbitCamera3D::goalYaw \readonly \brief Yaw the rig is travelling to. */
+    readonly property real goalYaw: _goal.yaw
+    /*! \qmlproperty real OrbitCamera3D::goalPitch \readonly \brief Pitch the rig is travelling to. */
+    readonly property real goalPitch: _goal.pitch
+    /*! \qmlproperty real OrbitCamera3D::goalDistance \readonly \brief Distance the rig is travelling to. */
+    readonly property real goalDistance: _goal.distance
+    /*! \qmlproperty vector3d OrbitCamera3D::goalPivot \readonly \brief Pivot the rig is travelling to. */
+    readonly property vector3d goalPivot: _goal.pivot
+
+    /*! \qmlproperty bool OrbitCamera3D::travelling \readonly \brief A glide is in progress. */
+    readonly property bool travelling: _yawA.running || _pitchA.running
+                                       || _distA.running || _pivotA.running
+
+    QtObject {
+        id: _goal
+        property real yaw: root.yaw
+        property real pitch: root.pitch
+        property real distance: root.distance
+        property vector3d pivot: root.pivot
+    }
+
+    // The limits as pure functions: they RETURN the allowed value instead of
+    // writing it. Everything below computes first and writes once, because a
+    // Behavior on distance defers the write - a mutator that wrote and then
+    // read back would clamp against the old value and cancel its own change.
+    function _fitPitch(p) {
+        return Math.max(minPitch, Math.min(maxPitch, p))
+    }
+
+    function _fitDistance(d, p) {
+        d = Math.max(minDistance, Math.min(maxDistance, d))
+        if (minHeight > 0) {
+            const sinP = Math.sin(p * Math.PI / 180)
+            if (d * sinP < minHeight)
+                d = Math.min(maxDistance, minHeight / Math.max(0.08, sinP))
+        }
+        return d
+    }
+
+    // The soft leash. Beyond the radius the excess is compressed through
+    // 1 - e^-x, which is smooth at the boundary (so a drag does not visibly
+    // change gear as it crosses) and bounded (so there is a furthest point).
+    function _fitPivot(p) {
+        if (panLeash <= 0) return p
+        const dx = p.x - homePivot.x, dz = p.z - homePivot.z
+        const r = Math.hypot(dx, dz)
+        if (r <= panLeash || r < 1e-9) return p
+        const slack = Math.max(1e-6, panLeash * Math.max(0, leashSoftness))
+        const k = (panLeash + slack * (1 - Math.exp(-(r - panLeash) / slack))) / r
+        return Qt.vector3d(homePivot.x + dx * k, p.y, homePivot.z + dz * k)
+    }
+
+    // Every move goes through here: limit first, record the goal, write once.
+    // _writing tells the change handlers below that this move is ours - an
+    // un-animated rig notifies synchronously from inside these four writes.
+    property int _writing: 0
+    function _apply(y, p, d, pv) {
+        p = _fitPitch(p)
+        d = _fitDistance(d, p)
+        pv = _fitPivot(pv)
+        _goal.yaw = y; _goal.pitch = p; _goal.distance = d; _goal.pivot = pv
+        _writing += 1
+        yaw = y; pitch = p; distance = d; pivot = pv
+        _writing -= 1
+    }
+
+    // A pose property written from outside while nothing is gliding is a
+    // declarative pose change (a lab binding its pivot to something that
+    // moved); adopt it, or the next orbitBy would spring back to the old goal.
+    onYawChanged: if (_writing === 0 && !travelling) _goal.yaw = yaw
+    onPitchChanged: if (_writing === 0 && !travelling) _goal.pitch = pitch
+    onDistanceChanged: if (_writing === 0 && !travelling) _goal.distance = distance
+    onPivotChanged: if (_writing === 0 && !travelling) _goal.pivot = pivot
 
     /*!
         \qmlmethod void OrbitCamera3D::orbitBy(real dYaw, real dPitch)
         \brief Turns the rig, then re-applies the leash.
     */
     function orbitBy(dYaw, dPitch) {
-        yaw += dYaw
-        pitch += dPitch
-        clamp()
+        _apply(_goal.yaw + dYaw, _goal.pitch + dPitch, _goal.distance, _goal.pivot)
     }
 
     /*!
         \qmlmethod void OrbitCamera3D::zoomBy(real factor)
         \brief Multiplies the distance (0.9 zooms in, 1.1 out).
     */
-    function zoomBy(factor) {
-        distance *= factor
-        clamp()
+    function zoomBy(factor) { setDistance(_goal.distance * factor) }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::setDistance(real d)
+        \brief Moves to \a d with the leash applied - the safe way to set it.
+
+        Prefer this over writing \l distance directly: it limits the value
+        before the single write, so it stays correct on a rig that animates
+        its distance.
+    */
+    function setDistance(d) {
+        _apply(_goal.yaw, _goal.pitch, d, _goal.pivot)
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::setPivot(var p)
+        \brief Moves what the camera looks at, on the leash.
+    */
+    function setPivot(p) {
+        if (!p) return
+        _apply(_goal.yaw, _goal.pitch, _goal.distance,
+               Qt.vector3d(p.x, p.y === undefined ? _goal.pivot.y : p.y, p.z))
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::panBy(real dRight, real dAway)
+        \brief Slides the pivot along the ground, in world units.
+
+        \a dRight is screen-right and \a dAway is screen-up projected onto the
+        ground - both relative to the current \l yaw, which is what makes a
+        drag feel like it is moving the scene rather than the axes. The height
+        of the pivot is untouched, and \l panLeash still applies.
+    */
+    function panBy(dRight, dAway) {
+        const a = _goal.yaw * Math.PI / 180
+        const rx = Math.cos(a), rz = -Math.sin(a)     // screen right, on the ground
+        const ax = -Math.sin(a), az = -Math.cos(a)    // screen up, on the ground
+        setPivot(Qt.vector3d(_goal.pivot.x + rx * dRight + ax * dAway,
+                             _goal.pivot.y,
+                             _goal.pivot.z + rz * dRight + az * dAway))
+    }
+
+    /*!
+        \qmlmethod real OrbitCamera3D::worldPerPixel(real viewportHeight)
+        \brief World units one pixel covers at the pivot's depth.
+
+        What turns a drag in pixels into a pan in metres. Exact in the middle
+        of the view at the pivot plane, which is where a grab-the-ground drag
+        is judged.
+    */
+    function worldPerPixel(viewportHeight) {
+        const h = Math.max(1, viewportHeight)
+        return 2 * distance * Math.tan(fieldOfView * 0.5 * Math.PI / 180) / h
     }
 
     /*!
         \qmlmethod void OrbitCamera3D::clamp()
-        \brief Applies the pitch/distance limits and the minimum-height rule.
+        \brief Re-applies the limits to the pose the rig is in right now.
+
+        For after a \e limit changes (a new \l maxDistance, a tighter
+        \l minHeight, a shorter \l panLeash). It is not the way to apply a pose
+        - see the note on \l setDistance.
     */
     function clamp() {
-        pitch = Math.max(minPitch, Math.min(maxPitch, pitch))
-        distance = Math.max(minDistance, Math.min(maxDistance, distance))
-        if (minHeight > 0) {
-            const sinP = Math.sin(pitch * Math.PI / 180)
-            if (distance * sinP < minHeight)
-                distance = Math.min(maxDistance, minHeight / Math.max(0.08, sinP))
-        }
+        _apply(_goal.yaw, _goal.pitch, _goal.distance, _goal.pivot)
     }
 
     /*!
@@ -129,34 +338,119 @@ Node {
             minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
             minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
         }
-        pivot = Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
         var radius = Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2
         var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
-        distance = Math.max(minDistance,
-                            (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad))
-        clamp()
+        // one move, not a setPivot followed by a setDistance: two writes to an
+        // animated rig start two glides that arrive at different times, and the
+        // scene visibly slides while it zooms
+        _apply(_goal.yaw, _goal.pitch,
+               (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
+               Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2))
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::focusOn(var what, real pad, int ms)
+        \brief Travels to a point or a set of points and frames them.
+
+        \a what is a single \c vector3d (or \c {{x, y, z}}) or an array of
+        them. A single point keeps the current distance and only re-centres -
+        framing a point has no extent to fit, and diving at it is never what
+        was meant. \a ms overrides \l travelMs for this journey.
+
+        The verb a lab's own picking calls: the input layer never decides what
+        is worth looking at, it only offers the ride.
+    */
+    function focusOn(what, pad, ms) {
+        if (!what) return
+        _travel(ms)
+        // Array.isArray, not a duck-typed `length` check: a vector3d HAS a
+        // length - it is the method that measures the vector - so the obvious
+        // test says "array" for exactly the single point this branch is for.
+        const pts = Array.isArray(what) ? what : [what]
+        if (pts.length === 0) return
+        if (pts.length === 1) { setPivot(pts[0]); return }
+        frame(pts, pad)
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::goTo(string name, int ms)
+        \brief Travels to the named \l viewpoint; false if there is no such name.
+
+        Yaw takes the short way round: a rig turned three times over does not
+        unwind on the way to a viewpoint that says \c {yaw: 0}.
+    */
+    function goTo(name, ms) {
+        const vp = viewpoints ? viewpoints[name] : undefined
+        if (vp === undefined || vp === null) return false
+        _travel(ms)
+        const s = {}
+        for (const k in vp) s[k] = vp[k]
+        if (s.yaw !== undefined) s.yaw = _nearestYaw(_goal.yaw, s.yaw)
+        applyState(s)
+        return true
+    }
+
+    /*! \qmlmethod var OrbitCamera3D::viewpointNames() \brief The names \l goTo accepts. */
+    function viewpointNames() {
+        return viewpoints ? Object.keys(viewpoints) : []
+    }
+
+    function _nearestYaw(from, to) {
+        return from + ((((to - from) % 360) + 540) % 360) - 180
+    }
+
+    // One journey's worth of a longer glide, handed back afterwards so an
+    // ordinary drag stays snappy.
+    function _travel(ms) {
+        _travelMs = ms !== undefined && ms !== null ? ms : travelMs
+        _travelBack.restart()
+    }
+    property int _travelMs: 0
+    readonly property int _glideMs: _travelMs > 0 ? _travelMs : smoothMs
+    property Timer _travelBack: Timer {
+        interval: root._glideMs + 40
+        onTriggered: root._travelMs = 0
     }
 
     /*!
         \qmlmethod var OrbitCamera3D::state()
         \brief Pose as a JSON-serializable object, for the viewState convention.
+
+        The \e goal pose, so a rig serialized mid-glide restores where it was
+        going rather than the frame it was caught on.
     */
     function state() {
-        return { yaw: yaw, pitch: pitch, distance: distance,
-                 px: pivot.x, py: pivot.y, pz: pivot.z }
+        return { yaw: _goal.yaw, pitch: _goal.pitch, distance: _goal.distance,
+                 px: _goal.pivot.x, py: _goal.pivot.y, pz: _goal.pivot.z }
     }
 
     /*!
         \qmlmethod void OrbitCamera3D::applyState(var s)
-        \brief Restores a pose produced by \l state().
+        \brief Restores a pose produced by \l state(). Missing fields keep theirs.
     */
     function applyState(s) {
         if (!s) return
-        if (s.px !== undefined) pivot = Qt.vector3d(s.px, s.py, s.pz)
-        if (s.yaw !== undefined) yaw = s.yaw
-        if (s.pitch !== undefined) pitch = s.pitch
-        if (s.distance !== undefined) distance = s.distance
-        clamp()
+        _apply(s.yaw !== undefined ? s.yaw : _goal.yaw,
+               s.pitch !== undefined ? s.pitch : _goal.pitch,
+               s.distance !== undefined ? s.distance : _goal.distance,
+               s.px !== undefined ? Qt.vector3d(s.px, s.py, s.pz) : _goal.pivot)
+    }
+
+    Behavior on yaw {
+        enabled: root._glideMs > 0
+        NumberAnimation { id: _yawA; duration: root._glideMs; easing.type: Easing.OutCubic }
+    }
+    Behavior on pitch {
+        enabled: root._glideMs > 0
+        NumberAnimation { id: _pitchA; duration: root._glideMs; easing.type: Easing.OutCubic }
+    }
+    Behavior on distance {
+        enabled: root._glideMs > 0
+        NumberAnimation { id: _distA; duration: root._glideMs; easing.type: Easing.OutCubic }
+    }
+    Behavior on pivot {
+        enabled: root._glideMs > 0
+        Vector3dAnimation { id: _pivotA; duration: root._glideMs; easing.type: Easing.OutCubic }
     }
 
     position: {

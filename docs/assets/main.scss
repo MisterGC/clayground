@@ -1686,6 +1686,63 @@ mark {
   margin: 1.5rem 0 2rem;
 }
 
+// The hero is the start button: the picture of the lab running is the most
+// honest possible label for "run this lab".
+.lab-launch {
+  display: block;
+  position: relative;
+  text-decoration: none;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1.5rem 0 2rem;
+
+  .lab-hero { margin: 0; transition: transform 0.3s ease, filter 0.3s ease; }
+
+  &::after {          // the scrim that keeps the label readable on any shot
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+    opacity: 0.85;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  &:hover .lab-hero, &:focus-visible .lab-hero {
+    transform: scale(1.015);
+    filter: brightness(1.05);
+  }
+  &:hover::after, &:focus-visible::after { opacity: 1; }
+}
+
+.lab-launch-cta {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 0.6rem 1.15rem;
+  border-radius: 999px;
+  background: rgba(15, 15, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f2f0eb;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  transition: background 0.3s ease, border-color 0.3s ease;
+
+  .lab-launch:hover &, .lab-launch:focus-visible & {
+    background: rgba(15, 15, 14, 0.94);
+    border-color: rgba(255, 217, 61, 0.65);
+  }
+}
+
+@media (max-width: 480px) {
+  .lab-launch-cta { font-size: 0.82rem; padding: 0.5rem 0.85rem; bottom: 0.7rem; }
+}
+
 .lab-card-tagline {
   margin: 0 0 0.9rem;
   padding: 0 1.25rem;

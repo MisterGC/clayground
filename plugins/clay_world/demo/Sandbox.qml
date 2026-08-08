@@ -7,11 +7,16 @@ Item {
     id: _sbx
     anchors.fill: parent
 
-    property bool is3D: true
+    readonly property var demos: [
+        {"title": "3D Primitives", "comp": _sbx3d},
+        {"title": "3D Scene (SVG areas)", "comp": _sbx3dScene},
+        {"title": "2D World", "comp": _sbx2d}
+    ]
+    property int demoIndex: 0
 
     Loader {
         anchors.fill: parent
-        sourceComponent: _sbx.is3D ? _sbx3d : _sbx2d
+        sourceComponent: _sbx.demos[_sbx.demoIndex].comp
     }
 
     Component {
@@ -22,12 +27,16 @@ Item {
         id: _sbx3d
         Sandbox3d {}
     }
+    Component {
+        id: _sbx3dScene
+        Sandbox3dScene {}
+    }
 
     Button {
-        text: _sbx.is3D ? "Switch to 2D" : "Switch to 3D"
+        text: _sbx.demos[(_sbx.demoIndex + 1) % _sbx.demos.length].title
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 10
-        onClicked: _sbx.is3D = !_sbx.is3D
+        onClicked: _sbx.demoIndex = (_sbx.demoIndex + 1) % _sbx.demos.length
     }
 }

@@ -9,6 +9,7 @@ The Clayground manual covers the development tools and workflows in detail.
 ## Development Tools
 
 - **[Dojo - Live Reloading]({{ site.baseurl }}/docs/manual/dojo/)** - The primary development environment with hot-reload
+- **[clayrender]({{ site.baseurl }}/docs/manual/clayrender/)** - One sandbox, one picture, no session - and scene queries to go with it
 - **[Inspector]({{ site.baseurl }}/docs/manual/inspector/)** - File-based introspection, snapshots, and flagging moments
 - **[Logging Overlay]({{ site.baseurl }}/docs/manual/logging/)** - Real-time debugging and property watching
 - **[Multiplayer Games]({{ site.baseurl }}/docs/manual/multiplayer/)** - Smooth state sync with Clayground.Network

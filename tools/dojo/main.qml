@@ -129,6 +129,51 @@ Window {
         }
     }
 
+    // Open annotations left in the loader (issue #182). Feedback you wrote and
+    // forgot is worse than no feedback, so the count sits where you cannot
+    // miss it - and disappears entirely when there is nothing open.
+    Rectangle {
+        id: annotationBadge
+
+        visible: ClayDojo.openAnnotations > 0
+        anchors.top: parent.top
+        anchors.topMargin: btnToggleHelp.height * .1
+        anchors.right: btnToggleHelp.left
+        anchors.rightMargin: btnToggleHelp.width * .2
+        width: badgeRow.width + 16
+        height: btnToggleHelp.height * .8
+        radius: 4
+        color: "#ff3366"
+
+        Row {
+            id: badgeRow
+            anchors.centerIn: parent
+            spacing: 6
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: ClayDojo.openAnnotations
+                color: "#1a1010"
+                font.family: "Monospace"
+                font.bold: true
+                font.pixelSize: lbl.font.pixelSize * 1.2
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: ClayDojo.openAnnotations === 1 ? "annotation" : "annotations"
+                color: "#1a1010"
+                font.family: "Monospace"
+                font.pixelSize: lbl.font.pixelSize * .8
+            }
+        }
+
+        ToolTip {
+            visible: badgeArea.containsMouse
+            text: "Open annotations - Ctrl+F in the loader window"
+            delay: 400
+        }
+        MouseArea { id: badgeArea; anchors.fill: parent; hoverEnabled: true }
+    }
+
     Button {
         id: btnToggleHelp
         text: "?"; font.family: "Monospace"; font.pixelSize: lbl.font.pixelSize * 1.8

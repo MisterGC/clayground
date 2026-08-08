@@ -73,7 +73,7 @@ Rectangle {
     property int placement: WorldLabel.Above
 
     /*! \qmlproperty real WorldLabel::gap \brief Pixels between the point and the chip. */
-    property real gap: 6
+    property real gap: LabTheme.spaceM
 
     /*! \qmlproperty point WorldLabel::offset \brief Extra pixel nudge, applied after placement. */
     property point offset: Qt.point(0, 0)
@@ -89,7 +89,7 @@ Rectangle {
     property bool keepInView: true
 
     /*! \qmlproperty real WorldLabel::margin \brief Closest the chip may come to the window edge. */
-    property real margin: 4
+    property real margin: LabTheme.spaceS
 
     /*! \qmlproperty string WorldLabel::text \brief Convenience one-line content. */
     property string text: ""
@@ -114,15 +114,21 @@ Rectangle {
 
     readonly property vector3d _screen: {
         if (!root.view || !root.camera) return Qt.vector3d(0, 0, -1)
-        // the two dependencies that make this track a moving camera
+        // mapFrom3DScene projects to PIXELS, so all four of these change the
+        // result while the function body names none of them. The camera pair
+        // tracks orbiting; the size pair tracks window resizes AND the initial
+        // layout — without it a label projected while the View3D is still 0x0
+        // stays at (0,0) until something moves the camera.
         root.camera.scenePosition
         root.camera.sceneRotation
+        root.view.width
+        root.view.height
         return root.view.mapFrom3DScene(root.worldPosition)
     }
 
     visible: root.active && root.onScreen
-    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + 16
-    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + 10
+    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + LabTheme.spaceXxl
+    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + LabTheme.px(10)
     width: implicitWidth
     height: implicitHeight
 
@@ -162,7 +168,7 @@ Rectangle {
         visible: root.text !== ""
         text: root.text
         color: LabTheme.ink
-        font.pixelSize: 12
+        font.pixelSize: LabTheme.fontBody
         font.bold: true
         font.family: LabTheme.monoFont
     }

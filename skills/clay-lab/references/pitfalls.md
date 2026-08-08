@@ -23,6 +23,24 @@ writing lab code; skim again when something "impossible" happens.
 - **`Label3D.showLeader` defaults to false** — callouts with leaders
   must opt in.
 
+## Canvas3D edges
+
+- **`edgeThickness` is pixels on screen**, shared by `Box3D`, `VoxelMap`
+  and `Poly3D`: a line straddles the boundary it marks and each surface
+  draws half, so a box border and a prism border match at the same
+  setting. A voxel map's *interior* grid lines are shared with nothing and
+  correctly draw twice that. Below ~1 px lines drop out of the pixel grid.
+- **`edgeColorFactor` can only darken the fill** — on a light surface the
+  edges wash out and there is no way to ask for dark grey on pale lilac.
+  Use `edgeColor`; it wins whenever its alpha is above zero.
+- **`Poly3D` and `Box3D` smuggle barycentric coordinates through
+  `TangentSemantic`.** It is a data channel, not a tangent: nothing on
+  those materials may enable normal mapping, and Qt must not be given a
+  reason to normalise or regenerate the attribute. If a Qt upgrade ever
+  does, `edgeMode: Triangles` silently loses its diagonals while
+  `FaceBorders` keeps working — `tst_poly3dwireframe` is the test that
+  catches exactly that, so do not skip it when it fails.
+
 ## QML data-flow traps
 
 - **`Repeater3D` COPIES plain-JS model objects.** Mutating the original
@@ -82,6 +100,61 @@ writing lab code; skim again when something "impossible" happens.
   `OrbitCamera3D` implements this; don't hand-roll.
 - A follow camera that feeds `Label3D` sizing must be top-level, not
   nested in a moving rig (`Label3D` reads `camera.position`).
+- **`OrbitCamera3D` eases its own moves** (`smoothMs`). Declaring your own
+  `Behavior on distance` on top of it is a duplicate binding; and because
+  a Behavior defers the write, the pose properties hold an *interpolant*
+  mid-move — read `goalYaw`/`goalPitch`/`goalDistance`/`goalPivot`, or
+  `state()`, when you want the destination. Two writes are two glides:
+  `rig.pivot = p; rig.setDistance(d)` slides sideways while it zooms, where
+  `rig.applyState({px, py, pz, distance})` is one move.
+- **A pan on an endless ground needs a leash.** `panLeash` measured from
+  `homePivot` is soft (the pull-back grows past the radius) rather than a
+  wall, because a drag that stops dead reads as a broken drag.
+- **`focusOn` must special-case a single point.** `Array.isArray`, not a
+  duck-typed `length` check: a `vector3d` HAS a `length` — it is the method
+  that measures the vector — so the obvious test says "array" for exactly
+  the one point the branch exists for, and the frame maths comes back NaN.
+
+## Kernel widgets and id shadowing
+
+`WatchChip`, `WatchMark` and `OrbitInput3D` declare properties named
+`monitor` and `rig` — the very ids a lab gives those objects. Inside the
+widget the property **shadows the id**, so `monitor: monitor` assigns the
+property to itself. Nothing throws; the chip is simply invisible and the
+mark never appears. Expose the object under a second name on the root and
+wire through that:
+
+```qml
+readonly property alias watchMonitor: monitor    // on the sandbox root
+...
+WatchChip { monitor: root.watchMonitor; target: card.id }
+```
+
+## Publishing to the web
+
+**Every directory a lab imports needs a `qmldir`, or it works on the desktop
+and fails in the browser.** A directory import resolves by *listing* the
+directory, and a directory cannot be listed over HTTP — so a lab loaded by the
+Web Runtime silently loses those types. Two forms bite:
+
+- the kit: `import "../kits/circuit"` → `labs/kits/circuit/qmldir`
+- the lab's own siblings: a bare `LidarMonitor { }` next to `Sandbox.qml`
+  → `labs/<lab>/qmldir`. This one is easy to miss because there is no import
+  statement to remind you; the failure is `LidarMonitor is not a type`.
+
+List every type except `Sandbox.qml` itself (it is loaded by URL). Comments in
+a qmldir start with `#` — a `//` comment fails the whole file to parse, and
+the error surfaces as "unexpected token" on the *import line*, which sends you
+looking in the wrong place entirely. Adding a qmldir is invisible on the
+desktop, where Qt scans the directory when none is present.
+
+Related: `.js` imports name a file (`import "../kits/x/y.js" as Y`) and so
+work over HTTP untouched — only *directory* imports need the manifest.
+
+Also web-only: a Canvas font must be quoted. `ctx.font = "10px " + family`
+silently drops the whole declaration when the family has a space in it, and
+the family that gets picked differs between desktop and WASM, so this hides
+until you publish.
 
 ## Loader / reload semantics
 

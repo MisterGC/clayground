@@ -156,8 +156,71 @@ Model {
         Leave \c false for translucent or additive styling; set \c true for
         dense opaque overlays where depth-correct occlusion and lower overdraw
         matter more than per-line opacity.
+
+        \note A batch does not honour \c Node.opacity. Every line's alpha comes
+        from its own \c color and its style's \c opacity, which the shader
+        multiplies itself; the inherited node opacity never reaches it. Wrapping
+        a batch in \c {Node { opacity: 0.5 }} therefore does nothing, unlike
+        Box3D or a PrincipledMaterial. To fade a whole batch, fade the per-line
+        colour alpha or the \l styles entry.
     */
     property bool opaque: false
+
+    /*!
+        \qmlproperty bool LineBatch3D::castsShadows
+        \brief Whether the batch drops a shadow. Off by default.
+
+        Only meaningful on a batch that is \c {widthUnits: LineBatch3D.World}
+        and \c {orientation: LineBatch3D.Flat}; on any other batch it is ignored
+        with a warning. The restriction is not a missing feature: a Billboard
+        ribbon expands toward the viewer, and in the shadow pass the viewer is
+        the light, so it would cast the shadow of a ribbon turned to face the
+        light rather than the one on screen. A flat ribbon is view-independent,
+        so its silhouette is well defined from anywhere.
+
+        The shadow is the line's own shape, not a bar in its place: dash gaps,
+        dot / chevron / triangle glyphs, square versus round caps and
+        arrowheads all cut it, and a flowing pattern's shadow flows with it.
+        Edges are hard - a shadow map stores depth, not coverage - so a style's
+        \c glow, \c pulse and \c opacity do not soften or fade it, and neither
+        does a line's own colour alpha: the silhouette is purely geometric. The
+        one view-dependent case is \c{patternUnits: "screen"}, whose period has
+        no world size; its shadow resolves the period against the light instead
+        of the camera and so does not track the drawn pattern.
+
+        Enabling it costs more than the one extra instanced draw in the shadow
+        pass, which is why it is opt-in: the caster is an \c OpaquePrePass
+        object, and a single one of those switches the enclosing View3D to a
+        depth pre-pass for every object in it. That is usually a wash (it is
+        the standard early-z optimisation), but any OTHER custom material in
+        the same View3D that carves its fragments and does not itself use
+        \c Material.OpaquePrePassDepthDraw will lay down uncarved depth in that
+        pre-pass and occlude the scene through its own cut-outs. Batches handle
+        themselves; a hand-written CustomMaterial sharing the view may need the
+        same depth draw mode.
+
+        Leave it off for lines that should read as paint on a surface (lane
+        markings, route overlays) and turn it on where the line is a thing in
+        the world that ought to be grounded like the meshes around it. If the
+        pre-pass cost is unwanted, \l shapedShadows: false keeps the shadow but
+        drops the requirement.
+    */
+
+    /*!
+        \qmlproperty bool LineBatch3D::shapedShadows
+        \brief Carved (default) versus cheap rectangular shadows.
+
+        Only relevant while \l castsShadows is active. When true, the shadow is
+        carved to the line's drawn shape - dash gaps, glyphs, cap shapes and
+        arrowheads all cut it - which requires the caster to be an OpaquePrePass
+        object and thereby switches the whole View3D to a depth pre-pass (see
+        \l castsShadows for what that implies). When false, the batch casts
+        plain uncut ribbon rectangles: no fragment work and no style fetches in
+        the shadow pass, and no layer-wide pre-pass forced by this batch. Flip
+        it off when profiling shows the pre-pass hurting and bar shadows are
+        acceptable - a solid line loses nothing but its cap shape.
+    */
+    property bool shapedShadows: true
 
     /*!
         \qmlproperty int LineBatch3D::count
@@ -351,62 +414,207 @@ Model {
         return _inst.positionAt(lineId, distance)
     }
 
-    // Shadows are off and cannot meaningfully be turned on: the lines are
-    // camera-facing ribbons expanded in an unshaded custom material's vertex
-    // shader, and the shadow pass skips unshaded custom materials - setting
-    // castsShadows on an instance produces no shadow. Lines that must drop
-    // one need real mesh geometry (see labs/kits/circuit/Wire3D.qml, which
-    // walks a path with cylinder segments for exactly that reason).
+    // Off by default: a batch is usually an overlay, and casting costs a
+    // second instanced draw in the shadow pass. Set castsShadows to opt in -
+    // see the note on the property for what it needs.
+    //
+    // This root Model deliberately renders NOTHING (no geometry): it exists as
+    // the public surface, and castsShadows / receivesShadows on it are pure
+    // opt-in flags read by the children below. The visible ribbons live on a
+    // child Model that is hard-wired to never cast: an Unshaded custom
+    // material is NOT skipped in the shadow map render - its fragment shader
+    // runs raw and would write line COLOR into what that pass reads as DEPTH,
+    // stomping the shadow twin's correct values. So the model users toggle and
+    // the model that casts must not be the same object.
     castsShadows: false
+    // Lines are flat unshaded ribbons with no surface to darken, so they never
+    // receive.
     receivesShadows: false
 
-    geometry: LineBatchGeometry {
-        boundsMin: _inst.boundsMin
-        boundsMax: _inst.boundsMax
+    // A batch can only cast where the shadow is well defined: a flat ribbon is
+    // view-independent, so its silhouette from the light is the same shape the
+    // eye sees. A billboarded one expands toward the viewer, and in the shadow
+    // pass the viewer IS the light - it would cast the shadow of a ribbon
+    // turned to face the light, which is not the ribbon on screen. Pixel width
+    // has no world size at all.
+    readonly property bool _shadowValid: widthUnits === LineBatch3D.World
+                                         && orientation === LineBatch3D.Flat
+    readonly property bool _castsShadow: castsShadows && _shadowValid
+
+    // Warn on the STATE, not on each property that feeds it: a batch declaring
+    // castsShadows, widthUnits and orientation together would otherwise warn
+    // once per property, and warn spuriously while half-initialised. Nothing is
+    // said before the component is complete, and nothing is repeated until the
+    // configuration has been valid in between.
+    readonly property bool _shadowMisconfigured: castsShadows && !_shadowValid
+    property bool _shadowReady: false
+    property bool _shadowWarned: false
+    Component.onCompleted: { _shadowReady = true; _checkShadowConfig() }
+    on_ShadowMisconfiguredChanged: if (_shadowReady) _checkShadowConfig()
+    function _checkShadowConfig() {
+        if (!_shadowMisconfigured) { _shadowWarned = false; return }
+        if (_shadowWarned) return
+        _shadowWarned = true
+        console.warn("LineBatch3D: castsShadows needs widthUnits: World and "
+                     + "orientation: Flat; a Billboard or Pixel ribbon has no "
+                     + "view-independent silhouette to cast. Ignoring it.")
     }
 
-    instancing: LineBatchInstancing {
-        id: _inst
-    }
+    // The visible ribbons. castsShadows stays false FOREVER here, whatever the
+    // root flag says: this model's Unshaded material is not skipped in the
+    // shadow map render, and its fragment shader would write ribbon colour
+    // into the pass's depth output - erasing the twin's correct depths at the
+    // exact same rasterized positions. The blobs-instead-of-shadows bug lived
+    // here. Casting is the twin's job alone.
+    Model {
+        id: _visual
+        castsShadows: false
+        receivesShadows: false
 
-    materials: [
-        CustomMaterial {
-            id: _mat
-            shadingMode: CustomMaterial.Unshaded
-            cullMode: Material.NoCulling
-            // Default (opaque == false): alpha blending lets styles apply an
-            // opacity multiplier; overlapping lines composite by draw order.
-            // Depth is still written so lines occlude other geometry.
-            // opaque == true: no blending + depth write, so overlapping opaque
-            // lines resolve by depth and the GPU can early-reject occluded
-            // fragments (lower overdraw). Cap/dash cutouts still discard.
-            sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
-            destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
-            depthDrawMode: Material.AlwaysDepthDraw
-            property vector2d viewportSize: root.viewportSize
-            property real widthMode: root.widthUnits
-            property real orientationMode: root.orientation
-            property real depthBias: root.depthBias
-            // Shared animation clock for flowing/pulsing styles (seconds).
-            property real flowTime: root.flowTime
-            // 1.0 in opaque mode enables the deterministic per-instance depth
-            // tie-break in the vertex shader; 0.0 disables it when blending.
-            property real depthJitter: root.opaque ? 1.0 : 0.0
-            property real styleCount: _styleData.styleCount
-            property TextureInput styleTable: TextureInput {
-                texture: Texture {
-                    minFilter: Texture.Nearest
-                    magFilter: Texture.Nearest
-                    tilingModeHorizontal: Texture.ClampToEdge
-                    tilingModeVertical: Texture.ClampToEdge
-                    textureData: LineStyleTextureData {
-                        id: _styleData
-                        styles: root.styles
+        geometry: LineBatchGeometry {
+            id: _geom
+            boundsMin: _inst.boundsMin
+            boundsMax: _inst.boundsMax
+        }
+
+        instancing: LineBatchInstancing {
+            id: _inst
+        }
+
+        materials: [
+            CustomMaterial {
+                id: _mat
+                shadingMode: CustomMaterial.Unshaded
+                cullMode: Material.NoCulling
+                // Default (opaque == false): alpha blending lets styles apply an
+                // opacity multiplier; overlapping lines composite by draw order.
+                // Depth is still written so lines occlude other geometry.
+                // opaque == true: no blending + depth write, so overlapping opaque
+                // lines resolve by depth and the GPU can early-reject occluded
+                // fragments (lower overdraw). Cap/dash cutouts still discard.
+                sourceBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.SrcAlpha
+                destinationBlend: root.opaque ? CustomMaterial.NoBlend : CustomMaterial.OneMinusSrcAlpha
+                // Normally AlwaysDepthDraw: the lines write depth in their own
+                // pass and occlude what is behind them.
+                //
+                // While the batch casts, the twin below is OpaquePrePass, and
+                // ONE such object anywhere in a View3D switches that whole
+                // layer to a depth pre-pass (QSSGLayerRenderData: an
+                // OpaquePrePass renderable sets zPrePassForced). In that
+                // pre-pass Qt skips a custom material's fragment snippet -
+                // unless the material is itself OpaquePrePass. An
+                // AlwaysDepthDraw batch would therefore lay down the depth of
+                // its full, uncarved quads: dash gaps and the corners outside
+                // round caps would occlude the scene behind them as if they
+                // were solid. Matching the twin's mode keeps the snippet, so
+                // the pre-pass depth is carved exactly like the drawn line.
+                depthDrawMode: (root._castsShadow && root.shapedShadows)
+                               ? Material.OpaquePrePassDepthDraw
+                               : Material.AlwaysDepthDraw
+                property vector2d viewportSize: root.viewportSize
+                property real widthMode: root.widthUnits
+                property real orientationMode: root.orientation
+                property real depthBias: root.depthBias
+                // Shared animation clock for flowing/pulsing styles (seconds).
+                property real flowTime: root.flowTime
+                // This is the visible material, never the shadow twin.
+                property real shadowOnly: 0.0
+                // The visible pass always has the style table bound.
+                property real styledShadow: 1.0
+                // 1.0 in opaque mode enables the deterministic per-instance depth
+                // tie-break in the vertex shader; 0.0 disables it when blending.
+                property real depthJitter: root.opaque ? 1.0 : 0.0
+                property real styleCount: _styleData.styleCount
+                property TextureInput styleTable: TextureInput {
+                    texture: Texture {
+                        minFilter: Texture.Nearest
+                        magFilter: Texture.Nearest
+                        tilingModeHorizontal: Texture.ClampToEdge
+                        tilingModeVertical: Texture.ClampToEdge
+                        textureData: LineStyleTextureData {
+                            id: _styleData
+                            styles: root.styles
+                        }
                     }
                 }
+                vertexShader: "line_batch.vert"
+                fragmentShader: "line_batch.frag"
             }
-            vertexShader: "line_batch.vert"
-            fragmentShader: "line_batch.frag"
-        }
-    ]
+        ]
+    }
+
+    // The shadow twin: a second Model over the SAME geometry and instance
+    // table whose only job is to occupy the shadow map. The visible material
+    // cannot do that job - Unshaded custom materials DO run in the shadow
+    // pass, but Qt's shader generator skips the pass's depth output for them,
+    // so their fragment colour lands in the map as garbage depth. The twin is
+    // Shaded AND OpaquePrePass, which together make Qt generate a shadow-pass
+    // fragment that calls the twin's own snippet and binds its style texture,
+    // so the shadow is carved to the line's shape (see the material below). It
+    // shares line_batch.vert, so its ribbons are expanded by identical maths
+    // and the shadow cannot drift from the line; outside the shadow passes the
+    // vertex shader collapses it to a clipped point.
+    //
+    // It exists only while it is wanted: no opt-in, no second draw.
+    Model {
+        id: _shadowTwin
+        visible: root._castsShadow
+        geometry: _geom
+        instancing: _inst
+        castsShadows: true
+        receivesShadows: false
+        materials: [
+            CustomMaterial {
+                shadingMode: CustomMaterial.Shaded
+                cullMode: Material.NoCulling
+                // The shadow map IS a depth buffer, so this must be allowed to
+                // write depth - it simply never reaches the colour pass.
+                //
+                // OpaquePrePass rather than AlwaysDepthDraw, and that choice is
+                // what makes a carved shadow possible at all. Qt's shader
+                // generator gives an OpaquePrePass renderable a real base
+                // colour in the shadow passes (the alpha-tested-foliage
+                // mechanism), which means the generated shadow fragment calls
+                // this material's MAIN, and rhiPrepareResourcesForShadowMap
+                // binds its custom TextureInputs - styleTable - for the vertex
+                // and fragment stage. Both are needed: the vertex shader reads
+                // the arrowhead size, the fragment shader carves caps, dash
+                // gaps, glyphs and the head. With AlwaysDepthDraw the shadow
+                // pass ignores the snippet and binds no textures, and the
+                // shadow is the raw ribbon quad - which is exactly what
+                // shapedShadows: false asks for: cheap bar shadows without
+                // forcing the layer-wide depth pre-pass.
+                depthDrawMode: root.shapedShadows ? Material.OpaquePrePassDepthDraw
+                                                  : Material.AlwaysDepthDraw
+                property vector2d viewportSize: root.viewportSize
+                property real widthMode: root.widthUnits
+                property real orientationMode: root.orientation
+                property real depthBias: root.depthBias
+                property real flowTime: root.flowTime
+                property real depthJitter: 0.0
+                property real shadowOnly: 1.0
+                // Gates the vertex-stage style fetch in the shadow passes: a
+                // fast (AlwaysDepthDraw) twin has no style table bound there
+                // and must not read the sampler.
+                property real styledShadow: root.shapedShadows ? 1.0 : 0.0
+                property real styleCount: _shadowStyleData.styleCount
+                // Sampled in the shadow pass by both stages - see the
+                // depthDrawMode comment above for why that is bound at all.
+                property TextureInput styleTable: TextureInput {
+                    texture: Texture {
+                        minFilter: Texture.Nearest
+                        magFilter: Texture.Nearest
+                        tilingModeHorizontal: Texture.ClampToEdge
+                        tilingModeVertical: Texture.ClampToEdge
+                        textureData: LineStyleTextureData {
+                            id: _shadowStyleData
+                            styles: root.styles
+                        }
+                    }
+                }
+                vertexShader: "line_batch.vert"
+                fragmentShader: "line_batch_shadow.frag"
+            }
+        ]
+    }
 }

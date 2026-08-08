@@ -4,7 +4,13 @@
 // @category Showcases
 
 import QtQuick
-import QtQuick.Controls
+// Basic, not the plain QtQuick.Controls import: the buttons below replace both
+// their background and their contentItem, and since Qt 6.8 the plain import
+// resolves to the NATIVE style on macOS, which refuses customization and warns.
+// clay_app turns any QML warning into a failed smoke test, so that warning was
+// the whole of #201. Pinning the style here fixes the dojo too - a STYLE on the
+// app target would only have covered the standalone binary.
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root

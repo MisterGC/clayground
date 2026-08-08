@@ -51,6 +51,10 @@
       url: /docs/plugins/gamecontroller/
     - title: Network
       url: /docs/plugins/network/
+    - title: Sound
+      url: /docs/plugins/sound/
+    - title: Algorithm
+      url: /docs/plugins/algorithm/
     - title: AI
       url: /docs/plugins/ai/
 

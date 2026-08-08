@@ -18,7 +18,9 @@ PUBLIC
   Qt::Core
 )
 
-if(NOT EMSCRIPTEN AND BUILD_TESTING)
+# The top level calls enable_testing() but not include(CTest), so BUILD_TESTING
+# is undefined unless somebody sets it - default it to on, like the other tests.
+if(NOT EMSCRIPTEN AND (NOT DEFINED BUILD_TESTING OR BUILD_TESTING))
     add_subdirectory(tests)
 endif()
 
