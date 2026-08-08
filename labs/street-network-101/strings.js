@@ -106,7 +106,8 @@ var dict = {
         "banner.jammed": "Gridlock: most cars are standing",
 
         // hints
-        "hint.idle": "drag anywhere to draw a road - from open ground, from a dead end, or off an existing road · click to select · right-drag turns · shift-drag travels",
+        "hint.idle": "drag anywhere to draw a road - from open ground, from a dead end, or off an existing road · click to select · B or hold Space to look around",
+        "hint.explore": "explore: drag moves the plan · right-drag turns it around the cursor · wheel zooms · B draws again",
         "hint.drawing": "release to lay it · a ring means it joins that point, a cross means it splits that road",
         "hint.erasing": "click a road or junction to remove it · Esc leaves erase mode",
         "hint.selected": "drag from here to extend · drag the road itself to branch off it · Del removes · W plots",
@@ -208,7 +209,8 @@ var dict = {
         "banner.allDeadEnds": "Alles Sackgassen - der Verkehr versickert so schnell, wie er entsteht",
         "banner.jammed": "Stau: die meisten Autos stehen",
 
-        "hint.idle": "ziehen zeichnet eine Straße - aus dem Freien, aus einer Sackgasse oder von einer Straße weg · klicken wählt aus · rechte Maustaste dreht · mit Shift bewegen",
+        "hint.idle": "ziehen zeichnet eine Straße - aus dem Freien, aus einer Sackgasse oder von einer Straße weg · klicken wählt aus · B oder Leertaste halten zum Umsehen",
+        "hint.explore": "erkunden: ziehen bewegt den Plan · rechte Taste dreht ihn um den Zeiger · Rad zoomt · B zeichnet wieder",
         "hint.drawing": "loslassen legt sie · ein Ring heißt anschließen, ein Kreuz heißt Straße teilen",
         "hint.erasing": "Straße oder Kreuzung anklicken zum Entfernen · Esc beendet",
         "hint.selected": "von hier ziehen verlängert · die Straße selbst ziehen zweigt ab · Entf entfernt · W plottet",

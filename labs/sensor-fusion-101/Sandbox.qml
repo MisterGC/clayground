@@ -15,8 +15,10 @@ import "strings.js" as Strings
 // odometry and landmark lidar against a map into one estimate (2D Kalman
 // filter). Keys: 1-3 presets · T flow · C camera · M lidar panel · # grid ·
 // F frame the car · 0 frame the city · ⇧R record · ? every key.
-// View (free look, C off): drag turns, Shift- or right-drag travels,
-// double-click re-centres, wheel zooms; arrows travel, Shift+arrows turn.
+// Nothing here is built, so the pointer is permanently the camera's (explore
+// mode, no chip): drag carries the world along, right-drag turns it about the
+// point under the cursor, the middle button drags too, double-click re-centres,
+// the wheel zooms towards the cursor; arrows travel, Shift+arrows turn.
 Item {
     id: root
     anchors.fill: parent
@@ -273,6 +275,7 @@ Item {
         return Object.assign(Lab.viewState(), {
             followCam: followCam,
             cam: orbit.state(),
+            mode: nav.mode,
             tunnelOn: tunnelOn,
             lidarOn: _lidarOn,
             showMonitor: showMonitor,
@@ -290,6 +293,7 @@ Item {
         if (s.lidarOn !== undefined) _lidarOn = s.lidarOn
         Lab.applyViewState(s)
         if (s.cam) orbit.applyState(s.cam)
+        if (s.mode) nav.setMode(s.mode)   // locked to explore here, so a no-op
         if (s.followCam !== undefined) followCam = s.followCam
         if (s.showMonitor !== undefined) showMonitor = s.showMonitor
         if (s.showGrid !== undefined) showGrid = s.showGrid
@@ -628,23 +632,30 @@ Item {
     // Free-look input. Declared before the panels so a drag on the legend or
     // the monitor belongs to that panel, not to the camera.
     //
-    // The gestures themselves are the kernel's now (OrbitInput3D): left drag
-    // turns, right or shift drag travels across the city, wheel zooms,
-    // double-click puts the pivot where you clicked. This lab has no picking
-    // of its own, so the whole pointer belongs to the navigation.
+    // The gestures are the kernel's (OrbitInput3D), and so is the contract they
+    // follow: drag carries the world along, right-drag turns it about the point
+    // under the cursor, the middle button drags in either mode, the wheel zooms
+    // towards the cursor, double-click puts the pivot where you clicked.
+    //
+    // This lab builds nothing, so the mode is LOCKED to explore: the whole
+    // pointer is the camera's for good, there is no chip to switch it with, and
+    // B and Space stay out of this lab's key map.
     OrbitInput3D {
         id: nav
         rig: orbit
         view: view3d
+        mode: "explore"
+        modeLocked: true
     }
     MouseArea {
         anchors.fill: parent
         enabled: !root.followCam
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
         onPressed: (m) => nav.begin(m.x, m.y, m.button, m.modifiers)
         onPositionChanged: (m) => nav.move(m.x, m.y)
         onReleased: nav.end()
-        onWheel: (w) => nav.wheel(w.angleDelta.y)
+        onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)
         onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
     }
 
@@ -1022,6 +1033,7 @@ Item {
         id: keymap
         lab: root
         camera: orbit
+        pointer: nav
         flow: fusionFlow
         recorder: recorder
         keys: [
@@ -1041,6 +1053,7 @@ Item {
         if (keymap.handle(ev)) return
         if (ev.key === Qt.Key_Escape) root.followCam = true
     }
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 
     // The recording dot is the kernel's, so the dot, the word and the row
     // count read the same here as in every other lab.

@@ -42,7 +42,7 @@ var dict = {
         "banner.blackout": "⚠ GPS + LIDAR BLACKOUT",
 
         "hint.idle": "1-3 presets · T for the guided tour · ? for every key",
-        "hint.free": "drag turns · shift- or right-drag travels · wheel zooms · C returns to the car",
+        "hint.free": "drag moves the world · right-drag turns it around the cursor · wheel zooms · C returns to the car",
         "hint.tunnel": "no satellites, no landmarks — the disc grows while the filter guesses",
         "hint.lidarOut": "GPS only: the estimate now wobbles with every fix",
 
@@ -95,7 +95,7 @@ var dict = {
         "banner.blackout": "⚠ GPS- UND LIDAR-AUSFALL",
 
         "hint.idle": "1-3 Presets · T für die Führung · ? für alle Tasten",
-        "hint.free": "ziehen dreht · mit Shift oder rechter Taste bewegen · Rad zoomt · C kehrt zum Auto zurück",
+        "hint.free": "ziehen bewegt die Welt · rechte Taste dreht sie um den Zeiger · Rad zoomt · C kehrt zum Auto zurück",
         "hint.tunnel": "keine Satelliten, keine Landmarken — die Scheibe wächst, der Filter rät",
         "hint.lidarOut": "nur GPS: die Schätzung zittert jetzt mit jedem Fix",
 

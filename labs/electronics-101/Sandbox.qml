@@ -18,10 +18,15 @@ import "strings.js" as Strings
 // the on-screen list: press ? to see the whole map. The short version:
 // 1..4 presets · T the guided tour · C clear · E eraser · V values ·
 // M schematic · W plot the selected part · # grid mode · R turn · Del ·
-// Shift+R record · Esc cancel. View: drag the empty board to turn it,
-// right-drag or Shift+drag to travel across it, double-click bare board to
-// re-centre there, wheel zooms; arrows travel, Shift+arrows turn, +/- zoom,
-// F frames the selection, 0 resets.
+// Shift+R record · Esc cancel.
+//
+// The lab opens in BUILD mode: both mouse buttons are the board's, whole, and
+// only the middle button and the wheel are the camera's. B switches to explore
+// (drag moves the world, right-drag turns it about the cursor) and holding
+// Space explores for as long as you hold it; the chip top right says which you
+// are in. Universal in both: wheel zooms towards the cursor, middle-drag moves
+// the world, double-click bare board re-centres there; arrows travel,
+// Shift+arrows turn, +/- zoom, F frames the selection, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -393,7 +398,7 @@ Item {
             circuit: circuitState(),
             watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
             lang: LabLang.lang,
-            cam: rig.state()
+            cam: rig.state(), mode: nav.mode
         })
     }
     // The user's board wins over the scenario preset: with a circuit payload
@@ -416,6 +421,7 @@ Item {
         if (s.cam) {
             rig.applyState(s.cam)
         }
+        if (s.mode) nav.setMode(s.mode)
         Lab.applyViewState(s)
     }
 
@@ -819,16 +825,19 @@ Item {
     }
 
     // --- navigation --------------------------------------------------------
-    // The camera gestures are the kernel's (OrbitInput3D): it owns the
-    // arithmetic that turns pixels into degrees and metres, this lab owns the
-    // rule for WHICH gestures are the camera's - which here is "whatever the
-    // board does not want". Empty ground turns the view, the right button and
-    // Shift travel across it, and anything over a part or a wire stays the
-    // board's, exactly as before.
+    // The camera gestures are the kernel's (OrbitInput3D), and so is the rule
+    // for which gestures are the camera's - which is the point of the modes.
+    // In build mode, where this lab opens, both buttons are the board's
+    // WITHOUT exception: no "empty board turns the view", no Shift-drag, none
+    // of the leftovers that used to differ from lab to lab and made a drag's
+    // meaning depend on what happened to be under it. What is left over is
+    // enough: the middle button drags the world, the wheel zooms towards the
+    // cursor, and Space (or B) hands the whole pointer to the camera.
     OrbitInput3D {
         id: nav
         rig: rig
         view: view3d
+        mode: "build"
     }
 
     // --- mouse interaction ------------------------------------------------
@@ -836,7 +845,8 @@ Item {
         id: boardMouse
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
         property var dragElem: null
         property bool dragged: false
         property var pressW: null
@@ -882,7 +892,7 @@ Item {
             releaseAt()
         }
 
-        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y)
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
 
         onDoubleClicked: (mouse) => {
             // only over bare board: a double-click on a part belongs to the part
@@ -897,6 +907,11 @@ Item {
         function pressAt(mx, my, button, mods) {
             root.forceActiveFocus()
             nav.cancel()
+            // The mode decides first and decides everything: in explore it
+            // takes the press whatever is under it, in build it only ever
+            // takes the middle button. Nothing below has to think about the
+            // camera again.
+            if (nav.begin(mx, my, button, mods) !== "") return
             const w = worldAt(mx, my)
             pressW = w; dragged = false; dragElem = null
             const hit = w ? root.hitAt(w.x, w.z) : null
@@ -904,23 +919,13 @@ Item {
                 if (hit && (hit.kind === "element" || hit.kind === "terminal")) {
                     root.selectedId = hit.el
                     root.rotateElement(hit.el)
-                    return
                 }
-                // right button over bare board: travel
-                nav.beginAs("pan", mx, my)
                 return
             }
-            // Shift outranks whatever is under the cursor: it is the one
-            // gesture that has to work over a crowded board too.
-            if (mods & Qt.ShiftModifier) {
-                nav.beginAs("pan", mx, my)
-                return
-            }
-            // empty board (or off-board): the drag turns the view instead
+            // empty board (or off-board): a click there means "nothing"
             if (!hit) {
                 root.selectedId = -1
                 if (!root.eraser) root.wiringFrom = null
-                nav.beginAs("orbit", mx, my)
                 return
             }
             if (root.eraser) {
@@ -1237,6 +1242,13 @@ Item {
         anchors.top: parent.top
         anchors.margins: LabTheme.spaceXl
         spacing: LabTheme.spaceM
+        // what the mouse currently means, beside the other things that change
+        // how the lab reads rather than what it computes
+        ModeChip {
+            pointer: nav
+            key: keymap.modeKey
+            anchors.verticalCenter: parent.verticalCenter
+        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -1722,6 +1734,9 @@ Item {
         flow: ledFlow                 // the narrator owns this slot while it runs
         rightGuard: monitor
         text: {
+            // the mode outranks everything: while the pointer is the camera's,
+            // a hint about clicking pads describes a lab you are not in
+            if (nav.exploring) return LabLang.t("hint.explore")
             if (root.eraser) return LabLang.t("hint.eraser")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
@@ -1769,6 +1784,7 @@ Item {
         id: keymap
         lab: root
         camera: rig
+        pointer: nav
         flow: ledFlow
         recorder: recorder
         keys: [
@@ -1800,4 +1816,6 @@ Item {
             wiringFrom = null; eraser = false; selectedId = -1
         }
     }
+    // the other half of the Space quasimode: without it the hand stays down
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 }

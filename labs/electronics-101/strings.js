@@ -70,7 +70,8 @@ var dict = {
         "hint.selected.free": " (Alt snaps)",
         "hint.selected.snap": " (Alt places freely)",
         "hint.selected.frame": " · F frames it",
-        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · drag the bare board to look around · shift-drag travels",
+        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · B or hold Space to look around",
+        "hint.explore": "explore: drag moves the board · right-drag turns it around the cursor · wheel zooms · B builds again",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Why does the LED light?",
@@ -155,7 +156,8 @@ var dict = {
         "hint.selected.free": " (Alt rastet ein)",
         "hint.selected.snap": " (Alt setzt frei)",
         "hint.selected.frame": " · F rückt es ins Bild",
-        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · freies Brett ziehen dreht · mit Shift bewegen",
+        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · B oder Leertaste halten zum Umsehen",
+        "hint.explore": "erkunden: ziehen bewegt das Brett · rechte Taste dreht es um den Zeiger · Rad zoomt · B baut wieder",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Warum leuchtet die LED?",

@@ -27,9 +27,14 @@ import "strings.js" as Strings
 // Keys: 1..4 scenarios · S simulate · C clear · E erase · L lane model ·
 // V flow numbers · M lane graph · W plot the selected road · X close/open the
 // selected junction · # grid mode · Del remove · Esc cancel · Shift+R record.
-// View: right-drag turns, Shift+drag (or the middle button) travels,
-// double-click bare sheet re-centres there, wheel zooms; arrows travel,
-// Shift+arrows turn, +/- zoom, F frames, 0 resets.
+//
+// The lab opens in BUILD mode: both mouse buttons are the plan's, whole. B
+// switches to explore (drag moves the world, right-drag turns it about the
+// point under the cursor) and holding Space explores while held; the chip top
+// right says which you are in. Universal in both: the wheel zooms towards the
+// cursor, the middle button drags the world, double-click on bare sheet
+// re-centres there; arrows travel, Shift+arrows turn, +/- zoom, F frames,
+// 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -691,7 +696,7 @@ Item {
             running: running, lang: LabLang.lang,
             toggles: { lanes: showLanes, values: showValues, plan: showPlan,
                        snap: grid.snap },
-            cam: rig.state()
+            cam: rig.state(), mode: nav.mode
         })
     }
     // The plan the user drew wins over the scenario preset: with a payload the
@@ -714,6 +719,7 @@ Item {
         // already reset both, so the replay is exact
         Lab.applyViewState(s)
         if (s.cam) rig.applyState(s.cam)
+        if (s.mode) nav.setMode(s.mode)
     }
 
     // --- scenarios ---------------------------------------------------------
@@ -1065,27 +1071,28 @@ Item {
     }
 
     // --- navigation ---------------------------------------------------------
-    // The camera gestures are the kernel's (OrbitInput3D); this lab keeps its
-    // own rule for which gesture belongs to whom, because that rule is the
-    // whole ergonomics of a drawing lab. Right drag still TURNS - that is what
-    // this lab's hands already know - Shift or the middle button TRAVELS, and
-    // the left button stays the pen.
+    // The camera gestures are the kernel's (OrbitInput3D), and since the modes
+    // landed so is the rule for who owns which button. This lab opens in build:
+    // BOTH buttons are the pen's and the selection's, and the right button no
+    // longer turns the view - it used to, which meant the same drag meant one
+    // thing here and another in electronics-101. B, or Space held, gives the
+    // whole pointer to the camera instead; the middle button and the wheel work
+    // in either mode.
     OrbitInput3D {
         id: nav
         rig: rig
         view: view3d
-        orbitButtons: Qt.RightButton
-        panButtons: Qt.MiddleButton
+        mode: "build"
     }
 
     // --- mouse -------------------------------------------------------------
-    // Left drag DRAWS - it is what this lab is for. The view is on the right
-    // button, so building never fights with looking.
+    // Left drag DRAWS - it is what this lab is for.
     MouseArea {
         id: planMouse
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
         property var dragNode: null
 
         // The grid mode owns both rules - Alt inverting the mode for one
@@ -1096,7 +1103,7 @@ Item {
             return { x: grid.quantize(w.x, mods), z: grid.quantize(w.z, mods) }
         }
 
-        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y)
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
 
         onDoubleClicked: (mouse) => {
             // only over bare sheet: a double-click on a road or a junction is
@@ -1130,18 +1137,15 @@ Item {
             pressHit = null; pressW = null
             root.drawFrom = null; root.drawTo = null
 
-            // Shift travels, whatever is under the cursor and whichever button
-            // is down - the one navigation gesture that has to work over a
-            // plan drawn edge to edge.
-            if (mods & Qt.ShiftModifier) {
-                mode = "nav"; nav.beginAs("pan", mx, my); return
-            }
-            const g = nav.wants(button, mods)
-            if (g !== "") { mode = "nav"; nav.beginAs(g, mx, my); return }
+            // The mode decides first and decides everything: in explore the
+            // camera takes the press whatever is under it, in build it only
+            // ever takes the middle button. Nothing below thinks about the
+            // camera again - and no press over the plan can be stolen by it.
+            if (nav.begin(mx, my, button, mods) !== "") { mode = "nav"; return }
 
             const w = worldAt(mx, my)
-            // aimed at the sky: nothing to draw on, so the drag turns the view
-            if (!w) { mode = "nav"; nav.beginAs("orbit", mx, my); return }
+            // aimed at the sky: nothing to draw on, and nothing else to do
+            if (!w) return
 
             const hit = root.hitAt(w.x, w.z)
             pressHit = hit
@@ -1412,6 +1416,13 @@ Item {
         anchors.top: parent.top
         anchors.margins: LabTheme.spaceXl
         spacing: LabTheme.spaceM
+        // what the mouse currently means, beside the other things that change
+        // how the lab reads rather than what it computes
+        ModeChip {
+            pointer: nav
+            key: keymap.modeKey
+            anchors.verticalCenter: parent.verticalCenter
+        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -2132,6 +2143,9 @@ Item {
     HintBar {
         rightGuard: monitor
         text: {
+            // the mode outranks everything: while the pointer is the camera's,
+            // a hint about drawing describes a lab you are not in
+            if (nav.exploring) return LabLang.t("hint.explore")
             if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
             if (root.eraser) return LabLang.t("hint.erasing")
             if (root.drawFrom) return LabLang.t("hint.drawing")
@@ -2172,6 +2186,7 @@ Item {
         id: keymap
         lab: root
         camera: rig
+        pointer: nav
         recorder: recorder
         keys: [
             { key: "S", label: "key.simulate", action: () => root.toggleSim() },
@@ -2204,4 +2219,6 @@ Item {
             eraser = false; clearSelection(); drawFrom = null; drawTo = null
         }
     }
+    // the other half of the Space quasimode: without it the hand stays down
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 }
