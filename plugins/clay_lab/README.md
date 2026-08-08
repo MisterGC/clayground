@@ -104,10 +104,23 @@ Everything below was hand-rolled in two labs before it moved here.
 
 Promoted from the labs, which had proved each of them (some three times over):
 
-- **Gauge** — a needle dial that selects its own range from the ones the
-  instrument has, and prints the one it settled on. Laid out in fractions of
-  its own size, so the same component serves a HUD dial and a `Texture`
-  baked onto a 3D part.
+- **InstrumentScale** — what a reading *means*, with nothing that draws it:
+  value or probe, unit, fixed limits or a self-ranging set of `ranges`,
+  linear or log positioning, severity bands, nice-number gradations, and the
+  lag and peak-hold of a real movement. One of these feeds as many faces as
+  the page shows, so they cannot disagree.
+- **Gauge** — the needle face. Given `ranges` it selects its own, and prints
+  the one it settled on. Laid out in fractions of its own size, so the same
+  component serves a HUD dial and a `Texture` baked onto a 3D part.
+- **BarFace** — the level face, horizontal or vertical, optionally as the LED
+  ladder of a level meter, with the held peak marked. A music VU meter is
+  this on a log scale, not a component of its own.
+- **ColumnFace** — the thermometer face: every major gradation labelled, for
+  a quantity read *off* the scale rather than as a proportion.
+- **DigitFace** — the numeric face, in mono digits through `LabLang.qty()`.
+- **InstrumentDock / DockedInstrument** — the HUD column, where each
+  instrument can be put away by the reader and taken back out of a tray at
+  its foot. The visible set rides in the lab's `viewState()`.
 - **ReadoutPanel / ReadoutRow** — swatch · name · live value rows, built from
   data, with an optional share bar per row.
 - **MiniMap** — the abstract view: fit-to-content projection plus the repaint
