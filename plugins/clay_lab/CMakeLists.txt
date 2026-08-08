@@ -48,7 +48,14 @@ clay_plugin( Lab
         WatchMonitor.qml
         WatchChip.qml
         WatchMark.qml
+        scale.js
+        InstrumentScale.qml
         Gauge.qml
+        BarFace.qml
+        DigitFace.qml
+        ColumnFace.qml
+        InstrumentDock.qml
+        DockedInstrument.qml
         ReadoutRow.qml
         ReadoutPanel.qml
         MiniMap.qml
@@ -73,11 +80,13 @@ include(claytest)
 clay_add_qml_test(lab_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
-# The kernel's three pure-JS modules carry rules rather than components -
-# palette relationships that must survive a light/dark switch, the type and
-# spacing scale, the number formatting the readouts quote - so they are checked
-# by node, with no engine. Registering them here is what makes a broken rule
-# fail a build instead of only printing in red (#199).
+# The kernel's pure-JS modules carry rules rather than components - palette
+# relationships that must survive a light/dark switch, the type and spacing
+# scale, the number formatting the readouts quote, the instrument model every
+# face draws - so they are checked by node, with no engine. Registering them
+# here is what makes a broken rule fail a build instead of only printing in
+# red (#199).
 clay_add_node_test(lab_palette SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/palette.test.js)
 clay_add_node_test(lab_tokens  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tokens.test.js)
 clay_add_node_test(lab_format  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/format.test.js)
+clay_add_node_test(lab_scale   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scale.test.js)
