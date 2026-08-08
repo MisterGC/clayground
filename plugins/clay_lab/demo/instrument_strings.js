@@ -83,7 +83,9 @@ var dict = {
         "music.ampl": "Amplitude, logarithmisch",
         "music.caption": "logarithmische Skala und Spitzenwerthaltung — die "
                        + "Marke hält die lauteste Spitze und fällt dann",
-        "wind.speed": "Geschwindigkeit",
+        // short on purpose: it captions a column face, which is as narrow as
+        // its own gradations - "Geschwindigkeit" elides to "Gesc…" there
+        "wind.speed": "Tempo",
         "wind.caption": "grün bis 12, gelb bis 20, rot darüber — die Bänder "
                       + "gehören der Skala, nicht der Anzeige",
 
