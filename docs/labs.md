@@ -56,6 +56,29 @@ files either way; different documents.
 {% endfor %}
 </div>
 
+## The kits, and what they are honest about
+
+Under every lab sits a *kit*: the domain model itself. A model is only worth
+something if you know where it stops, so each kit publishes a **Lab Card** —
+what it models and with which method, which simplifications are deliberate
+and which way each one bends the result, where it stops being valid, what you
+can vary and measure through it, and, plainly, which questions it can and
+cannot answer.
+
+<div class="lab-cards">
+{% for card in site.data.lab_cards %}
+  <a class="lab-card" href="{{ site.baseurl }}/labs/kits/{{ card.slug }}/">
+    <h3>{{ card.name }}</h3>
+    <p class="lab-card-tagline">{{ card.tagline }}</p>
+    <p class="lab-card-meta">Lab Card · <code>{{ card.slug }}</code></p>
+  </a>
+{% endfor %}
+</div>
+
+That last part is the point of the card. A lab that cannot answer a question
+should say so rather than produce a confident number, and the card is what
+that judgement is made against.
+
 ## How they are built
 
 A lab is composed from tested blocks rather than written from scratch. The
