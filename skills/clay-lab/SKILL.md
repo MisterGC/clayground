@@ -152,7 +152,9 @@ Work in this order; each step has a verification before the next.
    `references/flows.md`.
 8. **Verify** with clay-crew: load check, determinism run, behavior
    assertions, real-input pass, screenshots only for visual claims.
-9. **Paper + board last**, from measured numbers — `references/triad.md`.
+9. **Paper + board last**, from committed run records rather than from
+   measured numbers you are holding — *From measurement to paper* below,
+   then `references/triad.md`.
 
 ## Block catalog — when to reach for what
 
@@ -184,8 +186,12 @@ Kernel (`import Clayground.Lab`):
   full 1200-sample ring).
 - **`BudgetBar`** — composition of a fixed total (where the EMF goes);
   use it when shares-of-a-whole is the lesson, not a trend.
-- **`DataRecorder`** — probes → CSV. Always set an explicit destination
-  inside the lab's dir (a relative default once littered the repo root).
+- **`DataRecorder`** — probes → a **run record**, the citable artifact (see
+  *From measurement to paper*). A `.csv` destination still writes the flat
+  table for a spreadsheet, but a CSV carries no provenance and so cannot be
+  cited. Always set an explicit destination (a relative default once
+  littered the repo root), and set `command` to whatever regenerates the
+  run — a record that cannot say how it was made is the thing this replaced.
 - **`Scenario` / `ScenarioSet`** — named situations; imperative setup in
   `script` (initial QML property values don't fire change handlers).
 - **`Flow` / `FlowStep` / `Narrator` / `FlowChip`** — the guided, narrated
@@ -632,7 +638,7 @@ checked against.
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
 view · `W` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
 rotate · `Del` delete · `#` grid mode · `T` flow · `Space`/`→` next,
-`←` back, `Esc` cancel/leave · `Shift+R` record CSV ·
+`←` back, `Esc` cancel/leave · `Shift+R` record a run ·
 `Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows travel across the
 scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
 keys, never reassign these. Key letters stay physical across languages.
@@ -697,6 +703,103 @@ Verify in this order (clay-crew skill has the full protocol):
 
 The authoring gym (`tools/loader/tests/gym/run_gym.py`) guards loader
 conventions; labs add their determinism/flow checks there as they land.
+
+## From measurement to paper
+
+A lab's numbers are worth nothing until someone else can get them. The
+path from a probe to a quoted figure is one artifact wide: the **run
+record**.
+
+A record is one committed text file per run — lab, scenario, seed, every
+parameter, the per-probe series with mean/stddev/min/max, and the command
+that regenerates it. JSON header, tab-separated table, no wall clock
+anywhere, which is what makes two runs of one seed byte-identical.
+`plugins/clay_lab/record.js` owns the format and explains its shape;
+`DataRecorder` writes it; `labs/<lab>/records/` holds them, committed.
+
+The loop, in order:
+
+1. **Probe what the paper will claim.** If a sentence you intend to write
+   names a number, that number needs a `Probe`. Reaching for the panel or
+   your memory instead is how the last paper went stale. A probe records
+   only finite values, so `NaN` is the honest answer for "no reading" —
+   it leaves a blank cell rather than repeating the last one.
+2. **Drive the run stepped, never live.** Frames are wall-clock, so a lab
+   left to play itself is not reproducible. Stop the ticker and advance
+   the clock:
+
+   ```bash
+   clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png --frames 1 --eval "
+       clock._frameTicker.running = false;
+       clock.seed = 42;
+       applyScenario('open-sky');
+       recorder.lab = '<lab>'; recorder.destination = 'labs/<lab>/records/open-sky-42.labrec';
+       recorder.recordId = 'open-sky-42'; recorder.command = '<how to redo this>';
+       recorder.steps = 3600; recorder.stepSize = 1 / 60;
+       recorder.recording = true;
+       for (var i = 0; i < 3600; ++i) clock._advance(1 / 60);
+       recorder.recording = false"
+   ```
+
+3. **Commit the driver beside the records.** One script per lab
+   (`labs/<lab>/records/make.sh` — sensor-fusion has the reference one)
+   that builds each record's `command` field out of its own path, so the
+   record cannot claim a command that does not exist. Give it
+   `--verify`: run each scenario twice and `cmp` the files. That command
+   *is* the determinism evidence, and anyone can re-run it.
+4. **Read the table off the records, not off the run you remember.**
+   Then quote by id, with the regeneration command once per section. The
+   staleness contract in `references/triad.md` is the full rule.
+
+Two traps this loop has already caught, both worth expecting:
+
+- **State that survives a scenario reset leaks into the record.** A
+  lab-level `lastUpdate`-style cache that `onWasReset` does not clear
+  puts a reading from the cold-open scenario into the record of a
+  different one. Reset everything the probes can see.
+- **Scenarios are not comparable at one seed.** A sensor that produces no
+  fix draws no random numbers, so disabling one shifts the shared stream
+  for everything downstream. Two scenarios at one seed are two noise
+  realisations. Say so, or sweep seeds.
+
+## Answerability — what a lab may be asked
+
+Before any run that is meant to answer a question, map **every quantity
+the question needs** onto one of three things:
+
+| the question needs… | it maps to | how you check |
+|---|---|---|
+| something to turn | a `Parameter` | `Lab.labInfo().params` — it exists or it does not |
+| something to read | a `Probe` | `Lab.labInfo().probes` — likewise |
+| something the model must hold | a **model-card** claim | `labs/kits/<kit>/README.md`, section *Model card* |
+
+The first two halves are mechanical: `labInfo()` proves a knob or a
+reading exists, and an agent can check it without opinions. The third is
+not, and is the one that matters — only the model card can say whether
+the physics holds for *this* question. That is why every kit has one, and
+why it states its simplifications with a direction of effect rather than
+as a disclaimer.
+
+Whatever stays unmapped forces one of exactly two outcomes, stated in the
+write-up before the method:
+
+- a **reduced question** the lab genuinely can hold ("how much does
+  landmark *geometry* cost a fix" instead of "how accurate is lidar
+  localisation"), or
+- **"not answerable with this lab"**, with the missing quantity named.
+
+Neither is a failure; producing confident numbers about a question the
+model cannot hold is. A solar lab with no location and no season cannot
+answer "how much energy will the sun provide" — it can answer "how does
+output vary with panel angle, for a fixed lamp". The second is a real
+result. The first would be a fabrication with a plot behind it.
+
+Each kit's card ends with **Questions it can answer** and **Questions it
+cannot** for exactly this step; read that list before the parameters.
+When a question fails the gate for a *mechanical* reason — a knob that
+does not exist — the honest options are to add the knob (and say the lab
+changed) or to reduce the question; never to approximate the knob with
+something adjacent and not mention it.
 
 ## Agent operation cheat-sheet
 
