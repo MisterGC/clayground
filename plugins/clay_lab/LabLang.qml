@@ -224,7 +224,9 @@ QtObject {
             "watch.full": "plot full",
             "time.pause": "pause",
             "time.resume": "resume",
-            "rec.label": "REC"
+            "rec.label": "REC",
+            "dock.hidden": "put away",
+            "dock.showAll": "all back"
         },
         "de": {
             "lab.parameters": "PARAMETER",
@@ -258,7 +260,9 @@ QtObject {
             "watch.full": "Plot voll",
             "time.pause": "Pause",
             "time.resume": "weiter",
-            "rec.label": "AUFN"
+            "rec.label": "AUFN",
+            "dock.hidden": "weggelegt",
+            "dock.showAll": "alle zurück"
         }
     })
 }
