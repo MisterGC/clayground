@@ -447,14 +447,25 @@ def main():
     results = [(run, R.read(path)) for run, path in
                sorted(done, key=lambda x: x[0].id)]
     rows = aggregate(m, results)
-    table = results_table(m, rows, m["studyPath"])
-    out_path = os.path.join(study_dir, "results.md")
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(table)
 
-    print(f"\n{len(results)} records -> {os.path.relpath(out_path, root)}")
+    # A FILTERED run rewrites its records and nothing else. results.md is the
+    # study's answer, and an answer built from three of sixteen runs - while
+    # looking exactly like the full one - is the worst artifact this tool could
+    # produce. Re-running one cell (to check determinism, or after a fix) must
+    # not be able to silently truncate the table the conclusion was read from.
+    partial = len(runs) != M.matrix_size(m)
+    if partial:
+        print(f"\n{len(results)} record(s) rewritten; results.md left alone "
+              "(a partial run must not rewrite the study's table - re-run "
+              "without --only/--seed for that)")
+    else:
+        out_path = os.path.join(study_dir, "results.md")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(results_table(m, rows, m["studyPath"]))
+        print(f"\n{len(results)} records -> {os.path.relpath(out_path, root)}")
+
     best = rows[0]
-    print(f"best: {best['label']}  "
+    print(f"best{' (of what was run)' if partial else ''}: {best['label']}  "
           f"{objective_name(m)} = {fmt(best['objective'])}")
     return 0
 

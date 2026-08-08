@@ -34,6 +34,12 @@ Three properties it does owe:
 - **Budgeted** — `run.budget` is a hard cap on matrix size, checked before
   anything launches. Widening a sweep has to be a deliberate edit.
 
+A **filtered** run (`--only` / `--seed`) rewrites its records and leaves
+`results.md` alone. A table built from three of sixteen runs, looking exactly
+like the full one, is the worst artifact this tool could produce — so
+re-running one cell to check determinism cannot truncate the table the
+conclusion was read from.
+
 ## `--check`: the mechanical half of answerability
 
 Loads the lab, reads its `labInfo()`, and confirms that every probe and
