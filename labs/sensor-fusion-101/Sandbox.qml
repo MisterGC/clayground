@@ -272,7 +272,15 @@ Item {
         if (s.lang) LabLang.lang = s.lang
     }
 
-    DataRecorder { id: recorder; destination: "sensor-fusion-run.csv" }
+    // Shift+R in a session writes a scratch record; the CITABLE ones come from
+    // records/make.sh, which steps the clock instead of letting frames drive it.
+    // No command here on purpose: a frame-driven run is not reproducible, and a
+    // record claiming otherwise would be worse than one that admits it.
+    DataRecorder {
+        id: recorder
+        lab: "sensor-fusion-101"
+        destination: "labs/sensor-fusion-101/records/session.labrec"
+    }
 
     // --- 3D scene -------------------------------------------------------
     View3D {
