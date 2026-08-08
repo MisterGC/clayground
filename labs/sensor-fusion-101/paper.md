@@ -144,10 +144,11 @@ Readings, in the order they matter:
 - **In the tunnel it degrades gracefully rather than failing.** Three
   passes through the blackout show up as three humps in `errFused`
   (mean per 6 s: 0.26, 1.49, **5.77**, 0.86, 0.81, **3.85**, **3.63**,
-  0.66, 1.09, **6.21**), peaking at 15.08 m at $t = 37.3\,\mathrm{s}$ —
-  and recovering to sub-metre within seconds of the exit each time.
-  Running on prediction alone for a few seconds costs metres, not the
-  track.
+  0.66, 1.09, **6.21**), peaking at 15.08 m at $t = 37.3\,\mathrm{s}$.
+  Both humps the run has time to recover from are back under a metre in
+  the following six seconds (0.86 and 0.66); the third is still in
+  progress when the record ends. Running on prediction alone for a few
+  seconds costs metres, not the track.
 - **With lidar out, fusion is worse than the GPS it is fusing.** Mean
   fused error 15.28 m against a mean GPS fix error of 5.34 m. That is not
   noise, it is model error: a constant-velocity filter corrected once a
