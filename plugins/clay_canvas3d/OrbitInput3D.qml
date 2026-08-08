@@ -373,10 +373,20 @@ Item {
         const f = angleDelta > 0 ? zoomStep : 1 / zoomStep
         if (zoomToCursor && x !== undefined && y !== undefined && rig.zoomToward) {
             const w = groundAt(x, y)
-            if (w) { rig.zoomToward(w, f); return }
+            if (w) { rig.zoomToward(w, f); zoomedAt(w); return }
         }
         rig.zoomBy(f)
     }
+
+    /*!
+        \qmlsignal OrbitInput3D::zoomedAt(var point)
+        \brief A cursor-anchored zoom just aimed at \a point (ground plane).
+
+        What a marker listens to - the anchored orbit is readable from
+        \l anchor and \l gesture, but a wheel tick is over in one call, so
+        showing where it aimed needs this pulse.
+    */
+    signal zoomedAt(var point)
 
     /*!
         \qmlmethod var OrbitInput3D::groundAt(real x, real y)
@@ -422,9 +432,13 @@ Item {
             return
         }
         // grab-the-ground: the point under the cursor stays under the cursor,
-        // so the pivot moves opposite to the drag
+        // so the pivot moves opposite to the drag IN SCREEN SPACE. The two
+        // axes need opposite signs because panBy's frame is (right, away)
+        // while a pointer's dy grows downward: screen-opposite is -dx on the
+        // right axis but +dy on the away axis. One minus too many here and
+        // the ground follows the hand left-right yet fights it up-down.
         const wpp = rig.worldPerPixel(view ? view.height : root.height) * panSpeed
-        rig.panBy(-dx * wpp, -dy * wpp)
+        rig.panBy(-dx * wpp, dy * wpp)
     }
 
     // The coast. Sixteen milliseconds a step so it reads as motion rather than

@@ -145,6 +145,20 @@ Item {
                    "dragging left carries the ground with it: " + rig.goalPivot.x)
         }
 
+        // The vertical half of grab-the-world: dy grows DOWNWARD, so the
+        // screen-opposite move is +dy on the away axis, not -dy. This is the
+        // sign that shipped wrong once - the ground followed the hand
+        // left-right yet fought it up-down.
+        function test_an_explore_down_drag_pulls_the_ground_down() {
+            nav.mode = "explore"
+            const before = copyOf(rig.goalPivot)
+            compare(nav.begin(120, 40, Qt.LeftButton, 0), "pan")
+            nav.move(120, 140)
+            nav.cancel()
+            verify(rig.goalPivot.z < before.z - 1,
+                   "dragging down walks the pivot away: " + rig.goalPivot.z)
+        }
+
         // --- the anchored orbit ----------------------------------------------
 
         // Press over a point and the rig re-anchors there WITHOUT the picture
