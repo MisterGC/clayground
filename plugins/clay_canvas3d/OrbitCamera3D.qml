@@ -30,9 +30,9 @@ import QtQuick3D
     to. A rig read back mid-animation therefore round-trips to the move that
     was asked for, not to the frame it happened to be caught on.
 
-    \note Move the rig with \l orbitBy, \l zoomBy, \l setDistance, \l setPivot,
-    \l panBy, \l frame, \l focusOn and \l goTo rather than by writing the pose
-    properties. Every one of them computes the limited value first and writes
+    \note Move the rig with \l orbitBy, \l zoomBy, \l zoomToward,
+    \l setDistance, \l setPivot, \l reanchor, \l panBy, \l frame, \l focusOn
+    and \l goTo rather than by writing the pose properties. Every one of them computes the limited value first and writes
     it \e once, which is what makes an animated rig correct: a Behavior defers
     the write, so a write-then-clamp reads back what was there before and
     silently cancels its own move. Direct writes are for the declared initial
@@ -180,6 +180,31 @@ Node {
     readonly property bool travelling: _yawA.running || _pitchA.running
                                        || _distA.running || _pivotA.running
 
+    /*!
+        \qmlproperty vector3d OrbitCamera3D::goalPosition
+        \readonly
+        \brief Where the camera ends up, in world coordinates.
+
+        The rig's own \c position is the interpolant; this is the same point
+        computed from the goal pose, which is what \l reanchor and
+        \l zoomToward do their arithmetic in.
+    */
+    readonly property vector3d goalPosition: {
+        const d = _dirTo(_goal.yaw, _goal.pitch)
+        return Qt.vector3d(_goal.pivot.x + _goal.distance * d.x,
+                           _goal.pivot.y + _goal.distance * d.y,
+                           _goal.pivot.z + _goal.distance * d.z)
+    }
+
+    // The unit vector from the pivot towards the camera - the view axis,
+    // pointing backwards. The one piece of trigonometry the rig has, and the
+    // position binding at the bottom is the same formula.
+    function _dirTo(y, p) {
+        const a = y * Math.PI / 180, b = p * Math.PI / 180
+        return Qt.vector3d(Math.cos(b) * Math.sin(a), Math.sin(b),
+                           Math.cos(b) * Math.cos(a))
+    }
+
     QtObject {
         id: _goal
         property real yaw: root.yaw
@@ -265,6 +290,71 @@ Node {
     */
     function setDistance(d) {
         _apply(_goal.yaw, _goal.pitch, d, _goal.pivot)
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::reanchor(var p)
+        \brief Moves the pivot to what you pointed at, without moving the camera.
+
+        The turn-around-what-I-am-looking-at gesture: press over a rooftop and
+        the orbit that follows circles \e that, not the middle of the scene.
+
+        The pivot lands on the view axis at \a p's depth - the point of the
+        axis nearest \a p - and the distance is re-derived so that
+        \l goalPosition and the rig's rotation come out bit-for-bit unchanged.
+        That last part is the whole point: a rig whose rotation is \e derived
+        from the pivot cannot both aim somewhere else and keep the picture, so
+        re-anchoring \e onto an off-centre point would swing the picked thing
+        into the middle of the screen - exactly the jump this is meant to
+        avoid. Anchoring at its depth turns about it instead, and the image
+        does not move at all.
+
+        Returns false when there was nothing to anchor to. The leash still
+        applies: re-anchoring outside \l panLeash is pulled back like any
+        other pivot move, and that pull is the only thing that can shift the
+        camera here.
+    */
+    function reanchor(p) {
+        if (!p) return false
+        const dir = _dirTo(_goal.yaw, _goal.pitch)
+        const c = goalPosition
+        // depth of p along the view axis: how far in front of the camera it is
+        const depth = (c.x - p.x) * dir.x + (c.y - p.y) * dir.y + (c.z - p.z) * dir.z
+        // fit FIRST, then place the pivot from the fitted distance - that way
+        // pivot + d * dir is the old camera position whether or not a limit
+        // bit, instead of the limit dragging the camera along with it
+        const d = _fitDistance(depth, _goal.pitch)
+        _apply(_goal.yaw, _goal.pitch, d,
+               Qt.vector3d(c.x - d * dir.x, c.y - d * dir.y, c.z - d * dir.z))
+        return true
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::zoomToward(var p, real factor)
+        \brief Zooms along the ray to \a p, so \a p keeps its place on screen.
+
+        Wheel-to-cursor. \l zoomBy pulls the camera towards the pivot, which
+        walks whatever you were aiming at off the edge of the screen; this
+        moves the camera along the line towards \a p instead and slides the
+        pivot the same fraction, so the rotation is untouched and \a p stays
+        on exactly the pixel it was on.
+
+        \a factor is \l zoomBy's (0.9 in, 1.1 out), and the limits still cut
+        it short: what the distance was actually allowed to do is what the
+        pivot moves by, so a zoom that hits \l minDistance stops travelling
+        too. With no \a p it is \l zoomBy.
+    */
+    function zoomToward(p, factor) {
+        if (!p) { zoomBy(factor); return }
+        const d0 = _goal.distance
+        const d1 = _fitDistance(d0 * factor, _goal.pitch)
+        // the limits may have granted less than was asked for; the pivot moves
+        // by what was granted, or the point under the cursor drifts off it
+        const k = d0 > 1e-9 ? d1 / d0 : 1
+        _apply(_goal.yaw, _goal.pitch, d1,
+               Qt.vector3d(_goal.pivot.x + (p.x - _goal.pivot.x) * (1 - k),
+                           _goal.pivot.y + (p.y - _goal.pivot.y) * (1 - k),
+                           _goal.pivot.z + (p.z - _goal.pivot.z) * (1 - k)))
     }
 
     /*!

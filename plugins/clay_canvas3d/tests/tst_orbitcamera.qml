@@ -256,5 +256,151 @@ Item {
             verify(tethered.goalDistance < 300, "it came in: " + tethered.goalDistance)
             verify(near(tethered.goalPivot.x, 0))
         }
+
+        // --- re-anchoring ----------------------------------------------------
+        // The contract is a NEGATIVE one: the picture does not change. An orbit
+        // that re-anchors with a visible jump is worse than one that never
+        // re-anchors, so this is the case that decides whether the gesture may
+        // exist at all.
+
+        function farApart(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+        }
+
+        // A vector3d read off a property is a LIVE reference to it: keep one in
+        // a local and it reports the value after the move, so a "did it move?"
+        // check passes no matter what happened. Every before/after case here
+        // takes a copy first.
+        function copyOf(v) { return Qt.vector3d(v.x, v.y, v.z) }
+
+        function test_reanchor_does_not_move_the_camera() {
+            plain.applyState({ yaw: 25, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            const before = copyOf(plain.goalPosition)
+            const pitch = plain.goalPitch, yaw = plain.goalYaw
+            verify(plain.reanchor(Qt.vector3d(30, 0, -18)), "it anchored")
+            verify(farApart(before, plain.goalPosition) < 1e-3,
+                   "the camera stayed put: " + farApart(before, plain.goalPosition))
+            compare(plain.goalYaw, yaw, "and the rotation with it")
+            compare(plain.goalPitch, pitch)
+            verify(farApart(plain.goalPivot, Qt.vector3d(0, 0, 0)) > 1,
+                   "but the pivot did move")
+        }
+
+        // Off in every direction, including behind the camera and right at the
+        // limits, because the gesture picks whatever the cursor happens to be on.
+        function test_reanchor_holds_the_pose_wherever_you_point() {
+            const pts = [Qt.vector3d(0, 0, 0), Qt.vector3d(120, 0, 0),
+                         Qt.vector3d(-40, 12, 55), Qt.vector3d(0, 0, 400),
+                         Qt.vector3d(2, -3, -1)]
+            for (const yaw of [0, 37, 180, -95]) {
+                for (const p of pts) {
+                    plain.applyState({ yaw: yaw, pitch: 48, distance: 80,
+                                       px: 0, py: 0, pz: 0 })
+                    const before = copyOf(plain.goalPosition)
+                    plain.reanchor(p)
+                    verify(farApart(before, plain.goalPosition) < 1e-3,
+                           "yaw " + yaw + " point " + p + " moved the camera by "
+                           + farApart(before, plain.goalPosition))
+                }
+            }
+        }
+
+        // The pivot lands at the picked point's DEPTH, which is what makes the
+        // following orbit turn about it instead of about the scene's middle.
+        function test_reanchor_lands_at_the_depth_of_the_point() {
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            plain.reanchor(Qt.vector3d(0, 0, 0))
+            verify(near(plain.goalDistance, 80), "dead centre changes nothing: "
+                   + plain.goalDistance)
+            // a point closer to the camera pulls the pivot in with it
+            const near0 = copyOf(plain.goalPosition)
+            plain.reanchor(Qt.vector3d(0, 0, 40))
+            verify(plain.goalDistance < 80, "nearer point, shorter arm: "
+                   + plain.goalDistance)
+            verify(farApart(near0, plain.goalPosition) < 1e-3, "still no jump")
+        }
+
+        function test_reanchor_refuses_a_missing_point() {
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            verify(!plain.reanchor(null), "nothing to anchor to")
+            compare(plain.goalDistance, 80, "and nothing happened")
+        }
+
+        // An eased rig glides pivot and distance together with one curve, so
+        // the invariance holds every frame of the way, not just at the end.
+        function test_reanchor_is_invisible_on_an_eased_rig() {
+            eased.applyState({ yaw: 10, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            wait(settle)
+            const before = copyOf(eased.position)
+            eased.reanchor(Qt.vector3d(25, 0, -25))
+            wait(20)                       // mid-glide, on purpose
+            const mid = copyOf(eased.position)
+            verify(farApart(before, mid) < 0.5,
+                   "mid-glide the camera is still there: " + farApart(before, mid))
+            wait(settle)
+            verify(farApart(before, eased.goalPosition) < 1e-3, "and it lands there")
+        }
+
+        // --- zoom towards a point --------------------------------------------
+
+        // The whole claim: the camera slides along the line to the point, and
+        // its direction never changes - which is what keeps the point on its
+        // pixel.
+        function test_zoom_toward_dollies_along_the_ray() {
+            plain.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
+            const w = Qt.vector3d(40, 0, 30)
+            const c0 = copyOf(plain.goalPosition)
+            plain.zoomToward(w, 0.8)
+            const c1 = copyOf(plain.goalPosition)
+            compare(plain.goalYaw, 0, "the rotation is untouched")
+            compare(plain.goalPitch, 45)
+            verify(near(plain.goalDistance, 80), "distance: " + plain.goalDistance)
+            // c1 must sit on the segment c0 -> w, one fifth of the way along
+            const moved = farApart(c0, c1), total = farApart(c0, w)
+            verify(near(moved / total, 0.2, 1e-6),
+                   "a fifth of the way to the point: " + (moved / total))
+            verify(near(farApart(c1, w) + moved, total, 1e-3),
+                   "and exactly on the line to it")
+        }
+
+        function test_zoom_toward_out_backs_away_from_the_point() {
+            plain.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
+            const w = Qt.vector3d(40, 0, 30)
+            const d0 = farApart(plain.goalPosition, w)
+            plain.zoomToward(w, 1.25)
+            verify(near(plain.goalDistance, 125))
+            verify(farApart(plain.goalPosition, w) > d0, "it backed off from it")
+        }
+
+        // The limits are not just clamped - the travel is cut back with them,
+        // or a zoom that hits minDistance keeps sliding the scene sideways.
+        function test_zoom_toward_stops_travelling_when_the_distance_does() {
+            plain.applyState({ yaw: 0, pitch: 48, distance: 20, px: 0, py: 0, pz: 0 })
+            compare(plain.goalDistance, 20, "already at minDistance")
+            const c0 = copyOf(plain.goalPosition)
+            plain.zoomToward(Qt.vector3d(60, 0, 0), 0.5)
+            compare(plain.goalDistance, 20, "the limit holds")
+            verify(farApart(c0, plain.goalPosition) < 1e-3,
+                   "and nothing travelled: " + farApart(c0, plain.goalPosition))
+        }
+
+        // The leash outranks the cursor: zooming at something outside the
+        // tether still cannot drag the pivot past it.
+        function test_zoom_toward_stays_on_the_leash() {
+            tethered.homePivot = Qt.vector3d(0, 0, 0)
+            tethered.applyState({ yaw: 0, pitch: 45, distance: 200, px: 0, py: 0, pz: 0 })
+            for (let i = 0; i < 40; ++i)
+                tethered.zoomToward(Qt.vector3d(900, 0, 0), 0.9)
+            const r = Math.hypot(tethered.goalPivot.x, tethered.goalPivot.z)
+            verify(r <= 125 + 1e-6, "leash plus slack, and no further: " + r)
+            verify(r > 1, "though it did travel towards it: " + r)
+        }
+
+        function test_zoom_toward_without_a_point_is_a_plain_zoom() {
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            plain.zoomToward(null, 0.5)
+            verify(near(plain.goalDistance, 40), "distance: " + plain.goalDistance)
+            verify(near(plain.goalPivot.x, 0), "and the pivot stayed")
+        }
     }
 }
