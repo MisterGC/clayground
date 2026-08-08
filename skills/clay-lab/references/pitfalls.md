@@ -114,6 +114,17 @@ writing lab code; skim again when something "impossible" happens.
   duck-typed `length` check: a `vector3d` HAS a `length` — it is the method
   that measures the vector — so the obvious test says "array" for exactly
   the one point the branch exists for, and the frame maths comes back NaN.
+- **A `vector3d` read off a property is a live reference to it.**
+  `const before = rig.goalPosition; rig.reanchor(p)` then reports the value
+  *after* the move, so a before/after "did it move?" check passes whatever
+  happened. Copy first — `Qt.vector3d(v.x, v.y, v.z)` — in tests above all.
+- **Anchoring an orbit means rotating the pivot too.** Moving only the pivot
+  to what the cursor is on swings that point into the middle of the screen,
+  because the rig's rotation is *derived* from the pivot — the jump you were
+  trying to avoid. `reanchor` therefore lands on the view axis at the
+  point's depth (pose unchanged), and `orbitAround` rotates camera and pivot
+  rigidly about the point. Only the pair keeps the point on its pixel: with
+  `reanchor` alone a 23° turn still walked it 150 px across the view.
 
 ## Kernel widgets and id shadowing
 

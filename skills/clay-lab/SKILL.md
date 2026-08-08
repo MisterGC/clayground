@@ -233,7 +233,11 @@ because two labs hand-rolled each one; a third must not:
   content to `panelId.body.width`/`.height`.
 - **`LabKeys`** + **`LabHelp`** — the canonical map plus the lab's own keys
   as data (`{key, label, action}`). Call `keymap.handle(ev)` from the
-  lab's `Keys.onPressed` and handle only what it returns false for.
+  lab's `Keys.onPressed` and handle only what it returns false for; give it
+  `pointer: nav` and call `handleRelease(ev)` from `Keys.onReleased` so the
+  held-Space explore mode can end.
+- **`ModeChip`** — build or explore, on screen and clickable, from the same
+  `OrbitInput3D`. Same contract as `GridMode`: the surface shows the mode.
   Declaring a key is documenting it — `LabHelp` (`?`) renders the same
   list, so the on-screen map can never drift from the code.
 - **`ScenarioBar`** — clickable presets with `scenario.note.<name>`, the
@@ -384,27 +388,52 @@ the view still has none, and the first projection goes through a
 `OrbitCamera3D` turns and zooms; **`OrbitInput3D`** is what turns gestures
 into those moves, so a lab never writes degrees-per-pixel again. It is
 deliberately *not* a MouseArea: a lab that also picks, draws or drags keeps
-its own MouseArea and hands over only the gestures it does not want.
+its own MouseArea and asks it what a press means.
+
+**Two modes, one contract, every lab.** A lab that builds something gives
+the left button to its tool, so the camera used to end up on whatever was
+left over — and no two labs picked the same leftovers (right-drag turned in
+street-network and panned in electronics). Instead:
+
+- **build** (labs that build cold-open here) — LMB *and* RMB are the
+  domain's, completely.
+- **explore** — the whole pointer is the camera's: LMB drags the world
+  along, RMB turns it **about the point under the cursor**, double-click
+  focuses.
+- **universal in both** — the wheel zooms *towards the cursor* and the
+  middle button drags. Nudging the view never costs a mode switch.
+- **switching** — `B` toggles, holding **Space** explores while held
+  (`springExplore`, fed by `LabKeys`), a `ModeChip` shows and toggles it,
+  and the cursor changes (`cursorShape`). A lab with nothing to build sets
+  `mode: "explore"; modeLocked: true` and gets no chip and no mode keys.
 
 ```qml
-OrbitInput3D { id: nav; rig: rig; view: view3d }
+OrbitInput3D { id: nav; rig: rig; view: view3d; mode: "build" }
 
 MouseArea {
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+    cursorShape: nav.cursorShape
     onPressed: (m) => {
-        if (myTool.wants(m)) return                 // the lab's own gesture
-        nav.begin(m.x, m.y, m.button, m.modifiers)  // returns "orbit"/"pan"/""
+        // the mode decides FIRST: "" means the press is the lab's
+        if (nav.begin(m.x, m.y, m.button, m.modifiers) !== "") return
+        myTool.press(m.x, m.y)
     }
     onPositionChanged: (m) => { if (!nav.move(m.x, m.y)) myTool.moveTo(m.x, m.y) }
     onReleased: nav.end()
-    onWheel: (w) => nav.wheel(w.angleDelta.y)
+    onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)   // x,y = zoom to cursor
     onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
 }
+// LabKeys { pointer: nav ... } + Keys.onReleased: (ev) => keymap.handleRelease(ev)
+// ModeChip { pointer: nav; key: keymap.modeKey }
+// and put `mode: nav.mode` in viewState(), `nav.setMode(s.mode)` on restore
 ```
 
-`nav.beginAs("orbit"|"pan", x, y)` is for a lab whose own rule decides (empty
-board orbits, an object drags). Four things worth knowing:
+Do **not** reintroduce a lab-local camera gesture (Shift-drag, "empty ground
+orbits"): that is the drift the modes abolish, and a rule that depends on
+what is under the cursor cannot be taught in one sentence. `nav.beginAs`
+still exists for a lab whose own rule genuinely decides. Five things worth
+knowing:
 
 - **The pivot travels, on a leash.** `panBy` slides it along the ground;
   `panLeash` (from `homePivot`) keeps it near the work, softly — past the
@@ -424,6 +453,13 @@ board orbits, an object drags). Four things worth knowing:
   (`{ pitch: 84 }` means "look down from wherever you are"), and yaw takes
   the short way round. `focusOn(points|point, pad)` is the verb a lab's own
   picking calls — a single point re-centres without diving at it.
+- **Anchored moves keep their point on its pixel.** `reanchor(p)` slides the
+  pivot onto the view axis at `p`'s depth — the pose comes out bit-for-bit
+  unchanged, so it is invisible — and `orbitAround(p, dYaw, dPitch)` then
+  rotates camera *and* pivot rigidly about `p`, which is what actually pins
+  it. `zoomToward(p, factor)` dollies along the ray to `p` for the same
+  reason. `OrbitInput3D` composes all three; a lab only calls them directly
+  for a gesture of its own.
 - **`FlowStep.view`** aims the camera on entering a step, once the `Flow` has
   a `camera:`: `{viewpoint: "top"}`, `{focus: [pts], pad}` or `{pose: {...}}`,
   applied *after* the demo so a step can frame what it just built. Steps
@@ -644,14 +680,17 @@ checked against.
 
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
 view · `W` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
-rotate · `Del` delete · `#` grid mode · `T` flow · `Space`/`→` next,
-`←` back, `Esc` cancel/leave · `Shift+R` record a run ·
+rotate · `Del` delete · `#` grid mode · `T` flow · `B` build/explore ·
+`Space` held explores (and `Space`/`→` next, `←` back while a flow runs),
+`Esc` cancel/leave · `Shift+R` record a run ·
 `Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows travel across the
 scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
 keys, never reassign these. Key letters stay physical across languages.
 The arrows used to turn, which a drag already did well; crossing the scene
 had no key at all, so turning moved onto `Shift`. While a flow runs `→`/`←`
-are the flow's, so the arrows are the camera's only when nothing narrates.
+are the flow's, so the arrows are the camera's only when nothing narrates —
+and `Space` is the flow's too while it runs, which is why the quasimode
+takes it only when nothing is narrating.
 Surface every key you handle: palette buttons carry their shortcut,
 the hint bar teaches the rest, and the header comment lists them all.
 
