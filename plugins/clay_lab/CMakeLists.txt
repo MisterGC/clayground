@@ -66,6 +66,7 @@ clay_plugin( Lab
         Compass.qml
         GridMode.qml
         ModeChip.qml
+        CameraAnchorMark.qml
         Tour.qml
         TourStep.qml
 

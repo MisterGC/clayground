@@ -331,6 +331,7 @@ Item {
             minorWidth: root.showGrid ? 1.0 : 0
             majorWidth: root.showGrid ? 1.6 : 0
         }
+        CameraAnchorMark { pointer: nav }
         environment: stage.environment
 
         camera: root.followCam ? camFollow : orbit.camera

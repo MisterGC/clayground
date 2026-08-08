@@ -698,6 +698,7 @@ Item {
             workExtent: Qt.vector2d(root.cols * root.cell, root.rows * root.cell)
             shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
+        CameraAnchorMark { pointer: nav }
         environment: stage.environment
 
         OrbitCamera3D {
