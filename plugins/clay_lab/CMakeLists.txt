@@ -65,6 +65,7 @@ clay_plugin( Lab
         RecIndicator.qml
         Compass.qml
         GridMode.qml
+        ModeChip.qml
         Tour.qml
         TourStep.qml
 

@@ -22,18 +22,25 @@ import QtQuick
     keyboard could not do at all. While a flow runs, \c → and \c ← belong to
     the flow, so the arrows are the camera's only when nothing is narrating.
 
+    The interaction half, on a lab that hands over its \l pointer: \c B
+    switches between building and exploring and \b Space explores while it is
+    held. Both are described here for the same reason as everything else - a
+    key nobody can find is a key the lab does not have.
+
     Non-visual: keep focus handling where it is and call \l handle() from the
-    lab's own key handler.
+    lab's own key handler, and \l handleRelease() from \c Keys.onReleased.
 
     \qml
     Item {
         focus: true
         Keys.onPressed: (ev) => keymap.handle(ev)
+        Keys.onReleased: (ev) => keymap.handleRelease(ev)
 
         LabKeys {
             id: keymap
             lab: root
             camera: rig
+            pointer: nav
             flow: introFlow
             recorder: recorder
             keys: [
@@ -65,6 +72,33 @@ Item {
 
     /*! \qmlproperty var LabKeys::recorder \brief A DataRecorder toggled by Shift+R. */
     property var recorder: null
+
+    /*!
+        \qmlproperty var LabKeys::pointer
+        \brief An \c OrbitInput3D, for the build/explore mode keys.
+
+        Two keys, and the second one is the reason this lives here rather than
+        in the lab: \c B switches the mode for good, and \b Space is explore
+        \e while it is held - a quasimode, which means a key RELEASE has to be
+        seen too. Wire \l handleRelease from the lab's \c Keys.onReleased.
+
+        Space is shared with a running \l flow, which keeps it: while a
+        narration is on screen, Space is "next step" in every lab, and the
+        temporary hand is not what a reader is reaching for. Nothing else in
+        the map claims it.
+    */
+    property var pointer: null
+
+    /*! \qmlproperty string LabKeys::modeKey \brief The letter that toggles build/explore. */
+    property string modeKey: "B"
+
+    /*!
+        \qmlproperty bool LabKeys::modeKeys
+        \readonly
+        \brief The mode keys are live: there is a pointer and it can switch.
+    */
+    readonly property bool modeKeys: pointer !== null && pointer !== undefined
+                                     && pointer.modeLocked !== true
 
     /*!
         \qmlproperty var LabKeys::keys
@@ -140,6 +174,10 @@ Item {
             out.push({ key: "T", label: "keys.flow" })
             out.push({ key: "␣", label: "keys.next" })
         }
+        if (modeKeys) {
+            out.push({ key: modeKey, label: "keys.mode" })
+            out.push({ key: "␣", label: "keys.explore" })
+        }
         if (viewKeys) {
             out.push({ key: "←↑↓→", label: "keys.pan" })
             out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
@@ -194,6 +232,13 @@ Item {
         if (ev.key === Qt.Key_T && flow) {
             if (flow.running) flow.stop(); else flow.start()
             return true
+        }
+
+        // --- the mode, and the hand you can hold down
+        // After the flow block on purpose: a running narration keeps Space.
+        if (modeKeys) {
+            if (ev.key === Qt.Key_Space) { pointer.springExplore = true; return true }
+            if (_letterOf(ev) === modeKey) { pointer.toggleMode(); return true }
         }
 
         // --- scenarios on the digits
@@ -263,6 +308,43 @@ Item {
             frameAll(); return true
         }
         return false
+    }
+
+    /*!
+        \qmlmethod bool LabKeys::handleRelease(var event)
+        \brief The other half of the quasimode; call it from \c Keys.onReleased.
+
+        Only Space needs it, and only while there is a \l pointer. Auto-repeat
+        is ignored: a held key repeats as press-release pairs on some
+        platforms, and taking those at face value makes the hand flicker.
+    */
+    function handleRelease(ev) {
+        if (modeKeys && ev.key === Qt.Key_Space && !ev.isAutoRepeat) {
+            pointer.springExplore = false
+            return true
+        }
+        return false
+    }
+
+    /*!
+        \qmlmethod void LabKeys::releaseSprings()
+        \brief Drops any held-key mode. For when the lab stops being the one
+        receiving keys.
+    */
+    function releaseSprings() {
+        if (pointer) pointer.springExplore = false
+    }
+
+    // The release of a held key never arrives if the lab lost focus while it
+    // was down (a dialog, another window, a click into a panel), and a hand
+    // tool stuck on is the worst possible end state: every drag moves the
+    // scene and nothing says why.
+    Connections {
+        target: root.lab
+        enabled: root.lab !== null && root.pointer !== null
+        function onActiveFocusChanged() {
+            if (!root.lab.activeFocus) root.releaseSprings()
+        }
     }
 
     // Screen directions, +y being down as a screen counts: what both the pan
