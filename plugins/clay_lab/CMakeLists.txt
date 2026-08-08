@@ -67,6 +67,8 @@ clay_plugin( Lab
         GridMode.qml
         ModeChip.qml
         CameraAnchorMark.qml
+        measure.js
+        MeasureTool.qml
         Tour.qml
         TourStep.qml
 
@@ -96,3 +98,7 @@ clay_add_node_test(lab_scale   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scale.test.js)
 # The run record is what a paper cites, so its serialization is checked the same
 # way: round trip, byte stability for the same run, and the size tripwire (#203).
 clay_add_node_test(lab_record  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/record.test.js)
+# The tape measure's lengths and angles, for the same reason: geometry that
+# only exists inside a paint call can only be checked by looking at a picture
+# (#204).
+clay_add_node_test(lab_measure SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/measure.test.js)
