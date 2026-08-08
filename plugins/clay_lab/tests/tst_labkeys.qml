@@ -18,16 +18,30 @@ Item {
     width: 50; height: 50
     id: fakeLab
 
-    // Stands in for an OrbitInput3D: the three members LabKeys touches.
+    // Stands in for an OrbitInput3D: the members LabKeys touches, with the
+    // same rules - the modes a scene offers are a LIST, and one mode is no
+    // switch at all.
     QtObject {
         id: pointer
         property string mode: "build"
         property bool springExplore: false
+        property var modes: ["build", "explore", "measure"]
         property bool modeLocked: false
-        function toggleMode() {
-            if (modeLocked) return
-            mode = (mode === "explore") ? "build" : "explore"
+        readonly property var allowedModes: modeLocked ? [mode] : modes
+        readonly property bool modeSwitchable: allowedModes.length > 1
+        function cycleMode() {
+            const a = allowedModes
+            if (a.length < 2) return
+            mode = a[(a.indexOf(mode) + 1) % a.length]
         }
+    }
+
+    // Stands in for a MeasureTool: a run of points and the two edits.
+    QtObject {
+        id: fakeMeasure
+        property int count: 0
+        function undo() { if (count > 0) count -= 1 }
+        function clear() { count = 0 }
     }
 
     QtObject {
@@ -51,11 +65,15 @@ Item {
 
         function init() {
             keymap.flow = null
+            keymap.measure = null
+            keymap.helpVisible = false
+            pointer.modes = ["build", "explore", "measure"]
             pointer.mode = "build"
             pointer.springExplore = false
             pointer.modeLocked = false
             fakeFlow.running = false
             fakeFlow.nexts = 0
+            fakeMeasure.count = 0
         }
 
         function ev(key, mods, repeat) {
@@ -83,11 +101,24 @@ Item {
             verify(!pointer.springExplore, "the real one is")
         }
 
-        function test_b_switches_the_mode_for_good() {
+        function test_b_walks_the_modes_for_good() {
             verify(keymap.handle(ev(Qt.Key_B)))
             compare(pointer.mode, "explore")
             keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "build")
+            compare(pointer.mode, "measure")
+            keymap.handle(ev(Qt.Key_B))
+            compare(pointer.mode, "build", "and round again")
+        }
+
+        // A lab that offers two modes cycles two; the key does not have to know
+        // which two they are.
+        function test_b_only_walks_the_modes_the_lab_offers() {
+            pointer.modes = ["explore", "measure"]
+            pointer.mode = "explore"
+            keymap.handle(ev(Qt.Key_B))
+            compare(pointer.mode, "measure")
+            keymap.handle(ev(Qt.Key_B))
+            compare(pointer.mode, "explore", "build is never passed through")
         }
 
         // Space belongs to a narration while one is on screen: in every lab it
@@ -104,7 +135,17 @@ Item {
             verify(pointer.springExplore)
         }
 
-        // A lab with nothing to build has no mode to show or switch.
+        // A lab with a single mode has nothing to show or switch.
+        function test_a_one_mode_pointer_has_no_mode_keys() {
+            pointer.mode = "explore"
+            pointer.modes = ["explore"]
+            verify(!keymap.modeKeys)
+            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
+            compare(pointer.mode, "explore")
+            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
+            verify(!pointer.springExplore)
+        }
+
         function test_a_locked_pointer_has_no_mode_keys() {
             pointer.mode = "explore"
             pointer.modeLocked = true
@@ -123,6 +164,64 @@ Item {
             const locked = keymap.entries.map(e => e.label)
             compare(locked.indexOf("keys.mode"), -1, "a locked lab lists neither")
             compare(locked.indexOf("keys.explore"), -1)
+        }
+
+        // --- the tape measure's two keys -----------------------------------
+        //
+        // Both are keys a lab already uses for something else, which is why
+        // they are gated on the mode rather than on the tool existing.
+
+        function test_backspace_takes_the_last_point_back() {
+            keymap.measure = fakeMeasure
+            pointer.mode = "measure"
+            fakeMeasure.count = 3
+            verify(keymap.handle(ev(Qt.Key_Backspace)), "the key is claimed")
+            compare(fakeMeasure.count, 2)
+            keymap.handle(ev(Qt.Key_Delete))
+            compare(fakeMeasure.count, 1, "Delete says the same thing")
+        }
+
+        function test_escape_ends_the_run() {
+            keymap.measure = fakeMeasure
+            pointer.mode = "measure"
+            fakeMeasure.count = 3
+            verify(keymap.handle(ev(Qt.Key_Escape)))
+            compare(fakeMeasure.count, 0)
+            verify(!keymap.handle(ev(Qt.Key_Escape)),
+                   "with nothing measured Esc is the lab's again")
+        }
+
+        // The whole point of gating on the mode: street and electronics keep
+        // Del for deleting what they built.
+        function test_the_measure_keys_are_the_labs_again_outside_measure_mode() {
+            keymap.measure = fakeMeasure
+            fakeMeasure.count = 2
+            pointer.mode = "build"
+            verify(!keymap.handle(ev(Qt.Key_Backspace)), "Del is the lab's")
+            compare(fakeMeasure.count, 2, "and nothing was measured away")
+            verify(!keymap.handle(ev(Qt.Key_Escape)), "so is Esc")
+        }
+
+        // Help is on top of everything: Esc closes it first, and the
+        // measurement is still there behind it.
+        function test_help_closes_before_the_run_does() {
+            keymap.measure = fakeMeasure
+            pointer.mode = "measure"
+            fakeMeasure.count = 2
+            keymap.helpVisible = true
+            verify(keymap.handle(ev(Qt.Key_Escape)))
+            verify(!keymap.helpVisible, "the list closed")
+            compare(fakeMeasure.count, 2, "the run survived it")
+            verify(keymap.handle(ev(Qt.Key_Escape)))
+            compare(fakeMeasure.count, 0, "and the next Esc ends it")
+        }
+
+        function test_the_map_documents_the_measure_keys() {
+            compare(keymap.entries.map(e => e.label).indexOf("keys.unmeasure"), -1,
+                    "a lab without a tape measure lists no tape measure keys")
+            keymap.measure = fakeMeasure
+            verify(keymap.entries.map(e => e.label).indexOf("keys.unmeasure") >= 0,
+                   "and a lab with one does")
         }
 
         // The release that never comes: focus goes elsewhere mid-hold.

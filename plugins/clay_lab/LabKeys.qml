@@ -22,10 +22,12 @@ import QtQuick
     keyboard could not do at all. While a flow runs, \c → and \c ← belong to
     the flow, so the arrows are the camera's only when nothing is narrating.
 
-    The interaction half, on a lab that hands over its \l pointer: \c B
-    switches between building and exploring and \b Space explores while it is
-    held. Both are described here for the same reason as everything else - a
-    key nobody can find is a key the lab does not have.
+    The interaction half, on a lab that hands over its \l pointer: \c B cycles
+    the modes the lab offers - build, explore, measure - and \b Space explores
+    while it is held. With a \l measure tool wired up, \b Backspace takes the
+    last measured point back and \b Esc ends the run. All of them are
+    described here for the same reason as everything else - a key nobody can
+    find is a key the lab does not have.
 
     Non-visual: keep focus handling where it is and call \l handle() from the
     lab's own key handler, and \l handleRelease() from \c Keys.onReleased.
@@ -78,7 +80,7 @@ Item {
         \brief An \c OrbitInput3D, for the build/explore mode keys.
 
         Two keys, and the second one is the reason this lives here rather than
-        in the lab: \c B switches the mode for good, and \b Space is explore
+        in the lab: \c B cycles the mode for good, and \b Space is explore
         \e while it is held - a quasimode, which means a key RELEASE has to be
         seen too. Wire \l handleRelease from the lab's \c Keys.onReleased.
 
@@ -89,7 +91,17 @@ Item {
     */
     property var pointer: null
 
-    /*! \qmlproperty string LabKeys::modeKey \brief The letter that toggles build/explore. */
+    /*!
+        \qmlproperty var LabKeys::measure
+        \brief A \l MeasureTool, for the two keys that edit a measurement.
+
+        \c Backspace (and \c Delete) takes the last point back, \c Esc ends the
+        run - and both only while the lab is actually in measure mode, which is
+        what lets a lab keep \c Del for deleting the thing it builds.
+    */
+    property var measure: null
+
+    /*! \qmlproperty string LabKeys::modeKey \brief The letter that cycles the modes. */
     property string modeKey: "B"
 
     /*!
@@ -98,7 +110,16 @@ Item {
         \brief The mode keys are live: there is a pointer and it can switch.
     */
     readonly property bool modeKeys: pointer !== null && pointer !== undefined
-                                     && pointer.modeLocked !== true
+                                     && pointer.modeSwitchable === true
+
+    /*!
+        \qmlproperty bool LabKeys::measureKeys
+        \readonly
+        \brief A measurement is being taken right now, so its keys are live.
+    */
+    readonly property bool measureKeys: measure !== null && measure !== undefined
+                                        && pointer !== null && pointer !== undefined
+                                        && pointer.mode === "measure"
 
     /*!
         \qmlproperty var LabKeys::keys
@@ -178,6 +199,9 @@ Item {
             out.push({ key: modeKey, label: "keys.mode" })
             out.push({ key: "␣", label: "keys.explore" })
         }
+        if (measure) {
+            out.push({ key: "⌫", label: "keys.unmeasure" })
+        }
         if (viewKeys) {
             out.push({ key: "←↑↓→", label: "keys.pan" })
             out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
@@ -238,7 +262,21 @@ Item {
         // After the flow block on purpose: a running narration keeps Space.
         if (modeKeys) {
             if (ev.key === Qt.Key_Space) { pointer.springExplore = true; return true }
-            if (_letterOf(ev) === modeKey) { pointer.toggleMode(); return true }
+            if (_letterOf(ev) === modeKey) { pointer.cycleMode(); return true }
+        }
+
+        // --- the measurement being taken, if one is
+        // Before the lab's own keys on purpose: Del removes what a lab BUILT,
+        // and while a tape measure is out there is nothing built under it -
+        // so the same key can mean "one point fewer" without either lab
+        // having to give its Del up.
+        if (measureKeys) {
+            if (ev.key === Qt.Key_Backspace || ev.key === Qt.Key_Delete) {
+                measure.undo(); return true
+            }
+            if (ev.key === Qt.Key_Escape && !helpVisible && measure.count > 0) {
+                measure.clear(); return true
+            }
         }
 
         // --- scenarios on the digits
