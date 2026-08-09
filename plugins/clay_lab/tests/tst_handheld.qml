@@ -117,11 +117,21 @@ Item {
 
         // --- putting it down --------------------------------------------------
 
-        function test_putting_it_down_ends_the_measurement() {
+        // A subject outlives being put down, so measuring and then reaching
+        // for a different tool does not destroy the reading. The instrument
+        // that cannot survive it opts in.
+        function test_putting_it_down_keeps_the_subject() {
             places.held = true
             places.add(pickAt(0, 0))
             places.held = false
-            verify(places.empty)
+            compare(places.count, 1, "kept")
+
+            places.clearOnPutAway = true
+            places.held = true
+            places.add(pickAt(1, 1))
+            places.held = false
+            verify(places.empty, "unless it says otherwise")
+            places.clearOnPutAway = false
         }
 
         // --- pinning ----------------------------------------------------------

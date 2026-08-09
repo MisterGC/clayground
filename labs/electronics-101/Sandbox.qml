@@ -700,12 +700,15 @@ Item {
         }
         CameraAnchorMark { pointer: nav }
         // The tape measure, in the same screen space and for the same reason:
-        // it answers "how far apart are those pads" without a mode that could
-        // disturb the board, and it never clips into a part.
-        // The kit's own Voltmeter is NOT on this belt yet, and deliberately:
-        // see its \note - View3D.pick reports no hit for the parts in this
-        // scene, so the chip would be there and the click would do nothing.
-        InstrumentBelt { id: hands; pointer: nav }
+        // it answers "how far apart are those pads" without disturbing the
+        // board, and it never clips into a part. The kit's own Voltmeter rides
+        // with it: a part carries a pick volume now, so a click names the part
+        // and a probe left clipped on keeps reading it.
+        InstrumentBelt {
+            id: hands
+            pointer: nav
+            Voltmeter {}
+        }
         environment: stage.environment
 
         OrbitCamera3D {

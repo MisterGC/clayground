@@ -113,27 +113,30 @@ Item {
             compare(tape.total, 0)
         }
 
-        // A measurement is a question you are asking NOW. Putting the tape
-        // down is the end of asking it, so nothing has to be cleaned up by
-        // hand and nothing lingers into the next thing you do.
-        function test_putting_the_tape_down_ends_the_run() {
+        // A measurement outlives being put down. It did not always: while
+        // measuring was a MODE of its own, leaving the mode was leaving the
+        // question, so the run went with it. There is no such mode now, and
+        // the case that matters runs the other way - measure the gap, then
+        // pick up the road tool and build to it. Only Esc or a clear ends a
+        // run.
+        function test_putting_the_tape_down_keeps_the_run() {
             tape.add(pick(0, 0))
             tape.add(pick(4, 0))
             tape.held = false
-            verify(tape.empty, "the run is over")
+            compare(tape.count, 2, "still measured")
             tape.held = true
-            verify(tape.empty, "and picking it up again does not bring it back")
+            compare(tape.count, 2, "and picking it up again finds it there")
         }
 
-        // Which is a policy, not a law: an instrument that wants to survive
-        // being put down says so.
-        function test_an_instrument_may_keep_its_subject() {
-            tape.clearOnPutAway = false
+        // Which is a policy, not a law: an instrument whose subject cannot
+        // outlive the holding says so.
+        function test_an_instrument_may_end_its_run_when_put_down() {
+            tape.clearOnPutAway = true
             tape.add(pick(0, 0))
             tape.add(pick(4, 0))
             tape.held = false
-            compare(tape.count, 2, "kept")
-            tape.clearOnPutAway = true
+            verify(tape.empty, "ended")
+            tape.clearOnPutAway = false
             tape.held = true
         }
 

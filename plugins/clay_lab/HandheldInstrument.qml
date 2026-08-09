@@ -148,13 +148,20 @@ Item {
 
     /*!
         \qmlproperty bool HandheldInstrument::clearOnPutAway
-        \brief Putting the instrument away ends the measurement.
+        \brief Putting the instrument away ends the measurement. Off.
 
-        True, and deliberately: a measurement belongs to the moment it is
-        taken, and a tape measure found still stretched across the scene after
-        a detour is a question nobody is asking any more.
+        It was true while a measurement could only be taken in a mode of its
+        own: leaving that mode was leaving the question, so the run went with
+        it. There is no such mode now, and the case that matters runs the other
+        way - measure the gap, then pick up the road tool and build to it. A
+        reading that vanished the moment you reached for something else would
+        make that impossible.
+
+        So a measurement ends when you say so: Esc, or the instrument's own
+        clear. Set this true for an instrument whose subject genuinely cannot
+        outlive the holding.
     */
-    property bool clearOnPutAway: true
+    property bool clearOnPutAway: false
 
     /*!
         \qmlmethod void HandheldInstrument::add(var pick)
