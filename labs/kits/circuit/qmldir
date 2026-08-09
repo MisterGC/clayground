@@ -5,3 +5,4 @@
 # Harmless on the desktop, where Qt scans the directory either way.
 CircuitElement3D 1.0 CircuitElement3D.qml
 SymbolIcon 1.0 SymbolIcon.qml
+Voltmeter 1.0 Voltmeter.qml
