@@ -1,8 +1,8 @@
 # Electronics 101 — a school kit that obeys Kirchhoff
 
 *Companion paper to the interactive lab in `labs/electronics-101/`.
-Overview board: `overview.grafli`. Annotate freely with CriticMarkup —
-remarks feed the next lab iteration.*
+Overview board: `overview.grafli`. Study: `studies/series-vs-parallel/`.
+Annotate freely with CriticMarkup — remarks feed the next lab iteration.*
 
 ## The question
 
@@ -11,7 +11,7 @@ switch and a lamp together and the lamp lights. What the plastic parts
 never show is *why* — why two bulbs in series glow dim while the same two
 in parallel blaze, why a resistor tames an LED, why one careless wire
 from plus to minus is a short. This lab puts the kit on a 3D pegboard and
-runs a real circuit solver underneath it: you drag parts out of the
+runs a real circuit solver underneath it: you take parts out of the
 palette, wire terminals by clicking two gold pads, flip the switch,
 and every LED, bulb and meter answers with the number Kirchhoff's laws
 demand. The board is a toy; the physics is not.
@@ -171,6 +171,41 @@ barely glow; parallel halves them ($0.5 + 3$) so each bulb gets nearly
 the full cell and blazes. That contrast, produced by rewiring alone, is
 the core physical lesson of the lab.
 
+## The same contrast, run as a study
+
+The two rows above are one voltage of a question that deserves a sweep, so
+the lab carries one: **`studies/series-vs-parallel/`** asks what the wiring
+decides across the cell's whole usable range, 1.5 V to 12 V, twelve runs
+driven headlessly by `tools/lab-sweep` and committed as twelve run records.
+The study document states the question, argues its own answerability against
+this kit's model card, and only then reports; everything below is quoted from
+`studies/series-vs-parallel/results.md`, which is generated from the records
+rather than typed.
+
+Three findings, and the third is the one this table could not have shown:
+
+1. **Parallel delivers 3.18× the power, at every voltage.** Not approximately
+   — the same figure at all six levels, because both wirings are linear in
+   the cell's EMF. Turning the cell up cannot turn a series board into a
+   parallel one; the choice of wiring is a property of the circuit.
+2. **It asks for 3.564× the current to do it.** The two ratios differ, and
+   the gap is what the cell keeps for itself: a series board gets **96 %** of
+   the cell's volts to its bulbs, a parallel board **86 %**. The honest form
+   of "parallel is brighter" is *parallel asks for 3.56× as much and gets
+   3.18× as much back, because a cell takes a bigger cut when you lean on it.*
+3. **Only one of them ever reaches the cell's rating.** Computed from each
+   record's own $R_\mathrm{ext} = V_\mathrm{term}/|I|$, the parallel board
+   crosses 1.5 A at **5.27 V** and is over it from 6 V up; the series board
+   would need **18.8 V**, which is past the cell's ceiling. Neither is ever a
+   short — 3.01 Ω is still six times the cell's own 0.5 Ω, however hard it is
+   pushed, which is the distinction argued above being checked rather than
+   asserted.
+
+`R_ext` is 12.01 Ω in series and 3.01 Ω in parallel, read off the records as
+$V_\mathrm{term}/|I|$ — the two bulbs stacked against the two bulbs halved.
+Every other number in the study follows from those two by Ohm's law, which is
+why none of the ratios move with voltage.
+
 ## Things to try
 
 - **Push the LED to its ceiling.** Set the resistor to 100 Ω and drag the
@@ -196,6 +231,12 @@ the core physical lesson of the lab.
 - **Make a short.** Run a single wire straight from $+$ to $-$. 9 A, the
   battery flashes red, the banner drops. Now put a resistor in that wire
   and watch the short clear — that is what a resistor is *for*.
+- **Clip a meter on and keep what it says.** Press `H` until the voltmeter
+  (`⚡`) is in your hand, click a bulb, and it reads that bulb live while you
+  keep working. Press `P`, give the reading a name, and it becomes a probe
+  like any other — on the plot, in the recording, and in a run record a paper
+  can cite. It is the shortest path in the lab from *I wonder* to *a number
+  somebody else can check*.
 
 ## Run it
 
@@ -204,16 +245,21 @@ the core physical lesson of the lab.
 ```
 
 Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
-`E` eraser · `C` clear · `#` grid mode · `R` turn the selected part ·
-`W` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
-view · `Esc` cancel · `Shift+R` record a run. `EN`/`DE` in the top right
-switch the language.
+`T` the guided flow · `E` eraser · `C` clear · `V` value labels ·
+`M` the schematic · `#` grid mode · `R` turn the selected part ·
+`Q` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
+view · `H` the next instrument · `P` keep a reading · `Esc` cancel ·
+`Shift+R` record a run. `EN`/`DE` in the top right switch the language.
 
-Drag parts from the palette onto the board, click two gold terminals to
-wire, click a switch to flip it, click a resistor to cycle its ohms, drag
-a part to move it, and click a wire anywhere along its length to branch off
-it (the eraser removes wires, junctions and parts alike). Every preset starts with the switch **open** — flipping
-it is the invitation.
+Take a part from the palette by clicking it: a semi-transparent **ghost** of
+that part then follows the cursor at the cell it would snap to, a click puts
+it there, and `Esc` or a right-click puts it back down. The ghost is drawn
+in the refusal colour where the cell is already taken, so a placement that
+will not work says so before the click rather than after it. Click two gold
+terminals to wire, click a switch to flip it, click a resistor to cycle its
+ohms, drag a part to move it, and click a wire anywhere along its length to
+branch off it (the eraser removes wires, junctions and parts alike). Every
+preset starts with the switch **open** — flipping it is the invitation.
 
 Parts try to say what they are without a legend. The palette shows each
 part's **schematic symbol** (IEC 60617) next to its colour, because the
@@ -262,10 +308,10 @@ too, because that is how a student writes it in their exercise book. The
 kit owns the part vocabulary (`labs/kits/circuit/strings.js`), the lab its
 own copy (`labs/electronics-101/strings.js`), and a lab may override a kit's
 wording by registering later. Key letters are physical and never translated:
-`W`, `V`, `R` and `#` are the same on a German keyboard.
+`Q`, `V`, `R` and `#` are the same on a German keyboard.
 
 The **monitor** in the corner plots the board, not a fixed pair of curves.
-Select a part and press `W` (or hit *plot it* on its card) and it gets a
+Select a part and press `Q` (or hit *plot it* on its card) and it gets a
 probe, a colour and a curve; the same colour appears as a small tag on the
 part, so *which line is which* is read off the board instead of inferred
 from the legend order. Clicking a legend entry drops that curve again, and
@@ -331,10 +377,14 @@ others. Tree-shaped wiring resolves completely; a genuinely ambiguous wire
 (two wires in parallel between the same two terminals) stays unknown and
 simply does not animate, which is the honest answer.
 
-The view is an orbit cam on a leash. Dragging the empty board circles the
-setup, the wheel zooms, `F` frames the selected part and `0` reframes the
-whole setup — which is also what happens when a preset is applied, so each
-scenario arrives properly framed. Two rules keep you oriented: the camera
+The view is an orbit cam on a leash, and it never takes the left button (see
+*The left button is the lab's* below). A right drag circles the setup, a
+middle drag slides it, the wheel zooms at the cursor, `WASD` and the arrows
+pan, `Shift` with the arrows turns, `F` frames the selected part and `0`
+reframes the whole setup — which is also what happens when a preset is
+applied, so each scenario arrives properly framed. Holding `Space` lends the
+left button to panning for exactly as long as it is held, for anyone who
+would rather drag than press a key. Two rules keep you oriented: the camera
 always looks at the setup (there is no free-flying pivot), and it must stay
 at least 9 units above the board plane, so flattening the angle backs the
 rig off instead of letting it dive through the parts. The compass under the
@@ -342,17 +392,72 @@ palette shows the board turning against a fixed marker for you, and the
 table under the board gives a horizon at low angles.
 
 Agents attach via `.clay/inspect/` (`Lab.labInfo()` reports the element
-counts, net count, iteration count and short flag, plus which parts are
-being watched and in which quantity). Two probes are setup-independent and
-always registered — `iBattery`, the total supply current, and `power`, the
-total dissipated in the loads — so a CSV recording has stable columns
-whatever the board looks like. Every watched part adds a `part<id>` probe
+counts, net count, iteration count and the short and overload flags, plus
+which parts are being watched and in which quantity). Three probes are
+setup-independent and always registered — `iBattery`, the total supply
+current, `power`, the total dissipated in the loads, and `vTerm`, what the
+cells actually hand to the parts after their own internal drop — so a
+recording has stable columns whatever the board looks like. Every watched part adds a `part<id>` probe
 next to them, which is also the agent-facing way to plot something:
 `setWatched(id, true)`. The entire
 circuit — elements, wires, positions, rotations, switch states — plus the
 camera pose rides in the dojo `viewState`, so the board you built and the
 angle you were watching from both survive a QML reload untouched; a user's
 board even wins over a scenario preset on reload.
+
+## Instruments you hold
+
+An instrument in a lab used to be one of two things: bolted into the scene,
+or parked in a corner of the screen. Both are **mounted** — the author
+decides what they measure, and the learner only reads them. A tape measure
+is neither. What it measures is whatever you point it at, and pointing is
+the whole instrument.
+
+So there is a third way to hold one, and it is the ordinary one: the strip
+along the bottom edge of the screen is a **belt**, `H` walks along it, and
+whatever is in your hand takes the next left click. Three instruments ride
+there in every lab, undeclared:
+
+- **the tape measure** (`📏`) — two clicks are two places, and the reading is
+  the distance between them. Here it answers *how far apart are those pads*
+  without touching the board.
+- **the stopwatch** (`⏱`) — clicks are moments on the simulated clock, not
+  places, so it needs no aim at all. The same contract, with the pointing
+  removed.
+- **the voltmeter** (`⚡`) — a click names a **part**, and the meter stays
+  clipped to it, reading live. This one is the circuit kit's, not the
+  kernel's: it is a handheld instrument a kit ships, which is the point of
+  having a written contract for them.
+
+A reading you want to keep is kept with `P`, which asks what to call it and
+then registers it as an ordinary **probe** — so a measurement somebody took
+by hand joins the plot, the recording and the run record, under the name they
+gave it. That is the whole path from a click to a citable number, and it is
+why `pin` exists rather than a screenshot.
+
+And the palette is on the same belt, which is the part worth noticing:
+**taking a part to place is taking an instrument.** A build tool is just an
+instrument whose reading is an act — it takes a place and, instead of
+remembering it, puts something there. That is what lets building and
+navigating happen without switching between them.
+
+### The left button is the lab's
+
+One rule holds all of that up: **the camera never takes the left button.**
+Orbiting is a right drag, sliding is a middle drag, zooming is the wheel,
+and everything else is on the keyboard. The left button belongs to whatever
+the lab is doing — flipping a switch, wiring two pads, placing a part,
+measuring between two pads — and no camera state can take it away.
+
+The test the design is held to is stated as a failure: *if a lab's tool can
+be starved of the left button by any camera state, the design is wrong.* It
+had been wrong. Placing parts used to be a mode, and while you were in it the
+switch on the board could not be flipped, because the camera had the press.
+Removing the mode removed the bug; the ghost that now previews a placement is
+what the mode had been standing in for.
+
+`Space` is the one exception, and it is a quasimode rather than a mode: it
+lends the left button to panning for exactly as long as it is held down.
 
 ## Source map
 
@@ -363,14 +468,22 @@ board even wins over a scenario preset on reload.
 - Element conductances / Norton stamps: `labs/kits/circuit/circuit.js:92`, `labs/kits/circuit/circuit.js:135`
 - LED piecewise model and flip-lock iteration: `labs/kits/circuit/circuit.js:124`, `labs/kits/circuit/circuit.js:146`
 - Part visuals (LED glow, bulb glow): `labs/kits/circuit/CircuitElement3D.qml:1`, `labs/kits/circuit/CircuitElement3D.qml:136`, `labs/kits/circuit/CircuitElement3D.qml:171`
-- Scenarios (each seeds its own watch list): `labs/electronics-101/Sandbox.qml:451`
-- Fixed probes (`iBattery`, `power`): `labs/electronics-101/Sandbox.qml:31`
-- Watch list, per-part probes via `Instantiator`: `labs/electronics-101/Sandbox.qml:53`, `labs/electronics-101/Sandbox.qml:107`
-- Board tags and the monitor panel: `labs/electronics-101/Sandbox.qml:1417`, `labs/electronics-101/Sandbox.qml:1714`
+- Scenarios (each seeds its own watch list): `labs/electronics-101/Sandbox.qml:444`
+- Fixed probes (`iBattery`, `power`, `vTerm`): `labs/electronics-101/Sandbox.qml:50`
+- Watch list and the monitor: `labs/electronics-101/Sandbox.qml:100`, `labs/electronics-101/Sandbox.qml:1828`
+- Board tags: `labs/electronics-101/Sandbox.qml:1572`
+- The belt, and the palette as a tool on it: `labs/electronics-101/Sandbox.qml:721`, `labs/electronics-101/Sandbox.qml:731`
+- The placement ghost: `labs/electronics-101/Sandbox.qml:796`
+- The guided flow (`led-basics`): `labs/electronics-101/Sandbox.qml:1266`
+- Handheld contract and belt (kernel): `plugins/clay_lab/HandheldInstrument.qml:1`, `plugins/clay_lab/InstrumentBelt.qml:1`
+- Tape measure, stopwatch (kernel): `plugins/clay_lab/TapeMeasure.qml:1`, `plugins/clay_lab/Stopwatch.qml:1`
+- The kit's handheld voltmeter: `labs/kits/circuit/Voltmeter.qml:1`
+- The camera that never takes the left button (kernel): `plugins/clay_canvas3d/OrbitInput3D.qml:1`
 - Runtime-driven plot series (kernel): `plugins/clay_lab/Plot2D.qml:50`
 - Language switch (kernel): `plugins/clay_lab/LabLang.qml:1`, `plugins/clay_lab/LangSwitch.qml:1`
 - Dictionaries: `labs/electronics-101/strings.js:1`, `labs/kits/circuit/strings.js:1`
-- viewState circuit persistence: `labs/electronics-101/Sandbox.qml:423`
+- viewState circuit persistence: `labs/electronics-101/Sandbox.qml:412`
+- The study, its records and its figures: `labs/electronics-101/studies/series-vs-parallel/study.md`
 
 *Verified via the clay-crew inspector on the running lab: the readings
 above are read straight from the probes and meter pills; the solver's

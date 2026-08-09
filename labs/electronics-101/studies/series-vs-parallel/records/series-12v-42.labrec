@@ -1,0 +1,33 @@
+# Clayground lab record v1 - JSON header, then tab-separated samples.
+{
+  "format": "clay-lab-record/1",
+  "id": "series-12v-42",
+  "lab": "labs/electronics-101/Sandbox.qml",
+  "scenario": "series-12v",
+  "seed": 42,
+  "steps": 60,
+  "stepSize": 0.0166667,
+  "sampleInterval": 0.1,
+  "duration": 1,
+  "command": "tools/lab-sweep/lab-sweep labs/electronics-101/studies/series-vs-parallel --only wiring=series --only cell=12v --seed 42",
+  "params": [],
+  "probes": [
+    {"name": "power", "unit": "W", "count": 11, "first": 11.0507, "last": 11.0507, "min": 11.0507, "max": 11.0507, "mean": 11.0507, "stddev": 0},
+    {"name": "iBattery", "unit": "mA", "count": 11, "first": 959.233, "last": 959.233, "min": 959.233, "max": 959.233, "mean": 959.233, "stddev": 0},
+    {"name": "vTerm", "unit": "V", "count": 11, "first": 11.5204, "last": 11.5204, "min": 11.5204, "max": 11.5204, "mean": 11.5204, "stddev": 0}
+  ],
+  "samples": {"columns": ["t", "power", "iBattery", "vTerm"], "count": 11, "stride": 1, "recorded": 11}
+}
+# samples
+t	power	iBattery	vTerm
+0	11.0507	959.233	11.5204
+0.1	11.0507	959.233	11.5204
+0.2	11.0507	959.233	11.5204
+0.3	11.0507	959.233	11.5204
+0.4	11.0507	959.233	11.5204
+0.5	11.0507	959.233	11.5204
+0.6	11.0507	959.233	11.5204
+0.7	11.0507	959.233	11.5204
+0.8	11.0507	959.233	11.5204
+0.9	11.0507	959.233	11.5204
+1	11.0507	959.233	11.5204

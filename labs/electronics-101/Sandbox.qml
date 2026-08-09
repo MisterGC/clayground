@@ -65,6 +65,21 @@ Item {
             return sum
         }
     }
+    // What the cell actually hands to the parts: its EMF less its own internal
+    // drop. iBattery says how hard the cell is working, this says how much of
+    // it survives the working - the two halves the BudgetBar draws, and the
+    // pair a study needs to show a cell giving out under load.
+    Probe {
+        name: "vTerm"; unit: "V"
+        expr: () => {
+            let sum = 0
+            const cells = root.sim.batteries || ({})
+            for (const el of root.elements)
+                if (el.type === "battery" && cells[el.id])
+                    sum += cells[el.id].vTerm
+            return sum
+        }
+    }
 
     // Shift+R writes a scratch run record into the lab's own records/ dir. No
     // command: a frame-driven session cannot be regenerated, and the citable
@@ -547,7 +562,7 @@ Item {
         for (const el of elements) byType[el.type] = (byType[el.type] || 0) + 1
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
-                         iterations: sim.iterations }
+                         overloaded: sim.overloaded, iterations: sim.iterations }
         // language-neutral for agents: types and ids, not display labels
         info.flow = { id: ledFlow.running ? ledFlow.flowId : "",
                       step: ledFlow.index, paused: ledFlow.paused,
