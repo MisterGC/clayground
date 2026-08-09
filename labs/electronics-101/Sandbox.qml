@@ -1101,6 +1101,10 @@ Item {
 
     LabPanel {
         id: palette
+        // Named so a figure can ask for it by name: a paper wants a picture of
+        // "the palette", and a pixel rectangle for it goes wrong the moment the
+        // UI scale changes. See clayrender --crop.
+        objectName: "palette"
         x: LabTheme.px(12); y: LabTheme.px(12)
         width: LabTheme.px(208)
         title: LabLang.t("lab.title")
@@ -1406,6 +1410,7 @@ Item {
     // same model - and the symbols are the very ones from the palette.
     LabPanel {
         id: plan
+        objectName: "schematic"
         visible: root.showPlan
         // steps out from under the palette when the palette reaches it
         anchors.left: root.planUnderPalette ? parent.left : palette.right
@@ -1595,6 +1600,7 @@ Item {
     // --- selection card (what is selected, what it reads, what you can do) -
     LabPanel {
         id: selCard
+        objectName: "partCard"
         padding: 10
         spacing: LabTheme.px(1)
         border.color: LabTheme.secondary

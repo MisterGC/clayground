@@ -369,6 +369,11 @@ Item {
 
     Row {
         id: _row
+        // The belt as a photographic subject is this row, not the full-screen
+        // item that carries it - so the name a figure crops to lives here.
+        // One belt per lab, so every lab answers to the same name; a lab may
+        // override it. See clayrender --crop.
+        objectName: "belt"
         visible: root.instruments.length > 0
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom

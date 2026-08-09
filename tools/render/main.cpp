@@ -7,6 +7,7 @@
 #include <clayanchor.h>
 #include <clayinspect.h>
 #include <clayscenecapture.h>
+#include <clayscenequery.h>
 #include <claysettle.h>
 #include <claystorage.h>
 
@@ -235,14 +236,22 @@ int main(int argc, char* argv[])
         "item or 3D node under its centre with name, type, source file and "
         "world position - or an explicitly unresolved anchor when nothing "
         "meaningful is there.", "x,y,w,h");
-    QCommandLineOption cropOpt("crop", "Crop before scaling: x,y,w,h.", "rect");
+    QCommandLineOption cropOpt("crop",
+        "Crop before scaling: either x,y,w,h in viewport pixels or the "
+        "objectName of the item to cut out - --crop legendPanel. A name that "
+        "matches nothing is an error, never the whole frame: a figure showing "
+        "the wrong corner is worse than one that failed to render.",
+        "rect|name");
+    QCommandLineOption cropPadOpt("crop-pad",
+        "Grow the crop by this many pixels on every side, clipped to the "
+        "viewport. A tight cut around a panel reads as cramped.", "px");
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
     parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
                        scriptOpt, waitForOpt, waitMsOpt, framesOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
-                       cropOpt, scaleOpt, widthOpt});
+                       cropOpt, cropPadOpt, scaleOpt, widthOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -407,9 +416,29 @@ int main(int argc, char* argv[])
 
     ClayScene::CaptureRequest capReq;
     if (parser.isSet(cropOpt)) {
-        capReq.crop = parseCrop(parser.value(cropOpt), &ok);
-        if (!ok)
-            return fail(QString("cannot parse --crop '%1'").arg(parser.value(cropOpt)));
+        // Four numbers is a rectangle; anything else is the name of the thing
+        // the caller actually means. No prefix to remember, and no ambiguity
+        // in practice - an objectName is an identifier, so it has no commas.
+        const QString spec = parser.value(cropOpt);
+        capReq.crop = parseCrop(spec, &ok);
+        if (!ok) {
+            QString why;
+            capReq.crop = ClayScene::itemRect(host.rootObject(), spec, &why);
+            if (capReq.crop.isNull())
+                return fail(QString("--crop '%1': %2 (give x,y,w,h or an "
+                                    "objectName)").arg(spec, why));
+        }
+    }
+    if (parser.isSet(cropPadOpt)) {
+        if (capReq.crop.isNull())
+            return fail("--crop-pad without --crop has nothing to grow");
+        const int pad = parser.value(cropPadOpt).toInt(&ok);
+        if (!ok || pad < 0)
+            return fail(QString("--crop-pad wants a pixel count, got '%1'")
+                            .arg(parser.value(cropPadOpt)));
+        // The capture clips to the viewport, so padding off the edge is safe
+        // and simply gives back a smaller margin on that side.
+        capReq.crop = capReq.crop.adjusted(-pad, -pad, pad, pad);
     }
     if (parser.isSet(scaleOpt))
         capReq.scale = parser.value(scaleOpt).toDouble();

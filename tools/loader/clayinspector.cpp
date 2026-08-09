@@ -78,23 +78,17 @@ static QRect resolveCrop(const QJsonValue& value, QQuickItem* root,
     if (value.isObject()) {
         const auto o = value.toObject();
         if (o.contains("objectName")) {
-            const auto name = o.value("objectName").toString();
-            QQuickItem* target = (root && root->objectName() == name)
-                ? root : (root ? root->findChild<QQuickItem*>(name) : nullptr);
-            if (!target) {
-                *error = QStringLiteral("crop: no item with objectName '%1'")
-                             .arg(name);
+            // One implementation, shared with clayrender's --crop: two ways to
+            // work out where a named thing is would be two ways to get the
+            // device pixel ratio wrong.
+            QString why;
+            const QRect r = ClayScene::itemRect(
+                root, o.value("objectName").toString(), &why);
+            if (r.isNull()) {
+                *error = QStringLiteral("crop: %1").arg(why);
                 return {};
             }
-            // The grab is of the root item, so the rect has to be expressed in
-            // the root's coordinates - and in device pixels, which is what
-            // grabToImage produces.
-            const QPointF topLeft = root->mapFromItem(target, QPointF(0, 0));
-            auto* win = root->window();
-            const qreal dpr = win ? win->effectiveDevicePixelRatio() : 1.0;
-            return QRect(qFloor(topLeft.x() * dpr), qFloor(topLeft.y() * dpr),
-                         qCeil(target->width() * dpr),
-                         qCeil(target->height() * dpr));
+            return r;
         }
         if (o.contains("x") && o.contains("y"))
             return QRect(o.value("x").toInt(), o.value("y").toInt(),

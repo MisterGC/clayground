@@ -71,6 +71,8 @@ different thing: that is exit 1 with the QML error, so a typo never reads as
 |---|---|
 | `--size WxH` | viewport size (default 1280x800) |
 | `--crop x,y,w,h` | cut out a region, applied **before** scaling |
+| `--crop <objectName>` | cut out *that item*, wherever it currently is |
+| `--crop-pad px` | grow the crop on every side, clipped to the viewport |
 | `--scale f` / `--width px` | scale the result to something readable |
 | `--frames n` | render n frames before capturing |
 | `--settle` | capture once the picture stops changing |
@@ -80,8 +82,24 @@ so it covers QML animations, physics and shader-driven motion alike. A scene
 with continuous motion never settles: `clayrender` says so on stderr, captures
 anyway, and leaves the judgement to you.
 
-A crop that falls outside the viewport is an error, not a silently clamped
-picture of the wrong thing.
+**Crop to a name, not to a rectangle.** What a caller means is *show me this
+thing*; a pixel rectangle is only how that had to be said before, and one
+measured by hand goes wrong the moment a panel moves, the window resizes or
+the UI scale changes — silently, into a picture of the wrong corner.
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out palette.png \
+    --crop palette --crop-pad 8
+```
+
+Four comma-separated numbers are read as a rectangle; anything else is an
+`objectName`. Give the items a figure might ever want a name — that is what
+makes the picture survive the next layout change.
+
+Both forms fail loudly rather than approximating: a crop that falls outside
+the viewport, a name that matches nothing, and a named item with no size are
+all errors with no image written. Padding is the one thing that clips instead,
+since running off the edge only means a smaller margin on that side.
 
 ## Asking the renderer instead of the pixels
 

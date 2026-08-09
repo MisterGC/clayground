@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRect>
 #include <QString>
 #include <functional>
 
@@ -54,6 +55,17 @@ QObject* findFirstOfType(QObject* root, const QString& type);
 // that re-derived this got QQuick3DViewport wrong on its own.
 QQuickItem* findView3D(QQuickItem* root, const QString& viewId = QString(),
                        QString* error = nullptr);
+
+// The rectangle a named item covers, in the device pixels a capture is made
+// of - so it can be handed straight to CaptureRequest::crop.
+//
+// "Show me this thing" is what a caller means; a pixel rectangle is only how
+// it had to be said before, and one measured by hand goes wrong the moment a
+// panel moves, the window resizes or the UI scale changes - silently, into a
+// picture of the wrong corner. A name that resolves to nothing is an error
+// here rather than an empty rect, for the same reason.
+QRect itemRect(QQuickItem* root, const QString& objectName,
+               QString* error = nullptr);
 
 // --- Item tree --------------------------------------------------------------
 

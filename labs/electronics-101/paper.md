@@ -4,6 +4,12 @@
 Overview board: `overview.grafli`. Study: `studies/series-vs-parallel/`.
 Annotate freely with CriticMarkup — remarks feed the next lab iteration.*
 
+*Every picture below is rendered from the running lab by `figures/make.sh`,
+so re-running it is how you find out whether the paper still looks like the
+lab. They are **illustrative only**: no number in this paper is read off a
+picture — the numbers come from the probes and the run records, which is what
+they are for.*
+
 ## The question
 
 Every school electronics set makes the same promise: snap a battery, a
@@ -15,6 +21,15 @@ runs a real circuit solver underneath it: you take parts out of the
 palette, wire terminals by clicking two gold pads, flip the switch,
 and every LED, bulb and meter answers with the number Kirchhoff's laws
 demand. The board is a toy; the physics is not.
+
+![the led-basic circuit, lit, with every value labelled](figures/board.png)
+
+*The whole argument in one picture: a 4.5 V cell, a 470 Ω resistor and an LED
+in one loop. The same 5.1 mA appears on every wire because there is only one
+path, the resistor takes 2.42 V of the cell's 4.50 V and the LED the remaining
+2.08 V, and the chevrons crawling along the wires point the way the current
+actually runs. Nothing here is drawn by hand — every label is the solver's
+answer.*
 
 ## The solver
 
@@ -115,6 +130,16 @@ the thing carrying everything. A `BudgetBar` answers "where does it all go?"
 for any conserved quantity — volts round a loop, current at a junction,
 power in a machine — so other labs can borrow it as-is.
 
+| | |
+|---|---|
+| ![one wire from plus to minus](figures/short.png) | ![the cell's budget, entirely red](figures/budget.png) |
+| a single wire from $+$ to $-$: the banner drops and the wire carrying 9 A is drawn in alarm colour | the same cell's budget bar — **0.00 V reaches your parts, 4.50 V is lost inside the cell** |
+
+The bar is the argument. "A short is bad" is a rule to memorise; *every volt
+you paid for is being burned inside the battery, so there is none left for
+anything else* is a thing you can see, and it explains the dark parts in the
+same picture that shows the fault.
+
 ## Stated simplifications
 
 - **DC only.** No capacitors, inductors or AC sources — the solver has no
@@ -170,6 +195,15 @@ resistances ($0.5 + 6 + 6$) so the shared current is small and both bulbs
 barely glow; parallel halves them ($0.5 + 3$) so each bulb gets nearly
 the full cell and blazes. That contrast, produced by rewiring alone, is
 the core physical lesson of the lab.
+
+| | |
+|---|---|
+| ![two bulbs in series](figures/series.png) | ![two bulbs in parallel](figures/parallel.png) |
+| **series** — one loop, so 359.7 mA appears on *every* wire and the cell's volts divide, 2.16 V to each bulb | **parallel** — a ladder, so both bulbs sit across the same 3.85 V and the current splits, 641 mA each, rejoining at the rails |
+
+Same two bulbs, same cell, same switch. The only difference is which wire goes
+where — and it is visible before you read a single number, in how brightly the
+two pairs glow.
 
 ## The same contrast, run as a study
 
@@ -273,6 +307,13 @@ scale and says so. A resistor needs no print: its bands are the actual
 colour code, two significant digits plus a decade, so they change with the
 value the way a bought resistor's do.
 
+<img src="figures/palette.png" alt="the palette, with each part's schematic symbol beside its colour" width="224">
+
+*The palette, actual size. Every part carries the symbol it becomes on a
+circuit diagram, next to the colour it has on the board — so the translation
+from a lump on a pegboard to a squiggle in a textbook is made once, in the
+place you are already looking, and never has to be taught.*
+
 Values are set where the part is, not in a global panel. Selecting a
 resistor puts a slider on its card that walks the **E12 series** — the
 values a shop actually sells — and selecting a battery gives it its own
@@ -286,6 +327,13 @@ lines where the wires are, energised wires in ink and idle ones faint. It
 fits itself to what you built. The 3D board shows what you assembled; the
 schematic shows what it *is*, and watching both at once is how the diagram
 in a textbook stops being an abstraction.
+
+![the parallel board with its schematic in the corner](figures/schematic.png)
+
+*The same parallel circuit, twice: the ladder you built on the pegboard, and
+the ladder as a circuit diagram in the corner. Neither is a picture of the
+other — both are drawn from the same list of parts and wires, which is why
+moving a part moves it in both.*
 
 Wires meet at **junctions**: click any wire and a solder dot is dropped
 where you clicked, splitting it in two and starting a branch from that point
@@ -415,8 +463,15 @@ the whole instrument.
 
 So there is a third way to hold one, and it is the ordinary one: the strip
 along the bottom edge of the screen is a **belt**, `H` walks along it, and
-whatever is in your hand takes the next left click. Three instruments ride
-there in every lab, undeclared:
+whatever is in your hand takes the next left click.
+
+<img src="figures/belt.png" alt="the belt, with the voltmeter in hand" width="293">
+
+*The belt, actual size, with the voltmeter taken out — the lit chip is what
+the next click will do. `Resistor` sits on the same strip as the meters,
+because taking a part to place is taking an instrument too.*
+
+Three instruments ride there in every lab, undeclared:
 
 - **the tape measure** (`📏`) — two clicks are two places, and the reading is
   the distance between them. Here it answers *how far apart are those pads*
@@ -484,6 +539,7 @@ lends the left button to panning for exactly as long as it is held down.
 - Dictionaries: `labs/electronics-101/strings.js:1`, `labs/kits/circuit/strings.js:1`
 - viewState circuit persistence: `labs/electronics-101/Sandbox.qml:412`
 - The study, its records and its figures: `labs/electronics-101/studies/series-vs-parallel/study.md`
+- This paper's figures, and the one script that regenerates them: `labs/electronics-101/figures/make.sh`
 
 *Verified via the clay-crew inspector on the running lab: the readings
 above are read straight from the probes and meter pills; the solver's

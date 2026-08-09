@@ -110,6 +110,20 @@ Item {
     Rectangle { anchors.fill: parent; color: parent.fill }
 }
 """)
+    # A named panel in a known place, so "crop to this thing" can be asserted
+    # against a size nobody typed as a pixel rectangle.
+    write(os.path.join(tmp, "Named.qml"), """
+import QtQuick
+Item {
+    Rectangle { anchors.fill: parent; color: "#101010" }
+    Rectangle {
+        objectName: "panel"
+        x: 20; y: 10; width: 60; height: 40
+        color: "#ff3366"
+    }
+    Item { objectName: "sizeless" }
+}
+""")
     write(os.path.join(tmp, "Broken.qml"), """
 import QtQuick
 Item { Component.onCompleted: thisFunctionDoesNotExist() }
@@ -241,6 +255,54 @@ Item {
                         "--crop", "500,500,10,10"])
     check("crop outside the viewport fails loudly",
           code != 0 and "outside" in err, err.strip()[:120])
+
+    # --crop by name. The whole point is that nobody measured 20,10,60x40 by
+    # hand: the panel says where it is, so the figure survives a resize.
+    named = os.path.join(tmp, "Named.qml")
+    out_named = os.path.join(tmp, "named.png")
+    code, _, err = run(args.clayrender,
+                       [named, "--out", out_named, "--size", "200x100",
+                        "--crop", "panel"])
+    check("crop to a named item", code == 0 and png_size(out_named) == (60, 40),
+          f"exit {code} {png_size(out_named)} {err.strip()[:80]}")
+
+    out_pad = os.path.join(tmp, "named-pad.png")
+    code, _, _ = run(args.clayrender,
+                     [named, "--out", out_pad, "--size", "200x100",
+                      "--crop", "panel", "--crop-pad", "5"])
+    check("crop-pad grows it on every side", png_size(out_pad) == (70, 50),
+          str(png_size(out_pad)))
+
+    # Padding off the edge is clipped rather than refused - the panel sits at
+    # x=20,y=10, so 40 px of padding runs past two edges.
+    out_clip = os.path.join(tmp, "named-clip.png")
+    code, _, _ = run(args.clayrender,
+                     [named, "--out", out_clip, "--size", "200x100",
+                      "--crop", "panel", "--crop-pad", "40"])
+    check("crop-pad clips at the viewport", png_size(out_clip) == (120, 90),
+          str(png_size(out_clip)))
+
+    # A name that matches nothing must not quietly become the whole frame: a
+    # figure showing the wrong thing is worse than one that failed to render.
+    code, _, err = run(args.clayrender,
+                       [named, "--out", os.path.join(tmp, "unnamed.png"),
+                        "--size", "200x100", "--crop", "noSuchPanel"])
+    check("an unknown crop name fails loudly",
+          code != 0 and "noSuchPanel" in err
+          and not os.path.exists(os.path.join(tmp, "unnamed.png")),
+          f"exit {code} {err.strip()[:100]}")
+
+    code, _, err = run(args.clayrender,
+                       [named, "--out", os.path.join(tmp, "sizeless.png"),
+                        "--size", "200x100", "--crop", "sizeless"])
+    check("a zero-sized item is refused, not cropped to nothing",
+          code != 0 and "no size" in err, f"exit {code} {err.strip()[:100]}")
+
+    code, _, err = run(args.clayrender,
+                       [named, "--out", os.path.join(tmp, "padonly.png"),
+                        "--size", "200x100", "--crop-pad", "5"])
+    check("crop-pad without crop is refused",
+          code != 0 and "nothing to grow" in err, err.strip()[:100])
 
     # The three outcomes must be distinguishable by exit code alone.
     code, _, err = run(args.clayrender,

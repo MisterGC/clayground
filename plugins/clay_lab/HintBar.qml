@@ -26,6 +26,12 @@ import QtQuick
 Rectangle {
     id: root
 
+    // There is one of these per lab, so it can carry a name every lab shares -
+    // which is what lets a figure ask for "the hint bar" by name rather than
+    // by a pixel rectangle that the next UI scale invalidates. A lab may still
+    // override it. See clayrender --crop.
+    objectName: "hint"
+
     /*! \qmlproperty string HintBar::text \brief The line to show; empty hides the bar. */
     property alias text: _hint.text
 

@@ -10,7 +10,9 @@
 #include <QQmlEngine>
 #include <QQmlExpression>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QVector2D>
+#include <QtMath>
 #include <QVector3D>
 #include <functional>
 
@@ -540,6 +542,36 @@ QQuickItem* findView3D(QQuickItem* root, const QString& viewId, QString* error)
     if (!view && error)
         *error = QStringLiteral("no View3D in this scene");
     return view;
+}
+
+QRect itemRect(QQuickItem* root, const QString& objectName, QString* error)
+{
+    if (!root) {
+        if (error) *error = QStringLiteral("no root");
+        return {};
+    }
+    QQuickItem* target = root->objectName() == objectName
+        ? root : root->findChild<QQuickItem*>(objectName);
+    if (!target) {
+        if (error)
+            *error = QStringLiteral("no item with objectName '%1'").arg(objectName);
+        return {};
+    }
+    if (target->width() <= 0 || target->height() <= 0) {
+        if (error)
+            *error = QStringLiteral("item '%1' has no size (%2x%3) - nothing to cut out")
+                         .arg(objectName)
+                         .arg(target->width()).arg(target->height());
+        return {};
+    }
+    // A capture is a grab of the ROOT item, so the rect has to be in the
+    // root's coordinates - and in device pixels, which is what the grab
+    // produces. Getting the ratio wrong halves the crop on a retina screen.
+    const QPointF topLeft = root->mapFromItem(target, QPointF(0, 0));
+    auto* win = root->window();
+    const qreal dpr = win ? win->effectiveDevicePixelRatio() : 1.0;
+    return QRect(qFloor(topLeft.x() * dpr), qFloor(topLeft.y() * dpr),
+                 qCeil(target->width() * dpr), qCeil(target->height() * dpr));
 }
 
 QJsonObject buildItemTree(QQuickItem* item, int maxDepth, bool fullDetail)
