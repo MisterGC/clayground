@@ -65,13 +65,12 @@ var dict = {
         "plot.empty": "select a part · W puts it here",
 
         "hint.eraser": "eraser: click parts or wire knots to remove · E exits",
-        "hint.wiring": "click a second pad — or any wire, to tap into it · Esc cancels",
+        "hint.wiring": "click a second pad — or any wire, to tap into it · right-click or Esc cancels",
         "hint.selected": "R turns the part · W plots it · Del removes it · drag moves it",
         "hint.selected.free": " (Alt snaps)",
         "hint.selected.snap": " (Alt places freely)",
         "hint.selected.frame": " · F frames it",
-        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · B or hold Space to look around",
-        "hint.explore": "explore: drag moves the board · right-drag turns it around the cursor · wheel zooms · B builds again",
+        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · right-drag turns the view",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Why does the LED light?",
@@ -151,13 +150,12 @@ var dict = {
         "plot.empty": "Bauteil wählen · W stellt es hier dar",
 
         "hint.eraser": "Radierer: Bauteile oder Knoten anklicken zum Löschen · E beendet",
-        "hint.wiring": "zweites Kontaktfeld anklicken — oder einen Draht, um dort abzuzweigen · Esc bricht ab",
+        "hint.wiring": "zweites Kontaktfeld anklicken — oder einen Draht, um dort abzuzweigen · rechte Taste oder Esc bricht ab",
         "hint.selected": "R dreht das Bauteil · W stellt es dar · Entf löscht es · ziehen verschiebt",
         "hint.selected.free": " (Alt rastet ein)",
         "hint.selected.snap": " (Alt setzt frei)",
         "hint.selected.frame": " · F rückt es ins Bild",
-        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · B oder Leertaste halten zum Umsehen",
-        "hint.explore": "erkunden: ziehen bewegt das Brett · rechte Taste dreht es um den Zeiger · Rad zoomt · B baut wieder",
+        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · rechte Taste dreht die Ansicht",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Warum leuchtet die LED?",

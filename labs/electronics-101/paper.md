@@ -289,8 +289,9 @@ the current splits and re-joins at the junctions.
 Hovering a part draws a thin blue outline around it on the paper, the same
 blue the terminals light up in; clicking **selects** it, which thickens that
 outline, adds a nose mark showing which way the part faces, and opens a card
-reporting its voltage and current. `R` or a right-click turns it in 90° steps — wires
-follow the terminals. Moving is grid-snapped by default, exactly like
+reporting its voltage and current. `R` turns it in 90° steps — wires
+follow the terminals. (The right button belongs to the camera in every lab:
+a right drag turns the view, a right click puts down whatever is in hand.) Moving is grid-snapped by default, exactly like
 grafli's grid mode: the pegs are drawn as small squares while snapping and
 as round dots when parts move freely, `#` cycles the mode and holding `Alt`
 inverts it for one drag. The peg raster is 5 world units — half a part

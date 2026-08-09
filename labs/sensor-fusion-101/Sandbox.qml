@@ -15,12 +15,13 @@ import "strings.js" as Strings
 // odometry and landmark lidar against a map into one estimate (2D Kalman
 // filter). Keys: 1-3 presets · T flow · C camera · M lidar panel · # grid ·
 // F frame the car · 0 frame the city · ⇧R record · ? every key.
-// Nothing here is built, so the pointer is the camera's: drag carries the
-// world along, right-drag turns it about the point under the cursor, the
-// middle button drags too, double-click re-centres, the wheel zooms towards
-// the cursor; arrows travel, Shift+arrows turn. B is the one mode switch this
-// lab has - explore and measure, never build: in measure a click drops a
-// measuring point, Backspace takes one back and Esc clears the run.
+// Nothing here is built or selected, which is why this is the one lab that
+// spends the left button on the view: drag carries the world along, right-drag
+// turns it about the point under the cursor, the middle button drags too,
+// double-click re-centres, the wheel zooms towards the cursor; arrows travel,
+// Shift+arrows turn. H still takes the tape measure out and a click still
+// drops a measuring point - a click pans by nothing, so the two do not
+// collide. Backspace takes a point back, Esc clears the run.
 Item {
     id: root
     anchors.fill: parent
@@ -277,7 +278,6 @@ Item {
         return Object.assign(Lab.viewState(), {
             followCam: followCam,
             cam: orbit.state(),
-            mode: nav.mode,
             tunnelOn: tunnelOn,
             lidarOn: _lidarOn,
             showMonitor: showMonitor,
@@ -295,7 +295,6 @@ Item {
         if (s.lidarOn !== undefined) _lidarOn = s.lidarOn
         Lab.applyViewState(s)
         if (s.cam) orbit.applyState(s.cam)
-        if (s.mode) nav.setMode(s.mode)   // one mode here, so a no-op
         if (s.followCam !== undefined) followCam = s.followCam
         if (s.showMonitor !== undefined) showMonitor = s.showMonitor
         if (s.showGrid !== undefined) showGrid = s.showGrid
@@ -620,13 +619,6 @@ Item {
         id: topSwitches
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
         spacing: LabTheme.spaceM
-        // what the mouse currently means - two modes here, not three: this lab
-        // has nothing to build
-        ModeChip {
-            pointer: nav
-            key: keymap.modeKey
-            anchors.verticalCenter: parent.verticalCenter
-        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -654,31 +646,53 @@ Item {
     // Free-look input. Declared before the panels so a drag on the legend or
     // the monitor belongs to that panel, not to the camera.
     //
-    // The gestures are the kernel's (OrbitInput3D), and so is the contract they
-    // follow: drag carries the world along, right-drag turns it about the point
-    // under the cursor, the middle button drags in either mode, the wheel zooms
-    // towards the cursor, double-click puts the pivot where you clicked.
+    // The gestures are the kernel's (OrbitInput3D): right-drag turns the world
+    // about the point under the cursor, the middle button drags it, the wheel
+    // zooms towards the cursor, double-click puts the pivot where you clicked.
     //
-    // This lab builds nothing - but it has plenty to measure, which is why the
-    // mode is a LIST rather than a lock: explore and measure, never build. B
-    // walks the two and the chip says which one you are in.
+    // And left-drag pans, which every other lab gives up. That is a per-lab
+    // decision and this is the lab that gets to make it: there is nothing here
+    // to select, place or draw, so the left button has no rival tool - see
+    // panButtons.
     OrbitInput3D {
         id: nav
         rig: orbit
         view: view3d
-        mode: "explore"
-        modes: ["use"]         // nothing to build here, so there is no mode at all
+        panButtons: Qt.LeftButton | Qt.MiddleButton
     }
     MouseArea {
+        id: viewMouse
         anchors.fill: parent
+        hoverEnabled: true
         enabled: !root.followCam
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         cursorShape: nav.cursorShape
-        onPressed: (m) => nav.begin(m.x, m.y, m.button, m.modifiers)
-        onPositionChanged: (m) => nav.move(m.x, m.y)
-        onReleased: nav.end()
+
+        // The one lab where the belt and the camera share the left button, and
+        // the only lab where they safely can: a click pans by nothing (a pan
+        // with no movement moves no world), and a drag fails the belt's own
+        // click test, so exactly one of the two ever does anything. Everywhere
+        // else this would be the mode all over again - here it is what lets a
+        // lab with nothing to select keep its most natural gesture AND still be
+        // measured in.
+        onPressed: (m) => {
+            if (hands.held && m.button === Qt.LeftButton) hands.press(m.x, m.y)
+            nav.begin(m.x, m.y, m.button, m.modifiers)
+        }
+        onPositionChanged: (m) => {
+            if (pressed) hands.move(m.x, m.y)
+            if (nav.move(m.x, m.y)) return
+            if (!pressed) nav.hoverAt(m.x, m.y)
+        }
+        onReleased: { nav.end(); hands.release() }
         onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)
         onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
+    }
+    // A right click is "put it down" - the RTS cancel, on the button that has
+    // nothing else to do here.
+    Connections {
+        target: nav
+        function onCancelled() { hands.putAway() }
     }
     // Measuring needs the pointer, and while the camera is chasing the car the
     // pointer is not the viewer's - so taking an instrument out lets the car
@@ -1000,7 +1014,7 @@ Item {
         // into the middle column the parameters become the wall
         rightGuard: root.monitorUnderParams ? monitor : params
         text: {
-            // the mode outranks the story: while the tape measure is out, a
+            // the hand outranks the story: while the tape measure is out, a
             // hint about the fusion describes something you are not doing
             if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.tunnelOn && root.carInTunnel) return LabLang.t("hint.tunnel")

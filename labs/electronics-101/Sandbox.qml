@@ -20,15 +20,14 @@ import "strings.js" as Strings
 // M schematic · W plot the selected part · # grid mode · R turn · Del ·
 // Shift+R record · Esc cancel.
 //
-// The lab opens in BUILD mode: both mouse buttons are the board's, whole, and
-// only the middle button and the wheel are the camera's. B cycles on to
-// explore (drag moves the world, right-drag turns it about the cursor) and
-// then to measure (click drops a measuring point, Backspace takes one back,
-// Esc clears); holding Space explores for as long as you hold it, and the chip
-// top right says which you are in. Universal in all three: wheel zooms towards
-// the cursor, middle-drag moves the world, double-click bare board re-centres
-// there; arrows travel, Shift+arrows turn, +/- zoom, F frames the selection,
-// 0 resets.
+// There is no mode. The LEFT BUTTON IS ALWAYS THE BOARD'S: an empty hand wires
+// pads, flips a switch, selects and drags a part, and whatever is on the belt
+// (H) takes the click instead while it is out. Navigation never competes for
+// it - right-drag turns the world about the cursor, a right CLICK puts down
+// whatever is in the hand, the middle button drags, the wheel zooms towards
+// the cursor, double-click on bare board re-centres there, and holding Space
+// pans on the left button for as long as you hold it. Arrows travel,
+// Shift+arrows turn, +/- zoom, F frames the selection, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -400,7 +399,7 @@ Item {
             circuit: circuitState(),
             watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
             lang: LabLang.lang,
-            cam: rig.state(), mode: nav.mode
+            cam: rig.state()
         })
     }
     // The user's board wins over the scenario preset: with a circuit payload
@@ -423,7 +422,6 @@ Item {
         if (s.cam) {
             rig.applyState(s.cam)
         }
-        if (s.mode) nav.setMode(s.mode)
         Lab.applyViewState(s)
     }
 
@@ -836,18 +834,16 @@ Item {
 
     // --- navigation --------------------------------------------------------
     // The camera gestures are the kernel's (OrbitInput3D), and so is the rule
-    // for which gestures are the camera's - which is the point of the modes.
-    // In build mode, where this lab opens, both buttons are the board's
-    // WITHOUT exception: no "empty board turns the view", no Shift-drag, none
-    // of the leftovers that used to differ from lab to lab and made a drag's
-    // meaning depend on what happened to be under it. What is left over is
-    // enough: the middle button drags the world, the wheel zooms towards the
-    // cursor, and Space (or B) hands the whole pointer to the camera.
+    // for which gestures are the camera's. The rule is one sentence: the LEFT
+    // button is never the camera's. It is not "not in build mode" or "not over
+    // a part" - it is never, in every state this lab can be in, which is what
+    // makes the switch below flippable at any moment without a key first.
+    // The camera gets the right button, the middle one, the wheel, the arrows,
+    // and the left button only while Space is held.
     OrbitInput3D {
         id: nav
         rig: rig
         view: view3d
-        mode: "build"
     }
 
     // --- mouse interaction ------------------------------------------------
@@ -874,6 +870,8 @@ Item {
         // handlers below are three one-liners that forward to them.
         function moveAt(mx, my, mods, isDown) {
             if (isDown && nav.active) { nav.move(mx, my); return }
+            if (isDown && hands.held) { hands.move(mx, my); return }
+            if (!isDown) nav.hoverAt(mx, my)
             const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
@@ -917,21 +915,16 @@ Item {
         function pressAt(mx, my, button, mods) {
             root.forceActiveFocus()
             nav.cancel()
-            // The mode decides first and decides everything: in explore it
-            // takes the press whatever is under it, in build it only ever
-            // takes the middle button. Nothing below has to think about the
-            // camera again.
+            // Ask the camera first, and with the default buttons the answer for
+            // the left button is always no - so nothing below has to think
+            // about the camera again, and nothing below can be starved by it.
             if (nav.begin(mx, my, button, mods) !== "") return
+            // Then the hand: an instrument out means the click is the
+            // instrument's, and it decides click-versus-drag itself.
+            if (hands.held) { hands.press(mx, my); return }
             const w = worldAt(mx, my)
             pressW = w; dragged = false; dragElem = null
             const hit = w ? root.hitAt(w.x, w.z) : null
-            if (button === Qt.RightButton) {
-                if (hit && (hit.kind === "element" || hit.kind === "terminal")) {
-                    root.selectedId = hit.el
-                    root.rotateElement(hit.el)
-                }
-                return
-            }
             // empty board (or off-board): a click there means "nothing"
             if (!hit) {
                 root.selectedId = -1
@@ -984,12 +977,27 @@ Item {
 
         function releaseAt() {
             nav.end()          // a flicked drag coasts to a stop from here
+            if (hands.release()) return   // the click was the instrument's
             if (dragElem && !dragged) {
                 const el = root.elemAt(dragElem)
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
                 // a resistor is set with the slider on its selection card
             }
             dragElem = null; dragged = false
+        }
+    }
+
+    // A right CLICK is "put it down" - the RTS cancel. It empties the hand and
+    // drops whatever the board had half-started, in that order, so one press
+    // walks back one step. A right DRAG still turns the view and cancels
+    // nothing; only the distance travelled tells them apart.
+    Connections {
+        target: nav
+        function onCancelled() {
+            if (!hands.empty) { hands.putAway(); return }
+            if (root.wiringFrom) { root.wiringFrom = null; return }
+            if (root.eraser) { root.eraser = false; return }
+            root.selectedId = -1
         }
     }
 
@@ -1252,13 +1260,6 @@ Item {
         anchors.top: parent.top
         anchors.margins: LabTheme.spaceXl
         spacing: LabTheme.spaceM
-        // what the mouse currently means, beside the other things that change
-        // how the lab reads rather than what it computes
-        ModeChip {
-            pointer: nav
-            key: keymap.modeKey
-            anchors.verticalCenter: parent.verticalCenter
-        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -1744,10 +1745,9 @@ Item {
         flow: ledFlow                 // the narrator owns this slot while it runs
         rightGuard: monitor
         text: {
-            // the mode outranks everything: while the pointer is the camera's,
-            // a hint about clicking pads describes a lab you are not in
+            // the hand outranks everything: while an instrument is out, a hint
+            // about clicking pads describes something you are not doing
             if (!hands.empty) return LabLang.t(hands.held.hint)
-            if (nav.navigating) return LabLang.t("hint.explore")
             if (root.eraser) return LabLang.t("hint.eraser")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)

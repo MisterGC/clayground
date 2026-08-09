@@ -28,14 +28,14 @@ import "strings.js" as Strings
 // V flow numbers · M lane graph · W plot the selected road · X close/open the
 // selected junction · # grid mode · Del remove · Esc cancel · Shift+R record.
 //
-// The lab opens in BUILD mode: both mouse buttons are the plan's, whole. B
-// cycles on to explore (drag moves the world, right-drag turns it about the
-// point under the cursor) and then to measure (click drops a measuring point,
-// Backspace takes one back, Esc clears); holding Space explores while held,
-// and the chip top right says which you are in. Universal in all three: the
-// wheel zooms towards the cursor, the middle button drags the world,
-// double-click on bare sheet re-centres there; arrows travel, Shift+arrows
-// turn, +/- zoom, F frames, 0 resets.
+// There is no mode. The LEFT BUTTON IS ALWAYS THE PLAN'S: an empty hand draws
+// a road on a drag and selects on a click, and whatever is on the belt (H)
+// takes the click instead while it is out. Navigation never competes for it -
+// right-drag turns the world about the point under the cursor, a right CLICK
+// puts down whatever is in the hand, the middle button drags the world, the
+// wheel zooms towards the cursor, double-click on bare sheet re-centres there,
+// and holding Space pans on the left button while held. Arrows travel,
+// Shift+arrows turn, +/- zoom, F frames, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -697,7 +697,7 @@ Item {
             running: running, lang: LabLang.lang,
             toggles: { lanes: showLanes, values: showValues, plan: showPlan,
                        snap: grid.snap },
-            cam: rig.state(), mode: nav.mode
+            cam: rig.state()
         })
     }
     // The plan the user drew wins over the scenario preset: with a payload the
@@ -720,7 +720,6 @@ Item {
         // already reset both, so the replay is exact
         Lab.applyViewState(s)
         if (s.cam) rig.applyState(s.cam)
-        if (s.mode) nav.setMode(s.mode)
     }
 
     // --- scenarios ---------------------------------------------------------
@@ -1078,18 +1077,16 @@ Item {
     }
 
     // --- navigation ---------------------------------------------------------
-    // The camera gestures are the kernel's (OrbitInput3D), and since the modes
-    // landed so is the rule for who owns which button. This lab opens in build:
-    // BOTH buttons are the pen's and the selection's, and the right button no
-    // longer turns the view - it used to, which meant the same drag meant one
-    // thing here and another in electronics-101. B, or Space held, gives the
-    // whole pointer to the camera instead; the middle button and the wheel work
-    // in either mode.
+    // The camera gestures are the kernel's (OrbitInput3D), and so is the rule
+    // for who owns which button. The rule is one sentence: the LEFT button is
+    // never the camera's - not "not in build mode", not "not over a road", but
+    // never, so a drag on this sheet always draws and a click always selects.
+    // The camera gets the right button, the middle one, the wheel, the arrows,
+    // and the left button only while Space is held.
     OrbitInput3D {
         id: nav
         rig: rig
         view: view3d
-        mode: "build"
     }
 
     // --- mouse -------------------------------------------------------------
@@ -1144,11 +1141,13 @@ Item {
             pressHit = null; pressW = null
             root.drawFrom = null; root.drawTo = null
 
-            // The mode decides first and decides everything: in explore the
-            // camera takes the press whatever is under it, in build it only
-            // ever takes the middle button. Nothing below thinks about the
-            // camera again - and no press over the plan can be stolen by it.
+            // Ask the camera first, and with the default buttons the answer for
+            // the left button is always no - so nothing below thinks about the
+            // camera again, and no press over the plan can be stolen by it.
             if (nav.begin(mx, my, button, mods) !== "") { mode = "nav"; return }
+            // Then the hand: an instrument out means the click is the
+            // instrument's, and it decides click-versus-drag itself.
+            if (hands.held) { mode = "hand"; hands.press(mx, my); return }
 
             const w = worldAt(mx, my)
             // aimed at the sky: nothing to draw on, and nothing else to do
@@ -1183,6 +1182,8 @@ Item {
 
         function moveAt(mx, my, mods, isDown) {
             if (isDown && mode === "nav") { nav.move(mx, my); return }
+            if (isDown && mode === "hand") { hands.move(mx, my); return }
+            if (!isDown) nav.hoverAt(mx, my)
             const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = w
@@ -1230,6 +1231,11 @@ Item {
                 mode = ""; dragNode = null
                 return
             }
+            if (mode === "hand") {
+                hands.release()    // a click measures, a drag was just a drag
+                mode = ""; dragNode = null
+                return
+            }
             if (mode === "draw" && root.drawFrom && root.drawTo) {
                 const r = root.addRoad(root.drawFrom.x, root.drawFrom.z,
                                        root.drawTo.x, root.drawTo.z)
@@ -1263,6 +1269,18 @@ Item {
         onPressed: (mouse) => pressAt(mouse.x, mouse.y, mouse.button, mouse.modifiers)
         onPositionChanged: (mouse) => moveAt(mouse.x, mouse.y, mouse.modifiers, pressed)
         onReleased: releaseAt()
+    }
+
+    // A right CLICK is "put it down" - the RTS cancel. It empties the hand,
+    // then leaves the eraser, then drops the selection, so one press walks back
+    // one step. A right DRAG still turns the view and cancels nothing.
+    Connections {
+        target: nav
+        function onCancelled() {
+            if (!hands.empty) { hands.putAway(); return }
+            if (root.eraser) { root.eraser = false; return }
+            root.clearSelection()
+        }
     }
 
     // --- palette -----------------------------------------------------------
@@ -1423,13 +1441,6 @@ Item {
         anchors.top: parent.top
         anchors.margins: LabTheme.spaceXl
         spacing: LabTheme.spaceM
-        // what the mouse currently means, beside the other things that change
-        // how the lab reads rather than what it computes
-        ModeChip {
-            pointer: nav
-            key: keymap.modeKey
-            anchors.verticalCenter: parent.verticalCenter
-        }
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
         ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
@@ -2150,10 +2161,9 @@ Item {
     HintBar {
         rightGuard: monitor
         text: {
-            // the mode outranks everything: while the pointer is the camera's,
-            // a hint about drawing describes a lab you are not in
+            // the hand outranks everything: while an instrument is out, a hint
+            // about drawing describes something you are not doing
             if (!hands.empty) return LabLang.t(hands.held.hint)
-            if (nav.navigating) return LabLang.t("hint.explore")
             if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
             if (root.eraser) return LabLang.t("hint.erasing")
             if (root.drawFrom) return LabLang.t("hint.drawing")
