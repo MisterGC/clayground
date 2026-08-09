@@ -569,7 +569,6 @@ Item {
     property bool eraser: false
     property var hoverHit: null         // last hit under the cursor
     property var cursorW: Qt.vector3d(0, 1.9, 0)
-    property string paletteDrag: ""     // element type while dragging from GUI
     property int selectedId: -1         // -1 = nothing selected
     property bool showValues: false     // V: label every part and every wire
     property bool showPlan: true        // M: the schematic minimap
@@ -708,6 +707,44 @@ Item {
             id: hands
             pointer: nav
             Voltmeter {}
+
+            // The palette's parts, as ONE tool that carries which part it is
+            // about to place. A build tool is an instrument whose reading is
+            // an act: it takes a place, and instead of remembering it, it puts
+            // something there. That is the whole of "build is not a mode".
+            HandheldInstrument {
+                id: placer
+                name: "place"
+                label: LabLang.t("part." + partType)
+                glyph: "✎"
+                pickKind: "point"
+                maxPicks: 1
+                tone: LabTheme.secondary
+                hint: "hint.placing"
+
+                property string partType: "resistor"
+
+                // where the part would land, as board cells - null off-board
+                readonly property var spot: {
+                    if (!hovering || !hovering.point) return null
+                    const p = hovering.point
+                    const col = p.x / root.cell + (root.cols - 1) / 2
+                    const row = p.z / root.cell + (root.rows - 1) / 2
+                    if (col < -0.5 || col > root.cols - 0.5
+                        || row < -0.5 || row > root.rows - 0.5) return null
+                    return { col: Math.round(col), row: Math.round(row) }
+                }
+                readonly property bool free: spot !== null
+                                             && root.cellFree(spot.col, spot.row, -1, partType)
+
+                // A click PLACES rather than accumulating: the pick is the
+                // instruction, not the subject. Refused where the cell is
+                // taken - and the ghost said so before the click.
+                function add(pick) {
+                    if (!spot || !free) return
+                    root.addElement(partType, spot.col, spot.row)
+                }
+            }
         }
         environment: stage.environment
 
@@ -734,6 +771,27 @@ Item {
                 "top":    { yaw: 0, pitch: 84, distance: 120 },
                 "eye":    { pitch: 24, distance: 60 }
             })
+        }
+
+        // --- the ghost ----------------------------------------------------
+        // What the click would do, before it does it. Semi-transparent so it
+        // reads as a proposal rather than a part, and tinted when the cell is
+        // taken, which is the one refusal a placement can meet.
+        CircuitElement3D {
+            id: placeGhost
+            visible: hands.held === placer && placer.spot !== null
+            type: placer.partType
+            value: placer.partType === "resistor" ? 470
+                 : (placer.partType === "battery" ? root.defaultVolts : 0)
+            opacity: placer.free ? 0.45 : 0.3
+            position: placer.spot
+                      ? Qt.vector3d(root.cellX(placer.spot.col), -0.45,
+                                    root.cellZ(placer.spot.row))
+                      : Qt.vector3d(0, -1000, 0)
+            // the refusal reads as a frame rather than a recolour: the part
+            // keeps its own identity while it is being refused
+            hovered: placer.free
+            selected: placer.spot !== null && !placer.free
         }
 
         Repeater3D {  // the parts
@@ -1093,21 +1151,25 @@ Item {
                             font.family: LabTheme.handFont
                         }
                     }
+                    // Clicking a part TAKES it, it does not place it. The
+                    // press-here-release-there drag this replaces dropped the
+                    // part wherever the release happened to land - including
+                    // under the palette panel itself, which is where most of
+                    // them ended up. Now the board shows a ghost where it
+                    // would go, a click puts it there, and Esc or the right
+                    // button puts it back down.
                     MouseArea {
                         id: partArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onPressed: root.paletteDrag = modelData.type
-                        onReleased: (mouse) => {
-                            const inView = mapToItem(root, mouse.x, mouse.y)
-                            const w = boardMouse.worldAt(inView.x, inView.y)
-                            if (w)
-                                root.addElement(root.paletteDrag,
-                                                w.x / root.cell + (root.cols - 1) / 2,
-                                                w.z / root.cell + (root.rows - 1) / 2)
-                            else
-                                root.addElement(root.paletteDrag)
-                            root.paletteDrag = ""
+                        onClicked: {
+                            if (hands.held === placer
+                                && placer.partType === modelData.type) {
+                                hands.putAway()          // clicking it again puts it back
+                                return
+                            }
+                            placer.partType = modelData.type
+                            hands.takeNamed("place")
                         }
                     }
                 }
@@ -1279,29 +1341,10 @@ Item {
         aspect: root.cols / root.rows
     }
 
-    // drag ghost following the cursor while dragging out of the palette
-    Rectangle {
-        visible: root.paletteDrag !== "" && ghostArea.mx > 0
-        x: ghostArea.mx + LabTheme.px(10); y: ghostArea.my - LabTheme.px(14)
-        width: ghostLabel.width + LabTheme.px(18); height: LabTheme.px(26); radius: LabTheme.px(6)
-        color: LabTheme.panel; border.color: LabTheme.secondary
-        Text {
-            id: ghostLabel
-            anchors.centerIn: parent
-            text: root.paletteDrag === "" ? "" : LabLang.t("part." + root.paletteDrag)
-            color: LabTheme.primary; font.pixelSize: LabTheme.fontBody
-            font.family: LabTheme.monoFont
-        }
-    }
-    MouseArea {
-        id: ghostArea
-        anchors.fill: parent
-        enabled: false
-        hoverEnabled: root.paletteDrag !== ""
-        property real mx: -1
-        property real my: -1
-        onPositionChanged: (mouse) => { mx = mouse.x; my = mouse.y }
-    }
+    // The 2D label that used to follow the cursor while a part was dragged
+    // out of the palette is gone with the drag: what the part will look like
+    // and exactly where it will land are now shown by the ghost ON THE BOARD,
+    // which is the thing the question was actually about.
 
     // --- meter readouts (2D, pinned above the gauges) ----------------------
     Repeater {

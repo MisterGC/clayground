@@ -62,6 +62,7 @@ var dict = {
         "quantity.current": "current",
         "quantity.voltage": "voltage",
         "quantity.power": "power",
+        "hint.placing": "the ghost shows where it lands · click places it · Esc or right-click puts it down",
         "plot.empty": "select a part · Q puts it here",
 
         "hint.eraser": "eraser: click parts or wire knots to remove · E exits",
@@ -147,6 +148,7 @@ var dict = {
         "quantity.current": "Strom",
         "quantity.voltage": "Spannung",
         "quantity.power": "Leistung",
+        "hint.placing": "der Schatten zeigt, wohin es kommt · Klick setzt es · Esc oder rechte Taste legt es weg",
         "plot.empty": "Bauteil wählen · Q stellt es hier dar",
 
         "hint.eraser": "Radierer: Bauteile oder Knoten anklicken zum Löschen · E beendet",

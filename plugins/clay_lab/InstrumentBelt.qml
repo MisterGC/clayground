@@ -243,7 +243,21 @@ Item {
         for (let i = 0; i < list.length; ++i) {
             list[i].view = root.view
             list[i].held = (i === heldIndex)
+            if (i !== heldIndex) list[i].hovering = null
         }
+        _syncHover()
+    }
+
+    // Only the held one is told where the cursor is: a preview is what THIS
+    // tool would do, and an instrument on the belt is not doing anything.
+    function _syncHover() {
+        if (held) held.hovering = pointer ? pointer.hovering : null
+    }
+
+    Connections {
+        target: root.pointer
+        ignoreUnknownSignals: true
+        function onHoveringChanged() { root._syncHover() }
     }
     onHeldIndexChanged: _sync()
     onInstrumentsChanged: _sync()

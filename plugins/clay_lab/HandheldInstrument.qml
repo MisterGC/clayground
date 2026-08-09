@@ -134,6 +134,22 @@ Item {
     */
     property var view: null
 
+    /*!
+        \qmlproperty var HandheldInstrument::hovering
+        \brief Where the cursor is right now, in the same shape as a pick.
+
+        \c {{point, object, x, y}}, or null when the cursor is off the scene.
+        Fed by the \l InstrumentBelt from the pointer, for the same reason
+        \l view is: an instrument does not reach for the camera.
+
+        This is what a preview is drawn from - the ghost of the part that would
+        be placed, the rubber band to the next measured point, the highlight on
+        the thing under the cursor. Showing what a click would do before it
+        does it is the difference between a tool you learn by trying and a tool
+        you learn by undoing.
+    */
+    property var hovering: null
+
     /*! \qmlproperty real HandheldInstrument::value \brief The reading. Bind it. */
     property real value: 0
 
