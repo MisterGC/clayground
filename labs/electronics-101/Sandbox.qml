@@ -1807,7 +1807,7 @@ Item {
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
             { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
             { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
-            { key: "W", label: "key.watch", action: () => {
+            { key: "Q", label: "key.watch", action: () => {
                 if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
             { key: "R", label: "key.rotate", action: () => {
                 if (root.selectedId !== -1) root.rotateElement(root.selectedId) } },

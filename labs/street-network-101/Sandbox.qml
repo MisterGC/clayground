@@ -1311,7 +1311,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: root.held ? LabLang.t("btn.held")
-                        : LabLang.t(root.running ? "btn.stop" : "btn.simulate") + "   (S)"
+                        : LabLang.t(root.running ? "btn.stop" : "btn.simulate") + "   (R)"
                     color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontLabel; font.bold: true
                     font.family: LabTheme.monoFont
                 }
@@ -2208,13 +2208,13 @@ Item {
         hands: hands
         recorder: recorder
         keys: [
-            { key: "S", label: "key.simulate", action: () => root.toggleSim() },
+            { key: "R", label: "key.simulate", action: () => root.toggleSim() },
             { key: "C", label: "key.clear", action: () => root.clearPlan() },
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
             { key: "L", label: "key.lanes", action: () => root.showLanes = !root.showLanes },
             { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
             { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
-            { key: "W", label: "key.watch", action: () => {
+            { key: "Q", label: "key.watch", action: () => {
                 if (root.selectedRoad !== -1) root.toggleWatch(root.selectedRoad) } },
             // X closes or opens every movement through the selected junction at
             // once. NOT T: the canonical map reserves that for flows, and a lab

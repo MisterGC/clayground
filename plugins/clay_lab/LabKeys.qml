@@ -15,9 +15,12 @@ import QtQuick
     hiding its features behind undocumented letters.
 
     The navigation half, on a camera that has the exploration layer
-    (\c panBy / \c goalDistance - see \l {OrbitCamera3D}): \b arrows move
-    across the scene, \b {Shift+arrows} turn it, \c + / \c - zoom, \c F frames
-    the selection and \c 0 or \c Home frames everything. The arrows used to
+    (\c panBy / \c goalDistance - see \l {OrbitCamera3D}): \b arrows and
+    \b WASD move across the scene, \b {Shift+arrows} turn it, \c + / \c -
+    zoom, \c F frames the selection and \c 0 or \c Home frames everything.
+    WASD is reserved for the same reason the arrows are - it is the gesture
+    every viewer already knows - which is why a lab may not spend those four
+    letters on anything else. The arrows used to
     turn, which is what a drag already did; travelling was the thing a
     keyboard could not do at all. While a flow runs, \c → and \c ← belong to
     the flow, so the arrows are the camera's only when nothing is narrating.
@@ -213,7 +216,7 @@ Item {
             out.push({ key: "⌫", label: "keys.unmeasure" })
         }
         if (viewKeys) {
-            out.push({ key: "←↑↓→", label: "keys.pan" })
+            out.push({ key: "←↑↓→ / WASD", label: "keys.pan" })
             out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
             out.push({ key: "+-", label: "keys.zoom" })
             out.push({ key: "F", label: "keys.frame" })
@@ -419,10 +422,10 @@ Item {
     // Screen directions, +y being down as a screen counts: what both the pan
     // and the orbit branch above are expressed in.
     function _arrow(ev) {
-        if (ev.key === Qt.Key_Left) return { x: -1, y: 0 }
-        if (ev.key === Qt.Key_Right) return { x: 1, y: 0 }
-        if (ev.key === Qt.Key_Up) return { x: 0, y: -1 }
-        if (ev.key === Qt.Key_Down) return { x: 0, y: 1 }
+        if (ev.key === Qt.Key_Left || ev.key === Qt.Key_A) return { x: -1, y: 0 }
+        if (ev.key === Qt.Key_Right || ev.key === Qt.Key_D) return { x: 1, y: 0 }
+        if (ev.key === Qt.Key_Up || ev.key === Qt.Key_W) return { x: 0, y: -1 }
+        if (ev.key === Qt.Key_Down || ev.key === Qt.Key_S) return { x: 0, y: 1 }
         return null
     }
 
