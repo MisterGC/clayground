@@ -15,41 +15,49 @@ import QtQuick3D
     into degrees and metres is the same everywhere and was being re-derived,
     with different constants, in every scene that had a camera.
 
-    \section2 Build, explore and measure
+    \section2 Two modes at most, and navigation is never one of them
 
     A scene that builds something has the same problem every editor has: the
     left button belongs to the tool, so the camera ends up on whatever buttons
-    are left over, and no two scenes pick the same leftovers. The answer here
-    is an explicit \l mode rather than a cleverer split of one pointer:
+    are left over, and no two scenes pick the same leftovers.
+
+    The answer is \e not a mode per activity. There was briefly one mode for
+    turning the view and another for measuring with it, and the shape of that
+    mistake is visible the moment a third instrument is imagined: five modes
+    for one camera. What a 3D shooter does instead is the model here - moving,
+    aiming and firing are live at once, and the only thing you choose is what
+    is in your hands.
+
+    So navigation keeps its own inputs \e permanently, and exactly one input
+    changes meaning:
 
     \list
-    \li \c "explore" - the whole pointer is the camera's. \b LMB drags the
-        world along, \b RMB turns it \e about the point under the cursor
+    \li \c "use" - the camera's. \b LMB drags the world along, \b RMB turns it
+        \e about the point under the cursor
         (\l {OrbitCamera3D::reanchor}{reanchor} at the press,
         \l {OrbitCamera3D::orbitAround}{orbitAround} for the turn itself),
-        double-click focuses.
+        double-click focuses. When the scene has put something in the viewer's
+        hand it sets \l picking, and then an LMB \e click - a press that
+        travelled less than \l clickSlop - reports what it landed on through
+        \l picked. Anything further is a pan: repositioning is wanted far more
+        often than another point, and a stray point is the more annoying of
+        the two mistakes.
     \li \c "build" - LMB and RMB are the scene's, completely. Nothing is
-        taken, and nothing has to be given back.
-    \li \c "measure" - explore's camera, plus one thing: an LMB \e click
-        (a press that travelled less than \l clickSlop) reports the ground
-        point it landed on through \l pickedAt. Anything further is a pan, as
-        in explore - asking where something is needs repositioning far more
-        often than it needs another point, and a stray point is the more
-        annoying of the two mistakes.
+        taken, and nothing has to be given back. It stays a mode of its own
+        because it changes what the scene \e affords - previews, snapping,
+        delete - not merely what a click does.
     \endlist
 
-    Which of the three a scene offers is \l modes; \l cycleMode walks them in
-    that order.
-
-    \b {Universal in both modes}: the wheel zooms towards the cursor and the
-    middle button drags the world. Nudging the view is never worth a mode
+    \b Universal: the wheel zooms towards the cursor and the middle button
+    drags the world, in both modes. Nudging the view is never worth a mode
     switch, and neither gesture can collide with a tool that only has two
     buttons.
 
-    Switching is spring-loaded: \l springExplore is explore \e while it is
-    held (the hand-tool pattern - the scene feeds it a key), and \l mode is
-    the sticky half. \l modes is which modes a scene has at all, and
-    \l modeLocked pins it to the one it is in.
+    Switching is spring-loaded: \l springNav navigates \e while it is held
+    (the hand-tool pattern - the scene feeds it a key), and \l mode is the
+    sticky half. \l modes is which modes a scene has at all, and \l modeLocked
+    pins it to the one it is in. A scene with nothing to build declares
+    \c {["use"]} and has no mode control at all.
 
     \b {Non-visual, and deliberately not a MouseArea.} A scene that also picks
     or drags objects already owns the pointer; it keeps its own \c MouseArea
@@ -103,37 +111,39 @@ Item {
 
     /*!
         \qmlproperty string OrbitInput3D::mode
-        \brief \c "build" (the default), \c "explore" or \c "measure".
+        \brief \c "build" (the default) or \c "use".
 
-        The sticky half of the switch. \l springExplore overrides it while it
-        is held, and \l effectiveMode is what actually decides a gesture.
+        The sticky half of the switch. \l springNav overrides it while it is
+        held, and \l effectiveMode is what actually decides a gesture.
     */
     property string mode: "build"
 
     /*!
-        \qmlproperty bool OrbitInput3D::springExplore
-        \brief Explore \e while this is true - the quasimode.
+        \qmlproperty bool OrbitInput3D::springNav
+        \brief Navigate \e while this is true - the quasimode.
 
         The scene feeds it a held key (the labs use Space); the controller
         owns the state, so nothing else has to know what the mode currently
         is. A key that gets stuck - focus lost mid-hold - is the scene's to
         clear, by writing false.
+
+        It suspends \l picking too: a borrowed camera is a look around, and a
+        held key must not drop points.
     */
-    property bool springExplore: false
+    property bool springNav: false
 
     /*!
         \qmlproperty var OrbitInput3D::modes
         \brief The modes this scene offers, in cycle order.
 
-        A scene rarely has all three: one with nothing to build still wants to
-        measure, and a lock that could only say "this scene has exactly one
-        mode" could not express that. So the lock became a \e list, and the
-        one-mode case is simply a list of one - \c modes is what a scene
-        declares, and every other rule here is derived from it.
+        A scene with nothing to build declares \c {["use"]} and thereby has no
+        mode control at all; one that builds declares both. The one-mode case
+        is simply a list of one - \c modes is what a scene declares, and every
+        other rule here is derived from it.
 
         Order is the cycle order, so \l cycleMode reads off the declaration.
     */
-    property var modes: ["build", "explore", "measure"]
+    property var modes: ["build", "use"]
 
     /*!
         \qmlproperty bool OrbitInput3D::modeLocked
@@ -161,14 +171,28 @@ Item {
     */
     readonly property bool modeSwitchable: allowedModes.length > 1
 
-    /*! \qmlproperty string OrbitInput3D::effectiveMode \readonly \brief \l mode, or explore while \l springExplore. */
-    readonly property string effectiveMode: springExplore ? "explore" : mode
+    /*! \qmlproperty string OrbitInput3D::effectiveMode \readonly \brief \l mode, or \c "use" while \l springNav. */
+    readonly property string effectiveMode: springNav ? "use" : mode
 
-    /*! \qmlproperty bool OrbitInput3D::exploring \readonly \brief \l effectiveMode is explore. */
-    readonly property bool exploring: effectiveMode === "explore"
+    /*! \qmlproperty bool OrbitInput3D::navigating \readonly \brief \l effectiveMode is \c "use" - the camera has the pointer. */
+    readonly property bool navigating: effectiveMode === "use"
 
-    /*! \qmlproperty bool OrbitInput3D::measuring \readonly \brief \l effectiveMode is measure. */
-    readonly property bool measuring: effectiveMode === "measure"
+    /*!
+        \qmlproperty bool OrbitInput3D::picking
+        \brief A short click means something to the scene right now.
+
+        The scene's half of the contract, and the \e only thing that changes
+        what an input means: with something in the viewer's hand the scene
+        writes true, and a click that travelled no further than \l clickSlop
+        comes out as \l picked instead of being nothing. Every navigation
+        gesture is unaffected either way.
+
+        Suspended while \l springNav is held - see \l picks.
+    */
+    property bool picking: false
+
+    /*! \qmlproperty bool OrbitInput3D::picks \readonly \brief Clicks are being reported: \l picking, in a navigating mode, not sprung. */
+    readonly property bool picks: picking && mode === "use" && !springNav
 
     /*! \qmlmethod bool OrbitInput3D::allows(string m) \brief \a m is in \l allowedModes. */
     function allows(m) { return allowedModes.indexOf(m) >= 0 }
@@ -182,9 +206,18 @@ Item {
     */
     function cycleMode() {
         const a = allowedModes
+        if (a.length === 0) return
+        const i = a.indexOf(mode)
+        // stranded - the list was narrowed under it - so come back in first
+        if (i < 0) { mode = a[0]; return }
         if (a.length < 2) return
-        mode = a[(a.indexOf(mode) + 1) % a.length]
+        mode = a[(i + 1) % a.length]
     }
+
+    // A scene whose list does not contain the mode it is in is in no mode at
+    // all: every gesture rule here derives from `modes`, so the one case that
+    // must not exist is `modes: ["use"]` sitting on the default "build".
+    onModesChanged: if (modes && modes.length > 0 && modes.indexOf(mode) < 0) mode = modes[0]
 
     /*!
         \qmlmethod void OrbitInput3D::toggleMode()
@@ -202,13 +235,14 @@ Item {
         \readonly
         \brief The cursor this mode should show; bind a MouseArea to it.
 
-        An open hand while exploring, a crosshair while measuring, closed
-        while a drag is running, and the plain arrow in build mode - the
-        pointer itself says which mode you are in, before you press anything.
+        An open hand for the camera, a crosshair when a click would land
+        somewhere, closed while a drag is running, and the plain arrow in
+        build mode - the pointer itself says what a press will do, before you
+        press anything.
     */
-    readonly property int cursorShape: active && (exploring || measuring) ? Qt.ClosedHandCursor
-                                     : exploring ? Qt.OpenHandCursor
-                                     : measuring ? Qt.CrossCursor
+    readonly property int cursorShape: active && navigating ? Qt.ClosedHandCursor
+                                     : picks ? Qt.CrossCursor
+                                     : navigating ? Qt.OpenHandCursor
                                      : Qt.ArrowCursor
 
     // --- what a gesture means ----------------------------------------------
@@ -223,13 +257,13 @@ Item {
 
     /*!
         \qmlproperty int OrbitInput3D::orbitButtons
-        \brief Buttons that turn the rig \e in explore mode.
+        \brief Buttons that turn the rig \e in a navigating mode.
     */
     property int orbitButtons: Qt.RightButton
 
     /*!
         \qmlproperty int OrbitInput3D::panButtons
-        \brief Buttons that drag the world \e in explore mode.
+        \brief Buttons that drag the world \e in a navigating mode.
     */
     property int panButtons: Qt.LeftButton | Qt.MiddleButton
 
@@ -247,7 +281,7 @@ Item {
 
     /*!
         \qmlproperty int OrbitInput3D::pickButtons
-        \brief Buttons whose \e click reports a ground point \e in measure mode.
+        \brief Buttons whose \e click is reported while \l picking.
     */
     property int pickButtons: Qt.LeftButton
 
@@ -256,9 +290,10 @@ Item {
         \brief Pixels a press may travel and still count as a click.
 
         The same click-versus-drag rule the labs apply to their own gestures,
-        at the one place where the camera has to apply it too: in measure mode
-        the same button both places a point and pans, and only the distance
-        travelled tells them apart.
+        at the one place where the camera has to apply it too: while
+        \l picking the same button both reports a point and pans, and only the
+        distance travelled tells them apart. This is what makes "navigation is
+        never taken away" true rather than aspirational.
     */
     property real clickSlop: 4
 
@@ -355,8 +390,8 @@ Item {
         property real vx: 0
         property real vy: 0
         property var anchor: null
-        // the pending measure click: the world point taken at press, and how
-        // far the press has travelled since
+        // the pending click: what was under the press, and how far the press
+        // has travelled since
         property var pickAt: null
         property real pressX: 0
         property real pressY: 0
@@ -372,15 +407,16 @@ Item {
         the middle button (and \l panModifiers, if a scene set one), which is
         what makes "LMB and RMB are yours" a rule rather than a promise.
 
-        Measure answers exactly as explore does: the click it is interested in
+        \l picking does not change the answer: the click it is interested in
         is not visible until the button comes \e up, so the press is taken as
-        a pan and \l end decides.
+        a pan and \l end decides. That is the whole trick - a hand full or
+        empty, the drag is identical.
     */
     function wants(button, modifiers) {
         const mods = modifiers === undefined ? 0 : modifiers
         if ((button & universalPanButtons) !== 0) return "pan"
         if (panModifiers !== Qt.NoModifier && (mods & panModifiers) !== 0) return "pan"
-        if (!exploring && !measuring) return ""
+        if (!navigating) return ""
         if ((button & orbitButtons) !== 0) return "orbit"
         if ((button & panButtons) !== 0) return "pan"
         return ""
@@ -392,15 +428,51 @@ Item {
     */
     function begin(x, y, button, modifiers) {
         const g = beginAs(wants(button, modifiers), x, y)
-        // The world point is taken HERE, not at release: the same press pans,
-        // so by the time the button comes up the ground under those pixels is
-        // no longer the ground that was pressed on.
-        if (measuring && g === "pan" && (button & pickButtons) !== 0) {
+        // The pick is taken HERE, not at release: the same press pans, so by
+        // the time the button comes up the ground under those pixels is no
+        // longer the ground that was pressed on - and the object under them
+        // may have driven off.
+        if (picks && g === "pan" && (button & pickButtons) !== 0) {
             _s.pressX = x; _s.pressY = y; _s.moved = 0
-            _s.pickAt = groundAt(x, y)
+            _s.pickAt = pickAt(x, y)
         }
         return g
     }
+
+    /*!
+        \qmlmethod var OrbitInput3D::pickAt(real x, real y)
+        \brief What is under viewport pixel (\a x, \a y): a place \e and a thing.
+
+        \c {{ point, object, x, y }}. \c point is where the ray meets the
+        \l groundY plane, worked out analytically so it answers for every
+        pixel of the plane including the ones no geometry covers; \c object is
+        the scene node the same ray hits first, or null.
+
+        Both, from one gesture, because instruments want different halves of
+        it: a tape measure asks where, a voltmeter asks what. Reporting them
+        together is what keeps adding an instrument from adding an input path.
+        Null only when there is no view to ask.
+    */
+    function pickAt(x, y) {
+        if (!view) return null
+        var hit = null
+        // guarded: the suites drive this with a fake view that has no picking,
+        // and a scene may legitimately not want the cost
+        if (pickObjects && typeof view.pick === "function") {
+            const r = view.pick(x, y)
+            if (r && r.objectHit) hit = r.objectHit
+        }
+        return { point: groundAt(x, y), object: hit, x: x, y: y }
+    }
+
+    /*!
+        \qmlproperty bool OrbitInput3D::pickObjects
+        \brief Ask the view what object a pick landed on, as well as where.
+
+        On by default; a scene whose instruments only ever want the ground can
+        turn the ray-cast off.
+    */
+    property bool pickObjects: true
 
     /*!
         \qmlmethod string OrbitInput3D::beginAs(string g, real x, real y)
@@ -450,16 +522,16 @@ Item {
         \qmlmethod void OrbitInput3D::end()
         \brief Ends the drag, coasting if it was a flick.
 
-        Also where a measure click is decided: a press that never travelled
-        further than \l clickSlop was not a pan at all, and comes out as
-        \l pickedAt instead - with no coast, since nothing was thrown.
+        Also where a click is decided: a press that never travelled further
+        than \l clickSlop was not a pan at all, and comes out as \l picked
+        instead - with no coast, since nothing was thrown.
     */
     function end() {
         if (_s.gesture === "") return
         if (_s.pickAt !== null && _s.moved <= clickSlop) {
             const p = _s.pickAt
             cancel()
-            pickedAt(p)
+            picked(p)
             return
         }
         _s.pickAt = null
@@ -474,14 +546,18 @@ Item {
     }
 
     /*!
-        \qmlsignal OrbitInput3D::pickedAt(var point)
-        \brief A measure-mode click landed on \a point of the ground plane.
+        \qmlsignal OrbitInput3D::picked(var pick)
+        \brief A click landed, while something was in the viewer's hand.
 
-        The one click this layer reports, and only in measure mode: everywhere
-        else a single click belongs to the scene. Never emitted for a press
-        that panned, and never for one whose ray missed the plane.
+        \a pick is \l pickAt's \c {{ point, object, x, y }}. The one click this
+        layer reports, and only while \l picks: everywhere else a single click
+        belongs to the scene. Never emitted for a press that panned.
+
+        \c {pick.point} is null where the ray missed the ground plane, which
+        an instrument that measures places must check - the pick still
+        arrives, because the object half may be exactly what was wanted.
     */
-    signal pickedAt(var point)
+    signal picked(var pick)
 
     /*!
         \qmlmethod void OrbitInput3D::wheel(real angleDelta, real x, real y)
