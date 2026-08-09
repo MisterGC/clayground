@@ -2,9 +2,15 @@
 //
 // The gesture contract, in the one place it is decided: wants().
 //
-// Every lab forwards its presses through it, so "in build mode the left button
-// is the domain's" is true exactly as long as this suite is green - the labs
-// themselves cannot state it, they can only obey it.
+// There is one rule now and this suite exists to hold it: THE LEFT BUTTON IS
+// NEVER THE CAMERA'S. It used to pan, and every mode this layer ever had
+// existed to take it back for a scene that needed it. The modes are gone; what
+// replaces them is that the answer for the left button is "" in every state
+// this layer can be in, which is a thing a suite can actually check - and the
+// labs cannot state it, they can only obey it.
+//
+// The two ways out of the rule are both explicit and both tested: a scene puts
+// Qt.LeftButton in panButtons itself, or Space is held.
 //
 // The view is faked rather than built: a real View3D needs a GPU and a window,
 // while all this layer asks of it is "what world point is under this pixel".
@@ -45,9 +51,9 @@ Item {
     }
 
     SignalSpy {
-        id: picks
+        id: cancels
         target: nav
-        signalName: "picked"
+        signalName: "cancelled"
     }
 
     TestCase {
@@ -55,13 +61,12 @@ Item {
         when: windowShown
 
         function init() {
-            nav.modes = ["build", "use"]
-            nav.mode = "build"
             nav.springNav = false
-            nav.picking = false
-            nav.modeLocked = false
+            nav.panButtons = Qt.MiddleButton
+            nav.panModifiers = Qt.NoModifier
             nav.cancel()
-            picks.clear()
+            nav.clearHover()
+            cancels.clear()
             rig.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
         }
 
@@ -69,127 +74,56 @@ Item {
         function copyOf(v) { return Qt.vector3d(v.x, v.y, v.z) }
         function apart(a, b) { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) }
 
-        // --- the contract ----------------------------------------------------
+        // --- the rule ---------------------------------------------------------
 
-        function test_build_mode_leaves_the_two_buttons_to_the_scene() {
-            compare(nav.wants(Qt.LeftButton, 0), "", "the left button is the tool's")
-            compare(nav.wants(Qt.RightButton, 0), "", "and so is the right one")
+        function test_the_left_button_is_never_the_cameras() {
+            compare(nav.wants(Qt.LeftButton, 0), "", "idle")
             compare(nav.wants(Qt.LeftButton, Qt.ShiftModifier), "",
                     "no leftovers, not even under a modifier")
+            compare(nav.wants(Qt.LeftButton, Qt.ControlModifier | Qt.AltModifier), "",
+                    "nor under two")
         }
 
-        function test_the_middle_button_pans_in_both_modes() {
-            compare(nav.wants(Qt.MiddleButton, 0), "pan", "build")
-            nav.mode = "use"
-            compare(nav.wants(Qt.MiddleButton, 0), "pan", "use")
+        // The state the modes used to hide in was "something is in the hand",
+        // and it is the state this layer no longer has: there is nothing to
+        // set, so there is nothing that could make the answer differ.
+        function test_no_state_here_can_take_the_left_button() {
+            const idle = nav.wants(Qt.LeftButton, 0)
+            nav.hoverAt(20, 20)
+            compare(nav.wants(Qt.LeftButton, 0), idle, "a hover changes nothing")
+            nav.begin(10, 10, Qt.RightButton, 0)
+            compare(nav.wants(Qt.LeftButton, 0), idle, "nor does a running orbit")
+            nav.cancel()
+            nav.begin(10, 10, Qt.MiddleButton, 0)
+            compare(nav.wants(Qt.LeftButton, 0), idle, "nor a running pan")
+            nav.cancel()
         }
 
-        function test_use_mode_takes_the_whole_pointer() {
-            nav.mode = "use"
-            compare(nav.wants(Qt.LeftButton, 0), "pan", "left drags the world along")
-            compare(nav.wants(Qt.RightButton, 0), "orbit", "right turns it")
+        function test_the_right_button_turns_and_the_middle_one_pans() {
+            compare(nav.wants(Qt.RightButton, 0), "orbit")
+            compare(nav.wants(Qt.MiddleButton, 0), "pan")
         }
 
-        // The quasimode: held, not switched - and it must not leave the sticky
-        // mode changed behind it.
-        function test_the_spring_navigates_only_while_it_is_held() {
+        // The first of the two explicit ways out: a scene with nothing to
+        // select spends the left button on the view, in its own declaration.
+        function test_a_scene_may_buy_the_left_button_back() {
+            nav.panButtons = Qt.LeftButton | Qt.MiddleButton
+            compare(nav.wants(Qt.LeftButton, 0), "pan", "because the scene asked")
+            compare(nav.wants(Qt.RightButton, 0), "orbit", "and the rest is unchanged")
+        }
+
+        // The second: held, not switched, and it leaves nothing behind.
+        function test_space_pans_on_the_left_button_while_it_is_held() {
             compare(nav.wants(Qt.LeftButton, 0), "")
             nav.springNav = true
-            compare(nav.effectiveMode, "use")
             compare(nav.wants(Qt.LeftButton, 0), "pan", "while held")
+            compare(nav.wants(Qt.RightButton, 0), "orbit", "the right button is unaffected")
             nav.springNav = false
             compare(nav.wants(Qt.LeftButton, 0), "", "and back afterwards")
-            compare(nav.mode, "build", "the sticky mode never moved")
         }
 
-        // B walks the modes the scene declared, in the order it declared them,
-        // and comes back round. There are two of them now, and there is no
-        // third however many instruments the scene grows - that is the point.
-        function test_cycling_walks_the_modes_and_wraps() {
-            nav.cycleMode()
-            compare(nav.mode, "use")
-            nav.cycleMode()
-            compare(nav.mode, "build", "and round again")
-        }
-
-        function test_toggle_is_still_the_cycle() {
-            nav.toggleMode()
-            compare(nav.mode, "use", "the old name still moves the mode on")
-        }
-
-        function test_setting_and_locking() {
-            nav.setMode("use")
-            compare(nav.mode, "use")
-            nav.modeLocked = true
-            nav.cycleMode()
-            compare(nav.mode, "use", "a locked scene stays where it is")
-            nav.setMode("build")
-            compare(nav.mode, "use")
-            verify(!nav.modeSwitchable, "and says so, for the chrome")
-        }
-
-        // A scene with nothing to build has no mode at all - and, crucially,
-        // it can still be measured in: what used to need a third mode is now
-        // an ordinary hand in the one mode it has.
-        function test_a_scene_that_only_navigates_has_no_mode_control() {
-            nav.modes = ["use"]
-            nav.mode = "use"
-            verify(!nav.modeSwitchable, "nothing to switch between")
-            verify(!nav.allows("build"), "and build is not on offer")
-            nav.cycleMode()
-            compare(nav.mode, "use")
-            nav.setMode("build")
-            compare(nav.mode, "use", "nor can it be put there")
-            nav.picking = true
-            nav.begin(60, -40, Qt.LeftButton, 0)
-            nav.end()
-            compare(picks.count, 1, "yet a click still reports, with no mode to enter")
-        }
-
-        // A list narrowed while the scene sits in a mode it no longer offers
-        // must not strand the cycle.
-        function test_a_mode_outside_the_list_cycles_back_in() {
-            nav.mode = "build"
-            nav.modes = ["use"]
-            nav.cycleMode()
-            compare(nav.mode, "use", "the first one it does offer")
-        }
-
-        // The pointer says what a press will do before you press anything.
-        function test_the_cursor_shows_what_a_press_will_do() {
-            compare(nav.cursorShape, Qt.ArrowCursor, "build")
-            nav.mode = "use"
-            compare(nav.cursorShape, Qt.OpenHandCursor, "navigating, idle")
-            nav.begin(10, 10, Qt.LeftButton, 0)
-            compare(nav.cursorShape, Qt.ClosedHandCursor, "navigating, dragging")
-            nav.cancel()
-            compare(nav.cursorShape, Qt.OpenHandCursor)
-            nav.picking = true
-            compare(nav.cursorShape, Qt.CrossCursor, "something in hand: a crosshair aims")
-            nav.begin(10, 10, Qt.RightButton, 0)
-            compare(nav.cursorShape, Qt.ClosedHandCursor, "and a drag still grabs")
-            nav.cancel()
-        }
-
-        // --- what a drag then does -------------------------------------------
-
-        function test_a_build_mode_left_drag_moves_nothing() {
-            const before = copyOf(rig.goalPivot)
-            compare(nav.begin(120, 40, Qt.LeftButton, 0), "", "declined")
-            compare(nav.move(200, 90), false, "and the move is the scene's too")
-            verify(apart(before, rig.goalPivot) < 1e-6, "the camera did not stir")
-        }
-
-        function test_the_middle_button_pans_while_building() {
-            const before = copyOf(rig.goalPivot)
-            compare(nav.begin(120, 40, Qt.MiddleButton, 0), "pan")
-            verify(nav.move(200, 40), "the drag is the camera's")
-            nav.cancel()
-            verify(apart(before, rig.goalPivot) > 1, "and the world moved with it")
-        }
-
-        function test_a_left_drag_pans_while_navigating() {
-            nav.mode = "use"
+        function test_a_spring_held_left_drag_actually_pans() {
+            nav.springNav = true
             const before = copyOf(rig.goalPivot)
             compare(nav.begin(120, 40, Qt.LeftButton, 0), "pan")
             nav.move(60, 40)
@@ -198,14 +132,40 @@ Item {
                    "dragging left carries the ground with it: " + rig.goalPivot.x)
         }
 
+        // A modifier a scene declared is still a pan - the escape hatch is
+        // opt-in, and it is checked before the buttons so it works on any.
+        function test_a_declared_modifier_pans_on_any_button() {
+            nav.panModifiers = Qt.ShiftModifier
+            compare(nav.wants(Qt.LeftButton, Qt.ShiftModifier), "pan")
+            compare(nav.wants(Qt.RightButton, Qt.ShiftModifier), "pan",
+                    "it outranks the orbit, which is what an escape hatch is for")
+            compare(nav.wants(Qt.LeftButton, 0), "", "and only under the modifier")
+        }
+
+        // --- what a drag then does -------------------------------------------
+
+        function test_a_left_drag_moves_nothing() {
+            const before = copyOf(rig.goalPivot)
+            compare(nav.begin(120, 40, Qt.LeftButton, 0), "", "declined")
+            compare(nav.move(200, 90), false, "and the move is the scene's too")
+            verify(apart(before, rig.goalPivot) < 1e-6, "the camera did not stir")
+        }
+
+        function test_the_middle_button_pans() {
+            const before = copyOf(rig.goalPivot)
+            compare(nav.begin(120, 40, Qt.MiddleButton, 0), "pan")
+            verify(nav.move(200, 40), "the drag is the camera's")
+            nav.cancel()
+            verify(apart(before, rig.goalPivot) > 1, "and the world moved with it")
+        }
+
         // The vertical half of grab-the-world: dy grows DOWNWARD, so the
         // screen-opposite move is +dy on the away axis, not -dy. This is the
         // sign that shipped wrong once - the ground followed the hand
         // left-right yet fought it up-down.
         function test_a_down_drag_pulls_the_ground_down() {
-            nav.mode = "use"
             const before = copyOf(rig.goalPivot)
-            compare(nav.begin(120, 40, Qt.LeftButton, 0), "pan")
+            compare(nav.begin(120, 40, Qt.MiddleButton, 0), "pan")
             nav.move(120, 140)
             nav.cancel()
             verify(rig.goalPivot.z < before.z - 1,
@@ -215,9 +175,8 @@ Item {
         // The input layer is what takes the grip, for exactly the length of the
         // gesture: the rig itself has no idea whether a hand is on it.
         function test_a_drag_grips_the_rig_and_lets_go_after() {
-            nav.mode = "use"
             verify(!rig.gripped, "idle")
-            nav.begin(120, 40, Qt.LeftButton, 0)
+            nav.begin(120, 40, Qt.MiddleButton, 0)
             verify(rig.gripped, "a drag holds it")
             nav.move(100, 40)
             verify(rig.gripped, "still")
@@ -226,131 +185,96 @@ Item {
         }
 
         function test_a_declined_press_does_not_grip() {
-            nav.mode = "build"
             compare(nav.begin(120, 40, Qt.LeftButton, 0), "", "the scene's press")
             verify(!rig.gripped, "so the rig was never taken")
         }
 
-        // --- the one input that changes meaning -------------------------------
+        // The cursor has almost nothing left to say, which is the point: with
+        // no modes there is no camera state for it to announce.
+        function test_the_cursor_only_reports_a_running_drag() {
+            compare(nav.cursorShape, Qt.ArrowCursor, "idle")
+            nav.begin(10, 10, Qt.RightButton, 0)
+            compare(nav.cursorShape, Qt.ClosedHandCursor, "dragging")
+            nav.cancel()
+            compare(nav.cursorShape, Qt.ArrowCursor)
+        }
+
+        // --- the right click --------------------------------------------------
         //
-        // Everything above is true whether or not something is in the hand.
-        // This section is the entire difference: one button, two meanings, and
-        // only the distance travelled tells them apart.
+        // One button, two meanings, and only the distance travelled tells them
+        // apart - the same click-versus-drag rule the scenes apply to theirs.
 
-        function test_a_hand_full_answers_the_pointer_exactly_as_a_hand_empty() {
-            nav.mode = "use"
-            const empty = [nav.wants(Qt.LeftButton, 0), nav.wants(Qt.RightButton, 0),
-                           nav.wants(Qt.MiddleButton, 0)]
-            nav.picking = true
-            compare([nav.wants(Qt.LeftButton, 0), nav.wants(Qt.RightButton, 0),
-                     nav.wants(Qt.MiddleButton, 0)].join(","), empty.join(","),
-                    "navigation is identical with something in hand: " + empty)
-        }
-
-        function test_a_click_reports_what_it_landed_on() {
-            nav.mode = "use"
-            nav.picking = true
-            const before = copyOf(rig.goalPivot)
-            compare(nav.begin(60, -40, Qt.LeftButton, 0), "pan",
-                    "the press is taken as a pan - a click is not knowable yet")
+        function test_a_right_click_cancels() {
+            const before = copyOf(rig.goalPosition)
+            compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit",
+                    "the press is taken as an orbit - a click is not knowable yet")
             nav.end()
-            compare(picks.count, 1, "and comes out as a pick")
-            const pick = picks.signalArguments[0][0]
-            verify(near(pick.point.x, 60) && near(pick.point.z, -40),
-                   "where it was clicked: " + pick.point)
-            compare(pick.object, null, "with nothing under it in a fake view")
-            compare(pick.x, 60, "and the pixel it happened at")
-            verify(apart(before, rig.goalPivot) < 1e-6, "the camera never stirred")
+            compare(cancels.count, 1, "and comes out as a cancel")
+            verify(apart(before, rig.goalPosition) < 1e-3,
+                   "with the camera where it was: " + apart(before, rig.goalPosition))
         }
 
-        // The pick is taken at the PRESS: a click that trembles still pans a
-        // pixel or two, which moves the ground the release would ask about.
-        function test_a_trembling_click_reports_where_it_pressed() {
-            nav.mode = "use"
-            nav.picking = true
-            nav.begin(60, -40, Qt.LeftButton, 0)
+        function test_a_trembling_right_click_still_cancels() {
+            nav.begin(60, -40, Qt.RightButton, 0)
             nav.move(62, -39)
             nav.end()
-            compare(picks.count, 1)
-            const pick = picks.signalArguments[0][0]
-            verify(near(pick.point.x, 60) && near(pick.point.z, -40),
-                   "the pressed point, not the released one: " + pick.point)
+            compare(cancels.count, 1, "a hand that trembles is not a drag")
         }
 
-        function test_a_drag_pans_and_reports_nothing() {
-            nav.mode = "use"
-            nav.picking = true
-            const before = copyOf(rig.goalPivot)
-            compare(nav.begin(120, 40, Qt.LeftButton, 0), "pan")
-            nav.move(60, 40)
-            nav.end()
-            compare(picks.count, 0, "a drag is not a click")
-            verify(rig.goalPivot.x > before.x + 1,
-                   "and it carried the ground: " + rig.goalPivot.x)
-        }
-
-        function test_a_right_drag_still_orbits_with_a_hand_full() {
-            nav.mode = "use"
-            nav.picking = true
+        function test_a_right_drag_orbits_and_cancels_nothing() {
             compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit")
-            verify(nav.anchor !== null, "anchored at the cursor as ever")
             nav.move(90, -40)
-            nav.cancel()
+            nav.end()
+            compare(cancels.count, 0, "a drag is not a click")
             verify(!near(rig.goalYaw, 0), "and it turned: " + rig.goalYaw)
-            compare(picks.count, 0, "the right button never reports a pick")
         }
 
-        function test_an_empty_hand_reports_nothing_in_either_mode() {
-            for (const m of ["build", "use"]) {
-                nav.mode = m
-                nav.begin(60, -40, Qt.LeftButton, 0)
-                nav.end()
-                compare(picks.count, 0, m + ": a click means what it always did")
-            }
-        }
-
-        // Build keeps the click even with something in the hand: the scene's
-        // own tool owns that button, and an instrument may not steal it back.
-        function test_building_outranks_a_full_hand() {
-            nav.mode = "build"
-            nav.picking = true
-            verify(!nav.picks, "no picking while the scene owns the pointer")
-            compare(nav.begin(60, -40, Qt.LeftButton, 0), "", "the press is declined")
-            nav.end()
-            compare(picks.count, 0)
-        }
-
-        // The quasimode borrows the camera, and a borrowed camera is a look
-        // around: a held key must not drop points.
-        function test_the_spring_suspends_picking() {
-            nav.mode = "use"
-            nav.picking = true
-            nav.springNav = true
-            verify(!nav.picks)
-            nav.begin(60, -40, Qt.LeftButton, 0)
-            nav.end()
-            compare(picks.count, 0, "nothing picked while the hand is borrowed")
-            nav.springNav = false
-            nav.begin(60, -40, Qt.LeftButton, 0)
-            nav.end()
-            compare(picks.count, 1, "and it picks again when it comes back")
-        }
-
-        function test_the_middle_button_never_picks() {
-            nav.mode = "use"
-            nav.picking = true
+        function test_the_other_buttons_never_cancel() {
             nav.begin(60, -40, Qt.MiddleButton, 0)
             nav.end()
-            compare(picks.count, 0, "the pan button pans, whatever is in hand")
-        }
-
-        function test_a_click_with_no_view_reports_nothing() {
-            nav.view = null
-            nav.mode = "use"
-            nav.picking = true
+            compare(cancels.count, 0, "the middle button pans, and says nothing")
             nav.begin(60, -40, Qt.LeftButton, 0)
             nav.end()
-            compare(picks.count, 0, "no ray, no pick - and no crash")
+            compare(cancels.count, 0, "and the left one is not this layer's at all")
+        }
+
+        // --- what is under the cursor -----------------------------------------
+
+        function test_a_pick_carries_a_place_and_a_thing() {
+            const p = nav.pickAt(60, -40)
+            verify(near(p.point.x, 60) && near(p.point.z, -40), "where: " + p.point)
+            compare(p.object, null, "with nothing under it in a fake view")
+            compare(p.x, 60, "and the pixel it was asked about")
+        }
+
+        function test_hovering_follows_the_cursor() {
+            compare(nav.hovering, null, "nothing has been asked yet")
+            nav.hoverAt(60, -40)
+            verify(near(nav.hovering.point.x, 60), "it landed: " + nav.hovering.point)
+            nav.hoverAt(10, 20)
+            verify(near(nav.hovering.point.x, 10), "and it moves with the cursor")
+            nav.clearHover()
+            compare(nav.hovering, null, "and the scene can drop it")
+        }
+
+        // Mid-drag the cursor is driving the camera rather than pointing at
+        // anything: a preview that chased it would run across the whole scene.
+        function test_a_running_gesture_suppresses_the_hover() {
+            nav.hoverAt(60, -40)
+            const held = nav.hovering
+            nav.begin(10, 10, Qt.MiddleButton, 0)
+            nav.hoverAt(200, 200)
+            compare(nav.hovering, held, "the hover stayed where the drag began")
+            nav.cancel()
+            nav.hoverAt(200, 200)
+            verify(near(nav.hovering.point.x, 200), "and follows again once it ends")
+        }
+
+        function test_a_hover_with_no_view_is_nothing_rather_than_a_crash() {
+            nav.view = null
+            nav.hoverAt(60, -40)
+            compare(nav.hovering, null, "no ray, no answer")
+            compare(nav.pickAt(60, -40), null)
             nav.view = fakeView
         }
 
@@ -359,7 +283,6 @@ Item {
         // Press over a point and the rig re-anchors there WITHOUT the picture
         // changing - the property the whole gesture stands on.
         function test_a_right_drag_anchors_at_the_cursor_without_a_jump() {
-            nav.mode = "use"
             const before = copyOf(rig.goalPosition)
             const d0 = Math.hypot(60 - before.x, 0 - before.y, -40 - before.z)
             compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit")
@@ -389,7 +312,6 @@ Item {
         }
 
         function test_anchoring_can_be_switched_off() {
-            nav.mode = "use"
             nav.anchorOrbit = false
             const pivot = copyOf(rig.goalPivot)
             nav.begin(60, -40, Qt.RightButton, 0)
@@ -400,15 +322,11 @@ Item {
 
         // --- the wheel -------------------------------------------------------
 
-        function test_the_wheel_zooms_towards_the_cursor_in_both_modes() {
-            for (const m of ["build", "use"]) {
-                rig.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
-                nav.mode = m
-                nav.wheel(120, 80, 60)
-                verify(rig.goalDistance < 100, m + ": it came in")
-                verify(rig.goalPivot.x > 1 && rig.goalPivot.z > 1,
-                       m + ": and towards the corner, not the middle: " + rig.goalPivot)
-            }
+        function test_the_wheel_zooms_towards_the_cursor() {
+            nav.wheel(120, 80, 60)
+            verify(rig.goalDistance < 100, "it came in")
+            verify(rig.goalPivot.x > 1 && rig.goalPivot.z > 1,
+                   "and towards the corner, not the middle: " + rig.goalPivot)
         }
 
         function test_the_wheel_without_a_position_zooms_at_the_pivot() {
@@ -424,23 +342,18 @@ Item {
             verify(rig.goalPivot.x < -1, "away from the point: " + rig.goalPivot)
         }
 
-        // --- double-click focus, in either mode -------------------------------
+        // --- double-click focus -----------------------------------------------
 
-        function test_double_click_focus_survives_the_modes() {
-            for (const m of ["build", "use"]) {
-                rig.applyState({ yaw: 0, pitch: 45, distance: 100, px: 0, py: 0, pz: 0 })
-                nav.mode = m
-                verify(nav.recenterAt(35, -25), m + ": it focused")
-                verify(near(rig.goalPivot.x, 35) && near(rig.goalPivot.z, -25),
-                       m + ": on the point clicked: " + rig.goalPivot)
-            }
+        function test_double_click_focuses_where_it_landed() {
+            verify(nav.recenterAt(35, -25), "it focused")
+            verify(near(rig.goalPivot.x, 35) && near(rig.goalPivot.z, -25),
+                   "on the point clicked: " + rig.goalPivot)
         }
 
         // A scene with no view can still be driven; it simply loses the two
         // gestures that need a world point, rather than throwing.
         function test_no_view_costs_the_anchor_but_nothing_else() {
             nav.view = null
-            nav.mode = "use"
             compare(nav.begin(60, -40, Qt.RightButton, 0), "orbit")
             nav.move(90, -40)
             nav.cancel()
