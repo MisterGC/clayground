@@ -5,24 +5,30 @@ import Clayground.Lab
 import "measure.js" as Measure
 
 /*!
-    \qmltype MeasureTool
+    \qmltype TapeMeasure
     \inqmlmodule Clayground.Lab
-    \brief The tape measure: clicked points chained into a run, with the
-    length of every leg, the angle at every corner and the total on screen.
+    \inherits HandheldInstrument
+    \brief Clicked points chained into a run, with the length of every leg, the
+    angle at every corner and the total on screen.
 
     A lab answers "what does this do" all day and "how far is that" never,
-    because nothing could be asked. This is the asking: in the pointer's
-    \c measure mode a left click drops a point, the next one chains to it, and
-    the picture carries its own dimensions.
+    because nothing could be asked. This is the asking: with the tape in hand a
+    left click drops a point, the next one chains to it, and the picture
+    carries its own dimensions. Dragging still moves the world - the camera is
+    never taken away, whatever is in the hand.
+
+    One of the two instruments the kernel ships in every lab, because every lab
+    has a ground plane to measure on; a kit's own instruments (a voltmeter)
+    come with the kit. See \l InstrumentBelt.
 
     \section2 It is a question, not scene state
 
     A measurement belongs to the moment it is taken. Backspace takes the last
-    point back, Esc clears the run, and \e leaving measure mode clears it too;
-    nothing here goes into a lab's \c viewState, so a reload does not restore
-    a question nobody is asking any more. Holding Space is the exception that
-    proves it - the quasimode borrows the camera without touching \c mode, so
-    a run survives being looked at from another angle.
+    point back, Esc clears the run, and putting the tape away clears it too;
+    nothing here goes into a lab's \c viewState, so a reload does not restore a
+    question nobody is asking any more. \l {HandheldInstrument::pin}{Pinning}
+    is the deliberate exception - that is what "this one is worth keeping"
+    means, and it turns the reading into a probe the run record carries.
 
     \section2 Screen-space, for the same reason as CameraAnchorMark
 
@@ -30,149 +36,81 @@ import "measure.js" as Measure
     content is legitimately occluded by geometry, and a dimension that
     disappears into a house is worse than useless. Drawn as UI it cannot
     z-fight, keeps its pixel size at any distance, and stays readable close up
-    over cars and parts. Declare it as a direct child of the \c View3D, which
-    is what puts it in the view's coordinate space and renders it above the
-    scene.
+    over cars and parts.
 
     The arithmetic is not here either - it is \c measure.js, checked by
     \c {node measure.test.js}, so no length or angle is only as right as a
     screenshot looks.
 
-    \qml
-    View3D {
-        OrbitInput3D { id: nav; rig: rig; view: parent; modes: ["explore", "measure"] }
-        CameraAnchorMark { pointer: nav }
-        MeasureTool { id: measure; pointer: nav; measureUnit: "m" }
-    }
-    LabKeys { pointer: nav; measure: measure }
-    \endqml
-
-    \sa OrbitInput3D, CameraAnchorMark, ModeChip
+    \sa HandheldInstrument, InstrumentBelt, CameraAnchorMark
 */
-Item {
+HandheldInstrument {
     id: root
 
-    /*!
-        \qmlproperty var MeasureTool::pointer
-        \brief The \c OrbitInput3D to take points from.
+    name: "dist"
+    label: LabLang.t("hand.tape")
+    glyph: "📏"
+    pickKind: "point"
+    unit: "u"
 
-        Its \c pickedAt is what a click arrives as, and its \c mode is what
-        tells the run when it is over.
-    */
-    property var pointer: null
-
-    /*!
-        \qmlproperty string MeasureTool::measureUnit
-        \brief The unit the lab's world is in: \c "m", \c "mm", \c "u" ...
-
-        The kernel cannot know - one lab's cell is a metre of tarmac and
-        another's is a millimetre of board - so the lab says, and the SI
-        prefixing (\c LabLang::qty) follows from it.
-    */
-    property string measureUnit: "u"
-
-    /*! \qmlproperty color MeasureTool::tone \brief Ink for the line, dots and chips. */
-    property color tone: LabTheme.primary
-
-    /*! \qmlproperty real MeasureTool::dotPx \brief Radius of a vertex dot, in pixels. */
+    /*! \qmlproperty real TapeMeasure::dotPx \brief Radius of a vertex dot, in pixels. */
     property real dotPx: 4
 
-    /*! \qmlproperty real MeasureTool::arcPx \brief Radius of the angle arc, in pixels. */
+    /*! \qmlproperty real TapeMeasure::arcPx \brief Radius of the angle arc, in pixels. */
     property real arcPx: 26
 
-    /*! \qmlproperty var MeasureTool::points \readonly \brief The run, as world points. */
-    readonly property alias points: _s.points
-
-    /*! \qmlproperty int MeasureTool::count \readonly \brief How many points are in the run. */
-    readonly property int count: _s.points.length
-
-    /*! \qmlproperty bool MeasureTool::empty \readonly \brief Nothing has been measured. */
-    readonly property bool empty: count === 0
-
     /*!
-        \qmlproperty var MeasureTool::readout
+        \qmlproperty var TapeMeasure::readout
         \readonly
         \brief The whole measurement as data: segments, vertices and total.
 
         Straight out of \c measure.js, with this lab's unit and decimal
-        notation already applied - what the overlay draws and what a test or
-        an agent asserts against, so both read the same numbers.
+        notation already applied - what the overlay draws and what a test or an
+        agent asserts against, so both read the same numbers.
     */
     readonly property var readout: Measure.readout(
-        _s.points, (d) => LabLang.qty(d, root.measureUnit), LabLang.decimalPoint)
+        picks, (d) => LabLang.qty(d, root.unit), LabLang.decimalPoint)
 
-    /*! \qmlproperty real MeasureTool::total \readonly \brief Total length of the run. */
-    readonly property real total: readout.total
-
-    /*! \qmlproperty var MeasureTool::lengths \readonly \brief Length of each leg. */
+    /*! \qmlproperty var TapeMeasure::lengths \readonly \brief Length of each leg. */
     readonly property var lengths: readout.segments.map(s => s.length)
 
-    /*! \qmlproperty var MeasureTool::angles \readonly \brief Angle at each interior corner, in degrees. */
+    /*! \qmlproperty var TapeMeasure::angles \readonly \brief Angle at each interior corner, in degrees. */
     readonly property var angles: readout.vertices.map(v => v.deg)
 
-    /*!
-        \qmlmethod void MeasureTool::add(var p)
-        \brief Chains a world point onto the run.
-    */
-    function add(p) {
-        if (!p) return
-        _s.points = _s.points.concat([Qt.vector3d(p.x, p.y === undefined ? 0 : p.y, p.z)])
+    /*! \qmlproperty real TapeMeasure::total \readonly \brief Total length of the run. */
+    readonly property real total: readout.total
+
+    // the reading IS the total walked, which is what a pinned tape records
+    value: total
+    valueText: count > 1 ? readout.totalText || LabLang.qty(readout.total, unit) : ""
+
+    // A pinned tape keeps measuring the same two places, so the snapshot is
+    // the whole story - but it is computed rather than frozen, so a lab whose
+    // points move (a tape clipped to something that drives off) reports the
+    // truth rather than a memory.
+    function sampler(snapshot) {
+        return () => Measure.total(snapshot)
     }
 
-    /*!
-        \qmlmethod void MeasureTool::undo()
-        \brief Takes the last point back. Backspace and Delete.
-    */
-    function undo() {
-        if (_s.points.length === 0) return
-        _s.points = _s.points.slice(0, _s.points.length - 1)
-    }
-
-    /*!
-        \qmlmethod void MeasureTool::clear()
-        \brief Ends the run. Esc, and leaving measure mode.
-    */
-    function clear() {
-        if (_s.points.length === 0) return
-        _s.points = []
-    }
-
-    /*!
-        \qmlmethod var MeasureTool::info()
-        \brief The measurement as plain values, for an agent or a driver.
-    */
     function info() {
-        return { count: count, unit: measureUnit, lengths: lengths,
-                 angles: angles, total: total,
+        return { name: name, kind: pickKind, count: count, unit: unit,
+                 value: value, text: valueText,
+                 lengths: lengths, angles: angles, total: readout.total,
                  texts: readout.segments.map(s => s.text),
                  angleTexts: readout.vertices.map(v => v.text),
-                 totalText: readout.totalText }
-    }
-
-    QtObject {
-        id: _s
-        property var points: []
-    }
-
-    Connections {
-        target: root.pointer
-        function onPickedAt(p) { root.add(p) }
-        // The STICKY mode, not the effective one: Space held is a borrowed
-        // camera, not the end of the question being asked.
-        function onModeChanged() {
-            if (root.pointer.mode !== "measure") root.clear()
-        }
+                 totalText: readout.totalText,
+                 pinned: pinnedReadings.map(p => p.name) }
     }
 
     /*!
-        \qmlproperty var MeasureTool::plan
+        \qmlproperty var TapeMeasure::plan
         \readonly
         \brief The run projected into view pixels - what the overlay draws.
 
         \c {{ pts, segs, verts, total }}, each entry carrying an \c ok that is
         false where a point sits behind the camera: that segment is not drawn,
-        while the measurement itself is untouched. Walking behind your own
-        tape measure must not delete it.
+        while the measurement itself is untouched. Walking behind your own tape
+        measure must not delete it.
 
         Projected with the camera's motion as EXPLICIT dependencies - the
         \l WorldLabel trap: without the \c scenePosition / \c sceneRotation
@@ -180,7 +118,7 @@ Item {
     */
     readonly property var plan: {
         const out = { pts: [], segs: [], verts: [], total: null }
-        const v = pointer ? pointer.view : null
+        const v = root.view
         if (!v || !v.camera) return out
         const cam = v.camera
         void cam.scenePosition
@@ -190,7 +128,7 @@ Item {
             const s = v.mapFrom3DScene(Qt.vector3d(p.x, p.y === undefined ? 0 : p.y, p.z))
             return { x: s.x, y: s.y, ok: s.z > 0 }
         }
-        for (const p of _s.points) out.pts.push(to2d(p))
+        for (const p of root.picks) out.pts.push(to2d(p))
         for (const s of r.segments) {
             const a = to2d(s.a), b = to2d(s.b), m = to2d(s.mid)
             out.segs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y,
@@ -226,8 +164,8 @@ Item {
     // it, so text stays crisp and never repaints with the line.
     Canvas {
         id: _ink
-        width: root.pointer && root.pointer.view ? root.pointer.view.width : 0
-        height: root.pointer && root.pointer.view ? root.pointer.view.height : 0
+        width: root.view ? root.view.width : 0
+        height: root.view ? root.view.height : 0
         visible: root.count > 0
         onPaint: {
             const ctx = getContext("2d")
@@ -334,5 +272,36 @@ Item {
         text: t ? "Σ " + t.text : ""
         x: (t ? t.x : 0) + LabTheme.px(14)
         y: (t ? t.y : 0) + LabTheme.px(12)
+    }
+
+    // --- what has been kept -------------------------------------------------
+    // A pinned tape stays stretched where it was measured: it is a mounted
+    // instrument now, so it survives the tape being put away, and the run
+    // record has a column for it.
+    Repeater {
+        model: root.pinnedReadings.length
+        delegate: Item {
+            required property int index
+            readonly property var rec: root.pinnedReadings[index]
+            readonly property var scr: {
+                const v = root.view
+                if (!v || !v.camera || !rec || rec.at.length === 0) return null
+                const cam = v.camera
+                void cam.scenePosition
+                void cam.sceneRotation
+                const a = rec.at[rec.at.length - 1]
+                const s = v.mapFrom3DScene(Qt.vector3d(a.x, a.y, a.z))
+                return s.z > 0 ? s : null
+            }
+            visible: scr !== null
+            x: scr ? scr.x : 0
+            y: scr ? scr.y : 0
+            Chip {
+                filled: false
+                text: parent.rec ? "📌 " + parent.rec.name + " " + parent.rec.text : ""
+                x: LabTheme.px(10)
+                y: -height / 2
+            }
+        }
     }
 }

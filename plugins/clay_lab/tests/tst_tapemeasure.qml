@@ -2,10 +2,12 @@
 //
 // The tape measure's STATE - what a click adds, what an edit takes away, and
 // the rule that a measurement is a question being asked now: it does not
-// survive leaving the mode it was asked in, and it is not in any viewState.
+// survive being put down, and it is not in any viewState.
 //
 // The arithmetic it reports is measure.js', checked by node; what is checked
-// here is the wiring between a pointer's click and that arithmetic.
+// here is the wiring between a pick and that arithmetic - and, since the
+// handheld contract landed, that the tape takes its picks as the belt hands
+// them over rather than reaching for a pointer of its own.
 
 import QtQuick
 import QtTest
@@ -13,15 +15,6 @@ import Clayground.Lab
 
 Item {
     width: 50; height: 50
-
-    // Stands in for an OrbitInput3D: the mode, and the one signal the tool
-    // listens to.
-    QtObject {
-        id: pointer
-        property string mode: "measure"
-        property var view: null
-        signal pickedAt(var point)
-    }
 
     // A view that projects a world point to (x, z) pixels and calls anything
     // past `horizon` on the z axis BEHIND the camera - which is the one thing
@@ -40,30 +33,34 @@ Item {
         }
     }
 
-    MeasureTool {
+    TapeMeasure {
         id: tape
-        pointer: pointer
-        measureUnit: "m"
+        unit: "m"
+        held: true
     }
 
     TestCase {
-        name: "MeasureTool"
+        name: "TapeMeasure"
 
         function init() {
-            pointer.mode = "measure"
-            pointer.view = null
+            tape.held = true
+            tape.view = null
             fakeView.horizon = 1e9
             tape.clear()
         }
 
         function p(x, z) { return Qt.vector3d(x, 0, z) }
 
+        // What the belt hands an instrument: a place AND a thing, of which
+        // this one uses the place.
+        function pick(x, z) { return { point: p(x, z), object: null, x: x, y: z } }
+
         function test_a_click_chains_a_point_onto_the_run() {
             verify(tape.empty, "nothing measured yet")
-            pointer.pickedAt(p(0, 0))
+            tape.add(pick(0, 0))
             compare(tape.count, 1)
             verify(tape.empty === false)
-            pointer.pickedAt(p(4, 0))
+            tape.add(pick(4, 0))
             compare(tape.count, 2, "the second chains to the first")
             compare(tape.lengths.length, 1, "which is one leg")
             fuzzyCompare(tape.lengths[0], 4, 1e-6)
@@ -72,9 +69,9 @@ Item {
 
         // The 3-4-5 corner, as the labs' drivers measure it.
         function test_three_points_carry_two_legs_a_corner_and_a_total() {
-            pointer.pickedAt(p(4, 0))
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 3))
+            tape.add(pick(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 3))
             compare(tape.lengths.length, 2)
             fuzzyCompare(tape.lengths[0], 4, 1e-6)
             fuzzyCompare(tape.lengths[1], 5, 1e-6)
@@ -90,16 +87,16 @@ Item {
 
         // A single leg needs no total: it would repeat the one number above it.
         function test_a_single_leg_has_no_total_to_write() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
             compare(tape.readout.totalAt, null)
-            pointer.pickedAt(p(4, 3))
+            tape.add(pick(4, 3))
             verify(tape.readout.totalAt !== null, "two legs are worth adding up")
         }
 
         function test_undo_takes_the_last_point_back() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
             tape.undo()
             compare(tape.count, 1)
             tape.undo()
@@ -109,41 +106,54 @@ Item {
         }
 
         function test_clear_ends_the_run() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
             tape.clear()
             verify(tape.empty)
             compare(tape.total, 0)
         }
 
-        // A measurement is a question you are asking NOW. Walking away from
-        // measure mode is the end of asking it, so nothing has to be cleaned
-        // up by hand and nothing lingers into the next thing you do.
-        function test_leaving_measure_mode_ends_the_run() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
-            pointer.mode = "build"
+        // A measurement is a question you are asking NOW. Putting the tape
+        // down is the end of asking it, so nothing has to be cleaned up by
+        // hand and nothing lingers into the next thing you do.
+        function test_putting_the_tape_down_ends_the_run() {
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
+            tape.held = false
             verify(tape.empty, "the run is over")
-            pointer.mode = "measure"
-            verify(tape.empty, "and coming back does not bring it back")
+            tape.held = true
+            verify(tape.empty, "and picking it up again does not bring it back")
         }
 
-        // The quasimode borrows the camera without touching the sticky mode:
-        // looking at a measurement from another angle must not delete it.
-        function test_a_borrowed_camera_does_not_end_the_run() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
-            // what springExplore changes is effectiveMode, never mode
-            compare(tape.count, 2)
-            compare(pointer.mode, "measure")
-            verify(!tape.empty)
+        // Which is a policy, not a law: an instrument that wants to survive
+        // being put down says so.
+        function test_an_instrument_may_keep_its_subject() {
+            tape.clearOnPutAway = false
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
+            tape.held = false
+            compare(tape.count, 2, "kept")
+            tape.clearOnPutAway = true
+            tape.held = true
+        }
+
+        // A pick with no ground point under it - the ray missed the plane -
+        // still arrives, because the object half may have been the point of
+        // it. An instrument that measures places ignores it rather than
+        // storing a hole.
+        function test_a_pick_with_no_place_is_ignored() {
+            tape.add(pick(0, 0))
+            tape.add({ point: null, object: null, x: 0, y: 0 })
+            compare(tape.count, 1, "nothing was added")
         }
 
         function test_it_reports_itself_to_a_driver() {
-            pointer.pickedAt(p(4, 0))
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 3))
+            tape.add(pick(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 3))
             const i = tape.info()
+            compare(i.name, "dist")
+            compare(i.kind, "point")
             compare(i.count, 3)
             compare(i.unit, "m")
             compare(i.texts.length, 2)
@@ -154,8 +164,8 @@ Item {
         // With no view there is nothing to project onto, and the overlay must
         // sit quietly rather than throw: the measurement is still valid data.
         function test_no_view_costs_the_drawing_not_the_measurement() {
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 0))
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 0))
             compare(tape.plan.segs.length, 0, "nothing to draw")
             fuzzyCompare(tape.total, 4, 1e-6, "but it still measures")
         }
@@ -163,9 +173,9 @@ Item {
         // --- the projection ------------------------------------------------
 
         function test_the_run_is_projected_into_view_pixels() {
-            pointer.view = fakeView
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(4, 6))
+            tape.view = fakeView
+            tape.add(pick(0, 0))
+            tape.add(pick(4, 6))
             compare(tape.plan.pts.length, 2)
             compare(tape.plan.segs.length, 1)
             fuzzyCompare(tape.plan.segs[0].bx, 4, 1e-6)
@@ -177,10 +187,10 @@ Item {
         // Walking past your own tape measure must not delete it: the segment
         // stops being DRAWN, the measurement is untouched.
         function test_a_point_behind_the_camera_drops_its_drawing_only() {
-            pointer.view = fakeView
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(0, 10))
-            pointer.pickedAt(p(8, 10))
+            tape.view = fakeView
+            tape.add(pick(0, 0))
+            tape.add(pick(0, 10))
+            tape.add(pick(8, 10))
             fakeView.horizon = 5           // everything past z = 5 is behind us
             compare(tape.plan.pts.filter(q => q.ok).length, 1, "one point left in front")
             compare(tape.plan.segs.filter(s => s.ok).length, 0, "so neither leg is drawn")
@@ -192,10 +202,10 @@ Item {
         }
 
         function test_the_corner_arc_spans_the_two_legs_on_screen() {
-            pointer.view = fakeView
-            pointer.pickedAt(p(10, 0))     // due right of the corner
-            pointer.pickedAt(p(0, 0))
-            pointer.pickedAt(p(0, 10))     // due down from it
+            tape.view = fakeView
+            tape.add(pick(10, 0))     // due right of the corner
+            tape.add(pick(0, 0))
+            tape.add(pick(0, 10))     // due down from it
             const v = tape.plan.verts[0]
             fuzzyCompare(v.x, 0, 1e-6)
             fuzzyCompare(v.start, 0, 1e-6, "starts along the first leg")

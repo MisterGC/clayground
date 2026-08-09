@@ -6,6 +6,11 @@
 // why, and a mode key that a running narration steals leaves the learner
 // pressing Space and watching the tour skip ahead.
 //
+// Since the modes collapsed there are two of them - build and use - and what
+// used to be a third is an instrument on a belt. So the cases below come in
+// two halves: which mode the pointer is in, and what is in the hand. They are
+// independent on purpose, and one case here says exactly that.
+//
 // The events are plain objects rather than synthesized key presses: handle()
 // reads three fields off them, and building a real event would test QtTest's
 // delivery, not this contract.
@@ -24,8 +29,9 @@ Item {
     QtObject {
         id: pointer
         property string mode: "build"
-        property bool springExplore: false
-        property var modes: ["build", "explore", "measure"]
+        property bool springNav: false
+        property bool picking: false
+        property var modes: ["build", "use"]
         property bool modeLocked: false
         readonly property var allowedModes: modeLocked ? [mode] : modes
         readonly property bool modeSwitchable: allowedModes.length > 1
@@ -36,12 +42,26 @@ Item {
         }
     }
 
-    // Stands in for a MeasureTool: a run of points and the two edits.
+    // Stands in for one instrument: a subject and the two edits.
     QtObject {
-        id: fakeMeasure
+        id: fakeTape
+        property string name: "dist"
         property int count: 0
+        readonly property bool pinnable: count > 0
         function undo() { if (count > 0) count -= 1 }
         function clear() { count = 0 }
+    }
+
+    // Stands in for an InstrumentBelt: what is in the hand, and the prompt.
+    QtObject {
+        id: fakeBelt
+        property int heldIndex: -1
+        property bool pinning: false
+        readonly property var held: heldIndex === 0 ? fakeTape : null
+        readonly property bool empty: held === null
+        function cycle() { heldIndex = heldIndex + 1 >= 1 ? -1 : heldIndex + 1 }
+        function putAway() { heldIndex = -1 }
+        function beginPin() { pinning = true }
     }
 
     QtObject {
@@ -65,15 +85,17 @@ Item {
 
         function init() {
             keymap.flow = null
-            keymap.measure = null
+            keymap.hands = null
             keymap.helpVisible = false
-            pointer.modes = ["build", "explore", "measure"]
+            pointer.modes = ["build", "use"]
             pointer.mode = "build"
-            pointer.springExplore = false
+            pointer.springNav = false
             pointer.modeLocked = false
             fakeFlow.running = false
             fakeFlow.nexts = 0
-            fakeMeasure.count = 0
+            fakeTape.count = 0
+            fakeBelt.heldIndex = -1
+            fakeBelt.pinning = false
         }
 
         function ev(key, mods, repeat) {
@@ -83,10 +105,10 @@ Item {
 
         function test_space_is_a_quasimode() {
             verify(keymap.handle(ev(Qt.Key_Space)), "the key is consumed")
-            verify(pointer.springExplore, "explore while held")
+            verify(pointer.springNav, "the view moves while held")
             compare(pointer.mode, "build", "and the sticky mode is untouched")
             verify(keymap.handleRelease(ev(Qt.Key_Space)), "the release too")
-            verify(!pointer.springExplore, "back to building on release")
+            verify(!pointer.springNav, "back to building on release")
         }
 
         // A held key repeats as press/release pairs on some platforms; taken at
@@ -94,31 +116,39 @@ Item {
         function test_autorepeat_does_not_drop_the_hand() {
             keymap.handle(ev(Qt.Key_Space))
             keymap.handle(ev(Qt.Key_Space, 0, true))
-            verify(pointer.springExplore, "still held")
+            verify(pointer.springNav, "still held")
             keymap.handleRelease(ev(Qt.Key_Space, 0, true))
-            verify(pointer.springExplore, "an auto-repeat release is not a release")
+            verify(pointer.springNav, "an auto-repeat release is not a release")
             keymap.handleRelease(ev(Qt.Key_Space))
-            verify(!pointer.springExplore, "the real one is")
+            verify(!pointer.springNav, "the real one is")
         }
 
-        function test_b_walks_the_modes_for_good() {
+        function test_b_turns_building_on_and_off() {
             verify(keymap.handle(ev(Qt.Key_B)))
-            compare(pointer.mode, "explore")
+            compare(pointer.mode, "use")
             keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "measure")
-            keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "build", "and round again")
+            compare(pointer.mode, "build", "and back again")
         }
 
-        // A lab that offers two modes cycles two; the key does not have to know
-        // which two they are.
-        function test_b_only_walks_the_modes_the_lab_offers() {
-            pointer.modes = ["explore", "measure"]
-            pointer.mode = "explore"
-            keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "measure")
-            keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "explore", "build is never passed through")
+        // A lab with a single mode has nothing to show or switch.
+        function test_a_one_mode_pointer_has_no_mode_keys() {
+            pointer.mode = "use"
+            pointer.modes = ["use"]
+            verify(!keymap.modeKeys)
+            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
+            compare(pointer.mode, "use")
+            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
+            verify(!pointer.springNav)
+        }
+
+        function test_a_locked_pointer_has_no_mode_keys() {
+            pointer.mode = "use"
+            pointer.modeLocked = true
+            verify(!keymap.modeKeys)
+            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
+            compare(pointer.mode, "use")
+            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
+            verify(!pointer.springNav)
         }
 
         // Space belongs to a narration while one is on screen: in every lab it
@@ -128,108 +158,140 @@ Item {
             fakeFlow.running = true
             verify(keymap.handle(ev(Qt.Key_Space)))
             compare(fakeFlow.nexts, 1, "the flow advanced")
-            verify(!pointer.springExplore, "and nothing sprang")
+            verify(!pointer.springNav, "and nothing sprang")
             fakeFlow.running = false
             verify(keymap.handle(ev(Qt.Key_Space)))
             compare(fakeFlow.nexts, 1, "with the flow stopped it is the hand's")
-            verify(pointer.springExplore)
-        }
-
-        // A lab with a single mode has nothing to show or switch.
-        function test_a_one_mode_pointer_has_no_mode_keys() {
-            pointer.mode = "explore"
-            pointer.modes = ["explore"]
-            verify(!keymap.modeKeys)
-            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
-            compare(pointer.mode, "explore")
-            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
-            verify(!pointer.springExplore)
-        }
-
-        function test_a_locked_pointer_has_no_mode_keys() {
-            pointer.mode = "explore"
-            pointer.modeLocked = true
-            verify(!keymap.modeKeys)
-            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
-            compare(pointer.mode, "explore")
-            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
-            verify(!pointer.springExplore)
+            verify(pointer.springNav)
         }
 
         function test_the_map_documents_the_mode_keys() {
             const labels = keymap.entries.map(e => e.label)
             verify(labels.indexOf("keys.mode") >= 0, "the toggle is listed")
-            verify(labels.indexOf("keys.explore") >= 0, "and the quasimode")
+            verify(labels.indexOf("keys.nav") >= 0, "and the quasimode")
             pointer.modeLocked = true
             const locked = keymap.entries.map(e => e.label)
             compare(locked.indexOf("keys.mode"), -1, "a locked lab lists neither")
-            compare(locked.indexOf("keys.explore"), -1)
+            compare(locked.indexOf("keys.nav"), -1)
         }
 
-        // --- the tape measure's two keys -----------------------------------
+        // --- the belt --------------------------------------------------------
+
+        function test_h_walks_the_belt_and_ends_empty_handed() {
+            keymap.hands = fakeBelt
+            verify(keymap.handle(ev(Qt.Key_H)), "the key is claimed")
+            compare(fakeBelt.heldIndex, 0, "the first instrument is out")
+            keymap.handle(ev(Qt.Key_H))
+            compare(fakeBelt.heldIndex, -1, "and past the last one the hand empties")
+        }
+
+        // The hand and the mode are separate controls, but they cannot both
+        // claim the short click - so the belt couples them in the one place
+        // where they would otherwise produce a dead tool. LabKeys does not:
+        // it presses the keys, and the belt decides what that means. (The
+        // coupling itself is checked where it lives, in tst_belt.)
+        function test_the_keys_stay_out_of_the_coupling() {
+            keymap.hands = fakeBelt
+            keymap.handle(ev(Qt.Key_H))
+            compare(fakeBelt.heldIndex, 0, "H took an instrument")
+            compare(pointer.mode, "build",
+                    "and the key itself changed no mode - the belt's business")
+        }
+
+        function test_p_asks_what_to_call_the_reading() {
+            keymap.hands = fakeBelt
+            keymap.handle(ev(Qt.Key_H))
+            verify(!keymap.handle(ev(Qt.Key_P)), "nothing measured, nothing to keep")
+            verify(!fakeBelt.pinning)
+            fakeTape.count = 2
+            verify(keymap.handle(ev(Qt.Key_P)), "with a reading it is claimed")
+            verify(fakeBelt.pinning, "and the prompt is open")
+        }
+
+        // While the prompt is open the keyboard is the prompt's: typing a name
+        // that contains a b or an h must not switch modes underneath it.
+        function test_the_prompt_owns_the_keyboard_while_it_is_open() {
+            keymap.hands = fakeBelt
+            keymap.handle(ev(Qt.Key_H))
+            fakeBelt.pinning = true
+            verify(!keymap.handle(ev(Qt.Key_H)), "H is the prompt's")
+            verify(!keymap.handle(ev(Qt.Key_B)), "and so is B")
+            compare(fakeBelt.heldIndex, 0)
+            compare(pointer.mode, "build")
+        }
+
+        // --- the tape measure's two keys -------------------------------------
         //
         // Both are keys a lab already uses for something else, which is why
-        // they are gated on the mode rather than on the tool existing.
+        // they are gated on something being in the hand rather than on the belt
+        // existing.
 
         function test_backspace_takes_the_last_point_back() {
-            keymap.measure = fakeMeasure
-            pointer.mode = "measure"
-            fakeMeasure.count = 3
+            keymap.hands = fakeBelt
+            fakeBelt.heldIndex = 0
+            fakeTape.count = 3
             verify(keymap.handle(ev(Qt.Key_Backspace)), "the key is claimed")
-            compare(fakeMeasure.count, 2)
+            compare(fakeTape.count, 2)
             keymap.handle(ev(Qt.Key_Delete))
-            compare(fakeMeasure.count, 1, "Delete says the same thing")
+            compare(fakeTape.count, 1, "Delete says the same thing")
         }
 
-        function test_escape_ends_the_run() {
-            keymap.measure = fakeMeasure
-            pointer.mode = "measure"
-            fakeMeasure.count = 3
+        // One key, walked back one step at a time.
+        function test_escape_ends_the_run_then_puts_the_instrument_away() {
+            keymap.hands = fakeBelt
+            fakeBelt.heldIndex = 0
+            fakeTape.count = 3
             verify(keymap.handle(ev(Qt.Key_Escape)))
-            compare(fakeMeasure.count, 0)
+            compare(fakeTape.count, 0, "the measurement went first")
+            compare(fakeBelt.heldIndex, 0, "the instrument is still out")
+            verify(keymap.handle(ev(Qt.Key_Escape)))
+            compare(fakeBelt.heldIndex, -1, "and the second Esc puts it away")
             verify(!keymap.handle(ev(Qt.Key_Escape)),
-                   "with nothing measured Esc is the lab's again")
+                   "with an empty hand Esc is the lab's again")
         }
 
-        // The whole point of gating on the mode: street and electronics keep
+        // The whole point of gating on the hand: street and electronics keep
         // Del for deleting what they built.
-        function test_the_measure_keys_are_the_labs_again_outside_measure_mode() {
-            keymap.measure = fakeMeasure
-            fakeMeasure.count = 2
-            pointer.mode = "build"
+        function test_the_measure_keys_are_the_labs_again_with_an_empty_hand() {
+            keymap.hands = fakeBelt
+            fakeTape.count = 2
             verify(!keymap.handle(ev(Qt.Key_Backspace)), "Del is the lab's")
-            compare(fakeMeasure.count, 2, "and nothing was measured away")
+            compare(fakeTape.count, 2, "and nothing was measured away")
             verify(!keymap.handle(ev(Qt.Key_Escape)), "so is Esc")
         }
 
         // Help is on top of everything: Esc closes it first, and the
         // measurement is still there behind it.
         function test_help_closes_before_the_run_does() {
-            keymap.measure = fakeMeasure
-            pointer.mode = "measure"
-            fakeMeasure.count = 2
+            keymap.hands = fakeBelt
+            fakeBelt.heldIndex = 0
+            fakeTape.count = 2
             keymap.helpVisible = true
             verify(keymap.handle(ev(Qt.Key_Escape)))
             verify(!keymap.helpVisible, "the list closed")
-            compare(fakeMeasure.count, 2, "the run survived it")
+            compare(fakeTape.count, 2, "the run survived it")
             verify(keymap.handle(ev(Qt.Key_Escape)))
-            compare(fakeMeasure.count, 0, "and the next Esc ends it")
+            compare(fakeTape.count, 0, "and the next Esc ends it")
         }
 
-        function test_the_map_documents_the_measure_keys() {
-            compare(keymap.entries.map(e => e.label).indexOf("keys.unmeasure"), -1,
-                    "a lab without a tape measure lists no tape measure keys")
-            keymap.measure = fakeMeasure
-            verify(keymap.entries.map(e => e.label).indexOf("keys.unmeasure") >= 0,
-                   "and a lab with one does")
+        function test_the_map_documents_the_belt_keys() {
+            const bare = keymap.entries.map(e => e.label)
+            compare(bare.indexOf("keys.hand"), -1,
+                    "a lab without a belt lists no belt keys")
+            compare(bare.indexOf("keys.unmeasure"), -1)
+            keymap.hands = fakeBelt
+            const withBelt = keymap.entries.map(e => e.label)
+            verify(withBelt.indexOf("keys.hand") >= 0, "and a lab with one does")
+            verify(withBelt.indexOf("keys.pin") >= 0)
+            verify(withBelt.indexOf("keys.unmeasure") >= 0)
         }
 
         // The release that never comes: focus goes elsewhere mid-hold.
         function test_releasing_the_springs_clears_a_stuck_hand() {
             keymap.handle(ev(Qt.Key_Space))
-            verify(pointer.springExplore)
+            verify(pointer.springNav)
             keymap.releaseSprings()
-            verify(!pointer.springExplore)
+            verify(!pointer.springNav)
         }
     }
 }

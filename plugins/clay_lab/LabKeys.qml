@@ -22,12 +22,13 @@ import QtQuick
     keyboard could not do at all. While a flow runs, \c → and \c ← belong to
     the flow, so the arrows are the camera's only when nothing is narrating.
 
-    The interaction half, on a lab that hands over its \l pointer: \c B cycles
-    the modes the lab offers - build, explore, measure - and \b Space explores
-    while it is held. With a \l measure tool wired up, \b Backspace takes the
-    last measured point back and \b Esc ends the run. All of them are
-    described here for the same reason as everything else - a key nobody can
-    find is a key the lab does not have.
+    The interaction half, on a lab that hands over its \l pointer: \c B turns
+    building on and off, and \b Space moves the view while it is held. With an
+    \l hands belt wired up, \c H takes the next instrument (and past the last
+    one, puts everything down), \c P keeps the reading it is showing,
+    \b Backspace takes the last point back and \b Esc ends the measurement.
+    All of them are described here for the same reason as everything else - a
+    key nobody can find is a key the lab does not have.
 
     Non-visual: keep focus handling where it is and call \l handle() from the
     lab's own key handler, and \l handleRelease() from \c Keys.onReleased.
@@ -77,12 +78,13 @@ Item {
 
     /*!
         \qmlproperty var LabKeys::pointer
-        \brief An \c OrbitInput3D, for the build/explore mode keys.
+        \brief An \c OrbitInput3D, for the build-mode keys.
 
         Two keys, and the second one is the reason this lives here rather than
-        in the lab: \c B cycles the mode for good, and \b Space is explore
-        \e while it is held - a quasimode, which means a key RELEASE has to be
-        seen too. Wire \l handleRelease from the lab's \c Keys.onReleased.
+        in the lab: \c B switches building for good, and \b Space hands the
+        view over \e while it is held - a quasimode, which means a key RELEASE
+        has to be seen too. Wire \l handleRelease from the lab's
+        \c Keys.onReleased.
 
         Space is shared with a running \l flow, which keeps it: while a
         narration is on screen, Space is "next step" in every lab, and the
@@ -92,14 +94,21 @@ Item {
     property var pointer: null
 
     /*!
-        \qmlproperty var LabKeys::measure
-        \brief A \l MeasureTool, for the two keys that edit a measurement.
+        \qmlproperty var LabKeys::hands
+        \brief An \l InstrumentBelt - the keys that take, edit and keep a reading.
 
-        \c Backspace (and \c Delete) takes the last point back, \c Esc ends the
-        run - and both only while the lab is actually in measure mode, which is
+        \c H walks the belt, \c P keeps the reading, \c Backspace (and
+        \c Delete) takes the last point back and \c Esc ends the measurement -
+        the editing keys only while something is actually in the hand, which is
         what lets a lab keep \c Del for deleting the thing it builds.
     */
-    property var measure: null
+    property var hands: null
+
+    /*! \qmlproperty string LabKeys::handKey \brief The letter that walks the belt. */
+    property string handKey: "H"
+
+    /*! \qmlproperty string LabKeys::pinKey \brief The letter that keeps a reading. */
+    property string pinKey: "P"
 
     /*! \qmlproperty string LabKeys::modeKey \brief The letter that cycles the modes. */
     property string modeKey: "B"
@@ -113,13 +122,18 @@ Item {
                                      && pointer.modeSwitchable === true
 
     /*!
+        \qmlproperty bool LabKeys::handKeys
+        \readonly
+        \brief There is a belt to take instruments from.
+    */
+    readonly property bool handKeys: hands !== null && hands !== undefined
+
+    /*!
         \qmlproperty bool LabKeys::measureKeys
         \readonly
-        \brief A measurement is being taken right now, so its keys are live.
+        \brief A measurement is being taken right now, so its editing keys are live.
     */
-    readonly property bool measureKeys: measure !== null && measure !== undefined
-                                        && pointer !== null && pointer !== undefined
-                                        && pointer.mode === "measure"
+    readonly property bool measureKeys: handKeys && hands.held !== null
 
     /*!
         \qmlproperty var LabKeys::keys
@@ -197,9 +211,11 @@ Item {
         }
         if (modeKeys) {
             out.push({ key: modeKey, label: "keys.mode" })
-            out.push({ key: "␣", label: "keys.explore" })
+            out.push({ key: "␣", label: "keys.nav" })
         }
-        if (measure) {
+        if (handKeys) {
+            out.push({ key: handKey, label: "keys.hand" })
+            out.push({ key: pinKey, label: "keys.pin" })
             out.push({ key: "⌫", label: "keys.unmeasure" })
         }
         if (viewKeys) {
@@ -233,6 +249,13 @@ Item {
         working throughout - a flow never locks the lab.
     */
     function handle(ev) {
+        // --- the name prompt, before ANYTHING: while it is open the keyboard
+        // is its own, and a name with a b or an h in it must not switch modes
+        // underneath the typing. In the running lab the prompt holds focus and
+        // these never arrive, which is exactly why the guard belongs here -
+        // the one path that could deliver them is a lab that kept focus.
+        if (handKeys && hands.pinning) return false
+
         // --- text size, BEFORE everything else: the bare +/-/0 keys are the
         // camera's, and a modifier is the only thing telling the two apart.
         // Accepts Meta as well as Control because Qt swaps the two on macOS,
@@ -261,8 +284,18 @@ Item {
         // --- the mode, and the hand you can hold down
         // After the flow block on purpose: a running narration keeps Space.
         if (modeKeys) {
-            if (ev.key === Qt.Key_Space) { pointer.springExplore = true; return true }
+            if (ev.key === Qt.Key_Space) { pointer.springNav = true; return true }
             if (_letterOf(ev) === modeKey) { pointer.cycleMode(); return true }
+        }
+
+        // --- what is in the hand
+        // Before the lab's own keys, like the editing keys below: an
+        // instrument is the nearer context while one is out.
+        if (handKeys) {
+            if (_letterOf(ev) === handKey) { hands.cycle(); return true }
+            if (_letterOf(ev) === pinKey && hands.held && hands.held.pinnable) {
+                hands.beginPin(); return true
+            }
         }
 
         // --- the measurement being taken, if one is
@@ -272,10 +305,14 @@ Item {
         // having to give its Del up.
         if (measureKeys) {
             if (ev.key === Qt.Key_Backspace || ev.key === Qt.Key_Delete) {
-                measure.undo(); return true
+                hands.held.undo(); return true
             }
-            if (ev.key === Qt.Key_Escape && !helpVisible && measure.count > 0) {
-                measure.clear(); return true
+            // Esc empties the measurement first and the hand second: one key,
+            // walked back one step at a time, which is what Esc means
+            // everywhere else too.
+            if (ev.key === Qt.Key_Escape && !helpVisible) {
+                if (hands.held.count > 0) { hands.held.clear(); return true }
+                hands.putAway(); return true
             }
         }
 
@@ -358,7 +395,7 @@ Item {
     */
     function handleRelease(ev) {
         if (modeKeys && ev.key === Qt.Key_Space && !ev.isAutoRepeat) {
-            pointer.springExplore = false
+            pointer.springNav = false
             return true
         }
         return false
@@ -370,7 +407,7 @@ Item {
         receiving keys.
     */
     function releaseSprings() {
-        if (pointer) pointer.springExplore = false
+        if (pointer) pointer.springNav = false
     }
 
     // The release of a held key never arrives if the lab lost focus while it

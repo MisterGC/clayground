@@ -68,7 +68,10 @@ clay_plugin( Lab
         ModeChip.qml
         CameraAnchorMark.qml
         measure.js
-        MeasureTool.qml
+        HandheldInstrument.qml
+        TapeMeasure.qml
+        Stopwatch.qml
+        InstrumentBelt.qml
         Tour.qml
         TourStep.qml
 
