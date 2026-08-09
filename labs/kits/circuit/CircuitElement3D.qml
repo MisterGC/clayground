@@ -42,6 +42,37 @@ Node {
         useToonShading: true
         edgeColorFactor: 0.55
     }
+
+    // --- what a ray can hit -------------------------------------------------
+    // The one thing in this component View3D.pick can find, and the reason an
+    // instrument can be pointed at a part at all: QQuick3DModel::pickable is
+    // false by default, so before this every model here was invisible to a
+    // ray, and the only surface in the whole lab that did set it -
+    // LabStage3D's ground - came back as the answer to every click.
+    //
+    // One volume rather than a pickable flag on each body, for two measured
+    // reasons. A ray hits a model whose parent Node is visible: false just the
+    // same as a visible one, so pickable bodies would have given a flat
+    // resistor the hit target of the bulb dome it is not showing. And a
+    // Model with no material renders nothing at all while still being hit, so
+    // this costs a bounds test and no draw call.
+    //
+    // The footprint is the body box the lab's own cursor test uses (+/-4.6 by
+    // +/-3.4, a junction's 2.3), so pointing an instrument at a part and
+    // hovering it agree about where the part is.
+    Model {
+        objectName: "pickVolume"
+        source: "#Cube"
+        pickable: true
+        // #Cube is 100 units, and the box stands from the board up over the
+        // tallest body here (the bulb's glass, whose top is at y 4.7)
+        readonly property real halfW: root.type === "junction" ? 2.3 : 4.6
+        readonly property real halfD: root.type === "junction" ? 2.3 : 3.4
+        readonly property real high: root.type === "junction" ? 1.2 : 5.4
+        position: Qt.vector3d(0, high * 0.5, 0)
+        scale: Qt.vector3d(halfW * 2 / 100, high / 100, halfD * 2 / 100)
+    }
+
     // --- hover / selection frame --------------------------------------------
     // The kernel's shared hover/select language, which this kit had reproduced
     // bar for bar and mark for mark before it existed. Speaking it from the

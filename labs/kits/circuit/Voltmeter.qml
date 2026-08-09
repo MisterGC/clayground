@@ -30,19 +30,14 @@ import Clayground.Lab
     part itself. That is what makes a pinned probe worth having - it is an
     instrument now, sampled on the clock grid and carried by the run record.
 
-    \note NOT ON A BELT YET, and not for want of a contract. Everything above
-    is written and unit-tested against object picks; what is missing is the
-    pick itself. In electronics-101 \c {View3D.pick} reports a hit on
-    \l LabStage3D's ground and on nothing else - not on the parts, not on a
-    \c pickable \c Model added over a part, not even on one created at that
-    exact world position at runtime. Until that is understood, wiring this into
-    the lab would put a chip on the belt whose click does nothing, which is
-    worse than not offering it.
+    What it needs from a part is one thing: something a ray can hit whose
+    parents lead back to the part. \l CircuitElement3D carries a pick volume
+    for exactly that. Nothing here reaches into the scene itself.
 
-    \note It also reads the voltage \e across a part rather than between two
+    \note It reads the voltage \e across a part rather than between two
     arbitrary points on the board. Probing two points needs the solver's node
     potentials, which \c circuit.js computes but does not return; exposing them
-    is the step after the picking one.
+    is a separate step.
 
     \sa HandheldInstrument, InstrumentBelt, CircuitElement3D
 */
