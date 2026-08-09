@@ -53,7 +53,7 @@ import QtQuick3D
             viewpoints: ({ "top": { pitch: 84, distance: 140 } })
         }
     }
-    OrbitInput3D { id: nav; rig: rig; view: view3d; mode: "explore" }
+    OrbitInput3D { id: nav; rig: rig; view: view3d; mode: "use" }
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -242,14 +242,44 @@ Node {
     // The soft leash. Beyond the radius the excess is compressed through
     // 1 - e^-x, which is smooth at the boundary (so a drag does not visibly
     // change gear as it crosses) and bounded (so there is a furthest point).
+    // Then the depth limit, which applies leash or no leash.
     function _fitPivot(p) {
-        if (panLeash <= 0) return p
-        const dx = p.x - homePivot.x, dz = p.z - homePivot.z
-        const r = Math.hypot(dx, dz)
-        if (r <= panLeash || r < 1e-9) return p
-        const slack = Math.max(1e-6, panLeash * Math.max(0, leashSoftness))
-        const k = (panLeash + slack * (1 - Math.exp(-(r - panLeash) / slack))) / r
-        return Qt.vector3d(homePivot.x + dx * k, p.y, homePivot.z + dz * k)
+        var out = p
+        if (panLeash > 0) {
+            const dx = p.x - homePivot.x, dz = p.z - homePivot.z
+            const r = Math.hypot(dx, dz)
+            if (r > panLeash && r >= 1e-9) {
+                const slack = Math.max(1e-6, panLeash * Math.max(0, leashSoftness))
+                const k = (panLeash + slack * (1 - Math.exp(-(r - panLeash) / slack))) / r
+                out = Qt.vector3d(homePivot.x + dx * k, p.y, homePivot.z + dz * k)
+            }
+        }
+        const floor = minPivotY
+        if (out.y < floor) out = Qt.vector3d(out.x, floor, out.z)
+        return out
+    }
+
+    /*!
+        \qmlproperty real OrbitCamera3D::minPivotY
+        \readonly
+        \brief How deep the pivot may sink: exactly as far as it can climb out of.
+
+        The height floor is a rule about the \e camera, and \l _fitDistance
+        enforces it by backing the rig off - but backing off runs out at
+        \l maxDistance. From a pivot deeper than that, \e no legal pose keeps
+        the eye above ground, and the floor silently stops being a floor.
+
+        This is the missing half, and it is why the rule is a property rather
+        than a line inside \l reanchor, which is where it used to live: only
+        that one method consulted it, so \l orbitAround - which rotates the
+        pivot rigidly and can therefore drive it hundreds of units under the
+        ground - walked straight through. Every mutator goes through
+        \l _fitPivot, so putting it there is what makes "never under the
+        floor" true of the rig rather than of one method.
+    */
+    readonly property real minPivotY: {
+        const reach = maxDistance * Math.max(0.08, Math.sin(minPitch * Math.PI / 180))
+        return homePivot.y - Math.max(0, reach - minHeight)
     }
 
     // Every move goes through here: limit first, record the goal, write once.
@@ -410,9 +440,7 @@ Node {
 
     function _maxDepth(dir, c) {
         if (dir.y <= 1e-6) return Infinity
-        const reach = maxDistance * Math.sin(minPitch * Math.PI / 180)
-        const drop = Math.max(0, reach - minHeight)
-        return (c.y - homePivot.y + drop) / dir.y
+        return (c.y - minPivotY) / dir.y
     }
 
     /*!

@@ -493,5 +493,63 @@ Item {
             verify(near(plain.goalDistance, 40), "distance: " + plain.goalDistance)
             verify(near(plain.goalPivot.x, 0), "and the pivot stayed")
         }
+
+        // --- the floor --------------------------------------------------------
+        //
+        // A lab is a place, and a place you can accidentally look at from
+        // underneath stops being one. The rule is already in the rig - minPitch
+        // plus the minHeight leash - but a rule nothing checks is a rule that
+        // gets refactored away, and the gestures that can break it are exactly
+        // the ones that came later: reanchor parks the pivot UNDER the ground
+        // on purpose, and zoomToward then moves both at once.
+        //
+        // So this is the guarantee stated as an experiment: drive the rig the
+        // way a hand does, from every angle, and watch the eye.
+
+        // A deterministic shuffle - Math.random() would make a failure
+        // unreproducible, which for a floor you fell through once is useless.
+        property int _seed: 12345
+        function _rnd() {
+            _seed = (1103515245 * _seed + 12345) & 0x7fffffff
+            return _seed / 0x7fffffff
+        }
+
+        function test_no_gesture_puts_the_eye_under_the_ground() {
+            plain.homePivot = Qt.vector3d(0, 0, 0)
+            plain.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            _seed = 12345
+            var lowest = Infinity
+            for (var i = 0; i < 600; ++i) {
+                const r = _rnd()
+                // aim at points ON the ground, which is where a cursor lands
+                const t = Qt.vector3d((_rnd() - 0.5) * 400, 0, (_rnd() - 0.5) * 400)
+                if (r < 0.3) plain.orbitAround(t, (_rnd() - 0.5) * 120, (_rnd() - 0.5) * 120)
+                else if (r < 0.5) plain.orbitBy((_rnd() - 0.5) * 120, (_rnd() - 0.5) * 120)
+                else if (r < 0.7) plain.zoomToward(t, _rnd() < 0.5 ? 0.8 : 1.25)
+                else if (r < 0.85) plain.panBy((_rnd() - 0.5) * 200, (_rnd() - 0.5) * 200)
+                else plain.reanchor(t)
+                lowest = Math.min(lowest, plain.goalPosition.y)
+            }
+            verify(lowest >= 0, "the eye never got under the ground: " + lowest)
+            // to within single precision: the worst case sits EXACTLY on the
+            // limit, where the rig is backed off to maxDistance and the pivot
+            // is as deep as it may go, so the two cancel to the last bit
+            verify(lowest >= plain.minHeight - 1e-3,
+                   "and kept its clearance (" + plain.minHeight + "): " + lowest)
+        }
+
+        // The same rule where it is hardest: a pivot deliberately parked far
+        // below the ground by re-anchoring at a grazing angle, which is the one
+        // move that can put the rig's own reference point underground.
+        function test_re_anchoring_at_a_grazing_angle_stays_above_the_ground() {
+            plain.homePivot = Qt.vector3d(0, 0, 0)
+            plain.applyState({ yaw: 0, pitch: 22, distance: 170, px: 0, py: 0, pz: 0 })
+            for (var i = 0; i < 20; ++i) {
+                plain.reanchor(Qt.vector3d(0, 0, -900))
+                verify(plain.goalPosition.y >= 0,
+                       "eye above ground after reanchor " + i + ": " + plain.goalPosition.y)
+            }
+            verify(plain.goalPivot.y <= 0, "the pivot did sink, which is the point")
+        }
     }
 }
