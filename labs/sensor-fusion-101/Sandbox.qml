@@ -22,6 +22,12 @@ import "strings.js" as Strings
 // Shift+arrows turn. H still takes the tape measure out and a click still
 // drops a measuring point - a click pans by nothing, so the two do not
 // collide. Backspace takes a point back, Esc clears the run.
+//
+// Following the car is NOT a second camera and not a mode: it is this one
+// rig's pivot bound to the car. So every gesture keeps working while the car
+// is being chased - the wheel zooms in on it, a right drag turns around it -
+// because none of them touch the pivot. Panning does, which is why panning is
+// exactly what lets the car go, and C or F is what takes it back.
 Item {
     id: root
     anchors.fill: parent
@@ -65,6 +71,14 @@ Item {
     // --- truth ----------------------------------------------------------
     readonly property var carPose: Track.poseAt(pSpeed.value * clock.time)
     function truePos() { return {x: carPose.x, y: carPose.y} }
+
+    // Following, in one line: the pivot goes where the car goes. The rig's own
+    // easing does the trailing, so the chase is the same smoothing every other
+    // camera move already gets rather than a second mechanism with its own feel.
+    onCarPoseChanged: if (followCam) orbit.setPivot(Qt.vector3d(carPose.x, 0, carPose.y))
+    // Taking the car back leaves the zoom and the angle you chose alone - it
+    // only re-binds the pivot, which is what makes C cheap to press.
+    onFollowCamChanged: if (followCam) orbit.setPivot(Qt.vector3d(carPose.x, 0, carPose.y))
 
     readonly property var buildingData: [
         {x: 30, y: 10, h: 7}, {x: 30, y: -12, h: 5}, {x: 0, y: 22, h: 9},
@@ -267,10 +281,12 @@ Item {
         followCam = false
         orbit.frame([Qt.vector3d(-30, 0, -22), Qt.vector3d(30, 0, 22)], 1.35)
     }
+    // F is "back to the car", so it re-binds the chase as well as framing it -
+    // there is no reason to frame a moving thing and then watch it drive away.
     function frameSelection() {
-        followCam = false
         orbit.frame([Qt.vector3d(carPose.x - 12, 0, carPose.y - 12),
                      Qt.vector3d(carPose.x + 12, 0, carPose.y + 12)], 1.2)
+        followCam = true
     }
 
     // View-state for the dojo reload convention.
@@ -347,15 +363,19 @@ Item {
         }
         environment: stage.environment
 
-        camera: root.followCam ? camFollow : orbit.camera
+        camera: orbit.camera
 
-        // free look: drag to orbit, shift- or right-drag to travel, wheel to
-        // zoom, 0 to reframe. On a leash - it always looks at the city, never
-        // sinks through the ground, and cannot wander off into the empty plane.
+        // The one rig, whether or not it is chasing anything: drag to travel,
+        // right-drag to turn, wheel to zoom, 0 to reframe. On a leash - it
+        // always looks at the city, never sinks through the ground, and cannot
+        // wander off into the empty plane.
+        //
+        // It opens at the car's own distance rather than the city's, because
+        // following is the state the lab starts in.
         OrbitCamera3D {
             id: orbit
             pivot: Qt.vector3d(0, 0, -2)
-            yaw: 0; pitch: 42; distance: 78
+            yaw: 0; pitch: 38; distance: 30
             minPitch: 8; maxPitch: 84
             minDistance: 14; maxDistance: 220
             minHeight: 6
@@ -366,18 +386,10 @@ Item {
             viewpoints: ({
                 "city":   { yaw: 0, pitch: 42, distance: 78,
                             px: 0, py: 0, pz: -2 },
+                "car":    { pitch: 38, distance: 30 },
                 "top":    { pitch: 82, distance: 120 },
                 "street": { pitch: 14, distance: 40 }
             })
-        }
-        // close-up rig translating with the true car, fixed viewing angle
-        Node {
-            position: Qt.vector3d(root.carPose.x, 0, root.carPose.y)
-            PerspectiveCamera {
-                id: camFollow
-                position: Qt.vector3d(0, 13, 17)
-                eulerRotation: Qt.vector3d(-36, 0, 0)
-            }
         }
         // the street: a marking on the ground, so it lies FLAT - a billboard
         // ribbon splays on curves and breaks the road into wedges. Opaque with
@@ -613,16 +625,6 @@ Item {
     // --- lab UI ---------------------------------------------------------
     // HUD slots, as every lab uses them: presets top-left, language top-right
     // with the parameters under it, plot along the bottom, monitor bottom-right.
-    // Language and palette, the two switches that change nothing about the
-    // experiment and everything about who can read it.
-    Row {
-        id: topSwitches
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
-        spacing: LabTheme.spaceM
-        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
-        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
-        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
-    }
     ParamPanel {
         id: params
         anchors.right: parent.right; anchors.top: topSwitches.bottom
@@ -664,9 +666,13 @@ Item {
         id: viewMouse
         anchors.fill: parent
         hoverEnabled: true
-        enabled: !root.followCam
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         cursorShape: nav.cursorShape
+
+        // Where the press started, so a pan can be told from a click without
+        // asking the pointer for state it does not publish.
+        property real pressX: 0
+        property real pressY: 0
 
         // The one lab where the belt and the camera share the left button, and
         // the only lab where they safely can: a click pans by nothing (a pan
@@ -676,12 +682,21 @@ Item {
         // lab with nothing to select keep its most natural gesture AND still be
         // measured in.
         onPressed: (m) => {
+            // Clicking a HUD chip gives the keyboard to that chip, and then C,
+            // the arrows and every other key go somewhere the lab never hears
+            // about. A press on the view takes it back - which is what the
+            // other two labs already do on their own view press.
+            root.forceActiveFocus()
             if (hands.held && m.button === Qt.LeftButton) hands.press(m.x, m.y)
+            pressX = m.x; pressY = m.y
             nav.begin(m.x, m.y, m.button, m.modifiers)
         }
         onPositionChanged: (m) => {
             if (pressed) hands.move(m.x, m.y)
-            if (nav.move(m.x, m.y)) return
+            if (nav.move(m.x, m.y)) {
+                if (root.panLetsGo(m.x, m.y)) root.followCam = false
+                return
+            }
             if (!pressed) nav.hoverAt(m.x, m.y)
         }
         onReleased: { nav.end(); hands.release() }
@@ -694,14 +709,20 @@ Item {
         target: nav
         function onCancelled() { hands.putAway() }
     }
-    // Measuring needs the pointer, and while the camera is chasing the car the
-    // pointer is not the viewer's - so taking an instrument out lets the car
-    // go. The same thing F and 0 already do, for the same reason.
-    Connections {
-        target: hands
-        function onHeldChanged() {
-            if (hands.held) root.followCam = false
-        }
+
+    // Language, size and theme, top right - and declared AFTER the view's
+    // mouse area for the same reason the panels are: this lab's camera claims
+    // the whole window on the left button, so anything the pointer is meant to
+    // reach has to sit above it. They used to sit below and were only clickable
+    // because the camera was switched off while it chased the car, which meant
+    // they went dead the moment anyone looked around.
+    Row {
+        id: topSwitches
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
+        spacing: LabTheme.spaceM
+        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
     // --- legend --------------------------------------------------------
@@ -1098,7 +1119,36 @@ Item {
         width: LabTheme.px(320)
     }
 
+    // A pan moves the pivot and so does following: they cannot both have it.
+    // Dragging the world is the plainer statement of the two - you asked to
+    // look somewhere else - so it wins, and C or F is how you say you were
+    // only browsing. A pan that never travelled is a click and takes nothing
+    // away, or measuring would cost you the chase every time you measured.
+    //
+    // Named rather than written into the handler so the rule can be asked of
+    // the lab directly, which is the only way it gets tested: a drag cannot be
+    // synthesized, a question can be answered.
+    function panLetsGo(x, y) {
+        return followCam && nav.gesture === "pan"
+               && Math.hypot(x - viewMouse.pressX, y - viewMouse.pressY) > nav.clickSlop
+    }
+
+    // The arrows and WASD pan, so they let the car go for the same reason a
+    // drag does. Shift with the same keys turns instead, and turning is
+    // something the pivot does not mind, so it keeps the chase.
+    function _isPanKey(k) {
+        return k === Qt.Key_Left  || k === Qt.Key_A
+            || k === Qt.Key_Right || k === Qt.Key_D
+            || k === Qt.Key_Up    || k === Qt.Key_W
+            || k === Qt.Key_Down  || k === Qt.Key_S
+    }
+
     Keys.onPressed: (ev) => {
+        // not while a prompt or the key list owns the keyboard: a letter typed
+        // into a probe's name is not a request to stop following anything
+        if (root.followCam && !hands.pinning && !keymap.helpVisible
+            && !(ev.modifiers & Qt.ShiftModifier) && root._isPanKey(ev.key))
+            root.followCam = false
         if (keymap.handle(ev)) return
         if (ev.key === Qt.Key_Escape) root.followCam = true
     }
