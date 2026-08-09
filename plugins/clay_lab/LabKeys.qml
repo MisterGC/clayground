@@ -22,13 +22,15 @@ import QtQuick
     keyboard could not do at all. While a flow runs, \c → and \c ← belong to
     the flow, so the arrows are the camera's only when nothing is narrating.
 
-    The interaction half, on a lab that hands over its \l pointer: \c B turns
-    building on and off, and \b Space moves the view while it is held. With an
-    \l hands belt wired up, \c H takes the next instrument (and past the last
-    one, puts everything down), \c P keeps the reading it is showing,
-    \b Backspace takes the last point back and \b Esc ends the measurement.
-    All of them are described here for the same reason as everything else - a
-    key nobody can find is a key the lab does not have.
+    The interaction half, on a lab that hands over its \l pointer: \b Space
+    pans on the left button while it is held, which is the one gesture the
+    left button ever lends the camera. There is no build key, because there is
+    no build mode - a tool is something you pick up. With an \l hands belt
+    wired up, \c H takes the next instrument (and past the last one, puts
+    everything down), \c P keeps the reading it is showing, \b Backspace takes
+    the last point back and \b Esc ends the measurement. All of them are
+    described here for the same reason as everything else - a key nobody can
+    find is a key the lab does not have.
 
     Non-visual: keep focus handling where it is and call \l handle() from the
     lab's own key handler, and \l handleRelease() from \c Keys.onReleased.
@@ -78,12 +80,11 @@ Item {
 
     /*!
         \qmlproperty var LabKeys::pointer
-        \brief An \c OrbitInput3D, for the build-mode keys.
+        \brief An \c OrbitInput3D, for the one key that touches the mouse.
 
-        Two keys, and the second one is the reason this lives here rather than
-        in the lab: \c B switches building for good, and \b Space hands the
-        view over \e while it is held - a quasimode, which means a key RELEASE
-        has to be seen too. Wire \l handleRelease from the lab's
+        \b Space lends the left button to the camera \e while it is held - a
+        quasimode, which is why this lives here rather than in the lab: a key
+        RELEASE has to be seen too. Wire \l handleRelease from the lab's
         \c Keys.onReleased.
 
         Space is shared with a running \l flow, which keeps it: while a
@@ -110,16 +111,12 @@ Item {
     /*! \qmlproperty string LabKeys::pinKey \brief The letter that keeps a reading. */
     property string pinKey: "P"
 
-    /*! \qmlproperty string LabKeys::modeKey \brief The letter that cycles the modes. */
-    property string modeKey: "B"
-
     /*!
-        \qmlproperty bool LabKeys::modeKeys
+        \qmlproperty bool LabKeys::navKeys
         \readonly
-        \brief The mode keys are live: there is a pointer and it can switch.
+        \brief There is a pointer, so Space can lend it to the camera.
     */
-    readonly property bool modeKeys: pointer !== null && pointer !== undefined
-                                     && pointer.modeSwitchable === true
+    readonly property bool navKeys: pointer !== null && pointer !== undefined
 
     /*!
         \qmlproperty bool LabKeys::handKeys
@@ -209,10 +206,7 @@ Item {
             out.push({ key: "T", label: "keys.flow" })
             out.push({ key: "␣", label: "keys.next" })
         }
-        if (modeKeys) {
-            out.push({ key: modeKey, label: "keys.mode" })
-            out.push({ key: "␣", label: "keys.nav" })
-        }
+        if (navKeys) out.push({ key: "␣", label: "keys.nav" })
         if (handKeys) {
             out.push({ key: handKey, label: "keys.hand" })
             out.push({ key: pinKey, label: "keys.pin" })
@@ -281,11 +275,11 @@ Item {
             return true
         }
 
-        // --- the mode, and the hand you can hold down
+        // --- the view you can hold down
         // After the flow block on purpose: a running narration keeps Space.
-        if (modeKeys) {
-            if (ev.key === Qt.Key_Space) { pointer.springNav = true; return true }
-            if (_letterOf(ev) === modeKey) { pointer.cycleMode(); return true }
+        if (navKeys && ev.key === Qt.Key_Space) {
+            pointer.springNav = true
+            return true
         }
 
         // --- what is in the hand
@@ -394,7 +388,7 @@ Item {
         platforms, and taking those at face value makes the hand flicker.
     */
     function handleRelease(ev) {
-        if (modeKeys && ev.key === Qt.Key_Space && !ev.isAutoRepeat) {
+        if (navKeys && ev.key === Qt.Key_Space && !ev.isAutoRepeat) {
             pointer.springNav = false
             return true
         }

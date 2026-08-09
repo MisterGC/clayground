@@ -1,16 +1,17 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
-// The belt: what is on it, what is in the hand, and the two rules that make
-// "navigation is never taken away" true in practice rather than on paper.
+// The belt: what is on it, what is in the hand, and the rule that decides what
+// a left click means.
 //
-// The first is that picking is on exactly when something is held - the belt is
-// the only writer of that flag, so this is where it can be checked at all.
+// That last one used to live in OrbitInput3D, gated on a mode, and the mode is
+// why the switch on a circuit board could not be flipped: the camera took the
+// press. The camera no longer takes the left button at all, so nothing gates
+// the hand any more - which moves the click-versus-drag decision here, where it
+// is the belt's own arithmetic and can be checked without a camera.
 //
-// The second is the one case where the hand and the mode are not independent.
-// Building and holding an instrument are two claims on the same short click,
-// and a state where both are true is a tool that silently does nothing while
-// the hint bar describes it working. That was a real render, not a
-// hypothetical, which is why it has a case here.
+// The pointer below is a fake with just two members: pickAt, which the belt
+// asks, and nothing else. That it is that small IS the contract - the belt
+// writes no state on the pointer, so there is no state to get stuck.
 
 import QtQuick
 import QtTest
@@ -19,16 +20,15 @@ import Clayground.Lab
 Item {
     width: 50; height: 50
 
-    // Stands in for an OrbitInput3D: the members the belt touches, with the
-    // same rules about which modes exist.
+    // Stands in for an OrbitInput3D. Pixel (x, y) is world (x, 0, y), so every
+    // assertion below is readable by eye.
     QtObject {
         id: pointer
-        property string mode: "build"
-        property bool picking: false
-        property var modes: ["build", "use"]
-        function allows(m) { return modes.indexOf(m) >= 0 }
-        function setMode(m) { if (allows(m)) mode = m }
-        signal picked(var pick)
+        property int asked: 0
+        function pickAt(x, y) {
+            asked += 1
+            return { point: Qt.vector3d(x, 0, y), object: null, x: x, y: y }
+        }
     }
 
     InstrumentBelt {
@@ -42,7 +42,9 @@ Item {
 
         function init() {
             belt.putAway()
-            pointer.mode = "build"
+            belt.release()          // no press left running from a failed case
+            pointer.asked = 0
+            for (const i of belt.instruments) if (i.clear) i.clear()
         }
 
         function pickAt(x, z) { return { point: Qt.vector3d(x, 0, z), object: null } }
@@ -87,54 +89,105 @@ Item {
             compare(belt.heldIndex, -1, "past the last one, the hand empties")
         }
 
-        // --- the one input that changes meaning -------------------------------
-
-        function test_picking_is_on_exactly_while_something_is_held() {
-            verify(!pointer.picking, "an empty hand picks nothing")
+        // Taking an instrument out writes NOTHING on the pointer. It used to
+        // set a flag and switch a mode, and both were only there because the
+        // camera might otherwise have eaten the click.
+        function test_taking_an_instrument_touches_the_pointer_not_at_all() {
             belt.takeNamed("dist")
-            verify(pointer.picking, "and a full one does")
+            compare(pointer.asked, 0, "nothing was asked of it")
             belt.putAway()
-            verify(!pointer.picking, "and it goes off again")
+            compare(pointer.asked, 0)
+        }
+
+        // --- the click, versus the drag ---------------------------------------
+
+        function test_a_click_reaches_the_instrument_in_hand() {
+            belt.takeNamed("dist")
+            belt.press(60, -40)
+            verify(belt.release(), "the press was a click")
+            compare(belt.held.count, 1, "and it landed")
+            const p = belt.held.picks[0]
+            verify(Math.abs(p.x - 60) < 1e-3 && Math.abs(p.z + 40) < 1e-3,
+                   "where it was clicked: " + p)
+        }
+
+        // A drag with a tape measure in hand is somebody dragging, not
+        // measuring: the lab may be doing something else with that gesture, and
+        // a stray point is the more annoying of the two mistakes.
+        function test_a_drag_hands_over_nothing() {
+            belt.takeNamed("dist")
+            belt.press(60, -40)
+            belt.move(120, -40)
+            verify(!belt.release(), "not a click")
+            compare(belt.held.count, 0, "so nothing was measured")
+            compare(pointer.asked, 0, "and the pointer was never even asked")
+        }
+
+        // A hand that trembles is not a drag.
+        function test_a_trembling_click_is_still_a_click() {
+            belt.takeNamed("dist")
+            belt.press(60, -40)
+            belt.move(62, -39)
+            verify(belt.release())
+            compare(belt.held.count, 1)
+            const p = belt.held.picks[0]
+            verify(Math.abs(p.x - 60) < 1e-3,
+                   "the pressed pixel, not the released one: " + p)
+        }
+
+        // Distance FROM THE PRESS, not path length: a drag that wanders out and
+        // comes back is still a drag.
+        function test_a_drag_that_returns_home_is_still_a_drag() {
+            belt.takeNamed("dist")
+            belt.press(60, -40)
+            belt.move(160, -40)
+            belt.move(60, -40)
+            verify(!belt.release())
+            compare(belt.held.count, 0)
+        }
+
+        function test_a_click_with_an_empty_hand_goes_nowhere() {
+            belt.press(60, -40)
+            verify(!belt.release(), "nothing is holding it")
+            for (const i of belt.instruments) compare(i.count, 0, i.name)
+            compare(pointer.asked, 0)
         }
 
         function test_a_pick_reaches_the_instrument_in_hand_and_no_other() {
             belt.takeNamed("dist")
-            pointer.picked(pickAt(1, 2))
+            belt.press(1, 2)
+            belt.release()
             compare(belt.held.count, 1)
             const other = belt.instruments[1]
             compare(other.count, 0, "the one on the belt heard nothing")
         }
 
-        function test_a_pick_with_an_empty_hand_goes_nowhere() {
-            pointer.picked(pickAt(1, 2))
-            for (const i of belt.instruments) compare(i.count, 0, i.name)
+        // A release with no press before it is not a click - the lab forwards
+        // every release it gets, including the ones that began on the camera.
+        function test_a_release_without_a_press_is_nothing() {
+            belt.takeNamed("dist")
+            verify(!belt.release())
+            compare(belt.held.count, 0)
+            verify(!belt.move(10, 10), "and a move outside a press says so too")
         }
 
-        // --- the coupling -----------------------------------------------------
-
-        function test_taking_an_instrument_hands_the_pointer_over() {
-            compare(pointer.mode, "build")
+        // A measurement survives NAVIGATING, which is the thing that used to
+        // destroy it: looking around meant leaving the measuring mode, and
+        // leaving the mode put the tape away. Nothing here reaches the camera
+        // any more, so the run cannot be collateral damage.
+        //
+        // (Putting the tape down still ends the run - HandheldInstrument's
+        // clearOnPutAway, which tst_tapemeasure owns.)
+        function test_a_reading_survives_everything_the_pointer_does() {
             belt.takeNamed("dist")
-            compare(pointer.mode, "use",
-                    "an instrument in a building hand would be a dead tool")
-        }
-
-        function test_going_back_to_building_puts_the_instrument_away() {
-            belt.takeNamed("dist")
-            pointer.mode = "build"
-            verify(belt.empty, "the click is the lab's again, so the hand is empty")
-            verify(!pointer.picking)
-        }
-
-        // A lab with nothing to build never enters that state, and the
-        // coupling must not invent a mode it does not have.
-        function test_a_lab_that_cannot_build_is_unaffected() {
-            pointer.modes = ["use"]
-            pointer.mode = "use"
-            belt.takeNamed("dist")
-            compare(pointer.mode, "use")
-            verify(pointer.picking)
-            pointer.modes = ["build", "use"]
+            belt.press(0, 0); belt.release()
+            belt.press(3, 4); belt.release()
+            compare(belt.held.count, 2)
+            // presses the camera took: the lab never forwards them, so the belt
+            // sees a release with no press - and must not mistake it for a click
+            belt.release()
+            belt.move(200, 200)
+            compare(belt.held.count, 2, "the measurement is untouched")
         }
     }
 }

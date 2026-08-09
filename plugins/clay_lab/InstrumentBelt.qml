@@ -31,13 +31,28 @@ import Clayground.Lab
     }
     \endqml
 
-    \section2 It owns the one input that changes meaning
+    \section2 It owns the hand's click
 
-    The belt is the only thing that writes \c {OrbitInput3D::picking}, and it
-    writes it for exactly one reason: something is in the hand. Every
-    navigation gesture is untouched either way - that is the whole contract, and
-    keeping it in one place is what stops it drifting. The instruments
-    themselves never see the pointer; they are handed picks.
+    The left button is the lab's, always - \l OrbitInput3D never takes it - so
+    something has to decide what a left click means while an instrument is out.
+    That is this: \l press, \l move and \l release are the hand's half of the
+    lab's mouse handler, and they apply one rule, a click versus a drag. A
+    click asks the pointer what was under it and hands the answer to the
+    instrument; a drag hands over nothing, because a drag with a tape measure
+    in hand is somebody dragging, not measuring.
+
+    \qml
+    onPressed: (m) => {
+        if (nav.begin(m.x, m.y, m.button, m.modifiers) !== "") return
+        if (hands.held) { hands.press(m.x, m.y); return }
+        // ...the lab's own tool
+    }
+    \endqml
+
+    The instruments themselves never see the pointer; they are handed picks.
+    There is no mode anywhere in this, and the belt writes no state on the
+    pointer - taking an instrument out changes what a click does and nothing
+    else, which is why it can be done at any moment.
 
     \section2 Coordinates
 
@@ -153,39 +168,72 @@ Item {
                  reading: held ? held.info() : null }
     }
 
-    // The one write that changes what an input means. Declarative, so it can
-    // never be left switched on by a code path that forgot.
-    Binding {
-        target: root.pointer
-        property: "picking"
-        value: root.held !== null
-        when: root.pointer !== null
-        restoreMode: Binding.RestoreBindingOrValue
+    // --- the hand's click ---------------------------------------------------
+    // The lab forwards the presses the camera declined, which with the default
+    // buttons is every left press. The three functions below are the whole of
+    // what the belt does with the pointer - it writes nothing on it.
+
+    /*!
+        \qmlproperty real InstrumentBelt::clickSlop
+        \brief Pixels a press may travel and still count as a click.
+
+        The same number \c OrbitInput3D uses for the right button, for the same
+        reason: a click and a drag arrive as the same events and only the
+        distance travelled tells them apart. A hand that trembles is not a
+        drag.
+    */
+    property real clickSlop: 4
+
+    /*!
+        \qmlmethod void InstrumentBelt::press(real x, real y)
+        \brief Begins a press at viewport pixel (\a x, \a y).
+
+        Records where, and decides nothing: whether this is a click cannot be
+        known until the button comes up.
+    */
+    function press(x, y) {
+        _hand.pressX = x; _hand.pressY = y; _hand.moved = 0; _hand.down = true
     }
 
-    Connections {
-        target: root.pointer
-        ignoreUnknownSignals: true
-        function onPicked(pick) { if (root.held) root.held.add(pick) }
-        // Building and holding an instrument are the two claims on the same
-        // click, so they cannot both be true: entering build puts whatever was
-        // in the hand away.
-        function onModeChanged() {
-            if (root.pointer.mode === "build") root.putAway()
-        }
+    /*!
+        \qmlmethod bool InstrumentBelt::move(real x, real y)
+        \brief Continues the press; false when none is running.
+    */
+    function move(x, y) {
+        if (!_hand.down) return false
+        // distance FROM THE PRESS, not path length: a drag that wanders out
+        // and comes back is still a drag
+        _hand.moved = Math.max(_hand.moved,
+                               Math.hypot(x - _hand.pressX, y - _hand.pressY))
+        return true
     }
 
-    // ...and the other direction. Taking an instrument out is already the
-    // decision to use it, so it hands the pointer over rather than leaving a
-    // state where something is in the hand and a click still builds - which is
-    // a dead tool with a hint bar describing it. One key, one intent.
-    //
-    // This is the ONLY coupling between the hand and the mode, and it is not a
-    // mode switch in disguise: every navigation gesture is identical on both
-    // sides of it. What changes is only who gets the short click.
-    onHeldChanged: {
-        if (held && pointer && pointer.allows && pointer.allows("use"))
-            pointer.setMode("use")
+    /*!
+        \qmlmethod bool InstrumentBelt::release()
+        \brief Ends the press; true if it was a click that reached an instrument.
+
+        The pick is taken at the pixel that was \e pressed rather than the one
+        released: within a click the two are the same to within \l clickSlop,
+        and asking about the press is what makes the answer independent of the
+        wobble.
+    */
+    function release() {
+        if (!_hand.down) return false
+        _hand.down = false
+        if (_hand.moved > clickSlop) return false
+        if (!held || !pointer || !pointer.pickAt) return false
+        const p = pointer.pickAt(_hand.pressX, _hand.pressY)
+        if (!p) return false
+        held.add(p)
+        return true
+    }
+
+    QtObject {
+        id: _hand
+        property bool down: false
+        property real pressX: 0
+        property real pressY: 0
+        property real moved: 0
     }
 
     // Instruments are handed their context rather than reaching for it: that

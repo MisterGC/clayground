@@ -1,15 +1,16 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
-// The half of the key map that changes what the MOUSE means, which is the half
-// worth guarding: a stuck hand tool (Space held, focus lost, release never
-// delivered) leaves every drag moving the scene with nothing on screen saying
-// why, and a mode key that a running narration steals leaves the learner
-// pressing Space and watching the tour skip ahead.
+// The half of the key map that touches the MOUSE, which is the half worth
+// guarding: a stuck hand tool (Space held, focus lost, release never delivered)
+// leaves every drag moving the scene with nothing on screen saying why, and a
+// key that a running narration steals leaves the learner pressing Space and
+// watching the tour skip ahead.
 //
-// Since the modes collapsed there are two of them - build and use - and what
-// used to be a third is an instrument on a belt. So the cases below come in
-// two halves: which mode the pointer is in, and what is in the hand. They are
-// independent on purpose, and one case here says exactly that.
+// There is one such key left. B is gone with the modes it switched: a tool is
+// something you pick up now, so the only key that lends the mouse to the camera
+// is Space, and it lends it only for as long as it is held. What remains
+// besides is the belt - H, P and the editing keys - which is a separate half
+// and does not negotiate with anything.
 //
 // The events are plain objects rather than synthesized key presses: handle()
 // reads three fields off them, and building a real event would test QtTest's
@@ -23,23 +24,11 @@ Item {
     width: 50; height: 50
     id: fakeLab
 
-    // Stands in for an OrbitInput3D: the members LabKeys touches, with the
-    // same rules - the modes a scene offers are a LIST, and one mode is no
-    // switch at all.
+    // Stands in for an OrbitInput3D - and it is this small on purpose: the one
+    // member LabKeys writes is springNav.
     QtObject {
         id: pointer
-        property string mode: "build"
         property bool springNav: false
-        property bool picking: false
-        property var modes: ["build", "use"]
-        property bool modeLocked: false
-        readonly property var allowedModes: modeLocked ? [mode] : modes
-        readonly property bool modeSwitchable: allowedModes.length > 1
-        function cycleMode() {
-            const a = allowedModes
-            if (a.length < 2) return
-            mode = a[(a.indexOf(mode) + 1) % a.length]
-        }
     }
 
     // Stands in for one instrument: a subject and the two edits.
@@ -81,16 +70,13 @@ Item {
     }
 
     TestCase {
-        name: "LabKeys.modes"
+        name: "LabKeys.pointer"
 
         function init() {
             keymap.flow = null
             keymap.hands = null
             keymap.helpVisible = false
-            pointer.modes = ["build", "use"]
-            pointer.mode = "build"
             pointer.springNav = false
-            pointer.modeLocked = false
             fakeFlow.running = false
             fakeFlow.nexts = 0
             fakeTape.count = 0
@@ -103,12 +89,11 @@ Item {
                      isAutoRepeat: repeat === true }
         }
 
-        function test_space_is_a_quasimode() {
+        function test_space_lends_the_view_while_it_is_held() {
             verify(keymap.handle(ev(Qt.Key_Space)), "the key is consumed")
-            verify(pointer.springNav, "the view moves while held")
-            compare(pointer.mode, "build", "and the sticky mode is untouched")
+            verify(pointer.springNav, "the left button pans while held")
             verify(keymap.handleRelease(ev(Qt.Key_Space)), "the release too")
-            verify(!pointer.springNav, "back to building on release")
+            verify(!pointer.springNav, "and it leaves nothing behind")
         }
 
         // A held key repeats as press/release pairs on some platforms; taken at
@@ -123,36 +108,28 @@ Item {
             verify(!pointer.springNav, "the real one is")
         }
 
-        function test_b_turns_building_on_and_off() {
-            verify(keymap.handle(ev(Qt.Key_B)))
-            compare(pointer.mode, "use")
-            keymap.handle(ev(Qt.Key_B))
-            compare(pointer.mode, "build", "and back again")
+        // The mode key is gone, and B is now free for whatever a lab wants:
+        // this map does not claim it, and nothing happens to the pointer.
+        function test_b_is_nobodys_key_any_more() {
+            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
+            verify(!pointer.springNav, "and it moved nothing")
+            const labels = keymap.entries.map(e => e.label)
+            compare(labels.indexOf("keys.mode"), -1, "nor is it in the help")
         }
 
-        // A lab with a single mode has nothing to show or switch.
-        function test_a_one_mode_pointer_has_no_mode_keys() {
-            pointer.mode = "use"
-            pointer.modes = ["use"]
-            verify(!keymap.modeKeys)
-            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
-            compare(pointer.mode, "use")
-            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
-            verify(!pointer.springNav)
-        }
-
-        function test_a_locked_pointer_has_no_mode_keys() {
-            pointer.mode = "use"
-            pointer.modeLocked = true
-            verify(!keymap.modeKeys)
-            verify(!keymap.handle(ev(Qt.Key_B)), "B is not claimed")
-            compare(pointer.mode, "use")
-            verify(!keymap.handle(ev(Qt.Key_Space)), "and Space is not either")
-            verify(!pointer.springNav)
+        // A lab that hands over no pointer has no Space either - it is the
+        // camera's key, and there is no camera.
+        function test_no_pointer_no_space() {
+            keymap.pointer = null
+            verify(!keymap.navKeys)
+            verify(!keymap.handle(ev(Qt.Key_Space)), "Space is not claimed")
+            const labels = keymap.entries.map(e => e.label)
+            compare(labels.indexOf("keys.nav"), -1, "and it is not documented")
+            keymap.pointer = pointer
         }
 
         // Space belongs to a narration while one is on screen: in every lab it
-        // is "next step" there, and a reader is not reaching for the hand.
+        // is "next step" there, and a reader is not reaching for the view.
         function test_a_running_flow_keeps_space() {
             keymap.flow = fakeFlow
             fakeFlow.running = true
@@ -161,18 +138,13 @@ Item {
             verify(!pointer.springNav, "and nothing sprang")
             fakeFlow.running = false
             verify(keymap.handle(ev(Qt.Key_Space)))
-            compare(fakeFlow.nexts, 1, "with the flow stopped it is the hand's")
+            compare(fakeFlow.nexts, 1, "with the flow stopped it is the view's")
             verify(pointer.springNav)
         }
 
-        function test_the_map_documents_the_mode_keys() {
+        function test_the_map_documents_the_one_pointer_key() {
             const labels = keymap.entries.map(e => e.label)
-            verify(labels.indexOf("keys.mode") >= 0, "the toggle is listed")
-            verify(labels.indexOf("keys.nav") >= 0, "and the quasimode")
-            pointer.modeLocked = true
-            const locked = keymap.entries.map(e => e.label)
-            compare(locked.indexOf("keys.mode"), -1, "a locked lab lists neither")
-            compare(locked.indexOf("keys.nav"), -1)
+            verify(labels.indexOf("keys.nav") >= 0, "the quasimode is listed")
         }
 
         // --- the belt --------------------------------------------------------
@@ -185,17 +157,14 @@ Item {
             compare(fakeBelt.heldIndex, -1, "and past the last one the hand empties")
         }
 
-        // The hand and the mode are separate controls, but they cannot both
-        // claim the short click - so the belt couples them in the one place
-        // where they would otherwise produce a dead tool. LabKeys does not:
-        // it presses the keys, and the belt decides what that means. (The
-        // coupling itself is checked where it lives, in tst_belt.)
-        function test_the_keys_stay_out_of_the_coupling() {
+        // H used to have to negotiate with B, because taking an instrument out
+        // had to take the pointer back off the lab's tool. It does not any more:
+        // the belt and the camera share nothing.
+        function test_taking_an_instrument_moves_nothing_but_the_belt() {
             keymap.hands = fakeBelt
             keymap.handle(ev(Qt.Key_H))
             compare(fakeBelt.heldIndex, 0, "H took an instrument")
-            compare(pointer.mode, "build",
-                    "and the key itself changed no mode - the belt's business")
+            verify(!pointer.springNav, "and the camera never heard about it")
         }
 
         function test_p_asks_what_to_call_the_reading() {
@@ -209,15 +178,15 @@ Item {
         }
 
         // While the prompt is open the keyboard is the prompt's: typing a name
-        // that contains a b or an h must not switch modes underneath it.
+        // that contains an h must not empty the hand underneath it.
         function test_the_prompt_owns_the_keyboard_while_it_is_open() {
             keymap.hands = fakeBelt
             keymap.handle(ev(Qt.Key_H))
             fakeBelt.pinning = true
             verify(!keymap.handle(ev(Qt.Key_H)), "H is the prompt's")
-            verify(!keymap.handle(ev(Qt.Key_B)), "and so is B")
+            verify(!keymap.handle(ev(Qt.Key_Space)), "and so is Space")
             compare(fakeBelt.heldIndex, 0)
-            compare(pointer.mode, "build")
+            verify(!pointer.springNav)
         }
 
         // --- the tape measure's two keys -------------------------------------
