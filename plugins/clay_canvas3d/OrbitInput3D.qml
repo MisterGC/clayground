@@ -485,6 +485,10 @@ Item {
     function beginAs(g, x, y) {
         _coast.stop()
         _s.gesture = (g === "orbit" || g === "pan") ? g : ""
+        // The hand has the pose now, so it must not glide: see
+        // OrbitCamera3D::gripped. Taken before the first step, dropped when
+        // the coast stops, so a thrown scene is direct all the way down.
+        if (rig && rig.gripped !== undefined) rig.gripped = _s.gesture !== ""
         _s.lastX = x; _s.lastY = y
         _s.vx = 0; _s.vy = 0
         _s.anchor = null
@@ -536,13 +540,19 @@ Item {
         }
         _s.pickAt = null
         if (flick && Math.hypot(_s.vx, _s.vy) >= flickThreshold) _coast.start()
-        else { _s.gesture = ""; _s.anchor = null }
+        else { _s.gesture = ""; _s.anchor = null; _release() }
     }
 
     /*! \qmlmethod void OrbitInput3D::cancel() \brief Ends the drag with no coast. */
     function cancel() {
         _coast.stop(); _s.gesture = ""; _s.anchor = null; _s.vx = 0; _s.vy = 0
         _s.pickAt = null; _s.moved = 0
+        _release()
+    }
+
+    // The rig glides again once no hand is on it.
+    function _release() {
+        if (rig && rig.gripped !== undefined) rig.gripped = false
     }
 
     /*!
@@ -652,6 +662,7 @@ Item {
             _s.vy *= root.flickDecay
             if (!root.rig || Math.hypot(_s.vx, _s.vy) < 0.35) {
                 stop(); _s.gesture = ""; _s.anchor = null; _s.vx = 0; _s.vy = 0
+                root._release()
                 return
             }
             root._step(_s.vx, _s.vy)

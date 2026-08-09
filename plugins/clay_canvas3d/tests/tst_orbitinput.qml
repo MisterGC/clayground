@@ -212,6 +212,25 @@ Item {
                    "dragging down walks the pivot away: " + rig.goalPivot.z)
         }
 
+        // The input layer is what takes the grip, for exactly the length of the
+        // gesture: the rig itself has no idea whether a hand is on it.
+        function test_a_drag_grips_the_rig_and_lets_go_after() {
+            nav.mode = "use"
+            verify(!rig.gripped, "idle")
+            nav.begin(120, 40, Qt.LeftButton, 0)
+            verify(rig.gripped, "a drag holds it")
+            nav.move(100, 40)
+            verify(rig.gripped, "still")
+            nav.cancel()
+            verify(!rig.gripped, "and lets go")
+        }
+
+        function test_a_declined_press_does_not_grip() {
+            nav.mode = "build"
+            compare(nav.begin(120, 40, Qt.LeftButton, 0), "", "the scene's press")
+            verify(!rig.gripped, "so the rig was never taken")
+        }
+
         // --- the one input that changes meaning -------------------------------
         //
         // Everything above is true whether or not something is in the hand.

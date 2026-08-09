@@ -147,6 +147,31 @@ Node {
     */
     property int travelMs: 550
 
+    /*!
+        \qmlproperty bool OrbitCamera3D::gripped
+        \brief A hand is driving the pose right now, so it does not glide.
+
+        The distinction \l smoothMs was missing. A glide is right for a move
+        the rig makes on its own - a \l focusOn, a scenario reframing itself,
+        an arrow key - because there the eye needs to be carried along. It is
+        \e wrong for a drag: grab-the-ground panning promises that the point
+        under the cursor stays under the cursor, and a pose easing towards its
+        goal over 150 ms mathematically cannot keep that promise. The ground
+        trails the hand, and the rig reads as something heavy being nudged
+        rather than as a sheet being pushed.
+
+        \l OrbitInput3D sets this for the length of a drag (and of the coast
+        out of a flick, which is the same gesture still finishing). Everything
+        else keeps its glide.
+    */
+    property bool gripped: false
+
+    /*!
+        \qmlproperty int OrbitCamera3D::gripMs
+        \brief Glide while \l gripped. Zero, and rarely anything else.
+    */
+    property int gripMs: 0
+
     /*! \qmlproperty real OrbitCamera3D::fieldOfView \brief Vertical FOV of the camera. */
     property real fieldOfView: 60
 
@@ -618,7 +643,8 @@ Node {
         _travelBack.restart()
     }
     property int _travelMs: 0
-    readonly property int _glideMs: _travelMs > 0 ? _travelMs : smoothMs
+    readonly property int _glideMs: gripped ? gripMs
+                                   : _travelMs > 0 ? _travelMs : smoothMs
     property Timer _travelBack: Timer {
         interval: root._glideMs + 40
         onTriggered: root._travelMs = 0

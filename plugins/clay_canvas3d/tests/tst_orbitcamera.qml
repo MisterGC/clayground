@@ -494,6 +494,45 @@ Item {
             verify(near(plain.goalPivot.x, 0), "and the pivot stayed")
         }
 
+        // --- the grip ---------------------------------------------------------
+        //
+        // Grab-the-ground panning promises the point under the cursor stays
+        // under it. An eased pose cannot keep that promise - it arrives 150 ms
+        // later - and the whole rig reads as heavy. So a hand on the rig turns
+        // the glide off, and everything else keeps it.
+
+        function gap(a, b) { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) }
+
+        function test_a_gripped_rig_arrives_at_once() {
+            eased.gripped = false
+            eased.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            eased.panBy(20, 0)
+            verify(gap(eased.pivot, eased.goalPivot) > 1e-6,
+                   "ungripped, the pose is still on its way: " + eased.pivot)
+
+            eased.gripped = true
+            eased.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            eased.panBy(20, 0)
+            verify(gap(eased.pivot, eased.goalPivot) < 1e-6,
+                   "gripped, it is already there: " + eased.pivot + " vs " + eased.goalPivot)
+            eased.gripped = false
+            wait(settle)
+        }
+
+        // The grip is about the HAND, not about the rig: a journey taken while
+        // gripped would jump, so nothing that travels may set it.
+        function test_the_grip_does_not_outlive_the_drag() {
+            eased.gripped = true
+            eased.gripped = false
+            eased.applyState({ yaw: 0, pitch: 48, distance: 80, px: 0, py: 0, pz: 0 })
+            // a SHORT journey: focusOn's own travelMs would leave this rig
+            // gliding into the next case, which is its own kind of leak
+            eased.focusOn(Qt.vector3d(40, 0, 0), undefined, 40)
+            verify(gap(eased.pivot, eased.goalPivot) > 1e-6,
+                   "a focus still glides: " + eased.pivot)
+            wait(settle)
+        }
+
         // --- the floor --------------------------------------------------------
         //
         // A lab is a place, and a place you can accidentally look at from
