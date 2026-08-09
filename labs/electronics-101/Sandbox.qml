@@ -704,7 +704,10 @@ Item {
         // The tape measure, in the same screen space and for the same reason:
         // it answers "how far apart are those pads" without a mode that could
         // disturb the board, and it never clips into a part.
-        MeasureTool { id: measure; pointer: nav }
+        // The kit's own Voltmeter is NOT on this belt yet, and deliberately:
+        // see its \note - View3D.pick reports no hit for the parts in this
+        // scene, so the chip would be there and the click would do nothing.
+        InstrumentBelt { id: hands; pointer: nav }
         environment: stage.environment
 
         OrbitCamera3D {
@@ -1743,8 +1746,8 @@ Item {
         text: {
             // the mode outranks everything: while the pointer is the camera's,
             // a hint about clicking pads describes a lab you are not in
-            if (nav.exploring) return LabLang.t("hint.explore")
-            if (nav.measuring) return LabLang.t("mode.hint.measure")
+            if (!hands.empty) return LabLang.t(hands.held.hint)
+            if (nav.navigating) return LabLang.t("hint.explore")
             if (root.eraser) return LabLang.t("hint.eraser")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
@@ -1793,7 +1796,7 @@ Item {
         lab: root
         camera: rig
         pointer: nav
-        measure: measure
+        hands: hands
         flow: ledFlow
         recorder: recorder
         keys: [

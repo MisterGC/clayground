@@ -295,7 +295,7 @@ Item {
         if (s.lidarOn !== undefined) _lidarOn = s.lidarOn
         Lab.applyViewState(s)
         if (s.cam) orbit.applyState(s.cam)
-        if (s.mode) nav.setMode(s.mode)   // locked to explore here, so a no-op
+        if (s.mode) nav.setMode(s.mode)   // one mode here, so a no-op
         if (s.followCam !== undefined) followCam = s.followCam
         if (s.showMonitor !== undefined) showMonitor = s.showMonitor
         if (s.showGrid !== undefined) showGrid = s.showGrid
@@ -338,7 +338,14 @@ Item {
         // "how far did the fix land from the truth" is the lab's whole
         // question, and now it can be asked of any two points on the ground
         // rather than only of the pairs the legend happens to list.
-        MeasureTool { id: measure; pointer: nav; measureUnit: "m" }
+        InstrumentBelt {
+            id: hands
+            pointer: nav
+            unit: "m"
+            // the error plot runs the full width along the bottom, so the belt
+            // sits above it rather than behind it
+            rowMargin: plot.height + LabTheme.px(48) + LabTheme.spaceL
+        }
         environment: stage.environment
 
         camera: root.followCam ? camFollow : orbit.camera
@@ -660,7 +667,7 @@ Item {
         rig: orbit
         view: view3d
         mode: "explore"
-        modes: ["explore", "measure"]
+        modes: ["use"]         // nothing to build here, so there is no mode at all
     }
     MouseArea {
         anchors.fill: parent
@@ -674,12 +681,12 @@ Item {
         onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
     }
     // Measuring needs the pointer, and while the camera is chasing the car the
-    // pointer is not the viewer's - so taking the tape out lets the car go.
-    // The same thing F and 0 already do, for the same reason.
+    // pointer is not the viewer's - so taking an instrument out lets the car
+    // go. The same thing F and 0 already do, for the same reason.
     Connections {
-        target: nav
-        function onModeChanged() {
-            if (nav.mode === "measure") root.followCam = false
+        target: hands
+        function onHeldChanged() {
+            if (hands.held) root.followCam = false
         }
     }
 
@@ -995,7 +1002,7 @@ Item {
         text: {
             // the mode outranks the story: while the tape measure is out, a
             // hint about the fusion describes something you are not doing
-            if (nav.measuring) return LabLang.t("mode.hint.measure")
+            if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.tunnelOn && root.carInTunnel) return LabLang.t("hint.tunnel")
             if (!root._lidarOn) return LabLang.t("hint.lidarOut")
             if (!root.followCam) return LabLang.t("hint.free")
@@ -1061,7 +1068,7 @@ Item {
         lab: root
         camera: orbit
         pointer: nav
-        measure: measure
+        hands: hands
         flow: fusionFlow
         recorder: recorder
         keys: [

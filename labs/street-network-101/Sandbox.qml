@@ -870,7 +870,7 @@ Item {
         // "how long is that road, and how sharp is that junction" is asked of
         // a plan constantly, and until now the only answer was counting grid
         // squares. The plan is in the lab's own units, so "u" it is.
-        MeasureTool { id: measure; pointer: nav }
+        InstrumentBelt { id: hands; pointer: nav }
         environment: stage.environment
 
         OrbitCamera3D {
@@ -2152,8 +2152,8 @@ Item {
         text: {
             // the mode outranks everything: while the pointer is the camera's,
             // a hint about drawing describes a lab you are not in
-            if (nav.exploring) return LabLang.t("hint.explore")
-            if (nav.measuring) return LabLang.t("mode.hint.measure")
+            if (!hands.empty) return LabLang.t(hands.held.hint)
+            if (nav.navigating) return LabLang.t("hint.explore")
             if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
             if (root.eraser) return LabLang.t("hint.erasing")
             if (root.drawFrom) return LabLang.t("hint.drawing")
@@ -2195,7 +2195,7 @@ Item {
         lab: root
         camera: rig
         pointer: nav
-        measure: measure
+        hands: hands
         recorder: recorder
         keys: [
             { key: "S", label: "key.simulate", action: () => root.toggleSim() },
