@@ -1799,6 +1799,7 @@ Item {
     // is a time series, so "how long has that LED been at 40 mA" was a
     // question the page could not answer.
     TransportChip {
+        id: transport
         clock: clock
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
@@ -1809,6 +1810,7 @@ Item {
 
     // --- hint bar ----------------------------------------------------------
     HintBar {
+        id: hintBar
         flow: ledFlow                 // the narrator owns this slot while it runs
         rightGuard: monitor
         text: {

@@ -130,10 +130,15 @@ the thing carrying everything. A `BudgetBar` answers "where does it all go?"
 for any conserved quantity — volts round a loop, current at a junction,
 power in a machine — so other labs can borrow it as-is.
 
-| | |
-|---|---|
-| ![one wire from plus to minus](figures/short.png) | ![the cell's budget, entirely red](figures/budget.png) |
-| a single wire from $+$ to $-$: the banner drops and the wire carrying 9 A is drawn in alarm colour | the same cell's budget bar — **0.00 V reaches your parts, 4.50 V is lost inside the cell** |
+![one wire from plus to minus](figures/short.png)
+
+*A single wire from $+$ to $-$: the banner drops and the wire carrying 9 A is
+drawn in alarm colour.*
+
+![the cell's budget, entirely red](figures/budget.png)
+
+*The same cell's budget bar —* **0.00 V reaches your parts, 4.50 V is lost
+inside the cell.**
 
 The bar is the argument. "A short is bad" is a rule to memorise; *every volt
 you paid for is being burned inside the battery, so there is none left for
@@ -196,10 +201,15 @@ barely glow; parallel halves them ($0.5 + 3$) so each bulb gets nearly
 the full cell and blazes. That contrast, produced by rewiring alone, is
 the core physical lesson of the lab.
 
-| | |
-|---|---|
-| ![two bulbs in series](figures/series.png) | ![two bulbs in parallel](figures/parallel.png) |
-| **series** — one loop, so 359.7 mA appears on *every* wire and the cell's volts divide, 2.16 V to each bulb | **parallel** — a ladder, so both bulbs sit across the same 3.85 V and the current splits, 641 mA each, rejoining at the rails |
+![two bulbs in series](figures/series.png)
+
+***series*** *— one loop, so 359.7 mA appears on every wire and the cell's
+volts divide, 2.16 V to each bulb.*
+
+![two bulbs in parallel](figures/parallel.png)
+
+***parallel*** *— a ladder, so both bulbs sit across the same 3.85 V and the
+current splits, 641 mA each, rejoining at the rails.*
 
 Same two bulbs, same cell, same switch. The only difference is which wire goes
 where — and it is visible before you read a single number, in how brightly the
@@ -307,7 +317,7 @@ scale and says so. A resistor needs no print: its bands are the actual
 colour code, two significant digits plus a decade, so they change with the
 value the way a bought resistor's do.
 
-<img src="figures/palette.png" alt="the palette, with each part's schematic symbol beside its colour" width="224">
+![the palette, with each part's schematic symbol beside its colour](figures/palette.png)
 
 *The palette, actual size. Every part carries the symbol it becomes on a
 circuit diagram, next to the colour it has on the board — so the translation
@@ -465,7 +475,7 @@ So there is a third way to hold one, and it is the ordinary one: the strip
 along the bottom edge of the screen is a **belt**, `H` walks along it, and
 whatever is in your hand takes the next left click.
 
-<img src="figures/belt.png" alt="the belt, with the voltmeter in hand" width="293">
+![the belt, with the voltmeter in hand](figures/belt.png)
 
 *The belt, actual size, with the voltmeter taken out — the lit chip is what
 the next click will do. `Resistor` sits on the same strip as the meters,
