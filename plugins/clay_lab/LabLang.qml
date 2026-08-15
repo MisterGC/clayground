@@ -2,6 +2,7 @@
 
 pragma Singleton
 import QtQuick
+import "format.js" as Format
 
 /*!
     \qmltype LabLang
@@ -123,12 +124,61 @@ QtObject {
     }
 
     /*!
+        \qmlmethod string LabLang::qty(real v, string unit, int digits)
+        \brief A quantity with its SI prefix chosen for readability.
+
+        \c {qty(0.05, "A")} is \c {"50.0 mA"}, \c {qty(1500, "Ω")} is
+        \c {"1.50 kΩ"}, and both follow the language's decimal separator.
+        Every lab so far hand-rolled its own mA/A crossover, differently and
+        once per unit; this is that rule, in one place, with a node suite
+        behind it.
+
+        \a digits is optional - without it the value gets three significant
+        figures, which is what an instrument reading is worth. Units that
+        cannot take a prefix (\c "%", \c "/min", a bare count) are printed
+        as they stand.
+
+        \sa num()
+    */
+    function qty(v, unit, digits) {
+        return Format.qty(v, unit, digits, decimalPoint)
+    }
+
+    /*!
+        \qmlmethod var LabLang::qtyParts(real v, string unit, int digits)
+        \brief \l qty() split into \c {{number, prefix, unit, fullUnit}}.
+
+        For a readout that sets the number and the unit in different type - a
+        gauge, a big status figure - so it never has to re-split a formatted
+        string to get there.
+    */
+    function qtyParts(v, unit, digits) {
+        return Format.parts(v, unit, digits, decimalPoint)
+    }
+
+    /*!
         \qmlmethod string LabLang::langName(string code)
         \brief Display name for a language code (the code itself if unknown).
     */
     function langName(code) {
         const names = { "en": "EN", "de": "DE" }
         return names[code] ? names[code] : code.toUpperCase()
+    }
+
+    onLangChanged: LabPrefs.set("ui.lang", lang)
+
+    // The language a lab is read in belongs to the reader, not to the run.
+    // Applied only once a dictionary actually offers it, so an early restore
+    // cannot strand the lab in a language nothing is registered for.
+    property string _wanted: ""
+    function _applyWanted() {
+        if (_wanted !== "" && languages.indexOf(_wanted) !== -1 && lang !== _wanted)
+            lang = _wanted
+    }
+    onLanguagesChanged: _applyWanted()
+    Component.onCompleted: {
+        _wanted = String(LabPrefs.get("ui.lang", ""))
+        _applyWanted()
     }
 
     // The kernel's own strings, so a lab gets its chrome translated without
@@ -160,11 +210,34 @@ QtObject {
             "keys.back": "step back",
             "keys.frame": "frame selection",
             "keys.reset": "reset view",
-            "keys.record": "record CSV",
+            "keys.record": "record a run",
             "keys.cancel": "cancel",
             "keys.help": "this list",
             "keys.view": "turn · zoom the view",
-            "scenario.pick": "presets"
+            "keys.pan": "move across the scene",
+            "keys.orbit": "turn the view",
+            "keys.zoom": "zoom",
+            "keys.uiscale": "text size",
+            "keys.nav": "pan on the left button while held",
+            "keys.hand": "take the next instrument",
+            "keys.pin": "keep this reading",
+            "keys.unmeasure": "undo the last point · Esc clears",
+            "mode.hint.hand": "click measures · right-drag turns the view · ⌫ undoes · P keeps it · Esc clears",
+            "hand.hint.clock": "click starts the clock · click again stops it · sim seconds, so pausing pauses it",
+            "hand.tape": "tape",
+            "hand.stopwatch": "clock",
+            "hand.volts": "volts",
+            "hand.pin.ask": "keep this reading as",
+            "hand.pin.hint": "⏎ keeps it · Esc cancels",
+            "scenario.pick": "presets",
+            "watch.add": "watch",
+            "watch.on": "watching",
+            "watch.full": "plot full",
+            "time.pause": "pause",
+            "time.resume": "resume",
+            "rec.label": "REC",
+            "dock.hidden": "put away",
+            "dock.showAll": "all back"
         },
         "de": {
             "lab.parameters": "PARAMETER",
@@ -184,11 +257,34 @@ QtObject {
             "keys.back": "Schritt zurück",
             "keys.frame": "Auswahl zeigen",
             "keys.reset": "Ansicht zurücksetzen",
-            "keys.record": "CSV aufzeichnen",
+            "keys.record": "Lauf aufzeichnen",
             "keys.cancel": "abbrechen",
             "keys.help": "diese Liste",
             "keys.view": "Ansicht drehen · zoomen",
-            "scenario.pick": "Vorlagen"
+            "keys.pan": "Szene durchqueren",
+            "keys.orbit": "Ansicht drehen",
+            "keys.zoom": "zoomen",
+            "keys.uiscale": "Schriftgröße",
+            "keys.nav": "halten: linke Taste bewegt die Ansicht",
+            "keys.hand": "nächstes Instrument nehmen",
+            "keys.pin": "Messwert behalten",
+            "keys.unmeasure": "letzten Punkt zurück · Esc löscht",
+            "mode.hint.hand": "Klick misst · rechte Taste dreht die Ansicht · ⌫ zurück · P behält · Esc löscht",
+            "hand.hint.clock": "Klick startet die Uhr · nochmal Klick stoppt sie · Simulationssekunden, Pause hält sie an",
+            "hand.tape": "Maßband",
+            "hand.stopwatch": "Uhr",
+            "hand.volts": "Volt",
+            "hand.pin.ask": "Messwert behalten als",
+            "hand.pin.hint": "⏎ behält · Esc bricht ab",
+            "scenario.pick": "Vorlagen",
+            "watch.add": "beobachten",
+            "watch.on": "beobachtet",
+            "watch.full": "Plot voll",
+            "time.pause": "Pause",
+            "time.resume": "weiter",
+            "rec.label": "AUFN",
+            "dock.hidden": "weggelegt",
+            "dock.showAll": "alle zurück"
         }
     })
 }

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import QtQuick.Window // For Screen
 
 import Clayground.Canvas3D
 
@@ -32,6 +31,12 @@ import Clayground.Canvas3D
     \sa Box3DGeometry
 */
 Model {
+    id: root
+
+    // Mirrors Box3DGeometry::EdgeMode so the documented "edgeMode:
+    // Box3D.Triangles" spelling resolves without naming the geometry.
+    enum EdgeMode { FaceBorders, Triangles }
+
     /*!
         \qmlproperty color Box3D::color
         \brief The base color of the box.
@@ -91,7 +96,17 @@ Model {
 
     /*!
         \qmlproperty real Box3D::edgeThickness
-        \brief Thickness of edge lines.
+        \brief Thickness of edge lines, in pixels.
+
+        Screen-space, so an edge keeps its weight as the camera moves - and
+        the same width VoxelMap::edgeThickness produces, not just the same
+        unit. A line straddles the boundary it marks and each surface draws
+        half of it, so a box border and a voxel map's border come out equal at
+        the same setting; a voxel map's interior grid lines sit entirely on
+        one face and so draw the full width.
+
+        Defaults to 0.03, which is thinner than one pixel - set it to a few
+        pixels to see anything.
     */
     property alias edgeThickness: _geometry.edgeThickness
 
@@ -99,17 +114,62 @@ Model {
         \qmlproperty real Box3D::edgeColorFactor
         \brief Darkening factor for edges (0-1).
 
-        Lower values create darker edges.
+        Lower values create darker edges. Ignored once edgeColor is set.
     */
     property alias edgeColorFactor: _geometry.edgeColorFactor
+
+    /*!
+        \qmlproperty color Box3D::edgeColor
+        \brief The edge color, as an absolute color rather than a factor.
+
+        Wins over edgeColorFactor as soon as it has a visible alpha, which is
+        what counts as set here - a fully transparent edge has no meaning, so
+        it serves as the unset sentinel and leaves opaque black reachable.
+
+        \qml
+        Box3D {
+            color: "#e6d2f2"
+            edgeColor: "#2f3437"    // dark grey edges on a light face
+        }
+        \endqml
+    */
+    property alias edgeColor: _geometry.edgeColor
 
     /*!
         \qmlproperty int Box3D::edgeMask
         \brief Bitmask controlling which edges are visible.
 
-        Use allEdges, topEdges, bottomEdges, etc.
+        Use allEdges, topEdges, bottomEdges, etc. Applies in the default
+        \c FaceBorders mode only - see \l edgeMode.
     */
     property alias edgeMask: _geometry.edgeMask
+
+    /*!
+        \qmlproperty enumeration Box3D::edgeMode
+        \brief Which lines showEdges draws.
+
+        \value Box3D.FaceBorders The twelve borders of the six faces - a box
+               drawn as a box. The default.
+        \value Box3D.Triangles The box's actual triangulation, so every face
+               also shows the diagonal splitting it into two triangles. For
+               showing how the mesh is built rather than what it depicts.
+
+        \l edgeMask selects among the face borders and applies to
+        \c FaceBorders only; in \c Triangles mode every triangle edge is drawn
+        and the mask is ignored.
+
+        \qml
+        Box3D {
+            color: "#0f9d9a"
+            edgeMode: Box3D.Triangles
+            edgeColor: "#101820"
+            edgeThickness: 2
+        }
+        \endqml
+
+        \sa Box3DGeometry::edgeMode
+    */
+    property int edgeMode: Box3D.FaceBorders
 
     property bool cullMode: false
     property alias lighting: _material.lighting
@@ -142,6 +202,7 @@ Model {
         size: Qt.vector3d(width, height, depth)
         edgeColorFactor: 0.4
         edgeMask: Box3DGeometry.AllEdges
+        edgeMode: root.edgeMode
     }
 
     materials: [
@@ -164,10 +225,9 @@ Model {
             property bool showEdges: _geometry.showEdges
             property real edgeThickness: _geometry.edgeThickness
             property real edgeColorFactor: _geometry.edgeColorFactor
+            property color edgeColor: _geometry.edgeColor
             property int edgeMask: _geometry.edgeMask
-
-            // Add viewport height for consistent edge thickness
-            property real viewportHeight: Screen.desktopAvailableHeight
+            property int edgeMode: root.edgeMode
         }
     ]
 }

@@ -27,7 +27,15 @@ import "strings.js" as Strings
 // Keys: 1..4 scenarios · S simulate · C clear · E erase · L lane model ·
 // V flow numbers · M lane graph · W plot the selected road · X close/open the
 // selected junction · # grid mode · Del remove · Esc cancel · Shift+R record.
-// View: right-drag turns, wheel zooms, arrows/+/- nudge, F frames, 0 resets.
+//
+// There is no mode. The LEFT BUTTON IS ALWAYS THE PLAN'S: an empty hand draws
+// a road on a drag and selects on a click, and whatever is on the belt (H)
+// takes the click instead while it is out. Navigation never competes for it -
+// right-drag turns the world about the point under the cursor, a right CLICK
+// puts down whatever is in the hand, the middle button drags the world, the
+// wheel zooms towards the cursor, double-click on bare sheet re-centres there,
+// and holding Space pans on the left button while held. Arrows travel,
+// Shift+arrows turn, +/- zoom, F frames, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -108,8 +116,23 @@ Item {
         name: "waiting"; unit: "%"
         expr: () => Traffic.stoppedShare(root.simState) * 100
     }
+    // The throughput of a plan whose journeys have somewhere to end: cars
+    // reaching a house, per minute, smoothed over the kit's 12 s window. Flat
+    // zero without houses, which is the honest reading - nothing arrives
+    // anywhere when there is nowhere to arrive.
+    Probe {
+        name: "arrivals"; unit: "/min"
+        expr: () => Traffic.arrivalRate(root.simState)
+    }
 
-    DataRecorder { id: recorder; destination: "street-network-101-run.csv" }
+    // Shift+R writes a scratch run record into the lab's own records/ dir. No
+    // command: a frame-driven session cannot be regenerated, and the citable
+    // records are the ones a committed driver steps out (see the clay-lab skill).
+    DataRecorder {
+        id: recorder
+        lab: "street-network-101"
+        destination: "labs/street-network-101/records/session.labrec"
+    }
 
     // --- monitoring --------------------------------------------------------
     // The plotted set is the WATCHED set, and what you watch is a road you
@@ -120,6 +143,12 @@ Item {
     // as in the legend. The mechanism is the kernel's WatchMonitor; what stays
     // here is what a road is worth right now.
     readonly property alias watch: monitor.watched
+
+    // The monitor under a name the kernel's own widgets can reach. A WatchChip
+    // and a WatchMark both declare a property CALLED monitor, which shadows the
+    // id inside them - `monitor: monitor` there is a property assigned to
+    // itself, and it fails silently as an invisible chip.
+    readonly property alias watchMonitor: monitor
 
     function watchValueOf(roadId) {
         if (monitor.quantity === "flow") return Traffic.roadRate(simState, roadId)
@@ -148,6 +177,51 @@ Item {
     property var laneFlow: []       // per-lane relative business, 0..1
 
     property bool running: false
+
+    // --- houses ------------------------------------------------------------
+    // Four fixed places traffic comes from and goes to. Without them `demand`
+    // spreads over lane length, so drawing more road quietly buys more cars and
+    // "which network shape is better?" turns into "which one did I draw more
+    // of". Pinning the houses - and with them the fleet size - is what makes
+    // two plans over the same four points comparable, which is the whole reason
+    // the studies under studies/ can be run at all.
+    //
+    // A house is a POINT, declared by a scenario or a study; it binds to
+    // whatever node lands under it. It is not a destination anybody drives
+    // TOWARDS: the sim has no routing, so a car leaving one house wanders until
+    // it happens to reach a house. Every study using them has to say so.
+    property var houses: []                 // [{x, z}] as declared
+    readonly property real houseSnap: 9.0   // how close a node must be to count
+
+    // Which nodes the declared houses actually landed on. Re-derived on every
+    // graph edit, so declaring houses before drawing the roads works - which is
+    // the order a study writes anyway.
+    readonly property var houseNodes: {
+        graphRev
+        const out = []
+        for (const h of houses) {
+            const nd = RoadGraph.nearestNode(graph, h.x, h.z, houseSnap)
+            if (nd && out.indexOf(nd.id) === -1) out.push(nd.id)
+        }
+        return out
+    }
+    // A house with no node under it is drawn differently rather than ignored
+    // silently - "why is nothing moving?" should be answerable by looking.
+    function houseNodeAt(h) {
+        const nd = RoadGraph.nearestNode(graph, h.x, h.z, houseSnap)
+        return nd ? nd.id : -1
+    }
+    // cars per house at demand 1.0; the fleet is then demand x this x houses
+    readonly property int carsPerHouse: 10
+
+    function setHouses(list) {
+        const out = []
+        for (const h of (list || []))
+            out.push(Array.isArray(h) ? { x: h[0], z: h[1] } : { x: h.x, z: h.z })
+        houses = out
+        rebuild()
+    }
+    function houseLabel(i) { return String.fromCharCode(65 + i) }   // A, B, C, D
 
     // --- starting and stopping ---------------------------------------------
     // Stopping is not pausing: the cars dissolve and the plan is handed back
@@ -200,6 +274,14 @@ Item {
         const p = Traffic.defaultParams()
         p.demand = Lab.p("demand")
         p.vmax = Lab.p("speed")
+        const hn = houseNodes
+        if (hn.length) {
+            p.houses = hn
+            // With houses the fleet is pinned to the HOUSES, not to how much
+            // road there is - see the houses block above for why that is the
+            // difference between a comparison and a coincidence.
+            p.target = Math.round(Lab.p("demand") * carsPerHouse * hn.length)
+        }
         return p
     }
 
@@ -240,8 +322,7 @@ Item {
 
     // --- editing -----------------------------------------------------------
     function snapWorld(v, modifiers) {
-        return modifiers === undefined ? (grid.snap ? Math.round(v / cell) * cell : v)
-                                       : grid.quantize(v, modifiers)
+        return grid.quantize(v, modifiers === undefined ? Qt.NoModifier : modifiers)
     }
     function inBoard(x, z) {
         return Math.abs(x) <= boardW / 2 && Math.abs(z) <= boardH / 2
@@ -278,6 +359,9 @@ Item {
     }
     function clearPlan() {
         graph = RoadGraph.empty()
+        // houses belong to the plan they were declared for; leaving them behind
+        // would strand four markers on the next scenario's empty sheet
+        houses = []
         simState = Traffic.createState()
         clearSelection()
         monitor.clear()
@@ -516,9 +600,10 @@ Item {
     // --- camera ------------------------------------------------------------
     function framePoints(pts) {
         if (!pts || !pts.length) {
-            rig.pivot = Qt.vector3d(0, 0, 0)
-            rig.distance = 210
-            rig.clamp()
+            // one applyState, not a pivot write plus a setDistance: the rig
+            // eases, so two writes would start two glides and the sheet would
+            // slide sideways while it zoomed back out
+            rig.applyState({ px: 0, py: 0, pz: 0, distance: 210 })
             return
         }
         rig.frame(pts, 1.12)
@@ -594,11 +679,13 @@ Item {
 
     // --- serialization (the viewState convention) --------------------------
     function planState() {
-        return { graph: RoadGraph.clone(graph), newLanes: newLanes }
+        return { graph: RoadGraph.clone(graph), newLanes: newLanes,
+                 houses: houses.map(h => ({ x: h.x, z: h.z })) }
     }
     function loadPlan(s) {
         graph = RoadGraph.clone(s.graph)
         if (s.newLanes) newLanes = s.newLanes
+        houses = (s.houses || []).map(h => ({ x: h.x, z: h.z }))
         clearSelection()
         simState = Traffic.createState()
         rebuild()
@@ -706,6 +793,7 @@ Item {
     function flowActions() {
         return {
             "road":     (x1, z1, x2, z2) => addRoad(x1, z1, x2, z2),
+            "houses":   (list) => setHouses(list),
             "remove":   (id) => removeRoad(id),
             "lanes":    (id, n) => setRoadLanes(id, n),
             "select":   (kind, id) => root.select(kind, id),
@@ -717,7 +805,8 @@ Item {
             "scenario": (n) => applyScenario(n),
             "showLanes": (on) => { showLanes = on },
             "showValues": (on) => { showValues = on },
-            "frame":    (what) => what === "selection" ? frameSelection() : framePlan()
+            "frame":    (what) => what === "selection" ? frameSelection() : framePlan(),
+            "view":     (name) => rig.goTo(name)
         }
     }
 
@@ -729,6 +818,15 @@ Item {
             lanes: net.stats.lanes, turns: net.stats.connectors,
             laneLength: Math.round(net.stats.laneLength),
             conflictPairs: net.stats.conflictPairs
+        }
+        // Declared vs bound is the distinction that matters: a house floating
+        // off the road network is why a run produced no traffic, and an agent
+        // has to be able to see that without a screenshot.
+        info.network.houses = {
+            declared: houses.length, bound: houseNodes.length,
+            nodes: houseNodes.slice(),
+            at: houses.map((h, i) => ({ label: houseLabel(i), x: h.x, z: h.z,
+                                        node: houseNodeAt(h) }))
         }
         info.traffic = Traffic.summary(net, simState, simParams())
         info.traffic.running = running
@@ -753,13 +851,26 @@ Item {
         anchors.fill: parent
         camera: rig.camera
 
-        environment: SceneEnvironment {
-            // a touch lighter than the table, so a horizon line appears at low
-            // camera angles and the eye keeps a reference
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
+        // The whole stage - ground, light rig, environment - in one block. The
+        // plan sheet is the shared lab surface: an endless sheet of squared
+        // paper whose raster is drawn in the fragment shader, showing crosses
+        // while the grid snaps and dots when placement is free. Everything the
+        // mouse does maps through it (see worldAt).
+        LabStage3D {
+            id: stage
+            cellSize: root.cell
+            majorEvery: 5                 // a heavier rule every 50 units
+            gridMode: grid
+            workExtent: Qt.vector2d(root.boardW, root.boardH)
+            shadowMapFar: 420             // measured: covers the plan at maxDistance 420
         }
+        CameraAnchorMark { pointer: nav }
+        // The tape measure, in the same screen space and for the same reason:
+        // "how long is that road, and how sharp is that junction" is asked of
+        // a plan constantly, and until now the only answer was counting grid
+        // squares. The plan is in the lab's own units, so "u" it is.
+        InstrumentBelt { id: hands; pointer: nav }
+        environment: stage.environment
 
         OrbitCamera3D {
             id: rig
@@ -772,82 +883,22 @@ Item {
             minDistance: 30
             maxDistance: 420
             minHeight: 14        // taller than anything on the plan
-        }
-
-        // Key light with real shadows, plus two fills. Nothing here is glossy;
-        // depth comes from value, not glare. shadowMapFar has to cover the
-        // board at full zoom-out (the range is camera-relative) and the table
-        // is kept modest, because a ground plane the size of the horizon
-        // starves the shadow map.
-        DirectionalLight {
-            eulerRotation.x: -38
-            eulerRotation.y: -28
-            brightness: 0.92
-            castsShadow: true
-            shadowFactor: LabTheme.shadowFactor
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            shadowMapFar: 420
-            csmNumSplits: 2
-            shadowBias: 3
-            softShadowQuality: Light.PCF4
-            pcfFactor: 1
-        }
-        DirectionalLight { eulerRotation.x: -60; eulerRotation.y: 145; brightness: 0.34 }
-        DirectionalLight { eulerRotation.x: -22; eulerRotation.y: 18; brightness: 0.26 }
-
-        Model {  // the table the plan lies on
-            source: "#Cube"
-            position: Qt.vector3d(0, -3.0, 0)
-            scale: Qt.vector3d(root.boardW * 1.22 / 100, 0.02, root.boardH * 1.3 / 100)
-            castsShadows: false
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.table
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-
-        Model {  // the plan sheet - the only pickable model; everything maps through it
-            id: sheet
-            source: "#Cube"
-            pickable: true
-            position: Qt.vector3d(0, -0.4, 0)
-            scale: Qt.vector3d(root.boardW / 100, 0.008, root.boardH / 100)
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.sheet
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-        Box3D {  // the sheet's ink rim
-            width: root.boardW + 2.4; height: 0.9; depth: root.boardH + 2.4
-            position: Qt.vector3d(0, -1.3, 0)
-            color: LabTheme.inkSolid
-            useToonShading: true
-        }
-
-        // Plan grid: crosses while the grid snaps, dots when placement is
-        // free - the sheet itself says which mode you are in (grafli's cue).
-        Repeater3D {
-            model: root.cols * root.rows
-            Model {
-                required property int index
-                source: root.snapToGrid ? "#Cube" : "#Cylinder"
-                castsShadows: false
-                position: Qt.vector3d(
-                    (index % root.cols - (root.cols - 1) / 2) * root.cell, 0.02,
-                    (Math.floor(index / root.cols) - (root.rows - 1) / 2) * root.cell)
-                scale: root.snapToGrid ? Qt.vector3d(0.010, 0.0006, 0.010)
-                                       : Qt.vector3d(0.008, 0.0008, 0.008)
-                materials: PrincipledMaterial {
-                    baseColor: LabTheme.grid
-                    lighting: PrincipledMaterial.NoLighting
-                }
-            }
+            // The pan leash. A plan is drawn edge to edge, so travelling has
+            // to reach a full plan-width out - but no further, or the sheet
+            // disappears behind you on an endless ground.
+            homePivot: Qt.vector3d(0, 0, 0)
+            panLeash: stage.workRadius
+            viewpoints: ({
+                "plan":  { yaw: 0, pitch: 52, distance: 210, px: 0, py: 0, pz: 0 },
+                "top":   { yaw: 0, pitch: 86, distance: 260 },
+                "kerb":  { pitch: 22, distance: 70 }
+            })
         }
 
         Streets3D {
             id: streets
             net: root.net
-            surfaceY: 0.07
+            surfaceY: stage.overlayY(3)   // inside the stage's overlay budget
             showLanes: root.showLanes
             hoveredRoad: root.hoverHit && root.hoverHit.kind === "road"
                          ? root.hoverHit.id : -1
@@ -875,6 +926,46 @@ Item {
                 Box3D {
                     width: modelData.width * 0.94; height: 0.7; depth: 0.9
                     position: Qt.vector3d(0, 0.1, 0)
+                    color: LabTheme.accent
+                    useToonShading: true
+                }
+            }
+        }
+
+        // The houses: where journeys start and end once a study pins them down.
+        // A body and a gable, nothing more - at this camera pitch a plain box
+        // reads as a building only once it has a roof line, and a roof is one
+        // box turned 45 degrees whose lower half hides inside the walls.
+        //
+        // A house that found no node under it is drawn in the muted grey and
+        // sunk to the sheet, because it is doing nothing: no traffic will start
+        // or end there, and that has to be visible rather than merely reported.
+        Repeater3D {
+            model: { root.graphRev; return root.houses }
+            Node {
+                required property var modelData
+                required property int index
+                // graphRev is READ, not merely implied: houseNodeAt() looks at
+                // the graph inside a function call, which a binding cannot see,
+                // so without this a house declared before its roads were drawn
+                // stays "unbound" for ever - grey and flat next to a road that
+                // is plainly there.
+                readonly property bool bound: {
+                    root.graphRev
+                    return root.houseNodeAt(modelData) !== -1
+                }
+                position: Qt.vector3d(modelData.x, 0, modelData.z)
+                Box3D {
+                    width: 7.6; height: bound ? 4.4 : 1.0; depth: 7.6
+                    position: Qt.vector3d(0, height / 2, 0)
+                    color: bound ? LabTheme.clay : LabTheme.muted
+                    useToonShading: true
+                }
+                Box3D {
+                    visible: bound
+                    width: 5.6; height: 5.6; depth: 8.0
+                    position: Qt.vector3d(0, 6.2, 0)
+                    eulerRotation.z: 45
                     color: LabTheme.accent
                     useToonShading: true
                 }
@@ -985,35 +1076,45 @@ Item {
         }
     }
 
+    // --- navigation ---------------------------------------------------------
+    // The camera gestures are the kernel's (OrbitInput3D), and so is the rule
+    // for who owns which button. The rule is one sentence: the LEFT button is
+    // never the camera's - not "not in build mode", not "not over a road", but
+    // never, so a drag on this sheet always draws and a click always selects.
+    // The camera gets the right button, the middle one, the wheel, the arrows,
+    // and the left button only while Space is held.
+    OrbitInput3D {
+        id: nav
+        rig: rig
+        view: view3d
+    }
+
     // --- mouse -------------------------------------------------------------
-    // Left drag DRAWS - it is what this lab is for. The view is on the right
-    // button, so building never fights with looking.
+    // Left drag DRAWS - it is what this lab is for.
     MouseArea {
         id: planMouse
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        property bool orbiting: false
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
         property var dragNode: null
-        property real lastX: 0
-        property real lastY: 0
 
-        function snapping(mods) {
-            return root.snapToGrid !== ((mods & Qt.AltModifier) !== 0)
-        }
-        function worldAt(mx, my) {
-            const res = view3d.pick(mx, my)
-            if (res && res.objectHit === sheet) return res.scenePosition
-            return null
-        }
+        // The grid mode owns both rules - Alt inverting the mode for one
+        // gesture, and the rounding itself - so every lab quantizes alike.
+        function snapping(mods) { return grid.snapping(mods) }
+        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
         function snapped(w, mods) {
-            return snapping(mods)
-                ? { x: Math.round(w.x / root.cell) * root.cell,
-                    z: Math.round(w.z / root.cell) * root.cell }
-                : { x: w.x, z: w.z }
+            return { x: grid.quantize(w.x, mods), z: grid.quantize(w.z, mods) }
         }
 
-        onWheel: (wheel) => rig.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
+
+        onDoubleClicked: (mouse) => {
+            // only over bare sheet: a double-click on a road or a junction is
+            // the plan's, not the camera's
+            const w = worldAt(mouse.x, mouse.y)
+            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
+        }
 
         // The gesture lives in named functions rather than in the signal
         // handlers, so a flow, a test or an agent can perform the SAME drag a
@@ -1035,15 +1136,22 @@ Item {
 
         function pressAt(mx, my, button, mods) {
             root.forceActiveFocus()
-            lastX = mx; lastY = my
-            orbiting = false; dragNode = null; mode = ""
+            nav.cancel()
+            dragNode = null; mode = ""
             pressHit = null; pressW = null
             root.drawFrom = null; root.drawTo = null
 
-            if (button === Qt.RightButton) { orbiting = true; mode = "orbit"; return }
+            // Ask the camera first, and with the default buttons the answer for
+            // the left button is always no - so nothing below thinks about the
+            // camera again, and no press over the plan can be stolen by it.
+            if (nav.begin(mx, my, button, mods) !== "") { mode = "nav"; return }
+            // Then the hand: an instrument out means the click is the
+            // instrument's, and it decides click-versus-drag itself.
+            if (hands.held) { mode = "hand"; hands.press(mx, my); return }
 
             const w = worldAt(mx, my)
-            if (!w) { orbiting = true; mode = "orbit"; return }
+            // aimed at the sky: nothing to draw on, and nothing else to do
+            if (!w) return
 
             const hit = root.hitAt(w.x, w.z)
             pressHit = hit
@@ -1073,11 +1181,9 @@ Item {
         }
 
         function moveAt(mx, my, mods, isDown) {
-            if (isDown && orbiting) {
-                rig.orbitBy((mx - lastX) * 0.34, -(my - lastY) * 0.24)
-                lastX = mx; lastY = my
-                return
-            }
+            if (isDown && mode === "nav") { nav.move(mx, my); return }
+            if (isDown && mode === "hand") { hands.move(mx, my); return }
+            if (!isDown) nav.hoverAt(mx, my)
             const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = w
@@ -1120,6 +1226,16 @@ Item {
         }
 
         function releaseAt() {
+            if (mode === "nav") {
+                nav.end()          // a flicked drag coasts to a stop from here
+                mode = ""; dragNode = null
+                return
+            }
+            if (mode === "hand") {
+                hands.release()    // a click measures, a drag was just a drag
+                mode = ""; dragNode = null
+                return
+            }
             if (mode === "draw" && root.drawFrom && root.drawTo) {
                 const r = root.addRoad(root.drawFrom.x, root.drawFrom.z,
                                        root.drawTo.x, root.drawTo.z)
@@ -1133,7 +1249,7 @@ Item {
             }
             root.drawFrom = null; root.drawTo = null
             root.drawFromSnap = null; root.drawToSnap = null
-            dragNode = null; orbiting = false; mode = ""
+            dragNode = null; mode = ""
             pressHit = null; pressW = null
         }
 
@@ -1155,26 +1271,38 @@ Item {
         onReleased: releaseAt()
     }
 
+    // A right CLICK is "put it down" - the RTS cancel. It empties the hand,
+    // then leaves the eraser, then drops the selection, so one press walks back
+    // one step. A right DRAG still turns the view and cancels nothing.
+    Connections {
+        target: nav
+        function onCancelled() {
+            if (!hands.empty) { hands.putAway(); return }
+            if (root.eraser) { root.eraser = false; return }
+            root.clearSelection()
+        }
+    }
+
     // --- palette -----------------------------------------------------------
     LabPanel {
         id: palette
-        x: 12; y: 12
-        width: 214
+        x: LabTheme.px(12); y: LabTheme.px(12)
+        width: LabTheme.px(214)
         title: LabLang.t("lab.title")
-        spacing: 5
+        spacing: LabTheme.px(5)
 
         // the presets, clickable, each carrying what it is worth noticing
         ScenarioBar {
             lab: root
-            width: 194
+            width: LabTheme.px(194)
         }
         Column {
             id: paletteCol
-            spacing: 5
+            spacing: LabTheme.px(5)
 
             // the one button the lab is named for
             Rectangle {
-                width: 194; height: 40; radius: 6
+                width: LabTheme.px(194); height: LabTheme.px(40); radius: LabTheme.px(6)
                 color: root.held ? LabTheme.muted
                      : (root.running ? LabTheme.tertiary : LabTheme.secondary)
                 border.color: root.held ? LabTheme.inkFaint
@@ -1183,8 +1311,8 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: root.held ? LabLang.t("btn.held")
-                        : LabLang.t(root.running ? "btn.stop" : "btn.simulate") + "   (S)"
-                    color: LabTheme.inkOn(parent.color); font.pixelSize: 13; font.bold: true
+                        : LabLang.t(root.running ? "btn.stop" : "btn.simulate") + "   (R)"
+                    color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontLabel; font.bold: true
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.toggleSim() }
@@ -1193,12 +1321,12 @@ Item {
             // how wide the NEXT road will be - the road already on the plan is
             // changed on its own card instead
             Row {
-                spacing: 5
+                spacing: LabTheme.px(5)
                 Repeater {
                     model: [1, 2]
                     Rectangle {
                         required property int modelData
-                        width: 94; height: 30; radius: 6
+                        width: LabTheme.px(94); height: LabTheme.px(30); radius: LabTheme.px(6)
                         color: root.newLanes === modelData ? LabTheme.paperDeep : LabTheme.paper
                         border.color: root.newLanes === modelData ? LabTheme.secondary
                                                                   : LabTheme.panelEdge
@@ -1207,9 +1335,9 @@ Item {
                             anchors.centerIn: parent
                             text: LabLang.t(modelData === 1 ? "road.oneLane.short"
                                                             : "road.twoLanes.short")
-                            width: 86; horizontalAlignment: Text.AlignHCenter
+                            width: LabTheme.px(86); horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
-                            color: LabTheme.inkSoft; font.pixelSize: 10
+                            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontMicro
                             font.family: LabTheme.monoFont
                         }
                         MouseArea { anchors.fill: parent; onClicked: root.newLanes = modelData }
@@ -1218,17 +1346,17 @@ Item {
             }
 
             Rectangle {
-                width: 194; height: 32; radius: 6
+                width: LabTheme.px(194); height: LabTheme.px(32); radius: LabTheme.px(6)
                 color: root.eraser ? LabTheme.clay : LabTheme.paper
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 border.width: LabTheme.borderWidth
                 Text {
                     anchors.centerIn: parent
-                    width: 186; horizontalAlignment: Text.AlignHCenter
+                    width: LabTheme.px(186); horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                     text: LabLang.t(root.eraser ? "tool.erase.on" : "tool.erase") + "  (E)"
                     color: LabTheme.inkOn(parent.color)
-                    font.pixelSize: 11; font.family: LabTheme.monoFont
+                    font.pixelSize: LabTheme.fontSmall; font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
             }
@@ -1243,16 +1371,16 @@ Item {
                     required property var modelData
                     readonly property bool state: modelData.key === "lanes" ? root.showLanes
                         : (modelData.key === "values" ? root.showValues : root.snapToGrid)
-                    width: 194; height: 28; radius: 6
+                    width: LabTheme.px(194); height: LabTheme.px(28); radius: LabTheme.px(6)
                     color: LabTheme.paper
                     border.color: state ? LabTheme.secondary : LabTheme.panelEdge
                     border.width: LabTheme.borderWidth
                     Text {
                         anchors.centerIn: parent
-                        width: 186; horizontalAlignment: Text.AlignHCenter
+                        width: LabTheme.px(186); horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
                         text: LabLang.t(parent.state ? modelData.on : modelData.off)
-                        color: LabTheme.inkSoft; font.pixelSize: 10
+                        color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontMicro
                         font.family: LabTheme.monoFont
                     }
                     MouseArea {
@@ -1260,32 +1388,32 @@ Item {
                         onClicked: {
                             if (modelData.key === "lanes") root.showLanes = !root.showLanes
                             else if (modelData.key === "values") root.showValues = !root.showValues
-                            else root.snapToGrid = !root.snapToGrid
+                            else grid.toggle()
                         }
                     }
                 }
             }
 
             Rectangle {
-                width: 194; height: 28; radius: 6
+                width: LabTheme.px(194); height: LabTheme.px(28); radius: LabTheme.px(6)
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 border.width: LabTheme.borderWidth
                 Text {
                     anchors.centerIn: parent
                     text: LabLang.t("btn.clear") + "  (C)"
-                    color: LabTheme.inkSoft; font.pixelSize: 10
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontMicro
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearPlan() }
             }
             Rectangle {
-                width: 194; height: 28; radius: 6
+                width: LabTheme.px(194); height: LabTheme.px(28); radius: LabTheme.px(6)
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 border.width: LabTheme.borderWidth
                 Text {
                     anchors.centerIn: parent
                     text: LabLang.tf("btn.view", Math.round(((rig.yaw % 360) + 360) % 360))
-                    color: LabTheme.inkSoft; font.pixelSize: 10
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontMicro
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.framePlan() }
@@ -1293,10 +1421,13 @@ Item {
         }
     }
 
+    readonly property bool planUnderPalette:
+        planPanel.y > palette.y + palette.height + LabTheme.px(16)
+
     // --- compass: which way the plan faces while you circle it -------------
     Compass {
         id: compass
-        x: 12; y: palette.y + palette.height + 10
+        x: LabTheme.px(12); y: palette.y + palette.height + LabTheme.px(10)
         yaw: rig.yaw
         aspect: root.cols / root.rows
     }
@@ -1308,9 +1439,10 @@ Item {
         id: topSwitches
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 12
-        spacing: 6
+        anchors.margins: LabTheme.spaceXl
+        spacing: LabTheme.spaceM
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
@@ -1319,9 +1451,9 @@ Item {
         id: params
         anchors.right: parent.right
         anchors.top: topSwitches.bottom
-        anchors.rightMargin: 12
-        anchors.topMargin: 10
-        width: 232
+        anchors.rightMargin: LabTheme.spaceXl
+        anchors.topMargin: LabTheme.px(10)
+        width: LabTheme.px(232)
     }
 
     // --- network stats -----------------------------------------------------
@@ -1329,14 +1461,14 @@ Item {
         id: stats
         anchors.right: parent.right
         anchors.top: params.bottom
-        anchors.rightMargin: 12
-        anchors.topMargin: 10
-        width: 232
+        anchors.rightMargin: LabTheme.spaceXl
+        anchors.topMargin: LabTheme.px(10)
+        width: LabTheme.px(232)
         title: LabLang.t("stats.title")
 
         Column {
             id: statsCol
-            spacing: 3
+            spacing: LabTheme.spaceXs
             width: stats.body.width
             // the derivation in one line: what you drew, and what it became
             Text {
@@ -1348,7 +1480,7 @@ Item {
                          + "  ->  " + root.net.stats.lanes + " " + LabLang.t("traffic.lanes")
                          + ", " + root.net.stats.connectors + " " + LabLang.t("traffic.turns")
                 }
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -1362,10 +1494,10 @@ Item {
                         t += " · " + LabLang.tf("stats.banned", root.net.stats.bannedTurns)
                     return t
                 }
-                color: LabTheme.inkFaint; font.pixelSize: 11
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
-            Item { width: 1; height: 4 }
+            Item { width: LabTheme.px(1); height: LabTheme.px(4) }
             // where the cars are: rolling or standing. At low density the bar
             // is all one colour; turn density up and the split IS the lesson.
             BudgetBar {
@@ -1394,7 +1526,7 @@ Item {
                     return LabLang.t("stats.meanSpeed") + "  "
                          + LabLang.num(Traffic.meanSpeed(root.simState), 1) + " u/s"
                 }
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             // Cars held vs cars asked for. Turn the demand up far enough and
@@ -1420,7 +1552,7 @@ Item {
                     return saturated ? s + " — " + LabLang.t("stats.atCapacity") : s
                 }
                 color: saturated ? LabTheme.accent : LabTheme.inkSoft
-                font.pixelSize: 11
+                font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -1430,7 +1562,7 @@ Item {
                     root.flowRev
                     return LabLang.t("stats.arrived") + "  " + root.simState.gone
                 }
-                color: LabTheme.inkFaint; font.pixelSize: 11
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
@@ -1443,12 +1575,16 @@ Item {
     LabPanel {
         id: planPanel
         visible: root.showPlan
-        anchors.left: parent.left
+        // Turn the text size up and the palette alone reaches the bottom of
+        // the window, so the lane graph steps out from under it into the empty
+        // middle. Measured against where the panels actually end, so on a tall
+        // screen at the same scale the single column stays.
+        anchors.left: root.planUnderPalette ? parent.left : palette.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 12
-        anchors.bottomMargin: 44
-        width: 258
-        height: 190
+        anchors.leftMargin: LabTheme.spaceXl
+        anchors.bottomMargin: LabTheme.px(44)
+        width: LabTheme.px(258)
+        height: LabTheme.px(190)
         title: LabLang.t("plan.title")
         tag: "M"
 
@@ -1577,12 +1713,18 @@ Item {
     // The toggle that states the lesson: with V on, every road shows what is
     // actually flowing along it, so a grid and a tree of cul-de-sacs stop
     // needing to be explained.
+    //
+    // Every label takes its camera from the VIEW rather than from the rig: a
+    // label projects through view3d, so the camera it must wait for is the one
+    // view3d is actually rendering with. Naming the rig's camera instead gets
+    // the label past its own null-guard while the view still has none, and the
+    // first projection of the session goes through a warning.
     Repeater {
         model: root.showValues ? root.net.roads : []
         WorldLabel {
             required property var modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: Qt.vector3d((modelData.x0 + modelData.x1) / 2, 1.2,
                                        (modelData.z0 + modelData.z1) / 2)
             placement: WorldLabel.Centered
@@ -1591,6 +1733,35 @@ Item {
                 root.flowRev
                 return LabLang.num(Traffic.roadRate(root.simState, modelData.id), 0)
                      + LabLang.t("unit.perMin")
+            }
+        }
+    }
+
+    // --- house names -------------------------------------------------------
+    // A, B, C, D - so a study can say "the road from A to C" and mean something
+    // anyone looking at the plan can find. The chip carries the arrivals at
+    // that house while the traffic runs, because per-house arrival counts are
+    // the one thing the plan cannot show by itself.
+    Repeater {
+        model: { root.graphRev; return root.houses }
+        WorldLabel {
+            required property var modelData
+            required property int index
+            readonly property int node: {
+                root.graphRev
+                return root.houseNodeAt(modelData)
+            }
+            view: view3d
+            camera: view3d.camera
+            worldPosition: Qt.vector3d(modelData.x, 9.5, modelData.z)
+            placement: WorldLabel.Above
+            accent: node === -1 ? LabTheme.muted : LabTheme.accent
+            text: {
+                root.flowRev
+                const name = root.houseLabel(index)
+                if (node === -1) return name + " " + LabLang.t("house.unbound")
+                const n = root.simState.arrivedAt[node] || 0
+                return n > 0 ? name + "  " + n : name
             }
         }
     }
@@ -1608,7 +1779,7 @@ Item {
         WorldLabel {
             required property var modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: {
                 root.graphRev
                 return root.legAnchor(root.activeNode, modelData)
@@ -1626,7 +1797,7 @@ Item {
             required property var modelData
             readonly property int rid: modelData
             view: view3d
-            camera: rig.camera
+            camera: view3d.camera
             worldPosition: {
                 root.graphRev
                 const m = root.roadMidpoint(rid)
@@ -1635,18 +1806,12 @@ Item {
             placement: WorldLabel.Above
             accent: root.watchColorOf(rid)
             visible: active && onScreen && root.roadRecord(rid) !== null
-            Row {
-                spacing: 4
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 7; height: 7; radius: 4
-                    color: root.watchColorOf(rid)
-                }
-                Text {
-                    text: { root.graphRev; return root.roadLabel(rid) }
-                    color: LabTheme.inkSoft; font.pixelSize: 10; font.bold: true
-                    font.family: LabTheme.monoFont
-                }
+            // the dot in the curve's colour is the kernel's mark now; the
+            // WorldLabel around it is what pins it to a place on the plan
+            WatchMark {
+                monitor: root.watchMonitor
+                target: rid
+                label: { root.graphRev; return root.roadLabel(rid) }
             }
         }
     }
@@ -1662,24 +1827,24 @@ Item {
             return root.selectedRoad === -1 ? null : root.roadRecord(root.selectedRoad)
         }
         view: view3d
-        camera: rig.camera
+        camera: view3d.camera
         active: road !== null
         worldPosition: road ? Qt.vector3d((road.x0 + road.x1) / 2, 0,
                                           (road.z0 + road.z1) / 2)
                             : Qt.vector3d(0, 0, 0)
         placement: WorldLabel.Below
-        gap: 10
+        gap: LabTheme.px(10)
         accent: LabTheme.secondary
 
         Column {
-            spacing: 3
+            spacing: LabTheme.spaceXs
             Text {
                 text: {
                     root.graphRev
                     if (!selCard.road) return ""
                     return LabLang.t("card.road") + " " + root.roadLabel(selCard.road.id)
                 }
-                color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.letterSpacing: 1.0; font.family: LabTheme.monoFont
             }
             Text {
@@ -1692,32 +1857,32 @@ Item {
                          + LabLang.t("card.load") + " "
                          + root.carsOnRoad(selCard.road.id)
                 }
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             // the per-object control: this road's own lane count
             Row {
-                spacing: 4
+                spacing: LabTheme.spaceS
                 Repeater {
                     model: [1, 2]
                     Rectangle {
                         required property int modelData
                         readonly property bool on:
                             selCard.road !== null && selCard.road.lanes === modelData
-                        width: 92; height: 20; radius: 5
+                        width: LabTheme.px(92); height: LabTheme.px(20); radius: LabTheme.px(5)
                         color: on ? LabTheme.secondary : LabTheme.paper
                         border.color: on ? LabTheme.secondary : LabTheme.panelEdge
-                        border.width: 1.5
+                        border.width: LabTheme.px(1.5)
                         Text {
                             anchors.centerIn: parent
                             // short form: the card already says ROAD, and the
                             // German long form does not fit a chip
                             text: LabLang.t(modelData === 1 ? "road.oneLane.short"
                                                             : "road.twoLanes.short")
-                            width: 86; horizontalAlignment: Text.AlignHCenter
+                            width: LabTheme.px(86); horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
                             color: parent.on ? LabTheme.paper : LabTheme.inkSoft
-                            font.pixelSize: 9; font.family: LabTheme.monoFont
+                            font.pixelSize: LabTheme.fontMicro; font.family: LabTheme.monoFont
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -1727,34 +1892,18 @@ Item {
                     }
                 }
             }
-            Rectangle {
-                readonly property bool watched:
-                    selCard.road !== null && root.isWatched(selCard.road.id)
-                readonly property bool full:
-                    !watched && root.watch.length >= root.watchMax
-                width: watchLabel.width + 16; height: 20
-                radius: LabTheme.radius
-                color: watched ? root.watchColorOf(selCard.road.id) : LabTheme.panel
-                border.color: watched || full ? LabTheme.panelEdge : LabTheme.secondary
-                border.width: 1.5
-                Text {
-                    id: watchLabel
-                    anchors.centerIn: parent
-                    text: LabLang.t(parent.watched ? "card.watched"
-                        : (parent.full ? "card.watch.full" : "card.watch"))
-                    color: parent.watched ? LabTheme.paper
-                         : (parent.full ? LabTheme.inkFaint : LabTheme.secondary)
-                    font.pixelSize: 11; font.family: LabTheme.handFont
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: !parent.full
-                    onClicked: if (selCard.road) root.toggleWatch(selCard.road.id)
-                }
+            // the kernel's chip: it reads the series limit off the monitor,
+            // so this card can no longer disagree with the plot about whether
+            // there is a colour left - and its ink comes from its own fill
+            WatchChip {
+                monitor: root.watchMonitor
+                target: selCard.road ? selCard.road.id : undefined
+                labels: ({ add: "card.watch", on: "card.watched",
+                           full: "card.watch.full" })
             }
             Text {
                 text: LabLang.t("card.hint.road")
-                color: LabTheme.inkFaint; font.pixelSize: 11
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.handFont
             }
         }
@@ -1780,9 +1929,9 @@ Item {
         visible: node !== null
         anchors.right: parent.right
         anchors.top: stats.bottom
-        anchors.rightMargin: 12
-        anchors.topMargin: 10
-        width: 232
+        anchors.rightMargin: LabTheme.spaceXl
+        anchors.topMargin: LabTheme.px(10)
+        width: LabTheme.px(232)
         // a closed junction says so in its own border
         border.color: node !== null && root.junctionClosed(node.id) ? LabTheme.alarm
                                                                    : LabTheme.secondary
@@ -1790,7 +1939,7 @@ Item {
       Column {
         id: junctionCol
         width: junctionPanel.body.width
-        spacing: 3
+        spacing: LabTheme.spaceXs
 
         Text {
             // German runs a quarter longer than the English it replaces, so the
@@ -1806,7 +1955,7 @@ Item {
                 return LabLang.t(what) + "  "
                      + LabLang.tf("card.legs", nd.degree)
             }
-            color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+            color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.letterSpacing: 1.0; font.family: LabTheme.monoFont
         }
         Text {
@@ -1814,7 +1963,7 @@ Item {
             width: junctionCol.width
             wrapMode: Text.WordWrap
             text: LabLang.t("card.turns.hint")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
         Text {
@@ -1822,7 +1971,7 @@ Item {
             width: junctionCol.width
             wrapMode: Text.WordWrap
             text: LabLang.t("card.turns.none")
-            color: LabTheme.accent; font.pixelSize: 11
+            color: LabTheme.accent; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
 
@@ -1842,15 +1991,15 @@ Item {
             }
             visible: legs.length > 1
             columns: legs.length + 1
-            spacing: 2
+            spacing: LabTheme.px(2)
 
             // corner: the axis legend
             Rectangle {
-                width: 30; height: 17; color: "transparent"
+                width: LabTheme.px(30); height: LabTheme.px(17); color: "transparent"
                 Text {
                     anchors.centerIn: parent
                     text: "↓→"
-                    color: LabTheme.inkFaint; font.pixelSize: 9
+                    color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontMicro
                     font.family: LabTheme.monoFont
                 }
             }
@@ -1859,12 +2008,12 @@ Item {
                 model: turnMatrix.legs
                 Rectangle {
                     required property var modelData
-                    width: 30; height: 17; radius: 3
+                    width: LabTheme.px(30); height: LabTheme.px(17); radius: LabTheme.px(3)
                     color: LabTheme.paperDeep
                     Text {
                         anchors.centerIn: parent
                         text: { root.graphRev; return root.roadLabel(modelData) }
-                        color: LabTheme.primary; font.pixelSize: 9; font.bold: true
+                        color: LabTheme.primary; font.pixelSize: LabTheme.fontMicro; font.bold: true
                         font.family: LabTheme.monoFont
                     }
                 }
@@ -1884,18 +2033,18 @@ Item {
                         if (col === 0 || !junctionPanel.node) return null
                         return root.movementAt(junctionPanel.node.id, fromRoad, toRoad)
                     }
-                    width: 30; height: 17
+                    width: LabTheme.px(30); height: LabTheme.px(17)
 
                     // row header
                     Rectangle {
                         anchors.fill: parent
                         visible: col === 0
-                        radius: 3
+                        radius: LabTheme.px(3)
                         color: LabTheme.paperDeep
                         Text {
                             anchors.centerIn: parent
                             text: { root.graphRev; return root.roadLabel(fromRoad) }
-                            color: LabTheme.primary; font.pixelSize: 9; font.bold: true
+                            color: LabTheme.primary; font.pixelSize: LabTheme.fontMicro; font.bold: true
                             font.family: LabTheme.monoFont
                         }
                     }
@@ -1903,7 +2052,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         visible: col > 0 && move !== null
-                        radius: 3
+                        radius: LabTheme.px(3)
                         readonly property bool off: move !== null && move.banned
                         readonly property bool hovered:
                             move !== null && root.hoverHit
@@ -1917,7 +2066,7 @@ Item {
                             anchors.centerIn: parent
                             text: move ? (root.turnGlyphs[move.turn] || "·") : ""
                             color: LabTheme.inkOn(parent.color)
-                            font.pixelSize: 12; font.bold: true
+                            font.pixelSize: LabTheme.fontBody; font.bold: true
                             font.family: LabTheme.monoFont
                         }
                         MouseArea {
@@ -1934,13 +2083,13 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         visible: col > 0 && move === null
-                        radius: 3
+                        radius: LabTheme.px(3)
                         color: "transparent"
-                        border.color: LabTheme.panelEdge; border.width: 1
+                        border.color: LabTheme.panelEdge; border.width: LabTheme.px(1)
                         Text {
                             anchors.centerIn: parent
                             text: "·"
-                            color: LabTheme.muted; font.pixelSize: 10
+                            color: LabTheme.muted; font.pixelSize: LabTheme.fontMicro
                             font.family: LabTheme.monoFont
                         }
                     }
@@ -1952,18 +2101,18 @@ Item {
             visible: junctionPanel.moves.length > 1
             readonly property bool closed:
                 junctionPanel.node !== null && root.junctionClosed(junctionPanel.node.id)
-            width: junctionCol.width; height: 21; radius: LabTheme.radius
+            width: junctionCol.width; height: LabTheme.px(21); radius: LabTheme.radius
             color: closed ? LabTheme.alarm : LabTheme.panel
             border.color: closed ? LabTheme.alarm : LabTheme.secondary
-            border.width: 1.5
+            border.width: LabTheme.px(1.5)
             Text {
                 anchors.centerIn: parent
-                width: junctionCol.width - 8; horizontalAlignment: Text.AlignHCenter
+                width: junctionCol.width - LabTheme.spaceL; horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 text: LabLang.t(parent.closed ? "card.junction.open"
                                               : "card.junction.close") + "  (X)"
                 color: LabTheme.inkOn(parent.color)
-                font.pixelSize: 10; font.family: LabTheme.monoFont
+                font.pixelSize: LabTheme.fontMicro; font.family: LabTheme.monoFont
             }
             MouseArea { anchors.fill: parent; onClicked: root.toggleJunctionClosed() }
         }
@@ -1971,14 +2120,17 @@ Item {
             width: junctionCol.width
             wrapMode: Text.WordWrap
             text: LabLang.t("card.hint.node")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
       }
     }
 
     // --- banner ------------------------------------------------------------
-    Rectangle {
+    // Two faults with different weight: a plan every turn leads off is a note,
+    // gridlock is a fault - so only the second one blinks.
+    LabBanner {
+        id: banner
         readonly property bool allDead:
             root.net.stats.lanes > 0 && root.net.stats.connectors === 0
         readonly property bool jammed: {
@@ -1986,31 +2138,32 @@ Item {
             return root.running && root.simState.cars.length > 4
                    && Traffic.stoppedShare(root.simState) > 0.65
         }
-        id: banner
-        visible: allDead || jammed
+        active: allDead || jammed
+        alarm: jammed
+        blink: jammed
+        guard: palette                // never grows in under the plan's tools
+        topMargin: LabTheme.px(14)
+        text: LabLang.t(jammed ? "banner.jammed" : "banner.allDeadEnds")
+    }
+
+    // The clock, on screen. A traffic sim whose whole reading is "how much
+    // has queued up by now" had nothing saying how long it had been running,
+    // and no way to stop it at the moment worth looking at.
+    TransportChip {
+        clock: clock
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 14
-        // Capped against the panels on both sides, never against the text: a
-        // width that read back from the label it sizes would be a loop, and a
-        // German banner is routinely a quarter longer than the English one.
-        width: Math.min(340, root.width - 2 * (palette.width + 40))
-        height: 34; radius: 8
-        color: jammed ? LabTheme.alarm : LabTheme.highlight
-        Text {
-            anchors.centerIn: parent
-            width: parent.width - 24
-            elide: Text.ElideRight
-            horizontalAlignment: Text.AlignHCenter
-            text: LabLang.t(banner.jammed ? "banner.jammed" : "banner.allDeadEnds")
-            color: LabTheme.inkOn(banner.color)
-            font.pixelSize: 13; font.bold: true
-        }
+        anchors.top: parent.top
+        // under the banner's slot, not in it: gridlock outranks the clock
+        anchors.topMargin: LabTheme.px(56)
     }
 
     // --- hint bar ----------------------------------------------------------
     HintBar {
         rightGuard: monitor
         text: {
+            // the hand outranks everything: while an instrument is out, a hint
+            // about drawing describes something you are not doing
+            if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.lastRefusal === "short") return LabLang.t("hint.tooShort")
             if (root.eraser) return LabLang.t("hint.erasing")
             if (root.drawFrom) return LabLang.t("hint.drawing")
@@ -2028,14 +2181,14 @@ Item {
     WatchMonitor {
         id: monitor
         anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.margins: 10
+        anchors.margins: LabTheme.px(10)
         idPrefix: "road"
         quantities: [
             { key: "flow", label: "quantity.flow", unit: "/min" },
             { key: "load", label: "quantity.load", unit: "" },
             { key: "speed", label: "quantity.speed", unit: "u/s" }]
-        plotWidth: 340
-        plotHeight: 142
+        plotWidth: LabTheme.px(340)
+        plotHeight: LabTheme.px(142)
         windowSeconds: 40
         placeholder: LabLang.t("plot.empty")
         valueOf: (id) => root.watchValueOf(id)
@@ -2051,15 +2204,17 @@ Item {
         id: keymap
         lab: root
         camera: rig
+        pointer: nav
+        hands: hands
         recorder: recorder
         keys: [
-            { key: "S", label: "key.simulate", action: () => root.toggleSim() },
+            { key: "R", label: "key.simulate", action: () => root.toggleSim() },
             { key: "C", label: "key.clear", action: () => root.clearPlan() },
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
             { key: "L", label: "key.lanes", action: () => root.showLanes = !root.showLanes },
             { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
             { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
-            { key: "W", label: "key.watch", action: () => {
+            { key: "Q", label: "key.watch", action: () => {
                 if (root.selectedRoad !== -1) root.toggleWatch(root.selectedRoad) } },
             // X closes or opens every movement through the selected junction at
             // once. NOT T: the canonical map reserves that for flows, and a lab
@@ -2083,4 +2238,6 @@ Item {
             eraser = false; clearSelection(); drawFrom = null; drawTo = null
         }
     }
+    // the other half of the Space quasimode: without it the hand stays down
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 }

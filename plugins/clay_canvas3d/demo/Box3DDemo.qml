@@ -88,7 +88,7 @@ View3D {
             depth: 100
             color: "#e74c3c"
             edgeColorFactor: toonControls.useToonShading ? 2.0 : 1.5  // Increase edge contrast for toon
-            edgeThickness: 8
+            edgeThickness: 4
             useToonShading: toonControls.useToonShading
         }
     }
@@ -184,9 +184,49 @@ View3D {
             depth: 100
             color: "#16a085"
             edgeColorFactor: toonControls.useToonShading ? 2.0 : 1.5
-            edgeThickness: 10
+            edgeThickness: 5
             edgeMask: 0x00F  // Only top edges
             useToonShading: toonControls.useToonShading
+        }
+    }
+
+    // ========================================
+    // DEMO 5b: edgeMode - borders against the real triangulation
+    // ========================================
+    // Same box twice. FaceBorders (the default) draws the twelve borders of
+    // the six faces, so the box reads as a box. Triangles draws the mesh as
+    // it is actually built, diagonal and all - the view to reach for when the
+    // geometry itself is the subject. edgeMask selects among face borders and
+    // has no meaning in Triangles mode, where every triangle edge is drawn.
+    Node {
+        x: -150
+        z: -220
+
+        Box3D {
+            width: 100
+            height: 100
+            depth: 100
+            color: "#e6d2f2"
+            edgeColor: "#2f3437"
+            edgeThickness: 4
+            useToonShading: toonControls.useToonShading
+            edgeMode: Box3D.FaceBorders
+        }
+    }
+
+    Node {
+        x: 150
+        z: -220
+
+        Box3D {
+            width: 100
+            height: 100
+            depth: 100
+            color: "#e6d2f2"
+            edgeColor: "#2f3437"
+            edgeThickness: 4
+            useToonShading: toonControls.useToonShading
+            edgeMode: Box3D.Triangles
         }
     }
 
@@ -250,6 +290,11 @@ View3D {
             }
             Text {
                 text: "4. Complex scaling | 5. Edge mask | 6. Color cycling"
+                color: "white"
+                font.pixelSize: 12
+            }
+            Text {
+                text: "Far row: edgeMode FaceBorders | edgeMode Triangles"
                 color: "white"
                 font.pixelSize: 12
             }

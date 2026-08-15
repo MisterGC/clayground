@@ -224,7 +224,10 @@ void TestInspectorDojo::viewStateSurvivesReload()
     QVERIFY(writeRequest(reloadReq));
     auto reloadResp = waitForResponse();
     QVERIFY2(!reloadResp.isEmpty(), "No response for reload");
-    QCOMPARE(reloadResp["status"].toString(), "requested");
+    // "status" now carries the envelope on every response; the action's own
+    // acknowledgement moved to "reloadStatus" (protocol v3).
+    QCOMPARE(reloadResp["reloadStatus"].toString(), "requested");
+    QVERIFY(reloadResp["status"].toObject().contains("generation"));
 
     QJsonObject waitReq;
     waitReq["action"] = "waitForRoot";

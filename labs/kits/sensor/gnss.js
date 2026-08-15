@@ -74,73 +74,9 @@ function visibility(rx, sats, blockers) {
 }
 
 // --- the fix -------------------------------------------------------------
-
-function _dist(a, b) {
-    var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
-    return Math.sqrt(dx * dx + dy * dy + dz * dz)
-}
-
-// Gauss-Newton least squares for (x, z, clockBias) from pseudoranges.
-// `rx0` is the starting guess (the previous fix keeps it stable and cheap).
-// Returns {x, z, bias, hdop, iterations} or null if the geometry is singular.
-function solveFix(sats, ranges, rx0, y) {
-    var n = sats.length
-    if (n < 3) return null
-    var x = rx0.x, z = rx0.z, b = rx0.bias || 0
-    var G = [], hdop = 0
-    for (var it = 0; it < 6; ++it) {
-        // normal equations for the 3 unknowns
-        var N = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-        var rhs = [0, 0, 0]
-        G = []
-        for (var i = 0; i < n; ++i) {
-            var p = { x: x, y: y, z: z }
-            var d = _dist(p, sats[i])
-            if (d < 1e-6) return null
-            // row of the geometry matrix: unit vector receiver->satellite, plus
-            // the clock column (always 1 - the bias hits every range equally)
-            var gx = (x - sats[i].x) / d
-            var gz = (z - sats[i].z) / d
-            var row = [gx, gz, 1]
-            G.push(row)
-            var resid = ranges[i] - (d + b)
-            for (var r = 0; r < 3; ++r) {
-                rhs[r] += row[r] * resid
-                for (var c = 0; c < 3; ++c) N[r][c] += row[r] * row[c]
-            }
-        }
-        var step = _solve3(N, rhs)
-        if (!step) return null
-        x += step[0]; z += step[1]; b += step[2]
-        if (Math.abs(step[0]) + Math.abs(step[1]) + Math.abs(step[2]) < 1e-6) break
-    }
-    // covariance of the solution = sigma^2 * (G^T G)^-1; its position trace is
-    // the dilution of precision - geometry turned into a number
-    var NtN = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-    for (var k = 0; k < G.length; ++k)
-        for (var rr = 0; rr < 3; ++rr)
-            for (var cc = 0; cc < 3; ++cc) NtN[rr][cc] += G[k][rr] * G[k][cc]
-    var inv = _invert3(NtN)
-    hdop = inv ? Math.sqrt(Math.max(0, inv[0][0] + inv[1][1])) : 99
-    return { x: x, z: z, bias: b, hdop: hdop }
-}
-
-function _solve3(A, rhs) {
-    var inv = _invert3(A)
-    if (!inv) return null
-    return [inv[0][0] * rhs[0] + inv[0][1] * rhs[1] + inv[0][2] * rhs[2],
-            inv[1][0] * rhs[0] + inv[1][1] * rhs[1] + inv[1][2] * rhs[2],
-            inv[2][0] * rhs[0] + inv[2][1] * rhs[1] + inv[2][2] * rhs[2]]
-}
-
-function _invert3(m) {
-    var a = m[0][0], b = m[0][1], c = m[0][2]
-    var d = m[1][0], e = m[1][1], f = m[1][2]
-    var g = m[2][0], h = m[2][1], i = m[2][2]
-    var det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
-    if (Math.abs(det) < 1e-12) return null
-    var id = 1 / det
-    return [[(e * i - f * h) * id, (c * h - b * i) * id, (b * f - c * e) * id],
-            [(f * g - d * i) * id, (a * i - c * g) * id, (c * d - a * f) * id],
-            [(d * h - e * g) * id, (b * g - a * h) * id, (a * e - b * d) * id]]
-}
+//
+// There is none here: the pseudorange fix lives in trilateration.js, which
+// solves the same normal equations for both sensors in this kit - ranges plus
+// one nuisance unknown, clock for GPS and heading for lidar - and reports a
+// covariance in metres rather than a bare DOP. GpsSensor.qml calls
+// `Tri.solve(..., {clockUnknown: true})`; this file supplies it the sky.

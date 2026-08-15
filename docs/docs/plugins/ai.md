@@ -4,6 +4,7 @@ title: AI Plugin
 permalink: /docs/plugins/ai/
 ---
 
+
 Client-side AI plugin providing Text Inference (LLM) capabilities. All processing runs locally on-device without server dependencies.
 
 ## Features
@@ -106,8 +107,6 @@ Manages model downloads and caching.
 
 - **TextToSpeech**: Client-side TTS using sherpa-onnx
 - **SpeechToText**: Client-side STT using whisper.cpp
-
----
 
 ## API Reference
 

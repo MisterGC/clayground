@@ -15,6 +15,7 @@ clay_plugin( Text
     SOURCES 
         csvreader.h csvreader.cpp 
         csvwriter.h csvwriter.cpp
+        textwriter.h textwriter.cpp
         texthighlighter.h texthighlighter.cpp
 
     QML_FILES

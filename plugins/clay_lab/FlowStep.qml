@@ -67,6 +67,31 @@ QtObject {
     property var dwell: "auto"
 
     /*!
+        \qmlproperty var FlowStep::view
+        \brief Where the camera should be for this step. Null leaves it alone.
+
+        A narrated step that talks about the far corner of the board while the
+        camera is still on the near one teaches nothing, and moving it from a
+        \l demo verb means every lab has to invent that verb. Three forms, all
+        applied \e after the demo has run, so a step can frame what it just
+        built:
+
+        \list
+        \li \c {{ viewpoint: "top" }} - a name from
+            \c {OrbitCamera3D.viewpoints};
+        \li \c {{ focus: [points], pad: 1.3 }} - frame these world points, or
+            a single point to re-centre on it;
+        \li \c {{ pose: {yaw, pitch, distance, px, py, pz} }} - a literal pose,
+            as \c {OrbitCamera3D.state()} spells one.
+        \endlist
+
+        Add \c {ms:} to any of them to set the travel time. Applied only when
+        the \l Flow has a \c camera; a flow without one ignores the property
+        entirely, which is what keeps it non-breaking.
+    */
+    property var view: null
+
+    /*!
         \qmlproperty var FlowStep::expect
         \brief Optional predicate asserted after the step, for headless checks.
     */

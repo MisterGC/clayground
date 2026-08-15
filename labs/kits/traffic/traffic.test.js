@@ -25,7 +25,7 @@ const G = load('roadgraph.js', ['empty', 'clone', 'addNode', 'insertRoad', 'remo
 const L = load('lanemodel.js', ['derive', 'poseOn', 'surfaceRuns', 'laneRuns',
     'markingRuns', 'LANE_W', 'elementLength'])
 const T = load('traffic.js', ['createState', 'step', 'defaultParams', 'targetCount',
-    'summary', 'meanSpeed', 'rehome', 'stoppedShare'])
+    'summary', 'meanSpeed', 'rehome', 'stoppedShare', 'originLanes', 'arrivalRate'])
 
 // the harness owns the assertions and the tally now
 const ok = K.ok, eq = K.eq, near = K.near, section = K.section, rngFrom = K.rngFrom
@@ -550,6 +550,124 @@ function run(seed, steps, par, netIn) {
     const rng = rngFrom(1)
     for (let i = 0; i < 60; ++i) T.step(net, st, 1 / 60, rng, T.defaultParams())
     eq('no network, no cars', st.cars.length, 0)
+}
+
+// ------------------------------------------------------------------- houses
+// Fixed origins and sinks (#203). The whole point of the addition is that two
+// networks joining the SAME houses can be compared, so the properties worth
+// pinning are: traffic starts only at houses, ends at houses, is counted when
+// it does, and the fleet size stops depending on how much road was drawn.
+section('traffic: houses as fixed origins and sinks')
+
+// four corner houses joined through one central junction - the "cross" of the
+// street-network study, and the smallest plan with houses AND a real junction
+function crossPlan() {
+    const g = G.empty()
+    const corners = [[-70, -45], [70, -45], [-70, 45], [70, 45]]
+    for (const [x, z] of corners) G.insertRoad(g, x, z, 0, 0, {})
+    const houses = corners.map(([x, z]) => G.nearestNode(g, x, z, 1).id)
+    return { graph: g, net: L.derive(g), houses: houses }
+}
+
+{
+    const P = crossPlan()
+    eq('four houses bound to four nodes', new Set(P.houses).size, 4)
+
+    const pool = T.originLanes(P.net, { houses: P.houses })
+    ok('there are origin lanes', pool.length > 0)
+    let allLeaveAHouse = true
+    for (const i of pool)
+        if (P.houses.indexOf(P.net.lanes[i].fromNode) === -1) allLeaveAHouse = false
+    ok('every origin lane leaves a house', allLeaveAHouse)
+    // one lane per direction per road: four roads -> four lanes out of houses
+    eq('one origin lane per house road', pool.length, 4)
+
+    eq('no houses means no restriction',
+       T.originLanes(P.net, { houses: null }), null)
+}
+{
+    // Where cars are BORN. Sampling the first tick after each spawn would be
+    // fragile, so the check is over the whole run: no car may ever be seen on a
+    // lane that is unreachable from a house, and with a star plan every lane is
+    // reachable - so the sharper statement is the one below about arrivals.
+    const P = crossPlan()
+    const st = T.createState()
+    const rng = rngFrom(7)
+    const par = Object.assign(T.defaultParams(), { houses: P.houses, target: 16 })
+    for (let i = 0; i < 3600; ++i) T.step(P.net, st, 1 / 60, rng, par)
+
+    ok('journeys end at houses', st.arrived > 0, 'arrived=' + st.arrived)
+    eq('nothing ran out of road - a star plan has no dead ends', st.gone, 0)
+    let counted = 0
+    for (const k in st.arrivedAt) {
+        ok('arrivals are keyed by a house node', P.houses.indexOf(Number(k)) !== -1)
+        counted += st.arrivedAt[k]
+    }
+    eq('per-house arrivals sum to the total', counted, st.arrived)
+    ok('all four houses receive traffic', Object.keys(st.arrivedAt).length === 4,
+       'houses reached=' + Object.keys(st.arrivedAt).length)
+    ok('the arrival rate is a positive rate', T.arrivalRate(st) > 0,
+       'rate=' + T.arrivalRate(st).toFixed(2) + '/min')
+}
+{
+    // The fairness property the study rests on: the fleet is pinned by target,
+    // not by lane length, so a bigger plan does not quietly get more cars.
+    const P = crossPlan()
+    const big = G.clone(P.graph)
+    G.insertRoad(big, -70, -45, 70, -45, {})     // one more road, more lane length
+    const bigNet = L.derive(big)
+    ok('the second plan really is longer',
+       bigNet.stats.laneLength > P.net.stats.laneLength)
+
+    const par = Object.assign(T.defaultParams(), { houses: P.houses, target: 16 })
+    eq('target pins the small plan', T.targetCount(P.net, par), 16)
+    eq('...and the large one identically', T.targetCount(bigNet, par), 16)
+
+    const free = Object.assign(T.defaultParams(), { demand: 0.5 })
+    ok('without it, lane length decides',
+       T.targetCount(bigNet, free) > T.targetCount(P.net, free))
+    eq('target is clamped by maxCars',
+       T.targetCount(P.net, Object.assign({}, par, { target: 9999 })), par.maxCars)
+}
+{
+    // A house that sits on nothing is not the open model in disguise.
+    const P = crossPlan()
+    const st = T.createState()
+    const rng = rngFrom(3)
+    const par = Object.assign(T.defaultParams(), { houses: [9999], target: 16 })
+    for (let i = 0; i < 600; ++i) T.step(P.net, st, 1 / 60, rng, par)
+    eq('houses on no road means no traffic', st.cars.length, 0)
+    eq('...and nothing spawned at all', st.spawned, 0)
+}
+{
+    // The open model is untouched: no houses, no arrivals, ever.
+    const P = crossPlan()
+    const st = T.createState()
+    const rng = rngFrom(11)
+    for (let i = 0; i < 1200; ++i) T.step(P.net, st, 1 / 60, rng, T.defaultParams())
+    ok('the open model still puts cars on the road', st.cars.length > 0)
+    eq('...and counts no arrivals', st.arrived, 0)
+    eq('...and no arrival rate', T.arrivalRate(st), 0)
+}
+{
+    // Determinism, with houses in play - the property the committed study
+    // records depend on.
+    const P = crossPlan()
+    const run = () => {
+        const st = T.createState()
+        const rng = rngFrom(42)
+        const par = Object.assign(T.defaultParams(), { houses: P.houses, target: 16 })
+        const trace = []
+        for (let i = 0; i < 1800; ++i) {
+            T.step(P.net, st, 1 / 60, rng, par)
+            if (i % 120 === 0)
+                trace.push([st.cars.length, st.arrived,
+                            T.arrivalRate(st).toFixed(6),
+                            T.meanSpeed(st).toFixed(6)].join(','))
+        }
+        return trace.join('|')
+    }
+    eq('two runs of one seed are identical', run(), run())
 }
 
 process.exit(K.report('traffic kit'))

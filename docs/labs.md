@@ -56,6 +56,29 @@ files either way; different documents.
 {% endfor %}
 </div>
 
+## The kits, and what they are honest about
+
+Under every lab sits a *kit*: the domain model itself. A model is only worth
+something if you know where it stops, so each kit publishes a **Lab Card** —
+what it models and with which method, which simplifications are deliberate
+and which way each one bends the result, where it stops being valid, what you
+can vary and measure through it, and, plainly, which questions it can and
+cannot answer.
+
+<div class="lab-cards">
+{% for card in site.data.lab_cards %}
+  <a class="lab-card" href="{{ site.baseurl }}/labs/kits/{{ card.slug }}/">
+    <h3>{{ card.name }}</h3>
+    <p class="lab-card-tagline">{{ card.tagline }}</p>
+    <p class="lab-card-meta">Lab Card · <code>{{ card.slug }}</code></p>
+  </a>
+{% endfor %}
+</div>
+
+That last part is the point of the card. A lab that cannot answer a question
+should say so rather than produce a confident number, and the card is what
+that judgement is made against.
+
 ## How they are built
 
 A lab is composed from tested blocks rather than written from scratch. The
@@ -72,17 +95,20 @@ exist, what the interface is, what the narration says.
 
 ## Status
 
-Clay Labs is young and openly in progress. Today labs run from a Clayground
-checkout in the Dojo, with live reloading while you edit them:
+Clay Labs is young and openly in progress, but you do not need to install
+anything to try one: **click a lab's picture and it starts in your browser**,
+full screen. It runs on the same Web Runtime that powers the
+[Web Dojo]({{ site.baseurl }}/webdojo/) — around 36 MB on the first visit,
+cached afterwards. A lab itself is tiny; the browser fetches only the few
+hundred kilobytes the lab you opened actually uses.
+
+To edit one, run it from a Clayground checkout in the Dojo, with live
+reloading while you type:
 
 ```bash
 cmake -B build && cmake --build build
 ./build/bin/claydojo --sbx labs/electronics-101/Sandbox.qml
 ```
-
-Running them **directly in the browser** is the next step — the Web Runtime
-that already powers the [Web Dojo]({{ site.baseurl }}/webdojo/) is the same
-one a lab needs, so this is a matter of packaging rather than new technology.
 
 If you want to look under the hood, the labs, their kits and their papers all
 live in [the repository](https://github.com/MisterGC/clayground/tree/main/labs).

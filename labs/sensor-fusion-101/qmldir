@@ -1,0 +1,6 @@
+# The lab's own components. Sandbox.qml is the entry and is loaded by URL, so
+# it is deliberately not listed - everything it refers to by bare type name is.
+#
+# Needed for the same reason the kits carry one: served over HTTP, the implicit
+# same-directory import cannot list the directory to discover types.
+LidarMonitor 1.0 LidarMonitor.qml

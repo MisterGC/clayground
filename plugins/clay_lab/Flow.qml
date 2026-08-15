@@ -51,6 +51,17 @@ Item {
     property var lab: null
 
     /*!
+        \qmlproperty var Flow::camera
+        \brief The lab's camera rig, for steps that carry a \l {FlowStep::view}.
+
+        An \l OrbitCamera3D (anything with \c goTo / \c focusOn / \c applyState
+        will do). Left null, \c FlowStep.view is ignored - which is the whole
+        of the compatibility story: a flow that never wires a camera behaves
+        exactly as it did before the property existed.
+    */
+    property var camera: null
+
+    /*!
         \qmlproperty string Flow::flowId
         \brief Stable id; prefixes narration keys and identifies the flow.
     */
@@ -68,15 +79,32 @@ Item {
     */
     property int index: -1
 
-    /*! \qmlproperty bool Flow::running \readonly */
+    /*!
+        \qmlproperty bool Flow::running
+        \readonly
+    */
     readonly property bool running: index >= 0
-    /*! \qmlproperty bool Flow::paused \brief Set when the learner takes over. */
+    /*!
+        \qmlproperty bool Flow::paused
+        \brief Set when the learner takes over.
+    */
     property bool paused: false
-    /*! \qmlproperty bool Flow::waiting \readonly \brief In a task: the learner must act. */
+    /*!
+        \qmlproperty bool Flow::waiting
+        \readonly
+        \brief In a task: the learner must act.
+    */
     readonly property bool waiting: running && step !== null && step.task !== null
-    /*! \qmlproperty bool Flow::pending \readonly \brief Waiting on the learner or on the sim. */
+    /*!
+        \qmlproperty bool Flow::pending
+        \readonly
+        \brief Waiting on the learner or on the sim.
+    */
     readonly property bool pending: waiting || (running && step !== null && step.watch !== null)
-    /*! \qmlproperty bool Flow::hintShown \readonly */
+    /*!
+        \qmlproperty bool Flow::hintShown
+        \readonly
+    */
     property bool hintShown: false
 
     /*!
@@ -117,9 +145,15 @@ Item {
         \brief The estimate has elapsed: Next is the obvious thing to do now.
     */
     readonly property bool ripe: readyProgress >= 1
-    /*! \qmlproperty FlowStep Flow::step \readonly */
+    /*!
+        \qmlproperty FlowStep Flow::step
+        \readonly
+    */
     readonly property FlowStep step: index >= 0 && index < steps.length ? steps[index] : null
-    /*! \qmlproperty string Flow::title \readonly */
+    /*!
+        \qmlproperty string Flow::title
+        \readonly
+    */
     readonly property string title: titleKey === "" ? "" : LabLang.t(titleKey)
 
     /*!
@@ -139,7 +173,14 @@ Item {
 
     property real stepTime: 0        // sim seconds spent in this step
     property var _names: ({})        // flow-local part names -> lab ids
-    property var _checkpoints: ({})  // step index -> lab viewState
+    // step index -> { view: lab viewState, names: the name table as it stood }.
+    // The names belong in the checkpoint, not beside it: a later step refers to
+    // what an earlier one bound ("let bat"), so entering a step from its
+    // checkpoint has to restore the bindings that step was written against.
+    // Otherwise a jump into the middle of a flow leaves every name unresolved
+    // and each demo verb operates on the literal string instead - which fails
+    // silently, because a lab verb given an unknown id simply does nothing.
+    property var _checkpoints: ({})
 
     /*!
         \qmlmethod void Flow::start()
@@ -172,17 +213,32 @@ Item {
     */
     function goTo(i) {
         if (i < 0 || i >= steps.length) { stop(); return }
-        if (_checkpoints[i] !== undefined && lab && lab.applyViewState)
-            lab.applyViewState(JSON.parse(JSON.stringify(_checkpoints[i])))
-        else if (lab && lab.viewState)
-            _checkpoints[i] = JSON.parse(JSON.stringify(lab.viewState()))
+        const cp = _checkpoints[i]
+        if (cp !== undefined && lab && lab.applyViewState) {
+            _names = _clone(cp.names)
+            lab.applyViewState(_clone(cp.view))
+        } else if (lab && lab.viewState) {
+            _checkpoints[i] = { view: _clone(lab.viewState()), names: _clone(_names) }
+        }
         index = i
         stepTime = 0
         hintShown = false
         paused = false
         const s = steps[i]
         if (s.demo && s.demo.length) run(s.demo)
+        applyView(s.view)          // after the demo: a step may frame what it built
         narrated(narration, LabLang.lang, s.key)
+    }
+
+    /*!
+        \qmlmethod void Flow::applyView(var v)
+        \brief Moves \l camera as a \l {FlowStep::view} asks; a no-op without one.
+    */
+    function applyView(v) {
+        if (!v || !camera) return
+        if (v.viewpoint !== undefined && camera.goTo) camera.goTo(v.viewpoint, v.ms)
+        else if (v.focus !== undefined && camera.focusOn) camera.focusOn(v.focus, v.pad, v.ms)
+        else if (v.pose !== undefined && camera.applyState) camera.applyState(v.pose)
     }
 
     /*!
@@ -224,6 +280,10 @@ Item {
         return (lab && lab.flowActions) ? lab.flowActions() : ({})
     }
     function nameOf(n) { return _names[n] !== undefined ? _names[n] : n }
+
+    // A checkpoint has to be a snapshot, not a view: the lab keeps mutating the
+    // object it handed over, and _names keeps growing as later steps bind.
+    function _clone(o) { return JSON.parse(JSON.stringify(o)) }
 
     /*!
         \qmlmethod void Flow::run(var actions)

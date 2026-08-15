@@ -31,10 +31,16 @@ import QtQuick
 QtObject {
     id: root
 
-    /*! \qmlproperty bool GridMode::snap \brief Snapping to the raster. */
+    /*!
+        \qmlproperty bool GridMode::snap
+        \brief Snapping to the raster.
+    */
     property bool snap: true
 
-    /*! \qmlproperty real GridMode::step \brief Raster spacing in world units. */
+    /*!
+        \qmlproperty real GridMode::step
+        \brief Raster spacing in world units.
+    */
     property real step: 1
 
     /*! \qmlmethod void GridMode::toggle() */

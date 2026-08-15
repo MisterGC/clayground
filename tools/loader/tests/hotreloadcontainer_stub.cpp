@@ -21,15 +21,16 @@ QQmlContext* HotReloadContainer::rootContext() const { return nullptr; }
 void HotReloadContainer::setSource(const QUrl&) {}
 void HotReloadContainer::hotReload() {}
 void HotReloadContainer::resizeEvent(QResizeEvent*) {}
-void HotReloadContainer::onFadeOutFinished() {}
+void HotReloadContainer::finishLoad() {}
 void HotReloadContainer::onFadeInFinished() {}
 void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status) {}
-void HotReloadContainer::startFadeOut() {}
 void HotReloadContainer::showLoadingScreen() {}
 void HotReloadContainer::hideLoadingScreen() {}
 void HotReloadContainer::startFadeIn() {}
-void HotReloadContainer::createNewEngine() {}
-void HotReloadContainer::destroyCurrentEngine() {}
+void HotReloadContainer::createCandidate() {}
+void HotReloadContainer::promoteCandidate() {}
+void HotReloadContainer::discardCandidate() {}
+void HotReloadContainer::scheduleLoadCompletion() {}
 void HotReloadContainer::setupQuickWidget(QQuickWidget*) {}
 
 #include "moc_hotreloadcontainer.cpp"

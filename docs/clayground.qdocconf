@@ -3,12 +3,20 @@
 
 project = Clayground
 description = Clayground Game Development Framework
-version = 2026.2
+version = 2026.6
 url = https://mistergc.github.io/clayground
 
-# Source directories - all plugins + docs for module declarations
-sourcedirs = . \
-             ../plugins/clay_ai \
+# The module declarations, named as one file rather than by putting docs/ on
+# sourcedirs. That used to be ".", which walked the whole website tree - the
+# Jekyll output in _site (including its own copy of this file, hence a pile of
+# "Overrides a previous doc" warnings), the lab and webdojo payloads copied out
+# of labs/, and the bundled Ruby gems in vendor/. excludedirs can be made to
+# cover them, but only by matching paths the way the local qdoc happens to
+# resolve them; not walking docs/ at all is the version that holds everywhere.
+sources = modules.qdoc
+
+# Source directories - the plugins
+sourcedirs = ../plugins/clay_ai \
              ../plugins/clay_common \
              ../plugins/clay_storage \
              ../plugins/clay_svg \
@@ -25,6 +33,7 @@ sourcedirs = . \
              ../plugins/clay_character3d/src \
              ../plugins/clay_world \
              ../plugins/clay_canvas3d \
+             ../plugins/clay_lab \
              ../plugins/clay_ios \
              ../plugins/clay_sound
 
@@ -69,7 +78,9 @@ generateindex = true
 naturallanguage = en
 
 # Exclude private/internal items
-excludedirs = ../plugins/clay_common/tests
+excludedirs = ../plugins/clay_common/tests \
+              ../plugins/clay_lab/tests \
+              ../plugins/clay_lab/demo
 excludefiles = ../plugins/clay_common/*_p.h \
                ../plugins/clay_ai/src/llmengine_wasm.h \
                ../plugins/clay_ai/src/llmengine_wasm.cpp

@@ -240,12 +240,33 @@ void LineBatchInstancing::writeLineEntries(char *dst, const Line &line) const
         const int capFlags = (s == 0 ? 1 : 0) | 2;
 
         // Affine transform mapping base-space (0,0,0)->P0 and (1,0,0)->P1.
-        // Columns 1 and 2 are zero; translation is P0. Stored row-major as
-        // three vec4 rows (row.xyz = matrix row, row.w = translation).
+        // Translation is P0. Stored row-major as three vec4 rows
+        // (row.xyz = matrix row, row.w = translation).
+        //
+        // Column 0 is the segment axis. Columns 1 and 2 carry the flat ribbon
+        // frame - column 1 the unit across direction in the ground plane
+        // (the Flat orientation's sideDir), column 2 the plane normal. The
+        // line shaders only ever transform (0,0,0) and (1,0,0), so they never
+        // see them - but the matrix must still be full rank: for Shaded
+        // materials (the shadow-caster twin) Qt's generated vertex code takes
+        // inverse(instance model matrix) for the normal matrix, which with
+        // zero columns inverts a singular matrix into garbage. The bytes were
+        // zero padding before, so the frame costs nothing.
+        const QVector3D axis = p1 - p0;
+        QVector3D across = QVector3D::crossProduct(axis, QVector3D(0.0f, 1.0f, 0.0f));
+        const float acrossLen = across.length();
+        if (acrossLen > 1e-6f)
+            across /= acrossLen;
+        else
+            across = QVector3D(1.0f, 0.0f, 0.0f); // vertical segment: any horizontal unit
+        QVector3D normal = QVector3D::crossProduct(across, axis);
+        const float normalLen = normal.length();
+        normal = normalLen > 1e-6f ? normal / normalLen : QVector3D(0.0f, 1.0f, 0.0f);
+
         Entry e;
-        e.row0 = QVector4D(p1.x() - p0.x(), 0.0f, 0.0f, p0.x());
-        e.row1 = QVector4D(p1.y() - p0.y(), 0.0f, 0.0f, p0.y());
-        e.row2 = QVector4D(p1.z() - p0.z(), 0.0f, 0.0f, p0.z());
+        e.row0 = QVector4D(axis.x(), across.x(), normal.x(), p0.x());
+        e.row1 = QVector4D(axis.y(), across.y(), normal.y(), p0.y());
+        e.row2 = QVector4D(axis.z(), across.z(), normal.z(), p0.z());
         e.color = line.color;
         e.instanceData = QVector4D(line.width, static_cast<float>(line.styleId),
                                    pathDist, static_cast<float>(capFlags));
@@ -383,6 +404,43 @@ QVector3D LineBatchInstancing::positionAt(int lineIndex, qreal distance) const
     return line.points.last();
 }
 
+QVariantMap LineBatchInstancing::clayInspect() const
+{
+    QVariantMap info;
+    info["type"] = QStringLiteral("LineBatch3D");
+    info["lineCount"] = m_lines.size();
+    info["instanceCount"] = m_instanceCount;
+    info["boundsMin"] = QVariantList{m_boundsMin.x(), m_boundsMin.y(), m_boundsMin.z()};
+    info["boundsMax"] = QVariantList{m_boundsMax.x(), m_boundsMax.y(), m_boundsMax.z()};
+
+    QVariantList lines;
+    lines.reserve(m_lines.size());
+    for (int i = 0; i < m_lines.size(); ++i) {
+        const Line &line = m_lines.at(i);
+
+        QVariantList points;
+        points.reserve(line.points.size() * 3);
+        for (const auto &p : line.points)
+            points << p.x() << p.y() << p.z();
+
+        QVariantMap entry;
+        entry["index"] = i;
+        entry["pointCount"] = line.points.size();
+        // Flat x,y,z runs: compact enough to read in a response, and the same
+        // shape the bulk setters take.
+        entry["points"] = points;
+        entry["width"] = line.width;
+        entry["styleId"] = line.styleId;
+        entry["color"] = QColor::fromRgbF(line.color.x(), line.color.y(),
+                                          line.color.z(), line.color.w()).name(QColor::HexArgb);
+        entry["segments"] = line.instanceCount;
+        entry["length"] = pathLength(i);
+        lines << entry;
+    }
+    info["lines"] = lines;
+    return info;
+}
+
 void LineBatchInstancing::rebuild()
 {
     // Assign instance ranges and total segment count.
@@ -436,6 +494,20 @@ void LineBatchInstancing::updateBounds()
     const QVector3D margin(maxWidth, maxWidth, maxWidth);
     m_boundsMin = mn - margin;
     m_boundsMax = mx + margin;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    // Shadow-casting bounds. Without these, Qt derives an instanced caster's
+    // bounds by pushing the GEOMETRY bounds through every instance transform -
+    // and our base-quad geometry deliberately reports the whole batch extent
+    // (world coordinates) for culling, so each segment's axis-scaled transform
+    // turns that box into garbage thousands of units off. The shadow camera is
+    // fitted laterally to the casting box, so the garbage made its frustum
+    // slice straight through the ribbons and their shadows ended at a hard
+    // diagonal line. These explicit bounds bypass the per-instance transform
+    // entirely; they are world-space, matching the batch's point contract.
+    setShadowBoundsMinimum(m_boundsMin);
+    setShadowBoundsMaximum(m_boundsMax);
+#endif
     emit boundsChanged();
 }
 

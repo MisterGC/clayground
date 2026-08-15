@@ -31,3 +31,11 @@ qt6_add_shaders(ClayWorld "clay_world_shaders"
     FILES
         anchored_mask.frag
 )
+
+# QML checks on the loaders and the world types. They run against the built
+# module in bin/qml, so the suite needs nothing beyond the default import dir.
+include(claytest)
+# IMPORTS_BUILT_MODULE: this suite needs the C++ SvgReader, so it loads the
+# built Clayground.World plugin rather than importing QML sources (#192).
+clay_add_qml_test(world_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)

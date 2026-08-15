@@ -25,8 +25,8 @@ Rectangle {
     property var flow: null
 
     visible: flow !== null && flow.running
-    implicitWidth: 640
-    implicitHeight: _col.implicitHeight + 26
+    implicitWidth: LabTheme.px(640)
+    implicitHeight: _col.implicitHeight + 2 * LabTheme.spaceXl + LabTheme.spaceXs
     width: implicitWidth
     height: implicitHeight
     radius: LabTheme.radius
@@ -36,22 +36,22 @@ Rectangle {
 
     Column {
         id: _col
-        x: 16; y: 12
-        width: parent.width - 32
-        spacing: 7
+        x: LabTheme.spaceXxl; y: LabTheme.spaceXl
+        width: parent.width - 2 * LabTheme.spaceXxl
+        spacing: LabTheme.px(7)
 
         Row {
-            spacing: 10
+            spacing: LabTheme.spaceL
             Text {
                 text: _nar.flow ? _nar.flow.title : ""
                 color: LabTheme.primary
-                font.pixelSize: 12; font.bold: true; font.letterSpacing: 1.2
+                font.pixelSize: LabTheme.fontBody; font.bold: true; font.letterSpacing: 1.2
                 font.family: LabTheme.monoFont
             }
             Text {
                 visible: _nar.flow && _nar.flow.paused
                 text: LabLang.t("flow.paused")
-                color: LabTheme.accent; font.pixelSize: 12
+                color: LabTheme.accent; font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.monoFont
             }
         }
@@ -60,7 +60,7 @@ Rectangle {
             width: parent.width
             text: _nar.flow ? _nar.flow.narration : ""
             color: LabTheme.ink
-            font.pixelSize: 18
+            font.pixelSize: LabTheme.fontTitle
             font.family: LabTheme.handFont
             wrapMode: Text.WordWrap
             lineHeight: 1.15
@@ -75,24 +75,24 @@ Rectangle {
                 return s && s.task && s.task.hint ? LabLang.t(s.task.hint) : ""
             }
             color: LabTheme.accent
-            font.pixelSize: 15
+            font.pixelSize: LabTheme.fontLead
             font.family: LabTheme.handFont
             wrapMode: Text.WordWrap
         }
 
         Item {
             width: parent.width
-            height: 22
+            height: LabTheme.px(22)
 
             Row {  // progress dots, clickable: the flow is scrubbable
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
+                spacing: LabTheme.spaceM
                 Repeater {
                     model: _nar.flow ? _nar.flow.steps.length : 0
                     Rectangle {
                         id: _dot
                         required property int index
-                        width: 9; height: 9; radius: 5
+                        width: LabTheme.px(9); height: width; radius: width / 2
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property bool done: _nar.flow && index < _nar.flow.index
                         readonly property bool here: _nar.flow && index === _nar.flow.index
@@ -100,7 +100,7 @@ Rectangle {
                              : (_dot.done ? LabTheme.inkFaint : LabTheme.panelEdge)
                         MouseArea {
                             anchors.fill: parent
-                            anchors.margins: -4
+                            anchors.margins: -LabTheme.spaceS
                             cursorShape: Qt.PointingHandCursor
                             onClicked: if (_nar.flow) _nar.flow.goTo(_dot.index)
                         }
@@ -111,11 +111,11 @@ Rectangle {
             Row {  // controls
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 14
+                spacing: LabTheme.px(14)
                 component Action: Text {
                     property bool strong: false
                     color: strong ? LabTheme.secondary : LabTheme.inkFaint
-                    font.pixelSize: 14; font.bold: strong
+                    font.pixelSize: LabTheme.fontAction; font.bold: strong
                     font.family: LabTheme.handFont
                 }
                 Action {
@@ -142,7 +142,7 @@ Rectangle {
                     text: LabLang.t("flow.watching")
                 }
                 Item {
-                    width: _next.width; height: 20
+                    width: _next.width; height: LabTheme.px(20)
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
                         id: _next
@@ -151,7 +151,7 @@ Rectangle {
                               + (ripe ? "" : "  " + Math.ceil(
                                     (1 - _nar.flow.readyProgress) * _nar.flow.dwellTarget))
                         color: ripe ? LabTheme.secondary : LabTheme.inkFaint
-                        font.pixelSize: 14; font.bold: ripe
+                        font.pixelSize: LabTheme.fontAction; font.bold: ripe
                         font.family: LabTheme.handFont
                         Behavior on color { ColorAnimation { duration: 250 } }
                     }
@@ -159,7 +159,7 @@ Rectangle {
                         visible: !_next.ripe
                         anchors.bottom: parent.bottom
                         width: _next.width * (_nar.flow ? _nar.flow.readyProgress : 0)
-                        height: 2; radius: 1
+                        height: Math.max(1, LabTheme.px(2)); radius: height / 2
                         color: LabTheme.panelEdge
                     }
                     SequentialAnimation on scale {  // one nudge when it ripens

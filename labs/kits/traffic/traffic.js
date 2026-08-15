@@ -25,6 +25,20 @@
 // certain point asking for more traffic simply does not produce more, and the
 // gap between targetCount() and the live count is the network's capacity
 // showing itself.
+//
+// HOUSES - the one exception, and it is opt-in (`par.houses`, a list of node
+// ids). With houses declared, journeys stop being anonymous: a car is placed
+// only on a lane LEAVING a house, and a car reaching the far end of a lane
+// ARRIVING at a house is absorbed there and counted as an arrival. That is the
+// whole of it. It is deliberately NOT a routing model: a driver still picks
+// uniformly among its legal exits, so a car leaving house A does not aim for
+// house B - it wanders until it happens to reach a house. What houses buy is a
+// FAIR COMPARISON: pin the four places traffic enters and leaves, pin the fleet
+// size with `par.target`, and two networks joining the same houses differ only
+// in their shape. Without that, `demand` scales with lane length and a bigger
+// network silently gets more cars, so a topology comparison measures lane
+// length as much as topology. The kit's model card states the limit; a study
+// that uses houses has to restate it (see labs/street-network-101/studies/).
 
 // element kinds, used as the first half of a car's address
 var LANE = 0
@@ -48,7 +62,12 @@ function defaultParams() {
         demand: 0.5,      // cars asked for per 38 units of lane; the
                           // network may refuse to hold that many
         spawnRate: 9.0,   // spawn attempts per second while below target
-        maxCars: 140
+        maxCars: 140,
+
+        // The fixed origin/sink model, off by default so the open model above
+        // is what a lab gets unless it asks otherwise.
+        houses: null,     // [nodeId] - journeys start and end here
+        target: null      // explicit fleet size, overriding the lane-length rule
     }
 }
 
@@ -59,6 +78,9 @@ function createState() {
         claims: {},        // connector index -> car id currently inside it
         crossings: {},     // road id -> monotone count of lanes completed
         rate: {},          // road id -> smoothed cars per minute
+        arrived: 0,        // journeys that ended AT A HOUSE
+        arrivedAt: {},     // house node id -> arrivals there
+        arrivalRate: 0,    // smoothed arrivals per minute, all houses together
         spawned: 0, gone: 0,
         blockedTime: 0,    // car-seconds spent held at a stop line
         movingTime: 0,
@@ -147,7 +169,11 @@ function step(net, st, dt, rng, par) {
             // got to use; leaving one behind would wedge that junction shut
             if (st.claims[kc.claimed] === kc.id) delete st.claims[kc.claimed]
             if (st.claims[kc.booked] === kc.id) delete st.claims[kc.booked]
-            st.gone++
+            // Two different endings, kept apart on purpose: a journey that
+            // reached a HOUSE arrived somewhere, one that ran out of road did
+            // not. A study measuring throughput wants only the first.
+            if (kc.arrived) st.arrived++
+            else st.gone++
         } else kept.push(kc)
     }
     st.cars = kept
@@ -201,6 +227,28 @@ function _mayClaim(net, st, occ, car, par) {
     return true
 }
 
+function _isHouse(par, nodeId) {
+    var houses = par.houses
+    if (!houses || !houses.length) return false
+    for (var i = 0; i < houses.length; ++i) if (houses[i] === nodeId) return true
+    return false
+}
+
+// Does a journey end at the far end of this lane? A dead end always ends one -
+// there is nowhere else to go. A lane ARRIVING at a house ends one too, and
+// that is the whole fixed-sink model: no destination is chosen, the car simply
+// stops being a car when it gets to a house.
+//
+// The two overlap, and the overlap is the COMMON case rather than an edge one:
+// a house on a spur sits at a degree-1 node, so its arrival lane is terminal
+// anyway. Which is why "did it arrive?" is asked of the NODE and never of
+// `lane.terminal` - reading it off the lane counts every house on a spur as a
+// journey that ran out of road, and a study of arrivals then measures nothing.
+function _absorbs(net, par, laneIdx) {
+    var L = net.lanes[laneIdx]
+    return L.terminal || _isHouse(par, L.toNode)
+}
+
 function _advance(net, st, occ, c, dt, rng, par) {
     var elemLen = c.kind === LANE ? net.lanes[c.idx].length
                                   : net.connectors[c.idx].length
@@ -242,9 +290,14 @@ function _advance(net, st, occ, c, dt, rng, par) {
     while (c.s >= elemLen) {
         if (c.kind === LANE) {
             var lane = net.lanes[c.idx]
-            if (lane.terminal) {
-                // the road ran out: this is where a journey ends
+            if (_absorbs(net, par, c.idx)) {
+                // the road ran out, or the car got home: either way the
+                // journey ends here
                 _countCrossing(st, lane.roadId)
+                if (_isHouse(par, lane.toNode)) {
+                    c.arrived = true
+                    _countArrival(st, lane.toNode)
+                }
                 c.dead = true
                 return
             }
@@ -279,7 +332,7 @@ function _advance(net, st, occ, c, dt, rng, par) {
     // dissolves over the last stretch of a dead-end lane and firms up over the
     // first moments of its life.
     var alpha = 1
-    if (c.kind === LANE && net.lanes[c.idx].terminal) {
+    if (c.kind === LANE && _absorbs(net, par, c.idx)) {
         var left = net.lanes[c.idx].length - c.s
         alpha = Math.max(0, Math.min(1, left / FADE_DIST))
     }
@@ -328,19 +381,50 @@ function _countCrossing(st, roadId) {
     st.rate[roadId] = (st.rate[roadId] || 0) + 60 / TAU
 }
 
+// Same exponential smoother as the per-road rate, for the same reason: an
+// arrival is an instant, and "cars per minute" only means something over a
+// window. TAU is that window, so `arrivalRate` reads like a needle rather than
+// a Geiger counter - which is what makes its stddev a statement about the
+// NETWORK and not about the counting.
+function _countArrival(st, nodeId) {
+    st.arrivedAt[nodeId] = (st.arrivedAt[nodeId] || 0) + 1
+    st.arrivalRate += 60 / TAU
+}
+
 function _decayRates(net, st, dt) {
     var f = Math.exp(-dt / TAU)
     for (var i = 0; i < net.roads.length; ++i) {
         var id = net.roads[i].id
         if (st.rate[id]) st.rate[id] *= f
     }
+    if (st.arrivalRate) st.arrivalRate *= f
 }
 
 // ---- spawning --------------------------------------------------------------
 
 function targetCount(net, par) {
+    // An explicit target is what makes two networks comparable: the
+    // lane-length rule below hands a bigger network more cars, so a topology
+    // comparison run on it would measure how much road was drawn.
+    if (par.target !== null && par.target !== undefined)
+        return Math.max(0, Math.min(par.maxCars, Math.round(par.target)))
     var byLength = Math.round(par.demand * net.stats.laneLength / 38)
     return Math.max(0, Math.min(par.maxCars, byLength))
+}
+
+// The lanes a car may be placed on: those leaving a house, or every lane when
+// no houses are declared. An empty result with houses declared is meaningful
+// and is NOT silently widened to "anywhere" - four houses none of which sits on
+// a road is a plan with nowhere for traffic to come from, and it should show as
+// an empty road rather than as the open model in disguise.
+function originLanes(net, par) {
+    var houses = par.houses
+    if (!houses || !houses.length) return null
+    var out = []
+    for (var i = 0; i < net.lanes.length; ++i)
+        for (var h = 0; h < houses.length; ++h)
+            if (net.lanes[i].fromNode === houses[h]) { out.push(i); break }
+    return out
 }
 
 function _spawn(net, st, dt, rng, par) {
@@ -355,13 +439,20 @@ function _spawn(net, st, dt, rng, par) {
 }
 
 function _trySpawn(net, st, rng, par) {
-    var idx = Math.min(net.lanes.length - 1, Math.floor(rng() * net.lanes.length))
+    // One rng draw either way, so declaring houses does not shift the stream
+    // relative to the open model beyond the choice it is actually making.
+    var pool = originLanes(net, par)
+    var idx
+    if (pool === null)
+        idx = Math.min(net.lanes.length - 1, Math.floor(rng() * net.lanes.length))
+    else if (!pool.length) return false
+    else idx = pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))]
     var lane = net.lanes[idx]
     var need = par.carLen * 2 + par.minGap
     if (lane.length < need) return false
     // never drop a car into the fading stretch of a dead end - it would
     // materialise already half transparent
-    var usable = lane.terminal ? lane.length - FADE_DIST : lane.length
+    var usable = _absorbs(net, par, idx) ? lane.length - FADE_DIST : lane.length
     if (usable < need) return false
     var s = par.carLen + rng() * Math.max(0.01, usable - par.carLen * 2)
 
@@ -378,7 +469,7 @@ function _trySpawn(net, st, rng, par) {
         speedFactor: factor,
         next: _pickExit(net, idx, rng),
         alpha: 0, born: st.t, wait: 0, dist: 0,
-        claimed: -1, booked: -1, dead: false,
+        claimed: -1, booked: -1, dead: false, arrived: false,
         tone: Math.floor(rng() * 6)
     })
     st.spawned++
@@ -469,12 +560,19 @@ function stoppedShare(st) {
 
 function roadRate(st, roadId) { return st.rate[roadId] || 0 }
 
+// Smoothed arrivals per minute across all houses - the throughput of a plan
+// whose journeys have somewhere to end. Zero, always, without houses.
+function arrivalRate(st) { return st.arrivalRate || 0 }
+
 function summary(net, st, par) {
     return {
         cars: st.cars.length,
         target: targetCount(net, par),
         spawned: st.spawned,
         goneAtDeadEnds: st.gone,
+        arrived: st.arrived,
+        arrivedAt: st.arrivedAt,
+        arrivalRate: arrivalRate(st),
         meanSpeed: meanSpeed(st),
         stoppedShare: stoppedShare(st),
         simTime: st.t

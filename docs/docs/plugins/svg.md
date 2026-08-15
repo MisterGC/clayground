@@ -4,6 +4,7 @@ title: SVG Plugin
 permalink: /docs/plugins/svg/
 ---
 
+
 The Clay SVG plugin provides comprehensive SVG (Scalable Vector Graphics)
 support for Clayground applications. It enables reading SVG files to extract
 game objects, writing SVG files programmatically, and using SVG elements as
@@ -102,6 +103,17 @@ SvgWriter {
             )
         }
 
+        // Save paths
+        for (let path of world.paths) {
+            polyline(
+                path.points,
+                JSON.stringify({
+                    type: "path",
+                    name: path.name
+                })
+            )
+        }
+
         end()
     }
 }
@@ -128,6 +140,88 @@ Item {
     Image {
         source: svgAssets.source("enemy_sprite")
         visible: svgAssets.has("enemy_sprite")
+    }
+}
+```
+
+### Level Editor Integration
+
+```qml
+Item {
+    // Read level template
+    SvgReader {
+        id: templateReader
+        source: "templates/base_level.svg"
+
+        property var objects: []
+
+        onBegin: {
+            // Clear existing objects
+            for (let obj of objects) obj.destroy()
+            objects = []
+        }
+
+        onRectangle: (id, x, y, width, height, fillColor, strokeColor, description) => {
+            let obj = gameObjectComponent.createObject(gameWorld, {
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                objectData: JSON.parse(description)
+            })
+            objects.push(obj)
+        }
+    }
+
+    // Save edited level
+    SvgWriter {
+        id: levelSaver
+
+        function saveLevel(filename) {
+            path = filename
+            begin(gameWorld.width, gameWorld.height)
+
+            for (let obj of templateReader.objects) {
+                if (obj.shape === "rectangle") {
+                    rectangle(
+                        obj.x,
+                        obj.y,
+                        obj.width,
+                        obj.height,
+                        JSON.stringify(obj.objectData)
+                    )
+                }
+            }
+
+            end()
+        }
+    }
+}
+```
+
+### Dynamic Asset Loading
+
+```qml
+Item {
+    property var svgSources: ({})
+
+    function loadSvgAssets(category) {
+        let source = svgSourceComponent.createObject(this, {
+            svgPath: `assets/${category}_sprites.svg`
+        })
+        svgSources[category] = source
+    }
+
+    Component {
+        id: svgSourceComponent
+        SvgImageSource {}
+    }
+
+    function getAssetSource(category, assetId) {
+        if (svgSources[category] && svgSources[category].has(assetId)) {
+            return svgSources[category].source(assetId)
+        }
+        return ""
     }
 }
 ```
@@ -181,8 +275,6 @@ The Clay SVG plugin provides:
 - **Cache Management**: Efficient caching of rendered SVG elements
 
 The plugin supports standard SVG shapes (rectangles, circles, polygons, polylines) and preserves metadata through description attributes, making it ideal for level design workflows.
-
----
 
 ## API Reference
 

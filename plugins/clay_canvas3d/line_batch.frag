@@ -20,6 +20,19 @@ VARYING float vCapFlags;  // constant per segment: bit0 = start cap, bit1 = end 
 VARYING float vScreenScale; // screen pixels per world unit for this segment
 VARYING vec2 vHead; // x = arrowhead length (segment-space), y = head half width
 
+// The colour write has to be compiled out of the depth pre-pass.
+//
+// While a batch casts shadows, its material is OpaquePrePass (see
+// LineBatch3D.qml), which is what keeps this snippet running in the layer's
+// depth pre-pass so the pre-pass depth is carved by the discards below rather
+// than being the raw quad. But that pass has no colour attachment: for an
+// Unshaded custom material Qt declares no fragOutput there, and an
+// unconditional FRAGCOLOR write fails to compile ("'fragOutput' : undeclared
+// identifier") - which silently drops the whole batch. The discards are what
+// that pass needs; the colour is not. Every write below is therefore guarded.
+// Value test, as always: Qt emits QSSG_ENABLE_DEPTH_PASS as 0 or 1 in every
+// variant, so defined() would gate nothing.
+
 const int PATTERN_DASH = 0;
 const int PATTERN_DOT = 1;
 const int PATTERN_CHEVRON = 2;
@@ -96,7 +109,9 @@ void MAIN()
                 discard;
         }
 
+#if !QSSG_ENABLE_DEPTH_PASS
         FRAGCOLOR = vec4(vColor.rgb, vColor.a * opacity);
+#endif
         return;
     }
 
@@ -151,7 +166,9 @@ void MAIN()
         float alphaHead = vColor.a * opacity * pulseMulH * cov;
         if (alphaHead < 0.003)
             discard;
+#if !QSSG_ENABLE_DEPTH_PASS
         FRAGCOLOR = vec4(vColor.rgb, alphaHead);
+#endif
         return;
     }
 
@@ -262,5 +279,7 @@ void MAIN()
     float alpha = vColor.a * opacity * pulseMul * bodyCov * patCov;
     if (alpha < 0.003)
         discard;
+#if !QSSG_ENABLE_DEPTH_PASS
     FRAGCOLOR = vec4(vColor.rgb, alpha);
+#endif
 }

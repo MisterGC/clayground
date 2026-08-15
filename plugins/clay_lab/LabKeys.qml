@@ -14,22 +14,45 @@ import QtQuick
     as data, and can then \e describe the whole map, which is how a lab stops
     hiding its features behind undocumented letters.
 
+    The navigation half, on a camera that has the exploration layer
+    (\c panBy / \c goalDistance - see \l {OrbitCamera3D}): \b arrows and
+    \b WASD move across the scene, \b {Shift+arrows} turn it, \c + / \c -
+    zoom, \c F frames the selection and \c 0 or \c Home frames everything.
+    WASD is reserved for the same reason the arrows are - it is the gesture
+    every viewer already knows - which is why a lab may not spend those four
+    letters on anything else. The arrows used to
+    turn, which is what a drag already did; travelling was the thing a
+    keyboard could not do at all. While a flow runs, \c → and \c ← belong to
+    the flow, so the arrows are the camera's only when nothing is narrating.
+
+    The interaction half, on a lab that hands over its \l pointer: \b Space
+    pans on the left button while it is held, which is the one gesture the
+    left button ever lends the camera. There is no build key, because there is
+    no build mode - a tool is something you pick up. With an \l hands belt
+    wired up, \c H takes the next instrument (and past the last one, puts
+    everything down), \c P keeps the reading it is showing, \b Backspace takes
+    the last point back and \b Esc ends the measurement. All of them are
+    described here for the same reason as everything else - a key nobody can
+    find is a key the lab does not have.
+
     Non-visual: keep focus handling where it is and call \l handle() from the
-    lab's own key handler.
+    lab's own key handler, and \l handleRelease() from \c Keys.onReleased.
 
     \qml
     Item {
         focus: true
         Keys.onPressed: (ev) => keymap.handle(ev)
+        Keys.onReleased: (ev) => keymap.handleRelease(ev)
 
         LabKeys {
             id: keymap
             lab: root
             camera: rig
+            pointer: nav
             flow: introFlow
             recorder: recorder
             keys: [
-                { key: "S", label: "key.simulate", action: () => root.toggleSim() },
+                { key: "R", label: "key.simulate", action: () => root.toggleSim() },
                 { key: "V", label: "key.values",   action: () => root.showValues = !root.showValues }
             ]
         }
@@ -49,23 +72,97 @@ Item {
     */
     property var lab: null
 
-    /*! \qmlproperty var LabKeys::camera \brief An OrbitCamera3D (or anything with orbitBy/zoomBy). */
+    /*!
+        \qmlproperty var LabKeys::camera
+        \brief An OrbitCamera3D (or anything with orbitBy/zoomBy).
+    */
     property var camera: null
 
-    /*! \qmlproperty var LabKeys::flow \brief The lab's Flow, if it has one. */
+    /*!
+        \qmlproperty var LabKeys::flow
+        \brief The lab's Flow, if it has one.
+    */
     property var flow: null
 
-    /*! \qmlproperty var LabKeys::recorder \brief A DataRecorder toggled by Shift+R. */
+    /*!
+        \qmlproperty var LabKeys::recorder
+        \brief A DataRecorder toggled by Shift+R.
+    */
     property var recorder: null
+
+    /*!
+        \qmlproperty var LabKeys::pointer
+        \brief An \c OrbitInput3D, for the one key that touches the mouse.
+
+        \b Space lends the left button to the camera \e while it is held - a
+        quasimode, which is why this lives here rather than in the lab: a key
+        RELEASE has to be seen too. Wire \l handleRelease from the lab's
+        \c Keys.onReleased.
+
+        Space is shared with a running \l flow, which keeps it: while a
+        narration is on screen, Space is "next step" in every lab, and the
+        temporary hand is not what a reader is reaching for. Nothing else in
+        the map claims it.
+    */
+    property var pointer: null
+
+    /*!
+        \qmlproperty var LabKeys::hands
+        \brief An \l InstrumentBelt - the keys that take, edit and keep a reading.
+
+        \c H walks the belt, \c P keeps the reading, \c Backspace (and
+        \c Delete) takes the last point back and \c Esc ends the measurement -
+        the editing keys only while something is actually in the hand, which is
+        what lets a lab keep \c Del for deleting the thing it builds.
+    */
+    property var hands: null
+
+    /*!
+        \qmlproperty string LabKeys::handKey
+        \brief The letter that walks the belt.
+    */
+    property string handKey: "H"
+
+    /*!
+        \qmlproperty string LabKeys::pinKey
+        \brief The letter that keeps a reading.
+    */
+    property string pinKey: "P"
+
+    /*!
+        \qmlproperty bool LabKeys::navKeys
+        \readonly
+        \brief There is a pointer, so Space can lend it to the camera.
+    */
+    readonly property bool navKeys: pointer !== null && pointer !== undefined
+
+    /*!
+        \qmlproperty bool LabKeys::handKeys
+        \readonly
+        \brief There is a belt to take instruments from.
+    */
+    readonly property bool handKeys: hands !== null && hands !== undefined
+
+    /*!
+        \qmlproperty bool LabKeys::measureKeys
+        \readonly
+        \brief A measurement is being taken right now, so its editing keys are live.
+    */
+    readonly property bool measureKeys: handKeys && hands.held !== null
 
     /*!
         \qmlproperty var LabKeys::keys
         \brief The lab's own keys: \c {[{key, label, action, hidden}]}.
 
-        \c key is the printable letter (\c "S"), \c label a LabLang key
+        \c key is the printable letter (\c "V"), \c label a LabLang key
         describing it, \c action the function to run. Entries appear in
         \l entries and therefore in LabHelp, so declaring a key is the same
         act as documenting it.
+
+        These are dispatched \e before the travel keys, so \c W, \c A, \c S
+        and \c D are effectively reserved: claiming one wins, and the lab
+        silently loses that pan direction. Pick another letter - it is why
+        watching a thing sits on \c Q rather than \c W.
     */
     property var keys: []
 
@@ -75,11 +172,43 @@ Item {
     */
     property var scenarioNames: lab && lab.scenarios ? lab.scenarios() : []
 
-    /*! \qmlproperty bool LabKeys::helpVisible \brief Toggled by \c ?, rendered by LabHelp. */
+    /*!
+        \qmlproperty bool LabKeys::helpVisible
+        \brief Toggled by \c ?, rendered by LabHelp.
+    */
     property bool helpVisible: false
 
-    /*! \qmlproperty bool LabKeys::viewKeys \brief Handle the arrow/zoom/frame keys. */
+    /*!
+        \qmlproperty bool LabKeys::viewKeys
+        \brief Handle the arrow/zoom/frame keys.
+    */
     property bool viewKeys: true
+
+    /*!
+        \qmlproperty real LabKeys::panStep
+        \brief One arrow-key pan, as a fraction of the camera's distance.
+
+        Relative rather than absolute so the same key press covers the same
+        part of the picture at every zoom - a fixed step in world units either
+        crawls when you are far out or throws you off the board when you are
+        close in.
+    */
+    property real panStep: 0.14
+
+    /*!
+        \qmlproperty real LabKeys::orbitStep
+        \brief Degrees of yaw per \c Shift+Left / \c Shift+Right.
+    */
+    property real orbitStep: 6
+
+    /*!
+        \qmlproperty bool LabKeys::scaleKeys
+        \brief Handle \c Ctrl+Plus / \c Ctrl+Minus / \c Ctrl+0 for \l LabTheme::uiScale.
+
+        On by default, so every lab that already has a keymap gained the text
+        size control for free the day it landed.
+    */
+    property bool scaleKeys: true
 
     /*!
         \qmlproperty var LabKeys::frameAll
@@ -109,11 +238,20 @@ Item {
             out.push({ key: "T", label: "keys.flow" })
             out.push({ key: "␣", label: "keys.next" })
         }
+        if (navKeys) out.push({ key: "␣", label: "keys.nav" })
+        if (handKeys) {
+            out.push({ key: handKey, label: "keys.hand" })
+            out.push({ key: pinKey, label: "keys.pin" })
+            out.push({ key: "⌫", label: "keys.unmeasure" })
+        }
         if (viewKeys) {
-            out.push({ key: "←↑↓→ +-", label: "keys.view" })
+            out.push({ key: "←↑↓→ / WASD", label: "keys.pan" })
+            out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
+            out.push({ key: "+-", label: "keys.zoom" })
             out.push({ key: "F", label: "keys.frame" })
             out.push({ key: "0", label: "keys.reset" })
         }
+        if (scaleKeys) out.push({ key: "⌃+ ⌃− ⌃0", label: "keys.uiscale" })
         if (recorder) out.push({ key: "⇧R", label: "keys.record" })
         out.push({ key: "Esc", label: "keys.cancel" })
         out.push({ key: "?", label: "keys.help" })
@@ -137,6 +275,27 @@ Item {
         working throughout - a flow never locks the lab.
     */
     function handle(ev) {
+        // --- the name prompt, before ANYTHING: while it is open the keyboard
+        // is its own, and a name with a b or an h in it must not switch modes
+        // underneath the typing. In the running lab the prompt holds focus and
+        // these never arrive, which is exactly why the guard belongs here -
+        // the one path that could deliver them is a lab that kept focus.
+        if (handKeys && hands.pinning) return false
+
+        // --- text size, BEFORE everything else: the bare +/-/0 keys are the
+        // camera's, and a modifier is the only thing telling the two apart.
+        // Accepts Meta as well as Control because Qt swaps the two on macOS,
+        // where the natural chord is Cmd+Plus.
+        if (scaleKeys && (ev.modifiers & (Qt.ControlModifier | Qt.MetaModifier))) {
+            if (ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) {
+                LabTheme.stepScale(1); return true
+            }
+            if (ev.key === Qt.Key_Minus || ev.key === Qt.Key_Underscore) {
+                LabTheme.stepScale(-1); return true
+            }
+            if (ev.key === Qt.Key_0) { LabTheme.resetScale(); return true }
+        }
+
         // --- flow transport (only while one runs, so arrows stay the view's)
         if (flow && flow.running) {
             if (ev.key === Qt.Key_Space || ev.key === Qt.Key_Right) { flow.next(); return true }
@@ -146,6 +305,41 @@ Item {
         if (ev.key === Qt.Key_T && flow) {
             if (flow.running) flow.stop(); else flow.start()
             return true
+        }
+
+        // --- the view you can hold down
+        // After the flow block on purpose: a running narration keeps Space.
+        if (navKeys && ev.key === Qt.Key_Space) {
+            pointer.springNav = true
+            return true
+        }
+
+        // --- what is in the hand
+        // Before the lab's own keys, like the editing keys below: an
+        // instrument is the nearer context while one is out.
+        if (handKeys) {
+            if (_letterOf(ev) === handKey) { hands.cycle(); return true }
+            if (_letterOf(ev) === pinKey && hands.held && hands.held.pinnable) {
+                hands.beginPin(); return true
+            }
+        }
+
+        // --- the measurement being taken, if one is
+        // Before the lab's own keys on purpose: Del removes what a lab BUILT,
+        // and while a tape measure is out there is nothing built under it -
+        // so the same key can mean "one point fewer" without either lab
+        // having to give its Del up.
+        if (measureKeys) {
+            if (ev.key === Qt.Key_Backspace || ev.key === Qt.Key_Delete) {
+                hands.held.undo(); return true
+            }
+            // Esc empties the measurement first and the hand second: one key,
+            // walked back one step at a time, which is what Esc means
+            // everywhere else too.
+            if (ev.key === Qt.Key_Escape && !helpVisible) {
+                if (hands.held.count > 0) { hands.held.clear(); return true }
+                hands.putAway(); return true
+            }
         }
 
         // --- scenarios on the digits
@@ -184,10 +378,28 @@ Item {
         }
 
         if (!viewKeys) return false
-        if (ev.key === Qt.Key_Left && camera) { camera.orbitBy(-6, 0); return true }
-        if (ev.key === Qt.Key_Right && camera) { camera.orbitBy(6, 0); return true }
-        if (ev.key === Qt.Key_Up && camera) { camera.orbitBy(0, 4); return true }
-        if (ev.key === Qt.Key_Down && camera) { camera.orbitBy(0, -4); return true }
+
+        // The arrows TRAVEL. They used to turn the view, which is the one
+        // thing a mouse drag already did well, while the thing a keyboard
+        // user could not do at all - cross the scene - had no key at all.
+        // Turning moved onto Shift, where it is still one hand's reach.
+        const arrow = _arrow(ev)
+        if (arrow !== null && camera) {
+            if (ev.modifiers & Qt.ShiftModifier) {
+                camera.orbitBy(arrow.x * orbitStep, -arrow.y * orbitStep * 0.66)
+                return true
+            }
+            if (camera.panBy) {
+                const step = (camera.goalDistance !== undefined
+                              ? camera.goalDistance : camera.distance) * panStep
+                camera.panBy(arrow.x * step, -arrow.y * step)
+                return true
+            }
+            // a rig without the exploration layer keeps the old meaning
+            camera.orbitBy(arrow.x * orbitStep, -arrow.y * orbitStep * 0.66)
+            return true
+        }
+
         if ((ev.key === Qt.Key_Plus || ev.key === Qt.Key_Equal) && camera) {
             camera.zoomBy(0.88); return true
         }
@@ -197,6 +409,53 @@ Item {
             frameAll(); return true
         }
         return false
+    }
+
+    /*!
+        \qmlmethod bool LabKeys::handleRelease(var event)
+        \brief The other half of the quasimode; call it from \c Keys.onReleased.
+
+        Only Space needs it, and only while there is a \l pointer. Auto-repeat
+        is ignored: a held key repeats as press-release pairs on some
+        platforms, and taking those at face value makes the hand flicker.
+    */
+    function handleRelease(ev) {
+        if (navKeys && ev.key === Qt.Key_Space && !ev.isAutoRepeat) {
+            pointer.springNav = false
+            return true
+        }
+        return false
+    }
+
+    /*!
+        \qmlmethod void LabKeys::releaseSprings()
+        \brief Drops any held-key mode. For when the lab stops being the one
+        receiving keys.
+    */
+    function releaseSprings() {
+        if (pointer) pointer.springNav = false
+    }
+
+    // The release of a held key never arrives if the lab lost focus while it
+    // was down (a dialog, another window, a click into a panel), and a hand
+    // tool stuck on is the worst possible end state: every drag moves the
+    // scene and nothing says why.
+    Connections {
+        target: root.lab
+        enabled: root.lab !== null && root.pointer !== null
+        function onActiveFocusChanged() {
+            if (!root.lab.activeFocus) root.releaseSprings()
+        }
+    }
+
+    // Screen directions, +y being down as a screen counts: what both the pan
+    // and the orbit branch above are expressed in.
+    function _arrow(ev) {
+        if (ev.key === Qt.Key_Left || ev.key === Qt.Key_A) return { x: -1, y: 0 }
+        if (ev.key === Qt.Key_Right || ev.key === Qt.Key_D) return { x: 1, y: 0 }
+        if (ev.key === Qt.Key_Up || ev.key === Qt.Key_W) return { x: 0, y: -1 }
+        if (ev.key === Qt.Key_Down || ev.key === Qt.Key_S) return { x: 0, y: 1 }
+        return null
     }
 
     // Key letters stay PHYSICAL across languages - a German keyboard must not

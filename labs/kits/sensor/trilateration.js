@@ -155,7 +155,11 @@ function solve(anchors, meas, opts) {
     var cov = invert(N)
     if (!cov) return null
     var sigma = Math.sqrt(Math.max(0, cov[0][0] + cov[1][1]))
-    return { x: x, z: z, bias: b, heading: heading + dh,
+    // A poisoned measurement (NaN range) rides through the normal equations
+    // without ever failing the inversion, so the guard has to be here: a fix
+    // a caller cannot trust is null, not a number-shaped lie.
+    if (!isFinite(x) || !isFinite(z) || !isFinite(sigma)) return null
+    return { x: x, z: z, bias: b, heading: _wrapPi(heading + dh),
              sigma: sigma, dop: sigma / sr }
 }
 

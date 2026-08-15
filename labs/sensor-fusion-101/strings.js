@@ -15,7 +15,7 @@ var dict = {
         "scenario.note.tunnel": "the walls block every satellite and hide every landmark: the filter coasts",
         "scenario.note.lidar-out": "the precise sensor is gone — now the GPS noise reaches the estimate",
 
-        "key.camera": "chase / free camera",
+        "key.camera": "follow the car",
         "key.monitor": "lidar → map panel",
         "key.grid": "ground grid",
 
@@ -42,7 +42,7 @@ var dict = {
         "banner.blackout": "⚠ GPS + LIDAR BLACKOUT",
 
         "hint.idle": "1-3 presets · T for the guided tour · ? for every key",
-        "hint.free": "drag to orbit · wheel zooms · C returns to the car",
+        "hint.free": "drag moves the world · right-drag turns it around the cursor · wheel zooms · C or F goes back to the car",
         "hint.tunnel": "no satellites, no landmarks — the disc grows while the filter guesses",
         "hint.lidarOut": "GPS only: the estimate now wobbles with every fix",
 
@@ -68,7 +68,7 @@ var dict = {
         "scenario.note.tunnel": "die Wände verdecken jeden Satelliten und jede Landmarke: der Filter rollt blind",
         "scenario.note.lidar-out": "der präzise Sensor fehlt — jetzt erreicht das GPS-Rauschen die Schätzung",
 
-        "key.camera": "Kamera: folgen / frei",
+        "key.camera": "dem Auto folgen",
         "key.monitor": "Lidar-→-Karte-Panel",
         "key.grid": "Bodenraster",
 
@@ -95,7 +95,7 @@ var dict = {
         "banner.blackout": "⚠ GPS- UND LIDAR-AUSFALL",
 
         "hint.idle": "1-3 Presets · T für die Führung · ? für alle Tasten",
-        "hint.free": "ziehen dreht · Rad zoomt · C kehrt zum Auto zurück",
+        "hint.free": "ziehen bewegt die Welt · rechte Taste dreht sie um den Zeiger · Rad zoomt · C oder F kehrt zum Auto zurück",
         "hint.tunnel": "keine Satelliten, keine Landmarken — die Scheibe wächst, der Filter rät",
         "hint.lidarOut": "nur GPS: die Schätzung zittert jetzt mit jedem Fix",
 

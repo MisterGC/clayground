@@ -42,7 +42,7 @@ var dict = {
 
         "plan.title": "SCHEMATIC",
 
-        "card.watch": "plot it (W)",
+        "card.watch": "plot it (Q)",
         "card.watched": "on the plot ✓",
         "card.watch.full": "plot is full",
         "card.hint.resistor": "drag to set Ω · R turn · Del remove",
@@ -62,15 +62,16 @@ var dict = {
         "quantity.current": "current",
         "quantity.voltage": "voltage",
         "quantity.power": "power",
-        "plot.empty": "select a part · W puts it here",
+        "hint.placing": "the ghost shows where it lands · click places it · Esc or right-click puts it down",
+        "plot.empty": "select a part · Q puts it here",
 
         "hint.eraser": "eraser: click parts or wire knots to remove · E exits",
-        "hint.wiring": "click a second pad — or any wire, to tap into it · Esc cancels",
-        "hint.selected": "R turns the part · W plots it · Del removes it · drag moves it",
+        "hint.wiring": "click a second pad — or any wire, to tap into it · right-click or Esc cancels",
+        "hint.selected": "R turns the part · Q plots it · Del removes it · drag moves it",
         "hint.selected.free": " (Alt snaps)",
         "hint.selected.snap": " (Alt places freely)",
         "hint.selected.frame": " · F frames it",
-        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · drag to look around",
+        "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · right-drag turns the view",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Why does the LED light?",
@@ -127,7 +128,7 @@ var dict = {
 
         "plan.title": "SCHALTPLAN",
 
-        "card.watch": "aufs Diagramm (W)",
+        "card.watch": "aufs Diagramm (Q)",
         "card.watched": "im Diagramm ✓",
         "card.watch.full": "Diagramm ist voll",
         "card.hint.resistor": "ziehen für Ω · R drehen · Entf löschen",
@@ -147,15 +148,16 @@ var dict = {
         "quantity.current": "Strom",
         "quantity.voltage": "Spannung",
         "quantity.power": "Leistung",
-        "plot.empty": "Bauteil wählen · W stellt es hier dar",
+        "hint.placing": "der Schatten zeigt, wohin es kommt · Klick setzt es · Esc oder rechte Taste legt es weg",
+        "plot.empty": "Bauteil wählen · Q stellt es hier dar",
 
         "hint.eraser": "Radierer: Bauteile oder Knoten anklicken zum Löschen · E beendet",
-        "hint.wiring": "zweites Kontaktfeld anklicken — oder einen Draht, um dort abzuzweigen · Esc bricht ab",
-        "hint.selected": "R dreht das Bauteil · W stellt es dar · Entf löscht es · ziehen verschiebt",
+        "hint.wiring": "zweites Kontaktfeld anklicken — oder einen Draht, um dort abzuzweigen · rechte Taste oder Esc bricht ab",
+        "hint.selected": "R dreht das Bauteil · Q stellt es dar · Entf löscht es · ziehen verschiebt",
         "hint.selected.free": " (Alt rastet ein)",
         "hint.selected.snap": " (Alt setzt frei)",
         "hint.selected.frame": " · F rückt es ins Bild",
-        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · ziehen dreht die Ansicht",
+        "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · rechte Taste dreht die Ansicht",
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Warum leuchtet die LED?",

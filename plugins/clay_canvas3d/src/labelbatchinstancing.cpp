@@ -165,6 +165,60 @@ QVariantList LabelBatchInstancing::priorities() const
     return out;
 }
 
+QVariantMap LabelBatchInstancing::clayInspect() const
+{
+    QVariantMap info;
+    info["type"] = QStringLiteral("LabelBatch3D");
+    info["labelCount"] = m_labels.size();
+    info["curvedLabelCount"] = m_curvedLabels.size();
+    info["glyphCount"] = glyphCount();
+    info["boundsMin"] = QVariantList{m_boundsMin.x(), m_boundsMin.y(), m_boundsMin.z()};
+    info["boundsMax"] = QVariantList{m_boundsMax.x(), m_boundsMax.y(), m_boundsMax.z()};
+
+    QVariantList labels;
+    labels.reserve(m_labels.size());
+    for (int i = 0; i < m_labels.size(); ++i) {
+        const Label &l = m_labels.at(i);
+        QVariantMap entry;
+        entry["index"] = i;
+        entry["text"] = l.text;
+        entry["position"] = QVariantList{l.position.x(), l.position.y(), l.position.z()};
+        entry["size"] = l.size;
+        entry["opacity"] = l.opacity;
+        entry["priority"] = l.priority;
+        entry["glyphCount"] = l.glyphCount;
+        entry["color"] = QColor::fromRgbF(l.color.x(), l.color.y(), l.color.z(),
+                                          l.color.w()).name(QColor::HexArgb);
+        labels << entry;
+    }
+    info["labels"] = labels;
+
+    QVariantList curved;
+    curved.reserve(m_curvedLabels.size());
+    for (int i = 0; i < m_curvedLabels.size(); ++i) {
+        const CurvedLabel &c = m_curvedLabels.at(i);
+        QVariantMap entry;
+        entry["index"] = i;
+        entry["text"] = c.text;
+        entry["size"] = c.size;
+        entry["opacity"] = c.opacity;
+        entry["glyphCount"] = c.positions.size();
+        // First and last glyph anchor: enough to tell where a path label
+        // actually ended up, and which way round it runs.
+        if (!c.positions.isEmpty()) {
+            const QVector3D &f = c.positions.first();
+            const QVector3D &l = c.positions.last();
+            entry["first"] = QVariantList{f.x(), f.y(), f.z()};
+            entry["last"] = QVariantList{l.x(), l.y(), l.z()};
+        }
+        entry["color"] = QColor::fromRgbF(c.color.x(), c.color.y(), c.color.z(),
+                                          c.color.w()).name(QColor::HexArgb);
+        curved << entry;
+    }
+    info["curvedLabels"] = curved;
+    return info;
+}
+
 void LabelBatchInstancing::reshape()
 {
     if (!m_atlas) {

@@ -243,7 +243,16 @@ macro(clay_app CLAY_APP_NAME)
 
     else() # Desktop targets
 
-        # Integrate the QML plugins in the package
+        # Integrate the QML plugins in the package.
+        #
+        # The copy below takes bin/qml wholesale, and bin/qml is written by the
+        # QML modules of every plugin. Without this edge those modules and this
+        # app build in parallel, so a first build in a clean tree copies a
+        # half-filled directory and the app comes up without its plugins (#188).
+        if(TARGET clay_qml_modules)
+            add_dependencies(${PROJECT_NAME} clay_qml_modules)
+        endif()
+
         if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
             add_custom_command(
                 TARGET ${PROJECT_NAME} POST_BUILD

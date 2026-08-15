@@ -99,7 +99,7 @@ var dict = {
         "card.hint.node": "drag from here to draw a road · Del removes it",
 
         // plot
-        "plot.empty": "select a road and press W to plot it",
+        "plot.empty": "select a road and press Q to plot it",
 
         // banners
         "banner.allDeadEnds": "Every road is a dead end - traffic drains away as fast as it arrives",
@@ -108,14 +108,17 @@ var dict = {
         // hints
         "hint.idle": "drag anywhere to draw a road - from open ground, from a dead end, or off an existing road · click to select · right-drag turns the view",
         "hint.drawing": "release to lay it · a ring means it joins that point, a cross means it splits that road",
-        "hint.erasing": "click a road or junction to remove it · Esc leaves erase mode",
-        "hint.selected": "drag from here to extend · drag the road itself to branch off it · Del removes · W plots",
+        "hint.erasing": "click a road or junction to remove it · right-click or Esc leaves erase mode",
+        "hint.selected": "drag from here to extend · drag the road itself to branch off it · Del removes · Q plots",
         "hint.selectedNode": "drag from here to draw a road · click a turn to close it · X closes the junction · drag again to move it",
         "hint.running": "S stops the traffic · draw while it runs, the cars will use it",
         "hint.tooShort": "too short to be a road",
 
         "sim.stopped": "stopped",
-        "sim.running": "running"
+        "sim.running": "running",
+
+        // houses - fixed origins and sinks, placed by a scenario or a study
+        "house.unbound": "(no road here)"
     },
     "de": {
         "lab.title": "STRASSENNETZ 101",
@@ -200,20 +203,22 @@ var dict = {
         "card.junction.open": "alle Bewegungen freigeben",
         "card.hint.node": "von hier ziehen zeichnet eine Straße · Entf entfernt",
 
-        "plot.empty": "Straße wählen und W drücken",
+        "plot.empty": "Straße wählen und Q drücken",
 
         "banner.allDeadEnds": "Alles Sackgassen - der Verkehr versickert so schnell, wie er entsteht",
         "banner.jammed": "Stau: die meisten Autos stehen",
 
-        "hint.idle": "ziehen zeichnet eine Straße - aus dem Freien, aus einer Sackgasse oder von einer Straße weg · klicken wählt aus · rechte Maustaste dreht",
+        "hint.idle": "ziehen zeichnet eine Straße - aus dem Freien, aus einer Sackgasse oder von einer Straße weg · klicken wählt aus · rechte Taste dreht die Ansicht",
         "hint.drawing": "loslassen legt sie · ein Ring heißt anschließen, ein Kreuz heißt Straße teilen",
-        "hint.erasing": "Straße oder Kreuzung anklicken zum Entfernen · Esc beendet",
-        "hint.selected": "von hier ziehen verlängert · die Straße selbst ziehen zweigt ab · Entf entfernt · W plottet",
+        "hint.erasing": "Straße oder Kreuzung anklicken zum Entfernen · rechte Taste oder Esc beendet",
+        "hint.selected": "von hier ziehen verlängert · die Straße selbst ziehen zweigt ab · Entf entfernt · Q plottet",
         "hint.selectedNode": "von hier ziehen zeichnet · Abbiegung anklicken sperrt sie · X sperrt die Kreuzung · nochmal ziehen verschiebt",
         "hint.running": "S hält den Verkehr an · zeichne weiter, die Autos nutzen es",
         "hint.tooShort": "zu kurz für eine Straße",
 
         "sim.stopped": "angehalten",
-        "sim.running": "läuft"
+        "sim.running": "läuft",
+
+        "house.unbound": "(keine Straße hier)"
     }
 }

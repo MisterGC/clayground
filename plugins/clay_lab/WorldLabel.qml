@@ -63,19 +63,34 @@ Rectangle {
     */
     property var view: null
 
-    /*! \qmlproperty var WorldLabel::camera \brief The camera that View3D renders with. */
+    /*!
+        \qmlproperty var WorldLabel::camera
+        \brief The camera that View3D renders with.
+    */
     property var camera: null
 
-    /*! \qmlproperty vector3d WorldLabel::worldPosition \brief The scene point to pin to. */
+    /*!
+        \qmlproperty vector3d WorldLabel::worldPosition
+        \brief The scene point to pin to.
+    */
     property vector3d worldPosition: Qt.vector3d(0, 0, 0)
 
-    /*! \qmlproperty int WorldLabel::placement \brief See \l Placement. */
+    /*!
+        \qmlproperty int WorldLabel::placement
+        \brief See \l Placement.
+    */
     property int placement: WorldLabel.Above
 
-    /*! \qmlproperty real WorldLabel::gap \brief Pixels between the point and the chip. */
-    property real gap: 6
+    /*!
+        \qmlproperty real WorldLabel::gap
+        \brief Pixels between the point and the chip.
+    */
+    property real gap: LabTheme.spaceM
 
-    /*! \qmlproperty point WorldLabel::offset \brief Extra pixel nudge, applied after placement. */
+    /*!
+        \qmlproperty point WorldLabel::offset
+        \brief Extra pixel nudge, applied after placement.
+    */
     property point offset: Qt.point(0, 0)
 
     /*!
@@ -88,16 +103,28 @@ Rectangle {
     */
     property bool keepInView: true
 
-    /*! \qmlproperty real WorldLabel::margin \brief Closest the chip may come to the window edge. */
-    property real margin: 4
+    /*!
+        \qmlproperty real WorldLabel::margin
+        \brief Closest the chip may come to the window edge.
+    */
+    property real margin: LabTheme.spaceS
 
-    /*! \qmlproperty string WorldLabel::text \brief Convenience one-line content. */
+    /*!
+        \qmlproperty string WorldLabel::text
+        \brief Convenience one-line content.
+    */
     property string text: ""
 
-    /*! \qmlproperty color WorldLabel::accent \brief Border colour - use it to carry meaning. */
+    /*!
+        \qmlproperty color WorldLabel::accent
+        \brief Border colour - use it to carry meaning.
+    */
     property color accent: LabTheme.panelEdge
 
-    /*! \qmlproperty bool WorldLabel::active \brief Set false to hide without unloading. */
+    /*!
+        \qmlproperty bool WorldLabel::active
+        \brief Set false to hide without unloading.
+    */
     property bool active: true
 
     /*!
@@ -107,22 +134,32 @@ Rectangle {
     */
     readonly property bool onScreen: _screen.z > 0
 
-    /*! \qmlproperty var WorldLabel::contentItem \readonly \brief The item children are parented to. */
+    /*!
+        \qmlproperty var WorldLabel::contentItem
+        \readonly
+        \brief The item children are parented to.
+    */
     readonly property alias contentItem: _content
 
     default property alias _children: _content.data
 
     readonly property vector3d _screen: {
         if (!root.view || !root.camera) return Qt.vector3d(0, 0, -1)
-        // the two dependencies that make this track a moving camera
+        // mapFrom3DScene projects to PIXELS, so all four of these change the
+        // result while the function body names none of them. The camera pair
+        // tracks orbiting; the size pair tracks window resizes AND the initial
+        // layout — without it a label projected while the View3D is still 0x0
+        // stays at (0,0) until something moves the camera.
         root.camera.scenePosition
         root.camera.sceneRotation
+        root.view.width
+        root.view.height
         return root.view.mapFrom3DScene(root.worldPosition)
     }
 
     visible: root.active && root.onScreen
-    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + 16
-    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + 10
+    implicitWidth: (root.text !== "" ? _label.implicitWidth : _content.childrenRect.width) + LabTheme.spaceXxl
+    implicitHeight: (root.text !== "" ? _label.implicitHeight : _content.childrenRect.height) + LabTheme.px(10)
     width: implicitWidth
     height: implicitHeight
 
@@ -162,7 +199,7 @@ Rectangle {
         visible: root.text !== ""
         text: root.text
         color: LabTheme.ink
-        font.pixelSize: 12
+        font.pixelSize: LabTheme.fontBody
         font.bold: true
         font.family: LabTheme.monoFont
     }
