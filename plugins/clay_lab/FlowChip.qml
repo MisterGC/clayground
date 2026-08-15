@@ -24,16 +24,22 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty var FlowChip::flow \brief The Flow to offer. */
+    /*!
+        \qmlproperty var FlowChip::flow
+        \brief The Flow to offer.
+    */
     property var flow: null
 
-    /*! \qmlproperty string FlowChip::label \brief Text; defaults to the flow's title. */
+    /*!
+        \qmlproperty string FlowChip::label
+        \brief Text; defaults to the flow's title.
+    */
     property string label: flow && flow.title !== "" ? flow.title
                                                      : LabLang.t("flow.start")
 
     visible: flow !== null && !flow.running
-    implicitWidth: _row.width + 20
-    implicitHeight: 32
+    implicitWidth: _row.width + LabTheme.px(20)
+    implicitHeight: LabTheme.px(32)
     width: implicitWidth
     height: implicitHeight
     radius: LabTheme.radius
@@ -44,30 +50,31 @@ Rectangle {
     Row {
         id: _row
         anchors.centerIn: parent
-        spacing: 7
+        spacing: LabTheme.px(7)
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "▶"
             color: LabTheme.accent
-            font.pixelSize: 11
+            font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.monoFont
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, root.parent ? root.parent.width - 70 : 200)
+            width: Math.min(implicitWidth, root.parent
+                            ? root.parent.width - LabTheme.px(70) : LabTheme.px(200))
             elide: Text.ElideRight
             text: root.label
             // the chip fills with gold on hover, so the ink follows the fill
             color: LabTheme.inkOn(root.color)
-            font.pixelSize: 13
+            font.pixelSize: LabTheme.fontLabel
             font.family: LabTheme.handFont
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "(T)"
             color: LabTheme.inkFaint
-            font.pixelSize: 11
+            font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.monoFont
         }
     }

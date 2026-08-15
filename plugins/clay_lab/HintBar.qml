@@ -26,10 +26,22 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty string HintBar::text \brief The line to show; empty hides the bar. */
+    // There is one of these per lab, so it can carry a name every lab shares -
+    // which is what lets a figure ask for "the hint bar" by name rather than
+    // by a pixel rectangle that the next UI scale invalidates. A lab may still
+    // override it. See clayrender --crop.
+    objectName: "hint"
+
+    /*!
+        \qmlproperty string HintBar::text
+        \brief The line to show; empty hides the bar.
+    */
     property alias text: _hint.text
 
-    /*! \qmlproperty var HintBar::flow \brief Hidden while this Flow runs. */
+    /*!
+        \qmlproperty var HintBar::flow
+        \brief Hidden while this Flow runs.
+    */
     property var flow: null
 
     /*!
@@ -38,11 +50,17 @@ Rectangle {
     */
     property Item rightGuard: null
 
-    /*! \qmlproperty Item HintBar::leftGuard \brief Panel on the left the bar may not grow into. */
+    /*!
+        \qmlproperty Item HintBar::leftGuard
+        \brief Panel on the left the bar may not grow into.
+    */
     property Item leftGuard: null
 
-    /*! \qmlproperty int HintBar::margin \brief Gap kept to the guards. */
-    property int margin: 8
+    /*!
+        \qmlproperty int HintBar::margin
+        \brief Gap kept to the guards.
+    */
+    property int margin: LabTheme.spaceL
 
     // The bar is centred, so its half-width is bounded by the NEARER guard:
     // capping against the text it sizes would be a binding loop, and capping
@@ -53,26 +71,26 @@ Rectangle {
         if (rightGuard) half = Math.min(half, rightGuard.x - margin - centre)
         if (leftGuard)
             half = Math.min(half, centre - (leftGuard.x + leftGuard.width + margin))
-        return Math.max(60, 2 * half)
+        return Math.max(LabTheme.px(60), 2 * half)
     }
 
     anchors.bottom: parent ? parent.bottom : undefined
     anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
-    anchors.bottomMargin: 8
+    anchors.bottomMargin: LabTheme.spaceL
 
     visible: text !== "" && !(flow && flow.running)
-    width: _hint.width + 30
-    height: 26
-    radius: 6
+    width: _hint.width + LabTheme.px(30)
+    height: LabTheme.px(26)
+    radius: LabTheme.px(6)
     color: LabTheme.panel
 
     Text {
         id: _hint
         anchors.centerIn: parent
-        width: Math.min(implicitWidth, root._limit - 30)
+        width: Math.min(implicitWidth, root._limit - LabTheme.px(30))
         elide: Text.ElideRight
         color: LabTheme.inkSoft
-        font.pixelSize: 15
+        font.pixelSize: LabTheme.fontLead
         font.family: LabTheme.handFont
     }
 }

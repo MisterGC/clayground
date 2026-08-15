@@ -4,6 +4,7 @@ title: Behavior Plugin
 permalink: /docs/plugins/behavior/
 ---
 
+
 The Clay Behavior plugin provides reusable behavior components for game
 entities, including movement patterns, path following, triggers, and complex
 object builders. It integrates with the Clay World and Physics plugins to
@@ -153,8 +154,6 @@ The Clay Behavior plugin implements several patterns:
 - **Builder Pattern**: DoorBuilder demonstrates complex object assembly from map data
 
 The plugin integrates tightly with Clay World for coordinate systems and Clay Physics for collision detection and movement.
-
----
 
 ## API Reference
 

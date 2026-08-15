@@ -31,7 +31,10 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty string LabPanel::title \brief Heading text (already translated). */
+    /*!
+        \qmlproperty string LabPanel::title
+        \brief Heading text (already translated).
+    */
     property string title: ""
 
     /*!
@@ -43,14 +46,23 @@ Rectangle {
     */
     property string tag: ""
 
-    /*! \qmlproperty color LabPanel::accent \brief Title colour. */
+    /*!
+        \qmlproperty color LabPanel::accent
+        \brief Title colour.
+    */
     property color accent: LabTheme.primary
 
-    /*! \qmlproperty int LabPanel::padding \brief Inset around the content. */
-    property int padding: 10
+    /*!
+        \qmlproperty int LabPanel::padding
+        \brief Inset around the content.
+    */
+    property int padding: LabTheme.px(10)
 
-    /*! \qmlproperty int LabPanel::spacing \brief Gap between stacked children. */
-    property int spacing: 4
+    /*!
+        \qmlproperty int LabPanel::spacing
+        \brief Gap between stacked children.
+    */
+    property int spacing: LabTheme.spaceS
 
     /*!
         \qmlproperty Item LabPanel::body
@@ -58,7 +70,10 @@ Rectangle {
     */
     readonly property alias body: _body
 
-    /*! \qmlproperty list<Item> LabPanel::content \brief Stacked children (the default property). */
+    /*!
+        \qmlproperty list<Item> LabPanel::content
+        \brief Stacked children (the default property).
+    */
     default property alias content: _col.data
 
     radius: LabTheme.radius
@@ -66,7 +81,8 @@ Rectangle {
     border.color: LabTheme.panelEdge
     border.width: LabTheme.borderWidth
 
-    implicitWidth: Math.max(_col.width, _title.implicitWidth + _tag.width + 10)
+    implicitWidth: Math.max(_col.width,
+                            _title.implicitWidth + _tag.width + LabTheme.spaceL)
                    + 2 * padding
     implicitHeight: _header.height + _col.height + 2 * padding
 
@@ -75,16 +91,16 @@ Rectangle {
         x: root.padding
         y: root.padding
         width: root.width - 2 * root.padding
-        height: root.title !== "" ? _title.implicitHeight + 6 : 0
+        height: root.title !== "" ? _title.implicitHeight + LabTheme.spaceM : 0
         visible: root.title !== ""
 
         Text {
             id: _title
-            width: parent.width - (_tag.visible ? _tag.width + 8 : 0)
+            width: parent.width - (_tag.visible ? _tag.width + LabTheme.spaceL : 0)
             elide: Text.ElideRight
             text: root.title
             color: root.accent
-            font.pixelSize: 11; font.bold: true
+            font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.letterSpacing: 1.4
             font.family: LabTheme.monoFont
         }
@@ -94,7 +110,7 @@ Rectangle {
             visible: root.tag !== ""
             text: root.tag
             color: LabTheme.inkFaint
-            font.pixelSize: 11
+            font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.monoFont
         }
     }

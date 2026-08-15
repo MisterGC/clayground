@@ -1,8 +1,6 @@
 #include "voxelmapinstancing.h"
 #include <QMatrix4x4>
 #include <QVector3D>
-#include <QRandomGenerator>
-#include <random>
 #include <QtMath>
 #include <QVariantMap>
 #include <QVariantList>
@@ -233,6 +231,21 @@ QByteArray VoxelMapInstancing::getInstanceBuffer(int *instanceCount)
     return m_instanceData;
 }
 
+QVariantMap VoxelMapInstancing::clayInspect() const
+{
+    QVariantMap info;
+    info["type"] = QStringLiteral("VoxelMap");
+    info["voxelCount"] = QVariantList{m_data.voxelCountX(), m_data.voxelCountY(),
+                                      m_data.voxelCountZ()};
+    info["solidCount"] = m_data.solidCount();
+    info["voxelSize"] = m_data.voxelSize();
+    info["spacing"] = m_data.spacing();
+    info["paletteSize"] = m_data.paletteSize();
+    info["storageBytes"] = static_cast<double>(m_data.storageBytes());
+    info["dirty"] = m_dirty;
+    return info;
+}
+
 void VoxelMapInstancing::updateInstanceData()
 {
     m_instanceData.clear();
@@ -276,52 +289,6 @@ void VoxelMapInstancing::updateInstanceData()
         }
     }
     m_dirty = false;
-}
-
-// ==========================================
-// Utility Functions (unchanged)
-// ==========================================
-QVector<VoxelMapInstancing::ColorProb> VoxelMapInstancing::prepareColorDistribution(const QVariantList &colorDistribution) {
-    QVector<ColorProb> distribution;
-    float totalWeight = 0.0f;
-    for (const QVariant &item : colorDistribution) {
-        QVariantMap entry = item.toMap();
-        if (entry.contains("color") && entry.contains("weight")) {
-            QColor color(entry["color"].toString());
-            float weight = entry["weight"].toFloat();
-            if (weight > 0.0f) {
-                totalWeight += weight;
-                distribution.append({color, weight});
-            }
-        }
-    }
-    if (!distribution.isEmpty()) {
-        for (auto &item : distribution)
-            item.probability /= totalWeight;
-    }
-    return distribution;
-}
-
-QColor VoxelMapInstancing::getRandomColor(const QVector<ColorProb> &distribution) {
-    float randVal = QRandomGenerator::global()->generateDouble();
-    float cumulative = 0.0f;
-    QColor selected = distribution[0].color;
-    for (const auto &item : distribution) {
-        cumulative += item.probability;
-        if (randVal <= cumulative) {
-            selected = item.color;
-            break;
-        }
-    }
-    return selected;
-}
-
-float VoxelMapInstancing::applyNoise(float value, float noiseFactor) {
-    if (noiseFactor <= 0.0f) return value;
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dis(-noiseFactor, noiseFactor);
-    return value * (1.0f + dis(gen));
 }
 
 void VoxelMapInstancing::commit()

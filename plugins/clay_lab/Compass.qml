@@ -21,16 +21,25 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty real Compass::yaw \brief Camera yaw in degrees (the rig's). */
+    /*!
+        \qmlproperty real Compass::yaw
+        \brief Camera yaw in degrees (the rig's).
+    */
     property real yaw: 0
 
-    /*! \qmlproperty real Compass::aspect \brief Width/height of the surface shown. */
+    /*!
+        \qmlproperty real Compass::aspect
+        \brief Width/height of the surface shown.
+    */
     property real aspect: 1.55
 
-    /*! \qmlproperty color Compass::frontColor \brief Marker on the surface's front edge. */
+    /*!
+        \qmlproperty color Compass::frontColor
+        \brief Marker on the surface's front edge.
+    */
     property color frontColor: LabTheme.accent
 
-    width: 68; height: 68
+    width: LabTheme.px(68); height: width
     radius: width / 2
     color: LabTheme.panel
     border.color: LabTheme.panelEdge
@@ -40,17 +49,17 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.round(root.width * 0.58)
         height: Math.round(width / root.aspect)
-        radius: 3
+        radius: LabTheme.px(3)
         color: LabTheme.paperDeep
         border.color: LabTheme.ink
-        border.width: 1.5
+        border.width: Math.max(1, LabTheme.px(1.5))
         rotation: -root.yaw
 
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             width: Math.round(parent.width * 0.35)
-            height: 3
+            height: Math.max(1, LabTheme.px(3))
             color: root.frontColor
         }
     }
@@ -58,8 +67,8 @@ Rectangle {
     Rectangle {   // you: fixed at the bottom, the surface turns instead
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 4
-        width: 8; height: 8; radius: 4
+        anchors.bottomMargin: LabTheme.spaceS
+        width: LabTheme.spaceL; height: width; radius: width / 2
         color: LabTheme.secondary
     }
 }

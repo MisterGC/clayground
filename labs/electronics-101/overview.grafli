@@ -18,7 +18,7 @@ colours mark pipeline stages
 @ box perel "per-element V, I\npower = |V · I|" 1070,300 240x130 %primary &link:./paper.md#measured-results
 
 # ── outputs (show) ──
-@ box probes "monitor: watched parts\npart<id> · iBattery · power\nI/V/P · R records CSV" 700,530 270x120 %rose &link:./paper.md#run-it
+@ box probes "probes\niBattery · power · vTerm\npart<id> per watched part\nplot · recording · record" 700,530 270x130 %rose &link:./paper.md#run-it
 @ box visuals "visuals\nLED glow ∝︎ current\nbulb glow ∝︎ power\nmeter pills read V / mA" 1070,520 270x140 %highlight &link:./paper.md#measured-results
 
 # ── scenarios ──
@@ -30,6 +30,18 @@ scenarios (keys 1-4)
 4 metering - ammeter in, voltmeter across
 """ ~small &link:./paper.md#measured-results
 
+# ── measurement path (hold → keep → cite) ──
+@ box hand "instruments you hold\ntape 📏 · stopwatch ⏱ · voltmeter ⚡\nH walks the belt, a click is a pick\nthe palette rides here too" 60,700 300x150 %accent &link:./paper.md#instruments-you-hold
+@ box pin "P keeps a reading\nnamed, then registered\nlike any other probe" 440,705 250x140 %accent &link:./paper.md#instruments-you-hold
+@ box record "run record (.labrec)\nlab · scenario · seed · params\nprobe series + summaries\nand the command to redo it" 820,700 300x150 %secondary &link:./paper.md#the-same-contrast-run-as-a-study
+@ box study "study: series-vs-parallel\n12 runs, 1.5 V - 12 V\nparallel: 3.18x the power,\n3.56x the current, 86% of the volts" 1220,700 320x150 %clay &link:./studies/series-vs-parallel/study.md
+@ note mpath 1600,700 """
+bottom row: measure -> keep -> cite
+what a hand measures becomes a probe,
+a probe becomes a record, a record is
+what the paper is allowed to quote
+""" ~small
+
 # ── arrows ──
 @ arrow parts -> nets
 @ arrow nets -> solver "nodes"
@@ -39,3 +51,7 @@ scenarios (keys 1-4)
 @ arrow scen -> parts "build"
 @ arrow viewState -> parts "restores board" !dashed
 @ arrow lang -> visuals "labels + units" !dotted
+@ arrow hand -> pin "kept"
+@ arrow pin -> probes "registers"
+@ arrow probes -> record "recorded"
+@ arrow record -> study "read back"

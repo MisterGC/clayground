@@ -50,53 +50,96 @@ Item {
     */
     property string idPrefix: "watch"
 
-    /*! \qmlproperty var WatchMonitor::quantities \brief \c {[{key, label, unit}]}. */
+    /*!
+        \qmlproperty var WatchMonitor::quantities
+        \brief \c {[{key, label, unit}]}.
+    */
     property var quantities: []
 
-    /*! \qmlproperty string WatchMonitor::quantity \brief Active quantity key. */
+    /*!
+        \qmlproperty string WatchMonitor::quantity
+        \brief Active quantity key.
+    */
     property string quantity: quantities.length ? quantities[0].key : ""
 
-    /*! \qmlproperty int WatchMonitor::maxSeries \brief Beyond this the colours would repeat. */
+    /*!
+        \qmlproperty int WatchMonitor::maxSeries
+        \brief Beyond this the colours would repeat.
+    */
     property int maxSeries: 6
 
-    /*! \qmlproperty var WatchMonitor::valueOf \brief \c {(id) -> real}: the current reading. */
+    /*!
+        \qmlproperty var WatchMonitor::valueOf
+        \brief \c {(id) -> real}: the current reading.
+    */
     property var valueOf: (id) => 0
 
-    /*! \qmlproperty var WatchMonitor::labelOf \brief \c {(id) -> string}: the legend/board label. */
+    /*!
+        \qmlproperty var WatchMonitor::labelOf
+        \brief \c {(id) -> string}: the legend/board label.
+    */
     property var labelOf: (id) => "" + id
 
-    /*! \qmlproperty var WatchMonitor::canWatch \brief \c {(id) -> bool}: veto (a solder dot has no reading). */
+    /*!
+        \qmlproperty var WatchMonitor::canWatch
+        \brief \c {(id) -> bool}: veto (a solder dot has no reading).
+    */
     property var canWatch: (id) => true
 
-    /*! \qmlproperty var WatchMonitor::watched \brief The watched ids, in plot order. */
+    /*!
+        \qmlproperty var WatchMonitor::watched
+        \brief The watched ids, in plot order.
+    */
     property var watched: []
 
-    /*! \qmlproperty int WatchMonitor::revision \brief Bump when labels change (ordinals, renames). */
+    /*!
+        \qmlproperty int WatchMonitor::revision
+        \brief Bump when labels change (ordinals, renames).
+    */
     property int revision: 0
 
-    /*! \qmlproperty string WatchMonitor::placeholder \brief Shown while nothing is watched. */
+    /*!
+        \qmlproperty string WatchMonitor::placeholder
+        \brief Shown while nothing is watched.
+    */
     property string placeholder: ""
 
-    /*! \qmlproperty real WatchMonitor::windowSeconds \brief Plot window. */
+    /*!
+        \qmlproperty real WatchMonitor::windowSeconds
+        \brief Plot window.
+    */
     property real windowSeconds: 30
 
-    /*! \qmlproperty real WatchMonitor::plotWidth \brief Chart width. */
-    property real plotWidth: 330
+    /*!
+        \qmlproperty real WatchMonitor::plotWidth
+        \brief Chart width.
+    */
+    property real plotWidth: LabTheme.px(330)
 
-    /*! \qmlproperty real WatchMonitor::plotHeight \brief Chart height. */
-    property real plotHeight: 140
+    /*!
+        \qmlproperty real WatchMonitor::plotHeight
+        \brief Chart height.
+    */
+    property real plotHeight: LabTheme.px(140)
 
-    /*! \qmlproperty string WatchMonitor::unitText \readonly \brief Unit of the active quantity. */
+    /*!
+        \qmlproperty string WatchMonitor::unitText
+        \readonly
+        \brief Unit of the active quantity.
+    */
     readonly property string unitText: {
         for (const q of quantities) if (q.key === quantity) return q.unit
         return ""
     }
 
-    /*! \qmlsignal WatchMonitor::changed() \brief The watched set changed. */
+    /*!
+        \qmlsignal WatchMonitor::changed()
+        \brief The watched set changed.
+    */
     signal changed()
 
     implicitWidth: plotWidth
-    implicitHeight: _chips.height + 6 + plotHeight
+    implicitHeight: _chips.height + LabTheme.spaceM + plotHeight
     width: implicitWidth
     height: implicitHeight
 
@@ -113,7 +156,10 @@ Item {
             : LabTheme.seriesColors[i % LabTheme.seriesColors.length]
     }
 
-    /*! \qmlmethod bool WatchMonitor::isFull() \brief No colour left for another curve. */
+    /*!
+        \qmlmethod bool WatchMonitor::isFull()
+        \brief No colour left for another curve.
+    */
     function isFull() { return watched.length >= maxSeries }
 
     /*! \qmlmethod void WatchMonitor::setWatched(var id, bool on) */
@@ -132,7 +178,10 @@ Item {
     /*! \qmlmethod void WatchMonitor::toggle(var id) */
     function toggle(id) { setWatched(id, !isWatched(id)) }
 
-    /*! \qmlmethod void WatchMonitor::watchOnly(var ids) \brief Replace the set (presets seed it). */
+    /*!
+        \qmlmethod void WatchMonitor::watchOnly(var ids)
+        \brief Replace the set (presets seed it).
+    */
     function watchOnly(ids) {
         watched = ids.filter(canWatch).slice(0, maxSeries)
         changed()
@@ -173,15 +222,15 @@ Item {
         id: _chips
         anchors.top: parent.top
         anchors.right: parent.right
-        spacing: 6
+        spacing: LabTheme.spaceM
 
         Repeater {
             model: root.quantities
             Rectangle {
                 required property var modelData
                 readonly property bool active: modelData.key === root.quantity
-                width: _chipLabel.implicitWidth + 16
-                height: 22
+                width: _chipLabel.implicitWidth + LabTheme.spaceXxl
+                height: LabTheme.px(22)
                 radius: LabTheme.radius
                 color: active ? LabTheme.secondary : LabTheme.panel
                 border.color: active ? LabTheme.secondary : LabTheme.panelEdge
@@ -192,7 +241,7 @@ Item {
                     text: LabLang.t(modelData.label)
                           + (modelData.unit ? " (" + modelData.unit + ")" : "")
                     color: LabTheme.inkOn(parent.color)
-                    font.pixelSize: 12
+                    font.pixelSize: LabTheme.fontBody
                     font.family: LabTheme.handFont
                 }
                 MouseArea {

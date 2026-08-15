@@ -15,6 +15,19 @@ import "strings.js" as Strings
 // odometry and landmark lidar against a map into one estimate (2D Kalman
 // filter). Keys: 1-3 presets · T flow · C camera · M lidar panel · # grid ·
 // F frame the car · 0 frame the city · ⇧R record · ? every key.
+// Nothing here is built or selected, which is why this is the one lab that
+// spends the left button on the view: drag carries the world along, right-drag
+// turns it about the point under the cursor, the middle button drags too,
+// double-click re-centres, the wheel zooms towards the cursor; arrows travel,
+// Shift+arrows turn. H still takes the tape measure out and a click still
+// drops a measuring point - a click pans by nothing, so the two do not
+// collide. Backspace takes a point back, Esc clears the run.
+//
+// Following the car is NOT a second camera and not a mode: it is this one
+// rig's pivot bound to the car. So every gesture keeps working while the car
+// is being chased - the wheel zooms in on it, a right drag turns around it -
+// because none of them touch the pivot. Panning does, which is why panning is
+// exactly what lets the car go, and C or F is what takes it back.
 Item {
     id: root
     anchors.fill: parent
@@ -25,6 +38,19 @@ Item {
         forceActiveFocus()
         applyScenario("open-sky")
     }
+
+    // Does the left column still fit above the plot? Measured against what the
+    // panels actually want at the current text size, so the answer changes with
+    // the window as well as with the scale.
+    readonly property bool roomyColumn:
+        plot.y - LabTheme.px(20) > legendPanel.height + fusionPanel.height
+                                   + presets.height + compass.height + LabTheme.px(30)
+
+    // ...and does the scan display still fit under the parameters? At a large
+    // text size the parameter panel alone reaches the plot, so the monitor
+    // steps left out of that column rather than sitting on top of the sliders.
+    readonly property real monitorRoom: plot.y - (params.y + params.height)
+    readonly property bool monitorUnderParams: monitorRoom > LabTheme.px(340)
 
     // view-only toggles (LabKeys drives them, viewState carries them)
     property bool followCam: true
@@ -45,6 +71,14 @@ Item {
     // --- truth ----------------------------------------------------------
     readonly property var carPose: Track.poseAt(pSpeed.value * clock.time)
     function truePos() { return {x: carPose.x, y: carPose.y} }
+
+    // Following, in one line: the pivot goes where the car goes. The rig's own
+    // easing does the trailing, so the chase is the same smoothing every other
+    // camera move already gets rather than a second mechanism with its own feel.
+    onCarPoseChanged: if (followCam) orbit.setPivot(Qt.vector3d(carPose.x, 0, carPose.y))
+    // Taking the car back leaves the zoom and the angle you chose alone - it
+    // only re-binds the pivot, which is what makes C cheap to press.
+    onFollowCamChanged: if (followCam) orbit.setPivot(Qt.vector3d(carPose.x, 0, carPose.y))
 
     readonly property var buildingData: [
         {x: 30, y: 10, h: 7}, {x: 30, y: -12, h: 5}, {x: 0, y: 22, h: 9},
@@ -106,6 +140,12 @@ Item {
             root._lastT = -1
             const p = Track.poseAt(0)
             kf.reset(p.x, p.y)
+            // The last weighing belongs to the run that just ended. Leaving it
+            // in place put a fix from the cold-open scenario into the record of
+            // the next one, where the sensor never fired at all.
+            root.lastUpdate = { gps: { sigma: 0, gain: 0, t: -99 },
+                                lidar: { sigma: 0, gain: 0, t: -99 } }
+            root.fusionRev++
         }
     }
     Connections {
@@ -168,6 +208,24 @@ Item {
         expr: () => gps.lastFix ? root._dist(gps.lastFix.x, gps.lastFix.y) : NaN
     }
     Probe { name: "uncertainty"; unit: "m"; expr: () => Math.hypot(kf.sigmaX, kf.sigmaY) }
+    // The weighing itself, so the paper can quote it out of a record instead of
+    // out of a memory of the panel. A gain holds until the next fix from that
+    // sensor, so the series is a staircase - which is what the arithmetic
+    // actually is: nothing happens to the weight between measurements.
+    // Before the first fix there is no weight, and a probe that answered 0
+    // would put "we weighed it at nothing" into the record instead of "it never
+    // fired". NaN is not recorded at all, so those ticks stay blank.
+    function _upd(key, field) {
+        const u = lastUpdate[key]
+        return u.t < 0 ? NaN : u[field]
+    }
+    Probe { name: "gainGps"; expr: () => root._upd("gps", "gain") }
+    Probe { name: "gainLidar"; expr: () => root._upd("lidar", "gain") }
+    // ...and what each sensor claimed its fix was worth, since that is the half
+    // of K = P/(P+R) the sensor supplies. A record holding both makes the
+    // weighing argument checkable rather than quotable from memory.
+    Probe { name: "sigmaGps"; unit: "m"; expr: () => root._upd("gps", "sigma") }
+    Probe { name: "sigmaLidar"; unit: "m"; expr: () => root._upd("lidar", "sigma") }
 
     // --- scenarios ------------------------------------------------------
     ScenarioSet {
@@ -223,10 +281,12 @@ Item {
         followCam = false
         orbit.frame([Qt.vector3d(-30, 0, -22), Qt.vector3d(30, 0, 22)], 1.35)
     }
+    // F is "back to the car", so it re-binds the chase as well as framing it -
+    // there is no reason to frame a moving thing and then watch it drive away.
     function frameSelection() {
-        followCam = false
         orbit.frame([Qt.vector3d(carPose.x - 12, 0, carPose.y - 12),
                      Qt.vector3d(carPose.x + 12, 0, carPose.y + 12)], 1.2)
+        followCam = true
     }
 
     // View-state for the dojo reload convention.
@@ -257,109 +317,80 @@ Item {
         if (s.lang) LabLang.lang = s.lang
     }
 
-    DataRecorder { id: recorder; destination: "sensor-fusion-run.csv" }
+    // Shift+R in a session writes a scratch record; the CITABLE ones come from
+    // records/make.sh, which steps the clock instead of letting frames drive it.
+    // No command here on purpose: a frame-driven run is not reproducible, and a
+    // record claiming otherwise would be worse than one that admits it.
+    DataRecorder {
+        id: recorder
+        lab: "sensor-fusion-101"
+        destination: "labs/sensor-fusion-101/records/session.labrec"
+    }
 
     // --- 3D scene -------------------------------------------------------
     View3D {
-        anchors.fill: parent
-        environment: SceneEnvironment {
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
-        }
         id: view3d
-        camera: root.followCam ? camFollow : orbit.camera
+        anchors.fill: parent
 
-        // free look: drag to orbit, wheel to zoom, 0 to reframe. On a leash -
-        // it always looks at the city and never sinks through the ground.
+        // Ground, light rig and environment in one block. The city stands on
+        // the shared lab stage: an endless sheet of squared paper whose raster
+        // is drawn in the fragment shader, so the scale reference holds at any
+        // zoom and there is no board edge to run out of. `#` still turns the
+        // rules off. No snap cue - the raster here is a ruler, not a pegboard,
+        // and nothing in this lab places anything on it.
+        LabStage3D {
+            id: stage
+            cellSize: 4
+            majorEvery: 5                 // a heavier rule every 20 m, as before
+            workExtent: Qt.vector2d(88, 56)
+            shadowMapFar: 300             // covers the city at maxDistance 220
+            cueSize: 0
+            minorWidth: root.showGrid ? 1.0 : 0
+            majorWidth: root.showGrid ? 1.6 : 0
+        }
+        CameraAnchorMark { pointer: nav }
+        // The tape measure, in metres, because that is what this city is in:
+        // "how far did the fix land from the truth" is the lab's whole
+        // question, and now it can be asked of any two points on the ground
+        // rather than only of the pairs the legend happens to list.
+        InstrumentBelt {
+            id: hands
+            pointer: nav
+            unit: "m"
+            // the error plot runs the full width along the bottom, so the belt
+            // sits above it rather than behind it
+            rowMargin: plot.height + LabTheme.px(48) + LabTheme.spaceL
+        }
+        environment: stage.environment
+
+        camera: orbit.camera
+
+        // The one rig, whether or not it is chasing anything: drag to travel,
+        // right-drag to turn, wheel to zoom, 0 to reframe. On a leash - it
+        // always looks at the city, never sinks through the ground, and cannot
+        // wander off into the empty plane.
+        //
+        // It opens at the car's own distance rather than the city's, because
+        // following is the state the lab starts in.
         OrbitCamera3D {
             id: orbit
             pivot: Qt.vector3d(0, 0, -2)
-            yaw: 0; pitch: 42; distance: 78
+            yaw: 0; pitch: 38; distance: 30
             minPitch: 8; maxPitch: 84
             minDistance: 14; maxDistance: 220
             minHeight: 6
+            homePivot: Qt.vector3d(0, 0, -2)
+            // the city is 88 x 56; a little over its diagonal, so the far
+            // corner can be brought to the middle and no further
+            panLeash: stage.workRadius * 1.2
+            viewpoints: ({
+                "city":   { yaw: 0, pitch: 42, distance: 78,
+                            px: 0, py: 0, pz: -2 },
+                "car":    { pitch: 38, distance: 30 },
+                "top":    { pitch: 82, distance: 120 },
+                "street": { pitch: 14, distance: 40 }
+            })
         }
-        // close-up rig translating with the true car, fixed viewing angle
-        Node {
-            position: Qt.vector3d(root.carPose.x, 0, root.carPose.y)
-            PerspectiveCamera {
-                id: camFollow
-                position: Qt.vector3d(0, 13, 17)
-                eulerRotation: Qt.vector3d(-36, 0, 0)
-            }
-        }
-        DirectionalLight {
-            eulerRotation.x: -35
-            castsShadow: true
-            // The theme owns the strength, because how much darkening a board
-            // can take depends on how bright it is. What made it moderate on
-            // paper still holds: a hard-edged shadow at full strength read as
-            // a black hole punched in the sheet, and the road (a flat
-            // LineBatch3D, an unshaded material the shadow pass skips) cannot
-            // receive it - so the darker the shadow, the more obvious the seam
-            // where it stops at the kerb.
-            shadowFactor: LabTheme.shadowFactor
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            ambientColor: LabTheme.ambient3d
-            // Without these three the shadows detach from the buildings: Qt's
-            // default bias pushes them off the ground, and the default map
-            // range spreads the texels over a volume thousands of units deep,
-            // so what is left is a blurry smudge beside each block rather than
-            // a shadow under it. The range only has to cover this city at the
-            // camera's furthest (maxDistance 220 plus the scene radius), and
-            // the cascades spend the resolution near the viewer.
-            shadowBias: 3
-            shadowMapFar: 300
-            // Crisp rather than soft: everything else in the scene is flat
-            // toon shading with no specular, and a feathered shadow is the one
-            // element that would look photographic next to it. Two cascades
-            // keep the texels dense enough near the viewer for a hard edge to
-            // read as an edge rather than as stair-steps - a third was measured
-            // against this scene and changed nothing visible, so it is not
-            // worth the extra shadow pass every frame.
-            csmNumSplits: 2
-            softShadowQuality: Light.Hard
-        }
-
-        // Box3D's y is the BOTTOM of the box: -0.5 with height 0.5 puts the
-        // ground surface at exactly 0, which is what everything else assumes.
-        Box3D {
-            width: 92; height: 0.5; depth: 62; y: -0.5
-            color: LabTheme.sheet
-            useToonShading: true
-        }
-
-        // A modelling-viewport grid: minor lines every 4 units, a stronger one
-        // every 20, all flat on the paper and just under the road. It gives
-        // the eye a scale reference for "how far did it drift?".
-        LineBatch3D {
-            visible: root.showGrid
-            widthUnits: LineBatch3D.World
-            orientation: LineBatch3D.Flat
-            opaque: true
-            depthBias: 1
-            lines: {
-                const out = []
-                const hx = 44, hz = 28, y = 0.012
-                const minor = LabTheme.step(LabTheme.sheet, 1.05)
-                const major = LabTheme.step(LabTheme.sheet, 1.14)
-                for (let x = -hx; x <= hx; x += 4) {
-                    const big = (x % 20) === 0
-                    out.push({ points: [Qt.vector3d(x, y, -hz), Qt.vector3d(x, y, hz)],
-                               color: big ? major : minor,
-                               width: big ? 0.10 : 0.05, styleId: 0 })
-                }
-                for (let z = -hz; z <= hz; z += 4) {
-                    const big = (z % 20) === 0
-                    out.push({ points: [Qt.vector3d(-hx, y, z), Qt.vector3d(hx, y, z)],
-                               color: big ? major : minor,
-                               width: big ? 0.10 : 0.05, styleId: 0 })
-                }
-                return out
-            }
-        }
-
         // the street: a marking on the ground, so it lies FLAT - a billboard
         // ribbon splays on curves and breaks the road into wedges. Opaque with
         // a depth bias so it sits on the ground plane instead of fighting it.
@@ -594,28 +625,19 @@ Item {
     // --- lab UI ---------------------------------------------------------
     // HUD slots, as every lab uses them: presets top-left, language top-right
     // with the parameters under it, plot along the bottom, monitor bottom-right.
-    // Language and palette, the two switches that change nothing about the
-    // experiment and everything about who can read it.
-    Row {
-        id: topSwitches
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
-        spacing: 6
-        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
-        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
-    }
     ParamPanel {
         id: params
         anchors.right: parent.right; anchors.top: topSwitches.bottom
-        anchors.rightMargin: 10; anchors.topMargin: 10
+        anchors.rightMargin: LabTheme.px(10); anchors.topMargin: LabTheme.px(10)
     }
     Plot2D {
         id: plot
         anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
-        anchors.margins: 10
+        anchors.margins: LabTheme.px(10)
         // this lab's plot spans the full width, so it has to yield the
         // bottom-centre slot the hint bar owns in every lab
-        anchors.bottomMargin: 38
-        height: 150
+        anchors.bottomMargin: LabTheme.px(38)
+        height: LabTheme.px(150)
         series: [
             { probe: "errGps", label: LabLang.t("quantity.errGps"), color: LabTheme.rose },
             { probe: "errOdo", label: LabLang.t("quantity.errOdo"), color: LabTheme.plum },
@@ -625,18 +647,82 @@ Item {
     }
     // Free-look input. Declared before the panels so a drag on the legend or
     // the monitor belongs to that panel, not to the camera.
+    //
+    // The gestures are the kernel's (OrbitInput3D): right-drag turns the world
+    // about the point under the cursor, the middle button drags it, the wheel
+    // zooms towards the cursor, double-click puts the pivot where you clicked.
+    //
+    // And left-drag pans, which every other lab gives up. That is a per-lab
+    // decision and this is the lab that gets to make it: there is nothing here
+    // to select, place or draw, so the left button has no rival tool - see
+    // panButtons.
+    OrbitInput3D {
+        id: nav
+        rig: orbit
+        view: view3d
+        panButtons: Qt.LeftButton | Qt.MiddleButton
+    }
     MouseArea {
+        id: viewMouse
         anchors.fill: parent
-        enabled: !root.followCam
-        acceptedButtons: Qt.LeftButton
-        property real lastX: 0
-        property real lastY: 0
-        onPressed: (m) => { lastX = m.x; lastY = m.y }
-        onPositionChanged: (m) => {
-            orbit.orbitBy((m.x - lastX) * 0.35, (m.y - lastY) * 0.25)
-            lastX = m.x; lastY = m.y
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
+
+        // Where the press started, so a pan can be told from a click without
+        // asking the pointer for state it does not publish.
+        property real pressX: 0
+        property real pressY: 0
+
+        // The one lab where the belt and the camera share the left button, and
+        // the only lab where they safely can: a click pans by nothing (a pan
+        // with no movement moves no world), and a drag fails the belt's own
+        // click test, so exactly one of the two ever does anything. Everywhere
+        // else this would be the mode all over again - here it is what lets a
+        // lab with nothing to select keep its most natural gesture AND still be
+        // measured in.
+        onPressed: (m) => {
+            // Clicking a HUD chip gives the keyboard to that chip, and then C,
+            // the arrows and every other key go somewhere the lab never hears
+            // about. A press on the view takes it back - which is what the
+            // other two labs already do on their own view press.
+            root.forceActiveFocus()
+            if (hands.held && m.button === Qt.LeftButton) hands.press(m.x, m.y)
+            pressX = m.x; pressY = m.y
+            nav.begin(m.x, m.y, m.button, m.modifiers)
         }
-        onWheel: (w) => orbit.zoomBy(w.angleDelta.y > 0 ? 0.9 : 1.12)
+        onPositionChanged: (m) => {
+            if (pressed) hands.move(m.x, m.y)
+            if (nav.move(m.x, m.y)) {
+                if (root.panLetsGo(m.x, m.y)) root.followCam = false
+                return
+            }
+            if (!pressed) nav.hoverAt(m.x, m.y)
+        }
+        onReleased: { nav.end(); hands.release() }
+        onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)
+        onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
+    }
+    // A right click is "put it down" - the RTS cancel, on the button that has
+    // nothing else to do here.
+    Connections {
+        target: nav
+        function onCancelled() { hands.putAway() }
+    }
+
+    // Language, size and theme, top right - and declared AFTER the view's
+    // mouse area for the same reason the panels are: this lab's camera claims
+    // the whole window on the left button, so anything the pointer is meant to
+    // reach has to sit above it. They used to sit below and were only clickable
+    // because the camera was switched off while it chased the car, which meant
+    // they went dead the moment anyone looked around.
+    Row {
+        id: topSwitches
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: LabTheme.px(10)
+        spacing: LabTheme.spaceM
+        LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
     // --- legend --------------------------------------------------------
@@ -644,8 +730,8 @@ Item {
     // never overlapping, and the swatches are how you tell the scene apart.
     LabPanel {
         id: legendPanel
-        x: 10; y: 10
-        width: 258
+        x: LabTheme.px(10); y: LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("legend.title")
 
         // sampled at 4 Hz: at the 20 Hz sim rate the last digit is a blur
@@ -672,19 +758,19 @@ Item {
             property string label: ""
             property string value: ""
             width: legendPanel.body.width
-            height: 17
+            height: LabTheme.px(17)
             Rectangle {
-                width: 10; height: 10; radius: 5
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 color: parent.swatch
             }
             Text {
-                x: 18
-                width: parent.width - 18 - _val.width - 6
+                x: LabTheme.px(18)
+                width: parent.width - LabTheme.px(18) - _val.width - LabTheme.spaceM
                 elide: Text.ElideRight
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.label
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -692,7 +778,7 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 text: parent.value
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -723,10 +809,10 @@ Item {
             width: legendPanel.body.width
             wrapMode: Text.WordWrap
             text: LabLang.t("legend.caption")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
-        Item { width: 1; height: 4 }
+        Item { width: LabTheme.px(1); height: LabTheme.px(4) }
         // the causal chain, in one line: what the receiver can see, the
         // geometry that gives, and what the fix is therefore worth
         Text {
@@ -734,7 +820,7 @@ Item {
             text: LabLang.tf("legend.gpsChain", gps.visibleCount, root.satCount,
                              LabLang.num(gps.hdop, 1), LabLang.num(gps.posSigma, 1))
             color: gps.available ? LabTheme.ink : LabTheme.alarm
-            font.pixelSize: 11; font.bold: true
+            font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
         }
         Text {
@@ -743,7 +829,7 @@ Item {
             text: gps.available
                   ? LabLang.tf("legend.gpsWhy", LabLang.num(gps.sigmaM, 1))
                   : LabLang.tf("legend.gpsNone", gps.minSats)
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
         // the same chain for the lidar, so the two are comparable at a
@@ -756,7 +842,7 @@ Item {
                                LabLang.num(lidar.posSigma, 2))
                   : LabLang.t("sensor.lidar") + ": " + LabLang.t("sensor.noFix")
             color: lidar.available ? LabTheme.ink : LabTheme.alarm
-            font.pixelSize: 11; font.bold: true
+            font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
         }
         Text {
@@ -766,7 +852,7 @@ Item {
                   ? LabLang.t("legend.lidarWhy")
                   : (lidar.enabled ? LabLang.tf("legend.lidarNone", lidar.minLandmarks)
                                    : LabLang.t("legend.lidarOff"))
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
     }
@@ -777,10 +863,10 @@ Item {
     // are the ones actually applied, K = P / (P + R).
     LabPanel {
         id: fusionPanel
-        x: 10; y: legendPanel.y + legendPanel.height + 10
-        width: 258
+        x: LabTheme.px(10); y: legendPanel.y + legendPanel.height + LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("fusion.title")
-        spacing: 6
+        spacing: LabTheme.spaceM
 
         // recency of each sensor, so a row can light up as its fix lands
         function freshness(key) {
@@ -792,16 +878,16 @@ Item {
 
         // prediction: where the motion model says we are, before any sensor
         Row {
-            spacing: 6
+            spacing: LabTheme.spaceM
             Rectangle {
-                width: 10; height: 10; radius: 2
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(2)
                 anchors.verticalCenter: parent.verticalCenter
                 color: LabTheme.inkFaint
             }
             Text {
                 text: LabLang.t("sensor.predict") + "  \u00b1"
                       + LabLang.num(root.sigmaPredicted, 1) + " m"
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
@@ -813,7 +899,7 @@ Item {
             property string label: ""
             property bool live: true
             width: fusionPanel.body.width
-            height: 30
+            height: LabTheme.px(30)
             readonly property var upd: {
                 root.fusionRev
                 return root.lastUpdate[sensorKey]
@@ -821,15 +907,15 @@ Item {
             readonly property real fresh: fusionPanel.freshness(sensorKey)
 
             Rectangle {
-                width: 10; height: 10; radius: 5
-                y: 2
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
+                y: LabTheme.px(2)
                 color: parent.live ? parent.swatch : LabTheme.muted
                 opacity: 0.45 + 0.55 * parent.fresh
             }
             Text {
-                x: 18; y: 0
+                x: LabTheme.px(18); y: 0
                 text: parent.label
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             Text {
@@ -837,27 +923,27 @@ Item {
                 text: parent.live && parent.upd
                       ? "\u00b1" + LabLang.num(parent.upd.sigma, 1) + " m"
                       : "\u2014"
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
             // the gain bar: how far this measurement pulled the estimate
             Rectangle {
-                x: 18; y: 17
-                width: parent.width - 60; height: 6; radius: 3
+                x: LabTheme.px(18); y: LabTheme.px(17)
+                width: parent.width - LabTheme.px(60); height: LabTheme.px(6); radius: LabTheme.px(3)
                 color: LabTheme.paperDeep
                 Rectangle {
                     width: parent.width * (parent.parent.live && parent.parent.upd
                                            ? parent.parent.upd.gain : 0)
-                    height: parent.height; radius: 3
+                    height: parent.height; radius: LabTheme.px(3)
                     color: parent.parent.swatch
                     Behavior on width { NumberAnimation { duration: 180 } }
                 }
             }
             Text {
-                anchors.right: parent.right; y: 15
+                anchors.right: parent.right; y: LabTheme.px(15)
                 text: parent.live && parent.upd
                       ? "K " + LabLang.num(parent.upd.gain, 2) : ""
-                color: LabTheme.inkFaint; font.pixelSize: 10
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontMicro
                 font.family: LabTheme.monoFont
             }
         }
@@ -871,19 +957,19 @@ Item {
             live: lidar.available
         }
 
-        Rectangle { width: fusionPanel.body.width; height: 1; color: LabTheme.panelEdge }
+        Rectangle { width: fusionPanel.body.width; height: LabTheme.px(1); color: LabTheme.panelEdge }
 
         Row {
-            spacing: 6
+            spacing: LabTheme.spaceM
             Rectangle {
-                width: 10; height: 10; radius: 5
+                width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(5)
                 anchors.verticalCenter: parent.verticalCenter
                 color: LabTheme.secondary
             }
             Text {
                 text: LabLang.t("sensor.fused") + "  \u00b1"
                       + LabLang.num(Math.hypot(kf.sigmaX, kf.sigmaY) / Math.SQRT2, 1) + " m"
-                color: LabTheme.ink; font.pixelSize: 11; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -891,7 +977,7 @@ Item {
             width: fusionPanel.body.width
             wrapMode: Text.WordWrap
             text: LabLang.t("fusion.law")
-            color: LabTheme.inkFaint; font.pixelSize: 11
+            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.handFont
         }
     }
@@ -901,18 +987,33 @@ Item {
         carPose: root.carPose
         lidar: lidar
         visible: root.showMonitor
-        anchors.right: parent.right; anchors.bottom: plot.top; anchors.margins: 10
+        anchors.right: root.monitorUnderParams ? parent.right : params.left
+        anchors.bottom: plot.top
+        anchors.margins: LabTheme.px(10)
+        // under the parameters it takes what is left between them and the
+        // plot; stepped out to their left it gets its full size back
+        canvasHeight: Math.min(LabTheme.px(210),
+                               root.monitorUnderParams
+                               ? root.monitorRoom - LabTheme.px(170)
+                               : plot.y - (presets.y + presets.height) - LabTheme.px(190))
     }
 
     // --- presets, orientation, the offer to be taught ---------------------
     // Presets are the best teaching material this lab has, so they are
     // clickable and each carries the one line saying why it exists.
+    //
+    // The left column reflows rather than overflowing: turn the text size up
+    // and legend + fusion alone fill the height, so the presets and the
+    // compass step sideways into the empty middle instead of sliding under
+    // the plot. Room is measured, not guessed from the scale - the same lab
+    // on a taller screen keeps the single column.
     LabPanel {
         id: presets
-        anchors.left: parent.left
-        anchors.top: fusionPanel.bottom
-        anchors.leftMargin: 10; anchors.topMargin: 10
-        width: 258
+        anchors.left: root.roomyColumn ? parent.left : legendPanel.right
+        anchors.top: root.roomyColumn ? fusionPanel.bottom : parent.top
+        anchors.leftMargin: LabTheme.px(10)
+        anchors.topMargin: LabTheme.px(10)
+        width: LabTheme.px(258)
         title: LabLang.t("lab.title")
 
         ScenarioBar { lab: root; width: presets.body.width }
@@ -921,17 +1022,22 @@ Item {
 
     Compass {
         id: compass
-        anchors.left: parent.left
+        anchors.left: presets.left
         anchors.top: presets.bottom
-        anchors.leftMargin: 10; anchors.topMargin: 10
+        anchors.topMargin: LabTheme.px(10)
         yaw: orbit.yaw
         aspect: 1.4
     }
 
     HintBar {
         flow: fusionFlow
-        rightGuard: monitor
+        // whichever panel is actually on the right: once the monitor steps
+        // into the middle column the parameters become the wall
+        rightGuard: root.monitorUnderParams ? monitor : params
         text: {
+            // the hand outranks the story: while the tape measure is out, a
+            // hint about the fusion describes something you are not doing
+            if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.tunnelOn && root.carInTunnel) return LabLang.t("hint.tunnel")
             if (!root._lidarOn) return LabLang.t("hint.lidarOut")
             if (!root.followCam) return LabLang.t("hint.free")
@@ -946,6 +1052,7 @@ Item {
     Flow {
         id: fusionFlow
         lab: root
+        camera: orbit                     // so a step may name where to watch from
         flowId: "fusion-basics"
         titleKey: "flow.fusion-basics.title"
 
@@ -983,8 +1090,8 @@ Item {
         // above the error plot, not on top of it: this lab's bottom slot is
         // already taken (exactly the HUD-slot rule from the harvest note)
         anchors.bottom: plot.top
-        anchors.bottomMargin: 10
-        width: Math.min(680, root.width - 40)
+        anchors.bottomMargin: LabTheme.px(10)
+        width: Math.min(LabTheme.px(680), root.width - LabTheme.px(40))
     }
 
     // --- keys -------------------------------------------------------------
@@ -995,6 +1102,8 @@ Item {
         id: keymap
         lab: root
         camera: orbit
+        pointer: nav
+        hands: hands
         flow: fusionFlow
         recorder: recorder
         keys: [
@@ -1007,22 +1116,58 @@ Item {
     LabHelp {
         keymap: keymap
         anchors.centerIn: parent
-        width: 320
+        width: LabTheme.px(320)
+    }
+
+    // A pan moves the pivot and so does following: they cannot both have it.
+    // Dragging the world is the plainer statement of the two - you asked to
+    // look somewhere else - so it wins, and C or F is how you say you were
+    // only browsing. A pan that never travelled is a click and takes nothing
+    // away, or measuring would cost you the chase every time you measured.
+    //
+    // Named rather than written into the handler so the rule can be asked of
+    // the lab directly, which is the only way it gets tested: a drag cannot be
+    // synthesized, a question can be answered.
+    function panLetsGo(x, y) {
+        return followCam && nav.gesture === "pan"
+               && Math.hypot(x - viewMouse.pressX, y - viewMouse.pressY) > nav.clickSlop
+    }
+
+    // The arrows and WASD pan, so they let the car go for the same reason a
+    // drag does. Shift with the same keys turns instead, and turning is
+    // something the pivot does not mind, so it keeps the chase.
+    function _isPanKey(k) {
+        return k === Qt.Key_Left  || k === Qt.Key_A
+            || k === Qt.Key_Right || k === Qt.Key_D
+            || k === Qt.Key_Up    || k === Qt.Key_W
+            || k === Qt.Key_Down  || k === Qt.Key_S
     }
 
     Keys.onPressed: (ev) => {
+        // not while a prompt or the key list owns the keyboard: a letter typed
+        // into a probe's name is not a request to stop following anything
+        if (root.followCam && !hands.pinning && !keymap.helpVisible
+            && !(ev.modifiers & Qt.ShiftModifier) && root._isPanKey(ev.key))
+            root.followCam = false
         if (keymap.handle(ev)) return
         if (ev.key === Qt.Key_Escape) root.followCam = true
     }
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 
-    // recording indicator: the one piece of the old status line worth keeping
-    Text {
-        anchors.left: parent.left; anchors.leftMargin: 12
-        anchors.bottom: plot.top; anchors.bottomMargin: 8
-        visible: recorder.recording
-        text: "\u25cf REC (" + recorder.rows + ")"
-        color: LabTheme.alarm
-        font.family: LabTheme.monoFont
-        font.pixelSize: 12
+    // The recording dot is the kernel's, so the dot, the word and the row
+    // count read the same here as in every other lab.
+    RecIndicator {
+        recorder: recorder
+        anchors.left: parent.left; anchors.leftMargin: LabTheme.spaceXl
+        anchors.bottom: plot.top; anchors.bottomMargin: LabTheme.spaceL
+    }
+
+    // The clock, on screen. This lab runs on its own and its whole argument is
+    // about how the error grows with time - and until now nothing said what
+    // time it was, or offered to stop it at the interesting moment.
+    TransportChip {
+        clock: clock
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top; anchors.topMargin: LabTheme.spaceXl
     }
 }

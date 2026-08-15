@@ -61,6 +61,14 @@ sandbox handles itself at runtime — e.g. a song file being hot-reloaded
 by `SongPlayer` — that full reload is counter-productive: it drags the
 playhead back to zero and throws away the live state you were tuning.
 
+Editor and tool noise is filtered out by default, with no configuration:
+`*~`, `.#*`, `#*#`, `*.swp`/`*.swo`/`*.swx`, `4913`, `.DS_Store`,
+`Thumbs.db`, `*.tmp`, `*.temp`, `*.bak`, `*.orig`, `*.rej`, `__pycache__/`,
+`*.pyc` and `.git/`. A vim swap file or a rejected patch landing next to
+your sandbox used to restart the running scene, which reads as a random
+reset. Sources and assets are never on that list — a `.qml`, `.png` or
+shader change still reloads, as it should.
+
 Drop a `.dojoignore` file next to your `Sandbox.qml` to exclude paths
 from the reload trigger. Same spirit as `.gitignore`:
 
@@ -88,13 +96,18 @@ Semantics:
 | `sub/file.txt`           | path-anchored (no match on `other/sub/file.txt`)               |
 | `/file.txt`              | path-anchored (leading `/` optional; same meaning as above)    |
 | `**`                     | any number of path segments                                    |
+| `!pattern`               | un-ignores; last matching rule wins, as in `.gitignore`        |
 
 Comments start with `#`; blank lines are ignored. The file is re-read
 automatically when you save it, so you can add/remove patterns without
 restarting the dojo.
 
+Use `!` when a built-in default gets in your way — `!*.bak` makes the dojo
+reload on `.bak` files again. A literal leading `!` is escaped as `\!`.
+
 `.dojoignore` only ever *subtracts* from the watched set — it cannot make
-the dojo watch files it would otherwise miss.
+the dojo watch files it would otherwise miss (except for un-ignoring a
+built-in default, which is what `!` is for).
 
 ## Dynamic Plugin Development
 

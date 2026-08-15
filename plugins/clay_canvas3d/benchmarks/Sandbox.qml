@@ -54,7 +54,8 @@ Rectangle {
                         { name: "Connectors - Moving", component: "BenchConnectors.qml" },
                         { name: "Instances - Orbiting", component: "BenchInstances.qml" },
                         { name: "Voxel - Edit Storm", component: "BenchVoxelEdit.qml" },
-                        { name: "Voxel - Churn", component: "BenchVoxelChurn.qml" }
+                        { name: "Voxel - Churn", component: "BenchVoxelChurn.qml" },
+                        { name: "Areas - Poly vs Strips", component: "BenchAreas.qml" }
                     ]
 
                     Rectangle {

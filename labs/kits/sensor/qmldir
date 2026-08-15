@@ -1,0 +1,9 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# A directory import resolves by listing the directory, which is impossible
+# over HTTP - so a lab served by the Web Dojo needs its types named here.
+# Harmless on the desktop, where Qt scans the directory either way.
+GpsSensor 1.0 GpsSensor.qml
+LidarSensor 1.0 LidarSensor.qml
+OdometrySensor 1.0 OdometrySensor.qml
+Satellite3D 1.0 Satellite3D.qml

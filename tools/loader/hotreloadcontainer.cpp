@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "hotreloadcontainer.h"
+#include "claystorage.h"
 #include <QVBoxLayout>
 #include <QQmlContext>
 #include <QQmlError>
@@ -49,7 +50,7 @@ HotReloadContainer::HotReloadContainer(QWidget *parent)
     m_engine = std::make_unique<QQmlEngine>(this);
     m_engine->setProperty("QML_DISABLE_DISK_CACHE", true);
     m_engine->addImportPath("qml");
-    m_engine->setOfflineStoragePath(QDir::homePath() + "/.clayground");
+    ClayScene::applyStorageDir(m_engine.get());
     emit engineCreated();
 }
 
@@ -105,13 +106,14 @@ QQmlContext* HotReloadContainer::rootContext() const
 
 QQuickItem* HotReloadContainer::rootObject() const
 {
-    if (m_currentWidget && m_currentWidget->rootObject())
+    // The live scene stays the root for the whole duration of a candidate
+    // load. A candidate that fails must never be observable as the root — an
+    // agent has to see the old scene, not a half-dead new one (#170) — and a
+    // candidate that succeeds has already become m_currentWidget by the time
+    // anything is told about it. That also removes the reason for the
+    // mid-swap fallback #134 needed: there is no longer a gap without a root.
+    if (m_currentWidget)
         return m_currentWidget->rootObject();
-    // During a reload the current widget is already torn down while the next
-    // one is loading — expose the new root as soon as it exists so inspector
-    // requests (eval, scenario apply) don't hit a null window mid-swap.
-    if (m_nextWidget)
-        return m_nextWidget->rootObject();
     return nullptr;
 }
 
@@ -119,38 +121,20 @@ void HotReloadContainer::hotReload()
 {
     if (m_isReloading || m_source.isEmpty())
         return;
-        
+
     qDebug() << "Starting hot reload for:" << m_source;
     m_isReloading = true;
+    m_candidateOk = false;
+    m_pendingErrors.clear();
     emit loadingStarted();
-    
-    startFadeOut();
-}
 
-void HotReloadContainer::startFadeOut()
-{
-    if (!m_currentWidget)
-        return;
-        
-    // Just hide the current widget immediately
-    m_currentWidget->hide();
-    
-    // Go straight to fade out finished
-    onFadeOutFinished();
-}
-
-void HotReloadContainer::onFadeOutFinished()
-{
     showLoadingScreen();
-    
-    // Start engine operations immediately
-    destroyCurrentEngine();
-    createNewEngine();
-    
-    // Load content in new widget
-    if (m_nextWidget && !m_source.isEmpty()) {
+
+    // The candidate loads into its own engine while the live scene keeps
+    // running and rendering. Nothing is torn down before it reports Ready.
+    createCandidate();
+    if (m_nextWidget)
         m_nextWidget->setSource(m_source);
-    }
 }
 
 void HotReloadContainer::showLoadingScreen()
@@ -166,9 +150,6 @@ void HotReloadContainer::showLoadingScreen()
 
 void HotReloadContainer::hideLoadingScreen()
 {
-    // Start fade in of new content immediately
-    startFadeIn();
-    
     // Simple quick fade out of loading screen
     auto* fadeOut = new QPropertyAnimation(m_loadingEffect, "opacity", this);
     fadeOut->setDuration(100); // Quick 100ms fade
@@ -185,17 +166,17 @@ void HotReloadContainer::hideLoadingScreen()
 
 void HotReloadContainer::startFadeIn()
 {
-    if (!m_nextWidget)
+    if (!m_currentWidget)
         return;
-        
-    // Simple fast fade in
+
+    // Simple fast fade in — purely cosmetic, the swap itself already happened.
     auto* opacityEffect = new QGraphicsOpacityEffect();
-    m_nextWidget->setGraphicsEffect(opacityEffect);
-    m_nextEffect = opacityEffect;
-    
+    m_currentWidget->setGraphicsEffect(opacityEffect);
+    m_currentEffect = opacityEffect;
+
     // Start transparent
     opacityEffect->setOpacity(0.0);
-    
+
     // Quick fade in animation
     auto* fadeIn = new QPropertyAnimation(opacityEffect, "opacity", this);
     fadeIn->setDuration(150); // Fast 150ms fade
@@ -213,85 +194,118 @@ void HotReloadContainer::startFadeIn()
 
 void HotReloadContainer::onFadeInFinished()
 {
-    // Just clear the pointer - the effect was already deleted when we set nullptr on the widget
-    m_currentEffect = nullptr;
-    
-    // Move ownership but keep widget in layout
-    m_currentWidget = std::move(m_nextWidget);
-    
-    // Remove the opacity effect completely so widget renders normally
-    if (m_currentWidget && m_nextEffect) {
-        // This will delete m_nextEffect automatically
+    // Remove the opacity effect completely so the widget renders normally
+    if (m_currentWidget && m_currentEffect) {
+        // This deletes m_currentEffect
         m_currentWidget->setGraphicsEffect(nullptr);
-        m_nextEffect = nullptr;
+        m_currentEffect = nullptr;
     }
-    
-    // Ensure the widget is visible
+
+    if (m_currentWidget)
+        m_currentWidget->update();
+}
+
+void HotReloadContainer::createCandidate()
+{
+    m_nextEngine = std::make_unique<QQmlEngine>(this);
+    m_nextEngine->setProperty("QML_DISABLE_DISK_CACHE", true);
+    m_nextEngine->addImportPath("qml");
+    ClayScene::applyStorageDir(m_nextEngine.get());
+
+    // Deliberately outside the layout and hidden: a candidate must neither be
+    // visible nor squeeze the live scene into half the container. It is sized
+    // like the container so the root object sees its final geometry while it
+    // loads, and the layout picks it up unchanged on promotion.
+    m_nextWidget = std::make_unique<QQuickWidget>(m_nextEngine.get(), this);
+    setupQuickWidget(m_nextWidget.get());
+    m_nextWidget->setGeometry(0, 0, width(), height());
+    m_nextWidget->hide();
+
+    // Context properties and import paths have to be in place before the QML
+    // is parsed — the sandbox resolves ClayLiveLoader & co at load time.
+    emit engineAboutToLoad(m_nextEngine.get());
+}
+
+void HotReloadContainer::promoteCandidate()
+{
+    // The overlays live on the outgoing engine — let MainWindow drop them
+    // before it goes away. This never runs for a discarded candidate.
+    emit engineAboutToBeDestroyed();
+
+    if (m_currentWidget) {
+        layout()->removeWidget(m_currentWidget.get());
+        // Deleting the widget also deletes any graphics effect set on it.
+        m_currentWidget.reset();
+        m_currentEffect = nullptr;
+    }
+
+    // The engine has to outlive its widget, so it is replaced only after the
+    // outgoing widget is gone.
+    m_engine = std::move(m_nextEngine);
+    m_currentWidget = std::move(m_nextWidget);
+    m_nextEffect = nullptr;
+
+    if (m_currentWidget) {
+        layout()->addWidget(m_currentWidget.get());
+        m_currentWidget->show();
+    }
+
+    emit engineCreated();
+}
+
+void HotReloadContainer::discardCandidate()
+{
+    // The candidate never entered the layout and was never shown, so dropping
+    // it leaves the live scene exactly as it was — this is the no-op.
+    if (m_nextWidget) {
+        m_nextWidget->setGraphicsEffect(nullptr);
+        m_nextEffect = nullptr;
+        m_nextWidget.reset();
+    }
+    m_nextEngine.reset();
+
     if (m_currentWidget) {
         m_currentWidget->show();
         m_currentWidget->update();
     }
-    
-    m_isReloading = false;
-    emit loadingFinished();
-    
-    qDebug() << "Hot reload completed";
 }
 
-void HotReloadContainer::createNewEngine()
+void HotReloadContainer::scheduleLoadCompletion()
 {
-    // Create new engine
-    m_engine = std::make_unique<QQmlEngine>(this);
-    
-    // Disable disk cache for hot reloading
-    m_engine->setProperty("QML_DISABLE_DISK_CACHE", true);
-    
-    // Add import paths
-    m_engine->addImportPath("qml");
-    
-    // Set offline storage path
-    m_engine->setOfflineStoragePath(QDir::homePath() + "/.clayground");
-    
-    // Create new QQuickWidget with the new engine
-    m_nextWidget = std::make_unique<QQuickWidget>(m_engine.get(), this);
-    setupQuickWidget(m_nextWidget.get());
-    
-    // Add to layout
-    layout()->addWidget(m_nextWidget.get());
-    
-    // Initially transparent for fade-in
-    // Don't set a parent - let the widget own it exclusively
-    auto* opacityEffect = new QGraphicsOpacityEffect();
-    m_nextWidget->setGraphicsEffect(opacityEffect);
-    opacityEffect->setOpacity(0.0);
-    m_nextEffect = opacityEffect;
-    m_nextWidget->show(); // Show but transparent
-    
-    emit engineCreated();
+    if (m_completionScheduled)
+        return;
+    m_completionScheduled = true;
+    // Never swap or destroy engines from inside the candidate's own
+    // statusChanged: on failure that would delete the sender mid-emission,
+    // and on success it would run the outgoing engine's destructors nested
+    // in the incoming engine's component creation.
+    QTimer::singleShot(0, this, &HotReloadContainer::finishLoad);
 }
 
-void HotReloadContainer::destroyCurrentEngine()
+void HotReloadContainer::finishLoad()
 {
-    // First emit signal so MainWindow can clean up overlays
-    emit engineAboutToBeDestroyed();
-    
-    // Give time for cleanup
-    QCoreApplication::processEvents();
-    
-    if (m_currentWidget) {
-        // Remove from layout first
-        layout()->removeWidget(m_currentWidget.get());
-        
-        // Clear the widget - this will also destroy the engine if it's the last reference
-        // IMPORTANT: This also deletes any graphics effect set on the widget
-        m_currentWidget.reset();
-        
-        // Just clear the pointer - the effect was already deleted by the widget
-        m_currentEffect = nullptr;
+    m_completionScheduled = false;
+    if (!m_isReloading)
+        return;
+
+    if (m_candidateOk) {
+        promoteCandidate();
+        hideLoadingScreen();
+        startFadeIn();
+        m_isReloading = false;
+        emit loadSucceeded();
+        emit loadingFinished();
+        qDebug() << "Hot reload completed";
+    } else {
+        discardCandidate();
+        hideLoadingScreen();
+        m_isReloading = false;
+        const QStringList errors = m_pendingErrors;
+        m_pendingErrors.clear();
+        emit loadFailed(errors);
+        emit loadingFinished();
+        qDebug() << "Hot reload rejected - previous scene kept alive";
     }
-    
-    // Force process events to ensure cleanup
-    QCoreApplication::processEvents();
 }
 
 void HotReloadContainer::setupQuickWidget(QQuickWidget* widget)
@@ -318,14 +332,19 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
     if (!widget)
         return;
         
+    const bool isCandidate = m_isReloading && widget == m_nextWidget.get();
+
     switch (status) {
         case QQuickWidget::Ready:
             qDebug() << "QML loaded successfully from" << widget->source();
-            if (m_isReloading && widget == m_nextWidget.get()) {
-                // Hide loading screen immediately
-                hideLoadingScreen();
+            if (isCandidate) {
+                // Verdict only — the swap happens outside this emission.
+                m_candidateOk = true;
+                m_pendingErrors.clear();
+                scheduleLoadCompletion();
+            } else if (widget == m_currentWidget.get()) {
+                emit loadSucceeded();
             }
-            emit loadSucceeded();
             break;
 
         case QQuickWidget::Error: {
@@ -336,10 +355,13 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
                 qCritical() << line;
                 errorLines.append(line);
             }
-            if (m_isReloading) {
-                hideLoadingScreen();
+            if (isCandidate) {
+                m_candidateOk = false;
+                m_pendingErrors = errorLines;
+                scheduleLoadCompletion();
+            } else if (widget == m_currentWidget.get()) {
+                emit loadFailed(errorLines);
             }
-            emit loadFailed(errorLines);
             break;
         }
 

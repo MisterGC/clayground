@@ -69,9 +69,13 @@ QtObject {
         paramNames = Object.keys(_params)
     }
 
-    function unregisterParameter(par) {
-        if (_params[par.name] === par) {
-            delete _params[par.name]
+    function unregisterParameter(par) { unregisterParameterNamed(par.name, par) }
+
+    // Parameter registers as soon as its name arrives, so it also has to be
+    // able to withdraw the entry it filed under a PREVIOUS name.
+    function unregisterParameterNamed(name, par) {
+        if (_params[name] === par) {
+            delete _params[name]
             paramNames = Object.keys(_params)
         }
     }

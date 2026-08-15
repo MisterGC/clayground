@@ -2,7 +2,6 @@
 
 import QtQuick
 import QtQuick3D
-import QtQuick.Window
 
 /*!
     \qmltype VoxelMap
@@ -93,19 +92,39 @@ Model {
 
     /*!
         \qmlproperty real VoxelMap::edgeThickness
-        \brief Thickness of grid edge lines.
+        \brief Thickness of grid edge lines, in pixels.
 
-        Defaults to 0.05.
+        Screen-space, so an edge keeps its weight as the camera moves, and the
+        same unit Box3D::edgeThickness uses: a cell border comes out this many
+        pixels wide, half on either side of the border.
+
+        Defaults to 1.0, a one pixel hairline.
     */
-    property real edgeThickness: 0.05
+    property real edgeThickness: 1.0
 
     /*!
         \qmlproperty real VoxelMap::edgeColorFactor
         \brief Darkening factor for edges.
 
-        Defaults to 1.0.
+        Defaults to 1.0. Ignored once edgeColor is set.
     */
     property real edgeColorFactor: 1.0
+
+    /*!
+        \qmlproperty color VoxelMap::edgeColor
+        \brief The edge color, as an absolute color rather than a factor.
+
+        Wins over edgeColorFactor as soon as it has a visible alpha, which is
+        what counts as set here - a fully transparent edge has no meaning, so
+        it serves as the unset sentinel and leaves opaque black reachable.
+
+        \qml
+        StaticVoxelMap {
+            edgeColor: "#2f3437"    // dark grey borders, whatever the voxel
+        }
+        \endqml
+    */
+    property color edgeColor: "transparent"
 
     /*!
         \qmlproperty bool VoxelMap::showEdges
@@ -179,6 +198,19 @@ Model {
 
         Supported shapes: "sphere", "cylinder", "box"
 
+        A colour may be written as a string or as a \c color value - a bound
+        property, a Qt.rgba(), anything - and both forms accept the same
+        spellings of \c colors:
+
+        \list
+        \li a single colour: \c {colors: "red"} or \c {colors: theme.body}
+        \li a list of colours, evenly weighted: \c {colors: ["red", "green"]}
+        \li a colour and its weight: \c {colors: ["red", 0.5]}
+        \li a list of weighted pairs: \c {colors: [["red", 0.3], ["green", 0.7]]}
+        \li the written out form: \c {colors: [{ color: "red", weight: 0.3 }]},
+            where \c weight defaults to 1
+        \endlist
+
         Example:
         \qml
         fill([
@@ -193,18 +225,46 @@ Model {
             shapes = [shapes];
         }
 
-        // Utility function to process color data
+        // A QML `color` value reaches JS as an object with numeric channels,
+        // not as a string - telling the two apart is what keeps a bound
+        // `color` property from being mistaken for a record or a pair (#178).
+        function isColorValue(c) {
+            return c !== null && typeof c === 'object'
+                && typeof c.r === 'number' && typeof c.g === 'number' && typeof c.b === 'number';
+        }
+
+        function isColorLike(c) {
+            return typeof c === 'string' || isColorValue(c);
+        }
+
+        function toEntry(color, weight) {
+            return { color: color, weight: (weight === undefined || weight === null) ? 1 : weight };
+        }
+
+        // Normalizes every accepted colour spelling - a single colour, a
+        // [colour, weight] pair, a list of colours, a list of pairs, or the
+        // fully written out [{ color, weight }] form - into the
+        // { color, weight } list the C++ side reads. Colours themselves are
+        // passed through untouched, string or value alike.
         function processColorData(colorData) {
-            if (typeof colorData === 'string') {
-                return [{ color: colorData, weight: 1 }];
-            } else if (Array.isArray(colorData) && !Array.isArray(colorData[0])) {
-                // Single [color, weight] pair
-                return [{ color: colorData[0], weight: colorData[1] || 1 }];
-            } else if (Array.isArray(colorData)) {
-                // Array of [color, weight] pairs
-                return colorData.map(([color, weight=1]) => ({ color, weight }));
+            if (colorData === undefined || colorData === null) return [];
+            if (isColorLike(colorData)) return [toEntry(colorData)];
+
+            if (!Array.isArray(colorData)) {
+                // A lone { color, weight } record
+                return ('color' in colorData) ? [toEntry(colorData.color, colorData.weight)] : [colorData];
             }
-            return colorData; // Return as is if it's already in the right format
+            if (colorData.length === 0) return [];
+
+            // A single [colour, weight] pair, e.g. ["red", 0.5]
+            if (isColorLike(colorData[0]) && colorData.length === 2 && typeof colorData[1] === 'number')
+                return [toEntry(colorData[0], colorData[1])];
+
+            return colorData.map(c => {
+                if (isColorLike(c)) return toEntry(c);
+                if (Array.isArray(c)) return toEntry(c[0], c[1]);
+                return toEntry(c.color, c.weight);
+            });
         }
 
         shapes.forEach(shape => {
@@ -241,7 +301,7 @@ Model {
                         model.fillSphere(
                             s.pos.x, s.pos.y, s.pos.z,
                             s.radius,
-                            s.colors,
+                            processColorData(s.colors),
                             s.noise
                         );
                     }
@@ -265,7 +325,7 @@ Model {
                             c.pos.x, c.pos.y, c.pos.z,
                             c.radius,
                             c.height,
-                            c.colors,
+                            processColorData(c.colors),
                             c.noise
                         );
                     }
@@ -289,7 +349,7 @@ Model {
                             b.width,
                             b.height,
                             b.depth,
-                            b.colors,
+                            processColorData(b.colors),
                             b.noise
                         );
                     }
@@ -314,19 +374,13 @@ Model {
             // Edge properties
             property real edgeThickness: _voxelMap.edgeThickness
             property real edgeColorFactor: _voxelMap.edgeColorFactor
+            property color edgeColor: _voxelMap.edgeColor
             property bool showEdges: _voxelMap.showEdges
 
             // Toon shading control
             // When true, applies cartoon-style lighting with half-lambert formula
             // Creates blocky shadow patterns perfect for voxel aesthetics
             property bool useToonShading: false
-
-            // Is expose to allows drawing edges in pixels instead of
-            // of world units or pure relative voxel size - this allows
-            // same edgethickness across voxelmaps with different voxel
-            // sizes - TODO: Don't use
-            property real viewportHeight: Screen.desktopAvailableHeight
-
         }
     ]
 

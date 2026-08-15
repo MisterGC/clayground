@@ -34,10 +34,10 @@ Item {
     CsvModel {
         id: enemyConfig
         source: "enemies.csv"
-        
+
         Component.onCompleted: load()
     }
-    
+
     function spawnEnemies() {
         for (let i = 0; i < enemyConfig.tableModel.rowCount; i++) {
             let enemy = enemyConfig.tableModel.rows[i]
@@ -58,18 +58,18 @@ Item {
 CsvModel {
     id: itemDatabase
     source: "items.csv"
-    
+
     // Only load weapons
     colFilter: (colName) => {
         return ["id", "name", "type", "damage", "rarity"].includes(colName)
     }
-    
+
     // Only rare or legendary items
     rowFilter: (vals) => {
         let rarity = vals[colNames.indexOf("rarity")]
         return rarity === "rare" || rarity === "legendary"
     }
-    
+
     // Transform damage values
     rowTransform: (vals) => {
         let damageIdx = colNames.indexOf("damage")
@@ -85,10 +85,10 @@ CsvModel {
 CsvWriter {
     id: scoreWriter
     destination: "highscores.csv"
-    
+
     function saveHighScores(scores) {
         begin(["rank", "player", "score", "date"])
-        
+
         for (let i = 0; i < scores.length; i++) {
             appendRow([
                 (i + 1).toString(),
@@ -97,7 +97,7 @@ CsvWriter {
                 scores[i].date
             ])
         }
-        
+
         finish()
     }
 }
@@ -110,13 +110,13 @@ HighlightedText {
     id: questLog
     width: parent.width
     height: 200
-    
+
     // Highlight quest objectives
     searchRegEx: "\\b(kill|collect|find|talk to)\\b"
-    
+
     text: `
     Current Quest: The Lost Artifact
-    
+
     Objectives:
     - Talk to the village elder
     - Find the ancient map
@@ -131,7 +131,7 @@ HighlightedText {
 ```qml
 JsonataTransform {
     id: inventoryTransform
-    
+
     inputObject: {
         "inventory": [
             {"item": "sword", "quantity": 1, "value": 100},
@@ -139,10 +139,10 @@ JsonataTransform {
             {"item": "armor", "quantity": 1, "value": 150}
         ]
     }
-    
+
     // Calculate total inventory value
     jsonataString: "$sum(inventory.(quantity * value))"
-    
+
     Text {
         text: "Total inventory value: " + inventoryTransform.jsonOutput
     }
@@ -154,9 +154,9 @@ JsonataTransform {
 ```qml
 JsonataTransform {
     id: gameStats
-    
+
     inputObject: playerData
-    
+
     // Find best performing weapon
     jsonataString: `
         weapons[damage = $max(weapons.damage)] {
@@ -165,7 +165,7 @@ JsonataTransform {
             "efficiency": damage / weight
         }
     `
-    
+
     onJsonOutputChanged: {
         console.log("Best weapon:", JSON.stringify(jsonOutput))
     }
@@ -177,18 +177,18 @@ JsonataTransform {
 ```qml
 Item {
     property string language: "en"
-    
+
     CsvModel {
         id: translations
         source: "translations.csv"
-        
+
         rowFilter: (vals) => {
             return vals[0] === language
         }
-        
+
         Component.onCompleted: load()
     }
-    
+
     function translate(key) {
         for (let i = 0; i < translations.tableModel.rowCount; i++) {
             let row = translations.tableModel.rows[i]
@@ -206,13 +206,13 @@ Item {
 ```qml
 HighlightedText {
     id: dialogText
-    
+
     // Highlight character names
     searchRegEx: "^\\[([^\\]]+)\\]:"
-    
+
     property var dialogData: []
     property int currentLine: 0
-    
+
     CsvReader {
         source: "dialog_quest_01.csv"
         onRow: (values) => {
@@ -224,7 +224,7 @@ HighlightedText {
         }
         Component.onCompleted: load()
     }
-    
+
     function showCurrentDialog() {
         if (currentLine < dialogData.length) {
             text = `[${dialogData[currentLine].character}]: ${dialogData[currentLine].text}`

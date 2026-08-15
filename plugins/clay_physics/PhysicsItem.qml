@@ -186,6 +186,60 @@ Item {
     */
     property alias gravityScale: itemBody.gravityScale
 
+    /*!
+        \qmlmethod object PhysicsItem::clayInspect()
+        \brief Reports position, size and body state as plain JSON, for tooling.
+
+        Pull-only and side-effect free: everything is read from the live body on
+        demand, nothing is cached or observed. Answers "where is this thing and
+        what is it doing" in world units, without taking a screenshot.
+    */
+    function clayInspect() {
+        var typeNames = ["Static", "Kinematic", "Dynamic"];
+        // sensor/categories live on the FIXTURES, not on the body - a body with
+        // no fixture has neither, which is not the same as "not a sensor".
+        var sensor = null;
+        var categories = null;
+        var collidesWith = null;
+        var fixtureCount = 0;
+        if (itemBody.fixtures) {
+            fixtureCount = itemBody.fixtures.length;
+            if (fixtureCount > 0) {
+                var f = itemBody.fixtures[0];
+                sensor = f.sensor;
+                categories = f.categories;
+                collidesWith = f.collidesWith;
+            }
+        }
+        return {
+            "type": "PhysicsItem",
+            "objectName": objectName ? objectName : null,
+            "xWu": xWu, "yWu": yWu,
+            "widthWu": widthWu, "heightWu": heightWu,
+            "positionPx": [x, y],
+            "sizePx": [width, height],
+            "pixelPerUnit": pixelPerUnit,
+            "bodyType": typeNames[itemBody.bodyType] !== undefined
+                        ? typeNames[itemBody.bodyType] : itemBody.bodyType,
+            "linearVelocity": itemBody.linearVelocity
+                              ? [itemBody.linearVelocity.x, itemBody.linearVelocity.y]
+                              : null,
+            "angularVelocity": itemBody.angularVelocity,
+            "active": itemBody.active,
+            "awake": itemBody.awake,
+            "bullet": itemBody.bullet,
+            "fixedRotation": itemBody.fixedRotation,
+            "gravityScale": itemBody.gravityScale,
+            "fixtureCount": fixtureCount,
+            "sensor": sensor,
+            "categories": categories,
+            "collidesWith": collidesWith,
+            "hasWorld": itemBody.world !== null,
+            "visible": visible,
+            "rotation": rotation
+        };
+    }
+
     Body {
         id: itemBody
 

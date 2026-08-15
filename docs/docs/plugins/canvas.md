@@ -4,6 +4,7 @@ title: Canvas Plugin
 permalink: /docs/plugins/canvas/
 ---
 
+
 The Clay Canvas plugin provides a 2D canvas system with world coordinate
 mapping, camera controls, and visual elements positioned in world units. It
 offers a complete solution for creating 2D game worlds with proper coordinate
@@ -192,8 +193,6 @@ The Clay Canvas plugin implements:
 - **Keyboard Navigation**: Optional IJKL navigation with E/D zoom controls
 
 The canvas uses Qt Quick's scene graph for efficient rendering and supports dynamic creation of visual elements at runtime.
-
----
 
 ## API Reference
 

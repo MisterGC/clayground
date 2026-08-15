@@ -6,5 +6,9 @@
     <file>ShortcutDescr.qml</file>
     <file>GuideOverlay.qml</file>
     <file>FlagOverlay.qml</file>
+    <file>AnnotationOverlay.qml</file>
+    <file>AnnotationNote.qml</file>
+    <file>AnnotationRegion.qml</file>
+    <file>fonts/Caveat.ttf</file>
 </qresource>
 </RCC>

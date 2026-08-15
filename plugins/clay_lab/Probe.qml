@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
+import "format.js" as Format
 
 /*!
     \qmltype Probe
@@ -78,14 +79,26 @@ QtObject {
 
     /*!
         \qmlmethod var Probe::summary()
-        \brief Returns {first, last, min, max, count} over retained samples.
+        \brief Returns \c {{first, last, min, max, mean, stddev, count}} over
+        the retained samples.
+
+        \c mean and \c stddev come from Welford's online algorithm rather than
+        the sum-of-squares shortcut: over the full 1200-sample ring of a
+        quantity with a large offset and small noise - a 9.81 baseline
+        wobbling by millimetres - the naive form subtracts two nearly equal
+        large numbers and can hand back a negative variance. This one cannot.
+
+        \c stddev is the population deviation: a probe's retained series is the
+        whole run being described, not a sample drawn from a larger one.
     */
     function summary() {
         const s = samples
         if (s.length === 0) return { count: 0 }
         let mn = s[0].v, mx = s[0].v
         for (const e of s) { if (e.v < mn) mn = e.v; if (e.v > mx) mx = e.v }
-        return { first: s[0].v, last: s[s.length - 1].v, min: mn, max: mx, count: s.length }
+        const st = Format.stats(s.map(e => e.v))
+        return { first: s[0].v, last: s[s.length - 1].v, min: mn, max: mx,
+                 mean: st.mean, stddev: st.stddev, count: s.length }
     }
 
     Component.onCompleted: Lab.registerProbe(_probe)

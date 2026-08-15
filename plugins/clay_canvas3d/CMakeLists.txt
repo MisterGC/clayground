@@ -15,6 +15,8 @@ clay_plugin( Canvas3D
         src/dynamicinstancing.h
         src/perfregistry.cpp
         src/perfregistry.h
+        src/poly3dgeometry.cpp
+        src/poly3dgeometry.h
         src/line3dinstancing.cpp
         src/line3dinstancing.h
         src/linebatchgeometry.cpp
@@ -41,6 +43,7 @@ clay_plugin( Canvas3D
     RESOURCES
         line_batch.frag
         line_batch.vert
+        line_batch_shadow.frag
         label_batch.frag
         label_batch.vert
         label_pill.frag
@@ -51,6 +54,8 @@ clay_plugin( Canvas3D
         voxel_map.vert
         box3d.frag
         box3d.vert
+        poly3d.frag
+        poly3d.vert
 
     QML_FILES
         Box3D.qml
@@ -59,12 +64,14 @@ clay_plugin( Canvas3D
         ConnectorLayer3D.qml
         Label3D.qml
         OrbitCamera3D.qml
+        OrbitInput3D.qml
         Label3DRegistry.qml
         LabelBatch3D.qml
         PathLabel3D.qml
         Line3D.qml
         LineBatch3D.qml
         MultiLine3D.qml
+        Poly3D.qml
         VoxelMap.qml
         DynamicVoxelMap.qml
         StaticVoxelMap.qml
@@ -72,6 +79,7 @@ clay_plugin( Canvas3D
         BenchLogger.qml
 
     LINK_LIBS
+        earcut
         Qt::Core
         Qt::Quick
         Qt::Quick3D
@@ -83,3 +91,11 @@ clay_plugin( Canvas3D
 # TODO: Make this an option of the clay_plugin macro, so that
 # we don't have to always write this explicitly
 target_include_directories(ClayCanvas3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Pure-QML checks on the types that carry logic. The suite imports the sources
+# by directory rather than the built module, so it needs no compiled plugin.
+include(claytest)
+clay_add_qml_test(canvas3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+# C++ unit tests for the types the QML suite cannot reach.
+add_subdirectory(tests)

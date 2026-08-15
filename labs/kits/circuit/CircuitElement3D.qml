@@ -42,50 +42,55 @@ Node {
         useToonShading: true
         edgeColorFactor: 0.55
     }
-    // constant-color marker (2D-style UI drawn inside the 3D scene)
-    component Marker: Model {
-        property color tint: LabTheme.secondary
+
+    // --- what a ray can hit -------------------------------------------------
+    // The one thing in this component View3D.pick can find, and the reason an
+    // instrument can be pointed at a part at all: QQuick3DModel::pickable is
+    // false by default, so before this every model here was invisible to a
+    // ray, and the only surface in the whole lab that did set it -
+    // LabStage3D's ground - came back as the answer to every click.
+    //
+    // One volume rather than a pickable flag on each body, for two measured
+    // reasons. A ray hits a model whose parent Node is visible: false just the
+    // same as a visible one, so pickable bodies would have given a flat
+    // resistor the hit target of the bulb dome it is not showing. And a
+    // Model with no material renders nothing at all while still being hit, so
+    // this costs a bounds test and no draw call.
+    //
+    // The footprint is the body box the lab's own cursor test uses (+/-4.6 by
+    // +/-3.4, a junction's 2.3), so pointing an instrument at a part and
+    // hovering it agree about where the part is.
+    Model {
+        objectName: "pickVolume"
         source: "#Cube"
-        materials: PrincipledMaterial {
-            baseColor: tint
-            lighting: PrincipledMaterial.NoLighting
-        }
+        pickable: true
+        // #Cube is 100 units, and the box stands from the board up over the
+        // tallest body here (the bulb's glass, whose top is at y 4.7)
+        readonly property real halfW: root.type === "junction" ? 2.3 : 4.6
+        readonly property real halfD: root.type === "junction" ? 2.3 : 3.4
+        readonly property real high: root.type === "junction" ? 1.2 : 5.4
+        position: Qt.vector3d(0, high * 0.5, 0)
+        scale: Qt.vector3d(halfW * 2 / 100, high / 100, halfD * 2 / 100)
     }
 
     // --- hover / selection frame --------------------------------------------
-    // One shape, two strengths: hovering draws a thin quiet outline, selecting
-    // draws the full one plus a nose mark. Same language as the terminals,
-    // which light up on hover and go blue while wiring.
-    Node {
-        id: frame
-        visible: root.selected || root.hovered
-        y: 0.14
-        // hover and selection speak the same blue as the terminals do; the
-        // weight (and the nose mark) is what tells them apart
-        readonly property color tone: LabTheme.secondary
-        readonly property real bar: root.selected ? 0.38 : 0.22
-        readonly property real hw: root.type === "junction" ? 2.0 : 5.2
-        readonly property real hd: root.type === "junction" ? 2.0 : 3.9
-        opacity: root.selected ? 1.0 : 0.55
-        Repeater3D {
-            model: [{ along: true, s: -1 }, { along: true, s: 1 },
-                    { along: false, s: -1 }, { along: false, s: 1 }]
-            Marker {
-                tint: frame.tone
-                position: modelData.along ? Qt.vector3d(0, 0, modelData.s * frame.hd)
-                                          : Qt.vector3d(modelData.s * frame.hw, 0, 0)
-                scale: modelData.along
-                    ? Qt.vector3d((frame.hw * 2) / 100, 0.0014, frame.bar / 100)
-                    : Qt.vector3d(frame.bar / 100, 0.0014, (frame.hd * 2) / 100)
-            }
-        }
-        Marker {  // nose mark: shows which way the part faces after a rotation
-            visible: root.selected && root.type !== "junction"
-            tint: LabTheme.accent
-            position: Qt.vector3d(6.2, 0, 0)
-            scale: Qt.vector3d(0.013, 0.0014, 0.013)
-            eulerRotation.y: 45
-        }
+    // The kernel's shared hover/select language, which this kit had reproduced
+    // bar for bar and mark for mark before it existed. Speaking it from the
+    // component rather than from a local copy is what keeps two labs looking
+    // like one framework - and it is one fewer place for the weights to drift.
+    SelectionFrame3D {
+        selected: root.selected
+        hovered: root.hovered
+        halfWidth: root.type === "junction" ? 2.0 : 5.2
+        halfDepth: root.type === "junction" ? 2.0 : 3.9
+        // a solder dot has no front, so it gets no facing mark
+        showNose: root.type !== "junction"
+        // A part is placed slightly SUNK into the pegboard so its shadow hugs
+        // it, and the frame's default lift is measured from the part - which
+        // put the bars inside the board, where nothing could see them. Enough
+        // to clear the surface and no more: the frame has to lie on the board,
+        // not hover over it.
+        height: 0.62
     }
 
     // --- junction: a solder dot where wires meet ----------------------------
@@ -364,25 +369,20 @@ Node {
     }
 
     // --- meters: a real dial, printed onto the part -------------------------
-    // The face is a Qt Quick item rendered to a texture, so the instrument
-    // shows what it measures the way an instrument does: a scale, a range and
-    // a needle that swings. It also makes an ammeter unmistakably an ammeter
-    // from across the board, which a coloured ring never did.
+    // The face is the kernel's Gauge rendered to a texture, so the instrument
+    // shows what it measures the way an instrument does: a scale, a range it
+    // picked itself, and a needle that swings. It also makes an ammeter
+    // unmistakably an ammeter from across the board, which a coloured ring
+    // never did.
+    //
+    // The dial was written out here first and generalized afterwards; the
+    // ranges below are the only part of it that was ever about circuits.
     Node {
         id: _meter
         visible: root.type === "ammeter" || root.type === "voltmeter"
         readonly property bool isAmp: root.type === "ammeter"
         readonly property color ring: isAmp ? LabTheme.forest : LabTheme.plum
         readonly property real reading: Math.abs(isAmp ? root.simI : root.simV)
-        // instruments have ranges: pick the smallest that still fits
-        readonly property real fullScale: {
-            const scales = isAmp ? [0.01, 0.1, 1, 10] : [1, 5, 12, 60]
-            for (const s of scales) if (reading <= s) return s
-            return scales[scales.length - 1]
-        }
-        readonly property string rangeLabel: isAmp
-            ? (fullScale < 1 ? (fullScale * 1000) + " mA" : fullScale + " A")
-            : fullScale + " V"
 
         Part {  // case (Box3D sits on its y: bottom-centre origin)
             width: 7.0; height: 1.4; depth: 5.6
@@ -400,56 +400,18 @@ Node {
                     // print reads the right way round
                     flipU: true
                     flipV: true
-                    sourceItem: Item {
+                    // a render-to-texture source item is laid out in its own
+                    // pixels rather than the screen's, so this one deliberately
+                    // does NOT follow uiScale: the texel budget is fixed, and
+                    // how large the part reads is the camera's business
+                    sourceItem: Gauge {
                         width: 260; height: 200
-                        Rectangle {
-                            anchors.fill: parent
-                            color: LabTheme.panel
-                        }
-                        Text {  // what it measures
-                            x: 14; y: 10
-                            text: _meter.isAmp ? "A" : "V"
-                            color: _meter.ring
-                            font.pixelSize: 44; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {  // the range this dial is showing
-                            anchors.right: parent.right; anchors.rightMargin: 14
-                            y: 22
-                            text: "0 – " + _meter.rangeLabel
-                            color: LabTheme.inkFaint
-                            font.pixelSize: 22
-                            font.family: LabTheme.monoFont
-                        }
-                        Item {  // needle pivot, bottom centre
-                            x: 130; y: 176
-                            Repeater {
-                                model: 11
-                                Item {
-                                    transformOrigin: Item.TopLeft
-                                    rotation: -75 + index * 15
-                                    Rectangle {
-                                        x: -2; y: -128
-                                        width: 4; height: index % 5 === 0 ? 22 : 12
-                                        color: index % 5 === 0 ? LabTheme.ink : LabTheme.inkFaint
-                                    }
-                                }
-                            }
-                            Item {
-                                transformOrigin: Item.TopLeft
-                                rotation: -75 + 150 * Math.max(0, Math.min(1,
-                                              _meter.reading / _meter.fullScale))
-                                Behavior on rotation { NumberAnimation { duration: 260 } }
-                                Rectangle {
-                                    x: -3; y: -122; width: 6; height: 122; radius: 3
-                                    color: LabTheme.clay
-                                }
-                            }
-                            Rectangle {
-                                x: -11; y: -11; width: 22; height: 22; radius: 11
-                                color: LabTheme.ink
-                            }
-                        }
+                        symbol: _meter.isAmp ? "A" : "V"
+                        unit: _meter.isAmp ? "A" : "V"
+                        ranges: _meter.isAmp ? [0.01, 0.1, 1, 10] : [1, 5, 12, 60]
+                        value: _meter.reading
+                        accent: _meter.ring
+                        frameRadius: 0    // a rounded corner here is a hole in the plate
                     }
                 }
             }

@@ -18,8 +18,16 @@ import "strings.js" as Strings
 // the on-screen list: press ? to see the whole map. The short version:
 // 1..4 presets · T the guided tour · C clear · E eraser · V values ·
 // M schematic · W plot the selected part · # grid mode · R turn · Del ·
-// Shift+R record · Esc cancel. View: drag the empty board to orbit,
-// wheel zooms, arrows/+/- nudge, F frames the selection, 0 resets.
+// Shift+R record · Esc cancel.
+//
+// There is no mode. The LEFT BUTTON IS ALWAYS THE BOARD'S: an empty hand wires
+// pads, flips a switch, selects and drags a part, and whatever is on the belt
+// (H) takes the click instead while it is out. Navigation never competes for
+// it - right-drag turns the world about the cursor, a right CLICK puts down
+// whatever is in the hand, the middle button drags, the wheel zooms towards
+// the cursor, double-click on bare board re-centres there, and holding Space
+// pans on the left button for as long as you hold it. Arrows travel,
+// Shift+arrows turn, +/- zoom, F frames the selection, 0 resets.
 Item {
     id: root
     anchors.fill: parent
@@ -57,8 +65,30 @@ Item {
             return sum
         }
     }
+    // What the cell actually hands to the parts: its EMF less its own internal
+    // drop. iBattery says how hard the cell is working, this says how much of
+    // it survives the working - the two halves the BudgetBar draws, and the
+    // pair a study needs to show a cell giving out under load.
+    Probe {
+        name: "vTerm"; unit: "V"
+        expr: () => {
+            let sum = 0
+            const cells = root.sim.batteries || ({})
+            for (const el of root.elements)
+                if (el.type === "battery" && cells[el.id])
+                    sum += cells[el.id].vTerm
+            return sum
+        }
+    }
 
-    DataRecorder { id: recorder; destination: "electronics-101-run.csv" }
+    // Shift+R writes a scratch run record into the lab's own records/ dir. No
+    // command: a frame-driven session cannot be regenerated, and the citable
+    // records are the ones a committed driver steps out (see the clay-lab skill).
+    DataRecorder {
+        id: recorder
+        lab: "electronics-101"
+        destination: "labs/electronics-101/records/session.labrec"
+    }
 
     // --- monitoring -------------------------------------------------------
     // What the plot shows comes from the board, never from a fixed list: watch
@@ -68,6 +98,12 @@ Item {
     // The mechanism itself lives in the kernel's WatchMonitor now - what stays
     // here is only what a part is worth, and what it is called.
     readonly property alias watch: monitor.watched
+
+    // The monitor under a name the kernel's own widgets can reach. A WatchChip
+    // and a WatchMark both declare a property CALLED monitor, which shadows the
+    // id inside them - `monitor: monitor` there is a property assigned to
+    // itself, and it fails silently as an invisible chip.
+    readonly property alias watchMonitor: monitor
 
     function watchValueOf(id) {
         const s = simOf(id)
@@ -237,7 +273,9 @@ Item {
         wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
         elements = elements.filter(el => el.id !== id)
         if (selectedId === id) selectedId = -1
-        if (isWatched(id)) watch = watch.filter(x => x !== id)
+        // `watch` is a readonly alias onto the monitor's set - a deleted part
+        // leaves through the monitor's own API, never by assigning the alias
+        monitor.setWatched(id, false)
         resolve()
     }
     // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
@@ -327,9 +365,10 @@ Item {
     // without also blocking a zoom onto a single part.
     function frameCells(cells) {
         if (!cells || !cells.length) {
-            rig.pivot = Qt.vector3d(0, 2, 0)
-            rig.distance = rig.maxDistance
-            rig.clamp()
+            // one applyState, not a pivot write plus a setDistance: the rig
+            // eases, so two writes would start two glides and the board would
+            // slide sideways while it zoomed out
+            rig.applyState({ px: 0, py: 2, pz: 0, distance: rig.maxDistance })
             return
         }
         // a single part is a point; give the frame some extent so the camera
@@ -347,8 +386,13 @@ Item {
         const el = elemAt(selectedId)
         frameCells(el ? [el] : elements)
     }
+    // The camera verbs a flow (or an agent) can call by name. The rig itself
+    // is reachable as `rig`; these exist so a flow's action list reads like
+    // something a user could have done.
     function orbitBy(dYaw, dPitch) { rig.orbitBy(dYaw, -dPitch) }
     function zoomBy(f) { rig.zoomBy(f) }
+    function goToView(name) { return rig.goTo(name) }
+    function focusOn(pts, pad) { rig.focusOn(pts, pad) }
 
     // --- serialization (survives reloads via the viewState convention) ---
     function circuitState() {
@@ -502,7 +546,8 @@ Item {
             "showValues": (on) => { showValues = on },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
-            "frame":      (what) => what === "selection" ? frameSelection() : frameSetup()
+            "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
+            "view":       (name) => rig.goTo(name)
         }
     }
     function flows() { return [ledFlow.flowId] }
@@ -517,7 +562,7 @@ Item {
         for (const el of elements) byType[el.type] = (byType[el.type] || 0) + 1
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
-                         iterations: sim.iterations }
+                         overloaded: sim.overloaded, iterations: sim.iterations }
         // language-neutral for agents: types and ids, not display labels
         info.flow = { id: ledFlow.running ? ledFlow.flowId : "",
                       step: ledFlow.index, paused: ledFlow.paused,
@@ -532,16 +577,13 @@ Item {
     // --- interaction state ------------------------------------------------
     // Grid mode follows grafli's contract: # cycles it, Alt inverts it for one
     // drag, and the pegs show which mode is on (crosses while snapping, dots
-    // when free).
-    GridMode { id: grid }
-    // readable from inside delegates, where an outer id is not in scope
-    readonly property bool snapToGrid: grid.snap
+    // when free). GridMode itself draws nothing - the stage does, from here.
+    GridMode { id: grid; step: root.cell }
 
     property var wiringFrom: null       // {el, ti} while a wire is dangling
     property bool eraser: false
     property var hoverHit: null         // last hit under the cursor
     property var cursorW: Qt.vector3d(0, 1.9, 0)
-    property string paletteDrag: ""     // element type while dragging from GUI
     property int selectedId: -1         // -1 = nothing selected
     property bool showValues: false     // V: label every part and every wire
     property bool showPlan: true        // M: the schematic minimap
@@ -586,7 +628,9 @@ Item {
     // single draw call however many wires the board grows. Nothing expects a
     // shadow from a line lying on the paper, so the shadow question is simply
     // gone (a batch could not cast one anyway - see LineBatch3D).
-    readonly property real wireY: 0.12
+    // The top of the stage's overlay budget: as high as a marking may sit and
+    // still belong to the paper rather than float above it.
+    readonly property real wireY: stage.overlayMaxY
 
     function wireEnds(w) {
         const a = terminalPos(w.a[0], w.a[1])
@@ -652,26 +696,73 @@ Item {
         anchors.fill: parent
         camera: rig.camera
 
-        environment: SceneEnvironment {
-            // slightly lighter than the table below, so that a horizon line
-            // appears at low camera angles - the eye keeps a reference
-            clearColor: LabTheme.board
-            backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
+        // The whole stage - ground, light rig, environment - in one block. The
+        // pegboard is the shared lab surface: an endless sheet of squared paper
+        // whose raster is drawn in the fragment shader, so the pegs are crosses
+        // while the grid snaps and dots when placement is free without a single
+        // Model per peg. Everything on the board maps through it (see worldAt).
+        LabStage3D {
+            id: stage
+            cellSize: root.cell
+            majorEvery: 4                 // a heavier rule every four pegs
+            // 20 columns of 5 puts the pegs on the half-cells, not on the
+            // origin - the crosses have to land where the parts do
+            rasterOrigin: Qt.vector2d(root.cellX(0), root.cellZ(0))
+            gridMode: grid
+            workExtent: Qt.vector2d(root.cols * root.cell, root.rows * root.cell)
+            shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
+        CameraAnchorMark { pointer: nav }
+        // The tape measure, in the same screen space and for the same reason:
+        // it answers "how far apart are those pads" without disturbing the
+        // board, and it never clips into a part. The kit's own Voltmeter rides
+        // with it: a part carries a pick volume now, so a click names the part
+        // and a probe left clipped on keeps reading it.
+        InstrumentBelt {
+            id: hands
+            pointer: nav
+            Voltmeter {}
 
-        Model {  // the table the board lies on: grounds the view from any angle
-            source: "#Cube"
-            position: Qt.vector3d(0, -4.2, 0)
-            // deliberately modest: the shadow volume grows with the scene, and
-            // a table the size of the horizon would starve the shadow map
-            scale: Qt.vector3d(2.4, 0.02, 1.9)
-            castsShadows: false
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.table
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
+            // The palette's parts, as ONE tool that carries which part it is
+            // about to place. A build tool is an instrument whose reading is
+            // an act: it takes a place, and instead of remembering it, it puts
+            // something there. That is the whole of "build is not a mode".
+            HandheldInstrument {
+                id: placer
+                name: "place"
+                label: LabLang.t("part." + partType)
+                glyph: "✎"
+                pickKind: "point"
+                maxPicks: 1
+                tone: LabTheme.secondary
+                hint: "hint.placing"
+
+                property string partType: "resistor"
+
+                // where the part would land, as board cells - null off-board
+                readonly property var spot: {
+                    if (!hovering || !hovering.point) return null
+                    const p = hovering.point
+                    const col = p.x / root.cell + (root.cols - 1) / 2
+                    const row = p.z / root.cell + (root.rows - 1) / 2
+                    if (col < -0.5 || col > root.cols - 0.5
+                        || row < -0.5 || row > root.rows - 0.5) return null
+                    return { col: Math.round(col), row: Math.round(row) }
+                }
+                readonly property bool free: spot !== null
+                                             && root.cellFree(spot.col, spot.row, -1, partType)
+
+                // A click PLACES rather than accumulating: the pick is the
+                // instruction, not the subject. Refused where the cell is
+                // taken - and the ghost said so before the click.
+                function add(pick) {
+                    if (!spot || !free) return
+                    root.addElement(partType, spot.col, spot.row)
+                }
             }
         }
+        environment: stage.environment
+
         OrbitCamera3D {
             id: rig
             pivot: Qt.vector3d(0, 2, 0)
@@ -683,82 +774,39 @@ Item {
             minDistance: 20       // clears a single part
             maxDistance: 170
             minHeight: 9          // taller than anything standing on the board
-            Behavior on pivot { Vector3dAnimation { duration: 300; easing.type: Easing.OutCubic } }
-            Behavior on distance { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            smoothMs: 140         // the rig's own easing now, on all four axes
+            // The pan leash. The board is 100 x 60 and the ground around it is
+            // endless, so travelling is tethered to a little over the board's
+            // own reach - far enough to put any corner in the middle, near
+            // enough that the parts never leave the picture.
+            homePivot: Qt.vector3d(0, 2, 0)
+            panLeash: stage.workRadius * 0.9
+            viewpoints: ({
+                "board":  { yaw: 0, pitch: 48, distance: 80, px: 0, py: 2, pz: 0 },
+                "top":    { yaw: 0, pitch: 84, distance: 120 },
+                "eye":    { pitch: 24, distance: 60 }
+            })
         }
 
-        // Three soft lights instead of one hard one: key with shadows, side
-        // fill, and a low camera-side fill so unlit faces still separate.
-        // Nothing in the scene is glossy, so depth comes from value, not glare.
-        //
-        // The shadows are real (GPU shadow map), kept legible by keeping the
-        // shadow volume small: shadowMapFar bounds it to the table instead of
-        // the horizon and the cascades spend their texels near the camera.
-        // That is what lets a 0.55-unit wire cast a readable shadow.
-        DirectionalLight {
-            id: keyLight
-            eulerRotation.x: -35
-            eulerRotation.y: -25
-            brightness: 0.9
-            castsShadow: true
-            shadowFactor: LabTheme.shadowFactor   // present, not dramatic
-            shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            // far enough to still cover the setup at maximum zoom-out (the
-            // range is measured from the camera), with cascades spending the
-            // texels near it; a small bias - 10+ pushes thin shadows off the
-            // board entirely, 0 turns the whole board into acne
-            shadowMapFar: 250
-            csmNumSplits: 2
-            shadowBias: 3
-            softShadowQuality: Light.PCF4
-            pcfFactor: 1
-        }
-        DirectionalLight {
-            eulerRotation.x: -60
-            eulerRotation.y: 140
-            brightness: 0.35
-        }
-        DirectionalLight {
-            eulerRotation.x: -25
-            eulerRotation.y: 20
-            brightness: 0.28
-        }
-
-        Model {  // pegboard - the only pickable model; everything maps through it
-            id: boardModel
-            source: "#Cube"
-            pickable: true
-            position: Qt.vector3d(0, -2, 0)
-            scale: Qt.vector3d(1.06, 0.04, 0.66)
-            materials: PrincipledMaterial {
-                baseColor: LabTheme.sheet
-                roughness: 1.0; metalness: 0.0; specularAmount: 0.0
-            }
-        }
-        Box3D {  // rim
-            width: 112; height: 1.6; depth: 72
-            position: Qt.vector3d(0, -3.8, 0)
-            color: LabTheme.inkSolid
-            useToonShading: true
-        }
-        // Peg marks: round dots when parts move freely, crisp squares while
-        // the grid snaps - the board itself tells you which mode you are in
-        // (that cue is borrowed from grafli's grid modes). One model per peg,
-        // so the denser raster stays cheap.
-        Repeater3D {
-            model: root.cols * root.rows
-            Model {
-                source: root.snapToGrid ? "#Cube" : "#Cylinder"
-                castsShadows: false   // they are print on the board, not objects
-                position: Qt.vector3d(root.cellX(index % root.cols), 0.05,
-                                      root.cellZ(Math.floor(index / root.cols)))
-                scale: root.snapToGrid ? Qt.vector3d(0.006, 0.0008, 0.006)
-                                       : Qt.vector3d(0.005, 0.001, 0.005)
-                materials: PrincipledMaterial {
-                    baseColor: LabTheme.grid
-                    lighting: PrincipledMaterial.NoLighting
-                }
-            }
+        // --- the ghost ----------------------------------------------------
+        // What the click would do, before it does it. Semi-transparent so it
+        // reads as a proposal rather than a part, and tinted when the cell is
+        // taken, which is the one refusal a placement can meet.
+        CircuitElement3D {
+            id: placeGhost
+            visible: hands.held === placer && placer.spot !== null
+            type: placer.partType
+            value: placer.partType === "resistor" ? 470
+                 : (placer.partType === "battery" ? root.defaultVolts : 0)
+            opacity: placer.free ? 0.45 : 0.3
+            position: placer.spot
+                      ? Qt.vector3d(root.cellX(placer.spot.col), -0.45,
+                                    root.cellZ(placer.spot.row))
+                      : Qt.vector3d(0, -1000, 0)
+            // the refusal reads as a frame rather than a recolour: the part
+            // keeps its own identity while it is being refused
+            hovered: placer.free
+            selected: placer.spot !== null && !placer.free
         }
 
         Repeater3D {  // the parts
@@ -860,70 +908,103 @@ Item {
         }
     }
 
+    // --- navigation --------------------------------------------------------
+    // The camera gestures are the kernel's (OrbitInput3D), and so is the rule
+    // for which gestures are the camera's. The rule is one sentence: the LEFT
+    // button is never the camera's. It is not "not in build mode" or "not over
+    // a part" - it is never, in every state this lab can be in, which is what
+    // makes the switch below flippable at any moment without a key first.
+    // The camera gets the right button, the middle one, the wheel, the arrows,
+    // and the left button only while Space is held.
+    OrbitInput3D {
+        id: nav
+        rig: rig
+        view: view3d
+    }
+
     // --- mouse interaction ------------------------------------------------
     MouseArea {
         id: boardMouse
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        cursorShape: nav.cursorShape
         property var dragElem: null
         property bool dragged: false
         property var pressW: null
-        property bool orbiting: false
-        property real lastX: 0
-        property real lastY: 0
         // Alt inverts the current grid mode for the length of one drag
         function snapping(mods) {
             return grid.snapping(mods)
         }
 
-        function worldAt(mx, my) {
-            const res = view3d.pick(mx, my)
-            if (res && res.objectHit === boardModel) return res.scenePosition
-            return null
-        }
+        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
 
-        onWheel: (wheel) => root.zoomBy(wheel.angleDelta.y > 0 ? 0.88 : 1.14)
-
-        onPositionChanged: (mouse) => {
-            if (pressed && orbiting) {
-                root.orbitBy((mouse.x - lastX) * 0.32, (mouse.y - lastY) * 0.22)
-                lastX = mouse.x; lastY = mouse.y
-                return
-            }
-            const w = worldAt(mouse.x, mouse.y)
+        // The gesture lives in named functions rather than in the signal
+        // handlers, so a flow, a test or an agent can perform the SAME drag a
+        // hand does - the inspector can synthesize a click but not a drag, and
+        // wiring two pads together is the one thing this lab is for. The
+        // handlers below are three one-liners that forward to them.
+        function moveAt(mx, my, mods, isDown) {
+            if (isDown && nav.active) { nav.move(mx, my); return }
+            if (isDown && hands.held) { hands.move(mx, my); return }
+            if (!isDown) nav.hoverAt(mx, my)
+            const w = worldAt(mx, my)
             if (!w) return
             root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
-            if (pressed && dragElem) {
+            if (isDown && dragElem) {
                 if (!dragged && pressW && Math.hypot(w.x - pressW.x, w.z - pressW.z) > 1.2)
                     dragged = true
                 if (dragged)
                     root.moveElement(dragElem,
                                      w.x / root.cell + (root.cols - 1) / 2,
                                      w.z / root.cell + (root.rows - 1) / 2,
-                                     snapping(mouse.modifiers))
+                                     snapping(mods))
             } else {
                 root.hoverHit = root.hitAt(w.x, w.z)
             }
         }
-        onPressed: (mouse) => {
-            root.forceActiveFocus()
+
+        // A click, as one call: press and release with no movement between.
+        function clickAt(x, y, mods) {
+            pressAt(x, y, Qt.LeftButton, mods || 0)
+            releaseAt()
+        }
+        // Drag a part from one window point to another, in one call.
+        function dragFrom(x1, y1, x2, y2, mods) {
+            pressAt(x1, y1, Qt.LeftButton, mods || 0)
+            moveAt(x2, y2, mods || 0, true)
+            releaseAt()
+        }
+
+        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
+
+        onDoubleClicked: (mouse) => {
+            // only over bare board: a double-click on a part belongs to the part
             const w = worldAt(mouse.x, mouse.y)
+            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
+        }
+
+        onPositionChanged: (mouse) => moveAt(mouse.x, mouse.y, mouse.modifiers, pressed)
+        onPressed: (mouse) => pressAt(mouse.x, mouse.y, mouse.button, mouse.modifiers)
+        onReleased: releaseAt()
+
+        function pressAt(mx, my, button, mods) {
+            root.forceActiveFocus()
+            nav.cancel()
+            // Ask the camera first, and with the default buttons the answer for
+            // the left button is always no - so nothing below has to think
+            // about the camera again, and nothing below can be starved by it.
+            if (nav.begin(mx, my, button, mods) !== "") return
+            // Then the hand: an instrument out means the click is the
+            // instrument's, and it decides click-versus-drag itself.
+            if (hands.held) { hands.press(mx, my); return }
+            const w = worldAt(mx, my)
             pressW = w; dragged = false; dragElem = null
-            orbiting = false; lastX = mouse.x; lastY = mouse.y
             const hit = w ? root.hitAt(w.x, w.z) : null
-            if (mouse.button === Qt.RightButton) {
-                if (hit && (hit.kind === "element" || hit.kind === "terminal")) {
-                    root.selectedId = hit.el
-                    root.rotateElement(hit.el)
-                }
-                return
-            }
-            // empty board (or off-board): the drag turns the view instead
+            // empty board (or off-board): a click there means "nothing"
             if (!hit) {
                 root.selectedId = -1
                 if (!root.eraser) root.wiringFrom = null
-                orbiting = true
                 return
             }
             if (root.eraser) {
@@ -969,15 +1050,43 @@ Item {
             }
             ledFlow.takeOver()   // the learner is driving now, not the flow
         }
-        onReleased: {
+
+        function releaseAt() {
+            nav.end()          // a flicked drag coasts to a stop from here
+            if (hands.release()) return   // the click was the instrument's
             if (dragElem && !dragged) {
                 const el = root.elemAt(dragElem)
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
                 // a resistor is set with the slider on its selection card
             }
-            dragElem = null; dragged = false; orbiting = false
+            dragElem = null; dragged = false
         }
     }
+
+    // A right CLICK is "put it down" - the RTS cancel. It empties the hand and
+    // drops whatever the board had half-started, in that order, so one press
+    // walks back one step. A right DRAG still turns the view and cancels
+    // nothing; only the distance travelled tells them apart.
+    Connections {
+        target: nav
+        function onCancelled() {
+            if (!hands.empty) { hands.putAway(); return }
+            if (root.wiringFrom) { root.wiringFrom = null; return }
+            if (root.eraser) { root.eraser = false; return }
+            root.selectedId = -1
+        }
+    }
+
+    // --- how much page there is -------------------------------------------
+    // Turn the text size up and the left column stops fitting. Two answers,
+    // both measured rather than switched on the scale: the palette lays its
+    // parts and tools two across and drops their one-line hints (captions give
+    // way before things you click), and the schematic steps out from under it
+    // into the empty middle. On a tall screen at the same scale neither fires.
+    readonly property bool compactPalette:
+        root.height < LabTheme.px(760)
+    readonly property bool planUnderPalette:
+        plan.y > palette.y + palette.height + LabTheme.px(16)
 
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
@@ -992,8 +1101,12 @@ Item {
 
     LabPanel {
         id: palette
-        x: 12; y: 12
-        width: 208
+        // Named so a figure can ask for it by name: a paper wants a picture of
+        // "the palette", and a pixel rectangle for it goes wrong the moment the
+        // UI scale changes. See clayrender --crop.
+        objectName: "palette"
+        x: LabTheme.px(12); y: LabTheme.px(12)
+        width: LabTheme.px(208)
         title: LabLang.t("lab.title")
 
         // The presets, clickable and each carrying what it is worth noticing.
@@ -1001,105 +1114,149 @@ Item {
         // the active name on screen - the best material in the lab, hidden.
         ScenarioBar {
             lab: root
-            width: 188
+            width: LabTheme.px(188)
         }
         // and the offer to be taught, from the first frame
         FlowChip { flow: ledFlow }
-        Item { width: 1; height: 2 }
-        Column {
-            spacing: 4
+        Item { width: LabTheme.px(1); height: LabTheme.px(2) }
+        // The parts. Turn the text size up and this list alone is taller than
+        // the window, so it reflows into two columns and drops the one-line
+        // hints - captions give way before the things you click, and the
+        // symbol beside each name still says what the part is.
+        Grid {
+            id: partGrid
+            columns: root.compactPalette ? 2 : 1
+            spacing: LabTheme.spaceS
+            readonly property real cellW: columns === 1 ? LabTheme.px(188)
+                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
             Repeater {
                 model: root.partCatalog
                 Rectangle {
-                    width: 188; height: 40; radius: 6
+                    width: partGrid.cellW
+                    height: root.compactPalette ? LabTheme.px(28) : LabTheme.px(40)
+                    radius: LabTheme.px(6)
                     color: partArea.containsMouse ? LabTheme.panel : LabTheme.paper
                     border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
                     Rectangle {  // the part's colour on the board
-                        x: 6; y: 15; width: 10; height: 10; radius: 3
+                        x: LabTheme.px(6); anchors.verticalCenter: parent.verticalCenter
+                        width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(3)
                         color: modelData.color
                     }
                     // and its schematic symbol: the palette is where a kit can
                     // teach "this lump is that squiggle" for free
                     SymbolIcon {
-                        x: 20; anchors.verticalCenter: parent.verticalCenter
+                        visible: !root.compactPalette
+                        x: LabTheme.px(20); anchors.verticalCenter: parent.verticalCenter
                         type: modelData.type
                         ink: LabTheme.inkSoft
                     }
                     Column {
-                        x: 60; anchors.verticalCenter: parent.verticalCenter
-                        Text { text: LabLang.t("part." + modelData.type); color: LabTheme.ink; font.pixelSize: 12; font.bold: true; font.family: LabTheme.monoFont }
+                        x: root.compactPalette ? LabTheme.px(22) : LabTheme.px(60)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            text: LabLang.t("part." + modelData.type)
+                            width: partGrid.cellW - LabTheme.px(28)
+                            elide: Text.ElideRight
+                            color: LabTheme.ink; font.pixelSize: LabTheme.fontBody
+                            font.bold: true; font.family: LabTheme.monoFont
+                        }
                         // bounded: a translated hint is often longer than the
                         // English one and must not run out of the panel
                         Text {
+                            visible: !root.compactPalette
                             text: LabLang.t("part." + modelData.type + ".hint")
-                            width: 122; elide: Text.ElideRight
-                            color: LabTheme.inkFaint; font.pixelSize: 12
+                            width: LabTheme.px(122); elide: Text.ElideRight
+                            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                             font.family: LabTheme.handFont
                         }
                     }
+                    // Clicking a part TAKES it, it does not place it. The
+                    // press-here-release-there drag this replaces dropped the
+                    // part wherever the release happened to land - including
+                    // under the palette panel itself, which is where most of
+                    // them ended up. Now the board shows a ghost where it
+                    // would go, a click puts it there, and Esc or the right
+                    // button puts it back down.
                     MouseArea {
                         id: partArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onPressed: root.paletteDrag = modelData.type
-                        onReleased: (mouse) => {
-                            const inView = mapToItem(root, mouse.x, mouse.y)
-                            const w = boardMouse.worldAt(inView.x, inView.y)
-                            if (w)
-                                root.addElement(root.paletteDrag,
-                                                w.x / root.cell + (root.cols - 1) / 2,
-                                                w.z / root.cell + (root.rows - 1) / 2)
-                            else
-                                root.addElement(root.paletteDrag)
-                            root.paletteDrag = ""
+                        onClicked: {
+                            if (hands.held === placer
+                                && placer.partType === modelData.type) {
+                                hands.putAway()          // clicking it again puts it back
+                                return
+                            }
+                            placer.partType = modelData.type
+                            hands.takeNamed("place")
                         }
                     }
                 }
             }
-            Item { width: 1; height: 4 }
+        }
+        Item { width: LabTheme.px(1); height: LabTheme.px(4) }
+        // The tools. Two across when the column is tight, one when it is not.
+        Grid {
+            id: toolGrid
+            columns: root.compactPalette ? 2 : 1
+            spacing: LabTheme.spaceS
+            readonly property real cellW: columns === 1 ? LabTheme.px(188)
+                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: root.eraser ? LabTheme.clay : LabTheme.paper
                 border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
-                    color: LabTheme.inkOn(parent.color); font.pixelSize: 11
+                    color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper
                 border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(root.showValues ? "btn.values.on" : "btn.values.off")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper
                 border.color: grid.snap ? LabTheme.secondary : LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t(grid.snap ? "btn.grid.snap" : "btn.grid.free")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: grid.toggle() }
             }
             Rectangle {
-                width: 188; height: 30; radius: 6
+                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
                 color: LabTheme.paper; border.color: LabTheme.panelEdge
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - LabTheme.spaceL
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: LabLang.t("btn.clear")
-                    color: LabTheme.inkSoft; font.pixelSize: 11
+                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
                 MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
@@ -1113,6 +1270,7 @@ Item {
     Flow {
         id: ledFlow
         lab: root
+        camera: rig                       // so a step may name where to look from
         flowId: "led-basics"
         titleKey: "flow.led-basics.title"
 
@@ -1171,7 +1329,7 @@ Item {
         flow: ledFlow
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 12
+        anchors.bottomMargin: LabTheme.spaceXl
         width: Math.min(680, root.width - 2 * (root.width - monitor.x) - 24)
     }
 
@@ -1184,9 +1342,10 @@ Item {
         id: topSwitches
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 12
-        spacing: 6
+        anchors.margins: LabTheme.spaceXl
+        spacing: LabTheme.spaceM
         LangSwitch { anchors.verticalCenter: parent.verticalCenter }
+        ScaleSwitch { anchors.verticalCenter: parent.verticalCenter }
         ThemeSwitch { anchors.verticalCenter: parent.verticalCenter }
     }
 
@@ -1195,35 +1354,16 @@ Item {
         // beside the palette rather than under it: the palette carries the
         // presets and the tour offer now, and the slot below it is the
         // schematic's
-        x: palette.x + palette.width + 10
-        y: 12
+        x: palette.x + palette.width + LabTheme.px(10)
+        y: LabTheme.px(12)
         yaw: rig.yaw
         aspect: root.cols / root.rows
     }
 
-    // drag ghost following the cursor while dragging out of the palette
-    Rectangle {
-        visible: root.paletteDrag !== "" && ghostArea.mx > 0
-        x: ghostArea.mx + 10; y: ghostArea.my - 14
-        width: ghostLabel.width + 18; height: 26; radius: 6
-        color: LabTheme.panel; border.color: LabTheme.secondary
-        Text {
-            id: ghostLabel
-            anchors.centerIn: parent
-            text: root.paletteDrag === "" ? "" : LabLang.t("part." + root.paletteDrag)
-            color: LabTheme.primary; font.pixelSize: 12
-            font.family: LabTheme.monoFont
-        }
-    }
-    MouseArea {
-        id: ghostArea
-        anchors.fill: parent
-        enabled: false
-        hoverEnabled: root.paletteDrag !== ""
-        property real mx: -1
-        property real my: -1
-        onPositionChanged: (mouse) => { mx = mouse.x; my = mouse.y }
-    }
+    // The 2D label that used to follow the cursor while a part was dragged
+    // out of the palette is gone with the drag: what the part will look like
+    // and exactly where it will land are now shown by the ghost ON THE BOARD,
+    // which is the thing the question was actually about.
 
     // --- meter readouts (2D, pinned above the gauges) ----------------------
     Repeater {
@@ -1248,16 +1388,16 @@ Item {
             x: Math.max(4, Math.min(root.width - width - 4, screenAt.x - width / 2))
             y: Math.max(4, Math.min(root.height - height - 4, screenAt.y - height))
             width: readingText.width + 18
-            height: 24
-            radius: 12
+            height: LabTheme.px(24)
+            radius: LabTheme.px(12)
             color: LabTheme.panel
             border.color: modelData.type === "ammeter" ? LabTheme.forest : LabTheme.plum
-            border.width: 1.5
+            border.width: Math.max(1, 1.5 * LabTheme.uiScale)
             Text {
                 id: readingText
                 anchors.centerIn: parent
                 text: (modelData.type === "ammeter" ? "A " : "V ") + parent.reading
-                color: LabTheme.ink; font.pixelSize: 13; font.bold: true
+                color: LabTheme.ink; font.pixelSize: LabTheme.fontLabel; font.bold: true
                 font.family: LabTheme.monoFont
             }
         }
@@ -1270,13 +1410,15 @@ Item {
     // same model - and the symbols are the very ones from the palette.
     LabPanel {
         id: plan
+        objectName: "schematic"
         visible: root.showPlan
-        anchors.left: parent.left
+        // steps out from under the palette when the palette reaches it
+        anchors.left: root.planUnderPalette ? parent.left : palette.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 12
-        anchors.bottomMargin: 44
-        width: 250
-        height: 176
+        anchors.leftMargin: LabTheme.spaceXl
+        anchors.bottomMargin: LabTheme.px(44)
+        width: LabTheme.px(250)
+        height: LabTheme.px(176)
         title: LabLang.t("plan.title")
         tag: "M"
 
@@ -1385,10 +1527,10 @@ Item {
             x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
             y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
             width: valueText.width + 12
-            height: 20
-            radius: 5
+            height: LabTheme.px(20)
+            radius: LabTheme.px(5)
             color: LabTheme.panel
-            border.color: LabTheme.panelEdge; border.width: 1
+            border.color: LabTheme.panelEdge; border.width: LabTheme.px(1)
             opacity: 0.94
             Text {
                 id: valueText
@@ -1399,7 +1541,7 @@ Item {
                     const s = root.simOf(modelData.id)
                     return root.fmtA(Math.abs(s.i)) + "  " + root.fmtV(Math.abs(s.v))
                 }
-                color: LabTheme.primary; font.pixelSize: 11
+                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
@@ -1421,7 +1563,7 @@ Item {
                 if (i === null || i === undefined) return "?"
                 return root.fmtA(Math.abs(i))
             }
-            color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
+            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall; font.bold: true
             font.family: LabTheme.monoFont
             style: Text.Outline; styleColor: LabTheme.paperDeep
         }
@@ -1432,8 +1574,10 @@ Item {
     // off the board instead of guessed from the legend order.
     Repeater {
         model: root.watch
-        Rectangle {
+        WatchMark {
             readonly property int pid: modelData
+            // the projection needs the camera's own scene transform listed, or
+            // the binding freezes the moment the rig moves
             readonly property var screenAt: {
                 root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(pid)
@@ -1441,41 +1585,24 @@ Item {
                 return view3d.mapFrom3DScene(Qt.vector3d(
                     root.cellX(e.col), 6.0, root.cellZ(e.row)))
             }
-            visible: screenAt.z > 0
+            monitor: root.watchMonitor
+            target: pid
+            label: { root.elemRev; return root.partLabel(pid) }
+            visible: screenAt.z > 0 && root.isWatched(pid)
             x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
             // steps aside for the value label when V is on
             y: Math.max(2, Math.min(root.height - height - 2,
-                                    screenAt.y - height - (root.showValues ? 23 : 0)))
-            width: markRow.width + 12
-            height: 18
-            radius: 9
-            color: LabTheme.panel
-            border.color: root.watchColorOf(pid); border.width: 2
-            opacity: 0.94
-            Row {
-                id: markRow
-                x: 6
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 7; height: 7; radius: 4
-                    color: root.watchColorOf(pid)
-                }
-                Text {
-                    text: { root.elemRev; return root.partLabel(pid) }
-                    color: LabTheme.inkSoft; font.pixelSize: 11; font.bold: true
-                    font.family: LabTheme.monoFont
-                }
-            }
+                                    screenAt.y - height
+                                    - (root.showValues ? LabTheme.px(23) : 0)))
         }
     }
 
     // --- selection card (what is selected, what it reads, what you can do) -
     LabPanel {
         id: selCard
+        objectName: "partCard"
         padding: 10
-        spacing: 1
+        spacing: LabTheme.px(1)
         border.color: LabTheme.secondary
         readonly property var el: {
             root.elemRev
@@ -1503,7 +1630,7 @@ Item {
 
         Column {
             id: selCol
-            spacing: 1
+            spacing: LabTheme.px(1)
             Text {
                 text: {
                     // elemRev per binding: `el` hands back the same object
@@ -1523,7 +1650,7 @@ Item {
                         return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
                     return name
                 }
-                color: LabTheme.primary; font.pixelSize: 11; font.bold: true
+                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
                 font.letterSpacing: 1.0; font.family: LabTheme.monoFont
             }
             Text {
@@ -1533,7 +1660,7 @@ Item {
                     const s = root.simOf(selCard.el.id)
                     return root.fmtV(s.v) + "   " + root.fmtA(s.i)
                 }
-                color: LabTheme.inkSoft; font.pixelSize: 11
+                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
             // Resistance slider: drag it and the colour bands on the part
@@ -1546,7 +1673,7 @@ Item {
                 Item {
                     id: rSlider
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width; height: 16
+                    width: parent.width; height: LabTheme.px(16)
                     readonly property int steps: selCard.isBattery
                         ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
                     readonly property real ratio: {
@@ -1559,21 +1686,21 @@ Item {
 
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width; height: 4; radius: 2
+                        width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
                         color: LabTheme.panelEdge
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: rSlider.ratio * parent.width
-                        height: 4; radius: 2
+                        height: LabTheme.px(4); radius: LabTheme.px(2)
                         color: LabTheme.secondary
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         x: rSlider.ratio * (parent.width - width)
-                        width: 12; height: 12; radius: 6
+                        width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
                         color: LabTheme.panel
-                        border.color: LabTheme.ink; border.width: 2
+                        border.color: LabTheme.ink; border.width: LabTheme.px(2)
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -1629,44 +1756,26 @@ Item {
                 color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
                      : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
                      : LabTheme.inkFaint
-                font.pixelSize: 12
+                font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.handFont
             }
             // Monitoring is a per-part act, like selecting: this puts the part
-            // on the plot in the colour it then wears on the board.
-            Rectangle {
-                id: watchChip
-                visible: selCard.el !== null && selCard.el.type !== "junction"
-                width: watchLabel.width + 16
-                height: visible ? 21 : 0
-                radius: LabTheme.radius
-                readonly property bool watched:
-                    selCard.el !== null && root.isWatched(selCard.el.id)
-                readonly property bool full:
-                    !watched && root.watch.length >= root.watchMax
-                color: watched ? root.watchColorOf(selCard.el.id) : LabTheme.panel
-                border.color: watched ? LabTheme.panelEdge
-                            : (full ? LabTheme.panelEdge : LabTheme.secondary)
-                border.width: LabTheme.borderWidth
-                Text {
-                    id: watchLabel
-                    anchors.centerIn: parent
-                    text: LabLang.t(watchChip.watched ? "card.watched"
-                        : (watchChip.full ? "card.watch.full" : "card.watch"))
-                    color: watchChip.watched ? LabTheme.paper
-                         : (watchChip.full ? LabTheme.inkFaint : LabTheme.secondary)
-                    font.pixelSize: 12; font.family: LabTheme.handFont
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: !watchChip.full
-                    onClicked: if (selCard.el) root.toggleWatch(selCard.el.id)
-                }
+            // on the plot in the colour it then wears on the board. The chip
+            // is the kernel's - it reads the series limit off the monitor
+            // itself, so this card can no longer disagree with the plot about
+            // whether there is a colour left - and a junction hides it by
+            // having no target rather than by a second visibility rule.
+            WatchChip {
+                monitor: root.watchMonitor
+                target: selCard.el !== null && selCard.el.type !== "junction"
+                        ? selCard.el.id : undefined
+                labels: ({ add: "card.watch", on: "card.watched",
+                           full: "card.watch.full" })
             }
             Text {
                 text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
                      : selCard.isBattery ? "card.hint.battery" : "card.hint.part")
-                color: LabTheme.inkFaint; font.pixelSize: 12
+                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.handFont
             }
         }
@@ -1675,32 +1784,39 @@ Item {
     // --- short-circuit banner ---------------------------------------------
     // Two different faults, two different messages. Drawing more current than
     // the cell is rated for is not a short - the old banner cried short at any
-    // load above 1.5 A, which taught the wrong lesson.
-    Rectangle {
-        visible: root.sim.shorted || root.sim.overloaded
+    // load above 1.5 A, which taught the wrong lesson. Only the short blinks:
+    // a banner that always pulses stops meaning anything.
+    LabBanner {
+        active: root.sim.shorted || root.sim.overloaded
+        alarm: root.sim.shorted
+        blink: root.sim.shorted
+        guard: palette                // never grows in under the parts list
+        maxWidth: LabTheme.px(560)    // both messages are a whole sentence
+        text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
+    }
+
+    // The clock, on screen: this lab's solver runs continuously and its plot
+    // is a time series, so "how long has that LED been at 40 mA" was a
+    // question the page could not answer.
+    TransportChip {
+        id: transport
+        clock: clock
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 16
-        width: shortText.width + 40; height: 36; radius: 8
-        color: root.sim.shorted ? LabTheme.alarm : LabTheme.highlight
-        Text {
-            id: shortText
-            anchors.centerIn: parent
-            text: LabLang.t(root.sim.shorted ? "banner.short" : "banner.heavy")
-            color: LabTheme.inkOn(parent.color)
-            font.pixelSize: 14; font.bold: true
-        }
-        SequentialAnimation on opacity {
-            running: root.sim.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
-            NumberAnimation { to: 0.55; duration: 300 }
-            NumberAnimation { to: 1.0; duration: 300 }
-        }
+        anchors.top: parent.top
+        // under the banner's slot, not in it: a short circuit outranks the
+        // clock for the top line of the page
+        anchors.topMargin: LabTheme.px(58)
     }
 
     // --- hint bar ----------------------------------------------------------
     HintBar {
+        id: hintBar
         flow: ledFlow                 // the narrator owns this slot while it runs
         rightGuard: monitor
         text: {
+            // the hand outranks everything: while an instrument is out, a hint
+            // about clicking pads describes something you are not doing
+            if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.eraser) return LabLang.t("hint.eraser")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
@@ -1720,7 +1836,7 @@ Item {
     WatchMonitor {
         id: monitor
         anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.margins: 10
+        anchors.margins: LabTheme.px(10)
         idPrefix: "part"
         quantities: [
             { key: "I", label: "quantity.current", unit: "mA" },
@@ -1748,6 +1864,8 @@ Item {
         id: keymap
         lab: root
         camera: rig
+        pointer: nav
+        hands: hands
         flow: ledFlow
         recorder: recorder
         keys: [
@@ -1755,7 +1873,7 @@ Item {
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
             { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
             { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
-            { key: "W", label: "key.watch", action: () => {
+            { key: "Q", label: "key.watch", action: () => {
                 if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
             { key: "R", label: "key.rotate", action: () => {
                 if (root.selectedId !== -1) root.rotateElement(root.selectedId) } },
@@ -1768,7 +1886,7 @@ Item {
     LabHelp {
         keymap: keymap
         anchors.centerIn: parent
-        width: 300
+        width: LabTheme.px(300)
     }
 
     Keys.onPressed: (ev) => {
@@ -1779,4 +1897,6 @@ Item {
             wiringFrom = null; eraser = false; selectedId = -1
         }
     }
+    // the other half of the Space quasimode: without it the hand stays down
+    Keys.onReleased: (ev) => keymap.handleRelease(ev)
 }

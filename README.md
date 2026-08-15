@@ -113,9 +113,48 @@ A bunch of example application allow you to try it out easily:
 - TopDown: Starting point for a topdown game (for example a classical RPG), comes with network support
 - PluginLive: Demonstrates how to use the Clayground LiveLoader to develop a C++ plugin
 
+### How to build?
+
+```bash
+git submodule update --init --recursive
+
+# Tell CMake where Qt is - the one thing the presets cannot know
+export CMAKE_PREFIX_PATH=~/Qt/6.11.1/macos   # or .../gcc_64, .../msvc2022_64
+
+cmake --preset default
+cmake --build --preset default
+ctest --preset default
+```
+
+`cmake --preset default` configures a Release build with tests into `build/`,
+and sets `CMAKE_POLICY_VERSION_MINIMUM=3.5`, which the libdatachannel
+dependencies need under CMake 4. `--preset debug` is the same into
+`build-debug/`.
+
+Two things stay out of the committed presets, on purpose:
+
+- **Qt** comes from `CMAKE_PREFIX_PATH` in your environment (or a Qt already on
+  the default search path). No machine path is committed.
+- **OpenSSL**, if the libdatachannel dependencies cannot find one. On macOS use
+  `cmake --preset macos`, which adds `OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl`,
+  a stable Homebrew symlink rather than a versioned directory, so it survives
+  `brew upgrade`. `linux` and `windows` presets exist as host-restricted
+  equivalents of `default`.
+
+For anything else machine-specific, add a `CMakeUserPresets.json` next to this
+file - it is gitignored, and it can inherit from `default`.
+
+Without presets (CMake < 3.21, or a one-off configuration) the explicit form
+still works:
+
+```bash
+cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.11.1/macos -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=ON
+cmake --build build
+```
+
 ### How to work with a sandbox?
 
-1. Clone this repo and build it using CMake (Qt 6.10.0+). Make sure to pull the submodules `git submodule update --recursive --init`
+1. Clone this repo and build it as above (Qt 6.10.0+). Make sure to pull the submodules `git submodule update --recursive --init`
 2. Start the dojo app `claydojo --sbx <clone-dir>/sandboxes/void/Sandbox.qml`
 3. Move the created windows to a location that allows you to keep them visible even when your are editing code.
 4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
@@ -173,13 +212,18 @@ Clayground uses a layered testing approach:
 
 **Running tests:**
 ```bash
-cmake -B build && cmake --build build
+cmake --preset default && cmake --build --preset default
+ctest --preset default
+
+# without presets
 ctest --test-dir build --output-on-failure
 ```
 
 **Test infrastructure:**
 - `clay_app()` automatically registers apps as integration tests
 - `clay_add_qml_test()` macro for QML unit tests using Qt's qmltestrunner
+- `clay_add_node_test()` macro for the pure-JS lab and kit suites (label `node`);
+  skipped when `node` is not installed
 - Tests run headless (`QT_QPA_PLATFORM=minimal`) in CI on Linux and Windows
 
 **Adding plugin tests:**

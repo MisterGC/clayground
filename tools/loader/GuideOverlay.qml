@@ -7,13 +7,21 @@ Rectangle {
     id: root
     color: "black"
     opacity: 0.85
-    visible: false
-    
+    // NOT `visible: false`. MainWindow shows and hides the WIDGET; leaving the
+    // root item invisible meant the scene graph rendered nothing at all, so
+    // all that reached the screen was the widget's opaque clear colour - the
+    // white wipe. Visibility belongs to one owner, and that owner is
+    // MainWindow.
+
     property var sandboxes: ClayLiveLoader ? ClayLiveLoader.sandboxes : []
-    
+
+    // Click to dismiss. Routed through MainWindow rather than hiding the item
+    // here, so its idea of whether the guide is up stays true.
+    signal closeRequested()
+
     MouseArea {
         anchors.fill: parent
-        onClicked: root.visible = false
+        onClicked: root.closeRequested()
     }
     
     Column {
@@ -39,7 +47,17 @@ Rectangle {
 
         ShortcutDescr {
             keys: "Ctrl+F"
-            descr: "Flag: screenshot + annotation"
+            descr: "Show/Hide annotation surface"
+        }
+
+        ShortcutDescr {
+            keys: "Tab"
+            descr: "Fold the annotation panel away (surface only)"
+        }
+
+        ShortcutDescr {
+            keys: "Ctrl+Shift+F"
+            descr: "Clear annotations marked addressed"
         }
 
         ShortcutDescr {

@@ -98,27 +98,27 @@ Rectangle {
             text: _tour.index >= 0
                   ? (_tour.index + 1) + "/" + _tour.steps.length + " — " + _tour.steps[_tour.index].title
                   : ""
-            color: LabTheme.primary; font.pixelSize: 13; font.bold: true
+            color: LabTheme.primary; font.pixelSize: LabTheme.fontLabel; font.bold: true
             font.family: LabTheme.monoFont
         }
         Text {
             width: parent.width
             text: _tour.index >= 0 ? _tour.steps[_tour.index].say : ""
-            color: LabTheme.inkSoft; font.pixelSize: 12
+            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontBody
             wrapMode: Text.WordWrap
         }
         Row {
             spacing: 16
             Text {
-                text: "‹ prev"; color: LabTheme.inkFaint; font.pixelSize: 12
+                text: "‹ prev"; color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                 TapHandler { onTapped: _tour.prev() }
             }
             Text {
-                text: "next ›"; color: LabTheme.secondary; font.pixelSize: 12; font.bold: true
+                text: "next ›"; color: LabTheme.secondary; font.pixelSize: LabTheme.fontBody; font.bold: true
                 TapHandler { onTapped: _tour.next() }
             }
             Text {
-                text: "✕ end"; color: LabTheme.inkFaint; font.pixelSize: 12
+                text: "✕ end"; color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
                 TapHandler { onTapped: _tour.stop() }
             }
         }

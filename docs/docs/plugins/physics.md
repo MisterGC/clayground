@@ -4,6 +4,7 @@ title: Physics Plugin
 permalink: /docs/plugins/physics/
 ---
 
+
 The Clay Physics plugin provides physics simulation components built on top of
 the Box2D physics engine. It offers easy-to-use QML components for creating
 physics-enabled game objects with proper world unit integration and collision
@@ -217,8 +218,6 @@ The Clay Physics plugin:
 - **Memory Management**: Automatic cleanup of collision tracking when objects are destroyed
 
 The plugin handles the complexity of coordinate transformations and provides a clean API for common game physics scenarios.
-
----
 
 ## API Reference
 

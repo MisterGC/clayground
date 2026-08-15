@@ -7,9 +7,42 @@
 #include <QFileInfo>
 #include <QTextStream>
 
+const QStringList &DojoIgnore::defaultPatterns()
+{
+    // Editor, OS and tool noise only. Nothing here may collide with a name
+    // that can legitimately be source or an asset (.qml, .js, .svg, images,
+    // shaders, audio, .json) — those must keep triggering a reload.
+    static const QStringList kPatterns = {
+        QStringLiteral("*~"),          // emacs/gedit/kate backup
+        QStringLiteral(".#*"),         // emacs lock file
+        QStringLiteral("#*#"),         // emacs auto-save
+        QStringLiteral("*.swp"),       // vim swap
+        QStringLiteral("*.swo"),
+        QStringLiteral("*.swx"),
+        QStringLiteral("4913"),        // vim's writability probe file
+        QStringLiteral(".DS_Store"),   // macOS finder metadata
+        QStringLiteral("Thumbs.db"),   // windows explorer metadata
+        QStringLiteral("*.tmp"),
+        QStringLiteral("*.temp"),
+        QStringLiteral("*.bak"),
+        QStringLiteral("*.orig"),      // merge leftovers
+        QStringLiteral("*.rej"),       // rejected patch hunks
+        QStringLiteral("__pycache__/"),
+        QStringLiteral("*.pyc"),
+        QStringLiteral(".git/")
+    };
+    return kPatterns;
+}
+
+DojoIgnore::DojoIgnore()
+{
+    for (const auto &p : defaultPatterns())
+        defaultRules_.append(compileRule(p));
+}
+
 bool DojoIgnore::load(const QString &ignoreFile, const QString &rootDir)
 {
-    clear();
+    userRules_.clear();
     rootDir_ = QFileInfo(rootDir).absoluteFilePath();
 
     QFile f(ignoreFile);
@@ -21,7 +54,7 @@ bool DojoIgnore::load(const QString &ignoreFile, const QString &rootDir)
         QString line = in.readLine().trimmed();
         if (line.isEmpty() || line.startsWith('#'))
             continue;
-        rules_.append({ compile(line) });
+        userRules_.append(compileRule(line));
     }
     return true;
 }
@@ -29,26 +62,53 @@ bool DojoIgnore::load(const QString &ignoreFile, const QString &rootDir)
 void DojoIgnore::clear()
 {
     rootDir_.clear();
-    rules_.clear();
+    userRules_.clear();
 }
 
-bool DojoIgnore::matches(const QString &absPath) const
+DojoIgnore::Decision DojoIgnore::decide(const QString &absPath) const
 {
-    if (rules_.isEmpty() || rootDir_.isEmpty())
-        return false;
-
     const QString abs = QFileInfo(absPath).absoluteFilePath();
-    const QString rel = QDir(rootDir_).relativeFilePath(abs);
 
-    // Paths outside the root never match.
-    if (rel.startsWith(QLatin1String("..")))
-        return false;
-
-    for (const auto &rule : rules_) {
-        if (rule.re.match(rel).hasMatch())
-            return true;
+    // Without a root the user rules (which are root-anchored) cannot be
+    // evaluated, but the defaults still apply — they are basename rules,
+    // so the absolute path is a fine subject for them.
+    QString rel = abs;
+    const bool haveRoot = !rootDir_.isEmpty();
+    if (haveRoot) {
+        rel = QDir(rootDir_).relativeFilePath(abs);
+        // Paths outside the root never match.
+        if (rel.startsWith(QLatin1String("..")))
+            return Decision::NotIgnored;
     }
-    return false;
+
+    // Last matching rule wins (gitignore semantics), defaults first so a
+    // user rule - including a negation - can always override them.
+    auto decision = Decision::NotIgnored;
+    for (const auto &rule : defaultRules_) {
+        if (rule.re.match(rel).hasMatch())
+            decision = rule.negate ? Decision::NotIgnored : Decision::IgnoredByDefault;
+    }
+    if (haveRoot) {
+        for (const auto &rule : userRules_) {
+            if (rule.re.match(rel).hasMatch())
+                decision = rule.negate ? Decision::NotIgnored : Decision::IgnoredByUserRule;
+        }
+    }
+    return decision;
+}
+
+DojoIgnore::Rule DojoIgnore::compileRule(const QString &rawLine)
+{
+    QString p = rawLine;
+    bool negate = false;
+    if (p.startsWith('!')) {
+        negate = true;
+        p = p.mid(1);
+    } else if (p.startsWith(QLatin1String("\\!"))) {
+        // Escaped literal '!' at the start of a name.
+        p = p.mid(1);
+    }
+    return { compile(p), negate };
 }
 
 QRegularExpression DojoIgnore::compile(const QString &rawPattern)

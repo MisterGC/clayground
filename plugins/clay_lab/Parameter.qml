@@ -65,6 +65,24 @@ QtObject {
     */
     property string description: ""
 
-    Component.onCompleted: Lab.registerParameter(_param)
+    // Registration happens the moment the name is known, not at completion.
+    // Component.onCompleted runs in creation order, so the sandbox root's own
+    // handler - the one that cold-opens a scenario - fires BEFORE any of its
+    // children's, and so does every binding created after this object. Waiting
+    // for completion here meant a lab booted with "Lab: unknown parameter"
+    // for each of its own parameters and read 0 instead of the declared value.
+    Component.onCompleted: _register()
     Component.onDestruction: Lab.unregisterParameter(_param)
+    onNameChanged: _register()
+
+    // The name a Lab entry is currently filed under, so a renamed parameter
+    // takes its old entry with it instead of leaving a ghost behind.
+    property string _registered: ""
+
+    function _register() {
+        if (name === _registered) return
+        if (_registered !== "") Lab.unregisterParameterNamed(_registered, _param)
+        _registered = name
+        if (name !== "") Lab.registerParameter(_param)
+    }
 }

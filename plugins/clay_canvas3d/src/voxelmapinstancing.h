@@ -5,8 +5,6 @@
 #include <QVector>
 #include "voxelmapdata.h"
 
-// Helper struct used for probabilistic color selection.
-
 class VoxelMapInstancing : public QQuick3DInstancing
 {
     Q_OBJECT
@@ -42,6 +40,12 @@ public:
     Q_INVOKABLE void fillBox(int cx, int cy, int cz, int width, int height, int depth, const QVariantList &colorDistribution, float noiseFactor = 0.0f);
     Q_INVOKABLE void commit();
 
+    // Inspection hook (issue #165): grid size, solid voxel count, palette and
+    // storage, so "did the fill actually place anything?" is answerable
+    // without counting pixels. Pull-only - it reports state the voxel store
+    // already keeps and never maintains anything for the inspector's sake.
+    Q_INVOKABLE QVariantMap clayInspect() const;
+
 signals:
     void voxelCountXChanged();
     void voxelCountYChanged();
@@ -58,13 +62,4 @@ private:
     VoxelMapData m_data;
     QByteArray m_instanceData;
     bool m_dirty = true;
-
-    struct ColorProb {
-        QColor color;
-        float probability;
-    };
-    // Utility functions for color distribution and noise.
-    QVector<ColorProb> prepareColorDistribution(const QVariantList &colorDistribution);
-    QColor getRandomColor(const QVector<ColorProb> &distribution);
-    float applyNoise(float value, float noiseFactor);
 };

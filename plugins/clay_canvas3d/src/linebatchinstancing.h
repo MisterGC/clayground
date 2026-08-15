@@ -59,6 +59,17 @@ public:
     Q_INVOKABLE qreal pathLength(int lineIndex) const;
     Q_INVOKABLE QVector3D positionAt(int lineIndex, qreal distance) const;
 
+    // The inspection hook (issue #165). Returns the batch as the renderer
+    // actually received it - resolved points, widths, colours, style ids -
+    // so "is that arrowhead full size?" is a numeric question rather than a
+    // squint at a screenshot.
+    //
+    // Pull-only by contract: it reads state this class already keeps and
+    // computes nothing on its own schedule. Nothing runs unless an inspector
+    // calls it, so a shipped app pays no runtime cost for its existence.
+    // Never add bookkeeping here that the renderer does not need anyway.
+    Q_INVOKABLE QVariantMap clayInspect() const;
+
 signals:
     void linesChanged();
     void countChanged();

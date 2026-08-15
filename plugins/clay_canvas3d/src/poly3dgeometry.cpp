@@ -1,0 +1,891 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+#include "poly3dgeometry.h"
+
+#include <mapbox/earcut.hpp>
+
+#include <QLoggingCategory>
+#include <QPointF>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
+
+// Warnings on by default, the per-rebuild trace not: it is diagnostic, and one
+// line per mesh build would be noise in every application that draws a polygon.
+// QT_LOGGING_RULES="clay.poly.debug=true" turns it on.
+Q_LOGGING_CATEGORY(lcPoly, "clay.poly", QtInfoMsg)
+
+/*!
+    \qmltype Poly3DGeometry
+    \nativetype Poly3dGeometry
+    \inqmlmodule Clayground.Canvas3D
+    \brief Custom geometry for filled planar polygons.
+
+    Poly3DGeometry triangulates one outer ring of 2D points plus any number of
+    inner rings (holes) into a filled, planar mesh. It is typically used
+    through the Poly3D component rather than directly.
+
+    The mesh is indexed and carries positions and one shared face normal - the
+    smallest layout that draws a filled area. Asking for edges swaps in a second
+    layout that adds the barycentric channel the wireframe shader reads; which
+    of the two is in use is not something a caller has to think about.
+
+    Example usage:
+    \qml
+    import QtQuick3D
+    import Clayground.Canvas3D
+
+    Model {
+        geometry: Poly3DGeometry {
+            vertices: [Qt.vector2d(0, 0), Qt.vector2d(100, 0), Qt.vector2d(50, 80)]
+        }
+        materials: DefaultMaterial { diffuseColor: "#0f9d9a" }
+    }
+    \endqml
+
+    \sa Poly3D
+*/
+
+/*!
+    \qmlproperty list<vector2d> Poly3DGeometry::vertices
+    \brief The outer ring of the polygon.
+
+    A list of 2D points in the polygon's plane. The ring closes implicitly, so
+    a repeated last point is dropped. Winding does not matter - it is
+    normalised while building.
+*/
+
+/*!
+    \qmlproperty list<list<vector2d>> Poly3DGeometry::holes
+    \brief Inner rings cut out of the polygon.
+
+    Each entry is a ring in the same format as \l vertices. Rings that lie
+    outside the outer ring or overlap each other are not repaired.
+*/
+
+/*!
+    \qmlproperty enumeration Poly3DGeometry::plane
+    \brief Which world plane the 2D points map to.
+
+    \value Poly3DGeometry.XZ (u, v) becomes (u, 0, v), normal +Y (default)
+    \value Poly3DGeometry.XY (u, v) becomes (u, v, 0), normal +Z
+    \value Poly3DGeometry.YZ (u, v) becomes (0, u, v), normal +X
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::extrude
+    \brief How far the polygon rises along the plane normal.
+
+    0, the default, is a flat area. Anything above it turns the ring into a
+    prism: the ring is the base, side walls rise along the plane normal and a
+    cap closes the top. Holes get walls too. Defaults to 0.
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::surfaceOffset
+    \brief How far the finished mesh is slid along the plane normal.
+
+    Applied after the ring is triangulated and after \l extrude, so a prism is
+    displaced rather than resized: the height keeps measuring from the ring's
+    own plane. Negative values push the polygon the other way. Defaults to 0,
+    which leaves the mesh byte for byte as it would be without the property.
+*/
+
+/*!
+    \qmlproperty bool Poly3DGeometry::showEdges
+    \brief Whether the polygon draws its own edges.
+
+    Setting it true for the first time rebuilds the mesh in the layout that
+    carries the barycentric channel. That layout is kept from then on, so
+    toggling the property afterwards costs a uniform write rather than a
+    rebuild. Defaults to false.
+*/
+
+/*!
+    \qmlproperty enumeration Poly3DGeometry::edgeMode
+    \brief Which lines the wireframe draws.
+
+    \value Poly3DGeometry.FaceBorders the polygon outline only (default)
+    \value Poly3DGeometry.Triangles every edge of the triangulation
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::edgeThickness
+    \brief Edge line thickness in pixels.
+*/
+
+/*!
+    \qmlproperty real Poly3DGeometry::edgeColorFactor
+    \brief Darkening factor applied to the fill when edgeColor is unset.
+*/
+
+/*!
+    \qmlproperty color Poly3DGeometry::edgeColor
+    \brief Absolute edge color; a visible alpha is what counts as set.
+*/
+
+/*!
+    \qmlproperty bool Poly3DGeometry::hasEdgeAttributes
+    \readonly
+    \brief Whether the uploaded buffer carries the barycentric channel.
+*/
+
+namespace {
+
+// earcut's default accessor goes through std::get, which std::array serves.
+using EarcutPoint = std::array<double, 2>;
+
+constexpr int kLeanFloatsPerVertex = 6;       // position (3) + normal (3)
+constexpr int kWireframeFloatsPerVertex = 9;  // + barycentric channel (3)
+
+bool isUsable(const QVector2D &p)
+{
+    return std::isfinite(p.x()) && std::isfinite(p.y());
+}
+
+// Twice the signed area of the ring; positive is counter-clockwise in the
+// (u, v) frame. The factor of two is irrelevant - only sign and magnitude
+// against an epsilon are ever asked for.
+double doubleSignedArea(const QVector<QVector2D> &ring)
+{
+    double area = 0.0;
+    for (int i = 0, j = ring.size() - 1; i < ring.size(); j = i++)
+        area += double(ring[j].x()) * double(ring[i].y())
+              - double(ring[i].x()) * double(ring[j].y());
+    return area;
+}
+
+// qFuzzyCompare() is no help near the origin, so compare against an epsilon
+// that rides on the points' own magnitude.
+bool samePoint(const QVector2D &a, const QVector2D &b)
+{
+    const float scale = qMax(1.0f, qMax(qAbs(a.x()), qAbs(a.y())));
+    return (a - b).lengthSquared() <= 1e-12f * scale * scale;
+}
+
+// A ring closes implicitly, so a repeated last == first point is data the
+// mesh must not carry: it would make one zero-area ear and one wasted vertex.
+QVector<QVector2D> dropClosingPoint(const QVector<QVector2D> &ring)
+{
+    if (ring.size() >= 2 && samePoint(ring.first(), ring.last()))
+        return ring.mid(0, ring.size() - 1);
+    return ring;
+}
+
+QVector3D toWorld(const QVector2D &p, Poly3dGeometry::Plane plane)
+{
+    switch (plane) {
+    case Poly3dGeometry::XY: return QVector3D(p.x(), p.y(), 0.0f);
+    case Poly3dGeometry::YZ: return QVector3D(0.0f, p.x(), p.y());
+    case Poly3dGeometry::XZ: break;
+    }
+    return QVector3D(p.x(), 0.0f, p.y());
+}
+
+QVector3D planeNormal(Poly3dGeometry::Plane plane)
+{
+    switch (plane) {
+    case Poly3dGeometry::XY: return QVector3D(0.0f, 0.0f, 1.0f);
+    case Poly3dGeometry::YZ: return QVector3D(1.0f, 0.0f, 0.0f);
+    case Poly3dGeometry::XZ: break;
+    }
+    return QVector3D(0.0f, 1.0f, 0.0f);
+}
+
+// Which sign the 2D cross product of a triangle must have for its geometric
+// normal to point along the plane's normal. XZ is the odd one out: mapping
+// (u, v) to (x, z) is left-handed against +Y, so a ring that is
+// counter-clockwise on paper faces downwards unless the triangle is flipped.
+double wantedCrossSign(Poly3dGeometry::Plane plane)
+{
+    return plane == Poly3dGeometry::XZ ? -1.0 : 1.0;
+}
+
+double cross2d(const QVector2D &a, const QVector2D &b, const QVector2D &c)
+{
+    return (double(b.x()) - a.x()) * (double(c.y()) - a.y())
+         - (double(b.y()) - a.y()) * (double(c.x()) - a.x());
+}
+
+// Tells a triangle edge that lies on one of the input rings from one earcut
+// invented while cutting the interior up. The rings are laid out back to back
+// in the flat point list, so "on a ring" is "neighbours within the same span,
+// wrapping at its ends" - which is why this has to be worked out here, where
+// the rings are still known, and not later from the triangles alone.
+class RingAdjacency
+{
+public:
+    void addRing(int start, int count)
+    {
+        m_starts.append(start);
+        m_counts.append(count);
+    }
+
+    bool isRingEdge(int i, int j) const
+    {
+        for (int r = 0; r < m_starts.size(); ++r) {
+            const int start = m_starts.at(r);
+            const int count = m_counts.at(r);
+            if (i < start || j < start || i >= start + count || j >= start + count)
+                continue;
+            const int diff = qAbs(i - j);
+            return diff == 1 || diff == count - 1;
+        }
+        return false;
+    }
+
+private:
+    QVector<int> m_starts;
+    QVector<int> m_counts;
+};
+
+bool pointFromVariant(const QVariant &value, QVector2D *out)
+{
+    switch (value.metaType().id()) {
+    case QMetaType::QVector2D:
+        *out = value.value<QVector2D>();
+        return true;
+    case QMetaType::QVector3D: {
+        const QVector3D v = value.value<QVector3D>();
+        *out = QVector2D(v.x(), v.y());
+        return true;
+    }
+    case QMetaType::QPointF: {
+        const QPointF p = value.toPointF();
+        *out = QVector2D(float(p.x()), float(p.y()));
+        return true;
+    }
+    case QMetaType::QPoint: {
+        const QPoint p = value.toPoint();
+        *out = QVector2D(float(p.x()), float(p.y()));
+        return true;
+    }
+    default:
+        break;
+    }
+
+    // A point that has been through JS - spread into a new object, or deep
+    // copied through JSON - arrives as a plain {x, y} map rather than a
+    // QVector2D. Reading it for what it is beats hoping for a conversion
+    // (the lesson of #178 in voxelmapdata.cpp).
+    if (value.canConvert<QVariantMap>()) {
+        const QVariantMap map = value.toMap();
+        if (map.contains("x") && map.contains("y")) {
+            bool okX = false, okY = false;
+            const double x = map.value("x").toDouble(&okX);
+            const double y = map.value("y").toDouble(&okY);
+            if (okX && okY) {
+                *out = QVector2D(float(x), float(y));
+                return true;
+            }
+        }
+    }
+
+    if (value.canConvert<QVariantList>()) {
+        const QVariantList list = value.toList();
+        if (list.size() == 2) {
+            bool okX = false, okY = false;
+            const double x = list.at(0).toDouble(&okX);
+            const double y = list.at(1).toDouble(&okY);
+            if (okX && okY) {
+                *out = QVector2D(float(x), float(y));
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+} // namespace
+
+bool poly3dRingFromVariant(const QVariantList &points, QVector<QVector2D> *out)
+{
+    out->clear();
+    out->reserve(points.size());
+    for (const QVariant &entry : points) {
+        QVector2D point;
+        if (!pointFromVariant(entry, &point)) {
+            qCWarning(lcPoly) << "poly3d: unusable vertex" << entry
+                              << "- expected Qt.vector2d(x, y), {x, y} or [x, y]";
+            out->clear();
+            return false;
+        }
+        out->append(point);
+    }
+    return true;
+}
+
+Poly3DMesh buildPoly3DMesh(const QVector<QVector<QVector2D>> &rings,
+                           Poly3dGeometry::Plane plane,
+                           float extrude,
+                           float surfaceOffset)
+{
+    Poly3DMesh mesh;
+    mesh.normal = planeNormal(plane);
+
+    if (rings.isEmpty()) {
+        qCWarning(lcPoly) << "poly3d: no outer ring - nothing drawn";
+        return mesh;
+    }
+
+    QVector<QVector2D> outer = dropClosingPoint(rings.first());
+    if (outer.size() < 3) {
+        qCWarning(lcPoly) << "poly3d: outer ring has" << outer.size()
+                          << "points, at least 3 are needed - nothing drawn";
+        return mesh;
+    }
+    for (const QVector2D &p : outer) {
+        if (!isUsable(p)) {
+            qCWarning(lcPoly) << "poly3d: outer ring has a non-finite point" << p
+                              << "- nothing drawn";
+            return mesh;
+        }
+    }
+
+    // Zero area covers both "all points collinear" and "every point the same".
+    // The epsilon rides on the ring's own extent so a polygon measured in
+    // millimetres is judged as leniently as one measured in metres.
+    float minU = outer.first().x(), maxU = minU;
+    float minV = outer.first().y(), maxV = minV;
+    for (const QVector2D &p : outer) {
+        minU = qMin(minU, p.x()); maxU = qMax(maxU, p.x());
+        minV = qMin(minV, p.y()); maxV = qMax(maxV, p.y());
+    }
+    const double extent = qMax(double(maxU) - minU, double(maxV) - minV);
+    const double areaEps = 1e-9 * qMax(1.0, extent * extent);
+
+    double outerArea = doubleSignedArea(outer);
+    if (qAbs(outerArea) <= areaEps) {
+        qCWarning(lcPoly) << "poly3d: outer ring encloses no area (collinear or"
+                          << "zero size) - nothing drawn";
+        return mesh;
+    }
+
+    // Winding is normalised here rather than demanded of the caller: outer
+    // counter-clockwise, holes clockwise, which is the orientation earcut's
+    // hole bridging assumes.
+    if (outerArea < 0.0) {
+        std::reverse(outer.begin(), outer.end());
+        outerArea = -outerArea;
+    }
+
+    QVector<QVector<QVector2D>> cleaned;
+    cleaned.append(outer);
+
+    for (int i = 1; i < rings.size(); ++i) {
+        QVector<QVector2D> hole = dropClosingPoint(rings.at(i));
+        if (hole.size() < 3) {
+            qCWarning(lcPoly) << "poly3d: hole" << (i - 1) << "has" << hole.size()
+                              << "points, at least 3 are needed - hole ignored";
+            continue;
+        }
+        bool usable = true;
+        for (const QVector2D &p : hole)
+            usable = usable && isUsable(p);
+        if (!usable) {
+            qCWarning(lcPoly) << "poly3d: hole" << (i - 1)
+                              << "has a non-finite point - hole ignored";
+            continue;
+        }
+        const double holeArea = doubleSignedArea(hole);
+        if (qAbs(holeArea) <= areaEps) {
+            qCWarning(lcPoly) << "poly3d: hole" << (i - 1)
+                              << "encloses no area - hole ignored";
+            continue;
+        }
+        if (holeArea > 0.0)
+            std::reverse(hole.begin(), hole.end());
+        cleaned.append(hole);
+    }
+
+    // Triangulation runs on the calling thread on purpose: ring sizes here are
+    // tens to low hundreds of points, far below where handing the work to
+    // another thread would pay for its own bookkeeping.
+    std::vector<std::vector<EarcutPoint>> polygon;
+    polygon.reserve(size_t(cleaned.size()));
+    for (const QVector<QVector2D> &ring : cleaned) {
+        std::vector<EarcutPoint> converted;
+        converted.reserve(size_t(ring.size()));
+        for (const QVector2D &p : ring)
+            converted.push_back({double(p.x()), double(p.y())});
+        polygon.push_back(std::move(converted));
+    }
+
+    const std::vector<uint32_t> triangles = mapbox::earcut<uint32_t>(polygon);
+    if (triangles.empty()) {
+        qCWarning(lcPoly) << "poly3d: triangulation produced no triangles"
+                          << "- self-intersecting ring? - nothing drawn";
+        return mesh;
+    }
+
+    // Flat point list in earcut's index space: outer ring first, then holes.
+    QVector<QVector2D> flat;
+    RingAdjacency adjacency;
+    for (const QVector<QVector2D> &ring : cleaned) {
+        adjacency.addRing(flat.size(), ring.size());
+        flat.append(ring);
+    }
+
+    const QVector3D normal = mesh.normal;
+    const bool prism = extrude > 0.0f && std::isfinite(extrude);
+    const QVector3D rise = normal * extrude;
+
+    // Barycentric component n is the one that falls to zero along the edge
+    // opposite corner n, so that is the component carrying what kind of edge
+    // sits there.
+    auto emitTriangle = [&mesh](quint32 i0, quint32 i1, quint32 i2,
+                                Poly3DEdgeKind kindOpposite0,
+                                Poly3DEdgeKind kindOpposite1,
+                                Poly3DEdgeKind kindOpposite2) {
+        mesh.indices.append(i0);
+        mesh.indices.append(i1);
+        mesh.indices.append(i2);
+        const QVector3D lift(int(kindOpposite0) * kPoly3DEdgeSuppressOffset,
+                             int(kindOpposite1) * kPoly3DEdgeSuppressOffset,
+                             int(kindOpposite2) * kPoly3DEdgeSuppressOffset);
+        mesh.edgeCodes.append(QVector3D(1.0f, 0.0f, 0.0f) + lift);
+        mesh.edgeCodes.append(QVector3D(0.0f, 1.0f, 0.0f) + lift);
+        mesh.edgeCodes.append(QVector3D(0.0f, 0.0f, 1.0f) + lift);
+    };
+
+    // Face the plane's normal whatever earcut's own convention happens to be:
+    // a triangle whose 2D cross product has the wrong sign is emitted the
+    // other way round. Cheaper and more durable than trusting a library's
+    // output winding.
+    const double wanted = wantedCrossSign(plane);
+
+    // One cap: the triangulation, at some offset into the vertex list, facing
+    // either along the plane normal (the top, and the only cap a flat polygon
+    // has) or against it (the base of a prism, which has to face down for the
+    // solid to be closed).
+    //
+    // ringKind is what a ring edge becomes here: on a flat polygon it is a rim
+    // with nothing on the other side, on a prism it is the seam where the cap
+    // meets a wall.
+    auto emitCap = [&](quint32 vertexBase, bool facingNormal,
+                       Poly3DEdgeKind ringKind) {
+        for (size_t i = 0; i + 2 < triangles.size(); i += 3) {
+            const uint32_t a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
+            const double sign = cross2d(flat.at(int(a)), flat.at(int(b)), flat.at(int(c)));
+            const bool keepOrder = (sign * wanted >= 0.0) == facingNormal;
+            const uint32_t i0 = a;
+            const uint32_t i1 = keepOrder ? b : c;
+            const uint32_t i2 = keepOrder ? c : b;
+            emitTriangle(vertexBase + i0, vertexBase + i1, vertexBase + i2,
+                         adjacency.isRingEdge(int(i1), int(i2)) ? ringKind : Poly3DEdgeKind::Diagonal,
+                         adjacency.isRingEdge(int(i2), int(i0)) ? ringKind : Poly3DEdgeKind::Diagonal,
+                         adjacency.isRingEdge(int(i0), int(i1)) ? ringKind : Poly3DEdgeKind::Diagonal);
+        }
+    };
+
+    const int capTriangles = int(triangles.size() / 3);
+
+    if (!prism) {
+        mesh.positions.reserve(flat.size());
+        mesh.normals.reserve(flat.size());
+        for (const QVector2D &p : flat) {
+            mesh.positions.append(toWorld(p, plane));
+            mesh.normals.append(normal);
+        }
+        mesh.indices.reserve(capTriangles * 3);
+        mesh.edgeCodes.reserve(capTriangles * 3);
+        emitCap(0, true, Poly3DEdgeKind::Rim);
+    } else {
+        // Base and top cannot share a vertex - they face opposite ways - and
+        // neither can two walls that meet at a ring corner. So every surface
+        // gets its own block of vertices with its own normals: 2N for the caps
+        // plus four per ring edge for the walls.
+        const int wallEdges = flat.size();
+        mesh.positions.reserve(2 * flat.size() + 4 * wallEdges);
+        mesh.normals.reserve(2 * flat.size() + 4 * wallEdges);
+        for (const QVector2D &p : flat) {
+            mesh.positions.append(toWorld(p, plane));
+            mesh.normals.append(-normal);
+        }
+        for (const QVector2D &p : flat) {
+            mesh.positions.append(toWorld(p, plane) + rise);
+            mesh.normals.append(normal);
+        }
+
+        mesh.indices.reserve(capTriangles * 6 + wallEdges * 6);
+        mesh.edgeCodes.reserve(capTriangles * 6 + wallEdges * 6);
+
+        emitCap(0, false, Poly3DEdgeKind::Seam);
+        emitCap(quint32(flat.size()), true, Poly3DEdgeKind::Seam);
+
+        for (const QVector<QVector2D> &ring : cleaned) {
+            const int count = ring.size();
+            for (int e = 0; e < count; ++e) {
+                const QVector2D &p0 = ring.at(e);
+                const QVector2D &p1 = ring.at((e + 1) % count);
+                const QVector2D dir = p1 - p0;
+                // A ring may still hold a repeated point in its middle, which
+                // no area check catches. That wall has no width and no normal
+                // to speak of, so it is left out rather than emitted as NaN.
+                if (dir.lengthSquared() <= 0.0f)
+                    continue;
+
+                // Both rings are wound so the material lies to the left of the
+                // direction of travel - outer counter-clockwise, holes
+                // clockwise - so "away from the material" is to the right of it
+                // for both. That is what makes an outer wall face outwards and
+                // a hole's wall face into the hole without a special case.
+                const QVector3D outward =
+                    toWorld(QVector2D(dir.y(), -dir.x()), plane).normalized();
+
+                const QVector3D b0 = toWorld(p0, plane);
+                const QVector3D b1 = toWorld(p1, plane);
+                const QVector3D t1 = b1 + rise;
+                const QVector3D t0 = b0 + rise;
+
+                const quint32 base = quint32(mesh.positions.size());
+                mesh.positions.append(b0);
+                mesh.positions.append(b1);
+                mesh.positions.append(t1);
+                mesh.positions.append(t0);
+                for (int k = 0; k < 4; ++k)
+                    mesh.normals.append(outward);
+
+                // Wind the quad so it faces the way its normal points, checked
+                // rather than derived: the sign depends on the plane's
+                // handedness, and getting it from the geometry itself keeps the
+                // three planes from needing three answers.
+                const bool keepOrder =
+                    QVector3D::dotProduct(
+                        QVector3D::crossProduct(b1 - b0, t1 - b0), outward) >= 0.0f;
+
+                // Every edge of the quad is shared: the foot with the base cap,
+                // the head with the top cap, the two uprights with the walls
+                // next door. Only the diagonal the quad is split on is not.
+                const Poly3DEdgeKind seam = Poly3DEdgeKind::Seam;
+                const Poly3DEdgeKind diag = Poly3DEdgeKind::Diagonal;
+                if (keepOrder) {
+                    emitTriangle(base + 0, base + 1, base + 2, seam, diag, seam);
+                    emitTriangle(base + 0, base + 2, base + 3, seam, seam, diag);
+                } else {
+                    emitTriangle(base + 0, base + 2, base + 1, seam, seam, diag);
+                    emitTriangle(base + 0, base + 3, base + 2, seam, diag, seam);
+                }
+            }
+        }
+    }
+
+    // The lift, applied to the finished mesh rather than woven into the
+    // vertices as they are made. Two things fall out of that: extrude keeps
+    // measuring from the ring's own plane - the base and the cap move together,
+    // so the prism is displaced, not resized - and offset 0 leaves every float
+    // exactly as it was, which is what makes the default byte-identical to a
+    // build that never heard of the property.
+    if (surfaceOffset != 0.0f && std::isfinite(surfaceOffset)) {
+        const QVector3D lift = normal * surfaceOffset;
+        for (QVector3D &p : mesh.positions)
+            p += lift;
+    }
+
+    // Real bounds: a wrong box lets the shadow frustum slice through the
+    // polygon, which reads as the geometry being broken.
+    QVector3D minBounds = mesh.positions.first();
+    QVector3D maxBounds = minBounds;
+    for (const QVector3D &p : mesh.positions) {
+        minBounds.setX(qMin(minBounds.x(), p.x()));
+        minBounds.setY(qMin(minBounds.y(), p.y()));
+        minBounds.setZ(qMin(minBounds.z(), p.z()));
+        maxBounds.setX(qMax(maxBounds.x(), p.x()));
+        maxBounds.setY(qMax(maxBounds.y(), p.y()));
+        maxBounds.setZ(qMax(maxBounds.z(), p.z()));
+    }
+    mesh.minBounds = minBounds;
+    mesh.maxBounds = maxBounds;
+
+    return mesh;
+}
+
+Poly3dGeometry::Poly3dGeometry()
+{
+    updateData();
+}
+
+QVariantList Poly3dGeometry::vertices() const
+{
+    return m_vertices;
+}
+
+void Poly3dGeometry::setVertices(const QVariantList &newVertices)
+{
+    if (m_vertices == newVertices)
+        return;
+    m_vertices = newVertices;
+    emit verticesChanged();
+    updateData();
+}
+
+QVariantList Poly3dGeometry::holes() const
+{
+    return m_holes;
+}
+
+void Poly3dGeometry::setHoles(const QVariantList &newHoles)
+{
+    if (m_holes == newHoles)
+        return;
+    m_holes = newHoles;
+    emit holesChanged();
+    updateData();
+}
+
+Poly3dGeometry::Plane Poly3dGeometry::plane() const
+{
+    return m_plane;
+}
+
+void Poly3dGeometry::setPlane(Plane newPlane)
+{
+    if (m_plane == newPlane)
+        return;
+    m_plane = newPlane;
+    emit planeChanged();
+    updateData();
+}
+
+float Poly3dGeometry::extrude() const
+{
+    return m_extrude;
+}
+
+void Poly3dGeometry::setExtrude(float newExtrude)
+{
+    if (qFuzzyCompare(m_extrude, newExtrude))
+        return;
+    m_extrude = newExtrude;
+    emit extrudeChanged();
+    updateData();
+}
+
+float Poly3dGeometry::surfaceOffset() const
+{
+    return m_surfaceOffset;
+}
+
+void Poly3dGeometry::setSurfaceOffset(float newSurfaceOffset)
+{
+    if (qFuzzyCompare(m_surfaceOffset, newSurfaceOffset))
+        return;
+    m_surfaceOffset = newSurfaceOffset;
+    emit surfaceOffsetChanged();
+    updateData();
+}
+
+bool Poly3dGeometry::showEdges() const
+{
+    return m_showEdges;
+}
+
+void Poly3dGeometry::setShowEdges(bool newShowEdges)
+{
+    if (m_showEdges == newShowEdges)
+        return;
+    m_showEdges = newShowEdges;
+    emit showEdgesChanged();
+
+    // Upgrade, never downgrade. Binding showEdges to a hover state would
+    // otherwise rebuild the mesh on every mouse-over; this way it rebuilds once
+    // and every toggle after that is a uniform write. The cost of keeping the
+    // wider buffer around is memory on a type that is explicitly not a
+    // mass-scale one.
+    if (m_showEdges && !m_hasEdgeAttributes)
+        updateData();
+    else
+        scheduleEdgeContractCheck();
+}
+
+Poly3dGeometry::EdgeMode Poly3dGeometry::edgeMode() const
+{
+    return m_edgeMode;
+}
+
+void Poly3dGeometry::setEdgeMode(EdgeMode newEdgeMode)
+{
+    if (m_edgeMode == newEdgeMode)
+        return;
+    m_edgeMode = newEdgeMode;
+    emit edgeModeChanged();
+    // No rebuild: both modes read the same channel, the shader just stops
+    // subtracting the lift.
+    scheduleEdgeContractCheck();
+}
+
+float Poly3dGeometry::edgeThickness() const
+{
+    return m_edgeThickness;
+}
+
+void Poly3dGeometry::setEdgeThickness(float newEdgeThickness)
+{
+    if (qFuzzyCompare(m_edgeThickness, newEdgeThickness))
+        return;
+    m_edgeThickness = newEdgeThickness;
+    emit edgeThicknessChanged();
+}
+
+float Poly3dGeometry::edgeColorFactor() const
+{
+    return m_edgeColorFactor;
+}
+
+void Poly3dGeometry::setEdgeColorFactor(float newEdgeColorFactor)
+{
+    if (qFuzzyCompare(m_edgeColorFactor, newEdgeColorFactor))
+        return;
+    m_edgeColorFactor = newEdgeColorFactor;
+    emit edgeColorFactorChanged();
+}
+
+QColor Poly3dGeometry::edgeColor() const
+{
+    return m_edgeColor;
+}
+
+void Poly3dGeometry::setEdgeColor(const QColor &newEdgeColor)
+{
+    if (m_edgeColor == newEdgeColor)
+        return;
+    m_edgeColor = newEdgeColor;
+    emit edgeColorChanged();
+}
+
+bool Poly3dGeometry::hasEdgeAttributes() const
+{
+    return m_hasEdgeAttributes;
+}
+
+void Poly3dGeometry::checkEdgeContract() const
+{
+    if (m_edgeMode != Triangles || m_hasEdgeAttributes)
+        return;
+    // Without this the polygon simply draws no lines at all, which reads like a
+    // mistake in the ring rather than a missing channel.
+    qCWarning(lcPoly) << "poly3d: edgeMode Triangles was asked for, but this"
+                      << "geometry carries no barycentric channel, so no"
+                      << "triangulation lines can be drawn. showEdges has to be"
+                      << "true for the channel to be built at all - and if it is,"
+                      << "then the TangentSemantic attribute the channel rides on"
+                      << "stopped arriving.";
+}
+
+void Poly3dGeometry::scheduleEdgeContractCheck()
+{
+    if (m_edgeCheckPending)
+        return;
+    m_edgeCheckPending = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_edgeCheckPending = false;
+        checkEdgeContract();
+    }, Qt::QueuedConnection);
+}
+
+void Poly3dGeometry::updateData()
+{
+    // Once asked for, the barycentric channel stays for good - see setShowEdges.
+    const bool wireframe = m_hasEdgeAttributes || m_showEdges;
+    const int floatsPerVertex = wireframe ? kWireframeFloatsPerVertex
+                                          : kLeanFloatsPerVertex;
+
+    // clear() first - addAttribute() appends, so rebuilding without it would
+    // stack a second set of attributes on every property change.
+    clear();
+    setStride(floatsPerVertex * int(sizeof(float)));
+    setPrimitiveType(QQuick3DGeometry::PrimitiveType::Triangles);
+    addAttribute(QQuick3DGeometry::Attribute::PositionSemantic, 0,
+                 QQuick3DGeometry::Attribute::F32Type);
+    addAttribute(QQuick3DGeometry::Attribute::NormalSemantic, 3 * int(sizeof(float)),
+                 QQuick3DGeometry::Attribute::F32Type);
+    if (wireframe) {
+        // TangentSemantic as a data channel, not a tangent frame: it is the one
+        // free vec3 slot that leaves Color free for a per-vertex tint and
+        // TexCoord0 free for texturing.
+        addAttribute(QQuick3DGeometry::Attribute::TangentSemantic, 6 * int(sizeof(float)),
+                     QQuick3DGeometry::Attribute::F32Type);
+    } else {
+        addAttribute(QQuick3DGeometry::Attribute::IndexSemantic, 0,
+                     QQuick3DGeometry::Attribute::U32Type);
+    }
+
+    if (m_hasEdgeAttributes != wireframe) {
+        m_hasEdgeAttributes = wireframe;
+        emit hasEdgeAttributesChanged();
+    }
+
+    // An unset polygon is not a mistake - it draws nothing and says nothing.
+    if (m_vertices.isEmpty()) {
+        setVertexData(QByteArray());
+        setIndexData(QByteArray());
+        setBounds(QVector3D(), QVector3D());
+        update();
+        return;
+    }
+
+    QVector<QVector<QVector2D>> rings;
+    QVector<QVector2D> outer;
+    if (poly3dRingFromVariant(m_vertices, &outer))
+        rings.append(outer);
+
+    for (const QVariant &entry : m_holes) {
+        QVector<QVector2D> hole;
+        if (poly3dRingFromVariant(entry.toList(), &hole))
+            rings.append(hole);
+    }
+
+    const Poly3DMesh mesh = rings.isEmpty()
+                                ? Poly3DMesh()
+                                : buildPoly3DMesh(rings, m_plane, m_extrude, m_surfaceOffset);
+
+    // The wireframe layout cannot share a vertex between two triangles: a
+    // corner's barycentric coordinate is (1, 0, 0) in one and something else in
+    // the next. So the index buffer goes away and every triangle carries its
+    // own three vertices - the honest price of the feature, roughly 3x the lean
+    // layout for a ring of a few dozen points.
+    const int vertexCount = wireframe ? mesh.indices.size() : mesh.positions.size();
+
+    QByteArray vertexData;
+    vertexData.resize(vertexCount * floatsPerVertex * int(sizeof(float)));
+    float *cursor = reinterpret_cast<float *>(vertexData.data());
+    for (int i = 0; i < vertexCount; ++i) {
+        const QVector3D &p = wireframe ? mesh.positions.at(int(mesh.indices.at(i)))
+                                       : mesh.positions.at(i);
+        *cursor++ = p.x();
+        *cursor++ = p.y();
+        *cursor++ = p.z();
+        const QVector3D &n = wireframe ? mesh.normals.at(int(mesh.indices.at(i)))
+                                       : mesh.normals.at(i);
+        *cursor++ = n.x();
+        *cursor++ = n.y();
+        *cursor++ = n.z();
+        if (wireframe) {
+            const QVector3D &code = mesh.edgeCodes.at(i);
+            *cursor++ = code.x();
+            *cursor++ = code.y();
+            *cursor++ = code.z();
+        }
+    }
+    setVertexData(vertexData);
+
+    setIndexData(wireframe
+                     ? QByteArray()
+                     : QByteArray(reinterpret_cast<const char *>(mesh.indices.constData()),
+                                  mesh.indices.size() * int(sizeof(quint32))));
+    setBounds(mesh.minBounds, mesh.maxBounds);
+
+    // Under clay.poly.debug this is how often the ring was triangulated again.
+    // Worth having: the documented way to animate an extrusion's height is to
+    // scale the node, precisely because that never lands here, and a claim like
+    // that is only worth as much as the way to check it.
+    qCDebug(lcPoly) << "poly3d: mesh rebuilt -" << vertexCount << "vertices,"
+                    << (wireframe ? "wireframe" : "lean") << "layout, extrude"
+                    << m_extrude;
+
+    update();
+    scheduleEdgeContractCheck();
+}

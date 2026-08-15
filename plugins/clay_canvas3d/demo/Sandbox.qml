@@ -59,9 +59,12 @@ Rectangle {
                 Repeater {
                     model: [
                         { name: "Box3D Examples", component: "Box3DDemo.qml" },
+                        { name: "Poly3D Examples", component: "PolyDemo.qml" },
+                        { name: "Edge Rendering", component: "EdgeColorDemo.qml" },
                         { name: "Line Examples", component: "LineDemo.qml" },
                         { name: "LineBatch3D", component: "LineBatchDemo.qml" },
                         { name: "Line Styles", component: "LineStylesShowcase.qml" },
+                        { name: "Line Shadows", component: "LineShadowsDemo.qml" },
                         { name: "Label Showcase", component: "LabelShowcase.qml" },
                         { name: "LabelBatch Stress", component: "LabelBatchStress.qml" },
                         { name: "Connectors", component: "ConnectorDemo.qml" },

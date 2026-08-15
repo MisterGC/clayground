@@ -1,0 +1,8 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# A directory import resolves by listing the directory, which is impossible
+# over HTTP - so a lab served by the Web Dojo needs its types named here.
+# Harmless on the desktop, where Qt scans the directory either way.
+CircuitElement3D 1.0 CircuitElement3D.qml
+SymbolIcon 1.0 SymbolIcon.qml
+Voltmeter 1.0 Voltmeter.qml

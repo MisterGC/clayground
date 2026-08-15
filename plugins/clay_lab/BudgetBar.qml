@@ -66,14 +66,14 @@ Item {
         return sum
     }
 
-    implicitWidth: 180
-    implicitHeight: _bar.height + _legend.height + 6
+    implicitWidth: LabTheme.px(180)
+    implicitHeight: _bar.height + _legend.height + LabTheme.spaceM
 
     Rectangle {
         id: _bar
         width: parent.width
-        height: 10
-        radius: 5
+        height: LabTheme.px(10)
+        radius: height / 2
         clip: true
         color: LabTheme.panelEdge
 
@@ -95,33 +95,44 @@ Item {
     Column {
         id: _legend
         anchors.top: _bar.bottom
-        anchors.topMargin: 6
+        anchors.topMargin: LabTheme.spaceM
         width: parent.width
-        spacing: 2
+        spacing: LabTheme.px(2)
 
         Repeater {
             model: root.segments
             Item {
                 width: _legend.width
-                height: 13
+                height: LabTheme.px(13)
                 Rectangle {
                     id: _dot
-                    y: 4; width: 7; height: 7; radius: 2
+                    y: LabTheme.spaceS
+                    width: LabTheme.px(7); height: width
+                    radius: LabTheme.px(2)
                     color: modelData.color
                 }
                 Text {
-                    x: 13
-                    text: modelData.label
+                    x: LabTheme.px(13)
+                    width: parent.width - x - _amount.width - LabTheme.spaceS
+                    elide: Text.ElideRight
+                    // A label goes through the dictionary like every other
+                    // user-visible string: the values beside it were already
+                    // localized, so a German bar was reading "4,40 V" against
+                    // an English "lost in the cell". A lab that passes text
+                    // rather than a key still gets that text back - t() hands
+                    // an unknown key straight through.
+                    text: LabLang.t(modelData.label)
                     color: LabTheme.inkSoft
-                    font.pixelSize: 10
+                    font.pixelSize: LabTheme.fontMicro
                     font.family: LabTheme.monoFont
                 }
                 Text {
+                    id: _amount
                     anchors.right: parent.right
                     text: LabLang.num(modelData.value, root.decimals)
                           + (root.unit ? " " + root.unit : "")
                     color: LabTheme.ink
-                    font.pixelSize: 10; font.bold: true
+                    font.pixelSize: LabTheme.fontMicro; font.bold: true
                     font.family: LabTheme.monoFont
                 }
             }

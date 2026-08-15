@@ -16,6 +16,14 @@
 //   depthJitter         = 1.0 in opaque mode -> tiny per-instance depth offset
 //                         (deterministic table-order tie-break for coplanar
 //                          lines), 0.0 otherwise
+//   shadowOnly          = 1.0 for the shadow-caster twin of the batch, which
+//                         exists solely to occupy the shadow map: it collapses
+//                         to nothing in every other pass (see below). 0.0 for
+//                         the visible material.
+//   styledShadow        = 1.0 when the style table is readable in the shadow
+//                         passes (styled OpaquePrePass twin, and always for
+//                         the visible material); 0.0 for the fast twin, whose
+//                         shadow-pass pipeline has no style table bound.
 
 VARYING vec4 vColor;
 VARYING vec2 vUV;   // x = coordinate along segment axis, y = coordinate across
@@ -30,6 +38,22 @@ VARYING vec2 vHead; // x = arrowhead length (segment-space), y = head half width
 
 void MAIN()
 {
+    // The shadow-caster twin shares this shader so its shadow is expanded by
+    // exactly the same ribbon maths as the visible line - anything else and the
+    // shadow would drift from the line it belongs to. It must not draw anywhere
+    // but the shadow map, so outside the shadow passes it collapses to a
+    // degenerate point behind the far plane and is clipped before rasterizing.
+    //
+    // These must be VALUE tests: Qt emits every pass macro in every variant as
+    // "#define QSSG_ENABLE_..._SHADOW_PASS 0" or "... 1", so defined() is true
+    // in all of them and would gate nothing.
+#if !QSSG_ENABLE_ORTHO_SHADOW_PASS && !QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
+    if (shadowOnly > 0.5) {
+        POSITION = vec4(0.0, 0.0, 2.0, 1.0);
+        return;
+    }
+#endif
+
     float t = VERTEX.x;                       // 0 at start, 1 at end
     float side = VERTEX.y;                     // -1 or +1
     float capDir = (t < 0.5) ? -1.0 : 1.0;     // longitudinal cap direction
@@ -51,8 +75,24 @@ void MAIN()
     // as raw line-width multiples straight from the style). Heads are a
     // single-segment feature (capFlags == 3), so a widened quad only appears
     // where it is a real end.
+    // The fetch runs in the shadow passes too - but only for a STYLED twin.
+    // Qt binds custom TextureInput samplers in the shadow passes only for an
+    // OpaquePrePass renderable (addOpaqueDepthPrePassBindings maps every
+    // custom property texture for the vertex AND the fragment stage); a fast
+    // twin (shapedShadows: false, AlwaysDepthDraw) has nothing bound there, so
+    // styledShadow gates the read to keep it off the unbound sampler. Outside
+    // the shadow passes the table is always bound and the gate is constant
+    // true. The visible material never reaches a shadow pass (it does not
+    // cast).
+#if QSSG_ENABLE_ORTHO_SHADOW_PASS || QSSG_ENABLE_PERSPECTIVE_SHADOW_PASS
+    bool headFetch = styledShadow > 0.5;
+#else
+    bool headFetch = true;
+#endif
     float styleCol = (INSTANCE_DATA.y + 0.5) / max(styleCount, 1.0);
-    vec4 headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
+    vec4 headRow = vec4(0.0);
+    if (headFetch)
+        headRow = texture(styleTable, vec2(styleCol, 2.5 / 3.0));
     float headWidM = headRow.a;   // requested head base width (shaft-width mult)
     float headLenM = headRow.b;   // requested head length (shaft-width mult)
     bool headActive = (headWidM > 0.0) && (capFlagsI == 3);

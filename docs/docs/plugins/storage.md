@@ -4,6 +4,7 @@ title: Storage Plugin
 permalink: /docs/plugins/storage/
 ---
 
+
 The Clay Storage plugin provides persistent local storage capabilities for
 Clayground applications. It offers a simple key-value store interface built on
 top of Qt's LocalStorage module, making it easy to save and retrieve game data,
@@ -160,6 +161,78 @@ KeyValueStore {
 }
 ```
 
+### User Preferences
+
+```qml
+Item {
+    KeyValueStore {
+        id: prefStore
+        name: "UserPreferences"
+    }
+
+    // Complex preferences object
+    property var preferences: ({
+        controls: {
+            jumpKey: Qt.Key_Space,
+            leftKey: Qt.Key_A,
+            rightKey: Qt.Key_D
+        },
+        display: {
+            fullscreen: false,
+            resolution: "1920x1080"
+        },
+        gameplay: {
+            difficulty: "normal",
+            hints: true
+        }
+    })
+
+    function savePreferences() {
+        prefStore.set("preferences", JSON.stringify(preferences))
+    }
+
+    function loadPreferences() {
+        if (prefStore.has("preferences")) {
+            let loaded = JSON.parse(prefStore.get("preferences", "{}"))
+            // Merge with defaults to handle new preferences
+            preferences = Object.assign(preferences, loaded)
+        }
+    }
+}
+```
+
+### Migration and Versioning
+
+```qml
+KeyValueStore {
+    id: versionedStore
+    name: "GameDataV2"
+
+    property string currentVersion: "2.0"
+
+    Component.onCompleted: {
+        let storedVersion = get("dataVersion", "1.0")
+
+        if (storedVersion < currentVersion) {
+            migrateData(storedVersion, currentVersion)
+        }
+
+        set("dataVersion", currentVersion)
+    }
+
+    function migrateData(fromVersion, toVersion) {
+        console.log("Migrating data from", fromVersion, "to", toVersion)
+
+        if (fromVersion === "1.0" && toVersion === "2.0") {
+            // Perform migration
+            let oldScore = get("score", "0")
+            set("player.score", oldScore)
+            remove("score")
+        }
+    }
+}
+```
+
 ## Best Practices
 
 1. **Database Names**: Use descriptive, unique names for different storage purposes to avoid conflicts.
@@ -188,8 +261,6 @@ The KeyValueStore component:
 The storage location depends on the platform:
 - **Desktop**: User's application data directory
 - **Mobile**: App-specific secure storage area
-
----
 
 ## API Reference
 

@@ -33,10 +33,19 @@ LabPanel {
     readonly property bool live: lidar && lidar.enabled
     readonly property bool fixing: lidar && lidar.available
 
-    width: 250
+    /*!
+        How tall the scan display may be. The lab sets it from the room left
+        between the parameters and the plot: a scan display is the second view
+        of data the legend already gives in numbers, so when the page is tight
+        it is the one that gives way - by getting smaller, not by disappearing,
+        because a shrunken radar still answers "what is around the car".
+    */
+    property real canvasHeight: LabTheme.px(210)
+
+    width: LabTheme.px(250)
     title: LabLang.t("monitor.title")
     tag: "M"
-    spacing: 6
+    spacing: LabTheme.spaceM
 
     Connections {
         target: Lab
@@ -48,7 +57,7 @@ LabPanel {
         // the panel's body, by id: `parent` here is the panel's stacking
         // column, which is a generation too deep to anchor across
         width: _mon.body.width
-        height: 210
+        height: Math.max(LabTheme.px(80), _mon.canvasHeight)
 
         onPaint: {
             const ctx = getContext("2d")
@@ -145,41 +154,41 @@ LabPanel {
 
     // the three reads, named
     Row {
-        spacing: 10
+        spacing: LabTheme.spaceXl
         Row {
-            spacing: 4
+            spacing: LabTheme.spaceS
             Rectangle {
-                width: 9; height: 9; color: "transparent"
-                border.color: LabTheme.teal; border.width: 1.5
+                width: LabTheme.px(9); height: width; color: "transparent"
+                border.color: LabTheme.teal; border.width: Math.max(1, LabTheme.px(1.5))
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 text: LabLang.t("sensor.map"); color: LabTheme.inkFaint
-                font.pixelSize: 10; font.family: LabTheme.monoFont
+                font.pixelSize: LabTheme.fontMicro; font.family: LabTheme.monoFont
             }
         }
         Row {
-            spacing: 4
+            spacing: LabTheme.spaceS
             Rectangle {
-                width: 7; height: 7; radius: 4; color: LabTheme.teal
+                width: LabTheme.px(7); height: width; radius: width / 2; color: LabTheme.teal
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 text: LabLang.t("sensor.detected"); color: LabTheme.inkFaint
-                font.pixelSize: 10; font.family: LabTheme.monoFont
+                font.pixelSize: LabTheme.fontMicro; font.family: LabTheme.monoFont
             }
         }
         Row {
-            spacing: 4
+            spacing: LabTheme.spaceS
             Text {
                 text: "✛"; color: LabTheme.teal
-                font.pixelSize: 11; font.family: LabTheme.monoFont
+                font.pixelSize: LabTheme.fontSmall; font.family: LabTheme.monoFont
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 text: LabLang.tf("monitor.errorMag", _mon.errorMag.toFixed(0))
                 color: LabTheme.inkFaint
-                font.pixelSize: 10; font.family: LabTheme.monoFont
+                font.pixelSize: LabTheme.fontMicro; font.family: LabTheme.monoFont
             }
         }
     }
@@ -196,7 +205,7 @@ LabPanel {
               : (_mon.live ? LabLang.t("sensor.noFix")
                            : LabLang.t("sensor.lidar") + " " + LabLang.t("sensor.off"))
         color: _mon.fixing ? LabTheme.ink : LabTheme.alarm
-        font.pixelSize: 11; font.bold: true
+        font.pixelSize: LabTheme.fontSmall; font.bold: true
         font.family: LabTheme.monoFont
     }
     Text {
@@ -207,7 +216,7 @@ LabPanel {
               : (_mon.live ? LabLang.tf("monitor.none",
                                         _mon.lidar ? _mon.lidar.minLandmarks : 2)
                            : LabLang.t("monitor.off"))
-        color: LabTheme.inkFaint; font.pixelSize: 11
+        color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontSmall
         font.family: LabTheme.handFont
     }
 }
