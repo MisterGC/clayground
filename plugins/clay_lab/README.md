@@ -68,9 +68,12 @@ Everything below was hand-rolled in two labs before it moved here.
 - **LabPanel** — the titled paper panel every HUD is made of; children
   stack, or set a size and anchor to its `body`.
 - **LabKeys / LabHelp** — the canonical key map (`1..9` presets, `T` flow,
-  `F`/`0` view, `Shift+R` record, `?` help) plus the lab's own keys as
-  data. Declaring a key is what documents it: `LabHelp` renders the map
-  from the same list, so the two can never drift.
+  `F`/`0` view, `H` takes the next instrument, `P` keeps its reading,
+  `Shift+R` record, `?` help, arrows and `WASD` travel, `Shift`+arrows
+  turn) plus the lab's own keys as data. Declaring a key is what documents
+  it: `LabHelp` renders the map from the same list, so the two can never
+  drift. The six travel letters are reserved and dispatched *after* the
+  lab's own keys, so claiming one silently costs a pan direction.
 - **HintBar** — bottom-centre line that steps aside while a flow narrates
   and stays width-capped against its neighbours.
 - **ScenarioBar** — clickable preset chips, each with the one-line reason
@@ -130,6 +133,59 @@ Promoted from the labs, which had proved each of them (some three times over):
 - **TransportChip** — sim time, pause and speed, driving `SimClock.timeScale`
   from outside.
 - **RecIndicator** — the recording dot, so a growing CSV is never a secret.
+
+### Instruments you hold
+
+The shelf above is *mounted*: the lab author bound what each one measures
+when the lab was written, and it reads for the whole run. These are the
+other half — the viewer binds the subject at runtime by pointing, and the
+reading dies with the gesture.
+
+- **HandheldInstrument** — the contract. An instrument declares what a click
+  contributes (`pickKind`: a `"point"` on the ground, an `"object"` in the
+  scene, or a `"moment"` in sim time), how many it takes (`maxPicks`, 0 for
+  an endless chain), and what the reading means (`value` / `valueText`). It
+  handles no input and knows nothing about the camera. That is the
+  acceptance test: a new instrument is one file saying what it picks and
+  what that means, with no gesture code in it.
+- **InstrumentBelt** — what the viewer can pick up, and the owner of the
+  hand's click. One line inside the `View3D` (`pointer: nav`, `unit:` the
+  lab's unit) and the lab has a **TapeMeasure** and a **Stopwatch**; a kit's
+  own instrument is declared inside the belt and joins the same row. A ruler
+  you have to install first is a ruler nobody reaches for.
+- **TapeMeasure** — the screen-space tape. Its arithmetic is `measure.js`,
+  checked by node, so lengths and angles are not geometry that only exists
+  inside a paint call.
+- **Stopwatch** — the same contract against the sim clock rather than the
+  ground.
+- **CameraAnchorMark** — the dotted ring showing what the view is orbiting
+  and zooming about. A screen-space overlay, because as world content it
+  clipped into geometry at close range.
+
+`pin()` is the one transition out: it names the reading, registers it as a
+`Probe`, and from then on it is sampled on the clock grid like any other —
+so it lands in the run record and a paper can cite it. It asks for the name
+because that name is what gets cited. A measurement itself is never in
+`viewState()`: it is a question being asked now, not scene state.
+
+### The mouse
+
+One rule, and the rest follows from it: **the left button is never the
+camera's**. A mode used to exist only because the camera wanted LMB — panning
+sat there, so a lab that needed LMB had to be able to take it back, and the
+thing that took it back was the mode. `OrbitInput3D` declines the left button
+instead, so nothing has to.
+
+- **RMB** drag turns the view about the point under the cursor; a right
+  *click* cancels — the "put it down" gesture.
+- **Middle drag** pans, **wheel** zooms towards the cursor, **double-click**
+  focuses. Always live, never taken away.
+- **LMB** is the lab's: its own tool, or a click handed to whatever
+  instrument is in the hand. Holding **Space** lends it to the camera for as
+  long as the key is down.
+- A lab with nothing to build may spend LMB on the view deliberately
+  (`panButtons: Qt.LeftButton | Qt.MiddleButton`) — one decision, made once,
+  not a mode.
 
 ## The determinism contract
 

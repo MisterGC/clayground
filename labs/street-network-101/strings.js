@@ -99,7 +99,7 @@ var dict = {
         "card.hint.node": "drag from here to draw a road · Del removes it",
 
         // plot
-        "plot.empty": "select a road and press W to plot it",
+        "plot.empty": "select a road and press Q to plot it",
 
         // banners
         "banner.allDeadEnds": "Every road is a dead end - traffic drains away as fast as it arrives",
@@ -203,7 +203,7 @@ var dict = {
         "card.junction.open": "alle Bewegungen freigeben",
         "card.hint.node": "von hier ziehen zeichnet eine Straße · Entf entfernt",
 
-        "plot.empty": "Straße wählen und W drücken",
+        "plot.empty": "Straße wählen und Q drücken",
 
         "banner.allDeadEnds": "Alles Sackgassen - der Verkehr versickert so schnell, wie er entsteht",
         "banner.jammed": "Stau: die meisten Autos stehen",
