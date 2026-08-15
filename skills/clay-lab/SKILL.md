@@ -235,11 +235,11 @@ because two labs hand-rolled each one; a third must not:
   as data (`{key, label, action}`). Call `keymap.handle(ev)` from the
   lab's `Keys.onPressed` and handle only what it returns false for; give it
   `pointer: nav` and call `handleRelease(ev)` from `Keys.onReleased` so the
-  held-Space navigation can end.
-- **`ModeChip`** — whether the lab is building, on screen and clickable,
-  from the same `OrbitInput3D`. Same contract as `GridMode`: the surface
-  shows the mode. Declaring a key is documenting it — `LabHelp` (`?`)
-  renders the same list, so the on-screen map can never drift from the code.
+  held-Space navigation can end. Declaring a key is documenting it —
+  `LabHelp` (`?`) renders the same list, so the on-screen map can never
+  drift from the code. The arrows and `WASD` are reserved for panning and
+  are dispatched *after* the lab's own keys, so claiming one of those six
+  letters silently takes a pan direction away — pick another letter.
 - **`InstrumentBelt`** — what the viewer can pick up. **One line inside the
   `View3D`** (`pointer: nav`, `unit:` the lab's unit) plus `hands:` on
   `LabKeys`, and the lab has a `TapeMeasure` and a `Stopwatch`; a kit's own
@@ -402,64 +402,75 @@ that builds something gives the left button to its tool, so the camera used
 to end up on whatever was left over — and no two labs picked the same
 leftovers (right-drag turned in street-network and panned in electronics).
 
-There was briefly a mode per activity (build / explore / measure) and the
-shape of that mistake shows the moment a third instrument is imagined: five
-modes for one camera. The model is a 3D shooter instead — moving, aiming and
-firing are live at once, and the only thing you choose is what is in your
-hands.
+There were modes twice. First one per activity (build / explore / measure),
+whose shape fails the moment a third instrument is imagined: five modes for
+one camera. Then two, build and use, which held up better and was still
+wrong. What replaced them is below — moving, looking and using are live at
+once, and the only thing you choose is what is in your hands.
 
-- **navigation, always** — LMB drags the world along, RMB turns it **about
-  the point under the cursor**, the wheel zooms *towards the cursor*, the
-  middle button drags, double-click focuses. Identical whether or not
-  something is in the hand. Never taken away.
+- **the left button is never the camera's** — that is the whole rule, and
+  every other one follows from it. A mode existed only because the camera
+  wanted LMB: LMB-drag panned, so a lab that needed LMB had to be able to
+  take it back, and the thing that took it back was the mode. An RTS has
+  none of these problems because it never puts panning on the left button.
+- **navigation, always** — RMB drags turn the view **about the point under
+  the cursor**, the wheel zooms *towards the cursor*, the middle button
+  pans, double-click focuses. Identical whether or not something is in the
+  hand, and never taken away. A right *click* — under `clickSlop` pixels of
+  travel — cancels instead, which is the RTS "put it down".
 - **the click** — with an instrument in hand, an LMB *click* (under
   `clickSlop` pixels of travel) is reported through `picked`, carrying
   **both** the ground point and the object under the cursor, so a tape
   measure and a voltmeter need no gestures of their own. Anything further is
   a pan: repositioning is wanted far more often than another point, and a
   stray point is the more annoying mistake.
-- **build** — the one real mode, because it changes what the scene
-  *affords* (previews, snapping, delete), not just what a click does. LMB
-  *and* RMB are the domain's, completely.
-- **switching** — `B` toggles building, holding **Space** hands the view
-  over while held (`springNav`, fed by `LabKeys`), `H` walks the belt, `P`
-  keeps a reading; a `ModeChip` shows building and the belt shows what is
-  held, and the cursor changes (`cursorShape`). `modes:` is which modes a
-  lab has — sensor-fusion declares `["use"]` and therefore has no mode
-  control at all (`modeSwitchable`); `modeLocked` still pins a lab.
-- **the one coupling** — taking an instrument leaves build, and entering
-  build puts the instrument away. They are two claims on the same click, so
-  a state where both are true is a dead tool with a hint bar describing it.
+- **a lab with nothing to build** may spend LMB on the view deliberately —
+  `panButtons: Qt.LeftButton | Qt.MiddleButton`, which is what
+  sensor-fusion does. One decision, made once, by a lab that has nothing to
+  select. It is not a mode: nothing flips it at runtime.
+- **switching** — holding **Space** lends the view the left button while it
+  is held (`springNav`, fed by `LabKeys`), `H` walks the belt, `P` keeps a
+  reading. The belt shows what is held and the cursor changes
+  (`cursorShape`). There is no build key and no mode chip, because there is
+  no mode — a tool is something you pick up.
 
 ```qml
-OrbitInput3D { id: nav; rig: rig; view: view3d; mode: "build" }   // or modes: ["use"]
+OrbitInput3D { id: nav; rig: rig; view: view3d }   // + panButtons: if nothing is built
 
 MouseArea {
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
     cursorShape: nav.cursorShape
     onPressed: (m) => {
-        // the mode decides FIRST: "" means the press is the lab's
+        // nav declines first: "" means the press is the lab's, and with the
+        // default buttons an LMB press is ALWAYS that case
         if (nav.begin(m.x, m.y, m.button, m.modifiers) !== "") return
+        if (hands.held) { hands.press(m.x, m.y); return }   // the belt, before the tool
         myTool.press(m.x, m.y)
     }
-    onPositionChanged: (m) => { if (!nav.move(m.x, m.y)) myTool.moveTo(m.x, m.y) }
-    onReleased: nav.end()
+    onPositionChanged: (m) => {
+        if (nav.move(m.x, m.y)) return
+        if (!pressed) nav.hoverAt(m.x, m.y)
+        myTool.moveTo(m.x, m.y)
+    }
+    onReleased: {
+        nav.end()                      // a flicked drag coasts to a stop from here
+        if (hands.release()) return    // the click was the instrument's
+        myTool.release()
+    }
     onWheel: (w) => nav.wheel(w.angleDelta.y, w.x, w.y)   // x,y = zoom to cursor
     onDoubleClicked: (m) => nav.recenterAt(m.x, m.y)
 }
 // LabKeys { pointer: nav; hands: hands ... }
 //   + Keys.onReleased: (ev) => keymap.handleRelease(ev)
-// ModeChip { pointer: nav; key: keymap.modeKey }
 // InstrumentBelt { id: hands; pointer: nav; unit: "m" }   // inside the View3D
-// and put `mode: nav.mode` in viewState(), `nav.setMode(s.mode)` on restore
 ```
 
 A measurement itself is **never** in `viewState()`: it is a question being
 asked now, not scene state. `Backspace` takes the last point back, `Esc`
 clears the reading and then puts the instrument away, and putting it away
-clears it too — holding Space does not, because the quasimode borrows the
-camera without changing `mode`.
+clears it too — holding Space does not, because the quasimode only borrows
+the left button for as long as the key is down.
 
 **Keeping one is the deliberate exception.** `P` pins the reading: the belt
 asks for a name, and that name becomes a `Probe` sampled on the clock grid —
@@ -475,8 +486,8 @@ worked around. The kernel ships the geometry instruments because every lab
 has a ground plane and a clock; a kit ships the ones only it can mean.
 
 Do **not** reintroduce a lab-local camera gesture (Shift-drag, "empty ground
-orbits"): that is the drift the modes abolish, and a rule that depends on
-what is under the cursor cannot be taught in one sentence. `nav.beginAs`
+orbits"): that is exactly the drift this rule exists to end, and a rule that
+depends on what is under the cursor cannot be taught in one sentence. `nav.beginAs`
 still exists for a lab whose own rule genuinely decides. Five things worth
 knowing:
 
@@ -724,15 +735,17 @@ checked against.
 ### Canonical key map
 
 `1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
-view · `W` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
-rotate · `Del` delete · `#` grid mode · `T` flow · `B` builds on/off ·
+view · `Q` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
+rotate · `Del` delete · `#` grid mode · `T` flow ·
 `H` takes the next instrument, `P` keeps its reading · `Space` held hands
 the view over (and `Space`/`→` next, `←` back while a flow runs),
 `Backspace` undoes a measured point *while something is in the hand*,
 `Esc` cancel/leave · `Shift+R` record a run ·
-`Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows travel across the
-scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
-keys, never reassign these. Key letters stay physical across languages.
+`Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows and `WASD` travel
+across the scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
+keys, never reassign these — and `W`, `A`, `S` and `D` are as reserved as
+the arrows, which is why watching moved to `Q`. Key letters stay physical
+across languages.
 The arrows used to turn, which a drag already did well; crossing the scene
 had no key at all, so turning moved onto `Shift`. While a flow runs `→`/`←`
 are the flow's, so the arrows are the camera's only when nothing narrates —
