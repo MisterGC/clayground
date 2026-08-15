@@ -84,3 +84,10 @@
     \title Clayground iOS Module
     \brief iOS-specific functionality including App Store reviews.
 */
+
+/*!
+    \qmlmodule Clayground.Lab
+    \title Clayground Lab Module
+    \brief The experiment kernel: parameters, probes, a seeded clock,
+    instruments and the chrome every lab shares.
+*/

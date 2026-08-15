@@ -40,6 +40,7 @@ plugins=(
     "gamecontroller:GameController"
     "network:Network"
     "sound:Sound"
+    "lab:Lab"
 )
 
 # Live pages that are hand-written rather than README-derived. Generating over

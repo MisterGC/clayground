@@ -3,7 +3,7 @@
 
 project = Clayground
 description = Clayground Game Development Framework
-version = 2026.2
+version = 2026.6
 url = https://mistergc.github.io/clayground
 
 # Source directories - all plugins + docs for module declarations
@@ -25,6 +25,7 @@ sourcedirs = . \
              ../plugins/clay_character3d/src \
              ../plugins/clay_world \
              ../plugins/clay_canvas3d \
+             ../plugins/clay_lab \
              ../plugins/clay_ios \
              ../plugins/clay_sound
 
@@ -68,8 +69,15 @@ HTML.postheader = "<div class=\"header-nav\"><a href=\"../docs/\">← Back to Do
 generateindex = true
 naturallanguage = en
 
-# Exclude private/internal items
-excludedirs = ../plugins/clay_common/tests
+# Exclude private/internal items. _site and labs-run are Jekyll/website build
+# output that contains copies of lab and kit QML - scanning them makes qdoc
+# report the same sources twice, under paths that do not exist in the repo.
+excludedirs = ../plugins/clay_common/tests \
+              ../plugins/clay_lab/tests \
+              ../plugins/clay_lab/demo \
+              _site \
+              labs-run \
+              webdojo-examples
 excludefiles = ../plugins/clay_common/*_p.h \
                ../plugins/clay_ai/src/llmengine_wasm.h \
                ../plugins/clay_ai/src/llmengine_wasm.cpp

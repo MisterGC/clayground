@@ -117,9 +117,29 @@ The ring is 2D, so `plane` decides which two world axes its points map to —
 `Poly3D.YZ`. Any other orientation is the node's own `eulerRotation`; a
 `Poly3D` is a `Model`, so it moves, rotates and scales like anything else.
 
-A polygon lying exactly on another surface will z-fight. Lift it slightly
-along its normal — `Model`'s `depthBias` biases the *sort* distance and does
-not offset depth, so it is not the fix here.
+A polygon lying exactly on another surface will z-fight. `surfaceOffset` is
+the fix: it slides the geometry along the plane normal — `+Y` for `XZ`, `+Z`
+for `XY`, `+X` for `YZ` — so the two surfaces stop sharing a depth.
+
+```qml
+Poly3D {
+    vertices: lakeRing
+    color: "#00d9ff"
+    surfaceOffset: 0.5      // above the ground it would otherwise fight
+}
+```
+
+It is a lift, not a depth trick, and named that way on purpose. `Model`'s
+`depthBias` biases the *sort* distance and does not offset depth, so it is
+not the fix here: on a coplanar lake at a grazing angle, 199 of ~3600
+contested pixels survived at `depthBias: 0`, 925 at 500 and 962 at 100000 —
+against 3613 for a plain half-unit lift.
+
+The offset leaves the node's own `position` alone, so `position` stays free
+for placing and animating the polygon. `extrude` still measures from the
+ring's own plane, so lifting a prism displaces it rather than resizing it.
+`surfaceOffset: 0`, the default, is no translation at all — the mesh is
+identical to one built without the property.
 
 #### Extrusion
 
