@@ -63,19 +63,34 @@ Rectangle {
     */
     property var view: null
 
-    /*! \qmlproperty var WorldLabel::camera \brief The camera that View3D renders with. */
+    /*!
+        \qmlproperty var WorldLabel::camera
+        \brief The camera that View3D renders with.
+    */
     property var camera: null
 
-    /*! \qmlproperty vector3d WorldLabel::worldPosition \brief The scene point to pin to. */
+    /*!
+        \qmlproperty vector3d WorldLabel::worldPosition
+        \brief The scene point to pin to.
+    */
     property vector3d worldPosition: Qt.vector3d(0, 0, 0)
 
-    /*! \qmlproperty int WorldLabel::placement \brief See \l Placement. */
+    /*!
+        \qmlproperty int WorldLabel::placement
+        \brief See \l Placement.
+    */
     property int placement: WorldLabel.Above
 
-    /*! \qmlproperty real WorldLabel::gap \brief Pixels between the point and the chip. */
+    /*!
+        \qmlproperty real WorldLabel::gap
+        \brief Pixels between the point and the chip.
+    */
     property real gap: LabTheme.spaceM
 
-    /*! \qmlproperty point WorldLabel::offset \brief Extra pixel nudge, applied after placement. */
+    /*!
+        \qmlproperty point WorldLabel::offset
+        \brief Extra pixel nudge, applied after placement.
+    */
     property point offset: Qt.point(0, 0)
 
     /*!
@@ -88,16 +103,28 @@ Rectangle {
     */
     property bool keepInView: true
 
-    /*! \qmlproperty real WorldLabel::margin \brief Closest the chip may come to the window edge. */
+    /*!
+        \qmlproperty real WorldLabel::margin
+        \brief Closest the chip may come to the window edge.
+    */
     property real margin: LabTheme.spaceS
 
-    /*! \qmlproperty string WorldLabel::text \brief Convenience one-line content. */
+    /*!
+        \qmlproperty string WorldLabel::text
+        \brief Convenience one-line content.
+    */
     property string text: ""
 
-    /*! \qmlproperty color WorldLabel::accent \brief Border colour - use it to carry meaning. */
+    /*!
+        \qmlproperty color WorldLabel::accent
+        \brief Border colour - use it to carry meaning.
+    */
     property color accent: LabTheme.panelEdge
 
-    /*! \qmlproperty bool WorldLabel::active \brief Set false to hide without unloading. */
+    /*!
+        \qmlproperty bool WorldLabel::active
+        \brief Set false to hide without unloading.
+    */
     property bool active: true
 
     /*!
@@ -107,7 +134,11 @@ Rectangle {
     */
     readonly property bool onScreen: _screen.z > 0
 
-    /*! \qmlproperty var WorldLabel::contentItem \readonly \brief The item children are parented to. */
+    /*!
+        \qmlproperty var WorldLabel::contentItem
+        \readonly
+        \brief The item children are parented to.
+    */
     readonly property alias contentItem: _content
 
     default property alias _children: _content.data

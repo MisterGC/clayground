@@ -75,16 +75,28 @@ Item {
     */
     property string name: ""
 
-    /*! \qmlproperty string HandheldInstrument::label \brief Belt caption, already translated. */
+    /*!
+        \qmlproperty string HandheldInstrument::label
+        \brief Belt caption, already translated.
+    */
     property string label: ""
 
-    /*! \qmlproperty string HandheldInstrument::glyph \brief One character for the belt chip. */
+    /*!
+        \qmlproperty string HandheldInstrument::glyph
+        \brief One character for the belt chip.
+    */
     property string glyph: "●"
 
-    /*! \qmlproperty string HandheldInstrument::unit \brief Unit of \l value, e.g. \c "m", \c "V", \c "s". */
+    /*!
+        \qmlproperty string HandheldInstrument::unit
+        \brief Unit of \l value, e.g. \c "m", \c "V", \c "s".
+    */
     property string unit: ""
 
-    /*! \qmlproperty color HandheldInstrument::tone \brief The instrument's ink. */
+    /*!
+        \qmlproperty color HandheldInstrument::tone
+        \brief The instrument's ink.
+    */
     property color tone: LabTheme.primary
 
     /*!
@@ -103,7 +115,10 @@ Item {
     */
     property string pickKind: "point"
 
-    /*! \qmlproperty int HandheldInstrument::maxPicks \brief How many picks make a subject; 0 is unbounded. */
+    /*!
+        \qmlproperty int HandheldInstrument::maxPicks
+        \brief How many picks make a subject; 0 is unbounded.
+    */
     property int maxPicks: 0
 
     /*!
@@ -113,13 +128,25 @@ Item {
     */
     readonly property alias picks: _s.picks
 
-    /*! \qmlproperty int HandheldInstrument::count \readonly \brief How many picks the subject has. */
+    /*!
+        \qmlproperty int HandheldInstrument::count
+        \readonly
+        \brief How many picks the subject has.
+    */
     readonly property int count: _s.picks.length
 
-    /*! \qmlproperty bool HandheldInstrument::empty \readonly \brief Nothing picked yet. */
+    /*!
+        \qmlproperty bool HandheldInstrument::empty
+        \readonly
+        \brief Nothing picked yet.
+    */
     readonly property bool empty: count === 0
 
-    /*! \qmlproperty bool HandheldInstrument::full \readonly \brief \l maxPicks reached. */
+    /*!
+        \qmlproperty bool HandheldInstrument::full
+        \readonly
+        \brief \l maxPicks reached.
+    */
     readonly property bool full: maxPicks > 0 && count >= maxPicks
 
     /*!
@@ -150,7 +177,10 @@ Item {
     */
     property var hovering: null
 
-    /*! \qmlproperty real HandheldInstrument::value \brief The reading. Bind it. */
+    /*!
+        \qmlproperty real HandheldInstrument::value
+        \brief The reading. Bind it.
+    */
     property real value: 0
 
     /*!
@@ -159,7 +189,11 @@ Item {
     */
     property string valueText: count > 0 ? LabLang.qty(value, unit) : ""
 
-    /*! \qmlproperty bool HandheldInstrument::pinnable \readonly \brief There is a reading worth keeping. */
+    /*!
+        \qmlproperty bool HandheldInstrument::pinnable
+        \readonly
+        \brief There is a reading worth keeping.
+    */
     readonly property bool pinnable: !empty && name !== ""
 
     /*!
@@ -206,13 +240,19 @@ Item {
         return Qt.vector3d(p.x, p.y === undefined ? 0 : p.y, p.z)
     }
 
-    /*! \qmlmethod void HandheldInstrument::undo() \brief Takes the last pick back. */
+    /*!
+        \qmlmethod void HandheldInstrument::undo()
+        \brief Takes the last pick back.
+    */
     function undo() {
         if (_s.picks.length === 0) return
         _s.picks = _s.picks.slice(0, _s.picks.length - 1)
     }
 
-    /*! \qmlmethod void HandheldInstrument::clear() \brief Ends the measurement. */
+    /*!
+        \qmlmethod void HandheldInstrument::clear()
+        \brief Ends the measurement.
+    */
     function clear() {
         if (_s.picks.length === 0) return
         _s.picks = []
@@ -271,10 +311,16 @@ Item {
     */
     readonly property alias pinnedReadings: _s.pinnedList
 
-    /*! \qmlsignal HandheldInstrument::pinned(string probeName) \brief A reading was kept. */
+    /*!
+        \qmlsignal HandheldInstrument::pinned(string probeName)
+        \brief A reading was kept.
+    */
     signal pinned(string probeName)
 
-    /*! \qmlmethod var HandheldInstrument::info() \brief The reading as plain values, for an agent or a test. */
+    /*!
+        \qmlmethod var HandheldInstrument::info()
+        \brief The reading as plain values, for an agent or a test.
+    */
     function info() {
         return { name: name, kind: pickKind, count: count, unit: unit,
                  value: value, text: valueText,

@@ -34,11 +34,20 @@ import Clayground.Lab
 Item {
     id: root
 
-    /*! \qmlproperty var CameraAnchorMark::pointer \brief The OrbitInput3D to watch. */
+    /*!
+        \qmlproperty var CameraAnchorMark::pointer
+        \brief The OrbitInput3D to watch.
+    */
     property var pointer: null
-    /*! \qmlproperty color CameraAnchorMark::tone \brief Ring and dot colour. */
+    /*!
+        \qmlproperty color CameraAnchorMark::tone
+        \brief Ring and dot colour.
+    */
     property color tone: LabTheme.primary
-    /*! \qmlproperty real CameraAnchorMark::radiusPx \brief Ring radius in pixels. */
+    /*!
+        \qmlproperty real CameraAnchorMark::radiusPx
+        \brief Ring radius in pixels.
+    */
     property real radiusPx: 26
 
     readonly property bool _orbiting: pointer && pointer.gesture === "orbit" && !!pointer.anchor

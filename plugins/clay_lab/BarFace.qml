@@ -46,7 +46,10 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty InstrumentScale BarFace::scale \brief The measurement model this face draws. */
+    /*!
+        \qmlproperty InstrumentScale BarFace::scale
+        \brief The measurement model this face draws.
+    */
     property InstrumentScale scale: null
 
     /*!
@@ -55,16 +58,28 @@ Item {
     */
     property int orientation: Qt.Horizontal
 
-    /*! \qmlproperty string BarFace::label \brief Caption above the bar; empty hides the row. */
+    /*!
+        \qmlproperty string BarFace::label
+        \brief Caption above the bar; empty hides the row.
+    */
     property string label: ""
 
-    /*! \qmlproperty bool BarFace::showValue \brief Print the reading beside the label. */
+    /*!
+        \qmlproperty bool BarFace::showValue
+        \brief Print the reading beside the label.
+    */
     property bool showValue: true
 
-    /*! \qmlproperty bool BarFace::showTicks \brief Draw the scale's gradations along the bar. */
+    /*!
+        \qmlproperty bool BarFace::showTicks
+        \brief Draw the scale's gradations along the bar.
+    */
     property bool showTicks: true
 
-    /*! \qmlproperty bool BarFace::showZones \brief Tint the severity bands into the track. */
+    /*!
+        \qmlproperty bool BarFace::showZones
+        \brief Tint the severity bands into the track.
+    */
     property bool showZones: true
 
     /*!
@@ -79,16 +94,29 @@ Item {
     */
     property int segments: 0
 
-    /*! \qmlproperty real BarFace::thickness \brief Across-the-bar size of the track. */
+    /*!
+        \qmlproperty real BarFace::thickness
+        \brief Across-the-bar size of the track.
+    */
     property real thickness: LabTheme.px(14)
 
-    /*! \qmlproperty bool BarFace::showFrame \brief Draw the panel background and border behind the face. */
+    /*!
+        \qmlproperty bool BarFace::showFrame
+        \brief Draw the panel background and border behind the face.
+    */
     property bool showFrame: false
 
-    /*! \qmlproperty real BarFace::frameRadius \brief Corner radius of the frame - 0 when baked into a \c Texture. */
+    /*!
+        \qmlproperty real BarFace::frameRadius
+        \brief Corner radius of the frame - 0 when baked into a \c Texture.
+    */
     property real frameRadius: LabTheme.radius
 
-    /*! \qmlproperty bool BarFace::horizontal \readonly \brief True while the bar runs left to right. */
+    /*!
+        \qmlproperty bool BarFace::horizontal
+        \readonly
+        \brief True while the bar runs left to right.
+    */
     readonly property bool horizontal: orientation === Qt.Horizontal
 
     readonly property real _fraction: scale ? scale.fraction : 0

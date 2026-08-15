@@ -26,19 +26,34 @@ import QtQuick
 Column {
     id: root
 
-    /*! \qmlproperty var ScenarioBar::lab \brief The sandbox root (scenarios/applyScenario). */
+    /*!
+        \qmlproperty var ScenarioBar::lab
+        \brief The sandbox root (scenarios/applyScenario).
+    */
     property var lab: null
 
-    /*! \qmlproperty var ScenarioBar::names \brief Presets to offer; defaults to the lab's. */
+    /*!
+        \qmlproperty var ScenarioBar::names
+        \brief Presets to offer; defaults to the lab's.
+    */
     property var names: lab && lab.scenarios ? lab.scenarios() : []
 
-    /*! \qmlproperty string ScenarioBar::namePrefix \brief Dictionary prefix for chip labels. */
+    /*!
+        \qmlproperty string ScenarioBar::namePrefix
+        \brief Dictionary prefix for chip labels.
+    */
     property string namePrefix: "scenario."
 
-    /*! \qmlproperty string ScenarioBar::notePrefix \brief Dictionary prefix for the active note. */
+    /*!
+        \qmlproperty string ScenarioBar::notePrefix
+        \brief Dictionary prefix for the active note.
+    */
     property string notePrefix: "scenario.note."
 
-    /*! \qmlproperty bool ScenarioBar::showNote \brief Show the active preset's one-liner. */
+    /*!
+        \qmlproperty bool ScenarioBar::showNote
+        \brief Show the active preset's one-liner.
+    */
     property bool showNote: true
 
     spacing: LabTheme.spaceS

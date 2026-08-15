@@ -24,10 +24,16 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty var FlowChip::flow \brief The Flow to offer. */
+    /*!
+        \qmlproperty var FlowChip::flow
+        \brief The Flow to offer.
+    */
     property var flow: null
 
-    /*! \qmlproperty string FlowChip::label \brief Text; defaults to the flow's title. */
+    /*!
+        \qmlproperty string FlowChip::label
+        \brief Text; defaults to the flow's title.
+    */
     property string label: flow && flow.title !== "" ? flow.title
                                                      : LabLang.t("flow.start")
 

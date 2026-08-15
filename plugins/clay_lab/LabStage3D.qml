@@ -92,7 +92,11 @@ Node {
     */
     property var gridMode: null
 
-    /*! \qmlproperty bool LabStage3D::snapping \readonly \brief The mode the surface is showing. */
+    /*!
+        \qmlproperty bool LabStage3D::snapping
+        \readonly
+        \brief The mode the surface is showing.
+    */
     readonly property bool snapping: {
         if (gridMode === null || gridMode === undefined) return true
         if (typeof gridMode === "boolean") return gridMode
@@ -110,7 +114,11 @@ Node {
     */
     property vector2d workExtent: Qt.vector2d(0, 0)
 
-    /*! \qmlproperty real LabStage3D::workRadius \readonly \brief Half the work area's diagonal. */
+    /*!
+        \qmlproperty real LabStage3D::workRadius
+        \readonly
+        \brief Half the work area's diagonal.
+    */
     readonly property real workRadius:
         Math.max(1, Math.hypot(workExtent.x, workExtent.y) * 0.5)
 
@@ -134,15 +142,30 @@ Node {
 
     // --- line weights, in pixels -------------------------------------------
 
-    /*! \qmlproperty real LabStage3D::minorWidth \brief Fine rule weight, in pixels. */
+    /*!
+        \qmlproperty real LabStage3D::minorWidth
+        \brief Fine rule weight, in pixels.
+    */
     property real minorWidth: 1.0
-    /*! \qmlproperty real LabStage3D::majorWidth \brief Heavy rule weight, in pixels. */
+    /*!
+        \qmlproperty real LabStage3D::majorWidth
+        \brief Heavy rule weight, in pixels.
+    */
     property real majorWidth: 1.6
-    /*! \qmlproperty real LabStage3D::edgeWidth \brief Work-area boundary weight, in pixels; 0 hides it. */
+    /*!
+        \qmlproperty real LabStage3D::edgeWidth
+        \brief Work-area boundary weight, in pixels; 0 hides it.
+    */
     property real edgeWidth: 1.6
-    /*! \qmlproperty real LabStage3D::cueSize \brief Arm length of a snap cross / diameter of a free dot, in pixels. */
+    /*!
+        \qmlproperty real LabStage3D::cueSize
+        \brief Arm length of a snap cross / diameter of a free dot, in pixels.
+    */
     property real cueSize: 5.0
-    /*! \qmlproperty real LabStage3D::cueWidth \brief Stroke weight of the snap cue, in pixels. */
+    /*!
+        \qmlproperty real LabStage3D::cueWidth
+        \brief Stroke weight of the snap cue, in pixels.
+    */
     property real cueWidth: 1.6
 
     // --- colours -----------------------------------------------------------
@@ -153,15 +176,30 @@ Node {
     // rather than a darker() of it, because there is nothing to darken on a
     // low-key ground - see the header of palette.js.
 
-    /*! \qmlproperty color LabStage3D::sheetColor \brief The working surface. */
+    /*!
+        \qmlproperty color LabStage3D::sheetColor
+        \brief The working surface.
+    */
     property color sheetColor: LabTheme.sheet
-    /*! \qmlproperty color LabStage3D::tableColor \brief Outside the work area. */
+    /*!
+        \qmlproperty color LabStage3D::tableColor
+        \brief Outside the work area.
+    */
     property color tableColor: LabTheme.table
-    /*! \qmlproperty color LabStage3D::skyColor \brief What the surface dissolves into - the environment's clear colour. */
+    /*!
+        \qmlproperty color LabStage3D::skyColor
+        \brief What the surface dissolves into - the environment's clear colour.
+    */
     property color skyColor: LabTheme.board
-    /*! \qmlproperty color LabStage3D::minorColor \brief The fine rules. */
+    /*!
+        \qmlproperty color LabStage3D::minorColor
+        \brief The fine rules.
+    */
     property color minorColor: LabTheme.step(LabTheme.sheet, 1.09)
-    /*! \qmlproperty color LabStage3D::majorColor \brief The heavy rules. */
+    /*!
+        \qmlproperty color LabStage3D::majorColor
+        \brief The heavy rules.
+    */
     property color majorColor: LabTheme.step(LabTheme.sheet, 1.22)
     /*!
         \qmlproperty color LabStage3D::cueColor
@@ -173,7 +211,10 @@ Node {
         thickening of the line it sits on.
     */
     property color cueColor: LabTheme.step(LabTheme.grid, 1.35)
-    /*! \qmlproperty color LabStage3D::edgeColor \brief The work-area boundary. */
+    /*!
+        \qmlproperty color LabStage3D::edgeColor
+        \brief The work-area boundary.
+    */
     property color edgeColor: LabTheme.inkSolid
 
     /*!
@@ -229,9 +270,17 @@ Node {
         return Math.min(overlayMaxY, overlayMinY + layer * overlayStep)
     }
 
-    /*! \qmlproperty int LabStage3D::overlayMinBias \readonly \brief Lowest sensible \c depthBias for a marking. */
+    /*!
+        \qmlproperty int LabStage3D::overlayMinBias
+        \readonly
+        \brief Lowest sensible \c depthBias for a marking.
+    */
     readonly property int overlayMinBias: 1
-    /*! \qmlproperty int LabStage3D::overlayMaxBias \readonly \brief Highest one worth using. */
+    /*!
+        \qmlproperty int LabStage3D::overlayMaxBias
+        \readonly
+        \brief Highest one worth using.
+    */
     readonly property int overlayMaxBias: 10
 
     // --- the light rig -----------------------------------------------------
@@ -248,7 +297,10 @@ Node {
     */
     property real shadowMapFar: Math.max(200, workRadius * 3.5)
 
-    /*! \qmlproperty real LabStage3D::keyBrightness \brief Strength of the shadow-casting key light. */
+    /*!
+        \qmlproperty real LabStage3D::keyBrightness
+        \brief Strength of the shadow-casting key light.
+    */
     property real keyBrightness: 0.9
 
     /*!

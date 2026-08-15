@@ -32,10 +32,16 @@ Rectangle {
     // override it. See clayrender --crop.
     objectName: "hint"
 
-    /*! \qmlproperty string HintBar::text \brief The line to show; empty hides the bar. */
+    /*!
+        \qmlproperty string HintBar::text
+        \brief The line to show; empty hides the bar.
+    */
     property alias text: _hint.text
 
-    /*! \qmlproperty var HintBar::flow \brief Hidden while this Flow runs. */
+    /*!
+        \qmlproperty var HintBar::flow
+        \brief Hidden while this Flow runs.
+    */
     property var flow: null
 
     /*!
@@ -44,10 +50,16 @@ Rectangle {
     */
     property Item rightGuard: null
 
-    /*! \qmlproperty Item HintBar::leftGuard \brief Panel on the left the bar may not grow into. */
+    /*!
+        \qmlproperty Item HintBar::leftGuard
+        \brief Panel on the left the bar may not grow into.
+    */
     property Item leftGuard: null
 
-    /*! \qmlproperty int HintBar::margin \brief Gap kept to the guards. */
+    /*!
+        \qmlproperty int HintBar::margin
+        \brief Gap kept to the guards.
+    */
     property int margin: LabTheme.spaceL
 
     // The bar is centred, so its half-width is bounded by the NEARER guard:

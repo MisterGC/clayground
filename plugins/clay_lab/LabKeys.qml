@@ -52,7 +52,7 @@ import QtQuick
             flow: introFlow
             recorder: recorder
             keys: [
-                { key: "S", label: "key.simulate", action: () => root.toggleSim() },
+                { key: "R", label: "key.simulate", action: () => root.toggleSim() },
                 { key: "V", label: "key.values",   action: () => root.showValues = !root.showValues }
             ]
         }
@@ -72,13 +72,22 @@ Item {
     */
     property var lab: null
 
-    /*! \qmlproperty var LabKeys::camera \brief An OrbitCamera3D (or anything with orbitBy/zoomBy). */
+    /*!
+        \qmlproperty var LabKeys::camera
+        \brief An OrbitCamera3D (or anything with orbitBy/zoomBy).
+    */
     property var camera: null
 
-    /*! \qmlproperty var LabKeys::flow \brief The lab's Flow, if it has one. */
+    /*!
+        \qmlproperty var LabKeys::flow
+        \brief The lab's Flow, if it has one.
+    */
     property var flow: null
 
-    /*! \qmlproperty var LabKeys::recorder \brief A DataRecorder toggled by Shift+R. */
+    /*!
+        \qmlproperty var LabKeys::recorder
+        \brief A DataRecorder toggled by Shift+R.
+    */
     property var recorder: null
 
     /*!
@@ -108,10 +117,16 @@ Item {
     */
     property var hands: null
 
-    /*! \qmlproperty string LabKeys::handKey \brief The letter that walks the belt. */
+    /*!
+        \qmlproperty string LabKeys::handKey
+        \brief The letter that walks the belt.
+    */
     property string handKey: "H"
 
-    /*! \qmlproperty string LabKeys::pinKey \brief The letter that keeps a reading. */
+    /*!
+        \qmlproperty string LabKeys::pinKey
+        \brief The letter that keeps a reading.
+    */
     property string pinKey: "P"
 
     /*!
@@ -139,10 +154,15 @@ Item {
         \qmlproperty var LabKeys::keys
         \brief The lab's own keys: \c {[{key, label, action, hidden}]}.
 
-        \c key is the printable letter (\c "S"), \c label a LabLang key
+        \c key is the printable letter (\c "V"), \c label a LabLang key
         describing it, \c action the function to run. Entries appear in
         \l entries and therefore in LabHelp, so declaring a key is the same
         act as documenting it.
+
+        These are dispatched \e before the travel keys, so \c W, \c A, \c S
+        and \c D are effectively reserved: claiming one wins, and the lab
+        silently loses that pan direction. Pick another letter - it is why
+        watching a thing sits on \c Q rather than \c W.
     */
     property var keys: []
 
@@ -152,10 +172,16 @@ Item {
     */
     property var scenarioNames: lab && lab.scenarios ? lab.scenarios() : []
 
-    /*! \qmlproperty bool LabKeys::helpVisible \brief Toggled by \c ?, rendered by LabHelp. */
+    /*!
+        \qmlproperty bool LabKeys::helpVisible
+        \brief Toggled by \c ?, rendered by LabHelp.
+    */
     property bool helpVisible: false
 
-    /*! \qmlproperty bool LabKeys::viewKeys \brief Handle the arrow/zoom/frame keys. */
+    /*!
+        \qmlproperty bool LabKeys::viewKeys
+        \brief Handle the arrow/zoom/frame keys.
+    */
     property bool viewKeys: true
 
     /*!
@@ -169,7 +195,10 @@ Item {
     */
     property real panStep: 0.14
 
-    /*! \qmlproperty real LabKeys::orbitStep \brief Degrees of yaw per \c Shift+Left / \c Shift+Right. */
+    /*!
+        \qmlproperty real LabKeys::orbitStep
+        \brief Degrees of yaw per \c Shift+Left / \c Shift+Right.
+    */
     property real orbitStep: 6
 
     /*!

@@ -42,10 +42,16 @@ Item {
     */
     property string key: ""
 
-    /*! \qmlproperty string DockedInstrument::label \brief Panel title, already translated. */
+    /*!
+        \qmlproperty string DockedInstrument::label
+        \brief Panel title, already translated.
+    */
     property string label: ""
 
-    /*! \qmlproperty color DockedInstrument::accent \brief Title colour. */
+    /*!
+        \qmlproperty color DockedInstrument::accent
+        \brief Title colour.
+    */
     property color accent: LabTheme.primary
 
     /*!
@@ -55,7 +61,11 @@ Item {
     */
     property bool dismissable: true
 
-    /*! \qmlproperty InstrumentDock DockedInstrument::dock \readonly \brief The dock this belongs to. */
+    /*!
+        \qmlproperty InstrumentDock DockedInstrument::dock
+        \readonly
+        \brief The dock this belongs to.
+    */
     readonly property alias dock: _state.dock
 
     /*!
@@ -64,7 +74,10 @@ Item {
     */
     readonly property alias body: _panel.body
 
-    /*! \qmlproperty list<Item> DockedInstrument::content \brief Stacked children (the default property). */
+    /*!
+        \qmlproperty list<Item> DockedInstrument::content
+        \brief Stacked children (the default property).
+    */
     default property alias content: _panel.content
 
     // A Column skips an invisible child entirely, so this is also what makes

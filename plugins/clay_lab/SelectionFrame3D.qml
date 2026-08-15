@@ -37,31 +37,58 @@ import QtQuick3D
 Node {
     id: root
 
-    /*! \qmlproperty bool SelectionFrame3D::selected \brief Full frame plus nose mark. */
+    /*!
+        \qmlproperty bool SelectionFrame3D::selected
+        \brief Full frame plus nose mark.
+    */
     property bool selected: false
 
-    /*! \qmlproperty bool SelectionFrame3D::hovered \brief Thin, quiet outline. */
+    /*!
+        \qmlproperty bool SelectionFrame3D::hovered
+        \brief Thin, quiet outline.
+    */
     property bool hovered: false
 
-    /*! \qmlproperty real SelectionFrame3D::halfWidth \brief Half extent along x. */
+    /*!
+        \qmlproperty real SelectionFrame3D::halfWidth
+        \brief Half extent along x.
+    */
     property real halfWidth: 5.0
 
-    /*! \qmlproperty real SelectionFrame3D::halfDepth \brief Half extent along z. */
+    /*!
+        \qmlproperty real SelectionFrame3D::halfDepth
+        \brief Half extent along z.
+    */
     property real halfDepth: 4.0
 
-    /*! \qmlproperty color SelectionFrame3D::tone \brief Frame colour (the interactive blue). */
+    /*!
+        \qmlproperty color SelectionFrame3D::tone
+        \brief Frame colour (the interactive blue).
+    */
     property color tone: LabTheme.secondary
 
-    /*! \qmlproperty color SelectionFrame3D::noseColor \brief Colour of the facing mark. */
+    /*!
+        \qmlproperty color SelectionFrame3D::noseColor
+        \brief Colour of the facing mark.
+    */
     property color noseColor: LabTheme.accent
 
-    /*! \qmlproperty bool SelectionFrame3D::showNose \brief Draw the facing mark when selected. */
+    /*!
+        \qmlproperty bool SelectionFrame3D::showNose
+        \brief Draw the facing mark when selected.
+    */
     property bool showNose: true
 
-    /*! \qmlproperty real SelectionFrame3D::height \brief Height above the surface. */
+    /*!
+        \qmlproperty real SelectionFrame3D::height
+        \brief Height above the surface.
+    */
     property real height: 0.14
 
-    /*! \qmlproperty real SelectionFrame3D::thickness \brief Bar thickness when selected. */
+    /*!
+        \qmlproperty real SelectionFrame3D::thickness
+        \brief Bar thickness when selected.
+    */
     property real thickness: 0.38
 
     visible: selected || hovered

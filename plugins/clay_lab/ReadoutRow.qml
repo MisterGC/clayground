@@ -33,19 +33,34 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty color ReadoutRow::swatch \brief The colour this thing wears elsewhere. */
+    /*!
+        \qmlproperty color ReadoutRow::swatch
+        \brief The colour this thing wears elsewhere.
+    */
     property color swatch: LabTheme.ink
 
-    /*! \qmlproperty bool ReadoutRow::showSwatch \brief Draw the swatch (off for a plain stat line). */
+    /*!
+        \qmlproperty bool ReadoutRow::showSwatch
+        \brief Draw the swatch (off for a plain stat line).
+    */
     property bool showSwatch: true
 
-    /*! \qmlproperty string ReadoutRow::label \brief What it is (already translated). */
+    /*!
+        \qmlproperty string ReadoutRow::label
+        \brief What it is (already translated).
+    */
     property string label: ""
 
-    /*! \qmlproperty string ReadoutRow::value \brief What it reads right now. */
+    /*!
+        \qmlproperty string ReadoutRow::value
+        \brief What it reads right now.
+    */
     property string value: ""
 
-    /*! \qmlproperty color ReadoutRow::valueColor \brief Value colour; use \c alarm to raise it. */
+    /*!
+        \qmlproperty color ReadoutRow::valueColor
+        \brief Value colour; use \c alarm to raise it.
+    */
     property color valueColor: LabTheme.ink
 
     /*!

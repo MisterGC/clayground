@@ -67,10 +67,16 @@ Item {
 
     anchors.fill: parent
 
-    /*! \qmlproperty var InstrumentBelt::pointer \brief The \c OrbitInput3D whose picks feed the hand. */
+    /*!
+        \qmlproperty var InstrumentBelt::pointer
+        \brief The \c OrbitInput3D whose picks feed the hand.
+    */
     property var pointer: null
 
-    /*! \qmlproperty var InstrumentBelt::view \brief The \c View3D; defaults to the pointer's. */
+    /*!
+        \qmlproperty var InstrumentBelt::view
+        \brief The \c View3D; defaults to the pointer's.
+    */
     property var view: pointer ? pointer.view : null
 
     /*!
@@ -108,20 +114,37 @@ Item {
         return out
     }
 
-    /*! \qmlproperty int InstrumentBelt::heldIndex \brief Which instrument is in hand; -1 for none. */
+    /*!
+        \qmlproperty int InstrumentBelt::heldIndex
+        \brief Which instrument is in hand; -1 for none.
+    */
     property int heldIndex: -1
 
-    /*! \qmlproperty var InstrumentBelt::held \readonly \brief The instrument in hand, or null. */
+    /*!
+        \qmlproperty var InstrumentBelt::held
+        \readonly
+        \brief The instrument in hand, or null.
+    */
     readonly property var held: heldIndex >= 0 && heldIndex < instruments.length
                                 ? instruments[heldIndex] : null
 
-    /*! \qmlproperty bool InstrumentBelt::empty \readonly \brief The hand is empty. */
+    /*!
+        \qmlproperty bool InstrumentBelt::empty
+        \readonly
+        \brief The hand is empty.
+    */
     readonly property bool empty: held === null
 
-    /*! \qmlproperty string InstrumentBelt::key \brief The key that cycles the belt, for hints. */
+    /*!
+        \qmlproperty string InstrumentBelt::key
+        \brief The key that cycles the belt, for hints.
+    */
     property string key: "H"
 
-    /*! \qmlproperty string InstrumentBelt::pinKey \brief The key that keeps a reading. */
+    /*!
+        \qmlproperty string InstrumentBelt::pinKey
+        \brief The key that keeps a reading.
+    */
     property string pinKey: "P"
 
     /*!
@@ -134,19 +157,28 @@ Item {
     */
     property real rowMargin: LabTheme.px(26) + 2 * LabTheme.spaceL
 
-    /*! \qmlmethod void InstrumentBelt::take(int i) \brief Puts instrument \a i in the hand. */
+    /*!
+        \qmlmethod void InstrumentBelt::take(int i)
+        \brief Puts instrument \a i in the hand.
+    */
     function take(i) {
         heldIndex = (i >= 0 && i < instruments.length) ? i : -1
     }
 
-    /*! \qmlmethod void InstrumentBelt::takeNamed(string n) \brief Takes the instrument called \a n. */
+    /*!
+        \qmlmethod void InstrumentBelt::takeNamed(string n)
+        \brief Takes the instrument called \a n.
+    */
     function takeNamed(n) {
         for (let i = 0; i < instruments.length; ++i)
             if (instruments[i].name === n) { take(i); return true }
         return false
     }
 
-    /*! \qmlmethod void InstrumentBelt::putAway() \brief Empties the hand. */
+    /*!
+        \qmlmethod void InstrumentBelt::putAway()
+        \brief Empties the hand.
+    */
     function putAway() { heldIndex = -1 }
 
     /*!
@@ -161,7 +193,10 @@ Item {
         heldIndex = heldIndex + 1 >= instruments.length ? -1 : heldIndex + 1
     }
 
-    /*! \qmlmethod var InstrumentBelt::info() \brief The belt as plain values, for an agent or a test. */
+    /*!
+        \qmlmethod var InstrumentBelt::info()
+        \brief The belt as plain values, for an agent or a test.
+    */
     function info() {
         return { held: held ? held.name : null,
                  names: instruments.map(i => i.name),
@@ -271,7 +306,11 @@ Item {
 
     // --- keeping a reading --------------------------------------------------
 
-    /*! \qmlproperty bool InstrumentBelt::pinning \readonly \brief The name prompt is open. */
+    /*!
+        \qmlproperty bool InstrumentBelt::pinning
+        \readonly
+        \brief The name prompt is open.
+    */
     readonly property alias pinning: _prompt.visible
 
     /*!
@@ -293,10 +332,16 @@ Item {
         return true
     }
 
-    /*! \qmlmethod void InstrumentBelt::cancelPin() \brief Closes the prompt, keeping nothing. */
+    /*!
+        \qmlmethod void InstrumentBelt::cancelPin()
+        \brief Closes the prompt, keeping nothing.
+    */
     function cancelPin() { _prompt.close() }
 
-    /*! \qmlmethod bool InstrumentBelt::commitPin() \brief Keeps the reading under the typed name. */
+    /*!
+        \qmlmethod bool InstrumentBelt::commitPin()
+        \brief Keeps the reading under the typed name.
+    */
     function commitPin() {
         const ok = root.held ? root.held.pin(_field.text.trim()) : false
         _prompt.close()

@@ -30,16 +30,29 @@ import QtQuick
 Row {
     id: root
 
-    /*! \qmlproperty var WatchMark::monitor \brief The WatchMonitor supplying the colour. */
+    /*!
+        \qmlproperty var WatchMark::monitor
+        \brief The WatchMonitor supplying the colour.
+    */
     property var monitor: null
 
-    /*! \qmlproperty var WatchMark::target \brief The watched id. */
+    /*!
+        \qmlproperty var WatchMark::target
+        \brief The watched id.
+    */
     property var target: undefined
 
-    /*! \qmlproperty string WatchMark::label \brief Text beside the dot; empty draws the dot alone. */
+    /*!
+        \qmlproperty string WatchMark::label
+        \brief Text beside the dot; empty draws the dot alone.
+    */
     property string label: ""
 
-    /*! \qmlproperty color WatchMark::tone \readonly \brief The target's series colour. */
+    /*!
+        \qmlproperty color WatchMark::tone
+        \readonly
+        \brief The target's series colour.
+    */
     readonly property color tone: monitor && target !== undefined
                                   ? monitor.colorOf(target) : LabTheme.inkFaint
 

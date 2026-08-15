@@ -37,7 +37,10 @@ import QtQuick
 Row {
     id: root
 
-    /*! \qmlproperty bool ScaleSwitch::showValue \brief Show the percentage chip between the buttons. */
+    /*!
+        \qmlproperty bool ScaleSwitch::showValue
+        \brief Show the percentage chip between the buttons.
+    */
     property bool showValue: true
 
     spacing: LabTheme.px(2)

@@ -49,10 +49,16 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty real Gauge::value \brief The reading. Its magnitude drives the needle. */
+    /*!
+        \qmlproperty real Gauge::value
+        \brief The reading. Its magnitude drives the needle.
+    */
     property real value: 0
 
-    /*! \qmlproperty string Gauge::unit \brief SI unit of \l value, e.g. \c "A". */
+    /*!
+        \qmlproperty string Gauge::unit
+        \brief SI unit of \l value, e.g. \c "A".
+    */
     property string unit: ""
 
     /*!
@@ -84,7 +90,10 @@ Item {
     */
     property InstrumentScale scale: _ownScale
 
-    /*! \qmlproperty color Gauge::accent \brief Ring/symbol colour - use it to say what this is. */
+    /*!
+        \qmlproperty color Gauge::accent
+        \brief Ring/symbol colour - use it to say what this is.
+    */
     property color accent: LabTheme.primary
 
     /*!
@@ -96,16 +105,28 @@ Item {
     */
     property color needleColor: LabTheme.clay
 
-    /*! \qmlproperty color Gauge::face \brief The dial face. */
+    /*!
+        \qmlproperty color Gauge::face
+        \brief The dial face.
+    */
     property color face: LabTheme.panel
 
-    /*! \qmlproperty int Gauge::ticks \brief Tick marks across the sweep. */
+    /*!
+        \qmlproperty int Gauge::ticks
+        \brief Tick marks across the sweep.
+    */
     property int ticks: 11
 
-    /*! \qmlproperty int Gauge::majorEvery \brief Every n-th tick is a long one. */
+    /*!
+        \qmlproperty int Gauge::majorEvery
+        \brief Every n-th tick is a long one.
+    */
     property int majorEvery: 5
 
-    /*! \qmlproperty real Gauge::sweep \brief Angular travel of the needle, in degrees. */
+    /*!
+        \qmlproperty real Gauge::sweep
+        \brief Angular travel of the needle, in degrees.
+    */
     property real sweep: 150
 
     /*!
@@ -133,7 +154,10 @@ Item {
     */
     property bool showValue: false
 
-    /*! \qmlproperty bool Gauge::showFrame \brief Draw the panel background and border. */
+    /*!
+        \qmlproperty bool Gauge::showFrame
+        \brief Draw the panel background and border.
+    */
     property bool showFrame: true
 
     /*!
@@ -163,7 +187,11 @@ Item {
     // needle is actually using is worse than one that names none.
     readonly property string rangeText: LabLang.qty(fullScale, _unit)
 
-    /*! \qmlproperty string Gauge::valueText \readonly \brief The reading as a quantity. */
+    /*!
+        \qmlproperty string Gauge::valueText
+        \readonly
+        \brief The reading as a quantity.
+    */
     readonly property string valueText: scale ? scale.valueText : ""
 
     // What the face is actually reading against - the assigned scale's, which

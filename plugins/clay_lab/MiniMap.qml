@@ -70,10 +70,16 @@ LabPanel {
     */
     property int revision: 0
 
-    /*! \qmlproperty real MiniMap::contentPadding \brief Inset kept around the fitted content. */
+    /*!
+        \qmlproperty real MiniMap::contentPadding
+        \brief Inset kept around the fitted content.
+    */
     property real contentPadding: LabTheme.spaceXxl
 
-    /*! \qmlproperty string MiniMap::emptyText \brief Drawn centred when \l bounds is empty. */
+    /*!
+        \qmlproperty string MiniMap::emptyText
+        \brief Drawn centred when \l bounds is empty.
+    */
     property string emptyText: ""
 
     /*!
@@ -95,7 +101,10 @@ LabPanel {
     */
     readonly property alias map: _canvas.map
 
-    /*! \qmlmethod void MiniMap::repaint() \brief Force a repaint. */
+    /*!
+        \qmlmethod void MiniMap::repaint()
+        \brief Force a repaint.
+    */
     function repaint() { _canvas.requestPaint() }
 
     Canvas {

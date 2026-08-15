@@ -32,17 +32,31 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty var WatchChip::monitor \brief The WatchMonitor that owns the watch set. */
+    /*!
+        \qmlproperty var WatchChip::monitor
+        \brief The WatchMonitor that owns the watch set.
+    */
     property var monitor: null
 
-    /*! \qmlproperty var WatchChip::target \brief The id to watch. */
+    /*!
+        \qmlproperty var WatchChip::target
+        \brief The id to watch.
+    */
     property var target: undefined
 
-    /*! \qmlproperty bool WatchChip::watched \readonly \brief The target is on the plot. */
+    /*!
+        \qmlproperty bool WatchChip::watched
+        \readonly
+        \brief The target is on the plot.
+    */
     readonly property bool watched: monitor !== null && target !== undefined
                                     && monitor.isWatched(target)
 
-    /*! \qmlproperty bool WatchChip::full \readonly \brief No series left to give. */
+    /*!
+        \qmlproperty bool WatchChip::full
+        \readonly
+        \brief No series left to give.
+    */
     readonly property bool full: !watched && monitor !== null && monitor.isFull()
 
     /*!

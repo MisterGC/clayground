@@ -55,7 +55,10 @@ QtObject {
 
     // --- the quantity ------------------------------------------------------
 
-    /*! \qmlproperty real InstrumentScale::value \brief The reading. Ignored while \l probe names one. */
+    /*!
+        \qmlproperty real InstrumentScale::value
+        \brief The reading. Ignored while \l probe names one.
+    */
     property real value: 0
 
     /*!
@@ -69,7 +72,10 @@ QtObject {
     */
     property string probe: ""
 
-    /*! \qmlproperty string InstrumentScale::unit \brief SI unit of the reading, e.g. \c "V". */
+    /*!
+        \qmlproperty string InstrumentScale::unit
+        \brief SI unit of the reading, e.g. \c "V".
+    */
     property string unit: ""
 
     /*!
@@ -89,10 +95,16 @@ QtObject {
 
     // --- the limits --------------------------------------------------------
 
-    /*! \qmlproperty real InstrumentScale::min \brief Bottom of a fixed scale. */
+    /*!
+        \qmlproperty real InstrumentScale::min
+        \brief Bottom of a fixed scale.
+    */
     property real min: 0
 
-    /*! \qmlproperty real InstrumentScale::max \brief Top of a fixed scale. */
+    /*!
+        \qmlproperty real InstrumentScale::max
+        \brief Top of a fixed scale.
+    */
     property real max: 1
 
     /*!
@@ -122,7 +134,10 @@ QtObject {
     */
     property real okUntil: NaN
 
-    /*! \qmlproperty real InstrumentScale::warnUntil \brief Top of the warned band. */
+    /*!
+        \qmlproperty real InstrumentScale::warnUntil
+        \brief Top of the warned band.
+    */
     property real warnUntil: NaN
 
     /*!
@@ -134,7 +149,10 @@ QtObject {
     */
     property var zones: []
 
-    /*! \qmlproperty color InstrumentScale::accent \brief Colour while the instrument has no opinion. */
+    /*!
+        \qmlproperty color InstrumentScale::accent
+        \brief Colour while the instrument has no opinion.
+    */
     property color accent: LabTheme.primary
 
     // --- dynamics ----------------------------------------------------------
@@ -170,28 +188,53 @@ QtObject {
     */
     property bool peakHold: false
 
-    /*! \qmlproperty real InstrumentScale::peakHoldTime \brief Seconds the marker sits before falling. */
+    /*!
+        \qmlproperty real InstrumentScale::peakHoldTime
+        \brief Seconds the marker sits before falling.
+    */
     property real peakHoldTime: 1.2
 
-    /*! \qmlproperty real InstrumentScale::peakFall \brief How fast it then falls, in scale fractions per second. */
+    /*!
+        \qmlproperty real InstrumentScale::peakFall
+        \brief How fast it then falls, in scale fractions per second.
+    */
     property real peakFall: 0.35
 
-    /*! \qmlproperty int InstrumentScale::tickCount \brief Labelled divisions a face should aim for. */
+    /*!
+        \qmlproperty int InstrumentScale::tickCount
+        \brief Labelled divisions a face should aim for.
+    */
     property int tickCount: 6
 
     // --- what the faces read ----------------------------------------------
 
-    /*! \qmlproperty bool InstrumentScale::autoRange \readonly \brief True while \l ranges drives the limits. */
+    /*!
+        \qmlproperty bool InstrumentScale::autoRange
+        \readonly
+        \brief True while \l ranges drives the limits.
+    */
     readonly property bool autoRange: ranges !== undefined && ranges !== null
                                       && ranges.length > 0
 
-    /*! \qmlproperty real InstrumentScale::source \readonly \brief The raw reading, from \l probe or \l value. */
+    /*!
+        \qmlproperty real InstrumentScale::source
+        \readonly
+        \brief The raw reading, from \l probe or \l value.
+    */
     readonly property real source: _probeObj ? _probeObj.value : value
 
-    /*! \qmlproperty real InstrumentScale::lo \readonly \brief Bottom of the scale in force. */
+    /*!
+        \qmlproperty real InstrumentScale::lo
+        \readonly
+        \brief Bottom of the scale in force.
+    */
     readonly property real lo: autoRange ? 0 : min
 
-    /*! \qmlproperty real InstrumentScale::hi \readonly \brief Top of the scale in force - the selected range, when self-ranging. */
+    /*!
+        \qmlproperty real InstrumentScale::hi
+        \readonly
+        \brief Top of the scale in force - the selected range, when self-ranging.
+    */
     readonly property real hi: autoRange ? Scale.pickRange(source, ranges) : max
 
     /*!
@@ -222,20 +265,40 @@ QtObject {
         NumberAnimation { duration: root.settleTime }
     }
 
-    /*! \qmlproperty real InstrumentScale::fraction \readonly \brief Where the face points, 0 at \l lo and 1 at \l hi. */
+    /*!
+        \qmlproperty real InstrumentScale::fraction
+        \readonly
+        \brief Where the face points, 0 at \l lo and 1 at \l hi.
+    */
     readonly property real fraction: Scale.fractionOf(displayValue, lo, hi, logScale)
 
-    /*! \qmlproperty real InstrumentScale::peakFraction \readonly \brief Where the peak marker sits, 0..1. */
+    /*!
+        \qmlproperty real InstrumentScale::peakFraction
+        \readonly
+        \brief Where the peak marker sits, 0..1.
+    */
     readonly property real peakFraction: _peak
 
-    /*! \qmlproperty var InstrumentScale::zoneList \readonly \brief The bands in force, \c {[{from, to, severity}]}. */
+    /*!
+        \qmlproperty var InstrumentScale::zoneList
+        \readonly
+        \brief The bands in force, \c {[{from, to, severity}]}.
+    */
     readonly property var zoneList: (zones && zones.length)
         ? zones : Scale.zonesFrom(okUntil, warnUntil, lo, hi)
 
-    /*! \qmlproperty bool InstrumentScale::graded \readonly \brief True while the instrument has bands to judge by. */
+    /*!
+        \qmlproperty bool InstrumentScale::graded
+        \readonly
+        \brief True while the instrument has bands to judge by.
+    */
     readonly property bool graded: zoneList.length > 0
 
-    /*! \qmlproperty string InstrumentScale::severity \readonly \brief \c "ok", \c "warn" or \c "alarm". */
+    /*!
+        \qmlproperty string InstrumentScale::severity
+        \readonly
+        \brief \c "ok", \c "warn" or \c "alarm".
+    */
     readonly property string severity: Scale.severityAt(displayValue, zoneList)
 
     /*!
@@ -272,7 +335,11 @@ QtObject {
         }))
     }
 
-    /*! \qmlproperty string InstrumentScale::valueText \readonly \brief The reading as a quantity, e.g. \c "50.0 mA". */
+    /*!
+        \qmlproperty string InstrumentScale::valueText
+        \readonly
+        \brief The reading as a quantity, e.g. \c "50.0 mA".
+    */
     readonly property string valueText:
         LabLang.qty(reading, unit, digits < 0 ? undefined : digits)
 

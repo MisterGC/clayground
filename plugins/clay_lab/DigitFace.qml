@@ -38,13 +38,22 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty InstrumentScale DigitFace::scale \brief The measurement model this face draws. */
+    /*!
+        \qmlproperty InstrumentScale DigitFace::scale
+        \brief The measurement model this face draws.
+    */
     property InstrumentScale scale: null
 
-    /*! \qmlproperty string DigitFace::label \brief Caption above the digits; empty hides the row. */
+    /*!
+        \qmlproperty string DigitFace::label
+        \brief Caption above the digits; empty hides the row.
+    */
     property string label: ""
 
-    /*! \qmlproperty bool DigitFace::showUnit \brief Print the unit beside the number. */
+    /*!
+        \qmlproperty bool DigitFace::showUnit
+        \brief Print the unit beside the number.
+    */
     property bool showUnit: true
 
     /*!
@@ -56,16 +65,28 @@ Item {
     */
     property bool showRange: scale ? scale.autoRange : false
 
-    /*! \qmlproperty real DigitFace::digitSize \brief Pixel size of the number. */
+    /*!
+        \qmlproperty real DigitFace::digitSize
+        \brief Pixel size of the number.
+    */
     property real digitSize: LabTheme.px(30)
 
-    /*! \qmlproperty int DigitFace::alignment \brief \c Qt.AlignLeft (default), \c Qt.AlignHCenter or \c Qt.AlignRight. */
+    /*!
+        \qmlproperty int DigitFace::alignment
+        \brief \c Qt.AlignLeft (default), \c Qt.AlignHCenter or \c Qt.AlignRight.
+    */
     property int alignment: Qt.AlignLeft
 
-    /*! \qmlproperty bool DigitFace::showFrame \brief Draw the panel background and border behind the face. */
+    /*!
+        \qmlproperty bool DigitFace::showFrame
+        \brief Draw the panel background and border behind the face.
+    */
     property bool showFrame: false
 
-    /*! \qmlproperty real DigitFace::frameRadius \brief Corner radius of the frame - 0 when baked into a \c Texture. */
+    /*!
+        \qmlproperty real DigitFace::frameRadius
+        \brief Corner radius of the frame - 0 when baked into a \c Texture.
+    */
     property real frameRadius: LabTheme.radius
 
     readonly property var _parts: scale

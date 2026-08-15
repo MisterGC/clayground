@@ -93,7 +93,10 @@ Item {
 
     visible: false
 
-    /*! \qmlproperty var OrbitInput3D::rig \brief The \l OrbitCamera3D to drive. */
+    /*!
+        \qmlproperty var OrbitInput3D::rig
+        \brief The \l OrbitCamera3D to drive.
+    */
     property var rig: null
 
     /*!
@@ -106,7 +109,10 @@ Item {
     */
     property var view: null
 
-    /*! \qmlproperty real OrbitInput3D::groundY \brief Height of the plane \l groundAt() hits. */
+    /*!
+        \qmlproperty real OrbitInput3D::groundY
+        \brief Height of the plane \l groundAt() hits.
+    */
     property real groundY: 0
 
     // --- the one quasimode --------------------------------------------------
@@ -211,10 +217,16 @@ Item {
     */
     property bool zoomToCursor: true
 
-    /*! \qmlproperty real OrbitInput3D::yawPerPixel \brief Degrees of yaw per pixel dragged. */
+    /*!
+        \qmlproperty real OrbitInput3D::yawPerPixel
+        \brief Degrees of yaw per pixel dragged.
+    */
     property real yawPerPixel: 0.33
 
-    /*! \qmlproperty real OrbitInput3D::pitchPerPixel \brief Degrees of pitch per pixel dragged. */
+    /*!
+        \qmlproperty real OrbitInput3D::pitchPerPixel
+        \brief Degrees of pitch per pixel dragged.
+    */
     property real pitchPerPixel: 0.24
 
     /*!
@@ -228,10 +240,16 @@ Item {
     */
     property bool invertPitch: false
 
-    /*! \qmlproperty real OrbitInput3D::zoomStep \brief Distance factor for one wheel notch inwards. */
+    /*!
+        \qmlproperty real OrbitInput3D::zoomStep
+        \brief Distance factor for one wheel notch inwards.
+    */
     property real zoomStep: 0.88
 
-    /*! \qmlproperty real OrbitInput3D::panSpeed \brief Multiplier on the grab-the-ground pan. */
+    /*!
+        \qmlproperty real OrbitInput3D::panSpeed
+        \brief Multiplier on the grab-the-ground pan.
+    */
     property real panSpeed: 1.0
 
     // --- the glide out of a flick ------------------------------------------
@@ -247,10 +265,16 @@ Item {
     */
     property bool flick: true
 
-    /*! \qmlproperty real OrbitInput3D::flickDecay \brief Velocity kept per frame while coasting. */
+    /*!
+        \qmlproperty real OrbitInput3D::flickDecay
+        \brief Velocity kept per frame while coasting.
+    */
     property real flickDecay: 0.86
 
-    /*! \qmlproperty real OrbitInput3D::flickThreshold \brief Pixels per frame a drag needs to coast at all. */
+    /*!
+        \qmlproperty real OrbitInput3D::flickThreshold
+        \brief Pixels per frame a drag needs to coast at all.
+    */
     property real flickThreshold: 2.0
 
     /*!
@@ -263,7 +287,11 @@ Item {
     */
     readonly property alias gesture: _s.gesture
 
-    /*! \qmlproperty bool OrbitInput3D::active \readonly \brief A drag is in progress. */
+    /*!
+        \qmlproperty bool OrbitInput3D::active
+        \readonly
+        \brief A drag is in progress.
+    */
     readonly property bool active: _s.gesture !== ""
 
     /*!
@@ -399,7 +427,10 @@ Item {
         return hovering
     }
 
-    /*! \qmlmethod void OrbitInput3D::clearHover() \brief Forgets \l hovering - the cursor left. */
+    /*!
+        \qmlmethod void OrbitInput3D::clearHover()
+        \brief Forgets \l hovering - the cursor left.
+    */
     function clearHover() { hovering = null }
 
     /*!
@@ -470,7 +501,10 @@ Item {
         else { _s.gesture = ""; _s.anchor = null; _release() }
     }
 
-    /*! \qmlmethod void OrbitInput3D::cancel() \brief Ends the drag with no coast. */
+    /*!
+        \qmlmethod void OrbitInput3D::cancel()
+        \brief Ends the drag with no coast.
+    */
     function cancel() {
         _coast.stop(); _s.gesture = ""; _s.anchor = null; _s.vx = 0; _s.vy = 0
         _s.arming = false; _s.moved = 0

@@ -69,22 +69,46 @@ import QtQuick3D
 Node {
     id: root
 
-    /*! \qmlproperty vector3d OrbitCamera3D::pivot \brief The point the camera looks at. */
+    /*!
+        \qmlproperty vector3d OrbitCamera3D::pivot
+        \brief The point the camera looks at.
+    */
     property vector3d pivot: Qt.vector3d(0, 0, 0)
-    /*! \qmlproperty real OrbitCamera3D::yaw \brief Angle around the pivot, degrees. */
+    /*!
+        \qmlproperty real OrbitCamera3D::yaw
+        \brief Angle around the pivot, degrees.
+    */
     property real yaw: 0
-    /*! \qmlproperty real OrbitCamera3D::pitch \brief Angle above the pivot plane, degrees. */
+    /*!
+        \qmlproperty real OrbitCamera3D::pitch
+        \brief Angle above the pivot plane, degrees.
+    */
     property real pitch: 45
-    /*! \qmlproperty real OrbitCamera3D::distance \brief Distance to the pivot. */
+    /*!
+        \qmlproperty real OrbitCamera3D::distance
+        \brief Distance to the pivot.
+    */
     property real distance: 60
 
-    /*! \qmlproperty real OrbitCamera3D::minPitch \brief Flattest allowed angle. */
+    /*!
+        \qmlproperty real OrbitCamera3D::minPitch
+        \brief Flattest allowed angle.
+    */
     property real minPitch: 12
-    /*! \qmlproperty real OrbitCamera3D::maxPitch \brief Steepest allowed angle (< 90). */
+    /*!
+        \qmlproperty real OrbitCamera3D::maxPitch
+        \brief Steepest allowed angle (< 90).
+    */
     property real maxPitch: 84
-    /*! \qmlproperty real OrbitCamera3D::minDistance \brief Closest allowed approach. */
+    /*!
+        \qmlproperty real OrbitCamera3D::minDistance
+        \brief Closest allowed approach.
+    */
     property real minDistance: 8
-    /*! \qmlproperty real OrbitCamera3D::maxDistance \brief Furthest allowed retreat. */
+    /*!
+        \qmlproperty real OrbitCamera3D::maxDistance
+        \brief Furthest allowed retreat.
+    */
     property real maxDistance: 400
     /*!
         \qmlproperty real OrbitCamera3D::minHeight
@@ -172,7 +196,10 @@ Node {
     */
     property int gripMs: 0
 
-    /*! \qmlproperty real OrbitCamera3D::fieldOfView \brief Vertical FOV of the camera. */
+    /*!
+        \qmlproperty real OrbitCamera3D::fieldOfView
+        \brief Vertical FOV of the camera.
+    */
     property real fieldOfView: 60
 
     /*!
@@ -185,23 +212,46 @@ Node {
     */
     property var viewpoints: ({})
 
-    /*! \qmlproperty PerspectiveCamera OrbitCamera3D::camera \readonly */
+    /*!
+        \qmlproperty PerspectiveCamera OrbitCamera3D::camera
+        \readonly
+    */
     readonly property alias camera: _cam
 
     // --- where the rig is HEADED -------------------------------------------
     // Bound to the declared pose, so an untouched rig reports what its QML
     // says; the first mutator breaks the binding and owns it from then on.
 
-    /*! \qmlproperty real OrbitCamera3D::goalYaw \readonly \brief Yaw the rig is travelling to. */
+    /*!
+        \qmlproperty real OrbitCamera3D::goalYaw
+        \readonly
+        \brief Yaw the rig is travelling to.
+    */
     readonly property real goalYaw: _goal.yaw
-    /*! \qmlproperty real OrbitCamera3D::goalPitch \readonly \brief Pitch the rig is travelling to. */
+    /*!
+        \qmlproperty real OrbitCamera3D::goalPitch
+        \readonly
+        \brief Pitch the rig is travelling to.
+    */
     readonly property real goalPitch: _goal.pitch
-    /*! \qmlproperty real OrbitCamera3D::goalDistance \readonly \brief Distance the rig is travelling to. */
+    /*!
+        \qmlproperty real OrbitCamera3D::goalDistance
+        \readonly
+        \brief Distance the rig is travelling to.
+    */
     readonly property real goalDistance: _goal.distance
-    /*! \qmlproperty vector3d OrbitCamera3D::goalPivot \readonly \brief Pivot the rig is travelling to. */
+    /*!
+        \qmlproperty vector3d OrbitCamera3D::goalPivot
+        \readonly
+        \brief Pivot the rig is travelling to.
+    */
     readonly property vector3d goalPivot: _goal.pivot
 
-    /*! \qmlproperty bool OrbitCamera3D::travelling \readonly \brief A glide is in progress. */
+    /*!
+        \qmlproperty bool OrbitCamera3D::travelling
+        \readonly
+        \brief A glide is in progress.
+    */
     readonly property bool travelling: _yawA.running || _pitchA.running
                                        || _distA.running || _pivotA.running
 
@@ -627,7 +677,10 @@ Node {
         return true
     }
 
-    /*! \qmlmethod var OrbitCamera3D::viewpointNames() \brief The names \l goTo accepts. */
+    /*!
+        \qmlmethod var OrbitCamera3D::viewpointNames()
+        \brief The names \l goTo accepts.
+    */
     function viewpointNames() {
         return viewpoints ? Object.keys(viewpoints) : []
     }

@@ -39,19 +39,34 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty InstrumentScale ColumnFace::scale \brief The measurement model this face draws. */
+    /*!
+        \qmlproperty InstrumentScale ColumnFace::scale
+        \brief The measurement model this face draws.
+    */
     property InstrumentScale scale: null
 
-    /*! \qmlproperty string ColumnFace::label \brief Caption above the column; empty hides the row. */
+    /*!
+        \qmlproperty string ColumnFace::label
+        \brief Caption above the column; empty hides the row.
+    */
     property string label: ""
 
-    /*! \qmlproperty bool ColumnFace::showValue \brief Print the reading above the column. */
+    /*!
+        \qmlproperty bool ColumnFace::showValue
+        \brief Print the reading above the column.
+    */
     property bool showValue: true
 
-    /*! \qmlproperty bool ColumnFace::showZones \brief Tint the severity bands into the column. */
+    /*!
+        \qmlproperty bool ColumnFace::showZones
+        \brief Tint the severity bands into the column.
+    */
     property bool showZones: true
 
-    /*! \qmlproperty bool ColumnFace::showBulb \brief Draw the reservoir at the foot. */
+    /*!
+        \qmlproperty bool ColumnFace::showBulb
+        \brief Draw the reservoir at the foot.
+    */
     property bool showBulb: true
 
     /*!
@@ -60,13 +75,22 @@ Item {
     */
     property bool showPeak: scale ? scale.peakHold : false
 
-    /*! \qmlproperty real ColumnFace::thickness \brief Width of the column. */
+    /*!
+        \qmlproperty real ColumnFace::thickness
+        \brief Width of the column.
+    */
     property real thickness: LabTheme.px(16)
 
-    /*! \qmlproperty bool ColumnFace::showFrame \brief Draw the panel background and border behind the face. */
+    /*!
+        \qmlproperty bool ColumnFace::showFrame
+        \brief Draw the panel background and border behind the face.
+    */
     property bool showFrame: false
 
-    /*! \qmlproperty real ColumnFace::frameRadius \brief Corner radius of the frame - 0 when baked into a \c Texture. */
+    /*!
+        \qmlproperty real ColumnFace::frameRadius
+        \brief Corner radius of the frame - 0 when baked into a \c Texture.
+    */
     property real frameRadius: LabTheme.radius
 
     readonly property real _fraction: scale ? scale.fraction : 0

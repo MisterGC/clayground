@@ -41,10 +41,18 @@ HandheldInstrument {
     tone: LabTheme.secondary
     hint: "hand.hint.clock"
 
-    /*! \qmlproperty bool Stopwatch::running \readonly \brief Started and not yet stopped. */
+    /*!
+        \qmlproperty bool Stopwatch::running
+        \readonly
+        \brief Started and not yet stopped.
+    */
     readonly property bool running: count === 1
 
-    /*! \qmlproperty bool Stopwatch::stopped \readonly \brief A completed timing is on the face. */
+    /*!
+        \qmlproperty bool Stopwatch::stopped
+        \readonly
+        \brief A completed timing is on the face.
+    */
     readonly property bool stopped: count === 2
 
     readonly property real _now: Lab.clock ? Lab.clock.time : 0

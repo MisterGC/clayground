@@ -27,13 +27,22 @@ import QtQuick
 Row {
     id: root
 
-    /*! \qmlproperty var RecIndicator::recorder \brief The DataRecorder to watch. */
+    /*!
+        \qmlproperty var RecIndicator::recorder
+        \brief The DataRecorder to watch.
+    */
     property var recorder: null
 
-    /*! \qmlproperty bool RecIndicator::showRows \brief Append the row count. */
+    /*!
+        \qmlproperty bool RecIndicator::showRows
+        \brief Append the row count.
+    */
     property bool showRows: true
 
-    /*! \qmlproperty color RecIndicator::tone \brief Dot and text colour. */
+    /*!
+        \qmlproperty color RecIndicator::tone
+        \brief Dot and text colour.
+    */
     property color tone: LabTheme.alarm
 
     visible: recorder !== null && recorder !== undefined && recorder.recording

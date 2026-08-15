@@ -33,33 +33,55 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty var TransportChip::clock \brief The SimClock; the active one by default. */
+    /*!
+        \qmlproperty var TransportChip::clock
+        \brief The SimClock; the active one by default.
+    */
     property var clock: Lab.clock
 
-    /*! \qmlproperty var TransportChip::speeds \brief The speed rungs the button cycles. */
+    /*!
+        \qmlproperty var TransportChip::speeds
+        \brief The speed rungs the button cycles.
+    */
     property var speeds: [0.25, 0.5, 1, 2, 4]
 
-    /*! \qmlproperty int TransportChip::digits \brief Decimals on the time readout. */
+    /*!
+        \qmlproperty int TransportChip::digits
+        \brief Decimals on the time readout.
+    */
     property int digits: 1
 
-    /*! \qmlproperty bool TransportChip::showSpeed \brief Offer the speed cycle. */
+    /*!
+        \qmlproperty bool TransportChip::showSpeed
+        \brief Offer the speed cycle.
+    */
     property bool showSpeed: true
 
-    /*! \qmlproperty bool TransportChip::paused \readonly \brief The clock is standing still. */
+    /*!
+        \qmlproperty bool TransportChip::paused
+        \readonly
+        \brief The clock is standing still.
+    */
     readonly property bool paused: clock !== null && clock !== undefined
                                    && clock.timeScale === 0
 
     // the speed to come back to; never 0, or resume would resume nothing
     property real _resumeAt: 1
 
-    /*! \qmlmethod void TransportChip::toggle() \brief Pause or resume. */
+    /*!
+        \qmlmethod void TransportChip::toggle()
+        \brief Pause or resume.
+    */
     function toggle() {
         if (!clock) return
         if (paused) clock.timeScale = _resumeAt > 0 ? _resumeAt : 1
         else { _resumeAt = clock.timeScale; clock.timeScale = 0 }
     }
 
-    /*! \qmlmethod void TransportChip::cycleSpeed() \brief Next speed rung, resuming if paused. */
+    /*!
+        \qmlmethod void TransportChip::cycleSpeed()
+        \brief Next speed rung, resuming if paused.
+    */
     function cycleSpeed() {
         if (!clock) return
         const cur = paused ? _resumeAt : clock.timeScale

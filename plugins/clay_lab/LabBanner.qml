@@ -36,19 +36,34 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty string LabBanner::text \brief The message (already translated). */
+    /*!
+        \qmlproperty string LabBanner::text
+        \brief The message (already translated).
+    */
     property string text: ""
 
-    /*! \qmlproperty bool LabBanner::active \brief Show it. */
+    /*!
+        \qmlproperty bool LabBanner::active
+        \brief Show it.
+    */
     property bool active: false
 
-    /*! \qmlproperty bool LabBanner::alarm \brief Fault colouring rather than a warning's gold. */
+    /*!
+        \qmlproperty bool LabBanner::alarm
+        \brief Fault colouring rather than a warning's gold.
+    */
     property bool alarm: false
 
-    /*! \qmlproperty bool LabBanner::blink \brief Pulse - reserve it for a live fault. */
+    /*!
+        \qmlproperty bool LabBanner::blink
+        \brief Pulse - reserve it for a live fault.
+    */
     property bool blink: false
 
-    /*! \qmlproperty color LabBanner::fill \brief Override the severity colour outright. */
+    /*!
+        \qmlproperty color LabBanner::fill
+        \brief Override the severity colour outright.
+    */
     property color fill: alarm ? LabTheme.alarm : LabTheme.highlight
 
     /*!
@@ -60,10 +75,16 @@ Rectangle {
     */
     property Item guard: null
 
-    /*! \qmlproperty real LabBanner::maxWidth \brief Hard cap, whatever the guard allows. */
+    /*!
+        \qmlproperty real LabBanner::maxWidth
+        \brief Hard cap, whatever the guard allows.
+    */
     property real maxWidth: LabTheme.px(360)
 
-    /*! \qmlproperty real LabBanner::topMargin \brief Distance from the top edge. */
+    /*!
+        \qmlproperty real LabBanner::topMargin
+        \brief Distance from the top edge.
+    */
     property real topMargin: LabTheme.spaceXxl
 
     visible: active && text !== ""

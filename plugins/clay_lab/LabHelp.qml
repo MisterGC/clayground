@@ -20,7 +20,10 @@ import QtQuick
 LabPanel {
     id: root
 
-    /*! \qmlproperty var LabHelp::keymap \brief The LabKeys to describe. */
+    /*!
+        \qmlproperty var LabHelp::keymap
+        \brief The LabKeys to describe.
+    */
     property var keymap: null
 
     title: LabLang.t("keys.title")

@@ -55,10 +55,18 @@ QtObject {
     */
     property string mode: "light"
 
-    /*! \qmlproperty bool LabTheme::dark \readonly \brief True while the dark palette is active. */
+    /*!
+        \qmlproperty bool LabTheme::dark
+        \readonly
+        \brief True while the dark palette is active.
+    */
     readonly property bool dark: mode === "dark"
 
-    /*! \qmlproperty var LabTheme::modes \readonly \brief The palette names on offer. */
+    /*!
+        \qmlproperty var LabTheme::modes
+        \readonly
+        \brief The palette names on offer.
+    */
     readonly property var modes: ["light", "dark"]
 
     // The active palette. Every role below reads through it, so one assignment
@@ -146,7 +154,11 @@ QtObject {
         LabPrefs.set("ui.scale", c)
     }
 
-    /*! \qmlproperty string LabTheme::scaleLabel \readonly \brief The scale as a percentage, e.g. "130%". */
+    /*!
+        \qmlproperty string LabTheme::scaleLabel
+        \readonly
+        \brief The scale as a percentage, e.g. "130%".
+    */
     readonly property string scaleLabel: Tokens.scaleLabel(uiScale)
 
     /*!
@@ -166,7 +178,10 @@ QtObject {
     */
     function stepScale(dir) { uiScale = Tokens.stepScale(uiScale, dir) }
 
-    /*! \qmlmethod void LabTheme::resetScale() \brief Back to 1.0. */
+    /*!
+        \qmlmethod void LabTheme::resetScale()
+        \brief Back to 1.0.
+    */
     function resetScale() { uiScale = 1.0 }
 
     // --- shape ------------------------------------------------------------
@@ -186,34 +201,86 @@ QtObject {
     // showing rather than how big it is. Definitions and the node suite that
     // guards their ordering live in tokens.js.
 
-    /*! \qmlproperty int LabTheme::fontMicro \readonly \brief Axis ticks, budget legend. */
+    /*!
+        \qmlproperty int LabTheme::fontMicro
+        \readonly
+        \brief Axis ticks, budget legend.
+    */
     readonly property int fontMicro: Tokens.type("micro", uiScale)
-    /*! \qmlproperty int LabTheme::fontSmall \readonly \brief Mono structure: panel titles, row labels, key caps. */
+    /*!
+        \qmlproperty int LabTheme::fontSmall
+        \readonly
+        \brief Mono structure: panel titles, row labels, key caps.
+    */
     readonly property int fontSmall: Tokens.type("small", uiScale)
-    /*! \qmlproperty int LabTheme::fontBody \readonly \brief Chips, readouts, buttons. */
+    /*!
+        \qmlproperty int LabTheme::fontBody
+        \readonly
+        \brief Chips, readouts, buttons.
+    */
     readonly property int fontBody: Tokens.type("body", uiScale)
-    /*! \qmlproperty int LabTheme::fontLabel \readonly \brief Hand-font labels, notes, help rows. */
+    /*!
+        \qmlproperty int LabTheme::fontLabel
+        \readonly
+        \brief Hand-font labels, notes, help rows.
+    */
     readonly property int fontLabel: Tokens.type("label", uiScale)
-    /*! \qmlproperty int LabTheme::fontAction \readonly \brief Flow controls - things clicked by name. */
+    /*!
+        \qmlproperty int LabTheme::fontAction
+        \readonly
+        \brief Flow controls - things clicked by name.
+    */
     readonly property int fontAction: Tokens.type("action", uiScale)
-    /*! \qmlproperty int LabTheme::fontLead \readonly \brief The hint bar and a task's hint. */
+    /*!
+        \qmlproperty int LabTheme::fontLead
+        \readonly
+        \brief The hint bar and a task's hint.
+    */
     readonly property int fontLead: Tokens.type("lead", uiScale)
-    /*! \qmlproperty int LabTheme::fontTitle \readonly \brief Narration, sized for the back row. */
+    /*!
+        \qmlproperty int LabTheme::fontTitle
+        \readonly
+        \brief Narration, sized for the back row.
+    */
     readonly property int fontTitle: Tokens.type("title", uiScale)
 
     // --- spacing ----------------------------------------------------------
 
-    /*! \qmlproperty int LabTheme::spaceXs \readonly \brief Hairline gap. */
+    /*!
+        \qmlproperty int LabTheme::spaceXs
+        \readonly
+        \brief Hairline gap.
+    */
     readonly property int spaceXs: Tokens.space("xs", uiScale)
-    /*! \qmlproperty int LabTheme::spaceS \readonly \brief Between stacked rows. */
+    /*!
+        \qmlproperty int LabTheme::spaceS
+        \readonly
+        \brief Between stacked rows.
+    */
     readonly property int spaceS: Tokens.space("s", uiScale)
-    /*! \qmlproperty int LabTheme::spaceM \readonly \brief Between chips in a row. */
+    /*!
+        \qmlproperty int LabTheme::spaceM
+        \readonly
+        \brief Between chips in a row.
+    */
     readonly property int spaceM: Tokens.space("m", uiScale)
-    /*! \qmlproperty int LabTheme::spaceL \readonly \brief Panel padding, canvas insets. */
+    /*!
+        \qmlproperty int LabTheme::spaceL
+        \readonly
+        \brief Panel padding, canvas insets.
+    */
     readonly property int spaceL: Tokens.space("l", uiScale)
-    /*! \qmlproperty int LabTheme::spaceXl \readonly \brief Panel-to-edge margin. */
+    /*!
+        \qmlproperty int LabTheme::spaceXl
+        \readonly
+        \brief Panel-to-edge margin.
+    */
     readonly property int spaceXl: Tokens.space("xl", uiScale)
-    /*! \qmlproperty int LabTheme::spaceXxl \readonly \brief Panel-to-panel margin. */
+    /*!
+        \qmlproperty int LabTheme::spaceXxl
+        \readonly
+        \brief Panel-to-panel margin.
+    */
     readonly property int spaceXxl: Tokens.space("xxl", uiScale)
 
     /*!

@@ -53,10 +53,16 @@ HandheldInstrument {
     pickKind: "point"
     unit: "u"
 
-    /*! \qmlproperty real TapeMeasure::dotPx \brief Radius of a vertex dot, in pixels. */
+    /*!
+        \qmlproperty real TapeMeasure::dotPx
+        \brief Radius of a vertex dot, in pixels.
+    */
     property real dotPx: 4
 
-    /*! \qmlproperty real TapeMeasure::arcPx \brief Radius of the angle arc, in pixels. */
+    /*!
+        \qmlproperty real TapeMeasure::arcPx
+        \brief Radius of the angle arc, in pixels.
+    */
     property real arcPx: 26
 
     /*!
@@ -71,13 +77,25 @@ HandheldInstrument {
     readonly property var readout: Measure.readout(
         picks, (d) => LabLang.qty(d, root.unit), LabLang.decimalPoint)
 
-    /*! \qmlproperty var TapeMeasure::lengths \readonly \brief Length of each leg. */
+    /*!
+        \qmlproperty var TapeMeasure::lengths
+        \readonly
+        \brief Length of each leg.
+    */
     readonly property var lengths: readout.segments.map(s => s.length)
 
-    /*! \qmlproperty var TapeMeasure::angles \readonly \brief Angle at each interior corner, in degrees. */
+    /*!
+        \qmlproperty var TapeMeasure::angles
+        \readonly
+        \brief Angle at each interior corner, in degrees.
+    */
     readonly property var angles: readout.vertices.map(v => v.deg)
 
-    /*! \qmlproperty real TapeMeasure::total \readonly \brief Total length of the run. */
+    /*!
+        \qmlproperty real TapeMeasure::total
+        \readonly
+        \brief Total length of the run.
+    */
     readonly property real total: readout.total
 
     // the reading IS the total walked, which is what a pinned tape records

@@ -21,13 +21,22 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty real Compass::yaw \brief Camera yaw in degrees (the rig's). */
+    /*!
+        \qmlproperty real Compass::yaw
+        \brief Camera yaw in degrees (the rig's).
+    */
     property real yaw: 0
 
-    /*! \qmlproperty real Compass::aspect \brief Width/height of the surface shown. */
+    /*!
+        \qmlproperty real Compass::aspect
+        \brief Width/height of the surface shown.
+    */
     property real aspect: 1.55
 
-    /*! \qmlproperty color Compass::frontColor \brief Marker on the surface's front edge. */
+    /*!
+        \qmlproperty color Compass::frontColor
+        \brief Marker on the surface's front edge.
+    */
     property color frontColor: LabTheme.accent
 
     width: LabTheme.px(68); height: width

@@ -59,13 +59,23 @@ import QtQuick
 Item {
     id: root
 
-    /*! \qmlproperty bool InstrumentDock::isInstrumentDock \readonly \brief Marker a \l DockedInstrument finds its dock by. */
+    /*!
+        \qmlproperty bool InstrumentDock::isInstrumentDock
+        \readonly
+        \brief Marker a \l DockedInstrument finds its dock by.
+    */
     readonly property bool isInstrumentDock: true
 
-    /*! \qmlproperty real InstrumentDock::itemWidth \brief Width every docked instrument takes. */
+    /*!
+        \qmlproperty real InstrumentDock::itemWidth
+        \brief Width every docked instrument takes.
+    */
     property real itemWidth: LabTheme.px(214)
 
-    /*! \qmlproperty int InstrumentDock::spacing \brief Gap between stacked instruments. */
+    /*!
+        \qmlproperty int InstrumentDock::spacing
+        \brief Gap between stacked instruments.
+    */
     property int spacing: LabTheme.spaceL
 
     /*!
@@ -77,16 +87,29 @@ Item {
     */
     property var hidden: []
 
-    /*! \qmlproperty bool InstrumentDock::showTray \brief Offer the put-away instruments back. */
+    /*!
+        \qmlproperty bool InstrumentDock::showTray
+        \brief Offer the put-away instruments back.
+    */
     property bool showTray: true
 
-    /*! \qmlproperty list<Item> InstrumentDock::content \brief The docked instruments (the default property). */
+    /*!
+        \qmlproperty list<Item> InstrumentDock::content
+        \brief The docked instruments (the default property).
+    */
     default property alias content: _col.data
 
-    /*! \qmlsignal InstrumentDock::changed() \brief The visible set changed. */
+    /*!
+        \qmlsignal InstrumentDock::changed()
+        \brief The visible set changed.
+    */
     signal changed()
 
-    /*! \qmlproperty int InstrumentDock::revision \readonly \brief Bumps whenever an instrument registers. */
+    /*!
+        \qmlproperty int InstrumentDock::revision
+        \readonly
+        \brief Bumps whenever an instrument registers.
+    */
     readonly property alias revision: _reg.revision
 
     implicitWidth: itemWidth
@@ -97,14 +120,20 @@ Item {
     /*! \qmlmethod bool InstrumentDock::isShown(string key) */
     function isShown(key) { return hidden.indexOf(key) === -1 }
 
-    /*! \qmlmethod void InstrumentDock::hide(string key) \brief Folds an instrument into the tray. */
+    /*!
+        \qmlmethod void InstrumentDock::hide(string key)
+        \brief Folds an instrument into the tray.
+    */
     function hide(key) {
         if (!isShown(key)) return
         hidden = hidden.concat([key])
         changed()
     }
 
-    /*! \qmlmethod void InstrumentDock::show(string key) \brief Takes it back out. */
+    /*!
+        \qmlmethod void InstrumentDock::show(string key)
+        \brief Takes it back out.
+    */
     function show(key) {
         if (isShown(key)) return
         hidden = hidden.filter(k => k !== key)
@@ -114,14 +143,20 @@ Item {
     /*! \qmlmethod void InstrumentDock::toggle(string key) */
     function toggle(key) { isShown(key) ? hide(key) : show(key) }
 
-    /*! \qmlmethod void InstrumentDock::showAll() \brief Empties the tray. */
+    /*!
+        \qmlmethod void InstrumentDock::showAll()
+        \brief Empties the tray.
+    */
     function showAll() {
         if (!hidden.length) return
         hidden = []
         changed()
     }
 
-    /*! \qmlmethod var InstrumentDock::keys() \brief Every declared instrument key, in dock order. */
+    /*!
+        \qmlmethod var InstrumentDock::keys()
+        \brief Every declared instrument key, in dock order.
+    */
     function keys() {
         _reg.revision
         return _reg.items.map(i => i.key)
@@ -138,7 +173,10 @@ Item {
         return key
     }
 
-    /*! \qmlmethod var InstrumentDock::viewState() \brief \c {{ hidden: [...] }}. */
+    /*!
+        \qmlmethod var InstrumentDock::viewState()
+        \brief \c {{ hidden: [...] }}.
+    */
     function viewState() { return { hidden: hidden.slice() } }
 
     /*! \qmlmethod void InstrumentDock::applyViewState(var s) */

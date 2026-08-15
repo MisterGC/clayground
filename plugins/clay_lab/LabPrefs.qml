@@ -120,7 +120,10 @@ QtObject {
         }
     }
 
-    /*! \qmlmethod void LabPrefs::forget(string key) \brief Drops a stored value. */
+    /*!
+        \qmlmethod void LabPrefs::forget(string key)
+        \brief Drops a stored value.
+    */
     function forget(key) {
         delete _memory[key]
         const s = _ensure()

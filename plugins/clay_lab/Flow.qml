@@ -79,15 +79,32 @@ Item {
     */
     property int index: -1
 
-    /*! \qmlproperty bool Flow::running \readonly */
+    /*!
+        \qmlproperty bool Flow::running
+        \readonly
+    */
     readonly property bool running: index >= 0
-    /*! \qmlproperty bool Flow::paused \brief Set when the learner takes over. */
+    /*!
+        \qmlproperty bool Flow::paused
+        \brief Set when the learner takes over.
+    */
     property bool paused: false
-    /*! \qmlproperty bool Flow::waiting \readonly \brief In a task: the learner must act. */
+    /*!
+        \qmlproperty bool Flow::waiting
+        \readonly
+        \brief In a task: the learner must act.
+    */
     readonly property bool waiting: running && step !== null && step.task !== null
-    /*! \qmlproperty bool Flow::pending \readonly \brief Waiting on the learner or on the sim. */
+    /*!
+        \qmlproperty bool Flow::pending
+        \readonly
+        \brief Waiting on the learner or on the sim.
+    */
     readonly property bool pending: waiting || (running && step !== null && step.watch !== null)
-    /*! \qmlproperty bool Flow::hintShown \readonly */
+    /*!
+        \qmlproperty bool Flow::hintShown
+        \readonly
+    */
     property bool hintShown: false
 
     /*!
@@ -128,9 +145,15 @@ Item {
         \brief The estimate has elapsed: Next is the obvious thing to do now.
     */
     readonly property bool ripe: readyProgress >= 1
-    /*! \qmlproperty FlowStep Flow::step \readonly */
+    /*!
+        \qmlproperty FlowStep Flow::step
+        \readonly
+    */
     readonly property FlowStep step: index >= 0 && index < steps.length ? steps[index] : null
-    /*! \qmlproperty string Flow::title \readonly */
+    /*!
+        \qmlproperty string Flow::title
+        \readonly
+    */
     readonly property string title: titleKey === "" ? "" : LabLang.t(titleKey)
 
     /*!

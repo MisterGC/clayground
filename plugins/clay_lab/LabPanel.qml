@@ -31,7 +31,10 @@ import QtQuick
 Rectangle {
     id: root
 
-    /*! \qmlproperty string LabPanel::title \brief Heading text (already translated). */
+    /*!
+        \qmlproperty string LabPanel::title
+        \brief Heading text (already translated).
+    */
     property string title: ""
 
     /*!
@@ -43,13 +46,22 @@ Rectangle {
     */
     property string tag: ""
 
-    /*! \qmlproperty color LabPanel::accent \brief Title colour. */
+    /*!
+        \qmlproperty color LabPanel::accent
+        \brief Title colour.
+    */
     property color accent: LabTheme.primary
 
-    /*! \qmlproperty int LabPanel::padding \brief Inset around the content. */
+    /*!
+        \qmlproperty int LabPanel::padding
+        \brief Inset around the content.
+    */
     property int padding: LabTheme.px(10)
 
-    /*! \qmlproperty int LabPanel::spacing \brief Gap between stacked children. */
+    /*!
+        \qmlproperty int LabPanel::spacing
+        \brief Gap between stacked children.
+    */
     property int spacing: LabTheme.spaceS
 
     /*!
@@ -58,7 +70,10 @@ Rectangle {
     */
     readonly property alias body: _body
 
-    /*! \qmlproperty list<Item> LabPanel::content \brief Stacked children (the default property). */
+    /*!
+        \qmlproperty list<Item> LabPanel::content
+        \brief Stacked children (the default property).
+    */
     default property alias content: _col.data
 
     radius: LabTheme.radius
