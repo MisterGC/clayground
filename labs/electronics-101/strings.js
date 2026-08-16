@@ -13,6 +13,13 @@ var dict = {
         "scenario.series": "series circuit",
         "scenario.parallel": "parallel circuit",
         "scenario.metering": "metering",
+        "scenario.transistor": "transistor",
+        "scenario.diode-or": "diode OR",
+        "scenario.logic-and": "AND gate",
+        "scenario.logic-or": "OR gate",
+        "scenario.logic-xor": "XOR gate",
+        "scenario.gates": "logic gate",
+        "scenario.half-adder": "half adder",
 
         // what each preset is worth noticing - the micro-lesson that used to
         // live only in paper.md, now next to the preset that demonstrates it
@@ -20,6 +27,13 @@ var dict = {
         "scenario.note.series": "one current everywhere \u2014 the volts divide between the two bulbs",
         "scenario.note.parallel": "one voltage across both \u2014 the current splits at the junction",
         "scenario.note.metering": "the ammeter sits IN the loop, the voltmeter ACROSS the part",
+        "scenario.note.transistor": "0.8 mA into the base commands the 9.8 mA through the lamp — and the part would pass a hundred times its base current if the lamp asked",
+        "scenario.note.diode-or": "either input lights the lamp — and the diodes are what keep the two inputs from driving each other",
+        "scenario.note.logic-and": "two transistors in SERIES: the current must get past both, so both inputs have to be on",
+        "scenario.note.logic-or": "the same two in PARALLEL: either path on its own is enough",
+        "scenario.note.logic-xor": "exactly one — (A or B) and not (A and B), and that costs five transistors",
+        "scenario.note.gates": "one chip, six functions: select it and switch what it does — the package, the symbol and the table all follow. Unwire VCC and it stops answering",
+        "scenario.note.half-adder": "two gates reading the same two inputs: SUM is A xor B, CARRY is A and B — which is binary addition, and the first thing gates were ever built for",
 
         // key map (LabHelp renders these next to the keys that trigger them)
         "key.clear": "clear the board",
@@ -41,6 +55,16 @@ var dict = {
         "btn.view": "View %1°   reset (0)",
 
         "plan.title": "SCHEMATIC",
+
+        "section.presets": "PRESETS",
+        "section.parts": "PARTS",
+        "section.tools": "TOOLS",
+
+        "truth.title": "TRUTH TABLE",
+        "truth.out": "OUT",
+        "truth.sum": "SUM",
+        "truth.carry": "CARRY",
+        "truth.note": "measured, not printed — every row is this board solved again",
 
         "card.watch": "plot it (Q)",
         "card.watched": "on the plot ✓",
@@ -92,7 +116,28 @@ var dict = {
         "flow.led-basics.lit": "There it is. 5.1 milliamps flow, and the LED glows.",
         "flow.led-basics.why": "Why 5.1 mA? The cell offers 4.5 V, the LED eats about 2.1 of them, and the rest — 2.4 V — falls across the resistor. 2.4 V over 470 Ω is 5.1 mA. The resistor sets the current.",
         "flow.led-basics.values": "Read it off the board: each part shows its own voltage and current. Same current everywhere in one ring — that is a series circuit.",
-        "flow.led-basics.try": "Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED — until it gives up."
+        "flow.led-basics.try": "Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED — until it gives up.",
+
+        // --- flow: logic-gates ---
+        "flow.logic-gates.title": "From one transistor to XOR",
+        "flow.logic-gates.meet": "This is a transistor. Three legs: collector on the left, emitter on the right, base facing you — the board says which is which. A small current into the base lets a much larger one through the other two.",
+        "flow.logic-gates.switch": "Your turn: close the switch, so a current can reach the base.",
+        "flow.logic-gates.switch.hint": "The switch is the part with the tilted lever, in the middle column.",
+        "flow.logic-gates.gain": "Read the two numbers. The meter in the base lead shows 0.80 mA; the lamp draws 9.8 — twelve times as much, and only because twelve times is all the lamp asks for. This transistor would pass a hundred times its base current. The ring at its foot is green: it is fully switched on, and the lamp, not the transistor, is what limits the current now.",
+        "flow.logic-gates.and": "Now a gate. Two transistors in series — the series circuit again, with the switches made of silicon. The current has to get past both of them.",
+        "flow.logic-gates.andtask": "Switch both inputs on.",
+        "flow.logic-gates.andtask.hint": "One click per switch. The table on the right shows which row you are standing on.",
+        "flow.logic-gates.or": "Put the same two in parallel and either one is a way through. That is OR — the parallel circuit, doing logic.",
+        "flow.logic-gates.xor": "XOR is the awkward one: exactly one, never both. No such part exists. It is (A or B) AND NOT (A and B) — so the board now holds the OR pair you just built, a NAND made of two more in series, and a fifth transistor that the NAND cuts off when both inputs go high.",
+        "flow.logic-gates.xortask": "Turn exactly one input on.",
+        "flow.logic-gates.xortask.hint": "Either switch on its own will do.",
+        "flow.logic-gates.both": "Now the other one as well. The NAND node collapses to almost nothing, the fifth transistor is cut off, and the lamp goes out — with more current available than ever.",
+        "flow.logic-gates.cost": "Five transistors, eight resistors and a lamp, for one bit of a decision. A phone holds billions of them. That is what this part bought.",
+        "flow.logic-gates.chip": "So nobody builds it twice. Everything on that last board is sold as one package: five pins, and the two on the short sides are the supply — a chip needs feeding like anything else. This one is doing exactly the XOR you just wired by hand.",
+        "flow.logic-gates.chiptask": "Check it: turn exactly one input on.",
+        "flow.logic-gates.chiptask.hint": "Either switch on its own. The table on the right is still four solves of the board, not a printed answer.",
+        "flow.logic-gates.switchit": "And the package is not committed. Select it and pick another function — this one is now a NAND, and the table was re-measured, not re-typed. Six gates, one part, and no rewiring.",
+        "flow.logic-gates.adder": "Two of them reading the same two inputs, and you have arithmetic: SUM is A xor B, CARRY is A and B. Both switches on, and it reads sum 0, carry 1 — which is how binary writes 1 + 1 = 10."
     },
     "de": {
         "lab.title": "ELEKTRONIK 101",
@@ -102,11 +147,25 @@ var dict = {
         "scenario.series": "Reihenschaltung",
         "scenario.parallel": "Parallelschaltung",
         "scenario.metering": "Messen",
+        "scenario.transistor": "Transistor",
+        "scenario.diode-or": "Dioden-ODER",
+        "scenario.logic-and": "UND-Gatter",
+        "scenario.logic-or": "ODER-Gatter",
+        "scenario.logic-xor": "XOR-Gatter",
+        "scenario.gates": "Logikgatter",
+        "scenario.half-adder": "Halbaddierer",
 
         "scenario.note.led-basic": "ein Stromkreis: der Widerstand bestimmt den Strom, die LED leuchtet nur in einer Richtung",
         "scenario.note.series": "\u00fcberall derselbe Strom \u2014 die Spannung teilt sich auf die Lampen auf",
         "scenario.note.parallel": "dieselbe Spannung an beiden \u2014 der Strom teilt sich am Knoten",
         "scenario.note.metering": "das Amperemeter liegt IM Stromkreis, das Voltmeter parallel zum Bauteil",
+        "scenario.note.transistor": "0,8 mA in die Basis steuern die 9,8 mA durch die Lampe — und das Bauteil ließe das Hundertfache seines Basisstroms durch, wenn die Lampe es verlangte",
+        "scenario.note.diode-or": "jeder Eingang für sich bringt die Lampe zum Leuchten — und die Dioden sind es, die verhindern, dass ein Eingang den anderen mitzieht",
+        "scenario.note.logic-and": "zwei Transistoren in REIHE: der Strom muss an beiden vorbei, also müssen beide Eingänge an sein",
+        "scenario.note.logic-or": "dieselben zwei PARALLEL: jeder Weg für sich genügt",
+        "scenario.note.logic-xor": "genau einer — (A oder B) und nicht (A und B), und das kostet fünf Transistoren",
+        "scenario.note.gates": "ein Baustein, sechs Funktionen: auswählen und umschalten — Gehäuse, Symbol und Tabelle folgen. VCC abklemmen und er antwortet nicht mehr",
+        "scenario.note.half-adder": "zwei Gatter an denselben beiden Eingängen: SUMME ist A xor B, ÜBERTRAG ist A und B — das ist binäres Addieren, und der erste Zweck von Gattern überhaupt",
 
         "key.clear": "Board leeren",
         "key.eraser": "Radierer",
@@ -127,6 +186,17 @@ var dict = {
         "btn.view": "Blick %1°   zurück (0)",
 
         "plan.title": "SCHALTPLAN",
+
+        "section.presets": "VORLAGEN",
+        "section.parts": "BAUTEILE",
+        "section.tools": "WERKZEUGE",
+
+        "truth.title": "WAHRHEITSTABELLE",
+        // "AUS" would read as "off" in a column of ones and zeros
+        "truth.out": "AUSG",
+        "truth.sum": "SUMME",
+        "truth.carry": "ÜBERTRAG",
+        "truth.note": "gemessen, nicht abgedruckt — jede Zeile ist diese Schaltung, noch einmal gerechnet",
 
         "card.watch": "aufs Diagramm (Q)",
         "card.watched": "im Diagramm ✓",
@@ -178,6 +248,27 @@ var dict = {
         "flow.led-basics.lit": "Da ist es. 5,1 Milliampere fließen, und die LED leuchtet.",
         "flow.led-basics.why": "Warum 5,1 mA? Die Zelle bietet 4,5 V, die LED nimmt davon etwa 2,1 — der Rest, 2,4 V, fällt über dem Widerstand ab. 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
         "flow.led-basics.values": "Lies es am Brett ab: jedes Bauteil zeigt seine Spannung und seinen Strom. Überall derselbe Strom in einem Ring — das ist eine Reihenschaltung.",
-        "flow.led-basics.try": "Probiere selbst: wähle den Widerstand und zieh seinen Schieber. Weniger Ohm, mehr Strom, hellere LED — bis sie aufgibt."
+        "flow.led-basics.try": "Probiere selbst: wähle den Widerstand und zieh seinen Schieber. Weniger Ohm, mehr Strom, hellere LED — bis sie aufgibt.",
+
+        // --- flow: logic-gates ---
+        "flow.logic-gates.title": "Von einem Transistor zum XOR",
+        "flow.logic-gates.meet": "Das ist ein Transistor. Drei Beine: links der Kollektor, rechts der Emitter, die Basis zeigt zu dir — das Brett schreibt es dazu. Ein kleiner Strom in die Basis lässt einen viel größeren durch die beiden anderen.",
+        "flow.logic-gates.switch": "Du bist dran: schließe den Schalter, damit ein Strom zur Basis kommt.",
+        "flow.logic-gates.switch.hint": "Der Schalter ist das Bauteil mit dem schrägen Hebel, in der mittleren Spalte.",
+        "flow.logic-gates.gain": "Lies die beiden Zahlen. Das Messgerät in der Basisleitung zeigt 0,80 mA; die Lampe zieht 9,8 — zwölfmal so viel, und nur deshalb zwölfmal, weil die Lampe nicht mehr verlangt. Dieser Transistor ließe das Hundertfache seines Basisstroms durch. Der Ring an seinem Fuß ist grün: er ist voll durchgesteuert, und jetzt begrenzt die Lampe den Strom, nicht mehr er.",
+        "flow.logic-gates.and": "Jetzt ein Gatter. Zwei Transistoren in Reihe — wieder die Reihenschaltung, nur sind die Schalter jetzt aus Silizium. Der Strom muss an beiden vorbei.",
+        "flow.logic-gates.andtask": "Schalte beide Eingänge ein.",
+        "flow.logic-gates.andtask.hint": "Ein Klick pro Schalter. Die Tabelle rechts zeigt, in welcher Zeile du gerade stehst.",
+        "flow.logic-gates.or": "Dieselben zwei parallel, und jeder für sich ist ein Weg hindurch. Das ist ODER — die Parallelschaltung, die Logik macht.",
+        "flow.logic-gates.xor": "XOR ist das sperrige: genau einer, niemals beide. Ein solches Bauteil gibt es nicht. Es ist (A oder B) UND NICHT (A und B) — auf dem Brett liegen jetzt also das ODER-Paar von eben, ein NAND aus zwei weiteren in Reihe, und ein fünfter Transistor, den das NAND sperrt, sobald beide Eingänge oben sind.",
+        "flow.logic-gates.xortask": "Schalte genau einen Eingang ein.",
+        "flow.logic-gates.xortask.hint": "Jeder der beiden Schalter allein genügt.",
+        "flow.logic-gates.both": "Und jetzt den zweiten dazu. Der NAND-Knoten bricht auf fast null zusammen, der fünfte Transistor sperrt, und die Lampe geht aus — bei mehr verfügbarem Strom als je zuvor.",
+        "flow.logic-gates.cost": "Fünf Transistoren, acht Widerstände und eine Lampe, für ein einziges Bit einer Entscheidung. In einem Handy stecken Milliarden davon. Das ist es, was dieses Bauteil erkauft hat.",
+        "flow.logic-gates.chip": "Deshalb baut das niemand zweimal. Alles vom letzten Brett gibt es als ein Gehäuse: fünf Anschlüsse, und die beiden an den Schmalseiten sind die Versorgung — ein Chip will gefüttert werden wie alles andere. Dieser hier macht genau das XOR, das du gerade von Hand verdrahtet hast.",
+        "flow.logic-gates.chiptask": "Prüf es nach: schalte genau einen Eingang ein.",
+        "flow.logic-gates.chiptask.hint": "Jeder Schalter allein genügt. Die Tabelle rechts sind immer noch vier Rechnungen der Schaltung, keine abgedruckte Antwort.",
+        "flow.logic-gates.switchit": "Und das Gehäuse ist nicht festgelegt. Wähl es aus und nimm eine andere Funktion — jetzt ist es ein NAND, und die Tabelle wurde neu gemessen, nicht neu getippt. Sechs Gatter, ein Bauteil, kein Umverdrahten.",
+        "flow.logic-gates.adder": "Zwei davon an denselben beiden Eingängen, und du hast Arithmetik: SUMME ist A xor B, ÜBERTRAG ist A und B. Beide Schalter an, und es steht Summe 0, Übertrag 1 — so schreibt das Binärsystem 1 + 1 = 10."
     }
 }

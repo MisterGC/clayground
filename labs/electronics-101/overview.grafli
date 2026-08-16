@@ -12,23 +12,37 @@ colours mark pipeline stages
 """ ~small
 
 # ── pipeline (build → solve) ──
-@ box parts "palette / parts\nbattery · switch · resistor\nLED · bulb · ammeter · voltmeter" 60,300 266x130 %teal &link:./paper.md#stated-simplifications
-@ box nets "wires →︎ nets\nunion-find merges\nterminals into nodes" 380,300 240x130 %primary &link:./paper.md#the-solver
-@ box solver "DC nodal solver\nG v = i   (KCL)\nNorton stamps + Gaussian elim\nLEDs iterated to a fixed point" 700,285 290x160 %clay &link:./paper.md#the-solver
-@ box perel "per-element V, I\npower = |V · I|" 1070,300 240x130 %primary &link:./paper.md#measured-results
+@ box parts "palette / parts\nbattery · switch · resistor\nLED · bulb · diode · transistor\nlogic gate · ammeter · voltmeter" 60,300 266x150 %teal &link:./paper.md#stated-simplifications
+@ box nets "wires →︎ nets\nunion-find merges\nterminals into nodes\n2 per part, 3 for an NPN,\n5 for a gate package" 380,300 240x150 %primary &link:./paper.md#the-solver
+@ box solver "DC nodal solver\nG v = i   (KCL)\nNorton stamps + Gaussian elim\ndiode / transistor / gate states\niterated to a fixed point" 700,285 290x170 %clay &link:./paper.md#the-solver
+@ box perel "per-element V, I\npower = |V · I|\nper NPN: region, Ib, Ic\nper gate: func, Vcc, A B Y" 1070,300 240x150 %primary &link:./paper.md#measured-results
 
 # ── outputs (show) ──
 @ box probes "probes\niBattery · power · vTerm\npart<id> per watched part\nplot · recording · record" 700,530 270x130 %rose &link:./paper.md#run-it
 @ box visuals "visuals\nLED glow ∝︎ current\nbulb glow ∝︎ power\nmeter pills read V / mA" 1070,520 270x140 %highlight &link:./paper.md#measured-results
+@ box routing "wire routing (route.js)\nleads leave on the pad's side,\nthen only right angles\nscored: crossings > corners\n> buried runs > length\nGEOMETRY - never re-solved" 1440,300 290x170 %teal &link:./paper.md#wires-turn-corners
 
 # ── scenarios ──
 @ note scen 60,520 """
-scenarios (keys 1-4)
+scenarios (keys 1-9)
 1 led-basic - resistor tames an LED
 2 series - two dim bulbs, 360 mA
 3 parallel - two bright bulbs, 1282 mA
 4 metering - ammeter in, voltmeter across
-""" ~small &link:./paper.md#measured-results
+5 transistor - 0.8 mA commands 9.8 mA
+6 diode-OR - a gate with no transistor
+7 AND - two NPN in SERIES
+8 OR - the same two in PARALLEL
+9 XOR - OR and NAND, five transistors
+  logic gate - the same XOR as ONE part
+  half adder - two gates, SUM and CARRY
+""" ~small &link:./paper.md#logic-gates
+
+# ── the logic half ──
+@ box gates "logic gates, from transistors\nswitch + 10k pull-down = an input\nseries = AND, parallel = OR\nXOR = (A or B) and not (A and B)" 380,520 280x150 %secondary &link:./paper.md#logic-gates
+@ box package "the gate as a PACKAGE\n5 pins: VCC A B Y GND\nfunction is a property you set\noutput swings to the pads it HAS\n- unwire VCC and it stops" 720,880 300x160 %plum &link:./paper.md#the-gate-as-a-package
+@ box adder "half adder\nXOR + AND on the same inputs\nSUM and CARRY = 1+1 = 10\nwhere this lab stops:\nno time, so nothing sequential" 1080,880 300x160 %clay &link:./paper.md#a-half-adder
+@ box truth "truth table panel\none SOLVE per input row,\nrun on a copy of THIS board\nedit the circuit, edit the table" 60,880 290x150 %rose &link:./paper.md#logic-gates
 
 # ── measurement path (hold → keep → cite) ──
 @ box hand "instruments you hold\ntape 📏 · stopwatch ⏱ · voltmeter ⚡\nH walks the belt, a click is a pick\nthe palette rides here too" 60,700 300x150 %accent &link:./paper.md#instruments-you-hold
@@ -47,8 +61,18 @@ what the paper is allowed to quote
 @ arrow nets -> solver "nodes"
 @ arrow solver -> perel "v solved"
 @ arrow perel -> visuals "drives"
+@ arrow parts -> routing "pads + bodies" !dotted
+@ arrow routing -> visuals "board AND schematic, one path"
 @ arrow perel -> probes "sampled"
 @ arrow scen -> parts "build"
+@ arrow scen -> gates "presets 5-9"
+@ arrow gates -> parts "wiring only"
+@ arrow perel -> truth "re-solved per row" !dashed
+@ arrow truth -> gates "what it actually does"
+@ arrow gates -> package "packaged"
+@ arrow package -> adder "composed"
+@ arrow package -> nets "5 terminals" !dotted
+@ arrow truth -> adder "one column per output" !dashed
 @ arrow viewState -> parts "restores board" !dashed
 @ arrow lang -> visuals "labels + units" !dotted
 @ arrow hand -> pin "kept"

@@ -5,9 +5,10 @@ import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Lab
 
-// One circuit part on the pegboard: body by type, two gold terminals at
-// x = -/+ termOffset. Purely visual - the Sandbox owns state, hit testing
-// and the solver; this node just renders what it is told.
+// One circuit part on the pegboard: body by type, gold terminals at
+// x = -/+ termOffset (and, for a transistor, one more on the near side).
+// Purely visual - the Sandbox owns state, hit testing and the solver; this
+// node just renders what it is told.
 //
 // Shading is deliberately flat: toon-shaded boxes with ink edges and fully
 // matte round parts, so shapes read by silhouette and value, never by
@@ -25,11 +26,55 @@ Node {
     property real simPower: 0        // watts dissipated
     property bool shorted: false     // battery terminals effectively bridged
     property bool overloaded: false  // heavy but honest load
+    property string mode: ""         // transistor region: off / active / sat
+    property string func: "and"      // gate function: and/or/xor/nand/nor/not
     property bool hovered: false
     property bool selected: false
     property int wiringTerminal: -1  // terminal glowing during wiring, -1 none
 
     readonly property real termOffset: 3.5
+
+    // --- terminals, as geometry ---------------------------------------------
+    // Two is the rule, three the exception, and the exception has to be ONE
+    // place or the pads, the hit test and the schematic drift apart. The
+    // transistor's base sits on the part's near side rather than in line with
+    // the other two, so all three pads stay far enough apart to be clicked -
+    // and so the silhouette says at a glance which lump has three legs.
+    //
+    // The gate is the second exception and a different kind of part: a PACKAGE,
+    // with two supply pins that are not optional. Its inputs face left and its
+    // output right, the way it is read in a diagram, and VCC and GND come out
+    // of the two long sides where a DIP's power pins are - so a learner wires
+    // the rails across the package rather than through the signal path.
+    readonly property int termCount: type === "gate" ? 5
+                                   : (type === "transistor" ? 3 : 2)
+
+    function termAt(i) {
+        if (root.type === "junction") return Qt.vector3d(0, 0.62, 0)
+        if (root.type === "gate") {
+            if (i === 0) return Qt.vector3d(0, 0.62, -4.6)     // VCC
+            if (i === 1) return Qt.vector3d(-6.0, 0.62, -2.6)  // A
+            if (i === 2) return Qt.vector3d(-6.0, 0.62, 2.6)   // B
+            if (i === 3) return Qt.vector3d(6.0, 0.62, 0)      // Y
+            return Qt.vector3d(0, 0.62, 4.6)                   // GND
+        }
+        if (root.type === "transistor") {
+            if (i === 0) return Qt.vector3d(-root.termOffset, 0.62, 0)   // collector
+            if (i === 1) return Qt.vector3d(0, 0.62, root.termOffset)    // base
+            return Qt.vector3d(root.termOffset, 0.62, 0)                 // emitter
+        }
+        return Qt.vector3d(i === 0 ? -root.termOffset : root.termOffset, 0.62, 0)
+    }
+
+    // how far the part's own footprint reaches, per axis - a transistor is as
+    // deep as it is wide because of that third pad, and a gate is the biggest
+    // thing on the board because five pads have to be far enough apart to be
+    // clicked without magnifying the board
+    readonly property real halfWidth: type === "junction" ? 2.3
+                                    : (type === "gate" ? 7.0 : 4.6)
+    readonly property real halfDepth: type === "junction" ? 2.3
+                                    : (type === "gate" ? 5.6
+                                    : (type === "transistor" ? 4.6 : 3.4))
 
     // flat, glare-free body material for the round parts
     component Matte: PrincipledMaterial {
@@ -65,10 +110,14 @@ Node {
         source: "#Cube"
         pickable: true
         // #Cube is 100 units, and the box stands from the board up over the
-        // tallest body here (the bulb's glass, whose top is at y 4.7)
-        readonly property real halfW: root.type === "junction" ? 2.3 : 4.6
-        readonly property real halfD: root.type === "junction" ? 2.3 : 3.4
-        readonly property real high: root.type === "junction" ? 1.2 : 5.4
+        // tallest body here (the bulb's glass, whose top is at y 4.7). A gate
+        // gets its own, lower box: it is by far the widest part and only 1.6
+        // tall, and a chest-high block over a flat chip swallows the clicks
+        // meant for the board cells behind it.
+        readonly property real halfW: root.halfWidth
+        readonly property real halfD: root.halfDepth
+        readonly property real high: root.type === "junction" ? 1.2
+                                   : (root.type === "gate" ? 2.2 : 5.4)
         position: Qt.vector3d(0, high * 0.5, 0)
         scale: Qt.vector3d(halfW * 2 / 100, high / 100, halfD * 2 / 100)
     }
@@ -81,8 +130,11 @@ Node {
     SelectionFrame3D {
         selected: root.selected
         hovered: root.hovered
-        halfWidth: root.type === "junction" ? 2.0 : 5.2
-        halfDepth: root.type === "junction" ? 2.0 : 3.9
+        halfWidth: root.type === "junction" ? 2.0
+                 : (root.type === "gate" ? 7.6 : 5.2)
+        halfDepth: root.type === "junction" ? 2.0
+                 : (root.type === "gate" ? 6.2
+                 : (root.type === "transistor" ? 5.2 : 3.9))
         // a solder dot has no front, so it gets no facing mark
         showNose: root.type !== "junction"
         // A part is placed slightly SUNK into the pegboard so its shadow hugs
@@ -111,11 +163,11 @@ Node {
     // lie flat on the paper, so they have to meet the terminals at board
     // level. A low dome still catches the light and reads as a solder blob.
     Repeater3D {
-        model: 2
+        model: root.termCount
         Model {
             visible: root.type !== "junction"   // the dot is its own pad
             source: "#Sphere"
-            position: Qt.vector3d(index === 0 ? -root.termOffset : root.termOffset, 0.62, 0)
+            position: root.termAt(index)
             scale: Qt.vector3d(0.022, 0.012, 0.022)
             materials: Matte {
                 baseColor: root.wiringTerminal === index ? LabTheme.secondary : LabTheme.highlight
@@ -264,6 +316,348 @@ Node {
             constantFade: 1.0
             linearFade: 0.2
             quadraticFade: 0.9
+        }
+    }
+
+    // --- diode (terminal 0 = anode, silver ring at the cathode) -------------
+    // The LED's plain sibling, and drawn as the shop sells it: a small dark
+    // glass body lying along the leads with ONE band, at the end the current
+    // may not come out of. That band is the whole user interface of a diode,
+    // so it is the one detail this body must get right.
+    Node {
+        visible: root.type === "diode"
+        Model {  // glass body
+            source: "#Cylinder"
+            position: Qt.vector3d(0, 0.95, 0)
+            eulerRotation.z: 90
+            scale: Qt.vector3d(0.019, 0.034, 0.019)
+            materials: Matte { baseColor: "#3a3630" }
+        }
+        Model {  // cathode band, towards terminal 1
+            source: "#Cylinder"
+            position: Qt.vector3d(1.25, 0.95, 0)
+            eulerRotation.z: 90
+            scale: Qt.vector3d(0.0205, 0.006, 0.0205)
+            materials: Matte { baseColor: "#cfd3d6" }
+        }
+        Repeater3D {  // lead wires to the terminals
+            model: 2
+            Model {
+                source: "#Cylinder"
+                position: Qt.vector3d(index === 0 ? -2.5 : 2.5, 0.95, 0)
+                eulerRotation.z: 90
+                scale: Qt.vector3d(0.003, 0.017, 0.003)
+                materials: Matte { baseColor: LabTheme.muted }
+            }
+        }
+    }
+
+    // --- transistor (NPN, TO-92: collector, base, emitter) ------------------
+    // A real small-signal transistor: a black epoxy blob with a flat face and
+    // three legs, standing on a printed footprint that names the pads. The
+    // footprint is the point - which leg is which is the one thing a learner
+    // cannot deduce from looking at the part, and a kit that does not say it
+    // teaches guessing.
+    Node {
+        id: _npn
+        visible: root.type === "transistor"
+
+        // The silkscreen: a printed square lying on the board under the part,
+        // C / B / E next to the pads they belong to - the one thing about a
+        // transistor a learner cannot deduce by looking at it. Inside the
+        // stage's overlay budget, so it lies ON the paper rather than over it.
+        //
+        // The print is opaque edge to edge on purpose: a rounded or otherwise
+        // transparent corner comes out BLACK here, because this material does
+        // no alpha blending and there is nothing behind the plate to blend
+        // with. Any shaping has to be painted, not cut.
+        Model {
+            position: Qt.vector3d(0, 0.52, 0)
+            source: "#Rectangle"
+            eulerRotation.x: -90
+            scale: Qt.vector3d(0.098, 0.098, 1)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: Texture {
+                    // an Item holding a filled Rectangle, never a Rectangle
+                    // used directly as the source
+                    sourceItem: Item {
+                        width: 240; height: 240
+                        // The working sheet's own colour, so only the printed
+                        // marks show and the plate reads as ink ON the board
+                        // rather than as a tile lying on it. `sheet` and not
+                        // the 2D `paper`: this is a 3D surface, and the board
+                        // roles are the ones that invert with the room - a
+                        // paper-coloured plate came out LIGHTER than the board
+                        // it was printed on as soon as the theme went dark.
+                        Rectangle { anchors.fill: parent; color: LabTheme.sheet }
+                        Rectangle {   // a painted rim, since a cut one goes black
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            color: "transparent"
+                            // how far from the sheet, not which way: on a dark
+                            // board there is no light left to take away
+                            border.color: LabTheme.step(LabTheme.sheet, 1.3)
+                            border.width: 3
+                        }
+                        // Laid out the way the pads are - C left, E right, B on
+                        // the near side - but each letter is set BESIDE its pad
+                        // rather than on it: a pad is a raised dome, and a
+                        // letter directly under one is a letter nobody will
+                        // ever see. Pin letters, not words: they read the same
+                        // in every language, like the A and V on a meter.
+                        Text {
+                            x: 13; y: 58
+                            text: "C"; color: LabTheme.inkSoft
+                            font.pixelSize: 44; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            anchors.right: parent.right; anchors.rightMargin: 13
+                            y: 58
+                            text: "E"; color: LabTheme.inkSoft
+                            font.pixelSize: 44; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            x: 152
+                            anchors.bottom: parent.bottom; anchors.bottomMargin: 7
+                            text: "B"; color: LabTheme.inkSoft
+                            font.pixelSize: 44; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
+
+        // What region it is working in, as a collar around the foot. A logic
+        // gate is unreadable without it: five black blobs all look alike, and
+        // "which of these is switched on" is the entire question being asked.
+        Model {
+            source: "#Cylinder"
+            position: Qt.vector3d(0, 0.60, -0.35)
+            scale: Qt.vector3d(0.050, 0.004, 0.050)
+            materials: Matte {
+                baseColor: root.mode === "sat" ? LabTheme.forest
+                         : root.mode === "active" ? LabTheme.highlight
+                         : LabTheme.inkFaint
+                emissiveFactor: root.mode === "sat" ? Qt.vector3d(0.06, 0.16, 0.08)
+                              : root.mode === "active" ? Qt.vector3d(0.16, 0.12, 0.01)
+                              : Qt.vector3d(0, 0, 0)
+            }
+        }
+
+        Model {  // epoxy body
+            source: "#Cylinder"
+            position: Qt.vector3d(0, 1.55, -0.35)
+            scale: Qt.vector3d(0.042, 0.031, 0.042)
+            materials: Matte { baseColor: "#2a2724" }
+        }
+        Model {  // the flat face, on the side the base pad is on
+            source: "#Cube"
+            position: Qt.vector3d(0, 1.55, 0.85)
+            scale: Qt.vector3d(0.038, 0.031, 0.012)
+            materials: Matte { baseColor: "#332f2b" }
+        }
+        Repeater3D {  // three legs, down to the three pads
+            model: 3
+            Model {
+                readonly property var pad: root.termAt(index)
+                source: "#Cylinder"
+                // half way out from the body, lying flat just above the board
+                position: Qt.vector3d(pad.x * 0.5, 0.55, pad.z * 0.5)
+                // a #Cylinder stands along Y: tip it onto X for the two side
+                // legs, onto Z for the base leg that reaches the near pad
+                eulerRotation: index === 1 ? Qt.vector3d(90, 0, 0)
+                                           : Qt.vector3d(0, 0, 90)
+                scale: Qt.vector3d(0.0032, 0.035, 0.0032)
+                materials: Matte { baseColor: LabTheme.muted }
+            }
+        }
+    }
+
+    // --- logic gate (DIP package: VCC, A, B, Y, GND) ------------------------
+    // A chip, not a lump: a flat black case on a printed footprint, five pins,
+    // and its function printed across the top the way a part number is. The
+    // print is the part - a gate has no colour bands, no silver ring and no
+    // silhouette that says what it does, so a package that does not name
+    // itself is five identical black rectangles on a board.
+    //
+    // It also carries its supply pins, which is the whole reason it is drawn
+    // as a package: the schematic hides VCC and GND, the board may not.
+    Node {
+        id: _gate
+        visible: root.type === "gate"
+
+        // Epoxy, hardcoded like the transistor's: a physical part colour, not
+        // a role in the theme. Everything PRINTED below takes its ink from
+        // this fill or from a theme token, never from a pinned value.
+        //
+        // Darker than the transistor's blob on purpose. Both printed faces
+        // here are unlit, so the case is drawn at its literal value against a
+        // literal sheet - and the transistor's #2a2724 is the dark theme's
+        // sheet to within a hair, which would have left the package invisible
+        // on the very footprint that names its pins.
+        readonly property color caseColor: "#1b1815"
+
+        // How strongly the output is high. `lit` says which level it is,
+        // simV says how much of a level there is - a rail that has sagged
+        // reads dimmer. Floored well above zero so a gate whose output volts
+        // nobody feeds still shows a lit indicator rather than a dead one.
+        readonly property real glow: root.lit
+            ? Math.max(0.35, Math.min(1.0, Math.abs(root.simV) / 5.0)) : 0.0
+
+        // The silkscreen, and the reason the part is legible: five pins in a
+        // ring around a black case cannot be told apart by looking, so the
+        // board names every one of them. Same rules as the transistor's
+        // footprint - opaque edge to edge (a cut corner comes out BLACK here,
+        // this material does no alpha blending), painted rim rather than a
+        // border on transparency, `sheet` rather than the 2D `paper` so the
+        // plate stays darker than the board when the theme goes dark.
+        //
+        // Every name is set BESIDE its pad, never under it: a pad is a raised
+        // dome and it would swallow the letter whole. The names are literals -
+        // VCC, GND, A, B, Y are printed unchanged on every datasheet in every
+        // language, exactly like the A and V on the meter faces.
+        Model {
+            position: Qt.vector3d(0, 0.52, 0)
+            source: "#Rectangle"
+            eulerRotation.x: -90
+            // 14.0 by 11.2: the footprint above, so the pads land on the plate
+            // where the plate says they do
+            scale: Qt.vector3d(0.14, 0.112, 1)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: Texture {
+                    // an Item holding a filled Rectangle, never a Rectangle
+                    // used directly as the source
+                    sourceItem: Item {
+                        // 25 px per world unit; a plane needs no flips, so
+                        // item x runs with world x and item y with world z
+                        width: 350; height: 280
+                        Rectangle { anchors.fill: parent; color: LabTheme.sheet }
+                        Rectangle {   // a painted rim, since a cut one goes black
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            color: "transparent"
+                            border.color: LabTheme.step(LabTheme.sheet, 1.3)
+                            border.width: 3
+                        }
+                        // the two inputs and the output, each one letter set
+                        // inboard of its own pad
+                        Text {
+                            x: 42 - width / 2; y: 42 - height / 2
+                            text: "A"; color: LabTheme.inkSoft
+                            font.pixelSize: 40; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            x: 42 - width / 2; y: 238 - height / 2
+                            text: "B"; color: LabTheme.inkSoft
+                            font.pixelSize: 40; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            x: 308 - width / 2; y: 102 - height / 2
+                            text: "Y"; color: LabTheme.inkSoft
+                            font.pixelSize: 40; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        // the rails, on the long sides where a DIP carries
+                        // them, offset sideways so the pad dome misses them
+                        Text {
+                            x: 235 - width / 2; y: 25 - height / 2
+                            text: "VCC"; color: LabTheme.inkSoft
+                            font.pixelSize: 36; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        Text {
+                            x: 235 - width / 2; y: 255 - height / 2
+                            text: "GND"; color: LabTheme.inkSoft
+                            font.pixelSize: 36; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
+
+        Part {  // the case
+            width: 8.0; height: 1.5; depth: 6.0
+            position: Qt.vector3d(0, 0, 0)
+            color: _gate.caseColor
+        }
+
+        // The top face, printed. It covers the case's whole top rather than
+        // sitting on it as a smaller plate: this material is unlit, so a patch
+        // of it in the middle of a toon-shaded face would read as a sticker
+        // that caught the light differently.
+        Model {
+            position: Qt.vector3d(0, 1.53, 0)
+            source: "#Rectangle"
+            eulerRotation.x: -90
+            scale: Qt.vector3d(0.08, 0.06, 1)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: Texture {
+                    sourceItem: Item {
+                        width: 320; height: 240
+                        Rectangle { anchors.fill: parent; color: _gate.caseColor }
+                        Rectangle {  // the pin-1 index mark, at the VCC end
+                            x: 22; y: 22; width: 20; height: 20
+                            radius: 10
+                            color: LabTheme.inkOn(_gate.caseColor)
+                            opacity: 0.4
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            // The one thing that tells two of these apart, so
+                            // it is set as large as the case allows. Ink from
+                            // the fill it is printed on, never pinned.
+                            text: LabLang.t("gate." + root.func)
+                            color: LabTheme.inkOn(_gate.caseColor)
+                            font.pixelSize: 92; font.bold: true
+                            font.letterSpacing: 2
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
+
+        Repeater3D {  // five pins, each one running from the case to its pad
+            model: 5
+            Model {
+                readonly property var pad: root.termAt(index)
+                // VCC and GND leave through the long sides, the signal pins
+                // through the ends - which axis a pin runs along is simply
+                // which way its pad lies
+                readonly property bool sideways: Math.abs(pad.x) > Math.abs(pad.z)
+                source: "#Cylinder"
+                position: sideways ? Qt.vector3d(pad.x > 0 ? 4.9 : -4.9, 0.55, pad.z)
+                                   : Qt.vector3d(pad.x, 0.55, pad.z > 0 ? 3.75 : -3.75)
+                // a #Cylinder stands along Y: tip it onto X for the signal
+                // pins, onto Z for the two rails
+                eulerRotation: sideways ? Qt.vector3d(0, 0, 90) : Qt.vector3d(90, 0, 0)
+                scale: Qt.vector3d(0.0034, sideways ? 0.026 : 0.022, 0.0034)
+                materials: Matte { baseColor: LabTheme.muted }
+            }
+        }
+
+        // What the output is doing, as a pip beside the output pin - the
+        // gate's answer to the transistor's collar. A logic board is a row of
+        // identical black cases, and "which of these is putting out a high"
+        // is the entire question being asked of it. Small and quiet on
+        // purpose: it reports a level, it is not a lamp.
+        Model {
+            source: "#Cylinder"
+            position: Qt.vector3d(4.9, 0.60, 1.7)
+            scale: Qt.vector3d(0.016, 0.004, 0.016)
+            materials: Matte {
+                baseColor: root.lit ? LabTheme.forest : LabTheme.inkFaint
+                emissiveFactor: Qt.vector3d(0.05, 0.20, 0.09).times(_gate.glow)
+            }
         }
     }
 

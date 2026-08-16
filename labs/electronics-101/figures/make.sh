@@ -124,6 +124,105 @@ shot short --size 1400x900 \
 shot budget --size 1400x900 --crop partCard --crop-pad 8 \
     --eval "$short_js"
 
+# --- the transistor ---------------------------------------------------------
+# One NPN switched on: the meter in the base lead and the lamp branch in one
+# frame, because the figure's whole job is to make those two numbers
+# comparable at a glance. Values on, so both readings are printed.
+shot transistor --size 1400x900 \
+    --eval 'applyScenario("transistor"); setLogicInputs(1)' \
+    --eval 'showValues = true; showPlan = false' \
+    --eval "$bare_js" \
+    --eval 'rig.zoomBy(0.9)'
+
+# One transistor alone, unrotated, close up: a picture of the PART rather than
+# of a circuit, because which leg is which is the one thing about it a reader
+# cannot deduce from the shape. On a board it is normally turned a quarter and
+# the print turns with it, the way silkscreen does - which is exactly why the
+# figure that has to be legible puts it back the right way up.
+shot pinout --size 900x700 \
+    --eval 'clearBoard(); addElement("transistor", 14, 8)' \
+    --eval 'showPlan = false' --eval "$bare_js" \
+    --eval 'rig.applyState({px: 2.5, py: 2, pz: 2.5, distance: 17}); rig.pitch = 66'
+
+# --- the gates --------------------------------------------------------------
+# AND and OR as a PAIR on one input row: same two transistors, same lamp, only
+# the wiring differs - which is the argument, and it is the same argument the
+# series/parallel pair above makes with bulbs. The truth table stays in frame
+# on purpose: it is the part of the claim a picture can actually carry.
+gate_js='monitor.visible = false; hintBar.visible = false; hands.visible = false; topSwitches.visible = false; transport.visible = false; palette.visible = false'
+for gate in and or; do
+    shot "logic-$gate" --size 1400x900 \
+        --eval "applyScenario(\"logic-$gate\"); setLogicInputs(2)" \
+        --eval 'showPlan = false' --eval "$gate_js" \
+        --eval 'rig.zoomBy(0.74); rig.panBy(-6, 0)'
+done
+
+# XOR twice on one seed, the pair the section is about: exactly one input on
+# and the lamp lit, then both on and the lamp dark with more current available
+# than before. Same board, same everything, one switch moved.
+for row in 1 3; do
+    shot "logic-xor-$row" --size 1400x900 \
+        --eval "applyScenario(\"logic-xor\"); setLogicInputs($row)" \
+        --eval 'showPlan = false' --eval "$gate_js" \
+        --eval 'rig.zoomBy(0.78); rig.panBy(-6, 0)'
+done
+
+# The XOR from as far overhead as the rig goes (84 degrees, its maxPitch),
+# which is the view that shows the ROUTING rather than the circuit. Overhead
+# on purpose: the picture's claim is that every wire runs along one of two
+# board directions, and from a low angle a vertical run and a slanted one
+# look alike. The board still shears a little at 84 - what stays checkable is
+# that the wires are PARALLEL, in two families and no third.
+shot routing --size 1500x1000 \
+    --eval 'applyScenario("logic-xor"); setLogicInputs(1)' \
+    --eval 'showPlan = false' --eval "$bare_js" --eval 'truth.visible = false' \
+    --eval 'rig.applyState({yaw: 0, pitch: 84, distance: 105, px: 0, py: 2, pz: 0})'
+
+# The same argument at the other end of the scale: a voltmeter wired ACROSS an
+# LED sits in the LED's own row, where a straight lead would be drawn on top of
+# the wire already there. Its leads loop round instead, which is how a diagram
+# draws a meter across a part.
+shot across --size 1100x750 \
+    --eval 'applyScenario("metering")' \
+    --eval 'elements.filter(e => e.type === "switch").forEach(e => toggleSwitch(e.id))' \
+    --eval 'showPlan = false' --eval "$bare_js" \
+    --eval 'rig.applyState({yaw: 0, pitch: 84, distance: 58, px: -4, py: 2, pz: -6})'
+
+# The XOR as a diagram: thirty-eight parts is where the schematic view stops
+# being a nicety and starts being the only readable form of the circuit.
+shot logic-xor-plan --size 1400x900 --crop schematic --crop-pad 8 \
+    --eval 'applyScenario("logic-xor"); setLogicInputs(1)' \
+    --eval 'showPlan = true; palette.visible = false'
+
+# The truth table on its own, because "measured, not printed" is a claim about
+# a panel and the prose cannot draw it.
+shot truthtable --size 1400x900 --crop truthTable --crop-pad 8 \
+    --eval 'applyScenario("logic-xor"); setLogicInputs(1)'
+
+# --- the gate as a package --------------------------------------------------
+# One chip, close enough that the five pin names and the printed function are
+# legible: the claim that the board says which pin is which is a claim about a
+# picture. Both inputs high, so the state pip beside the output is lit.
+shot gate --size 900x700 \
+    --eval 'applyScenario("gates"); setLogicInputs(3)' \
+    --eval 'showPlan = false' --eval "$bare_js" \
+    --eval 'rig.applyState({px: 32.5, py: 2, pz: 0, distance: 26}); rig.pitch = 60'
+
+# The half adder: two packages, two lamps, and the truth table grown a second
+# column. Kept whole rather than cropped, because the argument is that both
+# answers come off one board at once.
+shot half-adder --size 1400x900 \
+    --eval 'applyScenario("half-adder"); setLogicInputs(3)' \
+    --eval 'showPlan = false' --eval "$gate_js" \
+    --eval 'rig.zoomBy(0.8); rig.panBy(-6, 0)'
+
+# And its schematic, where the ANSI gate shapes do the work the 3D packages
+# cannot: the D, the shield and the double curve say which gate is which
+# without a word printed on anything.
+shot half-adder-plan --size 1400x900 --crop schematic --crop-pad 8 \
+    --eval 'applyScenario("half-adder"); setLogicInputs(3)' \
+    --eval 'showPlan = true; palette.visible = false'
+
 # --- an instrument in hand --------------------------------------------------
 # The belt with the kit's voltmeter taken out: what "instruments you hold"
 # looks like, next to the line telling you what a click will do.
