@@ -19,6 +19,24 @@ function aspect(type) {
          : 0.66;
 }
 
+// Where a symbol's leads meet the edge of its box, as fractions of the box.
+//
+// A caller that draws a symbol next to real wires needs this, because the box
+// is not a bounding box - it is defined BY the leads. Every symbol runs its
+// two side leads out to x = +/- w/2, so a box narrower than the part's pads
+// are apart leaves the wire ending in one place and the lead in another, and
+// the diagram shows a circuit with gaps in it. Two symbols also have a lead
+// leaving off-axis, and their `y` says where: a transistor's base comes in at
+// h/2 from below, a gate's two inputs at 0.23 h above and below the axis.
+// Anything else returns y = 0, meaning "nothing leaves sideways, so the height
+// is a drawing ratio rather than a measurement" - see aspect().
+function leadFractions(type) {
+    return { x: 0.5,
+             y: type === "transistor" ? 0.5
+              : type === "gate" ? 0.23
+              : 0 };
+}
+
 // Draws `type` centred at (cx, cy) inside a w x h box.
 // opts: { ink, lineWidth, rot (degrees, board yaw), on (switch closed),
 //         func (gate function: and / or / xor / nand / nor / not) }

@@ -251,9 +251,17 @@ an honest `null`. Per solve: `netCount` and `iterations`.
   obstacles, taken, grid)`, plus the path arithmetic a caller needs to
   interpret what came back: `pathLength`, `midOfPath`, `closestOnPath`,
   `clean`, `occupancy`, `scorePath`. See *Wire routing* below.
+- `plan.js` — laying a diagram out on a sheet: `fitBox(pts, box, pad)` for the
+  uniform fit, `placeLabels(anchors, opts)` for lettering that dodges the
+  symbols, the wires and the other labels, plus `overlaps`, `collides`,
+  `textBox` and `readable`. See *Lettering a diagram* below.
 - `symbols.js` — `draw(ctx, type, cx, cy, w, h, opts)`, IEC 60617 symbols
   shared by the palette and the schematic view, so the symbol in the list is
-  the symbol in the diagram.
+  the symbol in the diagram. Plus `aspect(type)` and `leadFractions(type)`:
+  a symbol's box is not a bounding box, it is defined by where the leads meet
+  its edge, so a caller drawing symbols **next to real wires** has to size the
+  box from the part's actual pad separation. Get that wrong and the wire stops
+  at the pad while the lead stops somewhere else — a diagram with gaps in it.
 - QML: `CircuitElement3D`, `SymbolIcon`.
 - `strings.js` — the kit's EN/DE part vocabulary.
 
@@ -291,11 +299,35 @@ What it does **not** do: it does not move parts, it does not re-route to
 untangle crossings (two wires crossing is normal and is drawn as a crossing),
 and it has no global optimum — it is a scored local choice per wire.
 
+## Lettering a diagram
+
+A schematic the size of a postage stamp can only show the *shape* of a
+circuit. Given a whole window there is room to name every part and print what
+it is rated at — and then the question stops being "what does the circuit look
+like" and becomes "where does the text go", which is what `plan.js` answers.
+
+`fitBox` is the uniform fit: a set of points in board cells into a box in
+pixels, with a margin. In the maximised diagram that margin is not decoration,
+it is where the outermost parts' labels live.
+
+`placeLabels` is the interesting half. Each anchor carries where its symbol is,
+how big the symbol is, and how big its label block is; each label is then given
+the first of four sides (below, above, right, left) on which it does not cover
+a symbol, a label already placed, or anything in the caller's `avoid` list —
+which is how the lab keeps text off its wires. A label with nowhere clear to go
+comes back `placed: false` at its first choice, so the caller decides between
+dropping it and drawing it over something; the lab draws it on a small card,
+which is what a draughtsman does with a note that must sit over a conductor.
+
+Deterministic and order-sensitive by design: earlier anchors win a contested
+spot, so the same board always letters the same way.
+
 ## Tests
 
 ```bash
 node labs/kits/circuit/circuit.test.js
 node labs/kits/circuit/route.test.js
+node labs/kits/circuit/plan.test.js
 ```
 
 The solver suite covers its derivations (series, parallel, dividers), the
@@ -304,6 +336,12 @@ un-attributable wires — and the transistor: its three regions, the current
 gain measured in the active one, the cut-off a disconnected base must give,
 and the full truth table of every gate the lab ships, built out of the same
 element list the lab passes in.
+
+The plan suite covers the fit landing every point inside its box (including the
+degenerate boards - no parts, one part, every part in the same place), and the
+lettering: no label on a symbol, no label on another label, none outside the
+sheet, the contested-spot order, and a deliberately crowded grid where some
+labels must honestly report that they did not fit.
 
 The router suite covers the property that makes it a Manhattan router at all
 (every segment axis-aligned, on every board it is given), that leads leave and

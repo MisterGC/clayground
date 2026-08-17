@@ -757,6 +757,42 @@ the ladder as a circuit diagram in the corner. Neither is a picture of the
 other — both are drawn from the same list of parts and wires, which is why
 moving a part moves it in both.*
 
+`Z` gives that diagram the whole window, and `Z` or `Esc` puts it back in its
+corner. This is one canvas at two sizes, not two views: the same symbols, the
+same routed wires, the same model. What changes is how much room there is to
+say things. In the corner, none — at map size the symbols are barely thirty
+pixels apart and a two-line label would cover the neighbour it belongs beside,
+so the small diagram says nothing rather than saying it illegibly. Filling the
+window there is room to **letter every part**: its designator, and what it is
+rated at — `R4 / 4.70 kΩ`, `BAT / 4.50 V`, `IC1 / XOR`. With values on (`V`)
+each label grows a third line with what the part is actually *doing*, and a
+transistor's says which region it is working in.
+
+That split is deliberate. A rating is a fact about the part you chose and is
+true with the power off; a reading is a fact about the circuit and changes when
+you flip a switch. A diagram that ran them together would be teaching that the
+two are the same kind of number.
+
+![the XOR board as a full-window lettered schematic](figures/plan-max.png)
+
+*The XOR preset with the diagram given the window: twenty parts, every one of
+them named and rated. Nothing here is drawn that the postage-stamp version does
+not also draw — the lettering is the whole difference, and the lettering is
+what a small panel has no room for.*
+
+Where the text goes is `labs/kits/circuit/plan.js`, and it is a real problem
+rather than an offset: a label is offered four sides in turn and takes the
+first on which it covers no symbol, no label already placed, and no wire — text
+laid across a conductor reads as a break in it. A label with nowhere clear to
+go is not dropped, because an unnamed part is a worse diagram than a crowded
+one; it gets a small card under it instead, which is what a draughtsman does
+with a note that has to sit over a wire.
+
+The big diagram is also a way of *navigating* the circuit: hovering a symbol
+highlights that part on the board behind, and clicking one selects it, so the
+selection card and the plot follow from the diagram as readily as from the
+board.
+
 Wires meet at **junctions**: click any wire and a solder dot is dropped
 where you clicked, splitting it in two and starting a branch from that point
 — which is what makes a real parallel circuit buildable instead of a star of

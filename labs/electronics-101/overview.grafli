@@ -21,6 +21,7 @@ colours mark pipeline stages
 @ box probes "probes\niBattery · power · vTerm\npart<id> per watched part\nplot · recording · record" 700,530 270x130 %rose &link:./paper.md#run-it
 @ box visuals "visuals\nLED glow ∝︎ current\nbulb glow ∝︎ power\nmeter pills read V / mA" 1070,520 270x140 %highlight &link:./paper.md#measured-results
 @ box routing "wire routing (route.js)\nleads leave on the pad's side,\nthen only right angles\nscored: crossings > corners\n> buried runs > length\nGEOMETRY - never re-solved" 1440,300 290x170 %teal &link:./paper.md#wires-turn-corners
+@ box plan "schematic, two sizes (M / Z)\nONE canvas: corner map, or\nthe whole window lettered\nrating (470 Ω) vs reading (5,1 mA)\nlabels dodge symbols, wires,\neach other (plan.js)" 1440,530 290x180 %rose &link:./paper.md#run-it
 
 # ── scenarios ──
 @ note scen 60,520 """
@@ -63,6 +64,9 @@ what the paper is allowed to quote
 @ arrow perel -> visuals "drives"
 @ arrow parts -> routing "pads + bodies" !dotted
 @ arrow routing -> visuals "board AND schematic, one path"
+@ arrow routing -> plan "the same paths, drawn flat" !dashed
+@ arrow perel -> plan "ratings and readings" !dotted
+@ arrow plan -> parts "click a symbol, select the part" !dashed
 @ arrow perel -> probes "sampled"
 @ arrow scen -> parts "build"
 @ arrow scen -> gates "presets 5-9"

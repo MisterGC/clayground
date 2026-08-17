@@ -40,6 +40,7 @@ var dict = {
         "key.eraser": "eraser",
         "key.values": "show every value",
         "key.plan": "schematic",
+        "key.planmax": "schematic, full window",
         "key.watch": "plot the selected part",
         "key.rotate": "turn the part",
         "key.grid": "grid mode",
@@ -55,6 +56,8 @@ var dict = {
         "btn.view": "View %1°   reset (0)",
 
         "plan.title": "SCHEMATIC",
+        "plan.open": "open it (Z)",
+        "plan.close": "back to the corner (Z or Esc)",
 
         "section.presets": "PRESETS",
         "section.parts": "PARTS",
@@ -171,6 +174,7 @@ var dict = {
         "key.eraser": "Radierer",
         "key.values": "alle Werte zeigen",
         "key.plan": "Schaltplan",
+        "key.planmax": "Schaltplan, ganzes Fenster",
         "key.watch": "Auswahl plotten",
         "key.rotate": "Bauteil drehen",
         "key.grid": "Raster",
@@ -186,6 +190,8 @@ var dict = {
         "btn.view": "Blick %1°   zurück (0)",
 
         "plan.title": "SCHALTPLAN",
+        "plan.open": "groß zeigen (Z)",
+        "plan.close": "zurück in die Ecke (Z oder Esc)",
 
         "section.presets": "VORLAGEN",
         "section.parts": "BAUTEILE",

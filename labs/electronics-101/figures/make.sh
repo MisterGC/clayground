@@ -188,6 +188,14 @@ shot across --size 1100x750 \
     --eval 'showPlan = false' --eval "$bare_js" \
     --eval 'rig.applyState({yaw: 0, pitch: 84, distance: 58, px: -4, py: 2, pz: -6})'
 
+# The diagram given the whole window, which is the figure the lettering claim
+# is about: every part named and rated, and no text on a wire. Rendered at the
+# XOR because a crowded board is the case where placing labels is hard - on
+# four parts anything works.
+shot plan-max --size 1600x1000 \
+    --eval 'applyScenario("logic-xor"); setLogicInputs(1)' \
+    --eval 'planMax = true'
+
 # The XOR as a diagram: thirty-eight parts is where the schematic view stops
 # being a nicety and starts being the only readable form of the circuit.
 shot logic-xor-plan --size 1400x900 --crop schematic --crop-pad 8 \

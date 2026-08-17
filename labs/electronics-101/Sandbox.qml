@@ -7,6 +7,7 @@ import Clayground.Lab
 import "../kits/circuit"
 import "../kits/circuit/circuit.js" as Circuit
 import "../kits/circuit/route.js" as Route
+import "../kits/circuit/plan.js" as Plan
 import "../kits/circuit/symbols.js" as Symbols
 import "../kits/circuit/strings.js" as CircuitStrings
 import "strings.js" as Strings
@@ -20,8 +21,10 @@ import "strings.js" as Strings
 // Keys are declared once, on the LabKeys below, which is also what generates
 // the on-screen list: press ? to see the whole map. The short version:
 // 1..9 presets · T the guided flow (there are two - the offered one follows
-// the preset) · C clear · E eraser · V values · M schematic · Q plot the
-// selected part · # grid mode · R turn · Del · Shift+R record · Esc cancel.
+// the preset) · C clear · E eraser · V values · M schematic · Z the schematic
+// full window (lettered with every part's rating, and its reading too when V
+// is on) · Q plot the selected part · # grid mode · R turn · Del ·
+// Shift+R record · Esc cancel.
 //
 // There is no mode. The LEFT BUTTON IS ALWAYS THE BOARD'S: an empty hand wires
 // pads, flips a switch, selects and drags a part, and whatever is on the belt
@@ -173,6 +176,75 @@ Item {
                                      : LabLang.num(i * 1000, 1) + " mA"
     }
     function fmtV(v) { return LabLang.num(v, 2) + " V" }
+
+    // --- what the diagram letters a part with -------------------------------
+    // A designator, what the part is RATED at, and - only when values are on -
+    // what it is actually doing. Three short lines at most: a label longer than
+    // the symbol it belongs to has stopped being a label.
+    //
+    // The split matters more than it looks. A rating is a fact about the part
+    // you chose (470 Ω, 4.5 V, XOR) and is true with the power off; a reading
+    // is a fact about the circuit (5.1 mA, 2.42 V) and changes when you flip a
+    // switch. A schematic that ran them together would be teaching that the
+    // two are the same kind of number.
+    function planRating(el) {
+        if (el.type === "resistor") return LabLang.qty(el.value, "Ω")
+        if (el.type === "battery") return fmtV(el.value || defaultVolts)
+        if (el.type === "gate") return LabLang.t("gate." + (el.func || "and")).toUpperCase()
+        return ""
+    }
+
+    function planReading(el) {
+        const s = simOf(el.id)
+        if (el.type === "voltmeter") return fmtV(s.v)
+        if (el.type === "ammeter") return fmtA(s.i)
+        // a transistor's own account of itself: which region it is working in
+        // is the thing about it that a voltage and a current do not say
+        if (el.type === "transistor")
+            return LabLang.t("npn." + (s.mode === undefined ? "off" : s.mode))
+                 + " " + fmtA(s.ic === undefined ? s.i : s.ic)
+        return fmtA(Math.abs(s.i)) + "  " + fmtV(Math.abs(s.v))
+    }
+
+    // The box a schematic symbol is drawn in, in pixels, at a given scale.
+    // Measured from the part's own pads rather than picked: the symbol's leads
+    // run to the edges of this box, and the wires run to the pads, so if the
+    // two disagree the diagram shows a circuit that is not joined up. A fixed
+    // pixel size is what disagreement looks like - the wires grow with the
+    // diagram and the symbols do not.
+    //
+    // The floor is the other direction and is harmless: a symbol drawn LARGER
+    // than its pads are apart overshoots them and its leads run under the
+    // wires, which is invisible. Only too small leaves a gap. So the map-sized
+    // diagram, where a true-to-scale symbol would be ten pixels across, keeps
+    // its legible minimum.
+    function planBox(type, s, minW) {
+        const f = Symbols.leadFractions(type)
+        let mx = 0
+        for (let ti = 0; ti < terminalCount(type); ++ti)
+            mx = Math.max(mx, Math.abs(terminalLocal(type, ti).x))
+        const span = mx > 0 ? 2 * mx / cell : 1.4   // pad separation, in cells
+        const trueW = span * s / (2 * f.x)          // the box that joins up exactly
+        const grow = Math.max(1, minW / trueW)      // the legibility floor, as a factor
+        const w = trueW * grow
+        if (f.y <= 0) return { w: w, h: w * Symbols.aspect(type) }
+        // terminal 1 is the off-axis pad on both parts that have one: the
+        // transistor's base and the gate's A input
+        const offY = Math.abs(terminalLocal(type, 1).y) / cell
+        return { w: w, h: offY * s / f.y * grow }
+    }
+
+    function planLines(el) {
+        if (el.type === "junction") return []      // a solder dot needs no name
+        const out = [partLabel(el.id)]
+        const rating = planRating(el)
+        if (rating !== "") out.push(rating)
+        if (showValues) {
+            const reading = planReading(el)
+            if (reading !== "") out.push(reading)
+        }
+        return out
+    }
 
     function simOf(id) {
         const e = sim.perElement[id]
@@ -652,6 +724,9 @@ Item {
             // which palette sections the reader folded away: a fact about the
             // reader and the room, like the theme, so it survives a reload
             sections: Object.assign({}, sectionsOpen),
+            // and whether the schematic is up, and how big - the same kind of
+            // fact: it is about how this reader wants to look at the board
+            plan: { open: showPlan, max: planMax },
             cam: rig.state()
         })
     }
@@ -671,6 +746,10 @@ Item {
         // parts that no longer exist are dropped rather than plotted as zero
         if (s.lang) LabLang.lang = s.lang
         if (s.sections) sectionsOpen = Object.assign({}, s.sections)
+        if (s.plan) {
+            if (s.plan.open !== undefined) showPlan = s.plan.open
+            if (s.plan.max !== undefined) planMax = s.plan.max
+        }
         if (s.watchQuantity) monitor.quantity = s.watchQuantity
         if (s.watch) monitor.watchOnly(s.watch.filter(id => elemAt(id) !== null))
         if (s.cam) {
@@ -1253,6 +1332,16 @@ Item {
     property int selectedId: -1         // -1 = nothing selected
     property bool showValues: false     // V: label every part and every wire
     property bool showPlan: true        // M: the schematic minimap
+    // Z: the same schematic, filling the window. Not a second view - the same
+    // canvas, given room. A diagram the size of a postage stamp can only show
+    // the SHAPE of a circuit; at full size there is room to letter it, which is
+    // what turns it from a picture of the board into something you can read
+    // values off.
+    property bool planMax: false
+    function togglePlanMax() {
+        if (!showPlan) { showPlan = true; planMax = true; return }
+        planMax = !planMax
+    }
 
     // world-space hit test against the data model (no per-model picking)
     function hitAt(wx, wz) {
@@ -1880,8 +1969,12 @@ Item {
     // into the empty middle. On a tall screen at the same scale neither fires.
     readonly property bool compactPalette:
         root.height < LabTheme.px(760)
-    readonly property bool planUnderPalette:
-        plan.y > palette.y + palette.height + LabTheme.px(16)
+    // Where the small schematic sits relative to the palette. Held false while
+    // the panel is maximised: it reads plan.y, the maximised panel moves, and
+    // a rule about dodging the palette has nothing to say about a panel that
+    // is covering it.
+    readonly property bool planUnderPalette: root.planMax ? false
+        : plan.y > palette.y + palette.height + LabTheme.px(16)
 
     // --- palette ----------------------------------------------------------
     readonly property var partCatalog: [
@@ -2378,28 +2471,78 @@ Item {
     // the parts are, lines where the wires are. The 3D board says what you
     // built; this says what it *is*. Both stay in step because they read the
     // same model - and the symbols are the very ones from the palette.
+    //
+    // Two sizes, ONE canvas. In the corner it is a map: enough to see the shape
+    // of the circuit and where you are in it. Filling the window it is a
+    // drawing: the same symbols and the same wires, with room to letter every
+    // part with what it is and - with values on - what it is doing. Nothing is
+    // drawn in the big one that is not drawn in the small one; the difference
+    // is only how much room there is to say it.
+
+    // The backdrop. Not a decoration: while the diagram is up it is the thing
+    // you are looking at, and a board still showing through behind it would
+    // invite a click that goes nowhere.
+    Rectangle {
+        id: planScrim
+        anchors.fill: parent
+        visible: root.showPlan && root.planMax
+        z: 49
+        color: LabTheme.paper
+        opacity: 0.97
+        Behavior on opacity { NumberAnimation { duration: 110 } }
+        // clicking off the diagram puts it back, the way any lightbox behaves
+        // hoverEnabled so the board underneath stops reporting hovers: while
+        // the diagram is up, what the pointer is over is the diagram's business
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: root.planMax = false
+        }
+    }
+
     LabPanel {
         id: plan
         objectName: "schematic"
         visible: root.showPlan
-        // steps out from under the palette when the palette reaches it
-        anchors.left: root.planUnderPalette ? parent.left : palette.right
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: LabTheme.spaceXl
-        anchors.bottomMargin: LabTheme.px(44)
-        width: LabTheme.px(250)
-        height: LabTheme.px(176)
+        // Maximised it is centred and nearly the whole window; otherwise it
+        // keeps its corner and steps out from under the palette when the
+        // palette reaches it.
+        //
+        // Placed by x and y rather than by anchors, and that is not a style
+        // choice. Switching anchors per mode meant clearing one set and setting
+        // another, and a binding that evaluates to undefined does NOT reliably
+        // release an anchor: verticalCenter survived the restore, QML found it
+        // alongside bottom, and sized the panel to satisfy both - so the
+        // restored panel came back 936x812 instead of 250x176. One layout
+        // mechanism, two positions, nothing to leak between them.
+        readonly property real smallW: LabTheme.px(250)
+        readonly property real smallH: LabTheme.px(176)
+        width: root.planMax ? parent.width - LabTheme.px(48) : smallW
+        height: root.planMax ? parent.height - LabTheme.px(48) : smallH
+        x: root.planMax ? (parent.width - width) / 2
+         : (root.planUnderPalette ? 0 : palette.x + palette.width) + LabTheme.spaceXl
+        y: root.planMax ? (parent.height - height) / 2
+         : parent.height - height - LabTheme.px(44)
+        // this panel is declared before the truth table, the monitor and the
+        // hint bar, and HUD stacking here is document order - so covering the
+        // window takes an explicit z
+        z: root.planMax ? 50 : 0
         title: LabLang.t("plan.title")
-        tag: "M"
+        tag: root.planMax ? "Z · Esc" : "M · Z"
 
         Canvas {
             id: planCanvas
             width: plan.body.width
             height: plan.body.height
 
-            // one repaint trigger for everything the diagram depends on
+            // one repaint trigger for everything the diagram depends on. Its
+            // own size is in there too: maximising changes nothing about the
+            // model, so nothing else here would notice.
             readonly property int rev: root.elemRev + root.selectedId * 7919
                                        + (root.showPlan ? 1 : 0)
+                                       + (root.planMax ? 2 : 0)
+                                       + (root.showValues ? 4 : 0)
+                                       + Math.round(width) + Math.round(height) * 3
             readonly property var simRef: root.sim
             onRevChanged: requestPaint()
             onSimRefChanged: requestPaint()
@@ -2409,12 +2552,29 @@ Item {
                 function onShowPlanChanged() { planCanvas.requestPaint() }
             }
 
+            // How big the symbols are drawn, and how much air the diagram
+            // keeps around itself. Both are read by the mouse as well as by
+            // the paint, so they live here rather than inside onPaint.
+            //
+            // Maximised the margin is much wider than it looks it needs to be:
+            // it is not margin, it is where the labels of the outermost parts
+            // go. A diagram fitted edge to edge has nowhere to put its lettering
+            // except on top of itself.
+            readonly property real padPx: root.planMax ? LabTheme.px(58) : 26
+            // The smallest a symbol may be drawn, whatever the scale says. Not
+            // a size - a floor. Everything else about a symbol's box comes off
+            // the part's pads, through root.planBox.
+            readonly property real minSymbol: root.planMax ? LabTheme.px(26) : 22
+            // what a two-terminal part comes out at, which is what the mouse
+            // uses to decide whether a click landed on a symbol
+            readonly property real symbolSize: root.planBox("resistor", fit.s, minSymbol).w
+
             // Fits the parts, not the whole board: an empty pegboard would
             // squeeze the diagram into a corner. Uniform scale, so the shape
             // of the circuit stays the shape you built.
             readonly property var fit: {
                 root.elemRev
-                const pad = 26
+                const pad = padPx
                 if (!root.elements.length)
                     return { s: 1, ox: width / 2, oy: height / 2, cx: 0, cy: 0 }
                 let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity
@@ -2423,12 +2583,59 @@ Item {
                     r0 = Math.min(r0, el.row); r1 = Math.max(r1, el.row)
                 }
                 const spanC = Math.max(1.2, c1 - c0), spanR = Math.max(1.2, r1 - r0)
-                const s = Math.min((width - 2 * pad) / spanC, (height - 2 * pad) / spanR)
+                let s = Math.max(1, Math.min((width - 2 * pad) / spanC,
+                                             (height - 2 * pad) / spanR))
+                // Filling the window is right for a board with thirty parts on
+                // it and wrong for one with four: stretched to the edges, a
+                // single loop becomes a huge empty rectangle with a symbol in
+                // each corner. Past this the diagram stops growing and simply
+                // sits in the middle of the sheet, which is what a small
+                // circuit drawn on a big sheet looks like anyway.
+                if (root.planMax) s = Math.min(s, LabTheme.px(96))
                 return { s: s, ox: width / 2, oy: height / 2,
                          cx: (c0 + c1) / 2, cy: (r0 + r1) / 2 }
             }
             function px(col) { return fit.ox + (col - fit.cx) * fit.s }
             function py(row) { return fit.oy + (row - fit.cy) * fit.s }
+
+            // Which part a point in the diagram is on, or -1. The same question
+            // the board's own hit test answers, asked of the drawing.
+            function partAt(mx, my) {
+                let best = -1, bd = Infinity
+                for (const el of root.elements) {
+                    const d = Math.hypot(px(el.col) - mx, py(el.row) - my)
+                    if (d < bd) { bd = d; best = el.id }
+                }
+                return bd <= symbolSize * 0.75 ? best : -1
+            }
+
+            // Small, the diagram is a button: click it and it opens. Big, it
+            // is a view: click a symbol and that part is selected on the board
+            // behind it, so the diagram is a way of NAVIGATING the circuit and
+            // not only of looking at it.
+            MouseArea {
+                id: planMouse
+                objectName: "planMouse"
+                anchors.fill: parent
+                hoverEnabled: root.planMax
+                cursorShape: Qt.PointingHandCursor
+                // the gesture lives in a named function, so a flow or an agent
+                // can perform the same click the hand performs
+                function clickAt(mx, my) {
+                    if (!root.planMax) { root.planMax = true; return }
+                    const id = planCanvas.partAt(mx, my)
+                    if (id !== -1) root.selectedId = id
+                }
+                onClicked: (m) => clickAt(m.x, m.y)
+                onPositionChanged: (m) => {
+                    if (!root.planMax) return
+                    const id = planCanvas.partAt(m.x, m.y)
+                    root.hoverHit = id === -1 ? null
+                                  : { kind: "element", el: id,
+                                      type: root.elemAt(id).type }
+                }
+                onExited: if (root.planMax) root.hoverHit = null
+            }
 
             onPaint: {
                 const ctx = getContext("2d")
@@ -2446,6 +2653,12 @@ Item {
                     const b = root.terminalPos(w.b[0], w.b[1])
                     return [{ x: a.x, z: a.z }, { x: b.x, z: b.z }]
                 }
+                // Each drawn segment is also kept as a rectangle, because a
+                // label written across a wire is worse than no label: it reads
+                // as a break in the conductor. The lettering below dodges these
+                // the same way it dodges the symbols.
+                const wireRects = []
+                const clear = Math.max(3, LabTheme.px(3))
                 for (const w of root.wires) {
                     const r = traceOf(w)
                     const i = root.sim.wireCurrent ? root.sim.wireCurrent[w.id] : null
@@ -2457,27 +2670,159 @@ Item {
                     ctx.lineWidth = hot ? 2.4 : (amps > 1e-5 ? 1.6 : 1.2)
                     ctx.lineJoin = "round"
                     ctx.beginPath()
+                    let lastX = 0, lastY = 0
                     for (let k = 0; k < r.length; ++k) {
                         const cx = px(r[k].x / root.cell + (root.cols - 1) / 2)
                         const cy = py(r[k].z / root.cell + (root.rows - 1) / 2)
-                        if (k === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy)
+                        if (k === 0) ctx.moveTo(cx, cy)
+                        else {
+                            ctx.lineTo(cx, cy)
+                            wireRects.push({ x: Math.min(lastX, cx) - clear,
+                                             y: Math.min(lastY, cy) - clear,
+                                             w: Math.abs(cx - lastX) + 2 * clear,
+                                             h: Math.abs(cy - lastY) + 2 * clear })
+                        }
+                        lastX = cx; lastY = cy
                     }
                     ctx.stroke()
                 }
 
+                // one box per part, measured from that part's own pads
+                const boxes = {}
+                for (const el of root.elements)
+                    boxes[el.id] = root.planBox(el.type, fit.s, minSymbol)
+
                 for (const el of root.elements) {
                     const sel = el.id === root.selectedId
                     const hov = root.hoverHit && root.hoverHit.el === el.id
-                    const sw = Math.max(22, Math.min(40, fit.s * 1.5))
+                    const box = boxes[el.id]
                     Symbols.draw(ctx, el.type, px(el.col), py(el.row),
-                                 sw, sw * Symbols.aspect(el.type), {
+                                 box.w, box.h, {
                         ink: (sel || hov ? LabTheme.secondary : LabTheme.ink).toString(),
                         lineWidth: sel ? 2.2 : 1.5,
                         rot: el.rot || 0,
-                        on: el.type === "switch" ? el.on : false
+                        on: el.type === "switch" ? el.on : false,
+                        // which gate this is. Without it every package on the
+                        // board was drawn as an AND, so the half adder's two
+                        // chips were the same picture twice.
+                        func: el.func || "and"
                     })
                 }
+
+                // --- the lettering ------------------------------------------
+                // Only where there is room for it. At map size the symbols are
+                // 30 px apart and a two-line label would cover the neighbour it
+                // belongs beside - so the small diagram says nothing rather
+                // than saying it illegibly.
+                if (!Plan.readable(fit.s, 26)) return
+
+                const fs = LabTheme.fontSmall
+                const lh = Math.round(fs * 1.3)
+                ctx.font = fs + "px \"" + LabTheme.monoFont + "\""
+                ctx.textBaseline = "top"
+
+                // Every part contributes its symbol box, so a label dodges the
+                // parts it does not belong to as well as its own - including
+                // the solder dots, which have no label of their own but are
+                // still something you must not write over.
+                const anchors = []
+                for (const el of root.elements) {
+                    const lines = root.planLines(el)
+                    let lw = 0
+                    for (const t of lines) lw = Math.max(lw, ctx.measureText(t).width)
+                    anchors.push({ id: el.id, x: px(el.col), y: py(el.row),
+                                   w: boxes[el.id].w, h: boxes[el.id].h,
+                                   lw: lines.length ? lw + 4 : 0,
+                                   lh: lines.length ? lines.length * lh : 0 })
+                }
+                const spots = Plan.placeLabels(anchors, {
+                    gap: Math.round(fs * 0.5),
+                    box: { w: width, h: height },
+                    avoid: wireRects
+                })
+
+                for (let i = 0; i < spots.length; ++i) {
+                    const spot = spots[i]
+                    const el = root.elemAt(spot.id)
+                    if (!el) continue
+                    const lines = root.planLines(el)
+                    if (!lines.length) continue
+                    const sel = el.id === root.selectedId
+                    const hov = root.hoverHit && root.hoverHit.el === el.id
+                    // A label with nowhere clear to go is not dropped - an
+                    // unnamed part is a worse diagram than a crowded one. It
+                    // gets a card under it instead, which is what a draughtsman
+                    // does with a note that has to sit over a conductor: the
+                    // line is then clearly BEHIND the text rather than broken
+                    // by it.
+                    if (!spot.placed) {
+                        ctx.fillStyle = LabTheme.panel.toString()
+                        ctx.globalAlpha = 0.92
+                        ctx.fillRect(spot.x, spot.y - 1, spot.w, spot.h + 2)
+                        ctx.globalAlpha = 1.0
+                    }
+                    for (let k = 0; k < lines.length; ++k) {
+                        // the designator carries the ink, the numbers under it
+                        // are quieter - so a glance finds the part and a look
+                        // finds its value
+                        ctx.fillStyle = (sel || hov ? LabTheme.secondary
+                                       : k === 0 ? LabTheme.ink
+                                                 : LabTheme.inkSoft).toString()
+                        ctx.fillText(lines[k], spot.x + 2, spot.y + k * lh)
+                    }
+                }
             }
+        }
+    }
+
+    // The handle on the corner of the diagram. A key is not an affordance -
+    // nobody presses Z at a panel they have not been told about - so the thing
+    // that opens the diagram has to be visible on the diagram. Declared beside
+    // the panel rather than inside it: a LabPanel stacks its children in a
+    // column, and this one has to sit ON the drawing.
+    Rectangle {
+        id: planZoom
+        visible: plan.visible
+        z: plan.z + 1
+        anchors.right: plan.right
+        anchors.bottom: plan.bottom
+        anchors.margins: LabTheme.spaceM
+        width: LabTheme.px(22)
+        height: LabTheme.px(22)
+        radius: LabTheme.px(4)
+        color: planZoomHover.containsMouse ? LabTheme.secondary : LabTheme.panel
+        border.color: LabTheme.panelEdge
+        border.width: Math.max(1, LabTheme.uiScale)
+        opacity: 0.95
+        Text {
+            anchors.centerIn: parent
+            // the arrows point the way the panel is about to go
+            text: root.planMax ? "⤡" : "⤢"
+            color: planZoomHover.containsMouse ? LabTheme.inkOn(LabTheme.secondary)
+                                               : LabTheme.inkSoft
+            font.pixelSize: LabTheme.fontLabel
+        }
+        MouseArea {
+            id: planZoomHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.togglePlanMax()
+        }
+    }
+    // and what it will do, in words, for as long as the pointer is on it
+    LabPanel {
+        visible: planZoomHover.containsMouse
+        z: planZoom.z
+        anchors.right: planZoom.left
+        anchors.verticalCenter: planZoom.verticalCenter
+        anchors.rightMargin: LabTheme.spaceM
+        padding: LabTheme.px(6)
+        Text {
+            text: LabLang.t(root.planMax ? "plan.close" : "plan.open")
+            color: LabTheme.inkSoft
+            font.pixelSize: LabTheme.fontSmall
+            font.family: LabTheme.monoFont
         }
     }
 
@@ -3030,7 +3375,10 @@ Item {
             { key: "C", label: "key.clear", action: () => root.clearBoard() },
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
             { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
-            { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
+            { key: "M", label: "key.plan", action: () => {
+                root.showPlan = !root.showPlan
+                if (!root.showPlan) root.planMax = false } },
+            { key: "Z", label: "key.planmax", action: () => root.togglePlanMax() },
             { key: "Q", label: "key.watch", action: () => {
                 if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
             { key: "R", label: "key.rotate", action: () => {
@@ -3052,6 +3400,9 @@ Item {
         // what is left is this lab's own cancel: the flow's Esc has already
         // had its turn inside handle()
         if (ev.key === Qt.Key_Escape) {
+            // the diagram first: while it is covering the window, Esc is what
+            // anyone would expect to close it, not what clears a selection
+            if (planMax) { planMax = false; return }
             wiringFrom = null; eraser = false; selectedId = -1
         }
     }
