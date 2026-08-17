@@ -4,6 +4,7 @@
 # over HTTP - so a lab served by the Web Dojo needs its types named here.
 # Harmless on the desktop, where Qt scans the directory either way.
 Professor 1.0 Professor.qml
+FlowGuide 1.0 FlowGuide.qml
 PointAnim 1.0 PointAnim.qml
 Puff 1.0 Puff.qml
 Hoverboard 1.0 Hoverboard.qml

@@ -54,7 +54,7 @@ Item {
 
     function pointTo(i) {
         cheering = false
-        _showing = -1
+        endLesson()
         picked = ((i % targets.length) + targets.length) % targets.length
         prof.pointAt(targets[picked].at)
     }
@@ -69,35 +69,35 @@ Item {
         else prof.stopGesture()
     }
 
-    // --- going to look at something together ---------------------------------
-    // The whole point of the board, in four lines: announce it, fly there,
-    // point once you have arrived, then say what you brought them for. The
-    // wait matters - a professor who delivers the punchline mid-flight is
-    // talking to nobody.
+    // --- a pretend lesson ----------------------------------------------------
+    // Four steps that go nowhere, for one reason: this is the shape a real
+    // lab's flow has, and driving FlowGuide with it here is what proves the
+    // component before a lab depends on it. The bench is where a professor
+    // is allowed to be wrong.
+    //
+    // Note what the bench does NOT do: it does not fly the professor, point
+    // it, or fill its bubble. It sets a step number. Everything else is
+    // FlowGuide's, which is the whole point.
 
-    property int _showing: -1
+    property bool lesson: false
+    property int lessonStep: -1
 
-    function visit(i) {
-        const n = ((i % targets.length) + targets.length) % targets.length
-        _showing = n
+    function nextLesson() {
         cheering = false
-        picked = -1
-        prof.say("Let me go to " + targets[n].name + " ...")
-        prof.travelTo(targets[n].from)
+        if (!lesson) { lesson = true; lessonStep = 0 }
+        else lessonStep = (lessonStep + 1) % targets.length
+    }
+
+    function endLesson() {
+        lesson = false
+        lessonStep = -1
     }
 
     function goHome() {
-        _showing = -1
+        endLesson()
         cheering = false
         picked = -1
         prof.travelTo(root.lectern)
-    }
-
-    function onLanded() {
-        if (_showing < 0) { prof.hush(); return }
-        const t = targets[_showing]
-        pointTo(_showing)
-        prof.say("Look - this is " + t.name + ", the one I meant.")
     }
 
     // A line long enough to see the bubble wrap and the mouth run, short
@@ -249,8 +249,20 @@ Item {
             hairStyle: root.hairStyles[root.hairAt]
             beardStyle: root.beardStyles[root.beardAt]
             mood: root.moods[root.moodAt]
+        }
 
-            onArrived: root.onLanded()
+        // The lesson, handed over. `subjectOf` is the lab's half - the only
+        // thing here that knows a peg from a shelf.
+        FlowGuide {
+            id: guide
+            professor: prof
+            running: root.lesson
+            step: root.lessonStep
+            text: root.lessonStep < 0 ? ""
+                : "Let me go to " + root.targets[root.lessonStep].name
+                  + " - look, this is the one I meant."
+            subjectOf: (i) => ({ stand: root.targets[i].from,
+                                 look: root.targets[i].at })
         }
 
         // The targets, as plain pegs. Lit ones are what is being pointed at.
@@ -355,12 +367,16 @@ Item {
         }
         Item { width: 1; height: LabTheme.spaceM }
         BenchButton {
-            label: "fly there & show (G)"
-            active: prof.travelling
-            onHit: root.visit(root._showing + 1)
+            label: root.lesson ? "next step   (G)" : "run a lesson (G)"
+            active: root.lesson
+            onHit: root.nextLesson()
         }
         BenchButton {
-            label: "fly back (O)"
+            label: "end the lesson (O)"
+            onHit: root.endLesson()
+        }
+        BenchButton {
+            label: "fly back to the middle"
             onHit: root.goHome()
         }
         Item { width: 1; height: LabTheme.spaceM }
@@ -448,7 +464,7 @@ Item {
             params: Lab.labInfo().params,
             hairAt: root.hairAt, beardAt: root.beardAt, moodAt: root.moodAt,
             viewAt: root.viewAt, picked: root.picked, cheering: root.cheering,
-            showing: root._showing,
+            lesson: root.lesson, lessonStep: root.lessonStep,
             // Where it is standing, so an edit does not teleport it home.
             sx: prof.stand.x, sy: prof.stand.y, sz: prof.stand.z,
             heading: prof.heading,
@@ -467,7 +483,8 @@ Item {
         if (s.cam) rig.applyState(s.cam)
         if (s.sx !== undefined) prof.stand = Qt.vector3d(s.sx, s.sy, s.sz)
         if (s.heading !== undefined) prof.heading = s.heading
-        if (s.showing !== undefined) root._showing = s.showing
+        if (s.lessonStep !== undefined) root.lessonStep = s.lessonStep
+        if (s.lesson !== undefined) root.lesson = s.lesson
         // The pose last, and re-issued rather than restored: it is an
         // animation, and the arm has to be driven into it again.
         if (s.cheering) { root.cheering = true; prof.thumbsUp() }
@@ -486,9 +503,9 @@ Item {
               action: () => root.pointTo(root.picked + 1) },
             { key: "J", label: "point at the previous thing",
               action: () => root.pointTo(root.picked - 1) },
-            { key: "G", label: "fly to the next thing and show it",
-              action: () => root.visit(root._showing + 1) },
-            { key: "O", label: "fly back to the middle", action: () => root.goHome() },
+            { key: "G", label: "run a lesson / next step",
+              action: () => root.nextLesson() },
+            { key: "O", label: "end the lesson", action: () => root.endLesson() },
             { key: "U", label: "thumbs up", action: () => root.toggleThumb() },
             { key: "L", label: "stop gesturing", action: () => root.release() },
             { key: "N", label: "say a line", action: () => root.talk() },

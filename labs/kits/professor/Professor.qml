@@ -306,7 +306,7 @@ Node {
     function vanish() {
         if (!_present) return
         _present = false
-        root.line = ""
+        quiet()
         stopGesture()
         // Mid-flight departures land where they were: leaving the hover height
         // set would put the next arrival's puff in the air.
@@ -350,8 +350,43 @@ Node {
     }
 
     /*!
-        Says \a what. Text only in this prototype: the bubble shows it and the
-        mouth moves, but no audio is requested.
+        Shows \a what in the bubble and moves the mouth, without asking for
+        any audio.
+
+        The verb for narration. \l say() goes through the character's speech
+        engine, which means text-to-speech - fine for a character that is
+        meant to be heard, wrong for a lab whose flow the reader is working
+        through at their own pace and possibly in an open-plan office.
+
+        The mouth runs for about as long as the line takes to read and then
+        goes back to the resting face, so the professor stops talking while
+        the text stays up - which is what a person does.
+    */
+    function tell(what) {
+        root.line = what
+        _talking = (what !== undefined && what !== "")
+        _mouth.interval = Math.max(700, Math.min(7000, 380 + 52 * ("" + what).length))
+        _mouth.restart()
+    }
+
+    /*! Clears the bubble and closes the mouth. */
+    function quiet() {
+        root.line = ""
+        _talking = false
+        _mouth.stop()
+    }
+
+    property bool _talking: false
+
+    Timer {
+        id: _mouth
+        onTriggered: root._talking = false
+    }
+
+    /*!
+        Says \a what out loud. Text AND text-to-speech: the bubble shows it,
+        the mouth is lip-synced to the audio, and the machine talks. Use
+        \l tell() for a lab that should stay silent.
 
         Emotion is deliberately not passed through. The character's talking
         body language drives both upper arms in a loop, which fights a held
@@ -364,10 +399,10 @@ Node {
         _char.say(what)
     }
 
-    /*! Stops mid-sentence and clears the bubble. */
+    /*! Stops mid-sentence and clears the bubble, spoken or written. */
     function hush() {
         _char.stopSpeaking()
-        root.line = ""
+        quiet()
     }
 
     // --- travelling -----------------------------------------------------------
@@ -530,7 +565,11 @@ Node {
 
         // The face is a separate activity from the body, so a professor can
         // stand still and still be pleased to see you.
-        faceActivity: root.mood === "happy" ? Head.Activity.ShowJoy
+        // Talking wins while it lasts - the mouth cannot both hold a smile
+        // and flap - and the face drops back to the mood underneath when the
+        // line is finished.
+        faceActivity: root._talking ? Head.Activity.Talk
+                    : root.mood === "happy" ? Head.Activity.ShowJoy
                     : root.mood === "sad" ? Head.Activity.ShowSadness
                     : root.mood === "cross" ? Head.Activity.ShowAnger
                                             : Head.Activity.Idle
