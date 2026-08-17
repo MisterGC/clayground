@@ -1,0 +1,13 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# A directory import resolves by listing the directory, which is impossible
+# over HTTP - so a lab served by the Web Dojo needs its types named here.
+# Harmless on the desktop, where Qt scans the directory either way.
+Professor 1.0 Professor.qml
+PointAnim 1.0 PointAnim.qml
+Puff 1.0 Puff.qml
+Hoverboard 1.0 Hoverboard.qml
+Hair 1.0 Hair.qml
+Beard 1.0 Beard.qml
+Spectacles 1.0 Spectacles.qml
+DetailedHand 1.0 DetailedHand.qml

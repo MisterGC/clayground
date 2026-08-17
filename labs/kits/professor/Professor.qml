@@ -1,0 +1,646 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+//
+// Professor - someone to be taught by, rather than a strip of text to read.
+//
+// A flow already says the right words. What a text panel cannot do is what a
+// teacher does without thinking: turn to the thing being discussed and put a
+// finger on it. That is the whole reason this exists - the face is not the
+// point, the POINTING is. Everything else here is in service of making the
+// pointing believable enough to be read as deliberate.
+//
+// It is one Node, on purpose. Drop it inside a View3D, give it `view`, and it
+// carries its own arrival, its own gesture and its own speech bubble; a lab
+// should never have to assemble a professor out of parts.
+//
+// What it deliberately does NOT do: it says only what it is given. Everything
+// else in these labs is an answer from a solver, and a character that started
+// volunteering opinions would be the first thing on screen asserting authority
+// it had not earned.
+import QtQuick
+import QtQuick3D
+import Clayground.Canvas3D
+import Clayground.Character3D
+import Clayground.Lab
+
+Node {
+    id: root
+
+    /*! The enclosing View3D. The speech bubble needs it to face the camera. */
+    property var view: null
+
+    /*! What the bubble is showing. Empty hides it. */
+    property string line: ""
+
+    // --- where it is ----------------------------------------------------------
+    // The professor owns its own position, through `stand` rather than through
+    // `position`: travelling has to animate something, and something a lab has
+    // bound is not available to animate. Set `stand` to place one; call
+    // travelTo() to send it somewhere.
+
+    /*! The spot on the ground the professor occupies. */
+    property vector3d stand: Qt.vector3d(0, 0, 0)
+
+    /*! Which way it faces, in degrees. A professor faces +Z at 0. */
+    property real heading: 0
+
+    /*! How fast it travels, in world units per second. */
+    property real travelSpeed: 3.2
+
+    /*! How high it rides while travelling, as a fraction of its own height. */
+    property real hoverRise: 0.16
+
+    /*! Whether it travels on a board at all. False just slides it. */
+    property bool hoverboard: true
+
+    /*! True from the moment it lifts off until it has landed. */
+    readonly property bool travelling: _trip.running
+
+    /*! Emitted on landing, with the spot it landed on. */
+    signal arrived(vector3d at)
+
+    position: Qt.vector3d(root.stand.x, root.stand.y + root._hover, root.stand.z)
+    // Leaning into the direction of travel is the only motion cue there is -
+    // the legs do not move - so it does the work a walk cycle would.
+    eulerRotation: Qt.vector3d(root._lean, root.heading, 0)
+
+    /*!
+        Flies to \a worldPos, landing on it. Ignored while away.
+
+        The gesture is dropped at take-off on purpose: a point is solved once,
+        against the frame the professor stood in when it was asked for, so an
+        arm held through a flight ends up aimed at nothing. Point again after
+        \l arrived - which is also the honest choreography, since a person
+        walks over first and points second.
+    */
+    function travelTo(worldPos) {
+        if (!_present || !worldPos) return
+        _trip.stop()
+        stopGesture()
+        _from = root.stand
+        _to = worldPos
+        const dx = _to.x - _from.x
+        const dz = _to.z - _from.z
+        const far = Math.sqrt(dx * dx + dz * dz)
+        // Turn to face the way it is going, unless it is going nowhere in
+        // particular - a spin on the spot for a 2 cm hop looks like a fault.
+        _headTo = far > root.standHeight * 0.25
+                ? root.heading + _shortWay(Math.atan2(dx, dz) * 180 / Math.PI - root.heading)
+                : root.heading
+        _flightMs = Math.max(320, Math.min(4000, far / Math.max(0.1, root.travelSpeed) * 1000))
+        _trip.restart()
+    }
+
+    /*! Turns on the spot to face \a worldPos, without going anywhere. */
+    function turnTo(worldPos) {
+        if (!worldPos) return
+        const dx = worldPos.x - root.stand.x
+        const dz = worldPos.z - root.stand.z
+        if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return
+        _turn.to = root.heading + _shortWay(Math.atan2(dx, dz) * 180 / Math.PI - root.heading)
+        _turn.restart()
+    }
+
+    /*!
+        Nominal body height, in world units.
+
+        Nominal because the plugin treats it as an input to its proportion
+        tables rather than as a measurement - see \l standHeight for what
+        the professor actually is. A lab that cares where the head ends up
+        should read that one.
+    */
+    property real height3d: 1.48
+
+    /*!
+        How much bigger the head is than the plugin will draw it.
+
+        The plugin's proportions bottom out at four heads to a body, at
+        maturity 0. A cartoon old man is drawn at three or fewer, and that
+        difference is most of what makes a silhouette funny rather than
+        merely short - so the head is scaled past the floor here.
+
+        It scales the head NODE rather than restating the six dimensions the
+        plugin derives from its own parameters. That is the whole reason the
+        beard, the glasses and the hair grow with it: they are parented to
+        that node, so they are inside the same transform.
+    */
+    property real headScale: 1.69
+
+    /*!
+        How tall the professor actually stands.
+
+        Measured off the character rather than off \l height3d, which is
+        NOT it: \c bodyHeight is a nominal figure the plugin feeds into its
+        proportion tables, and the parts it derives sum to about 1.3 times
+        it. Anything positioned from height3d - a camera, a speech bubble -
+        aims at the chest.
+    */
+    readonly property real standHeight:
+        _char.height + (root.headScale - 1) * _char.headHeight
+
+    /*!
+        Eye height above the professor's feet - where a camera that wants to
+        look it in the face should aim.
+    */
+    readonly property real faceY:
+        root.standHeight - _char.headHeight * root.headScale * 0.38
+
+    // --- how old the professor looks -----------------------------------------
+    // Cartoonists draw the old much the way they draw the young: short, with a
+    // head too big for the body and no neck to speak of. What carries the age
+    // is not the proportion, it is the grey, the beard and the glasses sitting
+    // on top of it. So the SHAPE here is deliberately childlike and every
+    // signifier of age is added over it.
+    //
+    // These are the character plugin's own parameters, passed through under its
+    // own names rather than renamed - `maturity` is what the plugin calls the
+    // knob that decides how many head-heights fit in a body, and low is the big
+    // head.
+
+    /*!
+        Heads-tall. Low means a big head and short legs.
+
+        Middling rather than low, which looks like the wrong end of the
+        knob for a cartoon: the big head comes from \l headScale instead,
+        and leaving maturity up keeps the limb proportions of an adult
+        under it. A low value here gave a toddler wearing a beard.
+    */
+    property real maturity: 0.64
+
+    /*! Roundness. Also shortens the neck, which is most of the effect. */
+    property real mass: 0.32
+
+    /*! How much hair. Grey, but a professor still has plenty of it. */
+    property real hairVolume: 1.0
+
+    /*! Bigger with age, and worth exaggerating under a pair of glasses. */
+    property real noseSize: 1.73
+
+    /*!
+        Which beard: "full", "walrus", "goatee", "chin" or "none".
+
+        The default is the walrus, because it is the one that leaves the
+        chin bare - and a big moustache over a visible, smiling mouth is a
+        friendlier face than a grey mass with a slot in it.
+    */
+    property string beardStyle: "walrus"
+
+    /*! 0 is clean-shaven, 1 is a full professor. */
+    property real beardLength: 0.62
+
+    /*!
+        Which hair: "wild", "swept", "tidy", "ring" or "none". "wild" is the
+        crown of spikes that is most of what makes a cartoon professor read
+        as a professor rather than as a grandfather.
+    */
+    property string hairStyle: "wild"
+
+    /*!
+        The resting face: "happy", "neutral", "sad" or "cross".
+
+        Happy by default, and deliberately so. This character exists to
+        offer to teach you something; a neutral face on a figure that
+        appears beside your work reads as supervision.
+
+        Speech with an emotion temporarily takes the face over and hands
+        it back afterwards - but it does that by ASSIGNING faceActivity,
+        which breaks this binding for good. Professor.say() therefore
+        never passes an emotion.
+    */
+    property string mood: "happy"
+
+    /*! Whether the professor wears glasses. */
+    property bool spectacles: true
+
+    /*!
+        Eye size, and with it how much forehead is left.
+
+        This looks like a cosmetic knob and is not. The plugin's cranium is
+        about 1.4 times wider than it is tall, and it sizes the eyes off the
+        WIDTH - so eyes much above 1.0 put the lenses within a hair of the
+        crown, Hair refuses to grow anything below them, and every cut comes
+        out as a bald patch with a fringe. 1.15 read better on its own and
+        cost the professor its hair; this is the trade, written down.
+    */
+    property real eyeSize: 1.0
+
+    /*!
+        Whether the hands have fingers. Opt-in, because it is ten more boxes
+        per hand and a lab whose professor is only ever seen across a board
+        does not need them.
+
+        They are not decoration. A block hand at the end of a raised arm ends
+        in an ambiguous stub; an extended index finger is the clearest signal
+        there is that a gesture means "that thing there". Together with the
+        forced elbow bend in PointAnim, that is what keeps a raised point from
+        reading as a salute - see the note in PointAnim's _apply().
+    */
+    property bool detailedHands: true
+
+    /*!
+        What the hands do when they are NOT pointing: "relax", "open" or
+        "thumbsUp". The pointing hand always overrides this with "point".
+    */
+    property string handPose: "relax"
+
+    /*!
+        How much bigger the hands are than the plugin draws them.
+
+        The gestures are the reason this character exists and the hands are
+        where they happen, so the hands are drawn at the size a cartoonist
+        would draw them rather than the size the proportion tables give.
+
+        Deliberately a scale on the whole hand rather than a longer finger:
+        stretching the one part that has to be legible is what produced a
+        spike where an index finger should be. The parts keep their
+        relationship to each other and the whole thing simply gets bigger.
+    */
+    property real handScale: 1.3
+
+    property color hairTone: LabTheme.muted        // warm grey, not white
+    property color skinTone: LabTheme.clay
+    property color coatTone: LabTheme.forest       // tweed, near enough
+    property color trouserTone: LabTheme.inkFaint  // grey flannel
+
+    /*! True between the end of the arrival puff and the start of the exit. */
+    readonly property bool present: _present
+
+    /*! True once a gesture has arrived - the cue to start talking. */
+    readonly property bool settled: _point.settled
+
+    /*!
+        What the hands are doing: "point", "thumbsUp", or "" for nothing.
+
+        Set the moment a gesture is asked for, while the arm is still on its
+        way there - which is what makes it the thing to assert on. The joint
+        angles ease in over settleMs, so a test that reads those immediately
+        after the call is reading the pose the professor has just left.
+    */
+    readonly property string gesture: _point.activePose
+
+    /*! Which hand is doing it: "left", "right" or "". */
+    readonly property string gestureHand: _point.activeHand
+
+    /*! Where the bubble is pinned, so a lab can put something else there. */
+    readonly property vector3d headAnchor: _char.scenePosition.plus(
+        Qt.vector3d(0, root.standHeight * 0.95 * root._grow, 0))
+
+    /*! The character, for a lab that wants to reach past this component. */
+    readonly property var character: _char
+
+    /*!
+        Arrives. The puff fires first and the body swells out of it a beat
+        later, so the cloud reads as the cause and not as decoration around
+        someone who was already standing there.
+    */
+    function appear() {
+        if (_present) return
+        _present = true
+        _puff.burst()
+        _in.restart()
+    }
+
+    /*!
+        Leaves. The body collapses BEFORE the cloud, for the same reason in
+        reverse: the puff has to be what is left behind.
+    */
+    function vanish() {
+        if (!_present) return
+        _present = false
+        root.line = ""
+        stopGesture()
+        // Mid-flight departures land where they were: leaving the hover height
+        // set would put the next arrival's puff in the air.
+        _trip.stop()
+        _hover = 0
+        _lean = 0
+        _out.restart()
+    }
+
+    /*! Turns to \a worldPos and points at it. Ignored while away. */
+    function pointAt(worldPos) {
+        if (!_present) return
+        _point.gesture = "point"
+        _point.hand = "auto"
+        _point.target = worldPos
+        _point.active = true
+    }
+
+    /*!
+        Gives a thumbs up with \a which hand ("right" by default, "left" if
+        asked). Ignored while away.
+
+        Approval, not decoration: it is the answer to "did I get that right",
+        which is the question a lab flow asks most often and the one a line
+        of text answers least convincingly.
+    */
+    function thumbsUp(which) {
+        if (!_present) return
+        _point.gesture = "thumbsUp"
+        _point.hand = which === undefined ? "right" : which
+        _point.target = null
+        _point.active = true
+    }
+
+    /*! Drops the arm and lets the character stand normally again. */
+    function stopGesture() {
+        _point.active = false
+        _point.target = null
+        _point.gesture = "point"
+        _point.hand = "auto"
+    }
+
+    /*!
+        Says \a what. Text only in this prototype: the bubble shows it and the
+        mouth moves, but no audio is requested.
+
+        Emotion is deliberately not passed through. The character's talking
+        body language drives both upper arms in a loop, which fights a held
+        point and wins - measured at 41 degrees of aim error. Suppressing the
+        arm-waving keeps the gesture; the face still carries the tone.
+    */
+    function say(what) {
+        root.line = what
+        _char.speechBodyLanguage = false
+        _char.say(what)
+    }
+
+    /*! Stops mid-sentence and clears the bubble. */
+    function hush() {
+        _char.stopSpeaking()
+        root.line = ""
+    }
+
+    // --- travelling -----------------------------------------------------------
+
+    property real _hover: 0
+    property real _lean: 0
+    property vector3d _from: Qt.vector3d(0, 0, 0)
+    property vector3d _to: Qt.vector3d(0, 0, 0)
+    property real _headTo: 0
+    property int _flightMs: 600
+
+    // Turning 350 degrees to end up where turning -10 would have got you is
+    // the single most obvious way for a rig to look like a rig.
+    function _shortWay(delta) {
+        return ((delta % 360) + 540) % 360 - 180
+    }
+
+    SequentialAnimation {
+        id: _trip
+
+        // Power up and turn before moving. A board that starts sliding before
+        // it has left the ground reads as a bug in the floor.
+        ParallelAnimation {
+            NumberAnimation {
+                target: root; property: "_hover"
+                to: root.standHeight * root.hoverRise
+                duration: 260; easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root; property: "heading"
+                to: root._headTo; duration: 300; easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: root; property: "_lean"
+                to: 9; duration: 260; easing.type: Easing.OutCubic
+            }
+        }
+
+        Vector3dAnimation {
+            target: root; property: "stand"
+            to: root._to
+            duration: root._flightMs
+            // Eased at both ends, so the lean it is already holding reads as
+            // the acceleration rather than as a fixed tilt.
+            easing.type: Easing.InOutQuad
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: root; property: "_hover"
+                to: 0; duration: 300; easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root; property: "_lean"
+                to: 0; duration: 300; easing.type: Easing.OutCubic
+            }
+        }
+
+        ScriptAction { script: root.arrived(root.stand) }
+    }
+
+    NumberAnimation {
+        id: _turn
+        target: root; property: "heading"
+        duration: 320; easing.type: Easing.InOutQuad
+    }
+
+    Hoverboard {
+        visible: root.hoverboard
+        length: root.standHeight * 0.46
+        deckTone: LabTheme.ink
+        glowTone: LabTheme.secondary
+        // Tied to the height rather than to a state flag: the board is exactly
+        // as present as the professor is off the ground, which means it can
+        // never be left switched on under someone standing on the floor.
+        energy: root.standHeight > 0
+                ? Math.min(1, root._hover / (root.standHeight * root.hoverRise))
+                : 0
+        scale: Qt.vector3d(root._grow, root._grow, root._grow)
+    }
+
+    // --- arrival ------------------------------------------------------------
+
+    property bool _present: false
+    // 0 while away, 1 while standing. Scaled, not hidden: a professor that
+    // blinked into existence at full size would need no puff at all.
+    property real _grow: 0
+
+    SequentialAnimation {
+        id: _in
+        // the cloud gets a moment on its own before anything is inside it
+        PauseAnimation { duration: 90 }
+        NumberAnimation {
+            target: root; property: "_grow"; to: 1.0
+            duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.7
+        }
+    }
+
+    SequentialAnimation {
+        id: _out
+        NumberAnimation {
+            target: root; property: "_grow"; to: 0.0
+            duration: 200; easing.type: Easing.InBack; easing.overshoot: 1.4
+        }
+        ScriptAction { script: _puff.burst() }
+    }
+
+    Puff {
+        id: _puff
+        // Not a smoke colour. The ground these labs stand on is pale paper,
+        // and a grey cloud on it is a cloud nobody sees; the accent reads as
+        // "something happened here" and belongs to the palette.
+        tone: LabTheme.secondary
+        radius: root.height3d * 0.62
+    }
+
+    // --- the character ------------------------------------------------------
+
+    // ParametricCharacter, not Character: bodyHeight is what lets a lab say
+    // how tall its professor is in ITS units, and the rest of the dimensions
+    // follow from it. Everything Character offers - speech, the arms the
+    // gesture drives, the activity - is inherited.
+    ParametricCharacter {
+        id: _char
+        name: "professor"
+        // The squash is the difference between a model being scaled and a
+        // body arriving: it lands wide and low, then stands up.
+        scale: {
+            const g = root._grow
+            const squash = 1 + (1 - Math.min(1, g)) * 0.35
+            return Qt.vector3d(g * squash, g / squash, g * squash)
+        }
+        visible: root._grow > 0.001
+
+        bodyHeight: root.height3d
+        realism: 0.0                   // the labs are drawn, not photographed
+        maturity: root.maturity
+        mass: root.mass
+        muscle: 0.3                    // an academic, not an athlete
+        femininity: 0.2
+        // Nought, and the kit's Hair draws instead. The head's own hair is
+        // four slabs around the skull with one knob to inflate them, and it
+        // would draw straight through anything put on top of it.
+        hair: 0
+        nose: root.noseSize
+        eyes: root.eyeSize
+        chinForm: 0.35                 // a rounder jaw, which a beard sits on
+
+        skinColor: root.skinTone
+        hairColor: root.hairTone
+        torsoColor: root.coatTone
+        armColor: root.coatTone
+        hipColor: root.trouserTone
+        legColor: root.trouserTone
+
+        // Idle, and left there. Walking, running, using and fighting all own
+        // the arms, and switching activity mid-gesture restarts the idle
+        // animation, which zeroes the pose.
+        activity: Character.Activity.Idle
+
+        // The face is a separate activity from the body, so a professor can
+        // stand still and still be pleased to see you.
+        faceActivity: root.mood === "happy" ? Head.Activity.ShowJoy
+                    : root.mood === "sad" ? Head.Activity.ShowSadness
+                    : root.mood === "cross" ? Head.Activity.ShowAnger
+                                            : Head.Activity.Idle
+    }
+
+    // The oversized head. A Binding rather than a property assignment because
+    // the head belongs to the character, not to this file - and because the
+    // node's origin sits at the top of the neck, so scaling it grows the head
+    // upward and outward instead of sinking it into the shoulders.
+    Binding {
+        target: _char.head
+        property: "scale"
+        value: Qt.vector3d(root.headScale, root.headScale, root.headScale)
+    }
+
+    // The oversized hands, on the same principle as the head and by the same
+    // means. The wrist joint is a bare Node at the end of the forearm, so
+    // scaling it grows the hand out of the cuff rather than moving it.
+    Binding {
+        target: _char.rightArm.hand
+        property: "scale"
+        value: Qt.vector3d(root.handScale, root.handScale, root.handScale)
+    }
+
+    Binding {
+        target: _char.leftArm.hand
+        property: "scale"
+        value: Qt.vector3d(root.handScale, root.handScale, root.handScale)
+    }
+
+    // --- the signifiers of age ------------------------------------------------
+    // Both parent themselves to the character's head, so they ride it when the
+    // head turns during a gesture and they shrink with the body when it arrives
+    // in its puff. Declared here rather than inside the character because the
+    // plugin has no slot for either - see the kit README.
+
+    Hair {
+        character: _char
+        tone: root.hairTone
+        style: root.hairStyle
+        volume: root.hairVolume
+    }
+
+    Beard {
+        character: _char
+        tone: root.hairTone
+        style: root.beardStyle
+        length: root.beardLength
+        fullness: 0.72
+        moustache: true
+    }
+
+    Spectacles {
+        character: _char
+        visible: root.spectacles
+        frameTone: LabTheme.ink
+        // barely there: a lens you can see through is a lens that does not
+        // hide the eyes, and the eyes are where the character reads from
+        lensTone: Qt.rgba(LabTheme.sheet.r, LabTheme.sheet.g, LabTheme.sheet.b, 0.22)
+        slip: 0.2
+    }
+
+    // --- the hands ------------------------------------------------------------
+    // One per arm; the mirrored flag puts the left hand's thumb on the correct
+    // side. Whichever arm the gesture picked gets the pointing finger, and the
+    // other keeps whatever the lab asked for.
+
+    DetailedHand {
+        visible: root.detailedHands
+        arm: root.detailedHands ? _char.rightArm : null
+        pose: _point.activeHand === "right" ? _point.activePose : root.handPose
+    }
+
+    DetailedHand {
+        visible: root.detailedHands
+        arm: root.detailedHands ? _char.leftArm : null
+        mirrored: true
+        pose: _point.activeHand === "left" ? _point.activePose : root.handPose
+    }
+
+    // --- the gesture --------------------------------------------------------
+
+    PointAnim {
+        id: _point
+        character: _char
+        // no point aiming a body that is still swelling out of a cloud
+        active: false
+        settleMs: 420
+    }
+
+    // --- what it is saying --------------------------------------------------
+    // In the scene rather than in the chrome: a bubble over the professor's
+    // head belongs to the professor, whereas a panel at the bottom of the
+    // window belongs to the application. That difference is the whole point of
+    // having a character at all.
+    Label3D {
+        // A SIBLING of the professor, not a child of it. Label3D places itself
+        // at anchorNode.scenePosition + labelOffset - a scene position - and
+        // assigning a scene position to a child of the thing it is anchored to
+        // applies that thing's transform twice: the bubble left the professor
+        // the moment it started travelling and hung over the spot it had come
+        // from. It also has no business inheriting the lean.
+        parent: root.parent
+        view: root.view
+        anchorNode: root
+        // clear of the head, not level with it: at head height the skull
+        // occludes the middle of its own speech bubble
+        labelOffset: Qt.vector3d(0, root.standHeight * 1.12 * root._grow, 0)
+        text: root.line
+        visible: root.line !== "" && root._grow > 0.9
+        sizeMode: Label3D.Screen
+    }
+}

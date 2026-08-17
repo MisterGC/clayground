@@ -185,6 +185,29 @@ BodyPartsGroup {
     property real mouthCornerLift: 0
 
     /*!
+        \qmlproperty real Head::eyeSquint
+        \brief How far the lower lid is raised, 0 open to 1 nearly shut.
+
+        The eye closes from BELOW and its top edge stays put, which is what
+        separates a smile from a stare: a face whose only happy signal is at
+        the mouth reads as startled, because nobody smiles with their eyes
+        wide open. Under a big moustache it may be the only signal left.
+
+        \sa eyeHood
+    */
+    property real eyeSquint: 0
+
+    /*!
+        \qmlproperty real Head::eyeHood
+        \brief How far the upper lid is lowered, 0 open to 1 nearly shut.
+
+        Closes the eye from ABOVE, leaving the lower edge where it was. The
+        other half of \l eyeSquint and not interchangeable with it: a lid
+        coming down is a glare or a droop, a lid coming up is a smile.
+    */
+    property real eyeHood: 0
+
+    /*!
         \qmlproperty real Head::jawDrop
         \brief How far the chin stretches down when \l mouthOpen is 1, as a
                fraction of the lower head height.
@@ -329,7 +352,7 @@ BodyPartsGroup {
             height: _upperHead.height * .2 * _head.noseSize
             depth: _upperHead.depth * .2 * _head.noseSize
             basePos: Qt.vector3d(0,
-                                 _leftEye.basePos.y - height * 1.1,
+                                 _upperHead._eyeLine - height * 1.1,
                                  _upperHead.depth * .5)
         }
 
@@ -340,7 +363,7 @@ BodyPartsGroup {
 
         Ear {
             id: _leftEar
-            basePos: Qt.vector3d(-0.55*_upperHead.width, _leftEye.basePos.y, 0)
+            basePos: Qt.vector3d(-0.55*_upperHead.width, _upperHead._eyeLine, 0)
         }
 
         Ear {
@@ -350,10 +373,25 @@ BodyPartsGroup {
                                   _leftEar.basePos.z)
         }
 
+        // The eye is a cube whose height the lids eat into. Closing it by
+        // SHRINKING the white, rather than by putting a skin-coloured plate
+        // in front of it, is what makes it survive being looked at from the
+        // side: a plate only covers the face-on view, and these heads are
+        // seen from three-quarters most of the time.
         component Eye: BodyPart {
             id: _eye
             color: "white"
             width: _upperHead.width * .22 * _head.eyeSize
+
+            // What each lid takes. Half the eye is as far as either goes -
+            // past that the iris has nowhere to sit and the face reads as
+            // asleep rather than as pleased.
+            readonly property real cutBelow: _eye.width * 0.5 * _head.eyeSquint
+            readonly property real cutAbove: _eye.width * 0.5 * _head.eyeHood
+            // Never fully shut: a zero-height box still draws its outline.
+            height: Math.max(_eye.width * 0.12,
+                             _eye.width - _eye.cutBelow - _eye.cutAbove)
+
             property BodyPart brow: _brow
             property alias browEuler: _brow.eulerRotation
             BodyPart {
@@ -365,15 +403,35 @@ BodyPartsGroup {
                 id: _brow
                 color: _head.hairColor
                 width: 1.2 * _eye.width
-                height: .33 * _eye.height
+                height: .33 * _eye.width
                 depth: _eye.depth
-                basePos: Qt.vector3d(0, 0.8*_eye.height, 0.1)
+                // Anchored to the eye's OPEN size, not to its current one.
+                // Hung off the height it would ride the lids down, and an
+                // eyebrow that follows the lid is an eyebrow inside the eye.
+                //
+                // The z was an absolute 0.1 among otherwise proportional
+                // numbers. On a head the size of a cartoon professor's that
+                // is most of an eye's depth, so the brows floated clear of
+                // the face and in front of anything worn over the eyes -
+                // visible as two bars hanging off the front of the skull.
+                basePos: Qt.vector3d(0, 0.8 * _eye.width, _eye.depth * 0.18)
             }
         }
 
+        // Where the eyes sit when they are open, and the line the nose and
+        // the ears are measured from. They used to be measured from the eye's
+        // own basePos, which now rises as the lower lid does - so a smile
+        // lifted the nose and the ears with it.
+        readonly property real _eyeLine: .3 * _upperHead.height
+
         Eye {
             id: _leftEye
-            basePos: Qt.vector3d(-_leftEye.width, .3 * _upperHead.height, _upperHead.depth * .5)
+            // Only the bottom edge moves: cutBelow closes the eye from below
+            // by lifting its floor, cutAbove by lowering its ceiling, which
+            // needs nothing here because the box grows upward from basePos.
+            basePos: Qt.vector3d(-_leftEye.width,
+                                 _upperHead._eyeLine + _leftEye.cutBelow,
+                                 _upperHead.depth * .5)
         }
 
         Eye {
@@ -458,32 +516,59 @@ BodyPartsGroup {
             }
 
             // Mouth corners: lifted for smiles, dropped for frowns.
-            component MouthCorner: BodyPart {
-                color: "black"
-                width: _mouth.lineH
-                showEdges: false
-                castsShadows: false
+            //
+            // Hinged at the end of the mouth line and turned, rather than a
+            // box moved up and down beside it. As a free cube the corner rose
+            // clear of the lip it belonged to: at full smile it sat 0.25 base
+            // widths up while being only 0.3 tall, so two thirds of its own
+            // height of bare skin showed underneath. A smiling character wore
+            // two dots floating past the ends of a straight mouth and read as
+            // startled rather than pleased. A stroke that starts AT the mouth
+            // and turns keeps the shape continuous, which is the whole reason
+            // a viewer reads it as one expression.
+            component MouthCorner: Node {
+                id: _corner
+                // -1 is the character's left, +1 its right.
+                required property real side
+
+                position: Qt.vector3d(_corner.side * 0.5 * _mouth.w, 0, 0)
+                // Lift is an angle now. Both signs work out: the far end of
+                // the stroke rises for a smile and drops for a frown on
+                // either side of the face.
+                eulerRotation.z: _corner.side * _head.mouthCornerLift * 40
+
+                BodyPart {
+                    id: _stroke
+                    color: "black"
+                    width: _mouth.w * 0.42
+                    height: _mouth.lineH * 0.7
+                    // The lip line's depth, so the two are the same surface
+                    // and no corner floats in front of the face.
+                    depth: 0.11
+                    showEdges: false
+                    castsShadows: false
+                    // Grows outward from the hinge and straddles the mouth
+                    // line, so its inner end always overlaps the lip.
+                    basePos: Qt.vector3d(_corner.side * _stroke.width * 0.5,
+                                         -0.5 * _stroke.height, 0)
+                }
             }
-            MouthCorner {
-                id: _mouthLeft
-                basePos: Qt.vector3d(-0.5 * (_mouth.w + width),
-                                     -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
-                                     0)
-            }
-            MouthCorner {
-                id: _mouthRight
-                basePos: Qt.vector3d(0.5 * (_mouth.w + width),
-                                     -0.5 * width + _head.mouthCornerLift * 0.5 * _mouth.baseW,
-                                     0)
-            }
+            MouthCorner { side: -1 }
+            MouthCorner { side: 1 }
         }
     }
 
     // ACTIVITY ANIMATIONS
     //
-    // Emotions animate the mouth parameters and eyebrows. While a
-    // speechSource is active it overrides open/wide/round (see the
-    // property bindings above); corner lift stays with the emotions.
+    // Emotions animate the mouth parameters, the eyelids and the eyebrows.
+    // While a speechSource is active it overrides open/wide/round (see the
+    // property bindings above); corner lift and the lids stay with the
+    // emotions, so a character can smile while it talks.
+    //
+    // Which lid moves is the whole of the difference between the emotions at
+    // the eyes: up from below is pleasure, down from above is a glare, both
+    // a little is tired or sad. Getting that backwards produces a face that
+    // is unmistakably wrong and impossible to name.
 
     component MouthParamAnim: NumberAnimation {
         target: _head
@@ -498,6 +583,10 @@ BodyPartsGroup {
         MouthParamAnim { property: "_animMouthOpen"; to: 0 }
         MouthParamAnim { property: "_animMouthWide"; to: 0 }
         MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        // Half-mast, mostly from above: sadness is a face with no energy in
+        // it, and the small squint keeps it from reading as merely sleepy.
+        MouthParamAnim { property: "eyeHood"; to: 0.45 }
+        MouthParamAnim { property: "eyeSquint"; to: 0.12 }
         RaiseEyeBrowns {}
     }
 
@@ -508,6 +597,11 @@ BodyPartsGroup {
         MouthParamAnim { property: "_animMouthOpen"; to: 0.1 }
         MouthParamAnim { property: "_animMouthWide"; to: 0.4 }
         MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        // The cheek pushing the lower lid up. This is the one that carries a
+        // smile when the mouth is hidden - behind a moustache, at a distance,
+        // or turned away.
+        MouthParamAnim { property: "eyeSquint"; to: 0.55 }
+        MouthParamAnim { property: "eyeHood"; to: 0 }
         RaiseEyeBrowns {}
     }
 
@@ -518,6 +612,11 @@ BodyPartsGroup {
         MouthParamAnim { property: "_animMouthOpen"; to: 0.15 }
         MouthParamAnim { property: "_animMouthWide"; to: 0.3 }
         MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        // Narrowed from above, under the brows that are already coming down
+        // to meet it. Nothing from below: an angry face is not a squeezed
+        // one, it is a covered one.
+        MouthParamAnim { property: "eyeHood"; to: 0.4 }
+        MouthParamAnim { property: "eyeSquint"; to: 0 }
         LowerEyeBrowns {}
     }
 
@@ -542,6 +641,8 @@ BodyPartsGroup {
         MouthParamAnim { property: "_animMouthOpen"; to: 0 }
         MouthParamAnim { property: "_animMouthWide"; to: 0 }
         MouthParamAnim { property: "_animMouthRound"; to: 0 }
+        MouthParamAnim { property: "eyeSquint"; to: 0 }
+        MouthParamAnim { property: "eyeHood"; to: 0 }
         NeutralEyeBrowns {}
     }
 
