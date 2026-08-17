@@ -509,6 +509,8 @@ Item {
             { key: "U", label: "thumbs up", action: () => root.toggleThumb() },
             { key: "L", label: "stop gesturing", action: () => root.release() },
             { key: "N", label: "say a line", action: () => root.talk() },
+            { key: "T", label: "talk to the viewer",
+              action: () => { prof.faceViewer(); prof.gesticulate() } },
             { key: "C", label: "hush", action: () => prof.hush() },
             { key: "I", label: "next inspection view", action: () => root.nextView() },
             { key: "Y", label: "next hair style", action: () => root.cycleHair() },

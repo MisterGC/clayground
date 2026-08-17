@@ -47,6 +47,8 @@ Professor {
 prof.appear()                 // arrives in a puff
 prof.travelTo(spot)           // flies there on the board, lands, emits arrived()
 prof.pointAt(thing)           // turns and points, with the elbow bent
+prof.faceViewer()             // turns to the camera - says it to the reader
+prof.gesticulate()            // talks with the hands, until told otherwise
 prof.tell("Two in series.")   // bubble + mouth, NO audio
 prof.thumbsUp()               // approval
 prof.vanish()                 // leaves the puff behind
@@ -74,6 +76,18 @@ FlowGuide {
 `subjectOf` is the whole of the kit/lab split: only the lab can know where
 step four's subject is. Either field may be omitted (`stand` absent means
 "say it from where you are"), and `null` means the step wants neither.
+
+**The beat of a step is point, then address.** The professor arrives, points
+at the subject and holds it for as long as the step's first sentence takes to
+read — then lets go, turns to the camera and talks the rest of it out with its
+hands. Pointing is deixis: it means "this one", it has said that in a second
+or two, and a finger left on a part for a whole paragraph turns the teacher
+into a signpost. What comes after the deixis is explanation, and people
+deliver explanation to a face.
+
+`addressViewer: false` keeps the finger on the part for the whole step, for a
+lab whose steps are one short label each. `pointHoldMs` overrides the
+first-sentence estimate with a fixed hold.
 
 ## Traps
 
@@ -109,11 +123,33 @@ wider than tall and sizes the eyes off the *width*, so `eyeSize` much above
 1.0 puts the lens tops within a hair of the crown and `Hair` — which refuses
 to grow anything below that line — comes out bald in every style.
 
+**`Label3D`'s default corner radius is `-1`, which means "half the height".**
+A lozenge, and right for the one-line callouts it was built for. The speech
+bubble wraps, the text inside it is a rectangle, and on a five-line bubble
+those caps have a 75-pixel radius — so the first and last lines run off the
+ends of their own bubble. The kit sets `labelStyle.radius` explicitly. Any
+multi-line `Label3D` has to.
+
+**Only one thing may own the top centre of the window.** The bubble hangs over
+the professor's head and is sized in *pixels*, so it does not shrink when the
+shot pulls back: frame to the top of the head and the bubble goes off the edge
+into the chrome. A lab that keeps the professor in shot frames to about twice
+the figure height, and hides whatever else lives in that strip while
+`prof.present` — the same call the hint bar makes when the Narrator takes the
+bottom one.
+
 **`OrbitCamera3D.clipNear` defaults to 10**, which is fine for a lab looking
 at a board from 80 units and slices the ground away when you stand 3 units
 from a character. The rig does not expose it: set `rig.camera.clipNear`.
 
 ## What this kit added that the character plugin lacks
+
+Talking with the hands is the newest of them. `TalkGestureAnim` exists in the
+plugin and does the job, but it only runs while the speech engine is actually
+speaking — and these labs are deliberately silent, so it can never fire. The
+kit's version is a third branch in `PointAnim` rather than a component of its
+own, for the same reason the other two are: three animations reaching for one
+elbow do not take turns.
 
 Beard, eyewear, an articulated hand and a look-at were all built here rather
 than in `plugins/clay_character3d`, because that plugin is shared and its

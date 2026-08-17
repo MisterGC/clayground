@@ -297,14 +297,15 @@ Node {
     readonly property bool settled: _point.settled
 
     /*!
-        What the hands are doing: "point", "thumbsUp", or "" for nothing.
+        What the hands are doing: "point", "thumbsUp", "talk", or "" for
+        nothing.
 
         Set the moment a gesture is asked for, while the arm is still on its
         way there - which is what makes it the thing to assert on. The joint
         angles ease in over settleMs, so a test that reads those immediately
         after the call is reading the pose the professor has just left.
     */
-    readonly property string gesture: _point.activePose
+    readonly property string gesture: _point.activeGesture
 
     /*! Which hand is doing it: "left", "right" or "". */
     readonly property string gestureHand: _point.activeHand
@@ -368,6 +369,38 @@ Node {
         _point.hand = which === undefined ? "right" : which
         _point.target = null
         _point.active = true
+    }
+
+    /*!
+        Talks with the hands: a loose two-beat gesticulation that runs until
+        something else is asked for. Ignored while away.
+
+        The other half of pointing. A finger held on a part for the length of
+        a paragraph turns the teacher into a signpost; the point has said
+        "this one" within a second or two, and everything after that is
+        explanation, which people deliver facing whoever they are explaining
+        it to. Pair it with \l faceViewer().
+
+        It replaces any point or thumbs-up: one driver owns these joints.
+    */
+    function gesticulate() {
+        if (!_present) return
+        _point.gesture = "talk"
+        _point.hand = "auto"
+        _point.target = null
+        _point.active = true
+    }
+
+    /*!
+        Turns to face the camera, so the next thing said is said to the
+        reader rather than to the board.
+
+        The whole body turns, because this character has no separate neck
+        aim - see \l turnTo(). Needs \l view.
+    */
+    function faceViewer() {
+        if (!root.view || !root.view.camera) return
+        turnTo(root.view.camera.scenePosition)
     }
 
     /*! Drops the arm and lets the character stand normally again. */
@@ -680,14 +713,14 @@ Node {
     DetailedHand {
         visible: root.detailedHands
         arm: root.detailedHands ? _char.rightArm : null
-        pose: _point.activeHand === "right" ? _point.activePose : root.handPose
+        pose: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
     }
 
     DetailedHand {
         visible: root.detailedHands
         arm: root.detailedHands ? _char.leftArm : null
         mirrored: true
-        pose: _point.activeHand === "left" ? _point.activePose : root.handPose
+        pose: _point.leftHandPose !== "" ? _point.leftHandPose : root.handPose
     }
 
     // --- the gesture --------------------------------------------------------
@@ -731,5 +764,14 @@ Node {
         // size. The target has to grow with the line count or wrapping makes
         // the text smaller instead of narrower.
         screenHeight: 24 * root._wrapped.split("\n").length
+        // A radius, spelled out, because Label3D's default is -1 and that
+        // means "half the height" - a lozenge, which is right for the
+        // one-line callouts it was built for and wrong here. The text is a
+        // rectangle; on a five-line bubble the caps have a 75-pixel radius
+        // and the corners of that rectangle end up outside the shape, so the
+        // first and last lines run off the ends of their own bubble.
+        labelStyle.radius: 20
+        labelStyle.paddingH: 20
+        labelStyle.paddingV: 12
     }
 }

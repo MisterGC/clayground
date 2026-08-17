@@ -4,11 +4,17 @@
 // these are poses: one eases in over settleMs, holds for as long as it is
 // wanted, and eases back to the idle pose when it is not.
 //
-// Two of them now - "there, look at that" and "well done" - and they live in
-// one driver on purpose. Both need the same eight joints, and two components
-// animating one joint do not take turns: they interleave, and the arm ends up
-// somewhere neither asked for. Adding a third gesture means another branch in
-// _apply(), not another file.
+// Three of them now - "there, look at that", "well done" and the loose
+// gesticulation of somebody explaining - and they live in one driver on
+// purpose. All three need the same eight joints, and two components animating
+// one joint do not take turns: they interleave, and the arm ends up somewhere
+// neither asked for. Adding a fourth gesture means another branch in _apply(),
+// not another file.
+//
+// The talking one is the odd member: it is not a pose but a two-beat loop, and
+// it drives BOTH arms. It is here anyway, and for exactly the reason above -
+// Clayground.Character3D has a TalkGestureAnim that does this, but it only runs
+// while the speech engine is speaking, and these labs are deliberately silent.
 //
 // The pointing angles are solved in the character's own frame - the world
 // target goes through mapPositionFromScene first - so the same arithmetic
@@ -33,8 +39,8 @@ Item {
     property var target: null
 
     /*!
-        Which pose: "point" needs a \l target, "thumbsUp" needs nothing and
-        ignores one.
+        Which pose: "point" needs a \l target, "thumbsUp" and "talk" need
+        nothing and ignore one.
     */
     property string gesture: "point"
 
@@ -62,9 +68,24 @@ Item {
         matches the gesture, or "" while released. The hand is a separate
         component and has no idea a gesture is running; this is how it finds
         out, and why a new gesture only has to name a pose here.
+
+        Empty while talking: talking is two-handed, so there is no one busy
+        hand to name. \l rightHandPose and \l leftHandPose are the pair that
+        covers every gesture, and are what a caller should bind to.
     */
-    readonly property string activePose: _pose.side === 0 ? ""
-                                       : (root.gesture === "thumbsUp" ? "thumbsUp" : "point")
+    readonly property string activePose: _pose.mode === "point" ? "point"
+                                       : (_pose.mode === "thumbsUp" ? "thumbsUp" : "")
+
+    /*! Which gesture is being held: "point", "thumbsUp", "talk" or "". */
+    readonly property string activeGesture: _pose.mode
+
+    /*! The DetailedHand pose for the right hand, or "" for "not mine to say". */
+    readonly property string rightHandPose: _pose.mode === "talk" ? "open"
+                                          : (_pose.side > 0 ? root.activePose : "")
+
+    /*! The DetailedHand pose for the left hand, or "" for "not mine to say". */
+    readonly property string leftHandPose: _pose.mode === "talk" ? "open"
+                                         : (_pose.side < 0 ? root.activePose : "")
 
     // ------------------------------------------------------------------
     // Joint limits. Under-reaching reads as a human who cannot quite see
@@ -115,6 +136,25 @@ Item {
     readonly property real _thumbSwing: 30         // and out, clear of the coat
     readonly property real _thumbRoll: 90          // palm turned to face the body
     readonly property real _thumbHeadPitch: -6     // chin up a fraction; this is a pleased pose
+
+    // Talking, as two alternating beats. One arm is up while the other rests,
+    // and they swap - a person explaining something leads with one hand at a
+    // time, and moving both together reads as a shrug or a surrender.
+    //
+    // Every number here is small on purpose, and the elbow bend is never
+    // allowed near zero: the forbidden shape for this character is a straight
+    // arm swung up and forward, and a gesticulation loop is exactly where one
+    // would appear by accident. The lift stays a third of the way to
+    // horizontal and the bend stays past 25 degrees, so no beat of this loop
+    // can reach it. See the silhouette note in _apply().
+    readonly property real _talkLiftHigh: 34
+    readonly property real _talkLiftLow: 15
+    readonly property real _talkElbowHigh: 62
+    readonly property real _talkElbowLow: 30
+    readonly property real _talkSwing: 14      // out from the coat, so it reads in profile
+    readonly property real _talkHeadSway: 4    // the head goes along with it, a little
+    readonly property real _talkHeadPitch: -3  // chin just off the chest: this is address, not thought
+    readonly property int _talkHoldMs: 240     // the pause at the end of a beat
 
     // Neck: looking down at your own feet is easy, craning up is not.
     readonly property real _headPitchMin: -35
@@ -167,23 +207,30 @@ Item {
     // Recomputes the whole pose and eases the joints toward it. Both arms
     // are always written - the free one to neutral - so a gesture that
     // changes sides cannot leave the previous arm hanging in the air.
-    function _apply() {
+    //
+    // \a keepSettled is for the talking loop, which re-applies on every beat
+    // and must not keep announcing that it has not arrived yet.
+    function _apply(keepSettled) {
         if (!root._ready)
             return
         const c = root.character
         const thumb = root.gesture === "thumbsUp"
+        const talk = root.gesture === "talk"
         const on = root.active
                    && c !== null && c !== undefined
-                   && (thumb || (root.target !== null && root.target !== undefined
-                                 && root.target.x !== undefined))
+                   && (thumb || talk
+                       || (root.target !== null && root.target !== undefined
+                           && root.target.x !== undefined))
         if (!on && !root._holdsRoot) {
             root._live = false
             return
         }
 
         root._live = on
-        root._settled = false
-        _arrival.stop()
+        if (!keepSettled) {
+            root._settled = false
+            _arrival.stop()
+        }
 
         if (!on) {
             _pose.release(root._restEuler)
@@ -215,6 +262,29 @@ Item {
                       Qt.vector3d(root._thumbHeadPitch, 0, 0))
             root._run()
             _arrival.restart()
+            return
+        }
+
+        if (talk) {
+            // No target and no turn either: the professor is addressing
+            // whoever it is already facing, and turning it is the caller's
+            // job (Professor.faceViewer()).
+            const lead = root._beatPhase ? 1 : -1     // which hand leads this beat
+            const hi = Qt.vector3d(-root._talkLiftHigh, 0, root._talkSwing)
+            const lo = Qt.vector3d(-root._talkLiftLow, 0, root._talkSwing * 0.6)
+            const hiE = Qt.vector3d(-root._talkElbowHigh, 0, 0)
+            const loE = Qt.vector3d(-root._talkElbowLow, 0, 0)
+            const mirror = (v) => Qt.vector3d(v.x, v.y, -v.z)
+            _pose.rootEuler = root._restEuler
+            _pose.gesticulate(
+                lead > 0 ? hi : lo,
+                lead > 0 ? hiE : loE,
+                mirror(lead > 0 ? lo : hi),
+                lead > 0 ? loE : hiE,
+                Qt.vector3d(root._talkHeadPitch, lead * root._talkHeadSway, 0))
+            root._run()
+            if (!keepSettled)
+                _arrival.restart()
             return
         }
 
@@ -331,6 +401,10 @@ Item {
         id: _pose
 
         property int side: 0
+        // Which gesture the joints are currently holding: "", "point",
+        // "thumbsUp" or "talk". `side` cannot answer that on its own since
+        // talking has no side, and the hands have to know which it is.
+        property string mode: ""
         property vector3d rootEuler: Qt.vector3d(0, 0, 0)
         property vector3d head: Qt.vector3d(0, 0, 0)
         property vector3d rUpper: Qt.vector3d(0, 0, 0)
@@ -343,6 +417,7 @@ Item {
         function aim(which, upper, lower, wrist, look) {
             const zero = Qt.vector3d(0, 0, 0)
             side = which
+            mode = root.gesture === "thumbsUp" ? "thumbsUp" : "point"
             head = look
             rUpper = which > 0 ? upper : zero
             rLower = which > 0 ? lower : zero
@@ -352,9 +427,21 @@ Item {
             lHand = which < 0 ? wrist : zero
         }
 
+        // Both arms at once, which is what talking needs and what aim()
+        // cannot express: aim() zeroes whichever side is not gesturing.
+        function gesticulate(rUp, rLo, lUp, lLo, look) {
+            const zero = Qt.vector3d(0, 0, 0)
+            side = 0
+            mode = "talk"
+            head = look
+            rUpper = rUp; rLower = rLo; rHand = zero
+            lUpper = lUp; lLower = lLo; lHand = zero
+        }
+
         function release(rest) {
             const zero = Qt.vector3d(0, 0, 0)
             side = 0
+            mode = ""
             rootEuler = rest
             head = zero
             rUpper = zero; rLower = zero; rHand = zero
@@ -419,5 +506,23 @@ Item {
         id: _arrival
         interval: root.settleMs
         onTriggered: root._settled = root._live
+    }
+
+    // Which hand leads the current talking beat.
+    property bool _beatPhase: false
+
+    // The loop behind the "talk" gesture. It re-applies the pose rather than
+    // running an animation of its own, so the gesticulation goes through the
+    // same eight EulerAnims as the held poses and can be interrupted by a
+    // point at any moment without two animations meeting on one joint.
+    Timer {
+        id: _beat
+        running: root._live && root.gesture === "talk"
+        interval: root.settleMs + root._talkHoldMs
+        repeat: true
+        onTriggered: {
+            root._beatPhase = !root._beatPhase
+            root._apply(true)
+        }
     }
 }

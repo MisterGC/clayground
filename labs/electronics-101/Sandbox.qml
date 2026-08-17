@@ -719,7 +719,13 @@ Item {
         const spot = profSpot()
         if (spot) {
             pts.push(Qt.vector3d(spot.x - 5, 0, spot.z - 5))
-            pts.push(Qt.vector3d(spot.x + 5, prof.standHeight, spot.z + 5))
+            // Headroom, not height. Framing to the top of the head puts the
+            // head at the top of the window, and the speech bubble - which
+            // hangs above it and is sized in pixels, so it does not shrink
+            // when the shot pulls back - goes off the edge into the chrome.
+            // Asking for twice the figure keeps the bubble inside the
+            // picture at any framing distance.
+            pts.push(Qt.vector3d(spot.x + 5, prof.standHeight * 2.2, spot.z + 5))
         }
         rig.frame(pts, 1.25)
     }
@@ -3524,6 +3530,12 @@ Item {
         // under the banner's slot, not in it: a short circuit outranks the
         // clock for the top line of the page
         anchors.topMargin: LabTheme.px(58)
+        // The professor's speech bubble hangs over its head, its head is in
+        // the upper half of a framed shot, and this is the top centre of the
+        // window: the two were printed on top of each other. Same call the
+        // hint bar makes when the Narrator takes the bottom strip - while
+        // somebody is teaching, the slot is theirs.
+        visible: !prof.present
     }
 
     // --- hint bar ----------------------------------------------------------

@@ -70,6 +70,34 @@ Item {
     /*! Whether the professor speaks the step text or only shows it. */
     property bool spoken: false
 
+    /*!
+        Whether the professor lets go of the point partway through a step,
+        turns to the camera and talks the rest of it out with its hands.
+
+        On by default, and it is the difference between a teacher and a
+        signpost. Pointing is deixis: it means "this one", it has said that
+        within a second or two, and a finger held on a part for the length of
+        a paragraph stops being a gesture and becomes a fixture. What follows
+        a point is explanation, and people deliver explanation to a face.
+
+        False keeps the finger on the part for the whole step - for a lab
+        whose steps are one short label each, where there is nothing after
+        the deixis to turn around for.
+    */
+    property bool addressViewer: true
+
+    /*!
+        How long the point is held, in milliseconds, before the professor
+        turns to the reader. Negative means "as long as the step's first
+        sentence takes to read", which is the default and is what the beat
+        actually wants: the point belongs to "this is the transistor", not to
+        the three sentences about what it does.
+    */
+    property int pointHoldMs: -1
+
+    /*! True once the professor has let go of the point and is addressing the reader. */
+    readonly property bool addressing: _addressing
+
     /*! True while the professor is on its way to this step's subject. */
     readonly property bool moving: root.professor ? root.professor.travelling : false
 
@@ -87,6 +115,8 @@ Item {
             // control, and doing the arrival twice looks like a stutter.
             _resume.restart()
         } else {
+            _hold.stop()
+            _addressing = false
             root.professor.stopGesture()
             root.professor.vanish()
         }
@@ -117,14 +147,64 @@ Item {
         // who is walking is usually already talking.
         root._speak()
 
+        _hold.stop()
+        _addressing = false
+
         if (stand && p.present) {
             _pending = look
             p.travelTo(stand)
         } else {
             _pending = null
-            if (look) p.pointAt(look)
-            else p.stopGesture()
+            if (look) root._point(look)
+            else root._address()
         }
+    }
+
+    // Point at it, and start the clock on how long that stays interesting.
+    function _point(look) {
+        root.professor.pointAt(look)
+        if (!root.addressViewer)
+            return
+        _hold.interval = root.pointHoldMs >= 0 ? root.pointHoldMs
+                                               : root._firstSentenceMs()
+        _hold.restart()
+    }
+
+    // Let go, turn round, keep talking. Also the whole of a step that has
+    // nothing to point at: standing still and reciting is the thing this
+    // component exists to avoid.
+    function _address() {
+        const p = root.professor
+        if (!p) return
+        _addressing = true
+        p.faceViewer()
+        p.gesticulate()
+    }
+
+    property bool _addressing: false
+
+    // How long the step's opening sentence takes to read, which is how long
+    // the point on its subject is worth holding. Reading rate is deliberately
+    // slow - this is a sentence somebody is meeting for the first time, in a
+    // bubble, while also looking at the thing it names.
+    //
+    // The clamp matters more than the rate: under it the professor snatches
+    // its hand back before the reader has followed the finger, and over it we
+    // are back to the signpost.
+    readonly property int _readMsPerChar: 72
+    readonly property int _holdMinMs: 1400
+    readonly property int _holdMaxMs: 3600
+
+    function _firstSentenceMs() {
+        const m = /[.!?](\s|$)/.exec(root.text)
+        const n = m ? m.index + 1 : root.text.length
+        return Math.max(root._holdMinMs,
+                        Math.min(root._holdMaxMs, n * root._readMsPerChar))
+    }
+
+    Timer {
+        id: _hold
+        onTriggered: if (root.running) root._address()
     }
 
     function _speak() {
@@ -148,7 +228,9 @@ Item {
             if (!root.running)
                 return
             if (root._pending)
-                root.professor.pointAt(root._pending)
+                root._point(root._pending)
+            else
+                root._address()
             root._pending = null
         }
     }
