@@ -361,19 +361,25 @@ Node {
     Node {
         id: _carrier
 
-        // Face the camera: yaw about world Y, pitch about local X, from the
-        // camera-minus-label delta. Reads _tick so it recomputes each frame.
-        eulerRotation: {
+        // Face the camera by wearing the camera's own orientation, which keeps
+        // the pill PARALLEL to the image plane. Aiming it at the camera's
+        // position instead - yaw plus pitch from the camera-minus-label delta -
+        // is the other reading of "faces the camera", and it leaves the quad
+        // tilted against the projection: under a camera looking 48 degrees down
+        // at a board the pill tips back the same 48 degrees, and perspective
+        // keystones the text into something lying on the floor. A quad parallel
+        // to the image plane cannot be keystoned, at any camera pitch. It is
+        // also the assumption the Screen-mode scale math already makes.
+        //
+        // Composed back into the parent's frame because this is a LOCAL
+        // rotation: a label whose parent is rotated would otherwise inherit
+        // that rotation on top of the billboard. Reads _tick so it recomputes
+        // each frame.
+        rotation: {
             root._tick
             if (!root.camera)
-                return Qt.vector3d(0, 0, 0)
-            var c = root.camera.scenePosition
-            var p = root.scenePosition
-            var dx = c.x - p.x, dy = c.y - p.y, dz = c.z - p.z
-            var yaw = Math.atan2(dx, dz) * 180 / Math.PI
-            var horiz = Math.sqrt(dx * dx + dz * dz)
-            var pitch = -Math.atan2(dy, horiz) * 180 / Math.PI
-            return Qt.vector3d(pitch, yaw, 0)
+                return Qt.quaternion(1, 0, 0, 0)
+            return root.sceneRotation.inverted().times(root.camera.sceneRotation)
         }
 
         scale: {

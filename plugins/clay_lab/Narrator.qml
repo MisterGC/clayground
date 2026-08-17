@@ -24,6 +24,18 @@ Rectangle {
     */
     property var flow: null
 
+    /*!
+        \qmlproperty bool Narrator::showText
+        \brief Whether the panel carries the narration itself.
+
+        False leaves the title, the progress dots, the hint and the controls
+        and drops the line - for a lab where something else in the scene is
+        already saying it. A character with a speech bubble is the case this
+        exists for: the same sentence in two places at once reads as a fault,
+        and the controls are the half of this panel that has no substitute.
+    */
+    property bool showText: true
+
     visible: flow !== null && flow.running
     implicitWidth: LabTheme.px(640)
     implicitHeight: _col.implicitHeight + 2 * LabTheme.spaceXl + LabTheme.spaceXs
@@ -58,6 +70,7 @@ Rectangle {
 
         Text {  // the narration itself: big enough to read from the back row
             width: parent.width
+            visible: _nar.showText && text !== ""
             text: _nar.flow ? _nar.flow.narration : ""
             color: LabTheme.ink
             font.pixelSize: LabTheme.fontTitle
