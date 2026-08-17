@@ -5,6 +5,7 @@ import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Lab
 import "../kits/circuit"
+import "../kits/professor"
 import "../kits/circuit/circuit.js" as Circuit
 import "../kits/circuit/route.js" as Route
 import "../kits/circuit/plan.js" as Plan
@@ -655,8 +656,49 @@ Item {
     // matters is minHeight - flatten the angle and the rig backs off instead
     // of diving through the setup, which a minimum DISTANCE could not do
     // without also blocking a zoom onto a single part.
+    // Once the professor has landed, put the camera on what it came to show.
+    //
+    // Without this the logic flow's steps keep the framing their scenario
+    // asked for, which is the whole 140x80 board - and at that distance the
+    // teacher is thirty pixels tall, small enough that its own speech bubble
+    // covers it completely. The flow frames the situation; this frames the
+    // sentence. It runs on arrival, so it is the later of the two and wins.
+    function frameSubject() {
+        const s = root.flowSubject(-1)
+        if (!s || !s.ids)
+            return
+        // Every part the step is about, not just the one being pointed at: a
+        // step whose line is "two of them reading the same inputs" that shows
+        // one gate has framed the pointing and lost the sentence.
+        const cells = []
+        for (const id of s.ids) {
+            const e = root.elemAt(id)
+            if (e) cells.push(e)
+        }
+        if (cells.length) frameCells(cells)
+    }
+
+    // Where the professor is, or is about to be. Null when it is not on stage,
+    // which is every use of the camera outside a flow.
+    function profSpot() {
+        if (!prof.present)
+            return null
+        const s = root.flowSubject(root.currentFlow ? root.currentFlow.index : -1)
+        return s && s.stand ? s.stand : prof.stand
+    }
+
     function frameCells(cells) {
         if (!cells || !cells.length) {
+            // Nothing on the board. If somebody is standing on it, frame them
+            // against the empty sheet instead of pulling back to the far
+            // limit, where a teacher is four pixels tall and the lesson opens
+            // on a picture of nothing.
+            const who = profSpot()
+            if (who) {
+                rig.frame([Qt.vector3d(who.x - 26, 0, who.z - 8),
+                           Qt.vector3d(who.x + 26, prof.standHeight, who.z + 30)], 1.15)
+                return
+            }
             // one applyState, not a pivot write plus a setDistance: the rig
             // eases, so two writes would start two glides and the board would
             // slide sideways while it zoomed out
@@ -669,6 +711,15 @@ Item {
         for (const c of cells) {
             pts.push(Qt.vector3d(cellX(c.col) - 7, 2, cellZ(c.row) - 7))
             pts.push(Qt.vector3d(cellX(c.col) + 7, 2, cellZ(c.row) + 7))
+        }
+        // Keep the teacher in shot. Its position for THIS step, not the one
+        // it is still standing on: the flow frames during the step's demo and
+        // the professor leaves for the new subject a moment later, so framing
+        // where it currently is would frame where it has just been.
+        const spot = profSpot()
+        if (spot) {
+            pts.push(Qt.vector3d(spot.x - 5, 0, spot.z - 5))
+            pts.push(Qt.vector3d(spot.x + 5, prof.standHeight, spot.z + 5))
         }
         rig.frame(pts, 1.25)
     }
@@ -1279,6 +1330,128 @@ Item {
         if (id === logicFlow.flowId) { logicFlow.start(); return true }
         return false
     }
+    // --- who is teaching -----------------------------------------------------
+    // A flow already says the right words in the right order. What it cannot
+    // do from a panel at the bottom of the window is turn to the part being
+    // discussed and put a finger on it, and that is the difference between
+    // reading a caption and being shown something.
+    //
+    // The kit knows how a professor behaves; only this file can know where
+    // step four's subject is on THIS board. That mapping is all that follows.
+
+    // Where a professor stands to talk about the parts with these ids: behind
+    // them, from the camera's point of view.
+    //
+    // Behind, not beside, and not in front: the rig looks down the board from
+    // +z, so anything standing nearer the camera than the part it is pointing
+    // at hides the part. Standing on the far side, it points back toward the
+    // viewer and occludes nothing but empty board.
+    function subjectOf(ids) {
+        root.elemRev
+        const parts = []
+        for (const id of (ids || [])) {
+            const e = root.elemAt(id)
+            if (e) parts.push(e)
+        }
+        if (!parts.length)
+            return null
+
+        // A step about several parts still has to point at ONE of them. The
+        // centroid of five transistors is bare board, and a finger aimed at
+        // bare board is a finger aimed at nothing - measured at fifteen units
+        // from the nearest part on three of these steps. So: the middle of
+        // the group decides WHERE, and the part nearest that middle is what
+        // actually gets pointed at.
+        let cx = 0, cz = 0
+        for (const p of parts) { cx += root.cellX(p.col); cz += root.cellZ(p.row) }
+        cx /= parts.length; cz /= parts.length
+
+        let best = parts[0], bestD = Infinity
+        for (const p of parts) {
+            const dx = root.cellX(p.col) - cx, dz = root.cellZ(p.row) - cz
+            const d = dx * dx + dz * dz
+            if (d < bestD) { bestD = d; best = p }
+        }
+
+        const bx = root.cellX(best.col), bz = root.cellZ(best.row)
+        // Clear the part's OWN footprint before the standing gap, whichever
+        // way it is turned: a gate reaches 7 units and a flat 8.5 put the
+        // professor inside the package, wearing it.
+        const half = root.bodyHalf(best.type)
+        const reach = Math.max(half.x, half.y) + root.profClear
+        return { id: best.id,
+                 ids: parts.map(p => p.id),
+                 stand: Qt.vector3d(bx, 0, bz - reach),
+                 // A hand's breadth above the board, so the finger lands on
+                 // the part rather than on the ground under it.
+                 look: Qt.vector3d(bx, 1.5, bz) }
+    }
+
+    // The gap between the professor and its subject's edge. Enough that a
+    // raised arm reaches the part rather than through it, and that the two
+    // are not one blob at the framing the flow uses.
+    readonly property real profClear: 7
+
+    function idsOfType(t) {
+        return root.elements.filter(e => e.type === t).map(e => e.id)
+    }
+
+    // The LED flow builds its own board and binds a name to every part it
+    // adds, so its subjects are exact - `nameOf` returns the element id the
+    // step's own `addPart` produced.
+    function ledSubject(f, key) {
+        const n = (s) => f.nameOf(s)
+        if (key === "battery")  return [n("bat")]
+        if (key === "led")      return [n("led")]
+        if (key === "resistor") return [n("res")]
+        if (key === "wire")     return [n("bat"), n("sw"), n("led"), n("res")]
+        if (key === "flip")     return [n("sw")]
+        if (key === "lit")      return [n("led")]
+        if (key === "why")      return [n("res"), n("led")]
+        if (key === "values")   return root.elements.map(e => e.id)
+        if (key === "try")      return [n("res")]
+        return []               // "empty": there is nothing on the board yet
+    }
+
+    // The logic flow jumps between scenario presets instead of building
+    // anything, so nothing is name-bound and the subjects have to be found by
+    // what they ARE. Resolved per step rather than once, because most of
+    // these steps have just replaced every element on the board.
+    function logicSubject(key) {
+        const q = root.idsOfType("transistor")
+        const g = root.idsOfType("gate")
+        const leds = root.idsOfType("led")
+        const ins = root.logicInputs || []
+        if (key === "meet")      return q.slice(0, 1)
+        if (key === "switch")    return ins.slice(0, 1)
+        if (key === "gain")      return leds.concat(root.idsOfType("ammeter"))
+        if (key === "and")       return q
+        if (key === "andtask")   return ins
+        if (key === "or")        return q
+        if (key === "xor")       return q
+        if (key === "xortask")   return ins
+        if (key === "both")      return q.slice(-1).concat(leds)
+        if (key === "cost")      return q
+        if (key === "chip")      return g
+        if (key === "chiptask")  return ins
+        if (key === "switchit")  return g
+        if (key === "adder")     return g
+        return []
+    }
+
+    // What the professor should do on step \a i of the flow that is running.
+    // Keyed on the step's own key, not on its index: a flow gains a step one
+    // day and an index-keyed table silently teaches the wrong lesson.
+    function flowSubject(i) {
+        const f = root.currentFlow
+        if (!f || !f.running || !f.step)
+            return null
+        const key = f.step.key
+        const ids = f.flowId === "led-basics" ? root.ledSubject(f, key)
+                                              : root.logicSubject(key)
+        return root.subjectOf(ids)
+    }
+
     // Which lesson `T` and the chip offer. Two flows, one key: a lab with a
     // switch to choose between them would be asking the learner to pick a
     // lesson before they know what either is - so the offer follows the board
@@ -1524,6 +1697,44 @@ Item {
             shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
         CameraAnchorMark { pointer: nav }
+
+        // --- the teacher -----------------------------------------------------
+        // Sized to the board, not to a room: a part is nine units across and
+        // the sheet is 140 by 80, so the kit's default 1.48 would put a
+        // professor a sixth of a resistor tall. Scaled through height3d
+        // rather than through the node's scale, because the speech bubble is
+        // a sibling positioned in scene units and would not come with it.
+        Professor {
+            id: prof
+            view: view3d
+            height3d: 6.2                 // stands about 9 units, two cells
+            // The board is 140 wide. At the kit's 3.2 units a second, crossing
+            // it would take three quarters of a minute and hit the flight
+            // clamp instead - this is a hop between parts, not a commute.
+            travelSpeed: 34
+            objectName: "professor"
+
+            onArrived: root.frameSubject()
+        }
+
+        // The flow, handed to the professor. Bound to currentFlow rather than
+        // to one of the two: which lesson is offered follows the scenario, and
+        // the professor teaches whichever one is running.
+        FlowGuide {
+            id: guide
+            professor: prof
+            running: root.currentFlow ? root.currentFlow.running : false
+            step: root.currentFlow ? root.currentFlow.index : -1
+            text: root.currentFlow ? root.currentFlow.narration : ""
+            subjectOf: (i) => root.flowSubject(i)
+            // Arrives at the far edge, centred - off the board, so the puff
+            // does not go off in the middle of the circuit, and behind it, so
+            // the first flight is toward the viewer.
+            entrance: Qt.vector3d(0, 0, root.cellZ(0) - 14)
+            // Text only. This is a lab someone works through at their own
+            // pace, quite possibly in an office.
+            spoken: false
+        }
         // The tape measure, in the same screen space and for the same reason:
         // it answers "how far apart are those pads" without disturbing the
         // board, and it never clips into a part. The kit's own Voltmeter rides
@@ -2390,6 +2601,10 @@ Item {
 
     Narrator {
         flow: root.currentFlow
+        // The professor is carrying the line in its own bubble; the panel
+        // keeps the title, the dots, the hint and the controls, which is the
+        // half of it that has no substitute in the scene.
+        showText: !prof.present
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: LabTheme.spaceXl

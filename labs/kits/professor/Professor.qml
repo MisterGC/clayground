@@ -520,8 +520,18 @@ Node {
     // blinked into existence at full size would need no puff at all.
     property real _grow: 0
 
+    // The two of these must stop each other, and it is not tidiness.
+    //
+    // Arriving takes 470 ms and leaving 200 ms, so a flow started and stopped
+    // inside half a second used to run both: the exit finished first, the
+    // arrival then grew the body back, and the professor stood there at full
+    // size with `present === false` - a state vanish() refuses to act on,
+    // because it early-returns when it is already away. Nothing could remove
+    // it for the rest of the session. One misclick is enough.
+
     SequentialAnimation {
         id: _in
+        onStarted: _out.stop()
         // the cloud gets a moment on its own before anything is inside it
         PauseAnimation { duration: 90 }
         NumberAnimation {
@@ -532,6 +542,7 @@ Node {
 
     SequentialAnimation {
         id: _out
+        onStarted: _in.stop()
         NumberAnimation {
             target: root; property: "_grow"; to: 0.0
             duration: 200; easing.type: Easing.InBack; easing.overshoot: 1.4
