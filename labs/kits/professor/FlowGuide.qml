@@ -56,6 +56,17 @@ Item {
     */
     property var subjectOf: null
 
+    /*!
+        Where the professor is standing when it appears, as a \c vector3d.
+        Null leaves it wherever it already is.
+
+        It is placed there rather than flown there: it is not in the scene
+        yet, and a character that materialises at the origin and then
+        commutes to the lesson has told the reader that the origin means
+        something. It does not.
+    */
+    property var entrance: null
+
     /*! Whether the professor speaks the step text or only shows it. */
     property bool spoken: false
 
@@ -68,6 +79,8 @@ Item {
         if (!root.professor)
             return
         if (root.running) {
+            if (root.entrance)
+                root.professor.stand = root.entrance
             root.professor.appear()
             // The step handler does the rest. It is not called from here: a
             // flow sets `running` and `step` in an order this object does not

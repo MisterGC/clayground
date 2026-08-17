@@ -31,6 +31,35 @@ Node {
     /*! What the bubble is showing. Empty hides it. */
     property string line: ""
 
+    /*!
+        How many characters the bubble fits on a line before wrapping.
+
+        Label3D draws its pill on one line and grows sideways for as long as
+        the text does, which is right for a meter reading and wrong for a
+        sentence: a lab's narration is eighty characters and the pill ran out
+        under the tool palette. Wrapping happens here rather than in Label3D
+        because a speech bubble is the one label in these labs that carries
+        prose.
+    */
+    property int bubbleWidth: 46
+
+    // Greedy, on spaces, and it never breaks a word: a hyphenated line in a
+    // hand-lettered bubble looks like a rendering fault.
+    readonly property string _wrapped: {
+        const s = root.line
+        if (s.length <= root.bubbleWidth)
+            return s
+        const words = s.split(" ")
+        let out = "", run = ""
+        for (const w of words) {
+            if (run === "") { run = w; continue }
+            if (run.length + 1 + w.length <= root.bubbleWidth) { run += " " + w; continue }
+            out += (out === "" ? "" : "\n") + run
+            run = w
+        }
+        return out + (out === "" ? "" : "\n") + run
+    }
+
     // --- where it is ----------------------------------------------------------
     // The professor owns its own position, through `stand` rather than through
     // `position`: travelling has to animate something, and something a lab has
@@ -677,9 +706,19 @@ Node {
         anchorNode: root
         // clear of the head, not level with it: at head height the skull
         // occludes the middle of its own speech bubble
-        labelOffset: Qt.vector3d(0, root.standHeight * 1.12 * root._grow, 0)
-        text: root.line
+        // Clear of the head, and further clear the taller the bubble is: the
+        // pill is centred on this point, so a three-line one hangs half its
+        // own height lower than a one-line one and lands on the hair.
+        labelOffset: Qt.vector3d(
+            0, root.standHeight * root._grow
+               * (1.12 + 0.11 * (root._wrapped.split("\n").length - 1)), 0)
+        text: root._wrapped
         visible: root.line !== "" && root._grow > 0.9
         sizeMode: Label3D.Screen
+        // Screen mode holds the PILL to a fixed height on screen, so a bubble
+        // that wrapped onto three lines rendered each of them at a third the
+        // size. The target has to grow with the line count or wrapping makes
+        // the text smaller instead of narrower.
+        screenHeight: 24 * root._wrapped.split("\n").length
     }
 }
