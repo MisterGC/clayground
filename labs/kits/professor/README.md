@@ -94,7 +94,10 @@ talking body language while something is being said; left running past the end
 of the line it is a person miming at an empty room. So the end of a line —
 the mouth timer, or the narration clip finishing — puts the arms down. A
 `pointAt()` is not affected: a point outlives the sentence that introduced it,
-on purpose.
+on purpose. All three ways a line can end feed the same stop — the mouth timer,
+a narration clip, the speech engine — and `gestureMaxMs` (12 s) is the floor
+under all three, for the clip that will not decode, the engine that never
+starts, and the caller who asked for gesticulation without saying anything.
 
 ### Pre-rendered narration
 

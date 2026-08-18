@@ -390,6 +390,29 @@ Node {
         _point.hand = "auto"
         _point.target = null
         _point.active = true
+        // Long enough to cover the line being said, and never open-ended.
+        _gestureCap.interval = Math.max(root.gestureMaxMs,
+                                        _mouth.running ? _mouth.interval : 0)
+        _gestureCap.restart()
+    }
+
+    /*!
+        \qmlproperty int Professor::gestureMaxMs
+        rief The longest a talking gesture runs with nothing to end it.
+
+        The end of a line is what normally puts the hands down, and there are
+        three ways a line can end: a mouth timer, a narration clip, a speech
+        engine. Each of them can fail to arrive - a clip that will not decode,
+        an engine that never starts, or a caller that asked for gesticulation
+        without saying anything at all. Then the professor stands there waving
+        for the rest of the session, which is the one outcome worse than not
+        gesturing. This is the floor under all three.
+    */
+    property int gestureMaxMs: 12000
+
+    Timer {
+        id: _gestureCap
+        onTriggered: if (root.gesture === "talk") root.stopGesture()
     }
 
     /*!
@@ -406,6 +429,7 @@ Node {
 
     /*! Drops the arm and lets the character stand normally again. */
     function stopGesture() {
+        _gestureCap.stop()
         _point.active = false
         _point.target = null
         _point.gesture = "point"
@@ -527,7 +551,29 @@ Node {
     function say(what) {
         root.line = what
         _char.speechBodyLanguage = false
+        _talking = true
+        _saying = true
         _char.say(what)
+    }
+
+    // Whether a spoken line is outstanding. The engine reports `speaking`, but
+    // it is false BEFORE it starts as well as after it ends, so the flag is
+    // what tells the two apart.
+    property bool _saying: false
+
+    Connections {
+        target: _char
+        enabled: root._saying
+        function onSpeakingChanged() {
+            if (_char.speaking)
+                return
+            // A speech engine that never started - the darwin one under an
+            // offscreen surface does exactly this - would otherwise leave the
+            // hands going for good. _gestureCap is the backstop for that; this
+            // is the normal path.
+            root._saying = false
+            root._speechEnded()
+        }
     }
 
     /*! Stops mid-sentence and clears the bubble, spoken or written. */
