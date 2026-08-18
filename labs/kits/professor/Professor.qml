@@ -580,6 +580,7 @@ Node {
         _char.speechBodyLanguage = false
         _talking = true
         _saying = true
+        _sayStarted = false
         _char.say(what)
     }
 
@@ -588,17 +589,31 @@ Node {
     // what tells the two apart.
     property bool _saying: false
 
+    // Whether the engine has actually begun the line we are waiting on.
+    //
+    // Character.say() stops any previous line as its first act, so asking for
+    // a second line drives `speaking` false - the OLD line ending, arriving
+    // after the new one was requested, and indistinguishable from the new one
+    // ending unless the start is tracked. Taken at face value it cleared
+    // `talking` while the character was about to speak, and the real end of
+    // that line was then never seen. The transition only counts as an ending
+    // if a beginning was seen first; a line that never begins is what
+    // gestureMaxMs is for.
+    property bool _sayStarted: false
+
     Connections {
         target: _char
         enabled: root._saying
         function onSpeakingChanged() {
-            if (_char.speaking)
+            if (_char.speaking) {
+                root._sayStarted = true
+                root._talking = true
                 return
-            // A speech engine that never started - the darwin one under an
-            // offscreen surface does exactly this - would otherwise leave the
-            // hands going for good. _gestureCap is the backstop for that; this
-            // is the normal path.
+            }
+            if (!root._sayStarted)
+                return
             root._saying = false
+            root._sayStarted = false
             root._speechEnded()
         }
     }
