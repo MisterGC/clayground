@@ -19,6 +19,7 @@
 // the professor off is deleting this object.
 
 import QtQuick
+import Clayground.Character3D
 
 Item {
     id: root
@@ -110,6 +111,52 @@ Item {
     */
     property int pointHoldMs: -1
 
+    /*!
+        Optional: given a step index, a performance script for it, or "" for
+        a step narrated the built-in way.
+
+        \code
+        scriptOf: (i) => i === 0
+            ? "*point at the bench* This is where we start. (2500ms)"
+              + " *face viewer* Every lesson begins here."
+            : ""
+        \endcode
+
+        A step with a script is DIRECTED rather than narrated: after the
+        professor lands, the script plays through a \l Performance and the
+        built-in beat - speak, point, hold, address - stands aside for that
+        step. The step's \c text is ignored too, since the script carries its
+        own lines. Steps without a script keep the built-in choreography, so
+        a flow can direct only the steps that earn it.
+    */
+    property var scriptOf: null
+
+    /*!
+        Where \c{*point at NAME*} looks names up: a scene node whose tree is
+        searched for a matching \c objectName - typically the View3D's scene.
+        Only needed by flows whose scripts point at things.
+    */
+    property var scriptTargets: null
+
+    /*! The step's director. Exposed for state assertions (\c{guide.script.done}). */
+    readonly property Performance script: _perf
+
+    Performance {
+        id: _perf
+        performer: root.professor
+        searchRoot: root.scriptTargets
+        spoken: false
+        viewerPosition: () => {
+            const p = root.professor
+            return p && p.view && p.view.camera ? p.view.camera.scenePosition : null
+        }
+    }
+
+    function _scriptFor(step) {
+        const s = (typeof root.scriptOf === "function") ? root.scriptOf(step) : ""
+        return s === undefined || s === null ? "" : "" + s
+    }
+
     /*! True once the professor has let go of the point and is addressing the reader. */
     readonly property bool addressing: _addressing
 
@@ -131,6 +178,7 @@ Item {
             _resume.restart()
         } else {
             _hold.stop()
+            _perf.stop()
             _addressing = false
             root.professor.stopGesture()
             root.professor.vanish()
@@ -158,7 +206,26 @@ Item {
         const look = s && s.look ? s.look : null
 
         _hold.stop()
+        _perf.stop()
         _addressing = false
+
+        // A directed step: the flight still happens - only the lab knows
+        // where to stand - but everything after landing belongs to the
+        // script, not to the built-in beat.
+        const script = root._scriptFor(root.step)
+        if (script !== "") {
+            if (stand && p.present) {
+                _pending = null
+                _pendingScript = script
+                p.quiet()
+                p.travelTo(stand)
+            } else {
+                _pendingScript = ""
+                _perf.play(script)
+            }
+            return
+        }
+        _pendingScript = ""
 
         if (stand && p.present) {
             // Fly first, then talk. Talking on the way over sounds like the
@@ -257,6 +324,10 @@ Item {
     // aimed from the wrong place - see Professor.travelTo().
     property var _pending: null
 
+    // Same reason, for a directed step: the script's own points are solved
+    // where the professor lands, so it must not start in the air.
+    property string _pendingScript: ""
+
     Connections {
         target: root.professor
         enabled: root.professor !== null
@@ -264,6 +335,12 @@ Item {
         function onArrived(at) {
             if (!root.running)
                 return
+            if (root._pendingScript !== "") {
+                _perf.play(root._pendingScript)
+                root._pendingScript = ""
+                root._pending = null
+                return
+            }
             // Speak BEFORE pointing, not after: the hold on the point is a
             // share of how long the line lasts, and the professor only knows
             // that once the line has been given to it.
@@ -285,6 +362,10 @@ Item {
         if (!root.running || root.step < 0)
             return
         if (root.professor && root.professor.travelling)
+            return
+        // A directed step's lines come from its script; the flow's text is
+        // not part of that performance and must not talk over it.
+        if (root._scriptFor(root.step) !== "")
             return
         root._speak()
     }

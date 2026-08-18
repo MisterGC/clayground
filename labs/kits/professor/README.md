@@ -127,7 +127,45 @@ This is not `say()`. Nothing is synthesised at runtime — the audio is rendered
 in advance, which is the only way anyone gets to hear a line before a learner
 does. No lab in this repository ships narration audio yet.
 
+### Directed steps — a script instead of the built-in beat
+
+The plugin's `Performance` (see the character plugin README, "Performance
+Scripts") drives the professor directly: it has every verb the sequencer
+calls, including `tell()` for silent lines and `setEmotion()`, which wears
+script emotions as `mood` — `*angry*` comes out as `cross`, because a
+professor is cross, not furious. Set `spoken: false` on the Performance so
+bare lines go through the bubble rather than the speech engine; the bench's
+`P` key is a complete example.
+
+A flow hands scripts over per step:
+
+```qml
+FlowGuide {
+    scriptTargets: view3d.scene       // where *point at NAME* looks names up
+    scriptOf: (i) => i === 0
+        ? "*point at the bench* This is where we start. (2500ms)"
+          + " *face viewer* *gesticulate* Every lesson begins here."
+        : ""                          // other steps: the built-in beat
+}
+```
+
+A step with a script still flies to its `subjectOf` stand — only the lab
+knows where to stand — but everything after landing belongs to the script:
+the built-in speak-point-hold-address beat and the step's `text` both stand
+aside for that step. `guide.script` exposes the sequencer for assertions
+(`guide.script.done`, `.errors`, `.skipped`). Scripted steps ignore
+`voiceOf` for now: a per-step clip cannot be matched to a script's several
+lines, so directed steps are silent until there is a per-line seam.
+
 ## Traps
+
+**The plugin now ships its own `DetailedHand`, and it shadows this kit's.**
+Any file here that imports `Clayground.Character3D` resolves the bare name to
+the plugin's type — a different interface (explicit palm dimensions instead
+of `arm:`), so the symptom is `Cannot assign to non-existent property "arm"`.
+`Professor.qml` and `HandBench.qml` therefore import the kit's own directory
+qualified (`import "." as Kit`) and write `Kit.DetailedHand`. The kit copy
+retires once the professor moves onto the plugin's articulated hands.
 
 **`height3d` is not the height it renders at.** It is `bodyHeight` on the
 character plugin, which feeds proportion tables whose parts sum to about 1.3
@@ -180,21 +218,21 @@ bottom one.
 at a board from 80 units and slices the ground away when you stand 3 units
 from a character. The rig does not expose it: set `rig.camera.clipNear`.
 
-## What this kit added that the character plugin lacks
+## What this kit pioneered, and where it lives now
 
-Talking with the hands is the newest of them. `TalkGestureAnim` exists in the
-plugin and does the job, but it only runs while the speech engine is actually
-speaking — and these labs are deliberately silent, so it can never fire. The
-kit's version is a third branch in `PointAnim` rather than a component of its
-own, for the same reason the other two are: three animations reaching for one
-elbow do not take turns.
+The gestures were promoted. `plugins/clay_character3d` now has a held-pose
+layer (`GestureAnim`) with point, thumbs up, gesticulation and look-at on
+every `Character`, an articulated `DetailedHand` behind `detailedHands:`,
+published face anchors on `Head`, and the performance-script system — all of
+it generalized from what this kit built first. The professor itself still
+runs on its own `PointAnim` and its own `DetailedHand`: its beat table and
+silhouette policy are tuned against this exact body, and moving it onto the
+plugin's layer is a planned, separate step. Until then the kit carries the
+tuned original and the plugin carries the general version.
 
-Beard, eyewear, an articulated hand and a look-at were all built here rather
-than in `plugins/clay_character3d`, because that plugin is shared and its
-`CharacterEditor` would need matching knobs. `Head.qml` also exposes no anchor
-points for eyes, nose, ears or jaw, so every accessory in this kit re-derives
-that arithmetic and will rot silently if that file moves. Promoting `Hand.qml`
-to palm-plus-fingers would give every existing character fingers for free.
+Still kit-only: the beard, the spectacles and the hair styles. They attach
+through arithmetic the plugin's new head anchors now publish, so promoting
+them has become a file move plus `CharacterEditor` knobs — the next batch.
 
 ## Checking it
 
@@ -203,6 +241,8 @@ judged by looking. What there is:
 
 - the bench: `./build/bin/claydojo --sbx labs/kits/professor/Sandbox.qml`,
   with a pretend four-step lesson on `G` that drives the real `FlowGuide`
+  (steps 0 and 2 are directed by scripts, 1 and 3 keep the built-in beat)
+  and a scripted scene on `P` that exercises the whole directive vocabulary
 - `PointBench.qml`, `LookBench.qml`, `HandBench.qml`, `HairBench.qml` —
   isolated scenes, one per hard problem, kept because each was needed twice
 - `clayrender --wait-for` against the bench for anything numeric

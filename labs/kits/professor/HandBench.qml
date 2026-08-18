@@ -17,6 +17,10 @@
 import QtQuick
 import QtQuick3D
 import Clayground.Character3D
+// Qualified: the plugin now ships its own DetailedHand, which would
+// otherwise shadow the kit's copy (different interface). The kit copy
+// retires once the professor moves onto the plugin's articulated hands.
+import "." as Kit
 import Clayground.Lab
 
 pragma ComponentBehavior: Bound
@@ -249,13 +253,13 @@ Item {
             activity: Character.Activity.Idle
         }
 
-        DetailedHand {
+        Kit.DetailedHand {
             id: rightHand
             arm: char.rightArm
             tone: root.silhouette ? LabTheme.inkSolid : char.handColor
         }
 
-        DetailedHand {
+        Kit.DetailedHand {
             id: leftHand
             arm: char.leftArm
             mirrored: true

@@ -20,6 +20,10 @@ import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Character3D
+// Qualified: the plugin now ships its own DetailedHand, which would
+// otherwise shadow the kit's copy (different interface). The kit copy
+// retires once the professor moves onto the plugin's articulated hands.
+import "." as Kit
 import Clayground.Lab
 import Clayground.Sound
 
@@ -425,6 +429,26 @@ Node {
     function faceViewer() {
         if (!root.view || !root.view.camera) return
         turnTo(root.view.camera.scenePosition)
+    }
+
+    /*!
+        Sets the lasting face from a script emotion name.
+
+        The professor's face is its \l mood, so this maps the performance
+        vocabulary onto it: "happy", "sad", "angry" (worn as \c cross - a
+        professor is cross, not furious) and "neutral" or "" back to neutral.
+        Unknown names are ignored rather than guessed at.
+
+        This is the verb \l Performance calls for an \c{*emotion*} cue, so a
+        script's \c{*happy*} works on the professor exactly as it does on a
+        plain \l Character.
+    */
+    function setEmotion(name) {
+        const n = ("" + name).toLowerCase()
+        if (n === "happy") root.mood = "happy"
+        else if (n === "sad") root.mood = "sad"
+        else if (n === "angry") root.mood = "cross"
+        else if (n === "neutral" || n === "") root.mood = "neutral"
     }
 
     /*! Drops the arm and lets the character stand normally again. */
@@ -867,13 +891,13 @@ Node {
     // side. Whichever arm the gesture picked gets the pointing finger, and the
     // other keeps whatever the lab asked for.
 
-    DetailedHand {
+    Kit.DetailedHand {
         visible: root.detailedHands
         arm: root.detailedHands ? _char.rightArm : null
         pose: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
     }
 
-    DetailedHand {
+    Kit.DetailedHand {
         visible: root.detailedHands
         arm: root.detailedHands ? _char.leftArm : null
         mirrored: true

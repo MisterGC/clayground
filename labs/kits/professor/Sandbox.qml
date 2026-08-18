@@ -11,7 +11,8 @@
 //
 // Keys: E arrive · X leave · G fly to the next thing and show it · O fly back ·
 // J previous target · K next target · U thumbs up · L stop gesturing · N say a
-// line · C hush · I next inspection view · Y hair · B beard · M mood. Camera as
+// line · P perform a scripted scene · C hush · I next inspection view ·
+// Y hair · B beard · M mood. Camera as
 // everywhere else: right-drag turns, middle drags, wheel zooms, Space+left pans
 // - but set up to come much closer than a lab camera, see the rig below.
 import QtQuick
@@ -54,6 +55,7 @@ Item {
 
     function pointTo(i) {
         cheering = false
+        perf.stop()
         endLesson()
         picked = ((i % targets.length) + targets.length) % targets.length
         prof.pointAt(targets[picked].at)
@@ -64,6 +66,7 @@ Item {
     // it is a held pose, and the thing you want to look at is how it holds.
     property bool cheering: false
     function toggleThumb() {
+        perf.stop()
         cheering = !cheering
         if (cheering) { picked = -1; prof.thumbsUp() }
         else prof.stopGesture()
@@ -84,6 +87,7 @@ Item {
 
     function nextLesson() {
         cheering = false
+        perf.stop()
         if (!lesson) { lesson = true; lessonStep = 0 }
         else lessonStep = (lessonStep + 1) % targets.length
     }
@@ -94,6 +98,7 @@ Item {
     }
 
     function goHome() {
+        perf.stop()
         endLesson()
         cheering = false
         picked = -1
@@ -103,9 +108,36 @@ Item {
     // A line long enough to see the bubble wrap and the mouth run, short
     // enough to read at a glance.
     function talk() {
+        perf.stop()
         prof.say(picked < 0 ? "Ask me about something on the bench."
                             : "This is " + targets[picked].name
                               + " - watch what happens when I turn it on.")
+    }
+
+    // --- a scripted performance ----------------------------------------------
+    // The same professor, directed from one string instead of from a handler
+    // per beat. The names in the directives are the pegs' objectNames, found
+    // by the Performance's own scene walk - nothing here translates them.
+    // Every kind of cue the format has appears once, so this one key is the
+    // whole vocabulary demo: point with a time hint, face the viewer, emotion,
+    // a pause, a plain estimated line, and a held thumbs up to close.
+    readonly property string scene1:
+        "*point at the shelf* Up on the shelf is where finished experiments"
+        + " retire. (3s)"
+        + " *face viewer* *happy* *gesticulate* But nothing up there ever"
+        + " surprised anyone."
+        + " *pause 600ms*"
+        + " *point at the bench* This is the bench I meant! (2600ms)"
+        + " *face viewer* *neutral* What happens on it is far less predictable."
+        + " *thumbs up* *happy* Stay curious - you will like it here. (2600ms)"
+
+    function playScript() {
+        if (perf.running) { perf.stop(); prof.quiet(); return }
+        endLesson()
+        cheering = false
+        picked = -1
+        if (!prof.present) prof.appear()
+        perf.play(root.scene1)
     }
 
     // --- where to stand ------------------------------------------------------
@@ -263,15 +295,34 @@ Item {
                   + " - look, this is the one I meant."
             subjectOf: (i) => ({ stand: root.targets[i].from,
                                  look: root.targets[i].at })
+            // Two of the four steps are DIRECTED - they carry a script and
+            // the built-in speak/point/address beat stands aside. The other
+            // two keep the text choreography, which is the point: a flow
+            // scripts only the steps that earn it.
+            scriptTargets: view3d.scene
+            scriptOf: (i) => i === 0
+                ? "*point at the bench* The lesson starts here, at the"
+                  + " bench. (2500ms)"
+                  + " *face viewer* *gesticulate* Everything in this room ends"
+                  + " up on it eventually."
+                : i === 2
+                ? "*point at the far peg* And out there sits the far"
+                  + " peg. (2500ms)"
+                  + " *face viewer* *happy* *gesticulate* Nobody remembers why"
+                  + " - which is the best reason to go and look."
+                : ""
         }
 
         // The targets, as plain pegs. Lit ones are what is being pointed at.
+        // Each carries its name as objectName, which is what lets a script
+        // say `*point at the shelf*` and have the Performance find it.
         Repeater3D {
             model: root.targets
             Model {
                 id: peg
                 required property int index
                 required property var modelData
+                objectName: peg.modelData.name
                 source: "#Sphere"
                 position: peg.modelData.at
                 scale: Qt.vector3d(0.004, 0.004, 0.004)
@@ -306,6 +357,18 @@ Item {
 
     OrbitInput3D { id: nav; rig: rig; view: view3d }
     GridMode { id: grid }
+
+    // The director. Silent on purpose: a bare line goes through tell() - the
+    // bubble and the mouth - exactly as FlowGuide narrates, not through the
+    // speech engine (that stays on its own key, N).
+    Performance {
+        id: perf
+        performer: prof
+        searchRoot: view3d.scene
+        viewerPosition: () => rig.camera.scenePosition
+        spoken: false
+        debug: true
+    }
 
     // --- the bench controls -------------------------------------------------
     // Buttons as well as keys. A bench is for poking at, and a key you have to
@@ -394,6 +457,11 @@ Item {
             active: prof.character.speaking
             onHit: prof.character.speaking ? prof.hush() : root.talk()
         }
+        BenchButton {
+            label: perf.running ? "stop the scene (P)" : "perform a scene (P)"
+            active: perf.running
+            onHit: root.playScript()
+        }
         Item { width: 1; height: LabTheme.spaceM }
         BenchButton {
             label: "view:  " + root.views[root.viewAt] + " (I)"
@@ -431,6 +499,12 @@ Item {
                 + "\nat       " + prof.stand.x.toFixed(1) + ", " + prof.stand.z.toFixed(1)
                 + "\nsettled  " + prof.settled
                 + "\nspeaking " + prof.character.speaking
+                + "\nscript   " + (perf.running
+                                   ? (perf.cueIndex + 1) + "/" + perf.cueCount
+                                   : guide.script.running
+                                   ? "step " + (guide.script.cueIndex + 1)
+                                     + "/" + guide.script.cueCount
+                                   : (perf.done || guide.script.done) ? "done" : "-")
             color: LabTheme.inkSoft
             font.pixelSize: LabTheme.fontSmall
             font.family: LabTheme.monoFont
@@ -509,6 +583,8 @@ Item {
             { key: "U", label: "thumbs up", action: () => root.toggleThumb() },
             { key: "L", label: "stop gesturing", action: () => root.release() },
             { key: "N", label: "say a line", action: () => root.talk() },
+            { key: "P", label: "perform a scripted scene / stop it",
+              action: () => root.playScript() },
             { key: "T", label: "talk to the viewer",
               action: () => { prof.faceViewer(); prof.gesticulate() } },
             { key: "C", label: "hush", action: () => prof.hush() },
