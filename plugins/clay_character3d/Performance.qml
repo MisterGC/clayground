@@ -184,6 +184,15 @@ Item {
 
     /*! Emitted after the last cue of a script. Not emitted by \l stop(). */
     signal finished()
+    /*!
+        Emitted as each cue is dispatched: \a type is the cue's kind
+        ("point", "say", "face", "emotion", ...) and \a arg its argument
+        (the target name, the spoken text, the emotion). The hook for
+        choreography AROUND the performer - a scene that moves its camera in
+        when the character turns to the viewer listens for
+        \c {type === "face"} here rather than polling state.
+    */
+    signal cueFired(string type, string arg)
     /*! Emitted for a custom cue that has no handler registered. */
     signal customCue(string verb, string arg)
 
@@ -408,6 +417,11 @@ Item {
         if (debug)
             console.log("[perform] " + ms + "ms cue " + (_cueIndex + 1) + "/"
                         + _cues.length + ": " + _currentCue)
+        cueFired(cue.type,
+                 cue.target !== undefined ? "" + cue.target
+                 : cue.text !== undefined ? "" + cue.text
+                 : cue.value !== undefined ? "" + cue.value
+                 : cue.verb !== undefined ? "" + cue.verb : "")
         _dispatch(cue)
     }
 
