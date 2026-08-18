@@ -138,6 +138,24 @@ Item {
     */
     property var scriptTargets: null
 
+    /*!
+        The lab's own name lookup for script targets, when \c objectName is
+        not how its scene is organized: \c{function(name)} returning a
+        world-space \c vector3d or null. A circuit lab whose parts are data
+        rather than named nodes answers "the resistor" from its model here.
+        Set, it replaces the \l scriptTargets walk entirely.
+    */
+    property var scriptResolve: null
+
+    /*!
+        The audio twin of \l scriptOf: \c{function(step, sayIndex)} returning
+        a clip url for the \c sayIndex-th spoken line of that step's script,
+        or "" for a line narrated by mouth alone. This is per LINE where
+        \l voiceOf is per STEP, because a directed step usually speaks more
+        than once - a pointed line and an addressed one are two recordings.
+    */
+    property var scriptVoiceOf: null
+
     /*! The step's director. Exposed for state assertions (\c{guide.script.done}). */
     readonly property Performance script: _perf
 
@@ -145,6 +163,9 @@ Item {
         id: _perf
         performer: root.professor
         searchRoot: root.scriptTargets
+        resolveTarget: root.scriptResolve
+        voiceOf: (sayIndex) => (typeof root.scriptVoiceOf === "function")
+                 ? root.scriptVoiceOf(root.step, sayIndex) : ""
         spoken: false
         viewerPosition: () => {
             const p = root.professor

@@ -153,9 +153,19 @@ A step with a script still flies to its `subjectOf` stand — only the lab
 knows where to stand — but everything after landing belongs to the script:
 the built-in speak-point-hold-address beat and the step's `text` both stand
 aside for that step. `guide.script` exposes the sequencer for assertions
-(`guide.script.done`, `.errors`, `.skipped`). Scripted steps ignore
-`voiceOf` for now: a per-step clip cannot be matched to a script's several
-lines, so directed steps are silent until there is a per-line seam.
+(`guide.script.done`, `.errors`, `.skipped`).
+
+Two more seams for directed steps. `scriptResolve` is the lab's own name
+lookup — `function(name)` returning a world position — for a scene whose
+parts are model data rather than named nodes (the circuit lab answers
+"the resistor" from its element list, the same authority `subjectOf` uses).
+And `scriptVoiceOf(step, sayIndex)` is the audio twin of `scriptOf`,
+per LINE where `voiceOf` is per STEP: a directed step usually speaks more
+than once, and a pointed sentence and an addressed one are two recordings
+(`battery-0.wav`, `battery-1.wav`). A step's `voiceOf` clip is ignored on
+directed steps. Measured with pre-rendered clips: the sequencer advances
+about 80 ms after the recording actually ends — the clip's real duration is
+the cue clock, not an estimate.
 
 ## Traps
 
