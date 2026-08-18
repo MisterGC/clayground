@@ -608,14 +608,19 @@ Node {
     }
 
     /*!
-        \qmlmethod void OrbitCamera3D::frame(var points, real pad)
+        \qmlmethod void OrbitCamera3D::frame(var points, real pad, var angles)
         \brief Centres on the given world points and backs off until they fit.
 
         \a points is an array of vector3d (or {x, y, z}); \a pad is a headroom
         factor (1.0 = tight, 1.3 = comfortable). Keeps the current yaw/pitch,
-        so framing never disorients the viewer.
+        so framing never disorients the viewer - unless \a angles asks for a
+        specific one: an optional \c {{yaw, pitch}} (either field alone is
+        fine) folded into the same single glide. For the framing that IS a
+        deliberate change of viewpoint - a lab dropping to eye level while a
+        character presents - where framing first and pitching second would
+        move the camera twice.
     */
-    function frame(points, pad) {
+    function frame(points, pad, angles) {
         if (!points || points.length === 0) return
         var minX = Infinity, maxX = -Infinity, minY = Infinity
         var maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
@@ -630,7 +635,9 @@ Node {
         // one move, not a setPivot followed by a setDistance: two writes to an
         // animated rig start two glides that arrive at different times, and the
         // scene visibly slides while it zooms
-        _apply(_goal.yaw, _goal.pitch,
+        const aYaw = angles && angles.yaw !== undefined ? angles.yaw : _goal.yaw
+        const aPitch = angles && angles.pitch !== undefined ? angles.pitch : _goal.pitch
+        _apply(aYaw, aPitch,
                (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
                Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2))
     }

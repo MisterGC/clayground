@@ -680,6 +680,15 @@ Item {
 
     // Where the professor is, or is about to be. Null when it is not on stage,
     // which is every use of the camera outside a flow.
+    // The angle a lesson is delivered at. The board reads best from 48
+    // degrees up (the rig's home), but a face does not: from up there the
+    // camera sees the professor's crown and the smile underneath it goes
+    // unread. So whenever the professor is part of the framed shot the
+    // camera comes down to this pitch - the same eye-ish level as the rig's
+    // "eye" viewpoint - and framing without the professor leaves the angle
+    // alone, exactly as before.
+    readonly property real presentPitch: 22
+
     function profSpot() {
         if (!prof.present)
             return null
@@ -696,7 +705,8 @@ Item {
             const who = profSpot()
             if (who) {
                 rig.frame([Qt.vector3d(who.x - 26, 0, who.z - 8),
-                           Qt.vector3d(who.x + 26, prof.standHeight, who.z + 30)], 1.15)
+                           Qt.vector3d(who.x + 26, prof.standHeight, who.z + 30)],
+                          1.15, { pitch: root.presentPitch })
                 return
             }
             // one applyState, not a pivot write plus a setDistance: the rig
@@ -726,8 +736,16 @@ Item {
             // Asking for twice the figure keeps the bubble inside the
             // picture at any framing distance.
             pts.push(Qt.vector3d(spot.x + 5, prof.standHeight * 2.2, spot.z + 5))
+            // Ballast. At the presenting pitch, world height maps almost
+            // straight onto screen height, and a box that starts at the
+            // board puts the part on the frame's bottom edge - which is
+            // where the selection card and the flow bar live. Extending the
+            // box below the board pushes the centre down, so the part rides
+            // up into the clear part of the picture (and the fit backs off
+            // a little further, which the lower angle needs anyway).
+            pts.push(Qt.vector3d(spot.x, -prof.standHeight, spot.z))
         }
-        rig.frame(pts, 1.25)
+        rig.frame(pts, 1.25, spot ? { pitch: root.presentPitch } : undefined)
     }
     function frameAll() { frameCells(elements) }
     function frameSetup() { frameAll() }          // the flow's "frame" verb
