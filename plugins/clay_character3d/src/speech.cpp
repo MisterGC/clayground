@@ -211,16 +211,104 @@ VisemeTimeline Speech::timelineForText(const QString &text, qreal paceScale)
     return tl;
 }
 
+int Speech::estimateDurationMs(const QString &text) const
+{
+    // The same pace scale sayText() uses, so the estimate is the duration.
+    return int(timelineForText(text, 1.0 - 0.4 * rate_).durationMs);
+}
+
+QVariantList Speech::wordMarks() const
+{
+    QVariantList out;
+    out.reserve(timeline_.wordMarks.size());
+    for (const auto &mark : timeline_.wordMarks) {
+        QVariantMap m;
+        m.insert(QStringLiteral("offset"), qlonglong(mark.first));
+        m.insert(QStringLiteral("ms"), qlonglong(mark.second));
+        out.append(m);
+    }
+    return out;
+}
+
+void Speech::setTimeline(const VisemeTimeline &tl)
+{
+    const qint64 was = timeline_.durationMs;
+    timeline_ = tl;
+    if (timeline_.durationMs != was)
+        emit durationMsChanged();
+}
+
+// A say() records what to say and starts it on the NEXT event-loop turn.
+//
+// Two failures made that necessary, both of them in the same shape - a line
+// that is replaced before it ever gets going:
+//
+//  * Two say() calls in one tick. The second one's stop() silences the TTS
+//    engine, whose Ready arrives asynchronously - after the new utterance has
+//    been handed over and reported itself Speaking. The stale Ready then ends
+//    the new line, and the character says nothing at all. Deferring the start
+//    puts that Ready back where it belongs: before the new line begins.
+//  * A cue scheduler driving speech from a timer hits the same window on
+//    purpose rather than by accident.
+//
+// Deferring also settles which line wins: the last say() of a tick overwrites
+// the pending one, so exactly one line starts and exactly that line reports
+// its started()/finished() pair. A line that never began reports neither -
+// nothing false to advance a queue with.
+void Speech::scheduleStart()
+{
+    if (startScheduled_)
+        return;
+    startScheduled_ = true;
+    QMetaObject::invokeMethod(this, [this]() {
+        startScheduled_ = false;
+        startPending();
+    }, Qt::QueuedConnection);
+}
+
+void Speech::startPending()
+{
+    const Pending kind = pendingKind_;
+    pendingKind_ = Pending::None;
+    switch (kind) {
+    case Pending::None:
+        break;
+    case Pending::Text:
+        startText(pendingText_);
+        break;
+    case Pending::Audio:
+        startAudio(pendingSource_);
+        break;
+    }
+}
+
 void Speech::sayText(const QString &text)
 {
     stop();
-    if (text.isEmpty())
+    pendingKind_ = Pending::Text;
+    pendingText_ = text;
+    scheduleStart();
+}
+
+void Speech::startText(const QString &text)
+{
+    if (text.trimmed().isEmpty()) {
+        // An empty line still has to complete. A queue advancing on finished()
+        // waits forever otherwise, and a directive that produces a text-less
+        // segment makes that reachable. Reported as a zero-length utterance:
+        // begun and ended, never speaking.
+        emit started();
+        emit finished();
         return;
+    }
 
     // rate -1..1 => pace scale 1.6 .. 0.6 (slower rate = longer visemes)
-    timeline_ = timelineForText(text, 1.0 - 0.4 * rate_);
-    if (timeline_.keys.isEmpty())
+    setTimeline(timelineForText(text, 1.0 - 0.4 * rate_));
+    if (timeline_.keys.isEmpty()) {
+        emit started();
+        emit finished();
         return;
+    }
 
     beginSpeaking(Mode::Text);
 
@@ -344,9 +432,16 @@ void Speech::startAudio(const QUrl &source)
 void Speech::sayAudio(const QUrl &source)
 {
     stop();
-    if (source.isEmpty())
+    if (source.isEmpty()) {
+        // Same contract as an empty line: the caller gets its completion.
+        pendingKind_ = Pending::Text;
+        pendingText_.clear();
+        scheduleStart();
         return;
-    startAudio(source);
+    }
+    pendingKind_ = Pending::Audio;
+    pendingSource_ = source;
+    scheduleStart();
 }
 
 void Speech::onDecoderBufferReady()
@@ -430,8 +525,7 @@ void Speech::onDecoderFinished()
     if (mode_ != Mode::Audio || analysisReady_)
         return;
 
-    timeline_.keys.clear();
-    timeline_.wordMarks.clear();
+    VisemeTimeline tl;
 
     if (maxRms_ > 0.f && !rmsWindows_.isEmpty()) {
         const float gate = 0.06f * maxRms_;
@@ -447,12 +541,14 @@ void Speech::onDecoderFinished()
                 open *= (1.f - 0.45f * zcrNorm);
                 round = 0.25f * (1.f - zcrNorm) * open;
             }
-            timeline_.keys.append({qint64(i) * windowMs_, open, wide, round});
+            tl.keys.append({qint64(i) * windowMs_, open, wide, round});
         }
-        timeline_.durationMs = qint64(rmsWindows_.size()) * windowMs_;
+        tl.durationMs = qint64(rmsWindows_.size()) * windowMs_;
+        setTimeline(tl);
         analysisReady_ = true;
         player_->play();
     } else {
+        setTimeline(tl);
         babbleMode_ = true;
         analysisReady_ = true;
         player_->play();
@@ -463,8 +559,7 @@ void Speech::buildBabbleTimeline(qint64 durationMs)
 {
     // Deterministic pseudo-syllables at ~5 Hz; used when the audio could
     // not be analyzed but still plays.
-    timeline_.keys.clear();
-    timeline_.wordMarks.clear();
+    VisemeTimeline tl;
     qint64 t = 0;
     quint32 seed = 0x9e3779b9u;
     while (t < durationMs) {
@@ -472,12 +567,13 @@ void Speech::buildBabbleTimeline(qint64 durationMs)
         const float open = 0.25f + 0.65f * ((seed >> 8) % 1000) / 1000.f;
         seed = seed * 1664525u + 1013904223u;
         const float round = 0.5f * ((seed >> 8) % 1000) / 1000.f;
-        timeline_.keys.append({t, open, 0.2f, round});
+        tl.keys.append({t, open, 0.2f, round});
         t += 90;
-        timeline_.keys.append({t, 0.1f, 0.1f, 0.f});
+        tl.keys.append({t, 0.1f, 0.1f, 0.f});
         t += 90;
     }
-    timeline_.durationMs = durationMs;
+    tl.durationMs = durationMs;
+    setTimeline(tl);
 }
 
 void Speech::beginSpeaking(Mode mode)
@@ -510,6 +606,9 @@ void Speech::finishSpeaking()
 
 void Speech::stop()
 {
+    // A line that has not started yet is simply dropped - it never reported a
+    // beginning, so it must not report an end either.
+    pendingKind_ = Pending::None;
 #ifdef CLAY_CHARACTER3D_HAS_TTS
     // Always silence the engine - it may still be speaking a previous
     // utterance even when our mode already moved on (e.g. watchdog end).

@@ -29,6 +29,7 @@
 #include <QString>
 #include <QTimer>
 #include <QUrl>
+#include <QVariant>
 #include <QVector>
 
 QT_BEGIN_NAMESPACE
@@ -71,6 +72,9 @@ class Speech : public QObject
     Q_PROPERTY(qreal   mouthWide   READ mouthWide   NOTIFY mouthChanged)
     Q_PROPERTY(qreal   mouthRound  READ mouthRound  NOTIFY mouthChanged)
     Q_PROPERTY(QString currentWord READ currentWord NOTIFY currentWordChanged)
+    // How long the line currently being said lasts. Scheduling anything
+    // alongside speech needs this number, and the engine has always known it.
+    Q_PROPERTY(int     durationMs  READ durationMs  NOTIFY durationMsChanged)
     Q_PROPERTY(qreal   volume      READ volume      WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(qreal   rate        READ rate        WRITE setRate   NOTIFY rateChanged)
     Q_PROPERTY(qreal   pitch       READ pitch       WRITE setPitch  NOTIFY pitchChanged)
@@ -85,6 +89,7 @@ public:
     qreal   mouthWide() const { return mouthWide_; }
     qreal   mouthRound() const { return mouthRound_; }
     QString currentWord() const { return currentWord_; }
+    int     durationMs() const { return int(timeline_.durationMs); }
 
     qreal volume() const { return volume_; }
     void  setVolume(qreal v);
@@ -107,6 +112,15 @@ public:
     Q_INVOKABLE void sayAudio(const QUrl &source);
     Q_INVOKABLE void stop();
 
+    // How long this engine would take over the text, at the current rate,
+    // without saying it. The same number the mouth is driven by, so anything
+    // scheduling around a line stops having to guess a speech rate of its own.
+    Q_INVOKABLE int estimateDurationMs(const QString &text) const;
+
+    // The current line's words as {offset, ms} - the char offset in the source
+    // text and when that word starts. Empty before the first line.
+    Q_INVOKABLE QVariantList wordMarks() const;
+
     // Pure timeline construction, exposed for unit testing.
     static VisemeTimeline timelineForText(const QString &text, qreal paceScale = 1.0);
 
@@ -114,6 +128,7 @@ signals:
     void speakingChanged();
     void mouthChanged();
     void currentWordChanged();
+    void durationMsChanged();
     void volumeChanged();
     void rateChanged();
     void pitchChanged();
@@ -122,6 +137,14 @@ signals:
 
 private:
     enum class Mode { None, Text, Audio };
+    // What the next event-loop turn is going to start. A say() records a
+    // request instead of starting it on the spot - see scheduleStart().
+    enum class Pending { None, Text, Audio };
+
+    void scheduleStart();
+    void startPending();
+    void startText(const QString &text);
+    void setTimeline(const VisemeTimeline &tl);
 
     void beginSpeaking(Mode mode);
     void finishSpeaking();
@@ -147,6 +170,12 @@ private:
     qint64        clockBaseMs_ = 0; // timeline pos when clock_ was (re)started
 
     VisemeTimeline timeline_;
+
+    Pending pendingKind_ = Pending::None;
+    QString pendingText_;
+    QUrl    pendingSource_;
+    bool    startScheduled_ = false;
+
     Mode  mode_ = Mode::None;
     bool  speaking_ = false;
     bool  settling_ = false; // speech done, mouth still easing to closed
