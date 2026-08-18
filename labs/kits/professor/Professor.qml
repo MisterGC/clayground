@@ -469,9 +469,8 @@ Node {
         // armed anyway, on a generous estimate, because a file that fails to
         // decode emits nothing at all and would leave the jaw open for the
         // rest of the session.
-        _mouth.interval = url !== ""
-            ? Math.max(2000, 120 * ("" + what).length)
-            : Math.max(700, Math.min(7000, 380 + 52 * ("" + what).length))
+        _mouth.interval = Math.max(900, Math.min(30000,
+            300 + root.speechRateMs * ("" + what).length))
         _mouth.restart()
         if (url !== "")
             _voice.play()
@@ -486,7 +485,35 @@ Node {
         _speechEnded()
     }
 
+    /*! True while a line is still being said - by mouth, clip or engine. */
+    readonly property bool talking: _talking
+
     property bool _talking: false
+
+    /*!
+        \qmlproperty int Professor::speechRateMs
+        \brief Milliseconds per character of narration.
+
+        The one rate. It used to be guessed twice - once here for the mouth
+        and once in FlowGuide for how long to hold a point - and the two
+        guesses disagreed, so on a short line the mouth finished BEFORE the
+        professor turned round and started gesturing: lips with no hands, then
+        hands with no lips. Anything that needs to know how long a line lasts
+        reads \l lineMs.
+
+        72 ms is measured rather than chosen: the pre-rendered narration for
+        the electronics lab runs at about fourteen characters of text per
+        second of speech, over eighty-eight seconds of audio.
+    */
+    property int speechRateMs: 72
+
+    /*!
+        How long the line currently being said lasts, in ms.
+
+        The clip's real duration once that is known, the estimate until then,
+        and stale after the line ends - read it while \l talking.
+    */
+    readonly property int lineMs: _mouth.interval
 
     // The sentence is over: shut the mouth, and put the hands down with it.
     //

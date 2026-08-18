@@ -193,28 +193,44 @@ Item {
         if (!p) return
         _addressing = true
         p.faceViewer()
-        p.gesticulate()
+        // Only if there is still something being said. Hands that talk while
+        // the mouth is shut are worse than no hands: turning to the reader is
+        // worth doing on its own, gesticulating at them is not.
+        if (p.talking)
+            p.gesticulate()
     }
 
     property bool _addressing: false
 
-    // How long the step's opening sentence takes to read, which is how long
-    // the point on its subject is worth holding. Reading rate is deliberately
-    // slow - this is a sentence somebody is meeting for the first time, in a
-    // bubble, while also looking at the thing it names.
+    // How long the point on the step's subject is worth holding: as long as
+    // the opening sentence, which is the part of the line the pointing is
+    // about.
     //
     // The clamp matters more than the rate: under it the professor snatches
     // its hand back before the reader has followed the finger, and over it we
     // are back to the signpost.
-    readonly property int _readMsPerChar: 72
-    readonly property int _holdMinMs: 1400
+    //
+    // And it is capped as a SHARE of the whole line, which is the part that
+    // was wrong. A one-sentence step is a line whose first sentence is all of
+    // it, so the hold used to run to the end of the speech and the turn landed
+    // after the mouth had already stopped: the professor mouthed the line at
+    // the board, then swung round and gesticulated in silence. Whatever the
+    // sentence arithmetic says, the turn happens while there is still
+    // something being said.
+    readonly property int _holdMinMs: 1200
     readonly property int _holdMaxMs: 3600
+    readonly property real _holdShare: 0.55
 
     function _firstSentenceMs() {
+        const p = root.professor
+        const rate = p && p.speechRateMs ? p.speechRateMs : 72
         const m = /[.!?](\s|$)/.exec(root.text)
         const n = m ? m.index + 1 : root.text.length
-        return Math.max(root._holdMinMs,
-                        Math.min(root._holdMaxMs, n * root._readMsPerChar))
+        let ms = Math.min(root._holdMaxMs, n * rate)
+        // The professor knows the real length once a clip has loaded; the
+        // estimate is only a stand-in for it.
+        const whole = p && p.talking && p.lineMs > 0 ? p.lineMs : root.text.length * rate
+        return Math.max(root._holdMinMs, Math.min(ms, whole * root._holdShare))
     }
 
     Timer {
