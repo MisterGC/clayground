@@ -697,6 +697,7 @@ Item {
     }
 
     function frameCells(cells) {
+        _boardGuards()
         if (!cells || !cells.length) {
             // Nothing on the board. If somebody is standing on it, frame them
             // against the empty sheet instead of pulling back to the far
@@ -747,6 +748,43 @@ Item {
         }
         rig.frame(pts, 1.25, spot ? { pitch: root.presentPitch } : undefined)
     }
+    // The mid-shot. Pointing is a wide two-shot - teacher AND part - but the
+    // moment the professor turns to the reader the part has had its moment,
+    // and what carries the next sentence is the face: at the wide framing the
+    // smile is a few pixels behind a moustache, which reads as no smile at
+    // all. So addressing pulls the camera in on the professor alone; the next
+    // step's demo reframes wide again. The two hooks below cover both ways a
+    // step can address - the built-in beat (guide.addressing) and a directed
+    // script's *face viewer* cue.
+    // The rig's guards exist for circuit work: a learner orbiting the board
+    // must not skim it. A portrait is the opposite regime - the camera has to
+    // come down LEVEL with the face, or the shot looks at the crown and the
+    // eyes (and the smile under the moustache) disappear. So the mid-shot
+    // relaxes the two floors and every wide framing puts them back.
+    function frameProf() {
+        const spot = profSpot()
+        if (!spot) return
+        rig.minPitch = 6
+        rig.minHeight = 2
+        rig.frame([Qt.vector3d(spot.x - 6, 0, spot.z - 6),
+                   Qt.vector3d(spot.x + 6, prof.standHeight * 1.35, spot.z + 6)],
+                  1.1, { pitch: 8 })
+    }
+    function _boardGuards() {
+        rig.minPitch = 22
+        rig.minHeight = 9
+    }
+    Connections {
+        target: guide
+        function onAddressingChanged() { if (guide.addressing) root.frameProf() }
+    }
+    Connections {
+        target: guide.script
+        function onCueFired(type, arg) {
+            if (type === "face" && arg === "viewer") root.frameProf()
+        }
+    }
+
     function frameAll() { frameCells(elements) }
     function frameSetup() { frameAll() }          // the flow's "frame" verb
     function frameSelection() {
@@ -1476,6 +1514,110 @@ Item {
         return root.subjectOf(ids)
     }
 
+    // --- narration audio -----------------------------------------------------
+    // Pre-rendered clips under voice/en/, made offline by the local
+    // text-to-speech project rather than synthesised here: nothing about this
+    // needs a speech engine at runtime, and a file rendered in advance can be
+    // listened to before a learner hears it. The compressed m4a files ship
+    // with the lab; the wav masters they were cut from stay local
+    // (gitignored). voice/README.md carries the regeneration recipe and the
+    // spoken-form texts.
+    //
+    // English only. A step with no file is narrated in text, so the German
+    // side is unaffected. The LED flow's directed steps (battery, led,
+    // resistor, lit, why) do not appear here - they speak per LINE through
+    // flowScriptVoice below, not per step.
+    readonly property var voicedLedSteps: ["empty", "wire", "flip", "values", "try"]
+    readonly property var voicedLogicSteps: ["meet", "switch", "gain", "and", "andtask",
+                                             "or", "xor", "xortask", "both", "cost",
+                                             "chip", "chiptask", "switchit", "adder"]
+    function flowVoice(i) {
+        const f = root.currentFlow
+        if (!f || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        if (!s)
+            return ""
+        if (f.flowId === "led-basics")
+            return root.voicedLedSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/" + s.key + ".m4a")
+        if (f.flowId === "logic-gates")
+            return root.voicedLogicSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/logic-" + s.key + ".m4a")
+        return ""
+    }
+
+    // --- directed steps (same local trial) -----------------------------------
+    // Five of the LED flow's steps carry a performance script instead of the
+    // built-in speak-point-address beat: the "this is X" steps point at the
+    // part and then turn to the reader, "lit" celebrates, "why" explains to
+    // the face and lands its last sentence back on the resistor. The learner
+    // task steps (flip, try) and the sweeps (wire, values) keep the beat.
+    //
+    // English only, like the audio - a directed step falls back to the plain
+    // narrated step in German or without these entries.
+    readonly property var ledScripts: ({
+        "battery":
+            "*point at the battery* This is the cell. It pushes: 4.5 volts"
+            + " between its two pads."
+            + " *face viewer* *gesticulate* The gold pad is the plus side.",
+        "led":
+            "*point at the LED* The LED. It only conducts one way."
+            + " *face viewer* *gesticulate* And only above about 2 volts"
+            + " — its forward voltage.",
+        "resistor":
+            "*point at the resistor* And a 470 Ω resistor."
+            + " *face viewer* *gesticulate* Without it the LED would take all"
+            + " the current it can get and die. This is its seatbelt.",
+        "lit":
+            "*happy* *point at the LED* There it is."
+            + " *face viewer* *gesticulate* 5.1 mA flow, and the LED glows.",
+        "why":
+            "*face viewer* *gesticulate* Why 5.1 mA? The cell offers 4.5 V,"
+            + " the LED eats about 2.1 of them, and the rest — 2.4 V —"
+            + " falls across the resistor."
+            + " *point at the resistor* 2.4 V over 470 Ω is 5.1 mA."
+            + " The resistor sets the current."
+    })
+
+    function flowScript(i) {
+        const f = root.currentFlow
+        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        return s && root.ledScripts[s.key] ? root.ledScripts[s.key] : ""
+    }
+
+    // One recording per spoken LINE of a directed step - a pointed sentence
+    // and an addressed one are two files (battery-0.wav, battery-1.wav).
+    function flowScriptVoice(i, sayIndex) {
+        const f = root.currentFlow
+        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        if (!s || !root.ledScripts[s.key])
+            return ""
+        return Qt.resolvedUrl("voice/en/" + s.key + "-" + sayIndex + ".m4a")
+    }
+
+    // What a script's `*point at NAME*` means in THIS scene. The parts are
+    // model data, not named nodes, so the lookup answers from the model - the
+    // same authority subjectOf() uses - rather than from a scene walk.
+    function scriptTarget(name) {
+        root.elemRev
+        const type = ({ "the battery": "battery", "the cell": "battery",
+                        "the LED": "led", "the resistor": "resistor",
+                        "the switch": "switch" })[name]
+        if (!type)
+            return null
+        const ids = root.idsOfType(type)
+        if (!ids.length)
+            return null
+        const e = root.elemAt(ids[0])
+        // A hand's breadth above the board, as subjectOf() aims.
+        return e ? Qt.vector3d(root.cellX(e.col), 1.5, root.cellZ(e.row)) : null
+    }
+
     // Which lesson `T` and the chip offer. Two flows, one key: a lab with a
     // switch to choose between them would be asking the learner to pick a
     // lesson before they know what either is - so the offer follows the board
@@ -1751,12 +1893,17 @@ Item {
             step: root.currentFlow ? root.currentFlow.index : -1
             text: root.currentFlow ? root.currentFlow.narration : ""
             subjectOf: (i) => root.flowSubject(i)
+            voiceOf: (i) => root.flowVoice(i)
+            scriptOf: (i) => root.flowScript(i)
+            scriptVoiceOf: (i, sayIndex) => root.flowScriptVoice(i, sayIndex)
+            scriptResolve: (name) => root.scriptTarget(name)
             // Arrives at the far edge, centred - off the board, so the puff
             // does not go off in the middle of the circuit, and behind it, so
             // the first flight is toward the viewer.
             entrance: Qt.vector3d(0, 0, root.cellZ(0) - 14)
-            // Text only. This is a lab someone works through at their own
-            // pace, quite possibly in an office.
+            // Not the character plugin's text-to-speech, which synthesises at
+            // runtime and cannot be heard before it is shipped. The audio here
+            // is pre-rendered per step and arrives through voiceOf above.
             spoken: false
         }
         // The tape measure, in the same screen space and for the same reason:

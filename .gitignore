@@ -128,5 +128,5 @@ docs/labs/
 docs/_data/labs.yml
 docs/_data/lab_cards.yml
 
-# Local narration trials - rendered per-machine, never shipped from here
-labs/*/voice/
+# Narration wav masters stay local; the compressed m4a beside them ship
+labs/*/voice/**/*.wav

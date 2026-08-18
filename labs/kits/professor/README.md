@@ -125,7 +125,8 @@ step changes, and `Music` is the wrapper that reports a duration and an end.
 
 This is not `say()`. Nothing is synthesised at runtime — the audio is rendered
 in advance, which is the only way anyone gets to hear a line before a learner
-does. No lab in this repository ships narration audio yet.
+does. electronics-101 ships English narration this way for both of its flows,
+as 48 kbps AAC (about 2 MB for 29 clips); the wav masters stay out of the repo.
 
 ### Directed steps — a script instead of the built-in beat
 
