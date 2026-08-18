@@ -21,6 +21,7 @@ import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Character3D
 import Clayground.Lab
+import Clayground.Sound
 
 Node {
     id: root
@@ -423,19 +424,42 @@ Node {
         The mouth runs for about as long as the line takes to read and then
         goes back to the resting face, so the professor stops talking while
         the text stays up - which is what a person does.
+
+        \a clip is optional: a url to a pre-rendered narration wav. Given one,
+        the professor plays it and the mouth runs for the recording's real
+        length instead of an estimate. This is not \l say() - nothing is
+        synthesised at runtime, the audio was made in advance and the lab
+        decides which file belongs to which line.
     */
-    function tell(what) {
+    function tell(what, clip) {
         root.line = what
+        const url = (clip === undefined || clip === null) ? "" : "" + clip
+        _voice.stop()
+        _voice.source = url
         _talking = (what !== undefined && what !== "")
-        _mouth.interval = Math.max(700, Math.min(7000, 380 + 52 * ("" + what).length))
+
+        // Two ways to know when the mouth stops. With a clip it is the clip:
+        // pre-rendered narration is the only thing here that knows how long
+        // the sentence actually takes, and guessing next to a recording that
+        // disagrees is worse than not moving the mouth at all. The timer stays
+        // armed anyway, on a generous estimate, because a file that fails to
+        // decode emits nothing at all and would leave the jaw open for the
+        // rest of the session.
+        _mouth.interval = url !== ""
+            ? Math.max(2000, 120 * ("" + what).length)
+            : Math.max(700, Math.min(7000, 380 + 52 * ("" + what).length))
         _mouth.restart()
+        if (url !== "")
+            _voice.play()
     }
 
-    /*! Clears the bubble and closes the mouth. */
+    /*! Clears the bubble, closes the mouth and stops any narration clip. */
     function quiet() {
         root.line = ""
         _talking = false
         _mouth.stop()
+        _voice.stop()
+        _voice.source = ""
     }
 
     property bool _talking: false
@@ -443,6 +467,36 @@ Node {
     Timer {
         id: _mouth
         onTriggered: root._talking = false
+    }
+
+    /*!
+        \qmlproperty real Professor::voiceVolume
+        \brief How loud a narration clip plays, 0 to 1.
+    */
+    property real voiceVolume: 1.0
+
+    /*! True while a narration clip is playing. */
+    readonly property bool voicing: _voice.playing
+
+    /*! How long the current clip runs, in ms; 0 before it is known. */
+    readonly property int voiceMs: _voice.duration
+
+    // Pre-rendered narration. Music rather than Sound: a line has to be
+    // stoppable when the step changes, and it is the wrapper that reports a
+    // duration and an end.
+    Music {
+        id: _voice
+        volume: root.voiceVolume
+        lazyLoading: true
+        onFinished: root._talking = false
+        // The estimate above is a backstop; once the real length is known,
+        // use it. Plus a beat, so the mouth does not shut on the last word.
+        onDurationChanged: {
+            if (_voice.duration > 0 && root._talking) {
+                _mouth.interval = _voice.duration + 250
+                _mouth.restart()
+            }
+        }
     }
 
     /*!

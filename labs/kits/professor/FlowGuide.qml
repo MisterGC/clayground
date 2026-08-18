@@ -71,6 +71,21 @@ Item {
     property bool spoken: false
 
     /*!
+        The lab's other half: given a step index, the url of the narration
+        clip for it, or "" for a step that has none.
+
+        \code
+        voiceOf: (i) => Qt.resolvedUrl("voice/en/" + keyOf(i) + ".wav")
+        \endcode
+
+        Same split as \l subjectOf - only the lab knows where its audio is,
+        and whether it has any. Missing files are not an error: a step with no
+        clip is narrated in text, exactly as before, so a half-recorded flow
+        still runs.
+    */
+    property var voiceOf: null
+
+    /*!
         Whether the professor lets go of the point partway through a step,
         turns to the camera and talks the rest of it out with its hands.
 
@@ -211,8 +226,9 @@ Item {
         const p = root.professor
         if (!p) return
         if (root.text === "") { p.quiet(); return }
-        if (root.spoken) p.say(root.text)
-        else p.tell(root.text)
+        if (root.spoken) { p.say(root.text); return }
+        const clip = (typeof root.voiceOf === "function") ? root.voiceOf(root.step) : ""
+        p.tell(root.text, clip)
     }
 
     // What to point at once the flight is over. Held rather than pointed at

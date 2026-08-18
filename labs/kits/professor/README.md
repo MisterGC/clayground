@@ -89,6 +89,28 @@ deliver explanation to a face.
 lab whose steps are one short label each. `pointHoldMs` overrides the
 first-sentence estimate with a fixed hold.
 
+### Pre-rendered narration
+
+A step can carry a recording. Same split again — the lab says where its audio
+is, the kit decides when to play it:
+
+```qml
+FlowGuide {
+    voiceOf: (i) => Qt.resolvedUrl("voice/en/" + keyOf(i) + ".wav")
+}
+```
+
+`tell(text, clip)` plays the file and runs the mouth for the recording's real
+length instead of a character-count estimate. An empty clip — the default —
+is text only, so a flow that is half recorded still runs, and so does one with
+no audio at all. Playback is `Clayground.Sound`'s `Music`, which is the kit's
+one dependency on that module: a narration line has to be stoppable when the
+step changes, and `Music` is the wrapper that reports a duration and an end.
+
+This is not `say()`. Nothing is synthesised at runtime — the audio is rendered
+in advance, which is the only way anyone gets to hear a line before a learner
+does. No lab in this repository ships narration audio yet.
+
 ## Traps
 
 **`height3d` is not the height it renders at.** It is `bodyHeight` on the
