@@ -89,6 +89,13 @@ deliver explanation to a face.
 lab whose steps are one short label each. `pointHoldMs` overrides the
 first-sentence estimate with a fixed hold.
 
+**The hands stop when the sentence does.** Talking body language is only
+talking body language while something is being said; left running past the end
+of the line it is a person miming at an empty room. So the end of a line —
+the mouth timer, or the narration clip finishing — puts the arms down. A
+`pointAt()` is not affected: a point outlives the sentence that introduced it,
+on purpose.
+
 ### Pre-rendered narration
 
 A step can carry a recording. Same split again — the lab says where its audio

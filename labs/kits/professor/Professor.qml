@@ -456,17 +456,32 @@ Node {
     /*! Clears the bubble, closes the mouth and stops any narration clip. */
     function quiet() {
         root.line = ""
-        _talking = false
         _mouth.stop()
         _voice.stop()
         _voice.source = ""
+        _speechEnded()
     }
 
     property bool _talking: false
 
+    // The sentence is over: shut the mouth, and put the hands down with it.
+    //
+    // The hands are the part that has to be said out loud. Talking body
+    // language is only talking body language while something is being said -
+    // left running past the end of the line it is a person miming at an empty
+    // room, and it ran for the whole rest of the step, because the gesture was
+    // started by the choreography and only ever stopped by the next one.
+    // Anything else the professor is doing with its arms is left alone: a
+    // point outlives the sentence that introduced it, on purpose.
+    function _speechEnded() {
+        root._talking = false
+        if (_point.gesture === "talk" && _point.active)
+            stopGesture()
+    }
+
     Timer {
         id: _mouth
-        onTriggered: root._talking = false
+        onTriggered: root._speechEnded()
     }
 
     /*!
@@ -488,7 +503,7 @@ Node {
         id: _voice
         volume: root.voiceVolume
         lazyLoading: true
-        onFinished: root._talking = false
+        onFinished: root._speechEnded()
         // The estimate above is a backstop; once the real length is known,
         // use it. Plus a beat, so the mouth does not shut on the last word.
         onDurationChanged: {
