@@ -55,6 +55,51 @@ Item {
             cameraDistance = Math.min(100, cameraDistance + 5)
             event.accepted = true
         }
+        // Gestures on the plain character standing next to the player
+        else if (event.key === Qt.Key_P) {
+            gesturer.pointAt(gestureMarker.scenePosition)
+            event.accepted = true
+        } else if (event.key === Qt.Key_O) {
+            gesturer.thumbsUp()
+            event.accepted = true
+        } else if (event.key === Qt.Key_I) {
+            gesturer.gesticulate()
+            event.accepted = true
+        } else if (event.key === Qt.Key_X) {
+            gesturer.stopGesture()
+            event.accepted = true
+        } else if (event.key === Qt.Key_L) {
+            // Address the reader while the arm keeps holding the point
+            gesturer.lookAt(charCamera.scenePosition)
+            event.accepted = true
+        } else if (event.key === Qt.Key_K) {
+            gesturer.lookAt(null)
+            event.accepted = true
+        } else if (event.key === Qt.Key_Y) {
+            gesturer.turnTo(gestureMarker.scenePosition)
+            event.accepted = true
+        } else if (event.key === Qt.Key_H) {
+            gesturer.detailedHands = !gesturer.detailedHands
+            event.accepted = true
+        } else if (event.key === Qt.Key_N) {
+            // A gesture is Idle-only: this drops it and starts a walk cycle
+            gesturer.activity = gesturer.activity === Character.Activity.Idle
+                              ? Character.Activity.Walking
+                              : Character.Activity.Idle
+            event.accepted = true
+        } else if (event.key === Qt.Key_1) {
+            gesturer.setEmotion("happy")
+            event.accepted = true
+        } else if (event.key === Qt.Key_2) {
+            gesturer.setEmotion("sad")
+            event.accepted = true
+        } else if (event.key === Qt.Key_3) {
+            gesturer.setEmotion("angry")
+            event.accepted = true
+        } else if (event.key === Qt.Key_0) {
+            gesturer.setEmotion("")
+            event.accepted = true
+        }
         // Let other keys pass through to forwardTo targets
     }
     
@@ -363,6 +408,31 @@ Item {
             minZ: -80; maxZ: 80
         }
 
+        // Gesture demo: a plain Character, nothing parametric about it, and
+        // something in the scene worth pointing at.
+        Character {
+            id: gesturer
+            name: "Gesturer"
+            position: Qt.vector3d(-14, 0, 6)
+            // Fingers, so a point reads as a point rather than as a stub
+            detailedHands: true
+            torsoColor: "#0f9d9a"
+            hipColor: "#2c3e50"
+            legColor: "#2c3e50"
+            activity: Character.Activity.Idle
+        }
+
+        Box3D {
+            id: gestureMarker
+            position: Qt.vector3d(-14, 9, 18)
+            width: 1.6
+            height: 1.6
+            depth: 1.6
+            color: "#ff3366"
+            showEdges: true
+            edgeColorFactor: 0.7
+        }
+
         // Character controller - disabled when editor takes over
         CharacterController {
             id: charController
@@ -415,6 +485,47 @@ Item {
         characters: root.allCharacters
         view3d: view3d
         gameController: gameController
+    }
+
+    // Gesture keys, and what the layer says it is doing - the state a test
+    // asserts on rather than watching the arm.
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 10
+        width: gestureHelp.width + 20
+        height: gestureHelp.height + 16
+        color: _gesturePal.window
+        opacity: 0.9
+        radius: 8
+        border.color: Qt.alpha(_gesturePal.windowText, 0.2)
+
+        SystemPalette { id: _gesturePal }
+
+        Column {
+            id: gestureHelp
+            anchors.centerIn: parent
+            spacing: 2
+
+            Text {
+                text: "Gesturer (plain Character)"
+                font.bold: true
+                color: _gesturePal.windowText
+            }
+            Text {
+                text: "P point   O thumbs up   I gesticulate   X stop\n"
+                      + "L look at camera   K release look   Y turn to marker\n"
+                      + "H fingers on/off   N walk/idle   1/2/3/0 emotion"
+                color: _gesturePal.windowText
+            }
+            Text {
+                text: "gesture: \"" + gesturer.gesture + "\""
+                      + "   hand: \"" + gesturer.gestureHand + "\""
+                      + "   settled: " + gesturer.gestureSettled
+                      + "   emotion: \"" + gesturer.emotion + "\""
+                color: _gesturePal.windowText
+            }
+        }
     }
 
     // Speech demo - the edited character (or player) speaks with lip-sync

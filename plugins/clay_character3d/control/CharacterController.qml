@@ -149,7 +149,7 @@ Item {
                 // Compute yaw in radians
                 const yawRad = root.character.eulerRotation.y * Math.PI / 180;
 
-                // Forward vector: yaw=0 means looking along -Z
+                // Forward vector: yaw=0 means looking along +Z
                 const fwdX = Math.sin(yawRad);
                 const fwdZ = Math.cos(yawRad);
 

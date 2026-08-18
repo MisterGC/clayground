@@ -145,6 +145,125 @@ BodyPartsGroup {
     property int talkDuration: 200
 
     // ============================================================================
+    // FACE ANCHORS
+    // ============================================================================
+    // Where the features of this face actually are, in the head node's own
+    // frame - which is the frame anything parented to \l Character::head lives
+    // in. Y is measured from the head node's origin (the top of the neck),
+    // Z from its centre, and the face is on +Z.
+    //
+    // Published because an accessory otherwise has to restate the arithmetic
+    // below - and then a beard slides off a chin the day a dimension changes,
+    // with nothing raising an error. Every anchor is derived from the parts
+    // themselves, never a second copy of their expressions.
+
+    /*!
+        \qmlproperty real Head::faceOffsetZ
+        \brief How far forward of the head node both head boxes sit.
+    */
+    readonly property real faceOffsetZ: _upperHead.basePos.z
+
+    /*!
+        \qmlproperty real Head::upperHeadBottom
+        \brief Y of the seam between jaw and cranium - the bottom of the
+               upper head box.
+    */
+    readonly property real upperHeadBottom: _upperHead.basePos.y
+
+    /*!
+        \qmlproperty real Head::crownTop
+        \brief Y of the top of the skull, hair not included.
+    */
+    readonly property real crownTop: _upperHead.basePos.y + _upperHead.height
+
+    /*!
+        \qmlproperty real Head::faceFront
+        \brief Z of the front face of the cranium - the plane the eyes and
+               the nose stand on.
+    */
+    readonly property real faceFront: _upperHead.basePos.z + _upperHead.depth * 0.5
+
+    /*!
+        \qmlproperty real Head::jawFront
+        \brief Z of the front face of the jaw - the plane the mouth sits on.
+    */
+    readonly property real jawFront: _lowerHead.basePos.z + _lowerHead.depth * 0.5
+
+    /*!
+        \qmlproperty real Head::eyeWidth
+        \brief Edge length of one eye. The eyes are cubes, so this is their
+               height and depth as well.
+    */
+    readonly property real eyeWidth: _leftEye.width
+
+    /*!
+        \qmlproperty real Head::eyeSpacing
+        \brief How far each eye centre sits from the head's centre line.
+    */
+    readonly property real eyeSpacing: -_leftEye.basePos.x
+
+    /*!
+        \qmlproperty real Head::eyeLine
+        \brief Y of the eye centres.
+
+        Reads the eyes' resting size, so it stays put when a lid closes.
+    */
+    readonly property real eyeLine: _upperHead.basePos.y + _upperHead._eyeLine
+                                    + _head.eyeWidth * 0.5
+
+    /*!
+        \qmlproperty real Head::noseBottom
+        \brief Y of the underside of the nose - as far down the face as
+               spectacles can slip.
+    */
+    readonly property real noseBottom: _upperHead.basePos.y + _nose.basePos.y
+
+    /*!
+        \qmlproperty vector3d Head::earPos
+        \brief Origin of the right ear (bottom centre of its box). The left
+               ear is the same point with x negated.
+    */
+    readonly property vector3d earPos: Qt.vector3d(_rightEar.basePos.x,
+                                                   _upperHead.basePos.y + _rightEar.basePos.y,
+                                                   _upperHead.basePos.z + _rightEar.basePos.z)
+
+    /*!
+        \qmlproperty real Head::earSize
+        \brief Edge length of one ear, which is a cube like the eyes.
+    */
+    readonly property real earSize: _rightEar.width
+
+    /*!
+        \qmlproperty real Head::mouthWidth
+        \brief Width of the closed, unstretched mouth. What \l mouthWide and
+               \l mouthRound do to it is momentary and not included here.
+    */
+    readonly property real mouthWidth: _lowerHead.width * .22 * _head.mouthSize
+
+    /*!
+        \qmlproperty real Head::mouthLine
+        \brief Y of the upper lip.
+
+        Fixed: the jaw box stretches downward as the mouth opens (see
+        \l jawDrop) but the mouth line stays where it is on the face.
+    */
+    readonly property real mouthLine: 0.6 * _lowerHead.baseHeight
+
+    /*!
+        \qmlproperty real Head::mouthBottom
+        \brief Y of the lowest point the mouth currently reaches - the
+               bottom of the cavity, which grows downward as it opens.
+    */
+    readonly property real mouthBottom: _head.mouthLine - _mouth.lineH - _mouth.gap
+
+    /*!
+        \qmlproperty real Head::chinBottom
+        \brief Y of the chin, which drops below the head origin while the
+               mouth is open.
+    */
+    readonly property real chinBottom: -_lowerHead.jawStretch
+
+    // ============================================================================
     // MOUTH SHAPE PARAMETERS
     // ============================================================================
 
@@ -297,6 +416,11 @@ BodyPartsGroup {
         basePos: Qt.vector3d(0, _lowerHead.baseHeight * 0.99, _head.depth * .09)
         color: _head.skinColor
 
+        // The height the eyes sit at inside this box, and with them the nose
+        // and the ears. Named once here so the three cannot drift apart;
+        // \l Head::eyeLine publishes it in the head's own frame.
+        readonly property real _eyeLine: .3 * height
+
         BodyPart {
             id: _topHair
             visible: _head.hairVolume > 0.1
@@ -418,12 +542,6 @@ BodyPartsGroup {
             }
         }
 
-        // Where the eyes sit when they are open, and the line the nose and
-        // the ears are measured from. They used to be measured from the eye's
-        // own basePos, which now rises as the lower lid does - so a smile
-        // lifted the nose and the ears with it.
-        readonly property real _eyeLine: .3 * _upperHead.height
-
         Eye {
             id: _leftEye
             // Only the bottom edge moves: cutBelow closes the eye from below
@@ -478,10 +596,10 @@ BodyPartsGroup {
             // the mouth line (upper lip) stays fixed on the face while
             // the chin extends below.
             position: Qt.vector3d(0,
-                                  0.6 * _lowerHead.baseHeight + _lowerHead.jawStretch,
+                                  _head.mouthLine + _lowerHead.jawStretch,
                                   _lowerHead.depth * .5)
 
-            readonly property real baseW: _lowerHead.width * .22 * _head.mouthSize
+            readonly property real baseW: _head.mouthWidth
             readonly property real lineH: .3 * baseW
             // widened by "ee", narrowed by "oo"
             readonly property real w: baseW * (1 + 0.5 * _head.mouthWide)

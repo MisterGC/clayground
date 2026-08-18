@@ -102,6 +102,35 @@ BodyPartsGroup {
     property alias handColor: _hand.color
 
     /*!
+        \qmlproperty bool Arm::articulated
+        \brief Whether the hand has fingers.
+
+        Off by default: a \l DetailedHand is ten more boxes per hand, and a
+        character seen from across a room does not need them. Switching it on
+        keeps the plain hand box - the fingers grow off its far face and it
+        becomes the palm - so nothing about the arm's dimensions or colours
+        changes with it.
+
+        \sa DetailedHand, handPose
+    */
+    property bool articulated: false
+
+    /*!
+        \qmlproperty string Arm::handPose
+        \brief Which shape an articulated hand takes: "relax", "open",
+               "point", "thumbsUp" or "fist". Ignored while \l articulated
+               is false.
+    */
+    property string handPose: "relax"
+
+    /*!
+        \qmlproperty bool Arm::mirrored
+        \brief Set on a left arm, so an articulated hand puts its thumb on
+               the correct side.
+    */
+    property bool mirrored: false
+
+    /*!
         \qmlproperty Node Arm::upperArm
         \brief Reference to the shoulder joint for animation.
     */
@@ -160,6 +189,24 @@ BodyPartsGroup {
                     width: _arm.width * 0.8
                     height: _arm.height * 0.2
                     depth: _arm.depth * 0.6
+                }
+
+                // The fingers, when they are wanted. They hang off the same
+                // wrist joint as the hand box and use it as their palm.
+                // Loaded on demand: a character that never shapes a hand does
+                // not pay ten boxes per arm for the option.
+                Loader3D {
+                    active: _arm.articulated
+                    sourceComponent: Component {
+                        DetailedHand {
+                            pose: _arm.handPose
+                            mirrored: _arm.mirrored
+                            palmWidth: _hand.width
+                            palmHeight: _hand.height
+                            palmDepth: _hand.depth
+                            tone: _hand.color
+                        }
+                    }
                 }
             }
         }

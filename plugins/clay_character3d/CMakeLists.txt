@@ -23,6 +23,10 @@ clay_plugin( Character3D
         ParametricCharacter.qml
         RatioBasedCharacter.qml
         ThoughtBubble.qml
+        Performance.qml
+
+        # Performance Scripting
+        scripting/performancescript.js
 
         # Body System
         bodyparts/BodyPart.qml
@@ -31,6 +35,7 @@ clay_plugin( Character3D
         bodyparts/Arm.qml
         bodyparts/Leg.qml
         bodyparts/Hand.qml
+        bodyparts/DetailedHand.qml
         bodyparts/Foot.qml
 
         # Animation System
@@ -41,6 +46,7 @@ clay_plugin( Character3D
         animation/UseAnim.qml
         animation/FightAnim.qml
         animation/TalkGestureAnim.qml
+        animation/GestureAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
         animation/PosAndEulerAnim.qml

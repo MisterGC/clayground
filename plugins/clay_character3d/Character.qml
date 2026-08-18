@@ -243,17 +243,47 @@ BodyPartsGroup {
     QtObject {
         id: _emotionCtl
         property string current: ""
+        // The face between lines, set by setEmotion(). Kept apart from
+        // `current` because a spoken line's emotion is borrowed and this one
+        // is not: the line gives the face back to this when it ends.
+        property string persistent: ""
         property int savedFace: Head.Activity.Idle
         property real savedPitch: 0
         property real savedRate: 0
 
-        function apply(emotion) {
-            clear()
+        function canonical(emotion) {
             emotion = ("" + emotion).toLowerCase()
             if (emotion === "joy") emotion = "happy"
             if (emotion === "sadness") emotion = "sad"
             if (emotion === "anger") emotion = "angry"
             if (emotion !== "happy" && emotion !== "sad" && emotion !== "angry")
+                return ""
+            return emotion
+        }
+
+        function faceFor(emotion) {
+            if (emotion === "happy") return Head.Activity.ShowJoy
+            if (emotion === "sad") return Head.Activity.ShowSadness
+            if (emotion === "angry") return Head.Activity.ShowAnger
+            return Head.Activity.Idle
+        }
+
+        function persist(emotion) {
+            persistent = canonical(emotion)
+            const face = faceFor(persistent)
+            // Mid-line, the new expression is what the line hands back to
+            // when it finishes; the line's own emotion stays on the face
+            // until then.
+            if (current !== "")
+                savedFace = face
+            else
+                _character.faceActivity = face
+        }
+
+        function apply(emotion) {
+            clear()
+            emotion = canonical(emotion)
+            if (emotion === "")
                 return
             savedFace = _character.faceActivity
             savedPitch = _speech.pitch
@@ -301,12 +331,231 @@ BodyPartsGroup {
                  && _speech.speaking
                  && _character.speechBodyLanguage
                  && _character.activity === Character.Activity.Idle
+                 // A held gesture outranks the speech body language: the
+                 // caller asked for those arms by name, and two animators on
+                 // one joint interleave rather than take turns.
+                 && !_gestureAnim.holding
         loops: Animation.Infinite
         // Hand the joints back to the idle pose when the gesture ends
         onRunningChanged: {
-            if (!running && _character.activity === Character.Activity.Idle)
+            if (!running && _character.activity === Character.Activity.Idle
+                    && !_gestureAnim.holding)
                 _idleAnim.restart()
         }
+    }
+
+    // ============================================================================
+    // GESTURES & DIRECTION
+    // ============================================================================
+    // A gesture is a HELD pose - it eases in, stays until something else is
+    // asked for, and eases back - which is a different thing from the activity
+    // cycles, which loop. The two cannot share a joint, so:
+    //
+    //   * gestures only run while activity is Character.Activity.Idle, and
+    //     every verb below is ignored otherwise;
+    //   * starting any other activity drops the gesture first, handing the
+    //     joints over where they are;
+    //   * IdleAnim and the speech body language stay switched off for as long
+    //     as the gesture layer holds the joints, including the ease back to
+    //     rest. stopGesture() owns that ease, nothing else.
+
+    /*!
+        \qmlproperty string Character::gesture
+        \readonly
+        \brief What the hands are doing: "point", "thumbsUp", "talk", or ""
+               for nothing.
+
+        Set the moment a gesture is asked for, while the arm is still on its
+        way there - which is what makes it the thing to assert on. Reading
+        joint angles instead, before \l gestureSettled, reports the pose the
+        character has just left.
+    */
+    readonly property string gesture: _gestureAnim.activeGesture
+
+    /*!
+        \qmlproperty bool Character::gestureSettled
+        \readonly
+        \brief True once the pose has arrived - the cue to start talking
+               about the thing that was pointed at.
+    */
+    readonly property bool gestureSettled: _gestureAnim.settled
+
+    /*!
+        \qmlproperty string Character::gestureHand
+        \readonly
+        \brief Which arm is doing it: "left", "right", or "" while released
+               or while talking, which is two-handed.
+    */
+    readonly property string gestureHand: _gestureAnim.activeHand
+
+    /*!
+        \qmlproperty int Character::gestureSettleMs
+        \brief How long a gesture takes to arrive at, and to leave.
+    */
+    property alias gestureSettleMs: _gestureAnim.settleMs
+
+    /*!
+        \qmlproperty real Character::gestureBeatScale
+        \brief Stretches the rhythm of \l gesticulate(). 1 is as authored,
+               above 1 is a slower speaker.
+    */
+    property alias gestureBeatScale: _gestureAnim.beatScale
+
+    /*!
+        \qmlproperty bool Character::safeSilhouette
+        \brief Whether a raised pointing arm is forced to bend at the elbow.
+
+        On by default, and a policy rather than a tuning value: a straight arm
+        raised forward reads as a fascist salute, which no character should be
+        able to strike by accident while pointing at something high. The
+        forearm does the reaching instead and the aim is unaffected. Turn it
+        off for a character whose job is exactly that shape - a salute, a
+        hand-raise, a throw.
+    */
+    property alias safeSilhouette: _gestureAnim.safeSilhouette
+
+    /*!
+        \qmlproperty bool Character::detailedHands
+        \brief Whether the hands have fingers.
+
+        Off by default - it is ten more boxes per hand. Switched on, gestures
+        shape the hands as well as the arms: a pointing hand extends its index
+        finger, which together with \l safeSilhouette is what makes a raised
+        point read as "that thing there".
+
+        \sa DetailedHand
+    */
+    property bool detailedHands: false
+
+    /*!
+        \qmlproperty string Character::handPose
+        \brief What articulated hands do when no gesture is claiming them:
+               "relax", "open", "point", "thumbsUp" or "fist".
+    */
+    property string handPose: "relax"
+
+    /*!
+        \qmlproperty string Character::emotion
+        \readonly
+        \brief The face the character is wearing between lines: "happy",
+               "sad", "angry" or "" for neutral.
+
+        Unlike \l speechEmotion this one persists - it is what the face
+        returns to when a spoken line with its own emotion has finished.
+    */
+    readonly property string emotion: _emotionCtl.persistent
+
+    /*!
+        \qmlmethod void Character::pointAt(vector3d worldPos, string which)
+        \brief Points at a position in the scene and holds it.
+
+        \a which picks the arm: "auto" (the default - whichever side the
+        target is on), "left" or "right". The body turns most of the way
+        toward the target, leaving the last few degrees to head and shoulder,
+        and the head looks at it unless \l lookAt() says otherwise.
+
+        The pose is solved once, against the frame the character stands in
+        when it is asked for. Move the character afterwards and the arm is
+        aimed at where the target used to be relative to it - point again.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function pointAt(worldPos, which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("point", worldPos, which)
+    }
+
+    /*!
+        \qmlmethod void Character::thumbsUp(string which)
+        \brief Gives a thumbs up with \a which hand ("right" by default).
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function thumbsUp(which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("thumbsUp", null,
+                             which === undefined ? "right" : which)
+    }
+
+    /*!
+        \qmlmethod void Character::gesticulate()
+        \brief Talks with the hands: a loose two-handed gesticulation that
+               runs until \l stopGesture().
+
+        The other half of pointing. A finger held on a thing for the length of
+        a paragraph turns the character into a signpost; the point has said
+        "this one" within a second or two, and everything after that is
+        explanation, which people deliver facing whoever they are explaining
+        it to. It replaces any point or thumbs-up - one layer owns these
+        joints - and it never stops by itself.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function gesticulate() {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("talk", null, "auto")
+    }
+
+    /*!
+        \qmlmethod void Character::stopGesture()
+        \brief Eases every held joint back to the resting pose.
+
+        The graceful counterpart to a gesture starting. A head aimed by
+        \l lookAt() is released with it.
+    */
+    function stopGesture() {
+        _gestureAnim.look(null)
+        _gestureAnim.request("", null, "auto")
+    }
+
+    /*!
+        \qmlmethod void Character::lookAt(vector3d worldPos)
+        \brief Aims the head - and only the head - at a position in the scene.
+
+        Outranks whatever the running gesture wanted to do with the head, so
+        a character can point at one thing and address someone else. Pass
+        null to hand the head back.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function lookAt(worldPos) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.look(worldPos)
+    }
+
+    /*!
+        \qmlmethod void Character::turnTo(vector3d worldPos)
+        \brief Turns the whole body on the spot to face a position in the
+               scene, the short way round.
+
+        Changes the orientation the character rests in, so it outlives the
+        next \l stopGesture(). Nothing moves if the target is where the
+        character already stands.
+
+        Ignored unless \l activity is Character.Activity.Idle - a walking
+        character is steered by its controller instead.
+    */
+    function turnTo(worldPos) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.turnTo(worldPos)
+    }
+
+    /*!
+        \qmlmethod void Character::setEmotion(string name)
+        \brief Puts a lasting expression on the face: "happy", "sad",
+               "angry", or "neutral"/"" for none.
+
+        Persists until it is changed, which is what separates it from the
+        emotion of one spoken line: \l say() colors the face for the length
+        of that line and then restores whatever was set here.
+    */
+    function setEmotion(name) {
+        _emotionCtl.persist(name)
     }
 
     // ============================================================================
@@ -448,6 +697,44 @@ BodyPartsGroup {
     /*! Reference to the hip. */
     readonly property BodyPart hip: _hip
 
+    /*!
+        \qmlproperty vector3d Character::rightShoulderPos
+        \readonly
+        \brief Where the right shoulder joint sits, in the character's own
+               coordinates (origin between the feet, +Z is the way the
+               character faces).
+
+        Published so gesture and aiming code can start from the joint that
+        does the work instead of re-summing the body hierarchy - and so it
+        keeps pointing at a shoulder when the torso's proportions change.
+    */
+    readonly property vector3d rightShoulderPos: Qt.vector3d(
+        _torso.basePos.x + _rightArm.basePos.x,
+        _torso.basePos.y + _rightArm.basePos.y,
+        _torso.basePos.z + _rightArm.basePos.z)
+
+    /*!
+        \qmlproperty vector3d Character::leftShoulderPos
+        \readonly
+        \brief Where the left shoulder joint sits, in the character's own
+               coordinates.
+    */
+    readonly property vector3d leftShoulderPos: Qt.vector3d(
+        _torso.basePos.x + _leftArm.basePos.x,
+        _torso.basePos.y + _leftArm.basePos.y,
+        _torso.basePos.z + _leftArm.basePos.z)
+
+    /*!
+        \qmlproperty vector3d Character::headPos
+        \readonly
+        \brief Where the head node sits, in the character's own coordinates -
+               the origin of the anchors published by \l Head.
+    */
+    readonly property vector3d headPos: Qt.vector3d(
+        _torso.basePos.x + _head.basePos.x,
+        _torso.basePos.y + _head.basePos.y,
+        _torso.basePos.z + _head.basePos.z)
+
     BodyPart {
         id: _torso
 
@@ -469,14 +756,25 @@ BodyPartsGroup {
 
         // Arms (containing hands)
         // Position at shoulder level (top of torso), arms extend downward
+        // Whichever hand the gesture claimed shapes itself for it; the other
+        // keeps whatever the character was asked to hold.
         Arm {
             id: _rightArm
             basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _torso.height, 0)
+
+            articulated: _character.detailedHands
+            handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
+                                                        : _character.handPose
         }
 
         Arm {
             id: _leftArm
             basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _torso.height, 0)
+
+            mirrored: true
+            articulated: _character.detailedHands
+            handPose: _gestureAnim.leftHandPose !== "" ? _gestureAnim.leftHandPose
+                                                       : _character.handPose
 
             // Mirror right arm dimensions
             width: _rightArm.width
@@ -560,8 +858,33 @@ BodyPartsGroup {
         id: _idleAnim
         entity: _character
         duration: 200
+        // IdleAnim zeroes all sixteen joints, which is exactly what a held
+        // pose is not allowed to have happen to it while it is being held -
+        // or while it is easing back to rest, which the gesture layer does
+        // itself. holding covers both.
         running: _character.activity == Character.Activity.Idle
+                 && !_gestureAnim.holding
         loops: 1
+    }
+
+    GestureAnim {
+        id: _gestureAnim
+        entity: _character
+        // The joints come back to the gesture layer's own rest pose, which is
+        // the idle pose; restarting IdleAnim afterwards re-establishes it as
+        // the baseline for whatever comes next without moving anything.
+        onHoldingChanged: {
+            if (!holding && _character.activity === Character.Activity.Idle)
+                _idleAnim.restart()
+        }
+    }
+
+    // An activity cycle and a held pose cannot share a joint, so the pose goes
+    // first - immediately and without easing, since the cycle that is starting
+    // animates from wherever it finds the joints anyway.
+    onActivityChanged: {
+        if (_character.activity !== Character.Activity.Idle)
+            _gestureAnim.drop()
     }
 
     UseAnim {
