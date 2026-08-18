@@ -286,6 +286,32 @@ Item {
     // beats - by which time the lab step is over. Set to 0 to turn it off.
     readonly property int _talkDrag: 90
 
+    // Follow-through, and it is the difference between gesticulation and a
+    // puppet. Eight joints given one duration arrive together, stop together
+    // and set off together, which nothing made of flesh does: an arm leads,
+    // the forearm is dragged after it and the hand arrives last, still
+    // settling when the shoulder has already started the next beat. These are
+    // multipliers on the beat's own move time, applied ONLY while talking -
+    // a point has to arrive as one piece, and `settled` is timed off settleMs.
+    readonly property real _dragElbow: 1.18
+    readonly property real _dragWrist: 1.55
+    readonly property real _dragHead: 1.30
+    readonly property real _dragBody: 1.40
+
+    // How much of each row's written hold is actually kept. The table's holds
+    // were authored as pauses between beats that had already finished moving,
+    // and the result read as a series of held poses rather than as talking:
+    // the figure was motionless for as much of the time as it was moving. Cut
+    // to just over half, the next beat begins while the wrist of the last one
+    // is still travelling, so the motion never fully stops - except on the two
+    // rows written as rests, which are long enough to survive the cut and are
+    // what keeps the rhythm from becoming a churn.
+    readonly property real _talkHoldKeep: 0.55
+
+    // And the moves themselves are given a little longer than written, for
+    // the same reason: a fast move into a long pause is a snap.
+    readonly property real _talkMoveStretch: 1.2
+
     // Neck: looking down at your own feet is easy, craning up is not.
     readonly property real _headPitchMin: -35
     readonly property real _headPitchMax: 45
@@ -440,9 +466,11 @@ Item {
                 root._beatNo = 0
 
             const b = root._talkBeats[root._beatNo % root._talkBeats.length]
-            root._moveMs = b.ms
+            root._moveMs = Math.round(b.ms * root._talkMoveStretch)
             root._moveEase = b.ease
-            root._nextBeatMs = b.ms + b.hold + (root._beatNo % 3) * root._talkDrag
+            root._nextBeatMs = root._moveMs
+                             + Math.round(b.hold * root._talkHoldKeep)
+                             + (root._beatNo % 3) * root._talkDrag
 
             // No target and no turn to solve: the professor is addressing
             // whoever it is already facing, and turning it is the caller's job
@@ -643,18 +671,27 @@ Item {
         }
     }
 
+    // Joint travel times. One number while a pose is being struck or released,
+    // a spread of them while talking - see the follow-through note above.
+    readonly property bool _dragging: _pose.mode === "talk"
+    readonly property int _msShoulder: root._moveMs
+    readonly property int _msElbow: root._dragging ? root._moveMs * root._dragElbow : root._moveMs
+    readonly property int _msWrist: root._dragging ? root._moveMs * root._dragWrist : root._moveMs
+    readonly property int _msHead: root._dragging ? root._moveMs * root._dragHead : root._moveMs
+    readonly property int _msBody: root._dragging ? root._moveMs * root._dragBody : root._moveMs
+
     ParallelAnimation {
         id: _settle
 
         EulerAnim {
             target: root.character
-            duration: root._moveMs
+            duration: root._msBody
             easing.type: root._moveEase
             to: _pose.rootEuler
         }
         EulerAnim {
             target: root.character ? root.character.head : null
-            duration: root._moveMs
+            duration: root._msHead
             easing.type: root._moveEase
             to: _pose.head
         }
@@ -666,13 +703,13 @@ Item {
         }
         EulerAnim {
             target: root.character ? root.character.rightArm.lowerArm : null
-            duration: root._moveMs
+            duration: root._msElbow
             easing.type: root._moveEase
             to: _pose.rLower
         }
         EulerAnim {
             target: root.character ? root.character.rightArm.hand : null
-            duration: root._moveMs
+            duration: root._msWrist
             easing.type: root._moveEase
             to: _pose.rHand
         }
@@ -684,13 +721,13 @@ Item {
         }
         EulerAnim {
             target: root.character ? root.character.leftArm.lowerArm : null
-            duration: root._moveMs
+            duration: root._msElbow
             easing.type: root._moveEase
             to: _pose.lLower
         }
         EulerAnim {
             target: root.character ? root.character.leftArm.hand : null
-            duration: root._moveMs
+            duration: root._msWrist
             easing.type: root._moveEase
             to: _pose.lHand
         }
