@@ -157,19 +157,24 @@ Item {
         const stand = s && s.stand ? s.stand : null
         const look = s && s.look ? s.look : null
 
-        // Say it first and travel while saying it. The alternative - land,
-        // then speak - leaves a silent second on every step, and a teacher
-        // who is walking is usually already talking.
-        root._speak()
-
         _hold.stop()
         _addressing = false
 
         if (stand && p.present) {
+            // Fly first, then talk. Talking on the way over sounds like the
+            // natural thing - a teacher crossing a room is usually already
+            // mid-sentence - and it is wrong here, because the line is what
+            // every other piece of timing is measured against. Spend three
+            // seconds of a nine-second line in the air and the point on
+            // arrival gets what is left, which can be nothing: the professor
+            // lands, raises a finger, and the mouth stops. The flight is
+            // silent, and the sentence starts where the sentence is about.
             _pending = look
+            p.quiet()
             p.travelTo(stand)
         } else {
             _pending = null
+            root._speak()
             if (look) root._point(look)
             else root._address()
         }
@@ -259,6 +264,10 @@ Item {
         function onArrived(at) {
             if (!root.running)
                 return
+            // Speak BEFORE pointing, not after: the hold on the point is a
+            // share of how long the line lasts, and the professor only knows
+            // that once the line has been given to it.
+            root._speak()
             if (root._pending)
                 root._point(root._pending)
             else
@@ -269,6 +278,14 @@ Item {
 
     // A lab that changes the text without changing the step - a translation
     // switched mid-flow, a step whose line depends on a measurement - should
-    // still have the bubble follow.
-    onTextChanged: if (root.running && root.step >= 0) root._speak()
+    // still have the bubble follow. Not while travelling, though: that is the
+    // one moment the professor is deliberately silent, and arriving speaks the
+    // current text anyway.
+    onTextChanged: {
+        if (!root.running || root.step < 0)
+            return
+        if (root.professor && root.professor.travelling)
+            return
+        root._speak()
+    }
 }

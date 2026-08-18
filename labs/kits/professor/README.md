@@ -77,7 +77,13 @@ FlowGuide {
 step four's subject is. Either field may be omitted (`stand` absent means
 "say it from where you are"), and `null` means the step wants neither.
 
-**The beat of a step is point, then address.** The professor arrives, points
+**The beat of a step is fly, speak, point, address.** The flight is silent on
+purpose: the line is what every other piece of timing is measured against, so
+spending three seconds of a nine-second line in the air leaves the point on
+arrival with whatever is left, which can be nothing. Speaking starts where the
+sentence is about.
+
+**Then point, then address.** The professor arrives, points
 at the subject and holds it for as long as the step's first sentence takes to
 read — then lets go, turns to the camera and talks the rest of it out with its
 hands. Pointing is deixis: it means "this one", it has said that in a second
