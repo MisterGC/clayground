@@ -806,8 +806,32 @@ Node {
         // The wrist puts the hand back on the shoulder-to-target line.
         const wrist = root._clamp(elbow - bendOff, -root._wristMax, root._wristMax)
 
+        // And then the wrist puts the FINGER on it, which is not the same
+        // thing. Everything above aims the hand's own axis - the line straight
+        // out of the wrist - because that is the joint the arithmetic can
+        // reach. But an index finger is not on that axis: it is one of four
+        // packed across a palm, sitting about a third of a palm's width off to
+        // the side, and over the length of a hand that works out to nearly ten
+        // degrees. The arm was solved perfectly and the finger missed anyway,
+        // which is the one failure a pointing character cannot have.
+        //
+        // indexTip is where the hand actually ends, in the wrist's own frame,
+        // so the correction is the angle between it and the axis. Node
+        // rotations compose as Ry * Rx * Rz, so the Z part lands first and
+        // swings the finger onto the plane; the X part then drops it onto the
+        // line. On a plain hand indexTip is straight down the axis and both
+        // come out zero, so this costs nothing where there is no finger to
+        // aim.
+        const arm = side > 0 ? c.rightArm : c.leftArm
+        const tip = arm ? arm.indexTip : Qt.vector3d(0, -1, 0)
+        const fingerSwing = Math.atan2(-tip.x, -tip.y) * root._deg
+        const fingerDrop = Math.atan2(tip.z, Math.hypot(tip.x, tip.y)) * root._deg
+
         _pose.aim("point", side, Qt.vector3d(pitch, 0, swing),
-                  Qt.vector3d(-elbow, 0, 0), Qt.vector3d(wrist, 0, 0),
+                  Qt.vector3d(-elbow, 0, 0),
+                  Qt.vector3d(root._clamp(wrist + fingerDrop,
+                                          -root._wristMax, root._wristMax),
+                              0, fingerSwing),
                   root._headPose(root._headAim(tx, ty, tz), turn))
         root._run()
         _arrival.restart()
