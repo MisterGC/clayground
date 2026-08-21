@@ -467,6 +467,45 @@ BodyPartsGroup {
     property var view: null
 
     /*!
+        \qmlproperty real Character::roundness
+        \brief How rounded every box in the character is, 0 for the hard-edged
+               original and about 0.3 for something nearly spherical.
+
+        A chamfer on every edge and corner of every part. It is what separates
+        a character built out of bricks from one built out of pebbles, and the
+        reason the cartoon tradition it comes from is full of round shapes:
+        roundness reads as soft, friendly and alive, where a right angle reads
+        as built.
+
+        It costs draw calls: none. A box goes from 12 triangles to 44 and stays
+        one draw call, and a character's cost was measured at 17.8 microseconds
+        per draw call and next to nothing per vertex - so this is close to free
+        and having more characters is not. See
+        \c bench/CrowdSandbox.qml.
+
+        \sa Box3D::bevel
+    */
+    property real roundness: 0.0
+
+    // Pushed down rather than bound, because the parts are built by Head, Arm
+    // and Leg and threading a property through every one of the thirty-odd
+    // boxes is thirty places to forget. Re-applied when the fingers arrive:
+    // DetailedHand is loaded on demand and misses the pass that ran before it
+    // existed, which shows up as one hard-edged hand on an otherwise round
+    // character.
+    function _applyRoundness(node) {
+        for (const k of node.children) {
+            if (k.bevel !== undefined)
+                k.bevel = _character.roundness
+            _character._applyRoundness(k)
+        }
+    }
+
+    onRoundnessChanged: _character._applyRoundness(_character)
+    onDetailedHandsChanged: _character._applyRoundness(_character)
+    Component.onCompleted: _character._applyRoundness(_character)
+
+    /*!
         \qmlproperty real Character::detailThreshold
         \brief How tall the character has to be on screen, in pixels, before
                Auto gives it fingers.

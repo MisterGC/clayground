@@ -14,6 +14,7 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(QVector3D size READ size WRITE setSize NOTIFY sizeChanged)
     Q_PROPERTY(QVector2D faceScale READ faceScale WRITE setFaceScale NOTIFY faceScaleChanged)
     Q_PROPERTY(ScaledFace scaledFace READ scaledFace WRITE setScaledFace NOTIFY scaledFaceChanged)
+    Q_PROPERTY(float bevel READ bevel WRITE setBevel NOTIFY bevelChanged)
 
     // Edge rendering properties (matching VoxelMap)
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
@@ -76,6 +77,9 @@ public:
     QVector2D faceScale() const;
     void setFaceScale(const QVector2D &newFaceScale);
 
+    float bevel() const;
+    void setBevel(float newBevel);
+
     ScaledFace scaledFace() const;
     void setScaledFace(ScaledFace newScaledFace);
 
@@ -101,6 +105,7 @@ public:
 signals:
     void sizeChanged();
     void faceScaleChanged();
+    void bevelChanged();
     void scaledFaceChanged();
 
     // Edge rendering signals
@@ -115,6 +120,7 @@ private:
     void updateData();
     QVector3D m_size;
     QVector2D m_faceScale;
+    float m_bevel = 0.0f;
     ScaledFace m_scaledFace;
 
     // Edge rendering properties with default values

@@ -61,6 +61,15 @@ Item {
 
     property real camZ: 60
 
+    /*!
+        Chamfer on every box. Here because this is the bench that answers what
+        it costs, and the answer is the point: it changes verts and leaves
+        draws alone, which is why a rounded character is affordable and a
+        crowd of them is the same problem it always was.
+    */
+    property real roundness: 0.0
+    function setRoundness(r) { root.roundness = r; root._reset() }
+
     function setCount(n) { root.count = n; root._reset() }
     function setWalking(b) { root.walking = b; root._reset() }
     function setCam(z) { root.camZ = z; root._reset() }
@@ -120,6 +129,7 @@ Item {
         return "n=" + root.count
              + "  detail=" + root.detail + (root.detail === "auto" ? "(" + tier + ")" : "")
              + "  camZ=" + root.camZ.toFixed(0)
+             + (root.roundness > 0 ? "  round=" + root.roundness.toFixed(2) : "")
              + "  draws=" + (s ? s.drawCallCount : "?")
              + "  verts=" + (s ? s.drawVertexCount : "?")
              + "  render=" + (root._accRender / n).toFixed(2)
@@ -140,6 +150,7 @@ Item {
         else if (e.key === Qt.Key_3) root.setDetail("high")
         else if (e.key === Qt.Key_4) root.setDetail("auto")
         else if (e.key === Qt.Key_W) root.setWalking(!root.walking)
+        else if (e.key === Qt.Key_R) root.setRoundness(root.roundness > 0 ? 0.0 : 0.15)
         else if (e.key === Qt.Key_T) root.setCam(Math.max(15, root.camZ * 0.8))
         else if (e.key === Qt.Key_G) root.setCam(Math.min(400, root.camZ * 1.25))
         else return
@@ -196,6 +207,7 @@ Item {
                 // to this object's own property and quietly assigns null, and
                 // an Auto character with no view sits at Low forever.
                 view: v3d
+                roundness: root.roundness
 
                 basePos: Qt.vector3d((index % 10) * 9 - 40, 0,
                                      -Math.floor(index / 10) * 11)
@@ -233,6 +245,6 @@ Item {
         font.family: _label.font.family
         font.pixelSize: 11
         color: "#6b6b72"
-        text: "up/down characters   1-4 minimal/low/high/auto   w walk   t/g camera"
+        text: "up/down characters   1-4 minimal/low/high/auto   r round   w walk   t/g camera"
     }
 }
