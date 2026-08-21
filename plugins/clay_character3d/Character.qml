@@ -422,16 +422,22 @@ BodyPartsGroup {
         \qmlproperty enumeration Character::Detail
         \brief How much hand a character is worth drawing.
 
+        \value Character.Detail.Minimal
+               No face - no eyes, brows, nose, ears or mouth. A face is thirteen
+               of a character's thirty-three draw calls and none of its
+               silhouette, so this is the cheapest character there is.
         \value Character.Detail.Low
-               One box per hand. It still acts - a \l Hand takes its shape from
-               \l handPose, so a fist and an open hand are different blocks.
+               The whole body, one box per hand. It still acts - a \l Hand takes
+               its shape from \l handPose, so a fist and an open hand are
+               different blocks.
         \value Character.Detail.High
-               Ten boxes per hand: four fingers and a thumb that fold.
+               Ten boxes per hand as well: four fingers and a thumb that fold.
         \value Character.Detail.Auto
-               Low until the character is big enough on screen for fingers to
-               be worth anything, then High. Needs \l view.
+               Picks between the three by how big the character lands on screen.
+               Needs \l view.
     */
     enum Detail {
+        Minimal,
         Low,
         High,
         Auto
@@ -439,8 +445,7 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty enumeration Character::detail
-        \brief Which \l {Character::Detail}{Detail} level the hands are drawn
-               at. \c Auto by default.
+        \brief How much character to draw. \c Auto by default.
 
         Auto has to measure the character against something, and a character
         does not know what it is being looked at through - so with no \l view
@@ -448,7 +453,7 @@ BodyPartsGroup {
         the default costs an existing scene nothing until it opts in by handing
         over a view.
 
-        \sa view, detailThreshold, detailedHands
+        \sa view, detailThreshold, minimalThreshold, effectiveDetail
     */
     property int detail: Character.Detail.Auto
 
@@ -477,6 +482,20 @@ BodyPartsGroup {
     property real detailThreshold: 240
 
     /*!
+        \qmlproperty real Character::minimalThreshold
+        \brief How small the character has to get, in pixels of figure height,
+               before Auto takes its face away.
+
+        Measured the same way as \l detailThreshold, by looking: at an 83 px
+        figure the eyes are clearly there and a character without them reads as
+        faceless rather than as distant; at 56 px it is marginal; by 26 px the
+        two are the same picture. 60 is the honest cut.
+
+        Worth thirteen draw calls a character - a face is two thirds of a head.
+    */
+    property real minimalThreshold: 60
+
+    /*!
         \qmlproperty bool Character::detailedHands
         \readonly
         \brief Whether the hands have fingers right now.
@@ -486,7 +505,15 @@ BodyPartsGroup {
 
         \sa DetailedHand, detail
     */
-    readonly property bool detailedHands: _detail.on
+    readonly property bool detailedHands: _detail.level === Character.Detail.High
+
+    /*!
+        \qmlproperty enumeration Character::effectiveDetail
+        \readonly
+        \brief Which \l {Character::Detail}{Detail} level is actually being
+               drawn - never \c Auto.
+    */
+    readonly property int effectiveDetail: _detail.level
 
     /*!
         \qmlproperty string Character::handPose
@@ -847,6 +874,11 @@ BodyPartsGroup {
             id: _head
             basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
             speechSource: _speech
+
+            // The face is the biggest single thing a distant character can
+            // stop paying for: thirteen draw calls of the thirty-three a whole
+            // body costs, and not one of them in the silhouette.
+            features: _detail.level !== Character.Detail.Minimal
         }
 
         // Arms (containing hands)
@@ -963,18 +995,17 @@ BodyPartsGroup {
         id: _detail
 
         // What Auto last decided. Only consulted while detail IS Auto.
-        property bool auto: false
+        property int autoLevel: Character.Detail.Low
 
-        readonly property bool on:
-            _character.detail === Character.Detail.High ? true
-          : _character.detail === Character.Detail.Low ? false
-          : (_character.view !== null && _detail.auto)
+        readonly property int level:
+            _character.detail !== Character.Detail.Auto ? _character.detail
+          : (_character.view !== null ? _detail.autoLevel : Character.Detail.Low)
     }
 
     function _autoDetail() {
         const v = _character.view
         if (!v)
-            return false
+            return Character.Detail.Low
 
         const base = _character.scenePosition
         const foot = v.mapFrom3DScene(base)
@@ -985,7 +1016,7 @@ BodyPartsGroup {
         // boxes a hand for something nobody can see is the cheapest bug here to
         // avoid and the hardest to notice.
         if (foot.z <= 0 || head.z <= 0)
-            return false
+            return Character.Detail.Minimal
 
         const px = Math.abs(head.y - foot.y)
 
@@ -1003,8 +1034,21 @@ BodyPartsGroup {
         const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
                    / Math.max(0.01, _character.handScale)
 
-        // Asymmetric on purpose: harder to gain fingers than to keep them.
-        return _detail.auto ? px > want * 0.85 : px > want
+        // Asymmetric on purpose at both boundaries: harder to gain detail than
+        // to keep it. A character sitting exactly on a threshold would
+        // otherwise pick up and drop the same thirteen or twenty boxes every
+        // few frames, and a face flickering on and off is far more noticeable
+        // than either version of it standing still.
+        const at = _detail.autoLevel
+
+        if (px > (at === Character.Detail.High ? want * 0.85 : want))
+            return Character.Detail.High
+
+        const bare = _character.minimalThreshold
+        if (px > (at === Character.Detail.Minimal ? bare : bare * 0.85))
+            return Character.Detail.Low
+
+        return Character.Detail.Minimal
     }
 
     // Polled rather than bound: this depends on scenePosition and on the
@@ -1016,7 +1060,7 @@ BodyPartsGroup {
         running: _character.detail === Character.Detail.Auto
                  && _character.view !== null
         triggeredOnStart: true
-        onTriggered: _detail.auto = _character._autoDetail()
+        onTriggered: _detail.autoLevel = _character._autoDetail()
     }
 
     IdleAnim {

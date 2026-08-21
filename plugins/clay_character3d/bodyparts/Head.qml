@@ -109,6 +109,26 @@ BodyPartsGroup {
     property alias chinPointiness: _lowerHead.chinPointiness
 
     /*!
+        \qmlproperty bool Head::features
+        \brief Whether the face is drawn at all - eyes, brows, nose, ears and
+               mouth.
+
+        On by default. Off, the skull and the hair are left and the head is
+        three boxes instead of twenty, which is the single biggest saving
+        available on a character: a face is two thirds of a head's draw calls
+        and none of its silhouette.
+
+        Only worth switching off where the face has genuinely stopped being
+        visible. An eye is about a thirtieth of a figure's height, so it is
+        still a pixel or two at a hundred-pixel figure and its absence reads as
+        a character with no face rather than as a character far away. \l
+        {Character::detail}{Character.detail} owns that judgement.
+
+        \sa Character::detail
+    */
+    property bool features: true
+
+    /*!
         \qmlproperty real Head::eyeSize
         \brief Eye size multiplier (0.5 = small, 1.0 = normal, 1.5 = large).
     */
@@ -471,6 +491,7 @@ BodyPartsGroup {
 
         BodyPart {
             id: _nose
+            visible: _head.features
             color: _head.skinColor.darker(1.1)
             width: _upperHead.width * .15 * _head.noseSize
             height: _upperHead.height * .2 * _head.noseSize
@@ -481,6 +502,7 @@ BodyPartsGroup {
         }
 
         component Ear: BodyPart {
+            visible: _head.features
             color: _head.skinColor
             width: .25 * _upperHead.height; depth: 0.2 * _upperHead.depth
         }
@@ -504,6 +526,7 @@ BodyPartsGroup {
         // seen from three-quarters most of the time.
         component Eye: BodyPart {
             id: _eye
+            visible: _head.features
             color: "white"
             width: _upperHead.width * .22 * _head.eyeSize
 
@@ -592,6 +615,7 @@ BodyPartsGroup {
         // shape parameters (open/wide/round/cornerLift).
         Node {
             id: _mouth
+            visible: _head.features
             // Counteracts the jaw stretch (the box origin moved down) so
             // the mouth line (upper lip) stays fixed on the face while
             // the chin extends below.

@@ -285,11 +285,17 @@ Both levels of detail answer it.
 
 `detail` says how much hand to spend on that:
 
-| `Character.Detail` | what is drawn |
-|---|---|
-| `Low` | one box per hand, reshaped per pose - a fist is a stubby block, an open hand a long flat one |
-| `High` | ten boxes per hand: four fingers and a thumb that fold, so a point extends a real index finger |
-| `Auto` (default) | `Low` until the character is `detailThreshold` pixels tall on screen, then `High` |
+| `Character.Detail` | what is drawn | draw calls |
+|---|---|---|
+| `Minimal` | no face — no eyes, brows, nose, ears or mouth | ~20 |
+| `Low` | the whole body, one box per hand, reshaped per pose — a fist is a stubby block, an open hand a long flat one | ~33 |
+| `High` | ten boxes per hand as well: four fingers and a thumb that fold, so a point extends a real index finger | ~53 |
+| `Auto` (default) | picks between the three by how tall the character lands on screen | |
+
+Auto crosses into `High` at `detailThreshold` (240 px of figure) and drops to
+`Minimal` below `minimalThreshold` (60 px). Both are measured rather than
+picked — see their docs. Each character decides for itself, so a crowd pays
+only for the ones that are near.
 
 `Auto` needs `view` - a character cannot ask how big it looks without knowing
 what it is being looked at through - and stays `Low` without one. It biases
