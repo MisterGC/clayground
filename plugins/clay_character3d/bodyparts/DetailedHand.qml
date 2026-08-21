@@ -106,7 +106,7 @@ Node {
     */
     readonly property vector3d indexTip: Qt.vector3d(root._x0,
                                                      root._knuckle - root._l0,
-                                                     root._knuckleZ(root._w0))
+                                                     root._knuckleZ)
 
     // Which edge of the palm the thumb and the index share. Default is the
     // -X edge, which on the right arm (the character puts it at +X) is the
@@ -177,19 +177,21 @@ Node {
     // --- how the four are packed ---------------------------------------------
 
     readonly property real _gap: root.palmWidth * 0.015
-    readonly property real _w0: root.palmWidth * 0.46   // index - deliberately the fat one
-    readonly property real _w1: root.palmWidth * 0.26
-    readonly property real _w2: root.palmWidth * 0.23
-    readonly property real _w3: root.palmWidth * 0.20   // little
+    readonly property real _w0: root.palmWidth * 0.38   // index - deliberately the fat one
+    readonly property real _w1: root.palmWidth * 0.215
+    readonly property real _w2: root.palmWidth * 0.19
+    readonly property real _w3: root.palmWidth * 0.165  // little
 
     // The thumb is the thickest thing on the hand, which is true of a real one
     // and doubly worth having here: in a thumbs-up it is the entire gesture,
     // and a thumb no fatter than a finger reads as a fifth finger standing up.
-    readonly property real _wt: root.palmWidth * 0.54
+    readonly property real _wt: root.palmWidth * 0.44
 
-    // Packed side by side and centred on the palm rather than fitted inside
-    // it: the four together come out a little wider than the palm box, which
-    // is what a fist does and what keeps the index thick enough to see.
+    // Packed side by side and centred on the palm, and the four together come
+    // to just about the palm's own width. They used to overhang it by a fifth,
+    // which bought the index enough thickness to see at distance back when the
+    // palm was a narrow brick; the palm is a hand's width now, so the same
+    // index is thicker in absolute terms than the overhanging one was.
     readonly property real _span: root._w0 + root._w1 + root._w2 + root._w3
                                   + 3 * root._gap
     readonly property real _x0: root._side * (root._span * 0.5 - root._w0 * 0.5)
@@ -206,17 +208,36 @@ Node {
     // Thickness carries the same distance at a fraction of the cost to the
     // shape, which is why _w0 is the fat one.
     //
-    // The other three are SHORTER than a hand's, for a reason from the other
-    // end: a folded finger longer than the palm is deep cannot tuck, and the
-    // fist comes out a loose claw with three spare things in the outline
-    // competing with the one that carries the meaning.
+    // The other three still fall away toward the little finger faster than a
+    // hand's do - the index is the one carrying the meaning and three fingers
+    // of its length beside it split the outline four ways. They used to fall
+    // away much harder still, back when a folded finger could not tuck and
+    // every extra millimetre of one stayed out in the silhouette; the fold
+    // works now, so they get most of their length back.
     readonly property real _l0: root.palmHeight * 1.15   // index
-    readonly property real _l1: root.palmHeight * 0.90
-    readonly property real _l2: root.palmHeight * 0.80
-    readonly property real _l3: root.palmHeight * 0.66
+    readonly property real _l1: root.palmHeight * 0.98
+    readonly property real _l2: root.palmHeight * 0.88
+    readonly property real _l3: root.palmHeight * 0.70
 
     // How far the fan opens, per step away from the index.
     readonly property real _fan: 7
+
+    // How deep the fingers are THROUGH the hand, as opposed to how wide they
+    // are across it. Two numbers rather than one, because the two are set by
+    // different things: width is how many fingers have to fit side by side on
+    // the palm, depth is how thick the palm is. A single square cross-section
+    // ties them together and then a hand slim enough to be a hand has fingers
+    // standing out of both of its faces.
+    //
+    // One depth for all four: the back of a hand is flat, and at this scale the
+    // difference between a real index and a real little finger is thinner than
+    // the outline drawn around them.
+    readonly property real _deep: root.palmDepth * 0.82
+
+    // The thumb is the one thing on the hand that fills the palm's whole
+    // thickness - it is the only part with a joint that can turn to face the
+    // fingers, and a flat one reads as a fifth finger lying on its side.
+    readonly property real _deepT: root.palmDepth * 0.96
 
     // The knuckle line sits on the BACK of the palm rather than down the middle
     // of it. Fingers fold to the palm side, so a knuckle on the centre line
@@ -227,11 +248,9 @@ Node {
     // thickness is on the palm side.
     //
     // Clamped, because a character can be given a palm shallower than its own
-    // fingers are thick, and a finger hanging off the back of the hand is a
+    // fingers are deep, and a finger hanging off the back of the hand is a
     // worse failure than one that is merely centred.
-    function _knuckleZ(thick) {
-        return Math.max(0, (root.palmDepth - thick) * 0.5)
-    }
+    readonly property real _knuckleZ: Math.max(0, (root.palmDepth - root._deep) * 0.5)
 
     // --- a finger ------------------------------------------------------------
 
@@ -251,7 +270,10 @@ Node {
         id: _f
 
         property real len: 1
+        /*! Across the hand. */
         property real thick: 1
+        /*! Through the hand, back to palm. Square unless told otherwise. */
+        property real deep: _f.thick
         /*!
             How thick the far segment is relative to the near one. Under 1
             for a finger, which narrows toward the tip; over 1 for the thumb,
@@ -287,7 +309,7 @@ Node {
 
         BodyPart {
             width: _f.thick
-            depth: _f.thick
+            depth: _f.deep
             height: _f._seg1
             color: root.tone
             basePos: Qt.vector3d(0, -height, 0)
@@ -305,17 +327,17 @@ Node {
         // up reads as the knuckle itself.
         Node {
             y: -_f._seg1
-            z: -_f.thick * _f.hinge
+            z: -_f.deep * _f.hinge
             eulerRotation.x: _f.curl * _f.foldDeg
 
             BodyPart {
                 width: _f.thick * _f.taper
-                depth: _f.thick * _f.taper
+                depth: _f.deep * _f.taper
                 height: _f._seg2
                 color: root.tone
                 // Pushed back off the hinge by half its own depth, so its palm
                 // side lands on the pivot rather than straddling it.
-                basePos: Qt.vector3d(0, -height, _f.thick * _f.taper * _f.hinge)
+                basePos: Qt.vector3d(0, -height, _f.deep * _f.taper * _f.hinge)
                 edgeThickness: 2.2
             }
         }
@@ -324,8 +346,8 @@ Node {
     // --- the hand ------------------------------------------------------------
 
     Finger {
-        x: root._x0; y: root._knuckle; z: root._knuckleZ(root._w0)
-        len: root._l0; thick: root._w0
+        x: root._x0; y: root._knuckle; z: root._knuckleZ
+        len: root._l0; thick: root._w0; deep: root._deep
         curl: root._ci
         // The index never fans, even in the open pose: in the pointing pose it
         // has to lie on the line the arm was aimed along, and a finger that
@@ -334,22 +356,22 @@ Node {
     }
 
     Finger {
-        x: root._x1; y: root._knuckle; z: root._knuckleZ(root._w1)
-        len: root._l1; thick: root._w1
+        x: root._x1; y: root._knuckle; z: root._knuckleZ
+        len: root._l1; thick: root._w1; deep: root._deep
         curl: root._cm
         splay: -root._side * root._sp * root._fan
     }
 
     Finger {
-        x: root._x2; y: root._knuckle; z: root._knuckleZ(root._w2)
-        len: root._l2; thick: root._w2
+        x: root._x2; y: root._knuckle; z: root._knuckleZ
+        len: root._l2; thick: root._w2; deep: root._deep
         curl: root._cr
         splay: -root._side * root._sp * root._fan * 2
     }
 
     Finger {
-        x: root._x3; y: root._knuckle; z: root._knuckleZ(root._w3)
-        len: root._l3; thick: root._w3
+        x: root._x3; y: root._knuckle; z: root._knuckleZ
+        len: root._l3; thick: root._w3; deep: root._deep
         curl: root._cl
         splay: -root._side * root._sp * root._fan * 3
     }
@@ -373,6 +395,7 @@ Node {
             // at two boxes there is not enough of it for either shape to look
             // like anything but a mistake, and a plain stub reads as a thumb.
             thick: root._wt
+            deep: root._deepT
             taper: 1.0
             curl: root._tc
             hinge: 0.18

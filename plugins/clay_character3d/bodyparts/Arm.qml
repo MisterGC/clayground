@@ -198,12 +198,21 @@ BodyPartsGroup {
                 id: _wristJoint
                 position: Qt.vector3d(0, -_lowerArm.height, 0)  // At bottom of lower arm
 
+                // A hand is a SLAB, not a brick. These three were 0.8/0.2/0.6
+                // of the arm, which comes out 1.2 : 1.6 : 1 - very nearly a
+                // cube, where a real palm is about 3 : 3.3 : 1. Close up that
+                // is what made an articulated hand read as a block with
+                // pimples on it: the palm was so much bigger than the fingers
+                // that nothing else on the hand registered. It is also wider
+                // than the wrist it hangs off, which is why width goes above
+                // one - a hand narrower than its own forearm is the other half
+                // of the same mistake.
                 Hand {
                     id: _hand
                     basePos: Qt.vector3d(0, -height, 0)
-                    width: _arm.width * 0.8
-                    height: _arm.height * 0.2
-                    depth: _arm.depth * 0.6
+                    width: _arm.width * 1.05
+                    height: _arm.height * 0.19
+                    depth: _arm.depth * 0.34
                 }
 
                 // The fingers, when they are wanted. They hang off the same

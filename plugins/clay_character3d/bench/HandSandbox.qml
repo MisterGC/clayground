@@ -65,6 +65,19 @@ Item {
     /*! Uniform scale on both characters, for the small-on-screen tests. */
     property real figureScale: 1.0
 
+    /*!
+        Which figure the close-up presets frame and the readout measures: the
+        articulated hand by default, the plain box with subject("plain"). The
+        plain one needs looking at too - it is what an Auto detail switch pops
+        to, and a switch is only invisible if both sides of it are right.
+    */
+    property var subject: high
+
+    function setSubject(which) {
+        root.subject = (which === "plain" || which === "low") ? low : high
+        root._trackPivot()
+    }
+
     // --- camera ---------------------------------------------------------------
 
     property real camYaw: 35
@@ -106,9 +119,10 @@ Item {
     // it and framing the joint puts the fingers at the bottom of the picture.
     function _trackPivot() {
         root.camPivot = root.camOnHand
-                      ? high.rightArm.hand.mapPositionToScene(
-                            Qt.vector3d(0, -high.rightArm.handHeight * 0.6, 0))
-                      : Qt.vector3d(0, high.height * high.scale.y * 0.55, 0)
+                      ? root.subject.rightArm.hand.mapPositionToScene(
+                            Qt.vector3d(0, -root.subject.rightArm.handHeight * 0.6, 0))
+                      : Qt.vector3d(root.compare ? 0 : root.subject.basePos.x,
+                                    root.subject.height * root.subject.scale.y * 0.55, 0)
     }
 
     // --- gestures ---------------------------------------------------------------
@@ -241,20 +255,20 @@ Item {
 
     readonly property real _spread: 8
 
-    readonly property real figureHeight: high.height * high.scale.y
+    readonly property real figureHeight: root.subject.height * root.subject.scale.y
 
     /*! Apparent height of the whole figure, in screen pixels. */
     function figurePx() {
-        const foot = view.mapFrom3DScene(high.scenePosition)
-        const top = view.mapFrom3DScene(high.scenePosition.plus(
+        const foot = view.mapFrom3DScene(root.subject.scenePosition)
+        const top = view.mapFrom3DScene(root.subject.scenePosition.plus(
                                             Qt.vector3d(0, root.figureHeight, 0)))
         return Math.abs(top.y - foot.y)
     }
 
     /*! Apparent length of the extended index finger, in the same pixels. */
     function fingerPx() {
-        const h = high.rightArm.hand
-        const tip = high.rightArm.indexTip
+        const h = root.subject.rightArm.hand
+        const tip = root.subject.rightArm.indexTip
         const a = view.mapFrom3DScene(h.mapPositionToScene(Qt.vector3d(0, 0, 0)))
         const b = view.mapFrom3DScene(h.mapPositionToScene(tip))
         return Math.hypot(b.x - a.x, b.y - a.y)
@@ -266,10 +280,10 @@ Item {
         Meaningless unless a point is being held.
     */
     function aimErrorDeg() {
-        const h = high.rightArm.hand
+        const h = root.subject.rightArm.hand
         const from = h.mapPositionToScene(Qt.vector3d(0, 0, 0))
-        const along = h.mapPositionToScene(high.rightArm.indexTip).minus(from)
-        const toIt = marker.scenePosition.minus(from)
+        const along = h.mapPositionToScene(root.subject.rightArm.indexTip).minus(from)
+        const toIt = root.aimFor(root.subject).minus(from)
         const denom = along.length() * toIt.length()
         if (denom < 1e-6)
             return 0
@@ -282,8 +296,9 @@ Item {
         // Character.handPose is only what the hand falls back to. While a
         // gesture holds it the arm's own handPose is the one on screen, and
         // printing the fallback instead is how a pose gets "fixed" twice.
-        const held = high.rightArm.handPose
-        return (root.gesture !== "" ? "gesture " + root.gesture
+        const held = root.subject.rightArm.handPose
+        return (root.subject === low ? "plain  " : "")
+             + (root.gesture !== "" ? "gesture " + root.gesture
                                     : root.armPose + "/" + root.pose)
              + " -> " + held
              + "  " + root.viewpoint
@@ -318,6 +333,7 @@ Item {
         else if (e.key === Qt.Key_I) root.play("talk")
         else if (e.key === Qt.Key_X) root.stop()
         else if (e.key === Qt.Key_C) root.setCompare(!root.compare)
+        else if (e.key === Qt.Key_D) root.setSubject(root.subject === high ? "plain" : "high")
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
@@ -450,16 +466,22 @@ Item {
             }
         }
 
-        Marker { id: marker; position: root.aimFor(high) }
-        Marker { position: root.aimFor(low); visible: root.compare && root.gesture === "point" }
+        Marker { position: root.aimFor(high) }
+        Marker {
+            position: root.aimFor(low)
+            visible: low.visible && root.gesture === "point"
+        }
 
         // The one under the microscope.
         Figure {
             id: high
             name: "articulated"
             // basePos, not x: BodyPart binds position to basePos, so an x of
-            // its own is overwritten the moment anything re-evaluates.
-            basePos: Qt.vector3d(root.compare ? -root._spread * 0.5 : 0, 0, 0)
+            // its own is overwritten the moment anything re-evaluates. Fixed
+            // rather than re-centred when the other figure is hidden - a
+            // close-up that shifts sideways the moment compare goes off is a
+            // close-up you cannot compare two renders of.
+            basePos: Qt.vector3d(-root._spread * 0.5, 0, 0)
             detailedHands: true
         }
 
@@ -470,7 +492,7 @@ Item {
             id: low
             name: "plain"
             basePos: Qt.vector3d(root._spread * 0.5, 0, 0)
-            visible: root.compare
+            visible: root.compare || root.subject === low
             detailedHands: false
         }
     }
