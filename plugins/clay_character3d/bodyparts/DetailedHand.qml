@@ -106,7 +106,7 @@ Node {
     */
     readonly property vector3d indexTip: Qt.vector3d(root._x0,
                                                      root._knuckle - root._l0,
-                                                     0)
+                                                     root._knuckleZ(root._w0))
 
     // Which edge of the palm the thumb and the index share. Default is the
     // -X edge, which on the right arm (the character puts it at +X) is the
@@ -132,7 +132,7 @@ Node {
     readonly property var _p: {
         if (root.pose === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 55, tz: -62, tc: 0.20 }
+                     tx: 48, tz: 56, tc: 0.20 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
@@ -146,7 +146,7 @@ Node {
                      tx: -6, tz: 34, tc: 0.00 }
         if (root.pose === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 62, tz: 10, tc: 0.55 }
+                     tx: 55, tz: 70, tc: 0.25 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
@@ -218,13 +218,35 @@ Node {
     // How far the fan opens, per step away from the index.
     readonly property real _fan: 7
 
+    // The knuckle line sits on the BACK of the palm rather than down the middle
+    // of it. Fingers fold to the palm side, so a knuckle on the centre line
+    // folds them through the palm box: at a full fist the tips come to rest
+    // inside it and the near segments break out through its front face, which
+    // is the loose jumble of boxes a fist used to be. Flush with the back is
+    // also what a hand does - the back of one is flat and all the variation in
+    // thickness is on the palm side.
+    //
+    // Clamped, because a character can be given a palm shallower than its own
+    // fingers are thick, and a finger hanging off the back of the hand is a
+    // worse failure than one that is merely centred.
+    function _knuckleZ(thick) {
+        return Math.max(0, (root.palmDepth - thick) * 0.5)
+    }
+
     // --- a finger ------------------------------------------------------------
 
-    // Two boxes hinged at the knuckle and again halfway. Two joints is the
-    // fewest that folds into a ball instead of tilting like a flap, and 112
-    // degrees each is what lands the tip back on the front of the palm -
-    // measured, not chosen: less and the fist is a claw with the tips still
-    // out in the outline, more and they drive back through the knuckles.
+    // Two boxes and two hinges: one at the knuckle, one where a PIP joint goes.
+    // Two is the fewest that folds into a ball instead of tilting like a flap,
+    // and it is also the whole cost of the articulated hand - four fingers and
+    // a thumb come to ten boxes. The joint being dropped is the one nearest the
+    // tip, which contributes least to an outline; the thumb has only two bones
+    // anyway, so for the thumb this is not an approximation at all.
+    //
+    // The split is 45/55 - the near segment is the SHORTER one. That is a real
+    // finger's proportion (the proximal bone is about 45% of the length and the
+    // two beyond it about 55% together), and getting it backwards puts the fold
+    // further out than a knuckle goes, which throws the folded tip past the
+    // palm instead of onto it.
     component Finger: Node {
         id: _f
 
@@ -241,11 +263,27 @@ Node {
         property real curl: 0
         /*! Degrees away from the hand's centre line. */
         property real splay: 0
+        /*!
+            How far each of the two joints bends at full curl. Measured against
+            the fist: it is what lands the tip on the front of the palm. Less
+            and the fist is a claw with the tips still out in the outline, more
+            and they drive back through the knuckles.
+        */
+        property real foldDeg: 96
+        /*!
+            Where the second hinge sits across the segment's depth: 0.5 on the
+            palm-side face, 0 on the centre line. Half is right for a finger,
+            which is long against its own thickness, so the wedge that opens at
+            the back of the joint stays small. A thumb is nearly as thick as its
+            segments are long and the same wedge splits it in two, so it hinges
+            much closer to its middle and accepts the overlap instead.
+        */
+        property real hinge: 0.5
 
-        readonly property real _seg1: _f.len * 0.55
+        readonly property real _seg1: _f.len * 0.45
         readonly property real _seg2: _f.len - _f._seg1
 
-        eulerRotation: Qt.vector3d(_f.curl * 112, 0, _f.splay)
+        eulerRotation: Qt.vector3d(_f.curl * _f.foldDeg, 0, _f.splay)
 
         BodyPart {
             width: _f.thick
@@ -258,16 +296,26 @@ Node {
             edgeThickness: 2.2
         }
 
+        // The hinge is on the PALM-SIDE EDGE of the near segment, not on its
+        // centre line. A centred pivot folds the two boxes half into each other
+        // and half apart - and because BodyPart outlines every box, the overlap
+        // does not hide, it draws a seam straight across the middle of the
+        // finger. On the edge the palm side closes like a real knuckle does and
+        // the whole error goes to the back of the joint, where a wedge opening
+        // up reads as the knuckle itself.
         Node {
             y: -_f._seg1
-            eulerRotation.x: _f.curl * 112
+            z: -_f.thick * _f.hinge
+            eulerRotation.x: _f.curl * _f.foldDeg
 
             BodyPart {
                 width: _f.thick * _f.taper
                 depth: _f.thick * _f.taper
                 height: _f._seg2
                 color: root.tone
-                basePos: Qt.vector3d(0, -height, 0)
+                // Pushed back off the hinge by half its own depth, so its palm
+                // side lands on the pivot rather than straddling it.
+                basePos: Qt.vector3d(0, -height, _f.thick * _f.taper * _f.hinge)
                 edgeThickness: 2.2
             }
         }
@@ -276,7 +324,7 @@ Node {
     // --- the hand ------------------------------------------------------------
 
     Finger {
-        x: root._x0; y: root._knuckle
+        x: root._x0; y: root._knuckle; z: root._knuckleZ(root._w0)
         len: root._l0; thick: root._w0
         curl: root._ci
         // The index never fans, even in the open pose: in the pointing pose it
@@ -286,21 +334,21 @@ Node {
     }
 
     Finger {
-        x: root._x1; y: root._knuckle
+        x: root._x1; y: root._knuckle; z: root._knuckleZ(root._w1)
         len: root._l1; thick: root._w1
         curl: root._cm
         splay: -root._side * root._sp * root._fan
     }
 
     Finger {
-        x: root._x2; y: root._knuckle
+        x: root._x2; y: root._knuckle; z: root._knuckleZ(root._w2)
         len: root._l2; thick: root._w2
         curl: root._cr
         splay: -root._side * root._sp * root._fan * 2
     }
 
     Finger {
-        x: root._x3; y: root._knuckle
+        x: root._x3; y: root._knuckle; z: root._knuckleZ(root._w3)
         len: root._l3; thick: root._w3
         curl: root._cl
         splay: -root._side * root._sp * root._fan * 3
@@ -314,7 +362,7 @@ Node {
     Node {
         x: root._side * root.palmWidth * 0.44
         y: -root.palmHeight * 0.38
-        z: -root.palmDepth * 0.10
+        z: -root.palmDepth * 0.35
 
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
@@ -327,6 +375,7 @@ Node {
             thick: root._wt
             taper: 1.0
             curl: root._tc
+            hinge: 0.18
         }
     }
 }
