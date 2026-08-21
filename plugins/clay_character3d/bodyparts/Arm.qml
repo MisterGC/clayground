@@ -148,6 +148,21 @@ BodyPartsGroup {
     */
     readonly property alias hand: _wristJoint
 
+    /*!
+        \qmlproperty vector3d Arm::indexTip
+        \readonly
+        \brief Where the hand ends, in \l hand's own frame - the point to aim
+               along, and the point to measure a gesture against.
+
+        On an \l articulated arm this is the tip of the extended index finger,
+        and only meaningful while the index is straight. On a plain one it is
+        the far face of the hand box, so a caller measuring reach does not have
+        to know which kind of hand it has.
+    */
+    readonly property vector3d indexTip: _fingers.item
+                                       ? _fingers.item.indexTip
+                                       : Qt.vector3d(0, -_hand.height, 0)
+
     // Shoulder joint - rotation point for upper arm
     Node {
         id: _shoulderJoint
@@ -196,6 +211,7 @@ BodyPartsGroup {
                 // Loaded on demand: a character that never shapes a hand does
                 // not pay ten boxes per arm for the option.
                 Loader3D {
+                    id: _fingers
                     active: _arm.articulated
                     sourceComponent: Component {
                         DetailedHand {
