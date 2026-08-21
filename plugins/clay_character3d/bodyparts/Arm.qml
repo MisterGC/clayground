@@ -81,19 +81,19 @@ BodyPartsGroup {
         \qmlproperty real Arm::handWidth
         \brief Width of the hand.
     */
-    property alias handWidth: _hand.width
+    property alias handWidth: _hand.palmWidth
 
     /*!
         \qmlproperty real Arm::handHeight
         \brief Height of the hand.
     */
-    property alias handHeight: _hand.height
+    property alias handHeight: _hand.palmHeight
 
     /*!
         \qmlproperty real Arm::handDepth
         \brief Depth of the hand.
     */
-    property alias handDepth: _hand.depth
+    property alias handDepth: _hand.palmDepth
 
     /*!
         \qmlproperty color Arm::handColor
@@ -106,20 +106,27 @@ BodyPartsGroup {
         \brief Whether the hand has fingers.
 
         Off by default: a \l DetailedHand is ten more boxes per hand, and a
-        character seen from across a room does not need them. Switching it on
-        keeps the plain hand box - the fingers grow off its far face and it
-        becomes the palm - so nothing about the arm's dimensions or colours
-        changes with it.
+        character seen from across a room does not need them.
 
-        \sa DetailedHand, handPose
+        Switching it on keeps the plain hand box and demotes it to the palm the
+        fingers grow off. That is a real change of size: on its own the box is
+        a whole hand and reshapes itself for every \l handPose, and a palm is
+        less than half of one. The two are built to match in outline, so the
+        swap is meant to go unnoticed - but the box is not the same box.
+
+        \sa DetailedHand, handPose, Hand
     */
     property bool articulated: false
 
     /*!
         \qmlproperty string Arm::handPose
-        \brief Which shape an articulated hand takes: "relax", "open",
-               "point", "thumbsUp" or "fist". Ignored while \l articulated
-               is false.
+        \brief What the hand is doing: "relax", "open", "point", "thumbsUp"
+               or "fist".
+
+        Read at both levels of detail. An \l articulated hand folds real
+        fingers for it; a plain one reshapes its single box to the same pose's
+        outline, so a wave and a raised fist are still different things on a
+        character too far away to have fingers.
     */
     property string handPose: "relax"
 
@@ -198,21 +205,28 @@ BodyPartsGroup {
                 id: _wristJoint
                 position: Qt.vector3d(0, -_lowerArm.height, 0)  // At bottom of lower arm
 
-                // A hand is a SLAB, not a brick. These three were 0.8/0.2/0.6
+                // A palm is a SLAB, not a brick. These three were 0.8/0.2/0.6
                 // of the arm, which comes out 1.2 : 1.6 : 1 - very nearly a
                 // cube, where a real palm is about 3 : 3.3 : 1. Close up that
                 // is what made an articulated hand read as a block with
                 // pimples on it: the palm was so much bigger than the fingers
                 // that nothing else on the hand registered. It is also wider
                 // than the wrist it hangs off, which is why width goes above
-                // one - a hand narrower than its own forearm is the other half
+                // one - a palm narrower than its own forearm is the other half
                 // of the same mistake.
                 Hand {
                     id: _hand
                     basePos: Qt.vector3d(0, -height, 0)
-                    width: _arm.width * 1.05
-                    height: _arm.height * 0.19
-                    depth: _arm.depth * 0.34
+                    palmWidth: _arm.width * 1.05
+                    palmHeight: _arm.height * 0.19
+                    palmDepth: _arm.depth * 0.34
+
+                    // An empty pose means "you are a palm, do not reshape".
+                    // The single box shapes itself to stand in for fingers it
+                    // does not have; with real fingers on top of it the same
+                    // shaping would be counted twice, and a fist would come
+                    // out as a swollen palm inside a folded hand.
+                    pose: _arm.articulated ? "" : _arm.handPose
                 }
 
                 // The fingers, when they are wanted. They hang off the same

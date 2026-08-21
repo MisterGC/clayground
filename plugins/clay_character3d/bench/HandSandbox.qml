@@ -73,6 +73,16 @@ Item {
     */
     property var subject: high
 
+    /*!
+        Flip the articulated figure's fingers on and off without moving
+        anything else. This is the A/B that matters: an Auto detail switch does
+        exactly this, on one character, mid-shot - so the two frames either
+        differ only in detail or the switch is going to be seen. Comparing the
+        two figures side by side cannot answer it, because they stand in
+        different places and the eye reads the parallax as a difference.
+    */
+    function setDetail(on) { high.detailedHands = on }
+
     function setSubject(which) {
         root.subject = (which === "plain" || which === "low") ? low : high
         root._trackPivot()
@@ -334,6 +344,7 @@ Item {
         else if (e.key === Qt.Key_X) root.stop()
         else if (e.key === Qt.Key_C) root.setCompare(!root.compare)
         else if (e.key === Qt.Key_D) root.setSubject(root.subject === high ? "plain" : "high")
+        else if (e.key === Qt.Key_H) root.setDetail(!high.detailedHands)
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
@@ -483,6 +494,7 @@ Item {
             // close-up you cannot compare two renders of.
             basePos: Qt.vector3d(-root._spread * 0.5, 0, 0)
             detailedHands: true
+            objectName: "articulated"
         }
 
         // The same character with the plain box hand, for the far read. Off to
