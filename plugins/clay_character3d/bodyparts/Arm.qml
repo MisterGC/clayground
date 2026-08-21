@@ -97,9 +97,55 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty color Arm::handColor
-        \brief Color of the hand (skin color).
+        \brief Colour of the bare hand. Ignored while \l gloved.
     */
-    property alias handColor: _hand.color
+    property color handColor: "#d38d5f"
+
+    /*!
+        \qmlproperty bool Arm::gloved
+        \brief Whether the hand wears a glove: its own colour, and a cuff.
+
+        The oldest trick in cartoon animation, and it is about legibility
+        rather than costume. A hand the same colour as the arm it is on has to
+        be found before it can be read, and a hand the colour of the
+        background cannot be found at all. A glove is a single high-contrast
+        shape that separates from both, so the gesture arrives before the face
+        does.
+
+        The cuff is the half that does the separating. A pale hand is a pale
+        hand; it is the band across the wrist that says where the arm stops.
+
+        \sa gloveColor, Character::handScale
+    */
+    property bool gloved: false
+
+    /*!
+        \qmlproperty color Arm::gloveColor
+        \brief Colour of the glove and its cuff.
+
+        Off-white rather than white: BodyPart outlines every box, so the glove
+        keeps a dark edge whatever the background, and a flat pure white loses
+        the shading that tells the fingers apart.
+    */
+    property color gloveColor: "#f4f1e8"
+
+    /*!
+        \qmlproperty real Arm::handScale
+        \brief How much bigger the hand is drawn than the proportion tables
+               give.
+
+        Gestures are the loudest thing a body says and the hand is where they
+        happen, so a character that talks with its hands wants them drawn the
+        size a cartoonist would draw them.
+
+        Deliberately a scale on the WHOLE hand rather than a longer finger.
+        Stretching the one part that has to stay legible is what produces a
+        spike where an index finger should be; scaling everything keeps the
+        parts in proportion to each other and the whole thing simply gets
+        bigger. It scales the wrist joint, so the hand grows out of the cuff
+        rather than moving away from it.
+    */
+    property real handScale: 1.0
 
     /*!
         \qmlproperty bool Arm::articulated
@@ -205,6 +251,42 @@ BodyPartsGroup {
                 id: _wristJoint
                 position: Qt.vector3d(0, -_lowerArm.height, 0)  // At bottom of lower arm
 
+                // Everything the hand is made of hangs off this joint, so
+                // scaling the joint scales the hand, the fingers and the cuff
+                // together and leaves the arm alone - the hand grows out of
+                // the sleeve instead of drifting off the end of it.
+                scale: Qt.vector3d(_arm.handScale, _arm.handScale, _arm.handScale)
+
+                // The cuff. Flared past the sleeve on purpose: it is the band
+                // that says where the arm stops and the hand starts, and a
+                // cuff flush with the sleeve says nothing. Straddles the joint
+                // so there is no seam to catch the light at the wrist.
+                //
+                // And it TAPERS, to the hand's cross-section rather than the
+                // arm's. A forearm here is a deep box and a palm is a slab -
+                // two and a half times thinner - so a cuff that keeps the
+                // sleeve's depth all the way down is a flange with a wafer
+                // hanging under it, which reads as a mushroom rather than a
+                // wrist. Sitting between the two shapes is the whole job: the
+                // jump was always there, the glove only made it visible.
+                //
+                // Measured against the PALM, not the rendered box, so the cuff
+                // does not swell and shrink as the hand changes pose.
+                BodyPart {
+                    id: _cuff
+                    visible: _arm.gloved
+                    width: _arm.width * _arm.lowerTaper * 1.16
+                    height: _arm.width * 0.32
+                    depth: _arm.depth * _arm.lowerTaper * 1.16
+                    color: _arm.gloveColor
+                    basePos: Qt.vector3d(0, -height * 0.5, 0)
+
+                    scaledFace: Box3DGeometry.BottomFace
+                    faceScale: Qt.vector2d(
+                        Math.min(1, _hand.palmWidth * 1.02 / width),
+                        Math.min(1, _hand.palmDepth * 1.35 / depth))
+                }
+
                 // A palm is a SLAB, not a brick. These three were 0.8/0.2/0.6
                 // of the arm, which comes out 1.2 : 1.6 : 1 - very nearly a
                 // cube, where a real palm is about 3 : 3.3 : 1. Close up that
@@ -217,6 +299,7 @@ BodyPartsGroup {
                 Hand {
                     id: _hand
                     basePos: Qt.vector3d(0, -height, 0)
+                    color: _arm.gloved ? _arm.gloveColor : _arm.handColor
                     palmWidth: _arm.width * 1.05
                     palmHeight: _arm.height * 0.19
                     palmDepth: _arm.depth * 0.34

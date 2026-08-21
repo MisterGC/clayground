@@ -299,6 +299,32 @@ does not grow and shed ten boxes a hand every few frames.
 
 `detailedHands` is read-only and reports which one is on screen right now.
 
+### Making a gesture readable
+
+Two properties, and they work together:
+
+```qml
+Character {
+    gloves: true          // hands get their own colour, and a cuff at the wrist
+    handScale: 1.45       // and they are drawn bigger than the tables give
+}
+```
+
+The oldest trick in cartoon animation, and it is about legibility rather than
+costume. A hand the colour of the arm it is on has to be found before it can
+be read, and a hand the colour of the background cannot be found at all — so
+the glove is a single high-contrast shape that separates from both. The cuff
+is the half that does the separating: a pale hand is just a pale hand, the
+band across the wrist is what says where the arm stops.
+
+`handScale` scales the wrist joint, so the hand grows out of the cuff instead
+of drifting off the end of the arm — and it scales the *whole* hand rather
+than lengthening the finger, because stretching the one part that has to stay
+legible is what produces a spike where an index finger should be.
+
+`detail` accounts for it: bigger hands mean the fingers are worth drawing from
+further away, so the Auto threshold divides by `handScale`.
+
 The two levels are built to match in outline, so the switch is meant to go
 unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
 checked, and `h` flips the fingers on one character without moving anything

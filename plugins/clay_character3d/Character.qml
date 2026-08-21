@@ -717,6 +717,36 @@ BodyPartsGroup {
     /*! Hand color. */
     property alias handColor: _rightArm.handColor
 
+    /*!
+        \qmlproperty bool Character::gloves
+        \brief Whether the hands are gloved - their own colour, and a cuff at
+               each wrist.
+
+        A cartoon convention, and a legibility one: a hand the colour of the
+        arm it is on has to be found before it can be read. See \l {Arm::gloved}.
+
+        \sa gloveColor, handScale
+    */
+    property alias gloves: _rightArm.gloved
+
+    /*!
+        \qmlproperty color Character::gloveColor
+        \brief Colour of the gloves and their cuffs.
+    */
+    property alias gloveColor: _rightArm.gloveColor
+
+    /*!
+        \qmlproperty real Character::handScale
+        \brief How much bigger the hands are drawn than the proportion tables
+               give. 1 leaves them alone.
+
+        Pairs with \l gloves: the two together are how a cartoon makes a
+        gesture readable across a room. Big enough to see, light enough to
+        find. \l detail accounts for it - bigger hands mean the fingers are
+        worth drawing from further away.
+    */
+    property alias handScale: _rightArm.handScale
+
     // ============================================================================
     // LEG PROPERTIES (symmetric)
     // ============================================================================
@@ -853,6 +883,9 @@ BodyPartsGroup {
             // Mirror colors
             color: _rightArm.color
             handColor: _rightArm.handColor
+            gloved: _rightArm.gloved
+            gloveColor: _rightArm.gloveColor
+            handScale: _rightArm.handScale
 
             // Mirror hand dimensions
             handWidth: _rightArm.handWidth
@@ -963,7 +996,12 @@ BodyPartsGroup {
         // does not have to.
         const claimed = _gestureAnim.rightHandPose !== ""
                      || _gestureAnim.leftHandPose !== ""
+        // Divided by handScale: the threshold is really asking whether a
+        // FINGER is big enough to be worth ten boxes, and figure height is
+        // only a proxy for that. A character drawn with cartoon hands has
+        // readable fingers at half the figure height of one without.
         const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
+                   / Math.max(0.01, _character.handScale)
 
         // Asymmetric on purpose: harder to gain fingers than to keep them.
         return _detail.auto ? px > want * 0.85 : px > want

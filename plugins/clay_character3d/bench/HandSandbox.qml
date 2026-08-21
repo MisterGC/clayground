@@ -66,6 +66,23 @@ Item {
     property real figureScale: 1.0
 
     /*!
+        Cartoon hands: gloved, and bigger than the proportion tables give. The
+        two go together - big enough to see, light enough to find - and this is
+        the bench for deciding how far to push either.
+    */
+    property bool gloves: false
+    property real handScale: 1.0
+
+    function setGloves(on) { root.gloves = on }
+    function setHandScale(s) { root.handScale = s }
+
+    /*! Both at once, at the sort of values a cartoon would use. */
+    function cartoon(on) {
+        root.gloves = on
+        root.handScale = on ? 1.45 : 1.0
+    }
+
+    /*!
         Which figure the close-up presets frame and the readout measures: the
         articulated hand by default, the plain box with subject("plain"). The
         plain one needs looking at too - it is what an Auto detail switch pops
@@ -320,7 +337,8 @@ Item {
         const mode = high.detail === Character.Detail.Auto
                    ? "auto/" + (high.detailedHands ? "fingers" : "box")
                    : (high.detailedHands ? "fingers" : "box")
-        return (root.subject === low ? "plain  " : mode + "  ")
+        return (root.gloves ? "gloved x" + root.handScale.toFixed(2) + "  " : "")
+             + (root.subject === low ? "plain  " : mode + "  ")
              + (root.gesture !== "" ? "gesture " + root.gesture
                                     : root.armPose + "/" + root.pose)
              + " -> " + held
@@ -359,6 +377,7 @@ Item {
         else if (e.key === Qt.Key_D) root.setSubject(root.subject === high ? "plain" : "high")
         else if (e.key === Qt.Key_H) root.setDetail(!high.detailedHands)
         else if (e.key === Qt.Key_U) root.setAuto()
+        else if (e.key === Qt.Key_L) root.cartoon(!root.gloves)
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
@@ -387,6 +406,8 @@ Item {
         handPose: root.pose
         // Auto has nothing to measure against without it.
         view: view
+        gloves: root.gloves
+        handScale: root.handScale
         activity: Character.Activity.Idle
 
         // One ink in silhouette mode: a two-tone figure hands the eye an inner

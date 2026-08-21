@@ -273,18 +273,29 @@ Node {
     property string handPose: "relax"
 
     /*!
-        How much bigger the hands are than the plugin draws them.
+        How much bigger the hands are than the proportion tables give.
 
         The gestures are the reason this character exists and the hands are
-        where they happen, so the hands are drawn at the size a cartoonist
-        would draw them rather than the size the proportion tables give.
-
-        Deliberately a scale on the whole hand rather than a longer finger:
-        stretching the one part that has to be legible is what produced a
-        spike where an index finger should be. The parts keep their
-        relationship to each other and the whole thing simply gets bigger.
+        where they happen, so they are drawn at the size a cartoonist would
+        draw them. Fed straight to \c Character.handScale, which is where the
+        reasoning now lives.
     */
     property real handScale: 1.3
+
+    /*!
+        White gloves, the way a cartoon does it - the hands get their own
+        colour and a cuff at each wrist.
+
+        Off by default, because it is a strong look and a lab may not want it.
+        On, it is the cheapest legibility this character has: a bare hand is
+        the same colour as the face and has to be found before the gesture can
+        be read, and a pointing finger nobody found in time is a finger that
+        pointed at nothing.
+    */
+    property bool gloves: false
+
+    /*! Colour of the gloves, when \l gloves is on. */
+    property color gloveTone: LabTheme.sheet
 
     property color hairTone: LabTheme.muted        // warm grey, not white
     property color skinTone: LabTheme.clay
@@ -793,6 +804,9 @@ Node {
         // reaches only in a close shot. A lab is watched from the working
         // distance and the finger has to be there anyway.
         detail: root.detailedHands ? Character.Detail.High : Character.Detail.Low
+        handScale: root.handScale
+        gloves: root.gloves
+        gloveColor: root.gloveTone
         realism: 0.0                   // the labs are drawn, not photographed
         maturity: root.maturity
         mass: root.mass
@@ -840,20 +854,9 @@ Node {
         value: Qt.vector3d(root.headScale, root.headScale, root.headScale)
     }
 
-    // The oversized hands, on the same principle as the head and by the same
-    // means. The wrist joint is a bare Node at the end of the forearm, so
-    // scaling it grows the hand out of the cuff rather than moving it.
-    Binding {
-        target: _char.rightArm.hand
-        property: "scale"
-        value: Qt.vector3d(root.handScale, root.handScale, root.handScale)
-    }
-
-    Binding {
-        target: _char.leftArm.hand
-        property: "scale"
-        value: Qt.vector3d(root.handScale, root.handScale, root.handScale)
-    }
+    // The oversized hands are the plugin's own Character.handScale now - this
+    // kit reached into the wrist joint with a Binding until the plugin grew
+    // the property, on the same principle and by the same means.
 
     // --- the signifiers of age ------------------------------------------------
     // Both parent themselves to the character's head, so they ride it when the
