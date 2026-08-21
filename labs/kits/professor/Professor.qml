@@ -20,10 +20,6 @@ import QtQuick
 import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Character3D
-// Qualified: the plugin now ships its own DetailedHand, which would
-// otherwise shadow the kit's copy (different interface). The kit copy
-// retires once the professor moves onto the plugin's articulated hands.
-import "." as Kit
 import Clayground.Lab
 import Clayground.Sound
 
@@ -792,6 +788,11 @@ Node {
         visible: root._grow > 0.001
 
         bodyHeight: root.height3d
+        // High rather than Auto: the professor's whole job is pointing at
+        // things, and Auto measures apparent size against a threshold it
+        // reaches only in a close shot. A lab is watched from the working
+        // distance and the finger has to be there anyway.
+        detail: root.detailedHands ? Character.Detail.High : Character.Detail.Low
         realism: 0.0                   // the labs are drawn, not photographed
         maturity: root.maturity
         mass: root.mass
@@ -887,21 +888,27 @@ Node {
     }
 
     // --- the hands ------------------------------------------------------------
-    // One per arm; the mirrored flag puts the left hand's thumb on the correct
-    // side. Whichever arm the gesture picked gets the pointing finger, and the
-    // other keeps whatever the lab asked for.
+    // The plugin's own articulated hands now, rather than the copy this kit
+    // carried until the plugin grew one. They live inside Arm, so there is
+    // nothing to attach here - only the pose to feed them.
+    //
+    // Character wires Arm.handPose to its own GestureAnim, and the professor
+    // does not use that one: PointAnim drives these arms, with a beat table
+    // and a silhouette policy tuned against this exact body. So the pose is
+    // overridden, the same way the oversized hands and head are. Whichever arm
+    // the gesture picked gets the pointing finger and the other keeps whatever
+    // the lab asked for.
 
-    Kit.DetailedHand {
-        visible: root.detailedHands
-        arm: root.detailedHands ? _char.rightArm : null
-        pose: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
+    Binding {
+        target: _char.rightArm
+        property: "handPose"
+        value: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
     }
 
-    Kit.DetailedHand {
-        visible: root.detailedHands
-        arm: root.detailedHands ? _char.leftArm : null
-        mirrored: true
-        pose: _point.leftHandPose !== "" ? _point.leftHandPose : root.handPose
+    Binding {
+        target: _char.leftArm
+        property: "handPose"
+        value: _point.leftHandPose !== "" ? _point.leftHandPose : root.handPose
     }
 
     // --- the gesture --------------------------------------------------------

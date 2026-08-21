@@ -593,8 +593,29 @@ Item {
                                   -root._headYawMax, root._headYawMax)
         }
 
+        // And then the wrist puts the FINGER on the line, which is not the
+        // same thing. Everything above aims the hand's own axis, the line
+        // straight out of the wrist, because that is the joint the arithmetic
+        // can reach. An index finger is not on that axis - it is one of four
+        // packed across a palm, a third of a palm's width off to the side, and
+        // over the length of a hand that is more than eight degrees. The arm
+        // was solved perfectly and the finger missed the thing anyway, which
+        // for this character is the only failure that matters.
+        //
+        // Arm::indexTip is where the hand ends in the wrist's own frame, so
+        // the correction is the angle between it and the axis: Z swings the
+        // finger onto the plane, X drops it onto the line, in that order
+        // because node rotations compose as Ry * Rx * Rz. A plain hand reports
+        // straight down the axis and both come out zero.
+        const tip = arm ? arm.indexTip : Qt.vector3d(0, -1, 0)
+        const fingerSwing = Math.atan2(-tip.x, -tip.y) * root._deg
+        const fingerDrop = Math.atan2(tip.z, Math.hypot(tip.x, tip.y)) * root._deg
+
         _pose.aim(side, Qt.vector3d(pitch, 0, swing),
-                  Qt.vector3d(-elbow, 0, 0), Qt.vector3d(wrist, 0, 0),
+                  Qt.vector3d(-elbow, 0, 0),
+                  Qt.vector3d(root._clamp(wrist + fingerDrop,
+                                          -root._wristMax, root._wristMax),
+                              0, fingerSwing),
                   Qt.vector3d(headPitch, headYaw, 0))
         root._run()
         _arrival.restart()

@@ -170,14 +170,6 @@ the cue clock, not an estimate.
 
 ## Traps
 
-**The plugin now ships its own `DetailedHand`, and it shadows this kit's.**
-Any file here that imports `Clayground.Character3D` resolves the bare name to
-the plugin's type — a different interface (explicit palm dimensions instead
-of `arm:`), so the symptom is `Cannot assign to non-existent property "arm"`.
-`Professor.qml` and `HandBench.qml` therefore import the kit's own directory
-qualified (`import "." as Kit`) and write `Kit.DetailedHand`. The kit copy
-retires once the professor moves onto the plugin's articulated hands.
-
 **`height3d` is not the height it renders at.** It is `bodyHeight` on the
 character plugin, which feeds proportion tables whose parts sum to about 1.3
 times it — 1.48 in, 1.95 out. Anything positioned from it (a camera pivot, a
@@ -233,13 +225,20 @@ from a character. The rig does not expose it: set `rig.camera.clipNear`.
 
 The gestures were promoted. `plugins/clay_character3d` now has a held-pose
 layer (`GestureAnim`) with point, thumbs up, gesticulation and look-at on
-every `Character`, an articulated `DetailedHand` behind `detailedHands:`,
-published face anchors on `Head`, and the performance-script system — all of
-it generalized from what this kit built first. The professor itself still
-runs on its own `PointAnim` and its own `DetailedHand`: its beat table and
-silhouette policy are tuned against this exact body, and moving it onto the
-plugin's layer is a planned, separate step. Until then the kit carries the
-tuned original and the plugin carries the general version.
+every `Character`, articulated hands behind `Character.detail`, published
+face anchors on `Head`, and the performance-script system — all of it
+generalized from what this kit built first.
+
+The hands have now gone back the other way. The kit's `DetailedHand` and its
+`HandBench` are deleted: the plugin's version overtook the original (knuckles
+on the back of the palm, a hinge on the palm-side edge, a palm with a hand's
+proportions) and the professor draws the plugin's hands, fed from this kit's
+gesture layer through a `Binding` on `Arm.handPose`. `plugins/clay_character3d/bench/HandSandbox.qml`
+is where a hand is worked on now.
+
+The professor still runs its own `PointAnim`: its beat table and silhouette
+policy are tuned against this exact body, and moving it onto `GestureAnim` is
+a planned, separate step.
 
 Still kit-only: the beard, the spectacles and the hair styles. They attach
 through arithmetic the plugin's new head anchors now publish, so promoting
@@ -254,6 +253,7 @@ judged by looking. What there is:
   with a pretend four-step lesson on `G` that drives the real `FlowGuide`
   (steps 0 and 2 are directed by scripts, 1 and 3 keep the built-in beat)
   and a scripted scene on `P` that exercises the whole directive vocabulary
-- `PointBench.qml`, `LookBench.qml`, `HandBench.qml`, `HairBench.qml` —
-  isolated scenes, one per hard problem, kept because each was needed twice
+- `PointBench.qml`, `LookBench.qml`, `HairBench.qml` — isolated scenes, one
+  per hard problem, kept because each was needed twice. The hand's bench lives
+  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`
 - `clayrender --wait-for` against the bench for anything numeric
