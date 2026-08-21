@@ -218,7 +218,7 @@ and eases back. Both are driven from `Character`:
 ```qml
 Character {
     id: prof
-    detailedHands: true          // fingers, so a point reads as a point
+    view: view3d                 // so Auto can see how big it lands on screen
 
     Component.onCompleted: {
         prof.turnTo(board.scenePosition)     // whole body, shortest way round
@@ -277,10 +277,32 @@ from such a handler therefore logs a QML binding loop - harmless but noisy.
 Defer the reaction with `Qt.callLater(...)`, or react from a `Timer`, as
 the professor kit's `FlowGuide` does.
 
-With `detailedHands: true` each hand grows four fingers and a thumb
-(`DetailedHand`) and takes the shape the gesture asks for - a pointing hand
-extends its index finger. `handPose` sets what the hands do when no gesture
-claims them. Off by default: it is ten more boxes per hand.
+### Hands, and how much of one to draw
+
+`handPose` says what the hands are doing - `relax`, `open`, `point`,
+`thumbsUp`, `fist` - and a gesture overrides it for as long as it holds them.
+Both levels of detail answer it.
+
+`detail` says how much hand to spend on that:
+
+| `Character.Detail` | what is drawn |
+|---|---|
+| `Low` | one box per hand, reshaped per pose - a fist is a stubby block, an open hand a long flat one |
+| `High` | ten boxes per hand: four fingers and a thumb that fold, so a point extends a real index finger |
+| `Auto` (default) | `Low` until the character is `detailThreshold` pixels tall on screen, then `High` |
+
+`Auto` needs `view` - a character cannot ask how big it looks without knowing
+what it is being looked at through - and stays `Low` without one. It biases
+toward fingers while a gesture is shaping the hands, since that is what they
+are for, and it has a hysteresis band so a character drifting across the line
+does not grow and shed ten boxes a hand every few frames.
+
+`detailedHands` is read-only and reports which one is on screen right now.
+
+The two levels are built to match in outline, so the switch is meant to go
+unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
+checked, and `h` flips the fingers on one character without moving anything
+else.
 
 ### Face anchors
 

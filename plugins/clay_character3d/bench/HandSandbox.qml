@@ -81,7 +81,17 @@ Item {
         two figures side by side cannot answer it, because they stand in
         different places and the eye reads the parallax as a difference.
     */
-    function setDetail(on) { high.detailedHands = on }
+    function setDetail(on) {
+        high.detail = on ? Character.Detail.High : Character.Detail.Low
+    }
+
+    /*!
+        Hand the decision back to the character. Auto measures how tall it
+        lands on screen and grows fingers past detailThreshold, so this is the
+        preset to fly the camera in and out of - look("far") to look("hand")
+        and back is the whole policy in two calls.
+    */
+    function setAuto() { high.detail = Character.Detail.Auto }
 
     function setSubject(which) {
         root.subject = (which === "plain" || which === "low") ? low : high
@@ -307,7 +317,10 @@ Item {
         // gesture holds it the arm's own handPose is the one on screen, and
         // printing the fallback instead is how a pose gets "fixed" twice.
         const held = root.subject.rightArm.handPose
-        return (root.subject === low ? "plain  " : "")
+        const mode = high.detail === Character.Detail.Auto
+                   ? "auto/" + (high.detailedHands ? "fingers" : "box")
+                   : (high.detailedHands ? "fingers" : "box")
+        return (root.subject === low ? "plain  " : mode + "  ")
              + (root.gesture !== "" ? "gesture " + root.gesture
                                     : root.armPose + "/" + root.pose)
              + " -> " + held
@@ -345,6 +358,7 @@ Item {
         else if (e.key === Qt.Key_C) root.setCompare(!root.compare)
         else if (e.key === Qt.Key_D) root.setSubject(root.subject === high ? "plain" : "high")
         else if (e.key === Qt.Key_H) root.setDetail(!high.detailedHands)
+        else if (e.key === Qt.Key_U) root.setAuto()
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
@@ -371,6 +385,8 @@ Item {
         femininity: 0.2
         scale: Qt.vector3d(root.figureScale, root.figureScale, root.figureScale)
         handPose: root.pose
+        // Auto has nothing to measure against without it.
+        view: view
         activity: Character.Activity.Idle
 
         // One ink in silhouette mode: a two-tone figure hands the eye an inner
@@ -493,7 +509,7 @@ Item {
             // close-up that shifts sideways the moment compare goes off is a
             // close-up you cannot compare two renders of.
             basePos: Qt.vector3d(-root._spread * 0.5, 0, 0)
-            detailedHands: true
+            detail: Character.Detail.High
             objectName: "articulated"
         }
 
@@ -505,7 +521,7 @@ Item {
             name: "plain"
             basePos: Qt.vector3d(root._spread * 0.5, 0, 0)
             visible: root.compare || root.subject === low
-            detailedHands: false
+            detail: Character.Detail.Low
         }
     }
 

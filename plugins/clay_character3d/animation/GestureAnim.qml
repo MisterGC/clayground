@@ -837,6 +837,19 @@ Node {
         _arrival.restart()
     }
 
+    // A point is solved against the hand it is being made with: the correction
+    // that puts the FINGER on the target instead of the wrist comes out of
+    // indexTip, and a plain hand has no finger to correct for. Level of detail
+    // can change under a held pose - that is the entire point of Detail.Auto,
+    // and a gesture is one of the things that makes it change - so the solve
+    // has to be redone when it does, or the character grows a finger that is
+    // aiming where the box used to.
+    Connections {
+        target: root.entity
+        ignoreUnknownSignals: true
+        function onDetailedHandsChanged() { root._apply() }
+    }
+
     onEntityChanged: root._apply()
     onTargetChanged: root._apply()
     onLookTargetChanged: root._apply()

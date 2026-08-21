@@ -414,23 +414,88 @@ BodyPartsGroup {
     */
     property alias safeSilhouette: _gestureAnim.safeSilhouette
 
+    // ============================================================================
+    // LEVEL OF DETAIL
+    // ============================================================================
+
+    /*!
+        \qmlproperty enumeration Character::Detail
+        \brief How much hand a character is worth drawing.
+
+        \value Character.Detail.Low
+               One box per hand. It still acts - a \l Hand takes its shape from
+               \l handPose, so a fist and an open hand are different blocks.
+        \value Character.Detail.High
+               Ten boxes per hand: four fingers and a thumb that fold.
+        \value Character.Detail.Auto
+               Low until the character is big enough on screen for fingers to
+               be worth anything, then High. Needs \l view.
+    */
+    enum Detail {
+        Low,
+        High,
+        Auto
+    }
+
+    /*!
+        \qmlproperty enumeration Character::detail
+        \brief Which \l {Character::Detail}{Detail} level the hands are drawn
+               at. \c Auto by default.
+
+        Auto has to measure the character against something, and a character
+        does not know what it is being looked at through - so with no \l view
+        it stays Low. That is deliberately the same as the old behaviour, so
+        the default costs an existing scene nothing until it opts in by handing
+        over a view.
+
+        \sa view, detailThreshold, detailedHands
+    */
+    property int detail: Character.Detail.Auto
+
+    /*!
+        \qmlproperty QtObject Character::view
+        \brief The \c View3D this character is being seen in.
+
+        Only \c Detail.Auto needs it, and only to ask how many pixels tall the
+        character currently is. Set the same way \l {Label3D} takes one.
+    */
+    property var view: null
+
+    /*!
+        \qmlproperty real Character::detailThreshold
+        \brief How tall the character has to be on screen, in pixels, before
+               Auto gives it fingers.
+
+        The default of 240 is measured rather than picked: an extended index
+        finger stops being readable at all somewhere around a 90 px figure and
+        is comfortable by about 120, so the switch sits well clear of the point
+        where the fingers it buys would be invisible anyway.
+
+        There is a hysteresis band below it - a character drifting across the
+        line would otherwise grow and shed ten boxes a hand every few frames.
+    */
+    property real detailThreshold: 240
+
     /*!
         \qmlproperty bool Character::detailedHands
-        \brief Whether the hands have fingers.
+        \readonly
+        \brief Whether the hands have fingers right now.
 
-        Off by default - it is ten more boxes per hand. Switched on, gestures
-        shape the hands as well as the arms: a pointing hand extends its index
-        finger, which together with \l safeSilhouette is what makes a raised
-        point read as "that thing there".
+        The answer, not the question - \l detail is the question. Under Auto
+        this flips on its own.
 
-        \sa DetailedHand
+        \sa DetailedHand, detail
     */
-    property bool detailedHands: false
+    readonly property bool detailedHands: _detail.on
 
     /*!
         \qmlproperty string Character::handPose
-        \brief What articulated hands do when no gesture is claiming them:
-               "relax", "open", "point", "thumbsUp" or "fist".
+        \brief What the hands do when no gesture is claiming them: "relax",
+               "open", "point", "thumbsUp" or "fist".
+
+        Read at both levels of detail. Fingers fold for it when there are
+        fingers; the plain box reshapes itself to the same pose's outline when
+        there are not.
     */
     property string handPose: "relax"
 
@@ -852,6 +917,68 @@ BodyPartsGroup {
         // Duration is calculated internally from leg geometry
         running: _character.activity === Character.Activity.Running
         loops: Animation.Infinite
+    }
+
+    // --- the detail policy ----------------------------------------------------
+    //
+    // Apparent size, not distance. Distance is the wrong question: the same
+    // character twenty units away is half a screen tall through a long lens and
+    // a speck through a wide one, and it is the pixels that decide whether a
+    // finger is worth ten boxes. mapFrom3DScene answers in pixels and takes the
+    // lens, the viewport and the projection with it.
+    QtObject {
+        id: _detail
+
+        // What Auto last decided. Only consulted while detail IS Auto.
+        property bool auto: false
+
+        readonly property bool on:
+            _character.detail === Character.Detail.High ? true
+          : _character.detail === Character.Detail.Low ? false
+          : (_character.view !== null && _detail.auto)
+    }
+
+    function _autoDetail() {
+        const v = _character.view
+        if (!v)
+            return false
+
+        const base = _character.scenePosition
+        const foot = v.mapFrom3DScene(base)
+        const head = v.mapFrom3DScene(
+                         base.plus(Qt.vector3d(0, _character.height * _character.scale.y, 0)))
+        // Behind the lens mapFrom3DScene reports a negative z, and a character
+        // straddling the near plane gives a screen height of thousands. Ten
+        // boxes a hand for something nobody can see is the cheapest bug here to
+        // avoid and the hardest to notice.
+        if (foot.z <= 0 || head.z <= 0)
+            return false
+
+        const px = Math.abs(head.y - foot.y)
+
+        // A gesture that shapes the hands is the whole reason fingers exist, so
+        // it gets them at twice the distance. Not an override: a character
+        // pointing at something from across the map still does not need a
+        // finger, and the plain hand has a pose for pointing precisely so it
+        // does not have to.
+        const claimed = _gestureAnim.rightHandPose !== ""
+                     || _gestureAnim.leftHandPose !== ""
+        const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
+
+        // Asymmetric on purpose: harder to gain fingers than to keep them.
+        return _detail.auto ? px > want * 0.85 : px > want
+    }
+
+    // Polled rather than bound: this depends on scenePosition and on the
+    // camera, neither of which notifies. Four times a second is far more often
+    // than a switch that has a hysteresis band around it can actually fire.
+    Timer {
+        interval: 250
+        repeat: true
+        running: _character.detail === Character.Detail.Auto
+                 && _character.view !== null
+        triggeredOnStart: true
+        onTriggered: _detail.auto = _character._autoDetail()
     }
 
     IdleAnim {

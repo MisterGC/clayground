@@ -79,7 +79,8 @@ Item {
             gesturer.turnTo(gestureMarker.scenePosition)
             event.accepted = true
         } else if (event.key === Qt.Key_H) {
-            gesturer.detailedHands = !gesturer.detailedHands
+            gesturer.detail = gesturer.detailedHands ? Character.Detail.Low
+                                                     : Character.Detail.High
             event.accepted = true
         } else if (event.key === Qt.Key_N) {
             // A gesture is Idle-only: this drops it and starts a walk cycle
@@ -415,7 +416,7 @@ Item {
             name: "Gesturer"
             position: Qt.vector3d(-14, 0, 6)
             // Fingers, so a point reads as a point rather than as a stub
-            detailedHands: true
+            detail: Character.Detail.High
             torsoColor: "#0f9d9a"
             hipColor: "#2c3e50"
             legColor: "#2c3e50"

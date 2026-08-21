@@ -39,8 +39,7 @@ pragma ComponentBehavior: Bound
     \brief Four fingers and a thumb on the end of an \l Arm.
 
     Created by \l Arm when its \l {Arm::articulated}{articulated} property is
-    set, which is what \l {Character::detailedHands}{Character.detailedHands}
-    switches on. The plain \l Hand box stays and becomes the palm; the
+    set, which is what \l {Character::detail}{Character.detail} resolves to. The plain \l Hand box stays and becomes the palm; the
     fingers grow off its far face.
 
     A gesture picks the pose (a pointing hand extends its index finger);
