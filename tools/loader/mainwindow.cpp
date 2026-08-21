@@ -19,6 +19,7 @@
 #include <QQmlComponent>
 #include <QSettings>
 #include <QDir>
+#include <QCoreApplication>
 #include <QTextEdit>
 
 
@@ -254,6 +255,12 @@ void MainWindow::configureEngine(QQmlEngine* engine)
         context->setContextProperty("ClayAnnotations", m_annotations);
     }
 
+    // Absolute, off the binary rather than off the working directory. The
+    // relative form below only resolves when the dojo is launched from
+    // build/bin, so every documented invocation - all of which run it from
+    // the repo root - found no Clayground modules at all and loaded a blank
+    // white sandbox. clayrender always did it this way; these did not.
+    engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine->addImportPath("qml");
     QString sandboxDir = m_liveLoader->sandboxDir();
     if (!sandboxDir.isEmpty())
@@ -408,6 +415,7 @@ void MainWindow::createOverlays()
     }
     
     // Ensure all required imports are available
+    engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine->addImportPath("qml");
     
     // Create log overlay (MessageView)

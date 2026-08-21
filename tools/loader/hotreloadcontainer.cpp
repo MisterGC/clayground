@@ -49,6 +49,12 @@ HotReloadContainer::HotReloadContainer(QWidget *parent)
     // Create initial engine
     m_engine = std::make_unique<QQmlEngine>(this);
     m_engine->setProperty("QML_DISABLE_DISK_CACHE", true);
+    // Absolute, off the binary rather than off the working directory. The
+    // relative form below only resolves when the dojo is launched from
+    // build/bin, so every documented invocation - all of which run it from
+    // the repo root - found no Clayground modules at all and loaded a blank
+    // white sandbox. clayrender always did it this way; these did not.
+    m_engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_engine->addImportPath("qml");
     ClayScene::applyStorageDir(m_engine.get());
     emit engineCreated();
@@ -209,6 +215,7 @@ void HotReloadContainer::createCandidate()
 {
     m_nextEngine = std::make_unique<QQmlEngine>(this);
     m_nextEngine->setProperty("QML_DISABLE_DISK_CACHE", true);
+    m_nextEngine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_nextEngine->addImportPath("qml");
     ClayScene::applyStorageDir(m_nextEngine.get());
 
