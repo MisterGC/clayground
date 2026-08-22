@@ -49,49 +49,48 @@ Node {
     readonly property real _uw: root._head ? root._head.upperHeadWidth : 0
     readonly property real _uh: root._head ? root._head.upperHeadHeight : 0
     readonly property real _ud: root._head ? root._head.upperHeadDepth : 0
-    readonly property real _lh: root._head ? root._head.lowerHeadHeight : 0
 
-    // Head.qml pushes both head boxes this far forward of the head node, and
-    // the upper head starts just under a full jaw height up.
-    readonly property real _zOff: root._head ? root._head.depth * 0.09 : 0
-    readonly property real _upperBase: root._lh * 0.99
-    readonly property real _faceZ: _zOff + root._ud * 0.5
+    // Every one of these was arithmetic copied out of Head.qml - the 0.09
+    // forward shift, the 0.99 stack, 0.3 of the upper head to the eye line,
+    // 0.22 of its width for an eye. Head publishes all of it, so the copies
+    // are gone: a face that changes its proportions now moves the glasses
+    // with it instead of leaving them behind with nothing raising an error.
+    readonly property real _faceZ: root._head ? root._head.faceFront : 0
 
-    // The eyes, as Head.qml places them: two cubes of this width, one width
-    // out from the centre line, sitting on the front face.
-    readonly property real _eyeW: root._uw * 0.22 * (root._head ? root._head.eyeSize : 1)
-    readonly property real _eyeX: _eyeW
-    readonly property real _eyeY: _upperBase + 0.3 * root._uh + _eyeW * 0.5
+    readonly property real _eyeW: root._head ? root._head.eyeWidth : 0
+    readonly property real _eyeX: root._head ? root._head.eyeSpacing : 0
+    readonly property real _eyeY: root._head ? root._head.eyeLine : 0
 
-    // The nose hangs off the eye line; its underside is how far down the
-    // glasses can slip before they fall off.
-    readonly property real _noseH: root._uh * 0.2 * (root._head ? root._head.noseSize : 1)
-    readonly property real _noseBottom: _upperBase + 0.3 * root._uh - 1.1 * _noseH
+    // The nose's underside is how far down the glasses can slip before they
+    // fall off.
+    readonly property real _noseBottom: root._head ? root._head.noseBottom : 0
 
     readonly property real _lensY: _eyeY - root.slip * (_eyeY - _noseBottom)
     readonly property real _lensR: Math.max(0.001, _eyeW * 0.85 * root.size)
-    // Clear of the EYE boxes, not just of the face: the eyes are cubes as deep
-    // as they are wide and they stand proud of the skull, so a rim placed off
-    // the face plane has its top arc swallowed by them. The nose still pokes
-    // through the plane, which is what resting on a nose looks like.
-    readonly property real _lensZ: _faceZ + _eyeW * 0.5 + root._ud * 0.04
+    // Clear of the EYES, not just of the face: an eye that stands proud of
+    // the skull swallows the top arc of a rim placed on the face plane. How
+    // far proud is Head's to say - zero, once the eyes are drawn on the face
+    // rather than built in front of it. The nose still pokes through the
+    // plane, which is what resting on a nose looks like.
+    readonly property real _lensZ: _faceZ + (root._head ? root._head.eyeRelief : 0)
+                                   + root._ud * 0.04
     readonly property real _gauge: Math.max(0.0005, root._uw * 0.03 * root.size)
     // Where the rims actually sit. On the eyes until the lenses get big enough
     // to collide over the nose, then pushed apart - two rims crossing in the
     // middle of a face reads as a mistake, not as large glasses.
     readonly property real _lensX: Math.max(_eyeX, _lensR * 1.08)
 
-    // The ear the arm reaches for: Head.qml puts it at 0.55 head widths out,
-    // a quarter of the head height tall, centred on the head's depth.
-    readonly property real _earX: 0.55 * root._uw
-    readonly property real _earTopY: _upperBase + 0.3 * root._uh + 0.22 * root._uh
-    readonly property real _earZ: _zOff + 0.06 * root._ud
+    // The ear the arm reaches for. The arm meets it a little forward of its
+    // centre, which is this file's choice; where the ear is, is Head's.
+    readonly property real _earX: root._head ? root._head.earPos.x : 0
+    readonly property real _earTopY: root._head ? root._head.earTop : 0
+    readonly property real _earZ: (root._head ? root._head.earPos.z : 0) + 0.06 * root._ud
 
     // The side hair is a slab straddling the skull's side face, and it is deep
     // enough to swallow the whole temple. An arm routed straight to the ear
     // disappears into it, so the arm is pushed to whichever is further out -
     // the ear, or the hair.
-    readonly property real _hairOut: root._uw * (0.5 + 0.1 * (root._head ? root._head.hairVolume : 0))
+    readonly property real _hairOut: root._head ? root._head.hairOuterX : 0
     readonly property real _armX: Math.max(_earX + 0.09 * root._uh, _hairOut + _gauge)
 
     // --- pieces --------------------------------------------------------------

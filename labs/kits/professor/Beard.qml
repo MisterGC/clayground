@@ -106,31 +106,34 @@ Node {
     readonly property real _lh: root._head ? root._head.lowerHeadHeight : 0
     readonly property real _ld: root._head ? root._head.lowerHeadDepth : 0
 
-    // Head.qml pushes both head boxes this far forward of the head node.
-    readonly property real _zOff: root._head ? root._head.depth * 0.09 : 0
-    readonly property real _jawFront: _zOff + _ld * 0.5
+    // All of the following used to be Head.qml's arithmetic written out a
+    // second time - the 0.09 forward shift, 0.6 of the jaw to the mouth line,
+    // the 0.45 the cavity opens by. Head publishes every one of them, and a
+    // second copy of a number is a number that can go stale silently.
+    readonly property real _zOff: root._head ? root._head.faceOffsetZ : 0
+    readonly property real _jawFront: root._head ? root._head.jawFront : 0
     readonly property real _jawTop: _lh
 
     // The chin is not where it was at rest while the mouth is open: the jaw
     // box grows downward and its bottom edge moves with it.
     readonly property real _open: root._head ? root._head.mouthOpen : 0
-    readonly property real _chinBottom: -(_open * (root._head ? root._head.jawDrop : 0) * _lh)
+    readonly property real _chinBottom: root._head ? root._head.chinBottom : 0
 
     // The mouth line stays put while that happens; the cavity opens downward
     // from it. This is the lowest the mouth ever reaches.
-    readonly property real _mouthW: _lw * 0.22 * (root._head ? root._head.mouthSize : 1)
-    readonly property real _mouthLine: 0.6 * _lh
-    readonly property real _mouthBottom: _mouthLine - 0.3 * _mouthW - _open * _lh * 0.45
+    readonly property real _mouthW: root._head ? root._head.mouthWidth : 0
+    readonly property real _mouthLine: root._head ? root._head.mouthLine : 0
+    readonly property real _mouthBottom: root._head ? root._head.mouthBottom : 0
 
     // Breathing room between hair and mouth, and how far the beard falls
     // below the jaw once it has some length to it.
     readonly property real _clear: _lh * 0.09
     readonly property real _hang: root.length * _lh * 1.5
 
-    // A beard stops below the cheekbone. Head.qml sets the eyes' lower edge
-    // 0.3 upper-head-heights up, and hair above that line is in the way of the
-    // eyes - and of anything worn over them.
-    readonly property real _wrapLimit: _lh * 0.99 + 0.3 * _uh - _uh * 0.1
+    // A beard stops below the cheekbone: hair above the eyes' lower edge is in
+    // the way of the eyes, and of anything worn over them.
+    readonly property real _wrapLimit: (root._head ? root._head.eyeLine - root._head.eyeWidth * 0.5
+                                                   : 0) - _uh * 0.1
 
     // --- the chin ------------------------------------------------------------
 
@@ -257,8 +260,7 @@ Node {
 
         // Under the nose, above the lip line - and the lip line is where the
         // moustache stops. The gap between them is what there is to fill.
-        readonly property real noseH: root._uh * 0.2 * (root._head ? root._head.noseSize : 1)
-        readonly property real noseBottom: root._lh * 0.99 + 0.3 * root._uh - 1.1 * noseH
+        readonly property real noseBottom: root._head ? root._head.noseBottom : 0
         readonly property real lipTop: root._mouthLine + 0.06 * root._mouthW
         readonly property real gap: Math.max(0, noseBottom - lipTop)
         // A walrus fills the whole gap to the nose; a normal one leaves the

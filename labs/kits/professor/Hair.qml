@@ -79,24 +79,22 @@ Node {
     readonly property real _uw: root._head ? root._head.upperHeadWidth : 0
     readonly property real _uh: root._head ? root._head.upperHeadHeight : 0
     readonly property real _ud: root._head ? root._head.upperHeadDepth : 0
-    readonly property real _lh: root._head ? root._head.lowerHeadHeight : 0
 
-    // Head.qml pushes both head boxes this far forward of the head node, and
-    // stacks the cranium just under a full jaw height up. Everything below is
+    // Where the cranium is, asked rather than recomputed. Everything below is
     // measured off that box: bottom-centre origin, centred in x and z.
-    readonly property real _zOff: root._head ? root._head.depth * 0.09 : 0
-    readonly property real _base: _lh * 0.99
-    readonly property real _top: _base + _uh
-    readonly property real _backZ: _zOff - _ud * 0.5
+    readonly property real _zOff: root._head ? root._head.faceOffsetZ : 0
+    readonly property real _base: root._head ? root._head.upperHeadBottom : 0
+    readonly property real _top: root._head ? root._head.crownTop : 0
+    readonly property real _backZ: root._head ? root._head.faceBack : 0
 
-    // The line hair may not cross on the front of the face. Head.qml puts the
-    // eyes' lower edge 0.3 cranium-heights up and the eye boxes are cubes, so
-    // the brow tops out 1.13 eye-widths above that; a pair of Spectacles at
+    // The line hair may not cross on the front of the face. The brow tops out
+    // 1.13 eye-widths above the eyes' lower edge; a pair of Spectacles at
     // default size reaches 1.35 up. 1.4 clears both with a little to spare.
     // Larger lenses than that are the caller's problem - see the header of
     // Spectacles.qml for what "size" does.
-    readonly property real _eyeW: _uw * 0.22 * (root._head ? root._head.eyeSize : 1)
-    readonly property real _faceFloor: _base + 0.3 * _uh + 1.4 * _eyeW
+    readonly property real _eyeW: root._head ? root._head.eyeWidth : 0
+    readonly property real _faceFloor: (root._head ? root._head.eyeLine : 0)
+                                       + 0.9 * _eyeW
 
     // --- the cut, as numbers -------------------------------------------------
     // One table per style rather than four sets of ternaries down in the
