@@ -1,8 +1,26 @@
 include (clayplugin)
+include (clayshader)
 
 # Needs to be told first otherwise clay_plugin / qt_add_qml_module don't
 # generate the singleton instructions in the qmldir.
 set_source_files_properties(Label3DRegistry.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+# box3d.frag is composed, not written: two of its three parts are also used by
+# ClayCharacter3D, whose face material has to outline and light a box exactly
+# the way this one does. Edit box3d_main.glsl and the two parts, never the
+# generated box3d.frag in the build directory.
+clay_compose_shader(box3d.frag
+    PARTS
+        box3d_edges.glsl        # shared - the cartoon outline
+        box3d_main.glsl         # this material's own MAIN()
+        box3d_toon.glsl         # shared - half-lambert lighting
+)
+
+# Where the shared parts live, for the plugins that compose their own shaders
+# out of them. A cache variable rather than a relative path in the consumer, so
+# a plugin does not have to know how many directories up canvas3d sits.
+set(CLAY_SHADER_PARTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+    CACHE INTERNAL "GLSL parts Canvas3D publishes for other plugins to compose with")
 
 clay_plugin( Canvas3D
 
@@ -52,7 +70,7 @@ clay_plugin( Canvas3D
         path_word.vert
         voxel_map.frag
         voxel_map.vert
-        box3d.frag
+        ${box3d_SHADER}
         box3d.vert
         poly3d.frag
         poly3d.vert
