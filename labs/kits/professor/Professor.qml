@@ -242,6 +242,22 @@ Node {
     property bool spectacles: true
 
     /*!
+        How rounded every box he is made of is - a chamfer on each edge, as a
+        fraction of that box's shortest side.
+
+        Free: it is more triangles on the same single draw call per box, and
+        vertices are not what a scene like this is bound by. 0.15 takes the
+        hardness off without turning him into a pebble; the plugin describes
+        0.3 as nearly spherical, and much past 0.2 the chamfer starts eating
+        into the flat front of the face the eyes are drawn on.
+
+        It reaches the kit's own beard, hair and spectacles as well as the
+        character's own boxes: those three reparent themselves into the head
+        node, so the character's tree walk finds them there.
+    */
+    property real roundness: 0.15
+
+    /*!
         Eye size, and with it how much forehead is left.
 
         This looks like a cosmetic knob and is not. The plugin's cranium is
@@ -807,6 +823,7 @@ Node {
         handScale: root.handScale
         gloves: root.gloves
         gloveColor: root.gloveTone
+        roundness: root.roundness
         realism: 0.0                   // the labs are drawn, not photographed
         maturity: root.maturity
         mass: root.mass
