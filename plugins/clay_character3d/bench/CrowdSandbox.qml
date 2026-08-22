@@ -28,9 +28,27 @@
 // those boxes rounder or smoother is close to free while having more of them
 // is not.
 //
-// A character is about 33 boxes at Low, 53 at High and 20 at Minimal. The face
-// is thirteen of them and none of the silhouette, which is why Minimal takes
-// it away and nothing else.
+// A character is 21 boxes at Low, 43 at High and 20 at Minimal, measured here
+// at twenty characters: 420, 860 and 400 draw calls, for 10.68, 17.13 and
+// 10.07 ms of render time.
+//
+// Those three numbers used to be 33, 53 and 20, and the gap between the first
+// and the last was the face - thirteen boxes carrying none of the silhouette,
+// which is why Minimal deleted it. The face is drawn in a fragment shader now
+// and costs no draw calls at all, so it no longer appears in this table. Two
+// consequences worth knowing before tuning anything:
+//
+//   * Minimal saves ONE box over Low. As a performance tier it has almost
+//     stopped existing; what it is for now is legibility at twenty pixels.
+//     Nearly all of the remaining spread is the twenty boxes of fingers.
+//   * The face is free in fragment cost too, not just in draw calls. Twenty
+//     characters at High measure 17.13 ms filling the frame and 17.13 ms as
+//     specks at camZ=250 - same draws, same time. The SDF work is gated to the
+//     flat front quad and disappears with it.
+//
+// Close anything else using the GPU before believing a number here. Measured
+// with the dojo open on another scene, the same configuration read 28 ms
+// instead of 17 - a 65% error, and a completely stable one.
 //
 // The absolute milliseconds are this machine's. The SHAPE of the result - draw
 // call bound, vertex cheap - is what carries to another one.

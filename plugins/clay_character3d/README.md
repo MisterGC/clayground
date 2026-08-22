@@ -277,20 +277,34 @@ from such a handler therefore logs a QML binding loop - harmless but noisy.
 Defer the reaction with `Qt.callLater(...)`, or react from a `Timer`, as
 the professor kit's `FlowGuide` does.
 
-### Hands, and how much of one to draw
+### Hands and faces, and how much of each to draw
 
 `handPose` says what the hands are doing - `relax`, `open`, `point`,
 `thumbsUp`, `fist` - and a gesture overrides it for as long as it holds them.
 Both levels of detail answer it.
 
-`detail` says how much hand to spend on that:
+`detail` says how much hand, and how much face, to spend on that:
 
 | `Character.Detail` | what is drawn | draw calls |
 |---|---|---|
-| `Minimal` | no face — no eyes, brows, nose, ears or mouth | ~20 |
-| `Low` | the whole body, one box per hand, reshaped per pose — a fist is a stubby block, an open hand a long flat one | ~33 |
-| `High` | ten boxes per hand as well: four fingers and a thumb that fold, so a point extends a real index finger | ~53 |
+| `Minimal` | one box per hand; the head keeps its skull, its hair and a drawn face, and loses its nose, its ears, the pupil highlights, the brows and the mouth corners | ~20 |
+| `Low` | the whole body, one box per hand, reshaped per pose — a fist is a stubby block, an open hand a long flat one; the face keeps its irises and loses its brows and ears | ~21 |
+| `High` | ten boxes per hand as well: four fingers and a thumb that fold, so a point extends a real index finger; the whole face | ~43 |
 | `Auto` (default) | picks between the three by how tall the character lands on screen | |
+
+The head is nine boxes at `High` — a cranium, a jaw, four of hair, a nose and
+two ears — seven at `Low` and six at `Minimal`. It used to be nineteen,
+because the eyes, their irises, their brows and the four pieces of the mouth
+were all boxes standing in front of it. They are drawn into the head's own
+surfaces by a fragment shader now, and cost nothing.
+
+That has flattened the top of this table on purpose. `Minimal` used to be much
+the cheapest level because it deleted the face, thirteen of a character's
+thirty-three draw calls; now it saves one box over `Low`, and the only real
+saving left between levels is the twenty boxes of fingers. What the two cheap
+levels buy is no longer speed - it is a face that stays legible at twenty
+pixels rather than one that shimmers. No level removes a face any more: a
+character without one reads as broken rather than as distant.
 
 Auto crosses into `High` at `detailThreshold` (240 px of figure) and drops to
 `Minimal` below `minimalThreshold` (60 px). Both are measured rather than
@@ -336,20 +350,53 @@ unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
 checked, and `h` flips the fingers on one character without moving anything
 else.
 
+### The face, and how it is drawn
+
+The eyes, their lids and irises, the brows and the mouth are not geometry. They
+are signed distance fields evaluated in a fragment shader and drawn into the
+front of the two head boxes - `bodyparts/FaceBox.qml` carries the material,
+`face3d_main.glsl` draws the shapes. A face therefore costs no draw calls and
+no vertices at all.
+
+That buys three things a face built from boxes could not have. An eye is a
+marking on a head rather than an object in front of one, so it no longer shows
+its own side wall at twenty degrees off axis. `Head.gaze` aims the irises
+without moving the head, which sliding a built iris sideways could never do -
+it would carry the iris off its own eyeball. And `Head.autoBlink` is one
+animated float rather than a pair of boxes resized every frame, which is why
+the eyes never blinked before.
+
+`plugins/clay_character3d/bench/HeadSandbox.qml` shows all three detail levels
+side by side with named viewpoints, a blink, a gaze and a talking mouth, and a
+readout giving the head and eye size in pixels - so "still readable at ninety
+pixels" is a claim that can be checked rather than an impression.
+
 ### Face anchors
 
 `Head` publishes where its features are, in the head node's own frame, so
 accessories parented to `character.head` (beards, spectacles, hair) do not
 restate its layout arithmetic and then drift from it:
 
-`faceOffsetZ`, `faceFront`, `jawFront`, `upperHeadBottom`, `crownTop`,
-`eyeLine`, `eyeWidth`, `eyeSpacing`, `noseBottom`, `earPos`, `earSize`,
-`mouthLine`, `mouthWidth`, `mouthBottom`, `chinBottom`.
+`faceOffsetZ`, `faceFront`, `faceBack`, `jawFront`, `upperHeadBottom`,
+`crownTop`, `eyeLine`, `eyeWidth`, `eyeSpacing`, `eyeRelief`, `noseBottom`,
+`earPos`, `earSize`, `earTop`, `hairOuterX`, `mouthLine`, `mouthWidth`,
+`mouthBottom`, `chinBottom`.
 
 `mouthLine` stays put while the jaw stretches open; `mouthBottom` and
-`chinBottom` move with it. `Character` publishes `rightShoulderPos`,
-`leftShoulderPos` and `headPos` in character-local coordinates for the same
-reason.
+`chinBottom` move with it. `eyeRelief` is how far the eyes stand proud of
+`faceFront` - zero, now that they are drawn rather than built, which is what
+lets a spectacle rim settle onto the face instead of being pushed clear of a
+pair of protruding cubes.
+
+Use them. The professor kit spent a long time re-deriving all of this by hand
+from the six head dimensions - fifteen-odd constants copied out of `Head.qml` -
+and every one of them was a place a beard could slide off a chin with nothing
+raising an error. These anchors also went unread for long enough that a binding
+loop sat undetected in one of them: an anchor nothing evaluates is an anchor
+nothing checks.
+
+`Character` publishes `rightShoulderPos`, `leftShoulderPos` and `headPos` in
+character-local coordinates for the same reason.
 
 ## Best Practices
 
