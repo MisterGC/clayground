@@ -148,6 +148,10 @@ Model {
             property int edgeMode: 0
 
             property vector2d boxSize: Qt.vector2d(root.width, root.height)
+            // Asked of the geometry rather than derived from `bevel`, which is
+            // a fraction of the shortest edge and is clamped - the geometry is
+            // the only thing that knows what it actually used.
+            property real faceInset: _geometry.bevelWidth
             property int facePanel: root.panel
             property int faceDetail: root.faceDetail
 

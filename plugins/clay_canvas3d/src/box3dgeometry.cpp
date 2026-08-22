@@ -194,6 +194,11 @@ float Box3dGeometry::bevel() const
     return m_bevel;
 }
 
+float Box3dGeometry::bevelWidth() const
+{
+    return m_bevelWidth;
+}
+
 void Box3dGeometry::setBevel(float newBevel)
 {
     const float v = qBound(0.0f, newBevel, 0.5f);
@@ -362,6 +367,11 @@ void Box3dGeometry::updateData()
     // edgeMode: Triangles is the exception - it derives lines from the
     // triangulation itself and will happily draw every chamfer seam. The two
     // are not meant to be combined.
+    if (m_bevel <= 0.0f && !qFuzzyIsNull(m_bevelWidth)) {
+        m_bevelWidth = 0.0f;
+        emit bevelWidthChanged();
+    }
+
     if (m_bevel > 0.0f) {
         const QVector3D V[8] = { v0, v1, v2, v3, v4, v5, v6, v7 };
 
@@ -397,6 +407,10 @@ void Box3dGeometry::updateData()
                 shortest = qMin(shortest,
                                 (V[F[f][(p + 1) % 4]] - V[F[f][p]]).length());
         const float b = qMin(m_bevel * shortest, 0.45f * shortest);
+        if (!qFuzzyCompare(m_bevelWidth, b)) {
+            m_bevelWidth = b;
+            emit bevelWidthChanged();
+        }
 
         // Each face pulled in from its own corners, along its own two edges.
         // Along the edges rather than toward the centre, because a tapered

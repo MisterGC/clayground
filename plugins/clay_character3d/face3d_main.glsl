@@ -45,6 +45,7 @@ VARYING float vFaceFront;
 // Uniforms from the CustomMaterial. The edge and toon ones are the same set
 // box3d.frag takes, because the parts above and below need them.
 // - vec2  boxSize          width and height of this box, world units
+// - float faceInset        what the chamfer takes off each side of the quad
 // - int   facePanel        0 none, 1 eyes and brows, 2 mouth
 // - int   faceDetail       0 marks only, 1 the whole face
 // - vec4  eyeColor, browColor, lipColor, cavityColor
@@ -208,7 +209,16 @@ void MAIN()
         // Out of UV and back into the box's own frame. The box origin is
         // bottom-centre, so x runs from -w/2 and y from the floor up - which is
         // the frame Head.qml's anchors are already written in.
-        vec2 local = vec2((vUV.x - 0.5) * boxSize.x, vUV.y * boxSize.y);
+        //
+        // faceInset is what a chamfer takes off each side. The front quad still
+        // carries 0..1 UVs after Box3DGeometry insets it, so mapping straight
+        // through boxSize silently scales the whole face down by the chamfer -
+        // at roundness 0.32 on a cartoon head that is a face at 57% of its
+        // size, with the eyes closer together than every anchor says they are.
+        // Accessories are placed from the anchors, so a beveled head would wear
+        // its spectacles wider than its own eyes.
+        vec2 span = max(boxSize - 2.0 * faceInset, vec2(1e-6));
+        vec2 local = vec2((vUV.x - 0.5) * span.x, faceInset + vUV.y * span.y);
 
         if (facePanel == 1) {
             c = drawEye(c, local, -1.0);
