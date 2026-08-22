@@ -1,4 +1,16 @@
 include (clayplugin)
+include (clayshader)
+
+# The face material. Its own MAIN() draws eyes and mouths; the outline and the
+# lighting come from Canvas3D's parts, so a head is bordered and lit by exactly
+# the code every other body part is bordered and lit by rather than by a copy
+# of it that will drift. Edit face3d_main.glsl, never the generated .frag.
+clay_compose_shader(face3d.frag
+    PARTS
+        ${CLAY_SHADER_PARTS_DIR}/box3d_edges.glsl
+        face3d_main.glsl
+        ${CLAY_SHADER_PARTS_DIR}/box3d_toon.glsl
+)
 
 # Text-to-speech is optional: when the Qt module is available, spoken text
 # gets real audio; otherwise Speech falls back to silent, timed lip-sync.
@@ -16,6 +28,10 @@ clay_plugin( Character3D
     SOURCES
         src/speech.cpp src/speech.h
 
+    RESOURCES
+        ${face3d_SHADER}
+        face3d.vert
+
     QML_FILES
         # Core Components
         Character.qml
@@ -32,6 +48,7 @@ clay_plugin( Character3D
         bodyparts/BodyPart.qml
         bodyparts/BodyPartsGroup.qml
         bodyparts/Head.qml
+        bodyparts/FaceBox.qml
         bodyparts/Arm.qml
         bodyparts/Leg.qml
         bodyparts/Hand.qml

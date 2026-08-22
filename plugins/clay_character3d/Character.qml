@@ -423,9 +423,12 @@ BodyPartsGroup {
         \brief How much hand a character is worth drawing.
 
         \value Character.Detail.Minimal
-               No face - no eyes, brows, nose, ears or mouth. A face is thirteen
-               of a character's thirty-three draw calls and none of its
-               silhouette, so this is the cheapest character there is.
+               The cheapest character there is: one box per hand, and a head
+               reduced to its skull, its hair and a drawn face - no nose, no
+               ears, no irises, no brows, no mouth corners. It still has a
+               face, because a drawn one costs nothing; this used to delete
+               the face outright, and a character with no face reads as broken
+               rather than as distant.
         \value Character.Detail.Low
                The whole body, one box per hand. It still acts - a \l Hand takes
                its shape from \l handPose, so a fist and an open hand are
@@ -914,10 +917,15 @@ BodyPartsGroup {
             basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
             speechSource: _speech
 
-            // The face is the biggest single thing a distant character can
-            // stop paying for: thirteen draw calls of the thirty-three a whole
-            // body costs, and not one of them in the silhouette.
-            features: _detail.level !== Character.Detail.Minimal
+            // The face is no longer something a distant character stops paying
+            // for. It used to be thirteen draw calls of the thirty-three a
+            // whole body costs, so Minimal deleted it outright and a far-off
+            // character read as faceless rather than as far off. Drawn into
+            // the head's own surfaces it costs none of them, so what travels
+            // down here is how much face to draw, not whether to draw one.
+            detail: _detail.level === Character.Detail.High ? Head.Detail.High
+                  : _detail.level === Character.Detail.Low  ? Head.Detail.Low
+                                                            : Head.Detail.Minimal
         }
 
         // Arms (containing hands)

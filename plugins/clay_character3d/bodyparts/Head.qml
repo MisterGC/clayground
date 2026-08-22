@@ -113,20 +113,50 @@ BodyPartsGroup {
         \brief Whether the face is drawn at all - eyes, brows, nose, ears and
                mouth.
 
-        On by default. Off, the skull and the hair are left and the head is
-        three boxes instead of twenty, which is the single biggest saving
-        available on a character: a face is two thirds of a head's draw calls
-        and none of its silhouette.
+        On by default, and no longer something to turn off for performance: the
+        eyes, brows and mouth are drawn into the head's own surfaces and cost
+        no draw calls, so a face is nearly free. Off, the nose and ears go with
+        it, which saves three.
 
-        Only worth switching off where the face has genuinely stopped being
-        visible. An eye is about a thirtieth of a figure's height, so it is
-        still a pixel or two at a hundred-pixel figure and its absence reads as
-        a character with no face rather than as a character far away. \l
-        {Character::detail}{Character.detail} owns that judgement.
+        It used to be the single biggest saving available on a character - a
+        face was thirteen boxes out of a head's twenty - and \l
+        {Character::detail}{Character.detail} switched it off at a distance.
+        That was always the wrong trade: an eye is about a thirtieth of a
+        figure's height, so it is still a pixel or two at a hundred-pixel
+        figure, and its absence reads as a character with no face rather than
+        as a character far away. \l detail now thins the face instead of
+        deleting it.
 
-        \sa Character::detail
+        \sa detail, Character::detail
     */
     property bool features: true
+
+    /*!
+        \qmlproperty enumeration Head::Detail
+        \brief How much head to draw.
+
+        \value Head.Detail.High Everything: irises, highlights, brows, mouth
+               corners, nose and ears.
+        \value Head.Detail.Low The drawn face thins to whites, lash lines and
+               a lip; the ears go, which the hair was mostly hiding anyway.
+               The nose stays - it is the one feature carrying silhouette.
+        \value Head.Detail.Minimal The nose goes too, leaving the skull, the
+               hair and a face that is still a face.
+
+        The steps between these are worth 0, 2 and 3 draw calls respectively,
+        because the expensive part of a face stopped being geometry. What Low
+        and Minimal really buy is a face that stays legible when it is twenty
+        pixels tall, rather than one that shimmers.
+    */
+    enum Detail { High, Low, Minimal }
+
+    /*!
+        \qmlproperty int Head::detail
+        \brief Current level of head detail. Use the Head.Detail enum.
+
+        Set by \l {Character::detail}{Character.detail} on a character.
+    */
+    property int detail: Head.Detail.High
 
     /*!
         \qmlproperty real Head::eyeSize
@@ -181,7 +211,22 @@ BodyPartsGroup {
         \qmlproperty real Head::faceOffsetZ
         \brief How far forward of the head node both head boxes sit.
     */
-    readonly property real faceOffsetZ: _upperHead.basePos.z
+    // The one place this offset is written; both head boxes and every Z anchor
+    // below read it from here.
+    //
+    // Deliberately NOT `_head.depth * 0.09`, which is the same number: taking
+    // it off the group's own aggregate depth makes Qt detect a binding loop and
+    // drop the binding, and a dropped binding leaves the anchors holding
+    // whatever they happened to reach first. That is not a warning to live
+    // with - it put the professor's moustache at the wrong depth, in front of
+    // the mouth it is supposed to sit above. The loop predates these anchors
+    // having any callers at all, which is exactly why nobody saw it: an
+    // anchor nothing reads is an anchor nothing evaluates.
+    //
+    // The two boxes are the source of truth for their own size. `depth` on the
+    // group is a summary derived FROM them, so asking it what they measure is
+    // the wrong direction of enquiry as well as a loop.
+    readonly property real faceOffsetZ: Math.max(_upperHead.depth, _lowerHead.depth) * 0.09
 
     /*!
         \qmlproperty real Head::upperHeadBottom
@@ -201,26 +246,63 @@ BodyPartsGroup {
         \brief Z of the front face of the cranium - the plane the eyes and
                the nose stand on.
     */
-    readonly property real faceFront: _upperHead.basePos.z + _upperHead.depth * 0.5
+    readonly property real faceFront: _head.faceOffsetZ + _upperHead.depth * 0.5
+
+    /*!
+        \qmlproperty real Head::faceBack
+        \brief Z of the back face of the cranium - where hair that wraps the
+               skull has to stop.
+    */
+    readonly property real faceBack: _head.faceOffsetZ - _upperHead.depth * 0.5
 
     /*!
         \qmlproperty real Head::jawFront
         \brief Z of the front face of the jaw - the plane the mouth sits on.
     */
-    readonly property real jawFront: _lowerHead.basePos.z + _lowerHead.depth * 0.5
+    readonly property real jawFront: _head.faceOffsetZ + _lowerHead.depth * 0.5
+
+    /*!
+        \qmlproperty real Head::eyeRelief
+        \brief How far the eyes stand proud of \l faceFront.
+
+        Zero, because the eyes are drawn into the face rather than built in
+        front of it - so a spectacle rim can sit on the face plane and does
+        not have to be pushed clear of a pair of protruding cubes. It stays
+        published because that is the fact accessories need to know, and a
+        head that grows something proud of its face again can say so here
+        without every accessory being re-authored.
+    */
+    readonly property real eyeRelief: 0
+
+    /*!
+        \qmlproperty real Head::earTop
+        \brief Y of the top of the ears.
+    */
+    readonly property real earTop: _head.earPos.y + _head.earSize
+
+    /*!
+        \qmlproperty real Head::hairOuterX
+        \brief How far from the centre line the head's own side hair reaches.
+
+        Half the skull when \l hairVolume is 0. An arm routed to an ear passes
+        through the side hair unless it is pushed out to at least this.
+    */
+    // The slab straddles the skull's side face, so only half of it is outside.
+    readonly property real hairOuterX: _upperHead.width * 0.5
+                                       + (_leftHair.visible ? _leftHair.width * 0.5 : 0)
 
     /*!
         \qmlproperty real Head::eyeWidth
         \brief Edge length of one eye. The eyes are cubes, so this is their
                height and depth as well.
     */
-    readonly property real eyeWidth: _leftEye.width
+    readonly property real eyeWidth: _upperHead.width * .22 * _head.eyeSize
 
     /*!
         \qmlproperty real Head::eyeSpacing
         \brief How far each eye centre sits from the head's centre line.
     */
-    readonly property real eyeSpacing: -_leftEye.basePos.x
+    readonly property real eyeSpacing: _head.eyeWidth
 
     /*!
         \qmlproperty real Head::eyeLine
@@ -244,8 +326,8 @@ BodyPartsGroup {
                ear is the same point with x negated.
     */
     readonly property vector3d earPos: Qt.vector3d(_rightEar.basePos.x,
-                                                   _upperHead.basePos.y + _rightEar.basePos.y,
-                                                   _upperHead.basePos.z + _rightEar.basePos.z)
+                                                   _head.upperHeadBottom + _rightEar.basePos.y,
+                                                   _head.faceOffsetZ + _rightEar.basePos.z)
 
     /*!
         \qmlproperty real Head::earSize
@@ -274,7 +356,8 @@ BodyPartsGroup {
         \brief Y of the lowest point the mouth currently reaches - the
                bottom of the cavity, which grows downward as it opens.
     */
-    readonly property real mouthBottom: _head.mouthLine - _mouth.lineH - _mouth.gap
+    readonly property real mouthBottom: _head.mouthLine - _lowerHead._mouth.lineH
+                                        - _lowerHead._mouth.gap
 
     /*!
         \qmlproperty real Head::chinBottom
@@ -282,6 +365,94 @@ BodyPartsGroup {
                mouth is open.
     */
     readonly property real chinBottom: -_lowerHead.jawStretch
+
+    /*!
+        \qmlproperty vector2d Head::gaze
+        \brief Where the eyes look, as a fraction of the irises' free travel
+               inside the whites. (0,0) is straight ahead, (1,0) hard right.
+
+        Costs nothing and moves nothing: the irises are drawn, so aiming them
+        is a uniform rather than a transform. Sliding a built iris sideways
+        would carry it off its own eyeball and break from the side, which is
+        why the head had to be turned for this before.
+    */
+    property vector2d gaze: Qt.vector2d(0, 0)
+
+    /*!
+        \qmlproperty int Head::faceDetail
+        \brief How much of the drawn face to draw: 1 all of it, 0 only what
+               survives being small.
+
+        At 0 the irises, their highlights, the brows and the mouth corners are
+        skipped and the whites, the lash lines and the lip remain. A shader
+        branch, not a change of geometry - so unlike switching \l features it
+        cannot pop, and it costs no draw calls either way.
+
+        Derived from \l detail; set that instead.
+
+        \sa detail, Character::detail
+    */
+    readonly property int faceDetail: _head.detail === Head.Detail.High ? 1 : 0
+
+    /*!
+        \qmlproperty bool Head::autoBlink
+        \brief Whether the eyes blink by themselves.
+
+        Off by default, and deliberately so: a lab replays a scene from a seed
+        and compares the frames, so anything moving on its own has to be asked
+        for. When it is on the rhythm is fixed rather than random, for the same
+        reason.
+
+        A blink is one animated number here and nothing at all in the scene -
+        the lids are drawn, so closing them costs no geometry and no draw call.
+        As boxes it would have meant resizing an eye every frame of every
+        blink, which is why the eyes never blinked before.
+
+        \sa blinkInterval, eyeHood
+    */
+    property bool autoBlink: false
+
+    /*!
+        \qmlproperty int Head::blinkInterval
+        \brief Milliseconds between blinks when \l autoBlink is on.
+    */
+    property int blinkInterval: 4200
+
+    /*!
+        \qmlproperty real Head::blinkAmount
+        \brief How shut the blink currently has the eyes, 0 to 1.
+
+        Composes ON TOP of \l eyeHood rather than replacing it, so a character
+        can blink in the middle of a glare and come back to the glare.
+        Writable, for a caller that would rather drive its own rhythm - a
+        performance script cueing a blink on a line, say - with \l autoBlink
+        left off.
+    */
+    property real blinkAmount: 0
+
+    Timer {
+        running: _head.autoBlink
+        interval: _head.blinkInterval
+        repeat: true
+        onTriggered: _blinkAnim.restart()
+    }
+
+    SequentialAnimation {
+        id: _blinkAnim
+        // Down fast, up a little slower - a blink that shuts and opens at the
+        // same rate reads as a wince.
+        NumberAnimation { target: _head; property: "blinkAmount"
+                          to: 1; duration: 70; easing.type: Easing.OutQuad }
+        NumberAnimation { target: _head; property: "blinkAmount"
+                          to: 0; duration: 110; easing.type: Easing.InQuad }
+    }
+
+    // The brows, as the two numbers the emotion animations actually move: how
+    // far above their resting place, and at what angle. They were a pair of
+    // boxes with a position and an euler each, which is four animated targets
+    // for a thing that has two degrees of freedom.
+    property real _browRise: 0
+    property real _browAngle: 0
 
     // ============================================================================
     // MOUTH SHAPE PARAMETERS
@@ -422,8 +593,14 @@ BodyPartsGroup {
     //     y: _head.height * 1
     // }
 
-    // Upper head part containing eyes and ears
-    BodyPart {
+    // Upper head: the cranium, and the eyes drawn into its front.
+    //
+    // A FaceBox rather than a BodyPart, which costs nothing - it is the same
+    // geometry with a material that can draw on itself. The eyes, their lids,
+    // their irises and their brows used to be six boxes standing proud of this
+    // one; six draw calls for markings with no silhouette, and from any angle
+    // off dead-centre you could see the side wall of an eye.
+    FaceBox {
         id: _upperHead
 
         // Default dimensions
@@ -433,8 +610,32 @@ BodyPartsGroup {
 
         showEdges: false
 
-        basePos: Qt.vector3d(0, _lowerHead.baseHeight * 0.99, _head.depth * .09)
+        basePos: Qt.vector3d(0, _lowerHead.baseHeight * 0.99, _head.faceOffsetZ)
         color: _head.skinColor
+
+        panel: _head.features ? FaceBox.Eyes : FaceBox.None
+        faceDetail: _head.faceDetail
+
+        eyeColor: _head.eyeColor
+        browColor: _head.hairColor
+        // Both in this box's own frame, which is what the anchors above
+        // publish - so the eyes and anything worn over them are placed from
+        // one set of numbers instead of two.
+        eyeCentre: Qt.vector2d(_head.eyeSpacing,
+                               _upperHead._eyeLine + _head.eyeWidth * 0.5)
+        eyeHalf: _head.eyeWidth * 0.5
+        eyeSquint: _head.eyeSquint
+        // The emotion's lid and the blink's, combined - not one replacing the
+        // other, so a blink lands on top of a glare and leaves it there.
+        eyeHood: Math.min(1, _head.eyeHood + _head.blinkAmount)
+        gaze: _head.gaze
+
+        // The brow bar, and where it rests relative to the eye's centre. The
+        // brow that was a box hung 0.8 eye widths above the eye's floor and
+        // stood a third of an eye tall; these are the same numbers.
+        browHalf: Qt.vector2d(_head.eyeWidth * 0.6, _head.eyeWidth * 0.165)
+        browOffset: Qt.vector2d(0, _head.eyeWidth * 0.465 + _head._browRise)
+        browAngle: _head._browAngle
 
         // The height the eyes sit at inside this box, and with them the nose
         // and the ears. Named once here so the three cannot drift apart;
@@ -491,7 +692,10 @@ BodyPartsGroup {
 
         BodyPart {
             id: _nose
-            visible: _head.features
+            // The last feature to go. A nose is the only one of them that is
+            // actually in front of the face rather than on it, so it is the
+            // only one whose absence changes the three-quarter silhouette.
+            visible: _head.features && _head.detail !== Head.Detail.Minimal
             color: _head.skinColor.darker(1.1)
             width: _upperHead.width * .15 * _head.noseSize
             height: _upperHead.height * .2 * _head.noseSize
@@ -502,7 +706,9 @@ BodyPartsGroup {
         }
 
         component Ear: BodyPart {
-            visible: _head.features
+            // First to go: at any distance where Low is the right answer the
+            // hair has already covered most of an ear.
+            visible: _head.features && _head.detail === Head.Detail.High
             color: _head.skinColor
             width: .25 * _upperHead.height; depth: 0.2 * _upperHead.depth
         }
@@ -519,72 +725,15 @@ BodyPartsGroup {
                                   _leftEar.basePos.z)
         }
 
-        // The eye is a cube whose height the lids eat into. Closing it by
-        // SHRINKING the white, rather than by putting a skin-coloured plate
-        // in front of it, is what makes it survive being looked at from the
-        // side: a plate only covers the face-on view, and these heads are
-        // seen from three-quarters most of the time.
-        component Eye: BodyPart {
-            id: _eye
-            visible: _head.features
-            color: "white"
-            width: _upperHead.width * .22 * _head.eyeSize
-
-            // What each lid takes. Half the eye is as far as either goes -
-            // past that the iris has nowhere to sit and the face reads as
-            // asleep rather than as pleased.
-            readonly property real cutBelow: _eye.width * 0.5 * _head.eyeSquint
-            readonly property real cutAbove: _eye.width * 0.5 * _head.eyeHood
-            // Never fully shut: a zero-height box still draws its outline.
-            height: Math.max(_eye.width * 0.12,
-                             _eye.width - _eye.cutBelow - _eye.cutAbove)
-
-            property BodyPart brow: _brow
-            property alias browEuler: _brow.eulerRotation
-            BodyPart {
-                color: _head.eyeColor
-                width: 0.33 * _eye.width
-                basePos: Qt.vector3d(0, 0.2 * _eye.height, _eye.depth * .5)
-            }
-            BodyPart {
-                id: _brow
-                color: _head.hairColor
-                width: 1.2 * _eye.width
-                height: .33 * _eye.width
-                depth: _eye.depth
-                // Anchored to the eye's OPEN size, not to its current one.
-                // Hung off the height it would ride the lids down, and an
-                // eyebrow that follows the lid is an eyebrow inside the eye.
-                //
-                // The z was an absolute 0.1 among otherwise proportional
-                // numbers. On a head the size of a cartoon professor's that
-                // is most of an eye's depth, so the brows floated clear of
-                // the face and in front of anything worn over the eyes -
-                // visible as two bars hanging off the front of the skull.
-                basePos: Qt.vector3d(0, 0.8 * _eye.width, _eye.depth * 0.18)
-            }
-        }
-
-        Eye {
-            id: _leftEye
-            // Only the bottom edge moves: cutBelow closes the eye from below
-            // by lifting its floor, cutAbove by lowering its ceiling, which
-            // needs nothing here because the box grows upward from basePos.
-            basePos: Qt.vector3d(-_leftEye.width,
-                                 _upperHead._eyeLine + _leftEye.cutBelow,
-                                 _upperHead.depth * .5)
-        }
-
-        Eye {
-            id: _rightEye
-            basePos: Qt.vector3d(-_leftEye.basePos.x, _leftEye.basePos.y, _leftEye.basePos.z)
-        }
     }
 
-    // Lower head part containing mouth and chin. When the mouth opens,
-    // the box stretches downward: the top edge stays attached to the
+    // Lower head: the jaw, and the mouth drawn into its front. When the mouth
+    // opens, the box stretches downward: the top edge stays attached to the
     // upper head while the chin extends - no seam, no face split.
-    BodyPart {
+    //
+    // The mouth lives on THIS box rather than on the cranium precisely because
+    // the box stretches: a mouth drawn into the jaw follows the jaw for free.
+    FaceBox {
         id: _lowerHead
 
         // Configured (rest) height; the public lowerHeadHeight alias
@@ -598,105 +747,58 @@ BodyPartsGroup {
         height: baseHeight + jawStretch
         depth: 1.2
         showEdges: true
-        edgeMask: bottomEdges | leftEdges | rightEdges | frontEdges | backEdges
+        // Everything except the four TOP borders (bits 3-6). Those four run
+        // along the seam to the cranium, which is halfway up the cheek, and
+        // the jaw was drawing a black line straight across the face there.
+        // The old spelling - bottom|left|right|front|back - reads as "all but
+        // the top" but ORs out to 0xFF, because the eight mask bits are shared
+        // between faces rather than one per box edge: bit 3 is the front
+        // face's top border AND the left face's left border, so naming the
+        // left face turned the front face's top border back on.
+        //
+        // Not cosmetic. It is the whole of the visible split between the two
+        // head boxes: their front faces are coplanar and the same colour, so
+        // with this line gone the pair is indistinguishable from one box.
+        edgeMask: allEdges & ~_seamEdges
+        readonly property int _seamEdges: 0x78
 
         property real chinPointiness: 1.0
 
         // Box origin is bottom-center: shift down by the stretch so the
         // top edge stays fixed at the seam to the upper head.
-        basePos: Qt.vector3d(0, -jawStretch, _head.depth * .09)
+        basePos: Qt.vector3d(0, -jawStretch, _head.faceOffsetZ)
         color: _head.skinColor
 
         // Apply chin pointiness using scaled bottom face
         scaledFace: Box3DGeometry.BottomFace
         faceScale: Qt.vector2d(chinPointiness, 1.0)
 
-        // Mouth on the front of the jaw, built from the continuous
-        // shape parameters (open/wide/round/cornerLift).
-        Node {
-            id: _mouth
-            visible: _head.features
-            // Counteracts the jaw stretch (the box origin moved down) so
-            // the mouth line (upper lip) stays fixed on the face while
-            // the chin extends below.
-            position: Qt.vector3d(0,
-                                  _head.mouthLine + _lowerHead.jawStretch,
-                                  _lowerHead.depth * .5)
+        panel: _head.features ? FaceBox.Mouth : FaceBox.None
+        faceDetail: _head.faceDetail
+        lipColor: "black"
+        cavityColor: "#20100c"
 
-            readonly property real baseW: _head.mouthWidth
-            readonly property real lineH: .3 * baseW
-            // widened by "ee", narrowed by "oo"
-            readonly property real w: baseW * (1 + 0.5 * _head.mouthWide)
-                                            * (1 - 0.4 * _head.mouthRound)
-            // gap the mouth opens up toward the stretching chin
+        // The mouth, from the same continuous shape parameters as before
+        // (open/wide/round/cornerLift) - only drawn rather than built.
+        //
+        // The Y counteracts the jaw stretch, exactly as the mouth Node used
+        // to: the box origin has moved down, and the mouth line has not.
+        mouthCentre: Qt.vector2d(0, _head.mouthLine + _lowerHead.jawStretch)
+        // Widened by "ee", narrowed by "oo".
+        mouthHalf: Qt.vector2d(_head.mouthWidth * 0.5
+                               * (1 + 0.5 * _head.mouthWide)
+                               * (1 - 0.4 * _head.mouthRound),
+                               _mouth.lineH)
+        mouthGap: _mouth.gap
+        mouthCornerLift: _head.mouthCornerLift
+
+        // Kept as named values because the anchors publish them: mouthBottom
+        // is where a beard has to start, and it is not derivable from the
+        // outside once the shapes are in a shader.
+        readonly property QtObject _mouth: QtObject {
+            readonly property real lineH: .3 * _head.mouthWidth
+            // The gap the mouth opens up toward the stretching chin.
             readonly property real gap: _head.mouthOpen * _lowerHead.baseHeight * 0.45
-
-            // Dark mouth cavity; top edge stays at the mouth line, the
-            // bottom grows downward as the mouth opens.
-            BodyPart {
-                id: _mouthCavity
-                color: "#20100c"
-                width: _mouth.w
-                height: _mouth.lineH + _mouth.gap
-                depth: 0.1
-                showEdges: false
-                castsShadows: false
-                basePos: Qt.vector3d(0, -height, _head.mouthRound * 0.05)
-            }
-
-            // Lip line covering the cavity's top edge (keeps the closed
-            // mouth reading as a clean line).
-            BodyPart {
-                id: _upperLip
-                color: "black"
-                width: _mouth.w * 1.02
-                height: _mouth.lineH * 0.4
-                depth: 0.11
-                showEdges: false
-                castsShadows: false
-                basePos: Qt.vector3d(0, -height * 0.5, 0)
-            }
-
-            // Mouth corners: lifted for smiles, dropped for frowns.
-            //
-            // Hinged at the end of the mouth line and turned, rather than a
-            // box moved up and down beside it. As a free cube the corner rose
-            // clear of the lip it belonged to: at full smile it sat 0.25 base
-            // widths up while being only 0.3 tall, so two thirds of its own
-            // height of bare skin showed underneath. A smiling character wore
-            // two dots floating past the ends of a straight mouth and read as
-            // startled rather than pleased. A stroke that starts AT the mouth
-            // and turns keeps the shape continuous, which is the whole reason
-            // a viewer reads it as one expression.
-            component MouthCorner: Node {
-                id: _corner
-                // -1 is the character's left, +1 its right.
-                required property real side
-
-                position: Qt.vector3d(_corner.side * 0.5 * _mouth.w, 0, 0)
-                // Lift is an angle now. Both signs work out: the far end of
-                // the stroke rises for a smile and drops for a frown on
-                // either side of the face.
-                eulerRotation.z: _corner.side * _head.mouthCornerLift * 40
-
-                BodyPart {
-                    id: _stroke
-                    color: "black"
-                    width: _mouth.w * 0.42
-                    height: _mouth.lineH * 0.7
-                    // The lip line's depth, so the two are the same surface
-                    // and no corner floats in front of the face.
-                    depth: 0.11
-                    showEdges: false
-                    castsShadows: false
-                    // Grows outward from the hinge and straddles the mouth
-                    // line, so its inner end always overlaps the lip.
-                    basePos: Qt.vector3d(_corner.side * _stroke.width * 0.5,
-                                         -0.5 * _stroke.height, 0)
-                }
-            }
-            MouthCorner { side: -1 }
-            MouthCorner { side: 1 }
         }
     }
 
@@ -789,65 +891,43 @@ BodyPartsGroup {
     }
 
     // ANIMATION BUILDING BLOCKS (eyebrows)
+    //
+    // Two numbers, not two transforms. A brow has one angle and one height;
+    // as a pair of boxes it had a position and an euler each, so the same two
+    // degrees of freedom were spread over four animated targets that had to be
+    // kept mirrored by hand.
+
+    component BrowAnim: NumberAnimation {
+        target: _head
+        easing.type: Easing.InOutQuad
+    }
 
     component LowerEyeBrowns: ParallelAnimation {
         id: _lowerEyeBrowns
         property int duration: _head.toEmotionDuration
-        PosAndEulerAnim {
-            duration: _lowerEyeBrowns.duration
-            target: _leftEye.brow
-            toEuler: Qt.vector3d(0,0,-25)
-            toPos: Qt.vector3d(.5 * target.basePos.x,
-                               target.basePos.y,
-                               target.basePos.z)
-        }
-        PosAndEulerAnim {
-            duration: _lowerEyeBrowns.duration
-            target: _rightEye.brow
-            toEuler: Qt.vector3d(0,0,25)
-            toPos: Qt.vector3d(.5 * target.basePos.x,
-                               target.basePos.y,
-                               target.basePos.z)
-        }
+        BrowAnim { duration: _lowerEyeBrowns.duration
+                   property: "_browAngle"; to: 25 }
+        BrowAnim { duration: _lowerEyeBrowns.duration
+                   property: "_browRise"; to: 0 }
     }
 
     component RaiseEyeBrowns: ParallelAnimation {
         id: _raiseEyeBrowns
         property int duration: _head.toEmotionDuration
-
-        PosAndEulerAnim {
-            duration: _raiseEyeBrowns.duration
-            target: _leftEye.brow
-            toEuler: Qt.vector3d(0,0,5)
-            toPos: Qt.vector3d(target.basePos.x,
-                               target.basePos.y + target.height,
-                               target.basePos.z)
-        }
-        PosAndEulerAnim {
-            duration: _raiseEyeBrowns.duration
-            target: _rightEye.brow
-            toEuler: Qt.vector3d(0,0,-5)
-            toPos: Qt.vector3d(target.basePos.x,
-                               target.basePos.y + target.height,
-                               target.basePos.z)
-        }
+        BrowAnim { duration: _raiseEyeBrowns.duration
+                   property: "_browAngle"; to: -5 }
+        // Up by its own height, which is what the box used to move.
+        BrowAnim { duration: _raiseEyeBrowns.duration
+                   property: "_browRise"; to: _head.eyeWidth * 0.33 }
     }
 
     component NeutralEyeBrowns: ParallelAnimation {
         id: _neutralEyeBrowns
         property int duration: _head.toEmotionDuration
-        PosAndEulerAnim {
-            duration: _neutralEyeBrowns.duration
-            target: _leftEye.brow
-            toEuler: target.baseEuler
-            toPos: target.basePos
-        }
-        PosAndEulerAnim {
-            duration: _neutralEyeBrowns.duration
-            target: _rightEye.brow
-            toEuler: target.baseEuler
-            toPos: target.basePos
-        }
+        BrowAnim { duration: _neutralEyeBrowns.duration
+                   property: "_browAngle"; to: 0 }
+        BrowAnim { duration: _neutralEyeBrowns.duration
+                   property: "_browRise"; to: 0 }
     }
 
 }
