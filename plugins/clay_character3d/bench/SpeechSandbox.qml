@@ -3,10 +3,10 @@
 // @tags 3D, Character, Speech, Lipsync
 // @category Plugin Benches
 //
-// The bench for the audio path. Two heads, one recording, one clock - the
-// left one gets loudness, the right one gets formants - so the thing being
-// judged is judged by looking at two mouths at once rather than by
-// remembering what the last one did.
+// The bench for the audio path. Three heads, one recording, one clock -
+// loudness, then formants, then a script aligned to the recording - so the
+// thing being judged is judged by looking at three mouths at once rather
+// than by remembering what the last one did.
 //
 // What it is for:
 //
@@ -17,6 +17,10 @@
 //   * Every recording is a different room, microphone and voice. The two
 //     committed wavs are one speaking voice and one singing one, and the
 //     singing one is the awkward case on purpose.
+//   * Aligned needs a transcript, and neither committed wav has one - what
+//     they were recorded saying was never written down. So the right-hand
+//     head falls back here, and the readout says so. Point `transcript` at a
+//     line you DO have the script for to see the tier that closes a /m/.
 //   * effectiveAccuracy in the readout is the honest one: it says what the
 //     line actually got, which is not always what was asked for.
 //
@@ -36,19 +40,23 @@ Item {
 
     /*! Which committed recording to read. */
     property string source: "hello.wav"
+    /*! What that recording says, if anyone knows. Aligned needs it and falls
+        back to Spectral without it - which is exactly what it does here. */
+    property string transcript: ""
     /*! Start speaking as soon as the scene is up - so a one-shot render lands
         mid-line instead of on two closed mouths. */
     property bool autoPlay: true
 
-    readonly property real spread: 1.5
+    readonly property real spread: 2.1
 
     function play(what) {
         root.source = what
         const url = Qt.resolvedUrl("../demo/" + what)
         _envSpeech.sayAudio(url)
         _spcSpeech.sayAudio(url)
+        _algSpeech.sayAudio(url, root.transcript)
     }
-    function stop() { _envSpeech.stop(); _spcSpeech.stop() }
+    function stop() { _envSpeech.stop(); _spcSpeech.stop(); _algSpeech.stop() }
 
     // Two engines, not one: the tier is a property of the analysis, so
     // comparing tiers means two analyses of the same file. They are started
@@ -56,6 +64,7 @@ Item {
     // is what keeps the two mouths on the same syllable.
     Speech { id: _envSpeech; accuracy: Speech.Envelope; volume: 1.0 }
     Speech { id: _spcSpeech; accuracy: Speech.Spectral; volume: 0.0 }
+    Speech { id: _algSpeech; accuracy: Speech.Aligned;  volume: 0.0 }
 
     Component.onCompleted: if (root.autoPlay) root.play(root.source)
 
@@ -73,7 +82,7 @@ Item {
             // Well inside the default clipNear of 10, which would swallow a
             // head-sized subject entirely.
             clipNear: 0.05; clipFar: 400; fieldOfView: 30
-            position: Qt.vector3d(0, 0.72, 6.4)
+            position: Qt.vector3d(0, 0.72, 8.6)
         }
         DirectionalLight { eulerRotation: Qt.vector3d(-25, -35, 0); brightness: 1.5 }
         DirectionalLight { eulerRotation: Qt.vector3d(10, 150, 0); brightness: 0.5 }
@@ -81,20 +90,13 @@ Item {
         // basePos, never x. A Head is a BodyPart, and BodyPart binds position
         // to basePos - an x set here is overwritten the moment that binding
         // evaluates and both heads sit on top of each other.
-        Head {
-            id: _envHead
-            basePos: Qt.vector3d(-root.spread, 0, 0)
+        component Bust: Head {
             detail: Head.Detail.High
-            speechSource: _envSpeech
             skinColor: "#d38d5f"; hairColor: "#734120"; eyeColor: "#4a3728"
         }
-        Head {
-            id: _spcHead
-            basePos: Qt.vector3d(root.spread, 0, 0)
-            detail: Head.Detail.High
-            speechSource: _spcSpeech
-            skinColor: "#d38d5f"; hairColor: "#734120"; eyeColor: "#4a3728"
-        }
+        Bust { basePos: Qt.vector3d(-root.spread, 0, 0); speechSource: _envSpeech }
+        Bust { basePos: Qt.vector3d(0, 0, 0);            speechSource: _spcSpeech }
+        Bust { basePos: Qt.vector3d(root.spread, 0, 0);  speechSource: _algSpeech }
     }
 
     component Readout: Column {
@@ -108,7 +110,9 @@ Item {
                 + "\nwide  " + parent.engine.mouthWide.toFixed(2)
                 + "\nround " + parent.engine.mouthRound.toFixed(2)
                 + "\ngot   " + (parent.engine.effectiveAccuracy === Speech.Envelope
-                                ? "envelope" : "spectral")
+                                ? "envelope"
+                                : parent.engine.effectiveAccuracy === Speech.Spectral
+                                ? "spectral" : "aligned")
         }
     }
 
@@ -116,8 +120,9 @@ Item {
         anchors.top: parent.top; anchors.topMargin: 12
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 0
-        Readout { width: root.width / 2; title: "Envelope"; engine: _envSpeech }
-        Readout { width: root.width / 2; title: "Spectral"; engine: _spcSpeech }
+        Readout { width: root.width / 3; title: "Envelope"; engine: _envSpeech }
+        Readout { width: root.width / 3; title: "Spectral"; engine: _spcSpeech }
+        Readout { width: root.width / 3; title: "Aligned";  engine: _algSpeech }
     }
 
     Label {

@@ -224,13 +224,36 @@ hard it looks at what it decoded is `speechAccuracy`:
 |---|---|---|
 | `Speech.Envelope` | loudness, zero crossings | how far the jaw dropped |
 | `Speech.Spectral` (default) | formant bands | *which* shape - open/closed, spread/rounded, fricative |
+| `Speech.Aligned` | the above, plus a transcript | the script's own shapes on the recording's clock |
+
+`Aligned` is the one that needs something from you:
+
+```qml
+npc.speechAccuracy = Speech.Aligned
+npc.say("dialog/intro.wav", "", "Hello! Welcome to Clayground.")
+```
+
+Given the script, the sequence of shapes stops being a guess - the text
+says there is an `/m/` there, so the mouth closes. No acoustic tier can
+do that reliably, because a bilabial is *voiced*: every measurement of
+one says "loud", not "shut". Only the timing then comes from the audio,
+by dynamic-time-warping the script against the measured frames.
+
+A transcript that does not match the recording is worse than none - it
+would drag the mouth confidently through the wrong syllables for a whole
+line - so a pairing whose durations disagree by more than about 2.5x is
+rejected and the tier below takes over.
+
+Alignment also carries word marks onto the recording, so `currentWord`
+and per-word callbacks work for recorded dialogue, not just for TTS.
 
 The tiers are **not** a performance dial. A 512-point transform every
 16 ms is a few hundred thousand flops for a whole line, once, which is
 below the noise floor of the decode that produced the samples. What
-separates them is time-to-first-sound and the samples held while the
-analysis runs - so a line barked by an NPC on proximity and a lecture
-delivered to camera can reasonably want different answers.
+separates them is time-to-first-sound, the samples held while the
+analysis runs, and - for `Aligned` - whether anyone wrote the line down.
+That last one is an authoring cost rather than a runtime one, and it is
+the real reason a lecture and a barked NPC line want different answers.
 
 No tier leaves the mouth dead. A recording the analyser cannot read
 falls back to the one below on its own, and `Envelope` is the floor.

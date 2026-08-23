@@ -86,7 +86,11 @@ public:
         Envelope,
         // Formant bands: an open vowel opens further than a closed one, a
         // front vowel spreads, a back vowel rounds, a fricative narrows.
-        Spectral
+        Spectral,
+        // The script's own shapes, on the recording's clock. Needs a
+        // transcript, and falls back to Spectral without one - which is why
+        // this tier is an authoring decision rather than a runtime one.
+        Aligned
     };
     Q_ENUM(Accuracy)
 
@@ -122,9 +126,13 @@ public:
 
     // Says text or plays an audio file, depending on what the string
     // looks like (existing file / url / known audio extension => audio).
-    Q_INVOKABLE void say(const QString &what);
+    Q_INVOKABLE void say(const QString &what, const QString &transcript = QString());
     Q_INVOKABLE void sayText(const QString &text);
-    Q_INVOKABLE void sayAudio(const QUrl &source);
+    // The transcript is what a line was recorded saying. Given one, and with
+    // accuracy at Aligned, the mouth takes its SHAPES from it and only its
+    // timing from the audio - so a /m/ closes because the script says there
+    // is one, with nothing left for the acoustics to get wrong.
+    Q_INVOKABLE void sayAudio(const QUrl &source, const QString &transcript = QString());
     Q_INVOKABLE void stop();
 
     // How long this engine would take over the text, at the current rate,
@@ -170,7 +178,7 @@ private:
     qint64 clockMs() const;
     void sampleTimeline(qint64 ms, float &open, float &wide, float &round) const;
 
-    void startAudio(const QUrl &source);
+    void startAudio(const QUrl &source, const QString &transcript);
     void onDecoderBufferReady();
     void onDecoderFinished();
     void buildBabbleTimeline(qint64 durationMs);
@@ -193,6 +201,8 @@ private:
     Pending pendingKind_ = Pending::None;
     QString pendingText_;
     QUrl    pendingSource_;
+    QString pendingTranscript_;
+    QString transcript_;
     bool    startScheduled_ = false;
 
     Mode  mode_ = Mode::None;

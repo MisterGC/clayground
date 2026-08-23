@@ -75,6 +75,26 @@ VisemeTimeline timelineFromFrames(const QVector<Frame> &frames);
 VisemeTimeline timelineForSamples(const QVector<float> &mono, int sampleRate,
                                   const Config &cfg = Config());
 
+// Forced alignment: the shapes of a script, on the clock of a recording.
+//
+// Recognition is the hard half of lip-sync and a transcript makes it
+// unnecessary. The sequence of mouth shapes is then ground truth - the text
+// says there is an /m/ there, so the mouth closes, with no acoustic inference
+// to get it wrong - and the only thing left to take from the audio is WHEN.
+// That is a monotonic alignment between two sequences, which is dynamic
+// programming and nothing cleverer.
+//
+// `text` is a timeline built from the script (its ms are an estimate and are
+// thrown away); `frames` are the measured audio. Identity comes from the
+// text, timing and emphasis from the frames. Word marks are carried across,
+// so a recorded line gets the word callbacks only spoken text used to have.
+//
+// Returns an empty timeline when the two do not plausibly describe the same
+// utterance - a transcript belonging to another take is worse than no
+// transcript at all, so the caller falls back instead.
+VisemeTimeline align(const VisemeTimeline &text, const QVector<Frame> &frames,
+                     const Config &cfg = Config());
+
 } // namespace ClayViseme
 
 #endif // CLAY_CHARACTER3D_VISEMEANALYSIS_H

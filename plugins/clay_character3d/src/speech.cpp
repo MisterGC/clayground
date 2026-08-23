@@ -161,7 +161,7 @@ bool Speech::ttsAvailable() const
 #endif
 }
 
-void Speech::say(const QString &what)
+void Speech::say(const QString &what, const QString &transcript)
 {
     const QString trimmed = what.trimmed();
     const QString lower = trimmed.toLower();
@@ -171,9 +171,10 @@ void Speech::say(const QString &what)
     if (looksLikeAudio) {
         const QUrl url(trimmed);
         if (url.isValid() && !url.scheme().isEmpty())
-            sayAudio(url);
+            sayAudio(url, transcript);
         else
-            sayAudio(QUrl::fromLocalFile(QFileInfo(trimmed).absoluteFilePath()));
+            sayAudio(QUrl::fromLocalFile(QFileInfo(trimmed).absoluteFilePath()),
+                     transcript);
     } else {
         sayText(trimmed);
     }
@@ -301,7 +302,7 @@ void Speech::startPending()
         startText(pendingText_);
         break;
     case Pending::Audio:
-        startAudio(pendingSource_);
+        startAudio(pendingSource_, pendingTranscript_);
         break;
     }
 }
@@ -393,8 +394,10 @@ void Speech::ensureTts()
 }
 #endif
 
-void Speech::startAudio(const QUrl &source)
+void Speech::startAudio(const QUrl &source, const QString &transcript)
 {
+    transcript_ = transcript;
+
     if (!player_) {
         player_ = new QMediaPlayer(this);
         audioOut_ = new QAudioOutput(this);
@@ -459,7 +462,7 @@ void Speech::startAudio(const QUrl &source)
     decoder_->start();
 }
 
-void Speech::sayAudio(const QUrl &source)
+void Speech::sayAudio(const QUrl &source, const QString &transcript)
 {
     stop();
     if (source.isEmpty()) {
@@ -471,6 +474,7 @@ void Speech::sayAudio(const QUrl &source)
     }
     pendingKind_ = Pending::Audio;
     pendingSource_ = source;
+    pendingTranscript_ = transcript;
     scheduleStart();
 }
 
@@ -604,9 +608,24 @@ void Speech::onDecoderFinished()
 
     if (accuracy_ != Speech::Envelope && analysisRate_ > 0
             && !analysisSamples_.isEmpty()) {
-        tl = ClayViseme::timelineForSamples(analysisSamples_, analysisRate_);
-        if (!tl.keys.isEmpty())
-            got = Speech::Spectral;
+        // Measured once. Both tiers above the floor read the same frames -
+        // Aligned only differs in having a script to put on top of them.
+        const auto frames = ClayViseme::analyse(analysisSamples_, analysisRate_);
+
+        if (accuracy_ == Speech::Aligned && !transcript_.trimmed().isEmpty()) {
+            // Pace does not matter: the estimate this builds is thrown away
+            // and replaced with the recording's own clock. What survives is
+            // the SEQUENCE, which is the half of lip-sync recognition is for.
+            const VisemeTimeline script = timelineForText(transcript_, 1.0);
+            tl = ClayViseme::align(script, frames);
+            if (!tl.keys.isEmpty())
+                got = Speech::Aligned;
+        }
+        if (tl.keys.isEmpty()) {
+            tl = ClayViseme::timelineFromFrames(frames);
+            if (!tl.keys.isEmpty())
+                got = Speech::Spectral;
+        }
     }
     if (tl.keys.isEmpty())
         tl = envelopeTimeline();

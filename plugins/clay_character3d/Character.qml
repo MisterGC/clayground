@@ -160,12 +160,18 @@ BodyPartsGroup {
     readonly property string speechEmotion: _emotionCtl.current
 
     /*!
-        \qmlmethod void Character::say(string what, string emotion)
+        \qmlmethod void Character::say(string what, string emotion, string transcript)
         \brief Makes the character say something with lip-synced mouth movement.
 
         Pass either plain text (spoken via text-to-speech when available,
         otherwise the mouth animates silently) or a path/URL to a wav/mp3
         file which is played back while the mouth follows the audio.
+
+        For a recording, the optional transcript is what it was recorded
+        saying. With \l speechAccuracy at \c Speech.Aligned the mouth then
+        takes its shapes from that script and only its timing from the audio,
+        which is the only way a /m/ closes reliably - a bilabial is voiced,
+        so every acoustic measurement of one says "loud", not "shut".
 
         The optional emotion ("happy", "sad" or "angry") colors the
         conversation: facial expression, voice pitch/rate (for TTS) and -
@@ -183,11 +189,12 @@ BodyPartsGroup {
         before the first annotation. Unknown annotations are left in the
         text untouched.
     */
-    function say(what, emotion) {
+    function say(what, emotion, transcript) {
         _sayQueue.cancel()
         // End any previous speech first: its finished() handling clears
         // the old emotion, so the ones applied by the queue survive.
         _speech.stop()
+        _sayQueue.transcript = transcript === undefined ? "" : transcript
         _sayQueue.segments = _sayQueue.parse("" + what,
                                              emotion === undefined ? "" : emotion)
         _sayQueue.index = 0
@@ -207,6 +214,9 @@ BodyPartsGroup {
     // them one after another, re-coloring face/voice/body per segment.
     QtObject {
         id: _sayQueue
+        // What the audio of this line was recorded saying, when the caller
+        // knows. Only Speech.Aligned reads it.
+        property string transcript: ""
         property var segments: []
         property int index: 0
         property bool active: false
@@ -248,13 +258,18 @@ BodyPartsGroup {
             const seg = segments[index]
             index++
             _emotionCtl.apply(seg.emotion)
-            _speech.say(seg.text)
+            // The transcript rides along on every segment and is ignored by
+            // all but an audio one - inline emotion annotations split TEXT,
+            // and an audio line is always a single segment, so there is never
+            // a second segment for it to be wrong about.
+            _speech.say(seg.text, _sayQueue.transcript)
         }
 
         function cancel() {
             active = false
             segments = []
             index = 0
+            transcript = ""
         }
     }
 
