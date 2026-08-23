@@ -197,6 +197,36 @@ do not, which is what a crowd needs.
 
 Off at `Detail.Minimal` regardless, where there is no eye left to move.
 
+### Listening
+
+The other half of a conversation:
+
+```qml
+npcB.listeningTo = npcA     // hold A's face, break away now and then,
+                            // mark the ends of A's phrases
+npcB.listeningTo = null     // done
+```
+
+Everything else in this plugin describes a character while it *speaks*.
+Without this the one who is not speaking does nothing at all, which is
+what makes two characters talking read as two monologues taking turns.
+
+Phrase boundaries are read off **the speaker's mouth**, not its script: a
+gap in `Speech.mouthOpen` while it is still speaking ends a phrase,
+whatever produced the timeline. So it works on an unknown recording read
+by the envelope tier exactly as it does on an aligned one — which is what
+makes it usable on dialogue nobody wrote down.
+
+`listeningTo` owns the look target while it is set; it and `lookAt()` are
+the same channel by construction.
+
+It does **not** nod yet, and a nod is the signature of listening. The head
+node's rotation has a single writer — the settle animation in
+`GestureAnim`, easing over its whole `settleMs` — and the head's children
+include accessories that parent to it from outside the plugin, so neither
+a second writer nor an inner rotation is available without changing how
+body poses are applied.
+
 ### Speech with Lip-Sync
 
 Characters can speak text (via text-to-speech when available) or play

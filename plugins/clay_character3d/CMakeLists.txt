@@ -67,6 +67,7 @@ clay_plugin( Character3D
         animation/TalkGestureAnim.qml
         animation/GestureAnim.qml
         animation/GazeAnim.qml
+        animation/ListenAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
         animation/PosAndEulerAnim.qml

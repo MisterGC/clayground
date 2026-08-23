@@ -486,6 +486,40 @@ BodyPartsGroup {
     property real _browRise: 0
     property real _browAngle: 0
 
+    /*!
+        \qmlproperty real Head::browFlash
+        \brief A momentary brow raise on top of whatever the face is wearing.
+
+        Additive, in the same units \l eyeWidth is measured in, so it
+        composes with an emotion rather than replacing it - a listener can
+        acknowledge a point without ceasing to look pleased about it.
+
+        \sa flashBrows()
+    */
+    property real browFlash: 0
+
+    /*!
+        \qmlmethod void Head::flashBrows(real amount)
+        \brief Raises the brows and lets them fall.
+
+        The one gesture a face makes while somebody else is talking. Fast up,
+        slower down - the reverse reads as a flinch.
+    */
+    function flashBrows(amount) {
+        _browFlashAnim.peak = (amount === undefined ? 0.28 : amount) * _head.eyeWidth
+        _browFlashAnim.restart()
+    }
+
+    SequentialAnimation {
+        id: _browFlashAnim
+        property real peak: 0
+        NumberAnimation { target: _head; property: "browFlash"
+                          to: _browFlashAnim.peak; duration: 120
+                          easing.type: Easing.OutQuad }
+        NumberAnimation { target: _head; property: "browFlash"
+                          to: 0; duration: 260; easing.type: Easing.InOutQuad }
+    }
+
     // ============================================================================
     // MOUTH SHAPE PARAMETERS
     // ============================================================================
@@ -666,7 +700,12 @@ BodyPartsGroup {
         // brow that was a box hung 0.8 eye widths above the eye's floor and
         // stood a third of an eye tall; these are the same numbers.
         browHalf: Qt.vector2d(_head.eyeWidth * 0.6, _head.eyeWidth * 0.165)
-        browOffset: Qt.vector2d(0, _head.eyeWidth * 0.465 + _head._browRise)
+        // browFlash is ADDED, not assigned: the emotions own _browRise and
+        // animate it, so a backchannel that wrote to the same number would
+        // erase whatever mood the face was wearing and could not be given
+        // back afterwards.
+        browOffset: Qt.vector2d(0, _head.eyeWidth * 0.465
+                                   + _head._browRise + _head.browFlash)
         browAngle: _head._browAngle
 
         // The height the eyes sit at inside this box, and with them the nose

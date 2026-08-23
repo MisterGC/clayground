@@ -656,6 +656,36 @@ BodyPartsGroup {
     property bool thinking: false
 
     /*!
+        \qmlproperty var Character::listeningTo
+        \brief Who this character is listening to, or null.
+
+        While it is set the eyes hold that character's face, break away every
+        few seconds because a continuous stare is not attention, and mark the
+        ends of its phrases. It takes over the look target for as long as it
+        is set - \l lookAt() and this are the same channel, and this is the
+        one holding it.
+
+        The other half of a conversation. Everything else here describes a
+        character while it speaks; without this the one who is not speaking
+        does nothing at all, which is what makes two characters talking read
+        as two monologues in turn.
+
+        \sa ListenAnim, lookAt, GazeAnim
+    */
+    property var listeningTo: null
+
+    /*! \qmlproperty bool Character::listening
+        \readonly
+        \brief Whether this character is attending to someone.
+
+        Says a target is set and the behaviour is live - NOT that the other
+        one is currently making a sound. A listener between two sentences is
+        still listening. */
+    readonly property bool listening: _listenAnim.running
+                                      && _character.listeningTo !== null
+                                      && _character.listeningTo !== undefined
+
+    /*!
         \qmlproperty string Character::emotion
         \readonly
         \brief The face the character is wearing between lines: "happy",
@@ -1245,6 +1275,18 @@ BodyPartsGroup {
         // costs one call and it is the difference between the eyes moving
         // and the eyes cutting.
         onSaccaded: if (_character.autoBlink) _head.blink()
+    }
+
+    // The other side of a conversation. It drives lookAt(), so it and an
+    // explicit lookAt() are the same channel by construction rather than by
+    // two animators arriving at the head from different directions.
+    ListenAnim {
+        id: _listenAnim
+        listener: _character
+        speaker: _character.listeningTo
+        seed: _character.blinkSeed
+        running: _character.gazeBehaviour
+                 && _detail.level !== Character.Detail.Minimal
     }
 
     GestureAnim {
