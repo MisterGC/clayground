@@ -430,11 +430,43 @@ BodyPartsGroup {
     */
     property real blinkAmount: 0
 
+    /*!
+        \qmlmethod void Head::blink()
+        \brief Blinks once, now.
+
+        Separate from \l autoBlink so anything that knows a blink belongs
+        here can ask for one - a performance script on a line, or a large
+        gaze shift, which a real face nearly always blinks through.
+    */
+    function blink() { _blinkAnim.restart() }
+
+    /*!
+        \qmlproperty int Head::blinkSeed
+        \brief Which irregular-but-repeatable blink rhythm this head gets.
+
+        Two heads with the same seed blink in step, which is the one thing a
+        crowd must not do; two runs of the same sandbox blink identically,
+        which is what keeps a clayrender comparison meaningful.
+    */
+    property int blinkSeed: 1
+
     Timer {
+        id: _blinkTimer
+        // Evenly spaced blinks read as a metronome - the eye notices the beat
+        // long before it notices the blink. The spacing wanders by a third
+        // either way, from a sequence that is fixed for a given seed rather
+        // than from a wall clock.
+        property int _rng: Math.max(1, _head.blinkSeed)
+        function _next() {
+            _rng = (_rng * 1664525 + 1013904223) >>> 0
+            const f = 0.66 + (_rng / 4294967296) * 0.68
+            interval = Math.max(400, Math.round(_head.blinkInterval * f))
+        }
         running: _head.autoBlink
         interval: _head.blinkInterval
         repeat: true
-        onTriggered: _blinkAnim.restart()
+        onRunningChanged: if (running) _next()
+        onTriggered: { _head.blink(); _next() }
     }
 
     SequentialAnimation {

@@ -381,6 +381,9 @@ Node {
         _point.hand = "auto"
         _point.target = worldPos
         _point.active = true
+        // A hand that arrives somewhere its owner is not looking reads as a
+        // signpost rather than as a person indicating something.
+        lookAt(worldPos)
     }
 
     /*!
@@ -451,8 +454,21 @@ Node {
     */
     function faceViewer() {
         if (!root.view || !root.view.camera) return
-        turnTo(root.view.camera.scenePosition)
+        const at = root.view.camera.scenePosition
+        turnTo(at)
+        // The body turn is slow and coarse; the eyes arrive first and hold
+        // the reader while it finishes. Without this the professor addresses
+        // the camera with a fixed forward stare, which is the difference
+        // between being looked at and being aimed at.
+        lookAt(at)
     }
+
+    /*!
+        Points the eyes at a scene position without moving anything else.
+        Pass null to let them go, after which they wander as an idle pair of
+        eyes does.
+    */
+    function lookAt(worldPos) { _char.lookAt(worldPos) }
 
     /*!
         Sets the lasting face from a script emotion name.
@@ -802,9 +818,30 @@ Node {
     // how tall its professor is in ITS units, and the rest of the dimensions
     // follow from it. Everything Character offers - speech, the arms the
     // gesture drives, the activity - is inherited.
+    /*!
+        Whether the professor is working something out.
+
+        While true the eyes leave whatever they were on and settle off-axis,
+        which is what a person does while recalling something rather than
+        reading it off the listener's face. On a face this boxy it is the
+        only "thinking" signal there is - there is no brow furrow to read at
+        the size a professor stands on a board.
+
+        The gap between being asked for a line and the engine starting it
+        counts as thinking on its own (see the binding below), but that gap
+        is usually milliseconds. A flow that wants a visible beat before an
+        answer has to hold this itself.
+    */
+    property bool thinking: false
+
     ParametricCharacter {
         id: _char
         name: "professor"
+        // Either the flow asked for a thinking beat, or a line has been
+        // requested and the engine has not opened its mouth yet. Composed
+        // rather than bound to one of them, so setting the property from
+        // outside does not sever the automatic half.
+        thinking: root.thinking || (root._saying && !root._sayStarted)
         // The squash is the difference between a model being scaled and a
         // body arriving: it lands wide and low, then stands up.
         scale: {

@@ -230,6 +230,12 @@ Item {
                 basePos: Qt.vector3d((index % 10) * 9 - 40, 0,
                                      -Math.floor(index / 10) * 11)
 
+                // The one thing a crowd must not do is blink together. The
+                // seed is deterministic, so the run is still repeatable - it
+                // is shared by default, which is right for one character and
+                // exactly wrong for forty of them.
+                blinkSeed: index + 1
+
                 activity: root.walking ? Character.Activity.Walking
                                        : Character.Activity.Idle
 

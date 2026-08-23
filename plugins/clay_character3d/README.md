@@ -161,6 +161,42 @@ Character {
 }
 ```
 
+### Eyes: blinking, gaze and thinking
+
+On by default, and it is what stops a face from reading as a mannequin:
+
+```qml
+Character {
+    id: npc
+    autoBlink: true          // default
+    gazeBehaviour: true      // default
+    blinkSeed: 7             // give each of a crowd its own, or they blink in step
+}
+
+npc.lookAt(player.scenePosition)   // eyes first, head after
+npc.thinking = true                // eyes leave the target and settle off-axis
+```
+
+`lookAt()` aims the **head**; `GazeAnim` aims the **eyes inside it**, and the
+difference in when they arrive is the whole effect. The target is mapped
+into the head's own frame, so what comes back is the angle the head has
+*not covered yet* — large while it is still easing round, large again when
+the target is past its 65° limit, and nothing once it has arrived. Point
+the eyes at that residual and they lead on the way out and re-centre on
+arrival, with no second animator racing the first.
+
+`thinking` is the most legible signal a boxy face has for working
+something out — there is no brow furrow to read at ninety pixels. Set it
+around the gap between being asked and answering.
+
+Everything idle here is **deterministic for a given `blinkSeed`**: the
+blink spacing, the wander, the micro-saccades and the direction of an
+aversion. Two runs of a sandbox render identically, which keeps a
+`clayrender` comparison meaningful; two characters with different seeds
+do not, which is what a crowd needs.
+
+Off at `Detail.Minimal` regardless, where there is no eye left to move.
+
 ### Speech with Lip-Sync
 
 Characters can speak text (via text-to-speech when available) or play

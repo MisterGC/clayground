@@ -606,6 +606,56 @@ BodyPartsGroup {
     property string handPose: "relax"
 
     /*!
+        \qmlproperty bool Character::autoBlink
+        \brief Whether the character blinks on its own. On by default.
+
+        Off at \c Detail.Minimal regardless, where there is no eye left to
+        shut. Two characters sharing a \l blinkSeed blink in step, which is
+        the one thing a crowd must not do.
+
+        \sa blinkSeed, Head::blink
+    */
+    property bool autoBlink: true
+
+    /*!
+        \qmlproperty int Character::blinkSeed
+        \brief Which repeatable blink-and-glance rhythm this character gets.
+
+        Everything in the idle face is deterministic for a given seed, so two
+        runs of a sandbox render identically and two characters standing next
+        to each other do not. Give each of a crowd its own.
+    */
+    property int blinkSeed: 1
+
+    /*!
+        \qmlproperty bool Character::gazeBehaviour
+        \brief Whether the eyes move inside the head. On by default.
+
+        Off pins them dead centre, which is how every character looked before
+        this existed.
+
+        \sa lookAt, thinking, GazeAnim
+    */
+    property bool gazeBehaviour: true
+
+    /*!
+        \qmlproperty bool Character::thinking
+        \brief Whether the character is working something out.
+
+        While true the eyes leave whatever they were looking at and settle
+        off-axis, which is what a person does while recalling something
+        rather than reading it off the listener's face. Releasing it brings
+        them back.
+
+        It is the most legible "thinking" signal a face has, and on a boxy
+        one it is the only one - there is no brow furrow to read at ninety
+        pixels. Set it around the gap between being asked and answering.
+
+        \sa gazeBehaviour, lookAt
+    */
+    property bool thinking: false
+
+    /*!
         \qmlproperty string Character::emotion
         \readonly
         \brief The face the character is wearing between lines: "happy",
@@ -963,6 +1013,22 @@ BodyPartsGroup {
             detail: _detail.level === Character.Detail.High ? Head.Detail.High
                   : _detail.level === Character.Detail.Low  ? Head.Detail.Low
                                                             : Head.Detail.Minimal
+
+            // Both of these existed on Head from the day the face became a
+            // shader and neither had anything above it that turned them on,
+            // so every character in the framework stared straight ahead and
+            // never blinked. A face that does not blink stops reading as a
+            // face within a few seconds - it is the cheapest aliveness there
+            // is and it was already paid for.
+            autoBlink: _character.autoBlink && _detail.level !== Character.Detail.Minimal
+            blinkSeed: _character.blinkSeed
+            // The same condition GazeAnim runs under, not just gazeBehaviour:
+            // a stopped ticker holds its last value, so a character dropping
+            // to Minimal mid-glance would freeze with its eyes off to one
+            // side rather than centre them.
+            gaze: (_character.gazeBehaviour
+                   && _detail.level !== Character.Detail.Minimal)
+                  ? _gazeAnim.gaze : Qt.vector2d(0, 0)
         }
 
         // Arms (containing hands)
@@ -1158,6 +1224,27 @@ BodyPartsGroup {
         running: _character.activity == Character.Activity.Idle
                  && !_gestureAnim.holding
         loops: 1
+    }
+
+    // The eyes. GestureAnim aims the HEAD at the look target; this aims the
+    // eyes inside it, which is a different thing arriving at a different
+    // speed - see GazeAnim for why that difference is the whole effect.
+    GazeAnim {
+        id: _gazeAnim
+        head: _head
+        running: _character.gazeBehaviour
+                 && _detail.level !== Character.Detail.Minimal
+        target: _gestureAnim.lookTarget
+        averting: _character.thinking
+        seed: _character.blinkSeed
+        // Half the rate once a character is small enough to be at Low. The
+        // eyes still read there, but this is per-character work on the main
+        // thread and a crowd is where that stops being free.
+        interval: _detail.level === Character.Detail.High ? 33 : 66
+        // A real face nearly always blinks through a large gaze change. It
+        // costs one call and it is the difference between the eyes moving
+        // and the eyes cutting.
+        onSaccaded: if (_character.autoBlink) _head.blink()
     }
 
     GestureAnim {
