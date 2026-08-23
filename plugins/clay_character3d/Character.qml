@@ -130,6 +130,28 @@ BodyPartsGroup {
     property bool speechBodyLanguage: true
 
     /*!
+        \qmlproperty enumeration Character::speechAccuracy
+        \brief How closely a recorded line is analysed for lip-sync.
+
+        \c Speech.Envelope reads loudness only - the shape of the mouth is a
+        guess. \c Speech.Spectral (the default) reads formant bands, so an
+        open vowel opens further than a closed one, a front vowel spreads and
+        a back vowel rounds.
+
+        Not a performance dial: the analysis is a few hundred thousand flops
+        for a whole line, once, before playback starts. What it costs is
+        time-to-first-sound and the samples held while it runs, which is why
+        a barked NPC line and a lecture can want different answers.
+
+        Whatever is asked for, the mouth still moves: an unreadable recording
+        falls back on its own. \l {Speech::effectiveAccuracy} says what the
+        last line actually got.
+
+        \sa Speech
+    */
+    property alias speechAccuracy: _speech.accuracy
+
+    /*!
         \qmlproperty string Character::speechEmotion
         \readonly
         \brief The emotion of the current speech ("happy", "sad", "angry"

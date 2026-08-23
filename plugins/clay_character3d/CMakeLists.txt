@@ -27,6 +27,8 @@ clay_plugin( Character3D
 
     SOURCES
         src/speech.cpp src/speech.h
+        src/visemeanalysis.cpp src/visemeanalysis.h
+        src/visemetimeline.h
 
     RESOURCES
         ${face3d_SHADER}

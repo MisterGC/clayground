@@ -13,15 +13,17 @@
 //    silently at an estimated pace.
 //
 //  * sayAudio(): plays a wav/mp3 via QMediaPlayer while QAudioDecoder
-//    analyzes the samples (RMS envelope for openness, zero-crossing rate
-//    as a crude sibilance hint for wideness). If decoding fails, a
-//    synthetic babble envelope keeps the mouth moving during playback.
+//    analyzes the samples. How closely it looks is set by accuracy - see
+//    the Accuracy enum. If decoding fails, a synthetic babble envelope
+//    keeps the mouth moving during playback.
 //
 // A ~60 Hz ticker smooths the raw viseme targets with asymmetric
 // attack/release so the mouth snaps open and relaxes closed.
 
 #ifndef CLAY_CHARACTER3D_SPEECH_H
 #define CLAY_CHARACTER3D_SPEECH_H
+
+#include "visemetimeline.h"
 
 #include <QElapsedTimer>
 #include <QObject>
@@ -44,24 +46,6 @@ class QTextToSpeech;
 QT_END_NAMESPACE
 #endif
 
-// One step on the mouth-shape timeline; values are targets in [0,1].
-struct VisemeKey
-{
-    qint64 ms = 0;
-    float  open = 0.f;
-    float  wide = 0.f;
-    float  round = 0.f;
-};
-
-// Timeline plus the mapping from character offsets in the source text to
-// timeline positions (used to re-sync on TTS word callbacks).
-struct VisemeTimeline
-{
-    QVector<VisemeKey> keys;
-    QVector<QPair<qsizetype, qint64>> wordMarks; // (char offset, ms)
-    qint64 durationMs = 0;
-};
-
 class Speech : public QObject
 {
     Q_OBJECT
@@ -79,8 +63,33 @@ class Speech : public QObject
     Q_PROPERTY(qreal   rate        READ rate        WRITE setRate   NOTIFY rateChanged)
     Q_PROPERTY(qreal   pitch       READ pitch       WRITE setPitch  NOTIFY pitchChanged)
     Q_PROPERTY(bool    ttsAvailable READ ttsAvailable CONSTANT)
+    Q_PROPERTY(Accuracy accuracy READ accuracy WRITE setAccuracy NOTIFY accuracyChanged)
+    Q_PROPERTY(Accuracy effectiveAccuracy READ effectiveAccuracy NOTIFY effectiveAccuracyChanged)
 
 public:
+    // How hard the audio path works at reading a mouth out of a recording.
+    //
+    // The tiers are NOT about CPU. A 512-point transform every 16 ms is a few
+    // hundred thousand flops for a whole line, well under the decode that
+    // produced the samples. What separates them is latency (analysis finishes
+    // before playback starts, so it is time-to-first-sound), retained memory,
+    // and - for anything above Spectral - whether the caller had a transcript
+    // to give.
+    //
+    // Whatever is asked for, no tier leaves the mouth dead: each falls back to
+    // the one below when its input is missing or unreadable, and Envelope is
+    // the floor. Read effectiveAccuracy for what actually ran.
+    enum Accuracy
+    {
+        // Loudness and zero crossings, streamed, nothing retained. Says how
+        // far the jaw dropped and nothing about the shape of the mouth.
+        Envelope,
+        // Formant bands: an open vowel opens further than a closed one, a
+        // front vowel spreads, a back vowel rounds, a fricative narrows.
+        Spectral
+    };
+    Q_ENUM(Accuracy)
+
     explicit Speech(QObject *parent = nullptr);
     ~Speech() override;
 
@@ -104,6 +113,12 @@ public:
     void  setPitch(qreal p);
 
     bool ttsAvailable() const;
+
+    Accuracy accuracy() const { return accuracy_; }
+    void setAccuracy(Accuracy a);
+    // What the last line actually got, which is only the same thing when the
+    // audio could carry it.
+    Accuracy effectiveAccuracy() const { return effectiveAccuracy_; }
 
     // Says text or plays an audio file, depending on what the string
     // looks like (existing file / url / known audio extension => audio).
@@ -132,6 +147,8 @@ signals:
     void volumeChanged();
     void rateChanged();
     void pitchChanged();
+    void accuracyChanged();
+    void effectiveAccuracyChanged();
     void started();
     void finished();
 
@@ -157,6 +174,8 @@ private:
     void onDecoderBufferReady();
     void onDecoderFinished();
     void buildBabbleTimeline(qint64 durationMs);
+    VisemeTimeline envelopeTimeline() const;
+    void setEffectiveAccuracy(Accuracy a);
 
 #ifdef CLAY_CHARACTER3D_HAS_TTS
     void ensureTts();
@@ -195,6 +214,15 @@ private:
     QAudioDecoder *decoder_ = nullptr;
     QVector<float> rmsWindows_;
     QVector<float> zcrWindows_;
+    // Retained only above Envelope, so the cheap tier keeps exactly the memory
+    // profile it always had. Capped: a line of dialogue is seconds, and the
+    // cap is what stops a music track handed over by mistake from costing
+    // hundreds of megabytes before anyone notices the mistake.
+    QVector<float> analysisSamples_;
+    int    analysisRate_ = 0;
+    bool   analysisTruncated_ = false;
+    Accuracy accuracy_ = Speech::Spectral;
+    Accuracy effectiveAccuracy_ = Speech::Envelope;
     float  maxRms_ = 0.f;
     int    windowMs_ = 33;
     // carry state between decoder buffers

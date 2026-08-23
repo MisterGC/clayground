@@ -178,7 +178,7 @@ Character {
     }
 }
 
-// Recorded dialog line - mouth follows the audio's loudness envelope
+// Recorded dialog line - the mouth follows the recording
 npc.say("dialog/intro.wav")
 
 // Emotional conversation: colors face, voice (TTS pitch/rate) and -
@@ -195,6 +195,12 @@ npc.say("*angry* Get off my ground immediately! " +
 // walking/fighting) and only face and voice carry the emotion
 npc.speechBodyLanguage = false
 
+// How closely a recorded line is read. Spectral (the default) measures
+// formant bands, so vowels get their own shapes; Envelope reads loudness
+// only and is the floor everything else falls back to.
+npc.speechAccuracy = Speech.Envelope
+console.log(npc.speech.effectiveAccuracy)   // what the last line ACTUALLY got
+
 // Advanced configuration
 npc.speech.rate = 0.2     // a bit faster
 npc.speech.volume = 0.8
@@ -208,6 +214,37 @@ while speaking, so characters can smile and talk at the same time.
 For fully manual mouth control, assign any object with `speaking`,
 `mouthOpen`, `mouthWide` and `mouthRound` properties to
 `head.speechSource`.
+
+#### How closely a recording is read
+
+`say()` with a file decodes it in full before playback starts, and how
+hard it looks at what it decoded is `speechAccuracy`:
+
+| Tier | Reads | Gets |
+|---|---|---|
+| `Speech.Envelope` | loudness, zero crossings | how far the jaw dropped |
+| `Speech.Spectral` (default) | formant bands | *which* shape - open/closed, spread/rounded, fricative |
+
+The tiers are **not** a performance dial. A 512-point transform every
+16 ms is a few hundred thousand flops for a whole line, once, which is
+below the noise floor of the decode that produced the samples. What
+separates them is time-to-first-sound and the samples held while the
+analysis runs - so a line barked by an NPC on proximity and a lecture
+delivered to camera can reasonably want different answers.
+
+No tier leaves the mouth dead. A recording the analyser cannot read
+falls back to the one below on its own, and `Envelope` is the floor.
+Read `speech.effectiveAccuracy` for what the last line actually got -
+asking for `Spectral` and getting `Envelope` back is a normal outcome,
+not an error.
+
+What `Spectral` assumes is one close-miked speaker on a reasonably dry
+recording. Against a music bed the formant bands read the instruments,
+and heavy reverb fills in the gaps that mark a closure. Both degrade to
+the envelope rather than to a guess, per-frame, via a confidence gate.
+
+`plugins/clay_character3d/bench/SpeechSandbox.qml` puts both tiers on
+one recording side by side.
 
 ### Gestures
 
