@@ -114,6 +114,8 @@ Model {
     property vector2d mouthHalf: Qt.vector2d(0, 0)
     /*! How far the cavity has opened downward. */
     property real mouthGap: 0
+    /*! 0 a slot, 1 a circle. The shape of a rounded vowel, not just a narrower one. */
+    property real mouthRound: 0
     /*! -1 frown, 0 neutral, 1 smile. */
     property real mouthCornerLift: 0
     property color lipColor: "black"
@@ -169,6 +171,7 @@ Model {
             property vector2d mouthCentre: root.mouthCentre
             property vector2d mouthHalf: root.mouthHalf
             property real mouthGap: root.mouthGap
+            property real mouthRound: root.mouthRound
             property real mouthCornerLift: root.mouthCornerLift
             property color lipColor: root.lipColor
             property color cavityColor: root.cavityColor

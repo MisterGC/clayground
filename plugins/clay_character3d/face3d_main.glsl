@@ -60,6 +60,7 @@ VARYING float vFaceFront;
 // - vec2  mouthCentre      x always 0, y of the upper lip
 // - vec2  mouthHalf        half the mouth's width, and the cavity's closed height
 // - float mouthGap         how far the cavity has opened downward
+// - float mouthRound       0 a slot, 1 a circle - the "oo" of a rounded vowel
 // - float mouthCornerLift  -1 frown, 0 neutral, 1 smile
 
 // Rounded box, signed. Negative inside.
@@ -159,8 +160,20 @@ vec4 drawMouth(vec4 dst, vec2 p) {
 
     // Cavity. Its top edge stays at the lip line and the bottom grows down.
     float halfH = (mouthHalf.y + mouthGap) * 0.5;
-    float dc = sdRoundBox(q - vec2(0.0, -halfH), vec2(mouthHalf.x, halfH),
-                          mouthHalf.y * 0.6);
+
+    // An "oo" is a circle, not a narrower slot. Roundness used to reach only
+    // as far as Head.qml, where it trims the mouth's width - so a rounded
+    // vowel drew the same letterbox as every other shape, just shorter, and
+    // the one viseme a viewer can name at a glance was the one the mouth
+    // could not make.
+    //
+    // Both half-extents come together and the corner radius comes up with
+    // them, so a full round IS a circle of the cavity's own half-height. At
+    // mouthRound 0 every term reduces to what it was, which is what keeps a
+    // neutral mouth exactly where it has always been.
+    vec2  cavHalf = mix(vec2(mouthHalf.x, halfH), vec2(halfH), mouthRound);
+    float rad     = mix(mouthHalf.y * 0.6, halfH, mouthRound);
+    float dc = sdRoundBox(q - vec2(0.0, -halfH), cavHalf, rad);
     dst = over(dst, cavityColor, clayFill(dc));
 
     // The lip line, covering the cavity's top edge so a closed mouth reads as

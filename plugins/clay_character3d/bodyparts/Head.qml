@@ -790,6 +790,9 @@ BodyPartsGroup {
                                * (1 - 0.4 * _head.mouthRound),
                                _mouth.lineH)
         mouthGap: _mouth.gap
+        // Narrowing the mouth (above) is half of a rounded vowel; the cavity
+        // becoming a circle rather than a shorter slot is the other half.
+        mouthRound: _head.mouthRound
         mouthCornerLift: _head.mouthCornerLift
 
         // Kept as named values because the anchors publish them: mouthBottom
