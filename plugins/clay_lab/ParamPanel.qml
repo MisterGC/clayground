@@ -30,6 +30,10 @@ import QtQuick
     \sa Parameter, Lab
 */
 Rectangle {
+
+    // Focus mode is for studying a scene when nothing is being changed, and
+    // this panel is the changing.
+    visible: !LabView.focus
     id: _panel
 
     /*!

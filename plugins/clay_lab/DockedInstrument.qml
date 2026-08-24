@@ -82,7 +82,8 @@ Item {
 
     // A Column skips an invisible child entirely, so this is also what makes
     // the dock close up around a put-away instrument.
-    visible: !_state.dock || _state.dock.isShown(key)
+    // Focus mode stands the instruments down along with the rest of the HUD.
+    visible: !LabView.focus && (!_state.dock || _state.dock.isShown(key))
 
     // The dock is a Column with an explicit width; taking it from the parent
     // is what lets a lab write the instrument without repeating the width.

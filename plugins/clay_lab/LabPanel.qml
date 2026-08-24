@@ -32,6 +32,22 @@ Rectangle {
     id: root
 
     /*!
+        \qmlproperty bool LabPanel::hideOnFocus
+        \brief Whether this panel steps out of the way in \l {LabView::focus}
+               {focus mode}. True for everything but a flow's own overlay.
+    */
+    property bool hideOnFocus: true
+
+    // Opacity and enabled, NOT visible. Labs bind `visible` on their own
+    // panels all the time - a section that is open, a card with something
+    // selected - and assigning it here would be overwritten by every one of
+    // them, silently, in exactly the labs that use the component most.
+    // Nobody binds opacity on a panel.
+    opacity: (LabView.focus && root.hideOnFocus) ? 0 : 1
+    enabled: !(LabView.focus && root.hideOnFocus)
+    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+    /*!
         \qmlproperty string LabPanel::title
         \brief Heading text (already translated).
     */

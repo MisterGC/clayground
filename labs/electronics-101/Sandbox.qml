@@ -2877,7 +2877,7 @@ Item {
     Rectangle {
         id: planScrim
         anchors.fill: parent
-        visible: root.showPlan && root.planMax
+        visible: root.showPlan && root.planMax && !LabView.focus
         z: 49
         color: LabTheme.paper
         opacity: 0.97
@@ -3174,7 +3174,9 @@ Item {
     // column, and this one has to sit ON the drawing.
     Rectangle {
         id: planZoom
-        visible: plan.visible
+        // The panel fades rather than hides (see LabPanel), so anything
+        // declared BESIDE it has to be told about focus itself.
+        visible: plan.visible && !LabView.focus
         z: plan.z + 1
         anchors.right: plan.right
         anchors.bottom: plan.bottom
@@ -3706,7 +3708,9 @@ Item {
         // window: the two were printed on top of each other. Same call the
         // hint bar makes when the Narrator takes the bottom strip - while
         // somebody is teaching, the slot is theirs.
-        visible: !prof.present
+        //
+        // And the clock is a reading, so focus mode takes it as well.
+        visible: !prof.present && !LabView.focus
     }
 
     // --- hint bar ----------------------------------------------------------

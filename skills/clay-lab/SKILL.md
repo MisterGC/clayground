@@ -740,7 +740,7 @@ rotate · `Del` delete · `#` grid mode · `T` flow ·
 `H` takes the next instrument, `P` keeps its reading · `Space` held hands
 the view over (and `Space`/`→` next, `←` back while a flow runs),
 `Backspace` undoes a measured point *while something is in the hand*,
-`Esc` cancel/leave · `Shift+R` record a run ·
+`Esc` cancel/leave · `Tab` focus mode · `Shift+R` record a run ·
 `Ctrl+Plus`/`Ctrl+Minus`/`Ctrl+0` text size · **arrows and `WASD` travel
 across the scene, `Shift`+arrows turn it, `+`/`-` zoom**. A lab may add
 keys, never reassign these — and `W`, `A`, `S` and `D` are as reserved as
@@ -764,6 +764,34 @@ Narrator owns bottom-centre while a flow runs — hide the hint bar then
 (`flow.running`). Hard rule: **text panels are width-capped and elide**
 — a translation is routinely 25% longer than the English it replaced
 (cap against neighboring panels, not `root.width`).
+
+### Focus mode
+
+`Tab` clears the HUD: `LabView.focus` goes true and the instruments,
+panels, plot, compass, clock and switches step out of the way. Only the
+scene and — while a flow runs — the Narrator remain. It is for studying a
+scene when nothing is being changed or measured.
+
+Most of it is automatic. Anything built on `LabPanel` fades on its own, as
+do the kernel's own pieces: `ParamPanel`, `Plot2D`, `WatchMonitor`,
+`InstrumentBelt`, `InstrumentDock`, `DockedInstrument`, `HintBar`,
+`Compass`, `TransportChip` and the three switches. **A lab only wires what
+it built itself** — a scrim, a button declared beside a panel rather than
+inside it — with `visible: !LabView.focus`.
+
+Two rules worth knowing:
+
+- `LabPanel` uses **opacity and `enabled`, not `visible`**. Labs bind
+  `visible` on their own panels constantly (a section that is open, a card
+  with something selected), and a component assigning it would be silently
+  overwritten by exactly the labs that use it most. Nobody binds opacity on
+  a panel.
+- A panel that must survive focus mode sets `hideOnFocus: false`. The
+  Narrator is not a `LabPanel` and stays by construction — a guided lesson
+  without its narration is not a lesson.
+
+The alarm banner deliberately does **not** hide. A short circuit outranks
+whatever you were looking at.
 
 ### Localization
 

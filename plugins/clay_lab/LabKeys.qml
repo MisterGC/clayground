@@ -253,6 +253,7 @@ Item {
         }
         if (scaleKeys) out.push({ key: "⌃+ ⌃− ⌃0", label: "keys.uiscale" })
         if (recorder) out.push({ key: "⇧R", label: "keys.record" })
+        out.push({ key: "⇥", label: "keys.focus" })
         out.push({ key: "Esc", label: "keys.cancel" })
         out.push({ key: "?", label: "keys.help" })
         return out
@@ -365,6 +366,15 @@ Item {
 
         if (ev.key === Qt.Key_R && (ev.modifiers & Qt.ShiftModifier) && recorder) {
             recorder.recording = !recorder.recording
+            return true
+        }
+        // Tab clears the HUD. Photoshop's key for the same act, and the one
+        // letter-free key left in the reserved half - F was already framing
+        // the selection. Accepting it is also what stops Qt walking the focus
+        // chain, which is the other thing Tab does in a Quick scene.
+        if (ev.key === Qt.Key_Backtab
+            || (ev.key === Qt.Key_Tab && !(ev.modifiers & Qt.ControlModifier))) {
+            LabView.toggleFocus()
             return true
         }
         if (ev.key === Qt.Key_Question

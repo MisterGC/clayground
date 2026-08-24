@@ -63,6 +63,10 @@ import Clayground.Lab
     \sa HandheldInstrument, TapeMeasure, Stopwatch, OrbitInput3D
 */
 Item {
+
+    // The belt is how a lab is MEASURED with, and focus mode is for the times
+    // that is not the point.
+    visible: !LabView.focus
     id: root
 
     anchors.fill: parent

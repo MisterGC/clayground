@@ -26,6 +26,10 @@ import QtQuick
     \sa LabTheme, LangSwitch
 */
 Rectangle {
+
+    // See LangSwitch. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
+    visible: !LabView.focus
     id: _switch
 
     implicitWidth: LabTheme.px(26)

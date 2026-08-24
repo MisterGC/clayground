@@ -39,6 +39,12 @@ import QtQuick
     \sa Probe, Plot2D, LabTheme
 */
 Item {
+
+    // The plot IS the sensor tracking, so focus mode - which is for studying
+    // a scene when readings are not the point - takes it with the rest of the
+    // HUD. Kernel-side rather than per-lab: every lab that watches anything
+    // has one of these, and the next one written should not have to remember.
+    visible: !LabView.focus
     id: root
 
     /*!

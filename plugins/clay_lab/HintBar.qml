@@ -78,7 +78,11 @@ Rectangle {
     anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
     anchors.bottomMargin: LabTheme.spaceL
 
-    visible: text !== "" && !(flow && flow.running)
+    // Focus mode takes it too: a line telling you what you could click is
+    // chrome about interaction, and focus mode is for when you are not
+    // interacting. The alarm banner is deliberately NOT treated this way -
+    // a short circuit outranks whatever you were trying to look at.
+    visible: text !== "" && !(flow && flow.running) && !LabView.focus
     width: _hint.width + LabTheme.px(30)
     height: LabTheme.px(26)
     radius: LabTheme.px(6)

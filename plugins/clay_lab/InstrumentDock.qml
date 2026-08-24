@@ -57,6 +57,9 @@ import QtQuick
     \sa DockedInstrument, InstrumentScale, LabPanel
 */
 Item {
+
+    // Same as the belt: instruments are what focus mode is standing down.
+    visible: !LabView.focus
     id: root
 
     /*!

@@ -34,6 +34,10 @@ import QtQuick
     \sa Probe, Lab, WatchMonitor
 */
 Rectangle {
+
+    // A plot is a readout, and focus mode is for when readings are not the
+    // point.
+    visible: !LabView.focus
     id: _plot
 
     /*!

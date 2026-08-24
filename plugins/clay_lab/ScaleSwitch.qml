@@ -35,6 +35,10 @@ import QtQuick
     \sa LabTheme, ThemeSwitch, LangSwitch
 */
 Row {
+
+    // See LangSwitch. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
+    visible: !LabView.focus
     id: root
 
     /*!

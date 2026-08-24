@@ -21,6 +21,9 @@ import QtQuick
     \sa LabLang
 */
 Row {
+
+    // Language, scale and theme change nothing about the experiment. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
     id: _switch
 
     /*!
@@ -29,7 +32,7 @@ Row {
     */
     property var languages: LabLang.languages
 
-    visible: languages.length > 1
+    visible: languages.length > 1 && !LabView.focus
     spacing: LabTheme.spaceM
 
     Repeater {
