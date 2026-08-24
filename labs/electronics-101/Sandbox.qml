@@ -3475,9 +3475,18 @@ Item {
     // --- watch marks -------------------------------------------------------
     // A tag in the curve's own colour, so "which line is which part" is read
     // off the board instead of guessed from the legend order.
+    //
+    // The tag is a CALLOUT, the way a technical illustration does one: a dot
+    // on the thing, a thin leader, and the text somewhere there is room for
+    // it. That is what lets the text move out of the teacher's way without
+    // taking the answer to "labelled what?" with it - the first version just
+    // slid the whole tag sideways and left the reader to guess which part it
+    // had come from.
     Repeater {
         model: root.watch
-        WatchMark {
+        Item {
+            id: cell
+            anchors.fill: parent          // so children are placed in overlay coords
             readonly property int pid: modelData
             // the projection needs the camera's own scene transform listed, or
             // the binding freezes the moment the rig moves
@@ -3488,23 +3497,117 @@ Item {
                 return view3d.mapFrom3DScene(Qt.vector3d(
                     root.cellX(e.col), 6.0, root.cellZ(e.row)))
             }
-            monitor: root.watchMonitor
-            target: pid
-            label: { root.elemRev; return root.partLabel(pid) }
-            visible: screenAt.z > 0 && root.isWatched(pid)
-            // Where it would go, then out of the teacher's way if that is
-            // where the teacher is standing.
-            readonly property point placed: {
-                const bx = Math.max(2, Math.min(root.width - width - 2,
-                                                screenAt.x - width / 2))
+            readonly property bool shown: screenAt.z > 0 && root.isWatched(pid)
+
+            // Whether the tag is currently stepped out of the way, and that
+            // is the whole of the fix for the jumping: the teacher breathes,
+            // so the rect being dodged shifts a pixel every frame, and a tag
+            // sitting on the boundary flipped back and forth for as long as
+            // it stood there. Once moved it stays moved until the natural
+            // spot is clear by a wide margin, not merely clear.
+            //
+            // ONE alternative place, not a choice of two. The first version
+            // stepped left or right, which gave the flip-flop somewhere to
+            // flip TO, and kept the tag at its natural height - which is
+            // exactly where the speech bubble hangs, so a tag dodging the
+            // head landed on the narration instead. Below the part is board,
+            // and the bubble is never there.
+            property bool aside: false
+            property real markX: 0
+            property real markY: 0
+
+            readonly property real _engage: LabTheme.px(4)
+            readonly property real _release: LabTheme.px(26)
+
+            function reposition() {
+                if (!shown) return
+                const w = mark.width, h = mark.height
+                if (w <= 0 || h <= 0) return
+                const nx = Math.max(2, Math.min(root.width - w - 2,
+                                                screenAt.x - w / 2))
                 // steps aside for the value label when V is on
-                const by = Math.max(2, Math.min(root.height - height - 2,
-                                                screenAt.y - height
+                const ny = Math.max(2, Math.min(root.height - h - 2,
+                                                screenAt.y - h
                                                 - (root.showValues ? LabTheme.px(23) : 0)))
-                return root.dodgeProf(bx, by, width, height)
+                const r = root.profHeadRect
+                if (!r) { aside = false; markX = nx; markY = ny; return }
+
+                const m = aside ? _release : _engage
+                const hit = !(nx + w <= r.x - m || nx >= r.x + r.w + m ||
+                              ny + h <= r.y - m || ny >= r.y + r.h + m)
+                if (!hit) { aside = false; markX = nx; markY = ny; return }
+
+                aside = true
+                markX = nx
+                markY = Math.min(root.height - h - 2,
+                                 screenAt.y + LabTheme.px(18))
             }
-            x: placed.x
-            y: placed.y
+
+            onScreenAtChanged: reposition()
+            onShownChanged: reposition()
+            Component.onCompleted: reposition()
+            Connections {
+                target: root
+                function onProfHeadRectChanged() { cell.reposition() }
+                function onShowValuesChanged() { cell.reposition() }
+            }
+
+            // The leader is drawn when the tag has been STEPPED ASIDE, not
+            // when it happens to be far from its part. Sitting in its natural
+            // place the tag is already directly above the part and the two
+            // are a tag's own height apart - a distance test there sits right
+            // on its own threshold and blinks the line on and off.
+            //
+            // It starts at the dot, which is the first thing in the Row and
+            // the end of the callout that carries the series colour.
+            readonly property real _dotX: markX + LabTheme.px(5.5)
+            readonly property real _dotY: markY + mark.height * 0.5
+            readonly property real leadDX: screenAt.x - _dotX
+            readonly property real leadDY: screenAt.y - _dotY
+            readonly property real leadLen: Math.sqrt(leadDX * leadDX + leadDY * leadDY)
+            readonly property bool leading: cell.shown && cell.aside
+
+            // The leader, and the dot it lands on. Drawn before the tag so the
+            // line runs under it rather than across its face.
+            Rectangle {
+                visible: cell.leading
+                x: cell._dotX
+                y: cell._dotY
+                width: cell.leadLen
+                height: Math.max(1, LabTheme.px(1.5))
+                color: mark.tone
+                opacity: 0.85
+                antialiasing: true
+                transformOrigin: Item.Left
+                rotation: Math.atan2(cell.leadDY, cell.leadDX) * 180 / Math.PI
+            }
+            Rectangle {
+                visible: cell.leading
+                width: LabTheme.px(7); height: width; radius: width / 2
+                x: cell.screenAt.x - width / 2
+                y: cell.screenAt.y - height / 2
+                color: mark.tone
+                border.color: LabTheme.panel
+                border.width: Math.max(1, LabTheme.px(1))
+                antialiasing: true
+            }
+
+            WatchMark {
+                id: mark
+                monitor: root.watchMonitor
+                target: cell.pid
+                label: { root.elemRev; return root.partLabel(cell.pid) }
+                visible: cell.shown
+                x: cell.markX
+                y: cell.markY
+                // Eased, so a side change reads as the label stepping aside
+                // rather than teleporting, and any pixel of residual jitter
+                // becomes motion too small to notice.
+                Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+                Behavior on y { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+                onWidthChanged: cell.reposition()
+                onHeightChanged: cell.reposition()
+            }
         }
     }
 
