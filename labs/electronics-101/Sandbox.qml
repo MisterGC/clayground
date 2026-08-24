@@ -700,39 +700,43 @@ Item {
         if (!h) return null
         const hp = h.scenePosition
         if (!hp) return null
-        const base = view3d.mapFrom3DScene(hp)
-        const top = view3d.mapFrom3DScene(
+        // Feet and crown, so the keep-out is the WHOLE FIGURE rather than the
+        // head alone. Clearing only the head moved a tag off the face and
+        // onto the chest, which is still a label pinned to the one thing the
+        // step is about. A leader makes a longer move free, so there is no
+        // reason to settle for the smaller rectangle.
+        const feet = view3d.mapFrom3DScene(prof.character.scenePosition)
+        const crown = view3d.mapFrom3DScene(
             h.mapPositionToScene(Qt.vector3d(0, h.crownTop, 0)))
         // Behind the lens both come back with a negative z and a screen
         // position in the thousands.
-        if (base.z <= 0 || top.z <= 0) return null
-        const px = Math.abs(base.y - top.y)
-        if (px < 6) return null          // too small to be hidden behind anything
-        const cx = (base.x + top.x) * 0.5
-        const pad = Math.max(4, px * 0.15)
-        return { x: cx - px * 0.6 - pad, y: Math.min(base.y, top.y) - pad,
-                 w: px * 1.2 + pad * 2,  h: px + pad * 2 }
+        if (feet.z <= 0 || crown.z <= 0) return null
+        const px = Math.abs(feet.y - crown.y)
+        if (px < 12) return null         // too small to be hidden behind anything
+        const cx = (feet.x + crown.x) * 0.5
+        const halfW = px * 0.28          // a boxy figure is about this wide
+        const pad = Math.max(4, px * 0.04)
+        return { x: cx - halfW - pad, y: Math.min(feet.y, crown.y) - pad,
+                 w: halfW * 2 + pad * 2, h: px + pad * 2,
+                 footY: Math.max(feet.y, crown.y) }
     }
 
-    // Moves a label out from in front of the professor's head, or leaves it
-    // where it is when it was never on him.
+    // Moves a reading out from in front of the professor, or leaves it where
+    // it is when it was never on him.
+    //
+    // Straight DOWN, past his feet - never left or right. This one is
+    // stateless, so a choice between two sides would flip between them every
+    // time the rect it is dodging shifted a pixel, and the teacher breathes.
+    // One destination cannot flip.
     function dodgeProf(x, y, w, h) {
         const r = root.profHeadRect
         if (!r) return Qt.point(x, y)
         if (x + w <= r.x || x >= r.x + r.w) return Qt.point(x, y)
         if (y + h <= r.y || y >= r.y + r.h) return Qt.point(x, y)
-
-        const left = r.x - w - 6
-        const right = r.x + r.w + 6
-        const fitsLeft = left >= 2
-        const fitsRight = right + w <= root.width - 2
-        if (fitsLeft && (!fitsRight || (x + w * 0.5) < (r.x + r.w * 0.5)))
-            return Qt.point(left, y)
-        if (fitsRight)
-            return Qt.point(right, y)
-        // No room either side - go over the top, and only then give up.
-        const up = r.y - h - 6
-        return up >= 2 ? Qt.point(x, up) : Qt.point(x, y)
+        const below = r.footY + LabTheme.px(12)
+        if (below + h <= root.height - 2) return Qt.point(x, below)
+        const above = r.y - h - LabTheme.px(12)
+        return above >= 2 ? Qt.point(x, above) : Qt.point(x, y)
     }
 
     // The teacher acknowledges a solved task.
@@ -3539,8 +3543,10 @@ Item {
 
                 aside = true
                 markX = nx
+                // Under his FEET, not under the part: the part is what he is
+                // standing at, so anything just below it is still on him.
                 markY = Math.min(root.height - h - 2,
-                                 screenAt.y + LabTheme.px(18))
+                                 r.footY + LabTheme.px(12))
             }
 
             onScreenAtChanged: reposition()

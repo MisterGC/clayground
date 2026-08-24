@@ -1002,14 +1002,58 @@ Node {
         parent: root.parent
         view: root.view
         anchorNode: root
-        // clear of the head, not level with it: at head height the skull
-        // occludes the middle of its own speech bubble
-        // Clear of the head, and further clear the taller the bubble is: the
-        // pill is centred on this point, so a three-line one hangs half its
-        // own height lower than a one-line one and lands on the hair.
-        labelOffset: Qt.vector3d(
-            0, root.standHeight * root._grow
-               * (1.12 + 0.11 * (root._wrapped.split("\n").length - 1)), 0)
+        // Clear of the head at ANY distance, which needs the clearance solved
+        // in the units the bubble is actually sized in.
+        //
+        // The pill is centred on this point and its height is fixed in SCREEN
+        // pixels (see screenHeight below), while this offset is world units
+        // scaled by the figure. Those two disagree the moment the camera
+        // moves: pull back and the offset shrinks on screen while the bubble
+        // does not, so a five-line bubble that cleared the hair in close-up
+        // comes down over the face in a wide shot. The old rule - a world
+        // offset with a per-line fudge - was the right idea in the wrong
+        // units, and it is why the teacher can be found behind its own
+        // speech in the middle of a lesson.
+        //
+        // So: measure how many pixels a world unit is worth where the
+        // professor is standing, and ask for exactly the clearance the pill
+        // needs. Falls back to the old fudge when the projection cannot
+        // answer - behind the lens, or before the view exists.
+        readonly property real _pxPerUnit: {
+            if (!root.view || !root.view.camera) return 0
+            // The camera's transform has to be named or the binding freezes
+            // the moment the rig moves.
+            root.view.camera.scenePosition; root.view.camera.sceneRotation
+            const p = _char.scenePosition
+            const a = root.view.mapFrom3DScene(p)
+            const b = root.view.mapFrom3DScene(Qt.vector3d(p.x, p.y + 1, p.z))
+            if (a.z <= 0 || b.z <= 0) return 0
+            return Math.abs(b.y - a.y)
+        }
+        // Half the pill, plus a gap, in pixels. paddingV is 12 a side.
+        readonly property real _liftPx:
+            (24 * root._wrapped.split("\n").length + 24) * 0.5 + 22
+
+        labelOffset: {
+            const crown = root.standHeight * root._grow
+            const per = _pxPerUnit
+            if (per <= 0.0001)
+                return Qt.vector3d(0, crown * (1.12 + 0.11 *
+                                   (root._wrapped.split("\n").length - 1)), 0)
+            // Clamped to what is actually above the head on screen. Lifting
+            // by the full clearance is right until the professor is high in
+            // frame, where it would push the bubble off the top - and a line
+            // nobody can read is worse than one sitting closer to a hat than
+            // it would like.
+            let lift = _liftPx
+            const crownPt = root.view.mapFrom3DScene(
+                _char.scenePosition.plus(Qt.vector3d(0, crown, 0)))
+            if (crownPt.z > 0) {
+                const room = crownPt.y - _liftPx * 0.45 - 4
+                if (room < 0) lift = Math.max(0, _liftPx + room)
+            }
+            return Qt.vector3d(0, crown + lift / per, 0)
+        }
         text: root._wrapped
         visible: root.line !== "" && root._grow > 0.9
         sizeMode: Label3D.Screen
