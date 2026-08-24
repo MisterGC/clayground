@@ -92,6 +92,17 @@ if(Qt6TextToSpeech_FOUND)
     target_compile_definitions(ClayCharacter3D PRIVATE CLAY_CHARACTER3D_HAS_TTS)
 endif()
 
+# Behaviour suites. GazeAnim and ListenAnim ask their head and speaker for a
+# handful of properties and nothing else, so they are tested against stubs -
+# no built module, no window, no GPU, and it runs on Windows, where a suite
+# that needs the built module cannot (#192).
+clay_add_qml_test(character3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+
+# The head itself needs Canvas3D's C++ Box3DGeometry, so this half loads the
+# built module and is the half Windows has to skip.
+clay_add_qml_test(character3d_head_qml IMPORTS_BUILT_MODULE
+                  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_head)
+
 if(NOT EMSCRIPTEN)
     add_subdirectory(tests)
 endif()

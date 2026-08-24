@@ -82,7 +82,15 @@ QtObject {
         // Wander offsets, held for the length of a dwell.
         property real wx: 0
         property real wy: 0
-        property int rng: Math.max(1, root.seed)
+        // real, not int: a QML int is signed 32-bit, so an LCG whose state
+        // runs to 2^32 wraps NEGATIVE on the way into the property and _rand()
+        // starts returning values outside 0..1. Every offset then exceeds the
+        // cap it was written against - a wander reached 0.47 of the eye's
+        // travel against a 0.34 bound, which is what the QML suite caught.
+        //
+        // Park-Miller keeps every intermediate under 2^53, where a double is
+        // still exact, so this stays deterministic as well as in range.
+        property real rng: Math.max(1, root.seed)
         property bool wasAverting: false
         // Which of the three offset regimes wx/wy currently hold a value for.
         // They mean very different sizes - a wander is a third of the eye's
@@ -95,8 +103,8 @@ QtObject {
 
     // 0..1, and the same sequence every run for a given seed.
     function _rand() {
-        _s.rng = (_s.rng * 1664525 + 1013904223) >>> 0
-        return _s.rng / 4294967296
+        _s.rng = (_s.rng * 16807) % 2147483647
+        return _s.rng / 2147483647
     }
 
     function _clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v) }

@@ -57,12 +57,14 @@ QtObject {
         // Ticks until the next deliberate glance away, and how long it lasts.
         property int untilBreak: 90
         property int breakLeft: 0
-        property int rng: Math.max(1, root.seed)
+        // real, not int - see GazeAnim: a QML int is signed 32-bit and an
+        // LCG state that reaches 2^32 comes back out negative.
+        property real rng: Math.max(1, root.seed)
     }
 
     function _rand() {
-        _s.rng = (_s.rng * 1664525 + 1013904223) >>> 0
-        return _s.rng / 4294967296
+        _s.rng = (_s.rng * 16807) % 2147483647
+        return _s.rng / 2147483647
     }
 
     function _valid(o) { return o !== null && o !== undefined }

@@ -542,10 +542,16 @@ BodyPartsGroup {
         // long before it notices the blink. The spacing wanders by a third
         // either way, from a sequence that is fixed for a given seed rather
         // than from a wall clock.
-        property int _rng: Math.max(1, _head.blinkSeed)
+        // real, not int - see GazeAnim: a QML int is signed 32-bit, so an
+        // LCG state reaching 2^32 comes back out negative and the spacing
+        // factor leaves the range it was written for.
+        property real _rng: Math.max(1, _head.blinkSeed)
         function _next() {
-            _rng = (_rng * 1664525 + 1013904223) >>> 0
-            const f = 0.66 + (_rng / 4294967296) * 0.68
+            _rng = (_rng * 16807) % 2147483647
+            const f = 0.66 + (_rng / 2147483647) * 0.68
+            // The floor is a guard against a blinkInterval set absurdly low,
+            // but it also swallows the variation whole below about 600 ms -
+            // every seed comes out at 400 and the rhythm is a metronome again.
             interval = Math.max(400, Math.round(_head.blinkInterval * f))
         }
         running: _head.autoBlink
