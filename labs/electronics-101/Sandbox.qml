@@ -678,8 +678,91 @@ Item {
         if (cells.length) frameCells(cells)
     }
 
-    // Where the professor is, or is about to be. Null when it is not on stage,
-    // which is every use of the camera outside a flow.
+    // --- keeping the labels off the teacher ---------------------------------
+    //
+    // The part labels are screen-space overlays projected from the board; the
+    // professor is in the scene. Nothing arbitrates between them, and when
+    // they land on each other the label always wins - it is drawn over the
+    // whole view. During a flow that means the one thing the step is about
+    // can be reading its line from behind a chip that says LED.
+    //
+    // A label is an annotation and the teacher is the subject, so the label
+    // is what moves. Sideways first: a label sits above the part it names and
+    // keeps that relationship better by staying at its own height than by
+    // climbing over a head.
+    readonly property var profHeadRect: {
+        // Everything the projection depends on has to be named here or the
+        // binding freezes the moment any of it moves.
+        root.elemRev
+        rig.camera.scenePosition; rig.camera.sceneRotation
+        if (!prof.present || !prof.character) return null
+        const h = prof.character.head
+        if (!h) return null
+        const hp = h.scenePosition
+        if (!hp) return null
+        const base = view3d.mapFrom3DScene(hp)
+        const top = view3d.mapFrom3DScene(
+            h.mapPositionToScene(Qt.vector3d(0, h.crownTop, 0)))
+        // Behind the lens both come back with a negative z and a screen
+        // position in the thousands.
+        if (base.z <= 0 || top.z <= 0) return null
+        const px = Math.abs(base.y - top.y)
+        if (px < 6) return null          // too small to be hidden behind anything
+        const cx = (base.x + top.x) * 0.5
+        const pad = Math.max(4, px * 0.15)
+        return { x: cx - px * 0.6 - pad, y: Math.min(base.y, top.y) - pad,
+                 w: px * 1.2 + pad * 2,  h: px + pad * 2 }
+    }
+
+    // Moves a label out from in front of the professor's head, or leaves it
+    // where it is when it was never on him.
+    function dodgeProf(x, y, w, h) {
+        const r = root.profHeadRect
+        if (!r) return Qt.point(x, y)
+        if (x + w <= r.x || x >= r.x + r.w) return Qt.point(x, y)
+        if (y + h <= r.y || y >= r.y + r.h) return Qt.point(x, y)
+
+        const left = r.x - w - 6
+        const right = r.x + r.w + 6
+        const fitsLeft = left >= 2
+        const fitsRight = right + w <= root.width - 2
+        if (fitsLeft && (!fitsRight || (x + w * 0.5) < (r.x + r.w * 0.5)))
+            return Qt.point(left, y)
+        if (fitsRight)
+            return Qt.point(right, y)
+        // No room either side - go over the top, and only then give up.
+        const up = r.y - h - 6
+        return up >= 2 ? Qt.point(x, up) : Qt.point(x, y)
+    }
+
+    // The teacher acknowledges a solved task.
+    //
+    // A task step waits for the LEARNER to do something and the flow moves on
+    // the moment it is done. That transition is the only point in a lesson
+    // where the teacher has something to say without saying anything - so it
+    // nods, rather than letting the lesson advance wearing the same blank
+    // face it was waiting with.
+    //
+    // Guarded on running: leaving a lesson mid-task clears waiting too, and
+    // being congratulated for giving up is worse than silence.
+    //
+    // At ROOT scope deliberately. Declared beside the FlowGuide - which lives
+    // inside the View3D - the property belonged to that item while the
+    // handler read it off root, so the guard was undefined every time and the
+    // nod never fired once.
+    property bool _wasWaiting: false
+    Connections {
+        target: root.currentFlow
+        ignoreUnknownSignals: true
+        function onWaitingChanged() {
+            const f = root.currentFlow
+            if (!f) return
+            if (root._wasWaiting && !f.waiting && f.running)
+                prof.nod(6)
+            root._wasWaiting = f.waiting
+        }
+    }
+
     // The angle a lesson is delivered at. The board reads best from 48
     // degrees up (the rig's home), but a face does not: from up there the
     // camera sees the professor's crown and the smile underneath it goes
@@ -689,6 +772,8 @@ Item {
     // alone, exactly as before.
     readonly property real presentPitch: 22
 
+    // Where the professor is, or is about to be. Null when it is not on stage,
+    // which is every use of the camera outside a flow.
     function profSpot() {
         if (!prof.present)
             return null
@@ -3371,8 +3456,11 @@ Item {
                 return view3d.mapFrom3DScene(Qt.vector3d(m.x, 0.6, m.z))
             }
             visible: root.showValues && screenAt.z > 0
-            x: screenAt.x - width / 2
-            y: screenAt.y - height / 2
+            readonly property point placed:
+                root.dodgeProf(screenAt.x - width / 2, screenAt.y - height / 2,
+                               width, height)
+            x: placed.x
+            y: placed.y
             text: {
                 const i = root.sim.wireCurrent ? root.sim.wireCurrent[modelData.id] : null
                 if (i === null || i === undefined) return "?"
@@ -3404,11 +3492,19 @@ Item {
             target: pid
             label: { root.elemRev; return root.partLabel(pid) }
             visible: screenAt.z > 0 && root.isWatched(pid)
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            // steps aside for the value label when V is on
-            y: Math.max(2, Math.min(root.height - height - 2,
-                                    screenAt.y - height
-                                    - (root.showValues ? LabTheme.px(23) : 0)))
+            // Where it would go, then out of the teacher's way if that is
+            // where the teacher is standing.
+            readonly property point placed: {
+                const bx = Math.max(2, Math.min(root.width - width - 2,
+                                                screenAt.x - width / 2))
+                // steps aside for the value label when V is on
+                const by = Math.max(2, Math.min(root.height - height - 2,
+                                                screenAt.y - height
+                                                - (root.showValues ? LabTheme.px(23) : 0)))
+                return root.dodgeProf(bx, by, width, height)
+            }
+            x: placed.x
+            y: placed.y
         }
     }
 

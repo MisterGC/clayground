@@ -51,8 +51,25 @@ prof.faceViewer()             // turns to the camera - says it to the reader
 prof.gesticulate()            // talks with the hands, until told otherwise
 prof.tell("Two in series.")   // bubble + mouth, NO audio
 prof.thumbsUp()               // approval
+prof.nod()                    // acknowledgement, without losing the aim
+prof.lookAt(thing)            // eyes only; null hands them back
+prof.thinking = true          // eyes leave the target while working it out
 prof.vanish()                 // leaves the puff behind
 ```
+
+The face runs itself. It blinks, and its eyes move inside the head rather
+than pointing wherever the head points: `faceViewer()` and `pointAt()` aim
+them along with the body, and because the eyes arrive before the slow body
+turn does, the professor is looking at you before it has finished turning.
+`thinking` sends them off-axis — the only "working it out" signal a face
+this boxy has, since there is no brow furrow to read at the size a
+professor stands on a board. The gap between a line being asked for and the
+engine starting it counts as thinking on its own, but that gap is usually
+milliseconds; a flow that wants a visible beat has to hold the property
+itself.
+
+`nod()` rides on its own rotation channel, so it does not disturb where the
+head is aimed — a nod at someone is still a nod *at* them.
 
 `tell()` is the narration verb. `say()` is the same thing through the
 character plugin's speech engine, which means text-to-speech — right for a

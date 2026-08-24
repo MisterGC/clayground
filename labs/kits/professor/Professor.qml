@@ -471,6 +471,15 @@ Node {
     function lookAt(worldPos) { _char.lookAt(worldPos) }
 
     /*!
+        Nods, without losing whatever the head was looking at.
+
+        The one gesture that means something in a lesson without a word
+        attached: the learner did the thing, and the teacher saw it. Shallow
+        by default - acknowledgement, not assent to a proposal.
+    */
+    function nod(degrees, times) { _char.nod(degrees, times) }
+
+    /*!
         Sets the lasting face from a script emotion name.
 
         The professor's face is its \l mood, so this maps the performance
