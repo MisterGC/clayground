@@ -154,8 +154,10 @@ Item {
             + "\nspeaker     " + (root.speakerIndex === 0 ? "left" : "right")
             + "\nleft  gaze  " + _a.head.gaze.x.toFixed(2) + " " + _a.head.gaze.y.toFixed(2)
             + "   brow " + _a.head.browFlash.toFixed(3)
+            + "   nod " + _a.head.nodAmount.toFixed(1)
             + "\nright gaze  " + _b.head.gaze.x.toFixed(2) + " " + _b.head.gaze.y.toFixed(2)
             + "   brow " + _b.head.browFlash.toFixed(3)
+            + "   nod " + _b.head.nodAmount.toFixed(1)
     }
 
     Label {

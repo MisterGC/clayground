@@ -441,6 +441,92 @@ BodyPartsGroup {
     function blink() { _blinkAnim.restart() }
 
     /*!
+        \qmlproperty vector3d Head::poseEuler
+        \brief Where a body animation is aiming the head.
+
+        The head is the one joint more than one thing has an opinion about.
+        Everywhere else an animation drives \c eulerRotation directly, but an
+        aim and a nod are not alternatives - the nod happens WHILE the aim
+        holds, and has to be given back afterwards without the aim having
+        been forgotten.
+
+        So the animators drive this, momentary things drive \l offsetEuler,
+        and the head adds them to \c baseEuler. Anything animating a head's
+        \c eulerRotation directly is writing to the sum and will have its
+        value overwritten the next time either part changes.
+
+        \sa offsetEuler, nod(), HeadEulerAnim
+    */
+    property vector3d poseEuler: Qt.vector3d(0, 0, 0)
+
+    /*!
+        \qmlproperty vector3d Head::offsetEuler
+        \brief A momentary rotation on top of whatever the head is aiming at.
+
+        Degrees, added to \l poseEuler. A nod, a shake, a tilt - anything
+        that happens and then stops happening without disturbing where the
+        head was pointed.
+
+        \sa poseEuler, nod()
+    */
+    property vector3d offsetEuler: Qt.vector3d(0, 0, 0)
+
+    // BodyPart binds this to baseEuler alone. The head needs the sum, and it
+    // needs it as a BINDING - the animators used to animate eulerRotation
+    // itself, which broke that binding permanently the first time any of
+    // them ran and left anything else wanting a say with nowhere to put it.
+    eulerRotation: Qt.vector3d(_head.baseEuler.x + _head.poseEuler.x
+                                   + _head.offsetEuler.x + _head._nodPitch,
+                               _head.baseEuler.y + _head.poseEuler.y + _head.offsetEuler.y,
+                               _head.baseEuler.z + _head.poseEuler.z + _head.offsetEuler.z)
+
+    /*!
+        \qmlmethod void Head::nod(real degrees, int times)
+        \brief Nods, and gives the head back.
+
+        Down then up, on \l offsetEuler, so it composes with wherever the
+        head is already aimed - a listener can nod at someone it is looking
+        at without losing them.
+
+        \a degrees defaults to 7, which is a backchannel nod rather than a
+        bow; \a times defaults to 1.
+    */
+    function nod(degrees, times) {
+        _nodAnim.stop()
+        _nodAnim.depth = (degrees === undefined ? 7 : degrees)
+        _nodAnim.loops = Math.max(1, times === undefined ? 1 : times)
+        _nodAnim.start()
+    }
+
+    SequentialAnimation {
+        id: _nodAnim
+        property real depth: 7
+        // Down is quicker than up. A nod that returns at the speed it fell
+        // reads as a bounce; the weight is in the drop.
+        NumberAnimation { target: _head; property: "_nodPitch"
+                          to: _nodAnim.depth; duration: 130
+                          easing.type: Easing.OutQuad }
+        NumberAnimation { target: _head; property: "_nodPitch"
+                          to: 0; duration: 210; easing.type: Easing.InOutQuad }
+    }
+
+    // Its own summed channel rather than a writer into offsetEuler: a nod and
+    // a caller's own offset are two things that can be true at once, and
+    // whichever wrote the vector last would otherwise erase the other.
+    property real _nodPitch: 0
+
+    /*!
+        \qmlproperty real Head::nodAmount
+        \readonly
+        \brief How far into a nod the head is, in degrees.
+
+        Its own channel, so it is not readable from \l offsetEuler - which
+        is the point of the two being separate, and worth a property rather
+        than an explanation.
+    */
+    readonly property real nodAmount: _head._nodPitch
+
+    /*!
         \qmlproperty int Head::blinkSeed
         \brief Which irregular-but-repeatable blink rhythm this head gets.
 

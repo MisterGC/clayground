@@ -55,7 +55,7 @@ ProceduralAnim {
         }
 
         // Head looking down at work
-        EulerAnim {
+        HeadEulerAnim {
             target: entity.head
             duration: _useAnim.duration
             from: Qt.vector3d(headTilt, 0, 0)
@@ -144,7 +144,7 @@ ProceduralAnim {
         }
 
         // Head stays looking down
-        EulerAnim {
+        HeadEulerAnim {
             target: entity.head
             duration: _useAnim.duration
             from: Qt.vector3d(headTilt, 0, 0)

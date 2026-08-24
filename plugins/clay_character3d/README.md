@@ -220,12 +220,22 @@ makes it usable on dialogue nobody wrote down.
 `listeningTo` owns the look target while it is set; it and `lookAt()` are
 the same channel by construction.
 
-It does **not** nod yet, and a nod is the signature of listening. The head
-node's rotation has a single writer — the settle animation in
-`GestureAnim`, easing over its whole `settleMs` — and the head's children
-include accessories that parent to it from outside the plugin, so neither
-a second writer nor an inner rotation is available without changing how
-body poses are applied.
+#### The head does two things at once
+
+A nod has to happen *while* an aim holds, and be given back without the
+aim having been forgotten. So the head is the one joint that does not own
+its own rotation:
+
+| Channel | Driven by | For |
+|---|---|---|
+| `Head.poseEuler` | the body animators, via `HeadEulerAnim` | where the head is aimed |
+| `Head.offsetEuler` | anyone | a momentary rotation on top |
+| `Head.nod(deg, times)` | — | the built-in one |
+
+`eulerRotation` is the sum, and a **binding**. Animating a head's
+`eulerRotation` directly writes to that sum and will be overwritten the
+next time any part of it changes — animate `poseEuler` instead. Every
+other joint is unchanged and still uses `EulerAnim` on `eulerRotation`.
 
 ### Speech with Lip-Sync
 

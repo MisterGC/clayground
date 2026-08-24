@@ -42,7 +42,7 @@ ProceduralAnim {
             duration: _gesture.duration
             to: Qt.vector3d(torsoLean, torsoTwist, 0)
         }
-        EulerAnim {
+        HeadEulerAnim {
             target: entity.head
             duration: _gesture.duration
             to: Qt.vector3d(headTilt, 0, headSway)
@@ -76,7 +76,7 @@ ProceduralAnim {
             duration: _gesture.duration
             to: Qt.vector3d(torsoLean, -torsoTwist, 0)
         }
-        EulerAnim {
+        HeadEulerAnim {
             target: entity.head
             duration: _gesture.duration
             to: Qt.vector3d(headTilt, 0, -headSway)

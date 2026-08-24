@@ -23,12 +23,10 @@ import QtQuick
     aligned one, which is what makes this usable on dialogue nobody wrote
     down.
 
-    What it does NOT do yet is nod, and a nod is the signature of listening.
-    The head node's rotation has one writer - the settle animation inside
-    \l GestureAnim, easing over its whole settleMs - and the head's children
-    include accessories that parent to it from outside the plugin, so neither
-    a second writer nor an inner rotation is available without changing how
-    body poses are applied. That is worth doing and it is not this.
+    A nod is the signature of listening, and it needs the head to be able to
+    do two things at once - hold an aim and dip - which is what
+    \l Head::poseEuler and \l Head::offsetEuler are for. A nod here does not
+    disturb where the listener is looking.
 
     \sa Character::listeningTo, GazeAnim, Speech
 */
@@ -85,6 +83,31 @@ QtObject {
         return Qt.vector3d(p.x, p.y + eye, p.z)
     }
 
+    // What a listener does at the end of a phrase. Not every one gets
+    // something: a reaction to all of them is a nodding dog, and the silence
+    // between them is what makes the ones that land read as agreement rather
+    // than as a tic.
+    //
+    // A nod is the strongest of these and the one a viewer names, so it is
+    // the most likely - shallow, because this is acknowledgement and not
+    // assent to a proposal.
+    function _react() {
+        const h = root._valid(root.listener) ? root.listener.head : null
+        if (!root._valid(h))
+            return
+        const r = root._rand()
+        if (r < 0.40) {
+            if (h.nod !== undefined)
+                h.nod(5 + root._rand() * 4, root._rand() < 0.25 ? 2 : 1)
+        } else if (r < 0.62) {
+            if (h.flashBrows !== undefined)
+                h.flashBrows(0.22 + root._rand() * 0.18)
+        } else if (r < 0.80) {
+            if (h.blink !== undefined)
+                h.blink()
+        }
+    }
+
     function _release() {
         if (_valid(root.listener) && root.listener.lookAt !== undefined)
             root.listener.lookAt(null)
@@ -131,16 +154,7 @@ QtObject {
                     _s.inPhrase = false
                     _s.quiet = 0
                     root.phraseEnded()
-                    // Not every boundary gets a reaction. One that does is
-                    // acknowledgement; one on every phrase is a nodding dog.
-                    const r = root._rand()
-                    if (r < 0.45 && root._valid(L.head)) {
-                        if (L.head.flashBrows !== undefined)
-                            L.head.flashBrows(0.22 + root._rand() * 0.18)
-                    } else if (r < 0.75 && root._valid(L.head)
-                               && L.head.blink !== undefined) {
-                        L.head.blink()
-                    }
+                    root._react()
                 }
             } else {
                 _s.inPhrase = false

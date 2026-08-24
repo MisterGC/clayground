@@ -797,6 +797,23 @@ BodyPartsGroup {
     }
 
     /*!
+        \qmlmethod void Character::nod(real degrees, int times)
+        \brief Nods, without losing what the head was looking at.
+
+        Rides on \l Head::offsetEuler, so it composes with the aim a body
+        animation or a \l lookAt() is holding rather than replacing it.
+
+        \a degrees defaults to 7 - a backchannel nod, not a bow - and
+        \a times to 1.
+
+        \sa Head::nod, listeningTo
+    */
+    function nod(degrees, times) {
+        if (_head)
+            _head.nod(degrees, times)
+    }
+
+    /*!
         \qmlmethod void Character::setEmotion(string name)
         \brief Puts a lasting expression on the face: "happy", "sad",
                "angry", or "neutral"/"" for none.

@@ -48,14 +48,16 @@ Item {
     property bool _headHeld: false
 
     Timer {
-        // The character's idle animation writes head.eulerRotation itself and
-        // wins over both a binding and a one-off assignment, so a held turn
-        // has to be re-asserted rather than set once. Re-writing the same
-        // value changes no pixels, so --settle still terminates.
+        // poseEuler, not eulerRotation: the head sums an aim, a momentary
+        // offset and a nod, so assigning the SUM would be overwritten the
+        // next time any part of it moved. The idle animation drives the same
+        // aim channel and still wins, so a held turn is re-asserted rather
+        // than set once. Re-writing the same value changes no pixels, so
+        // --settle still terminates.
         interval: 40
         repeat: true
         running: root._headHeld
-        onTriggered: prof.head.eulerRotation = root._headEuler
+        onTriggered: prof.head.poseEuler = root._headEuler
     }
 
     /*!

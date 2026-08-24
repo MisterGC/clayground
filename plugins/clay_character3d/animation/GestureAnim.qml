@@ -955,7 +955,7 @@ Node {
             easing.type: root._moveEase
             to: _pose.rootEuler
         }
-        EulerAnim {
+        HeadEulerAnim {
             target: root.entity ? root.entity.head : null
             duration: root._msHead
             easing.type: root._moveEase

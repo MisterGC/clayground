@@ -70,6 +70,7 @@ clay_plugin( Character3D
         animation/ListenAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
+        animation/HeadEulerAnim.qml
         animation/PosAndEulerAnim.qml
 
         # Control System

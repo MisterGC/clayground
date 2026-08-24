@@ -12,7 +12,7 @@ ProceduralAnim {
         }
 
         // Reset head and hip (e.g. tilted by UseAnim)
-        EulerAnim {
+        HeadEulerAnim {
             duration: _idleAnim.duration
             target: entity.head
             to: Qt.vector3d(0, 0, 0)
