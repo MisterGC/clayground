@@ -520,6 +520,28 @@ void ClayInspector::processRequest(const QJsonObject& request)
         ++m_reentrantDropped;
         return;
     }
+
+    // The same request, delivered twice, must not be carried out twice.
+    //
+    // A single write to request.json is routinely reported more than once -
+    // a writer truncates and then writes, and QFileSystemWatcher reports
+    // both - so the file is read twice with identical contents. Every action
+    // then ran twice, and the damage depended on the action: a reload
+    // advanced the generation by two, and a request to step thirty frames
+    // stepped sixty. That last one was the dangerous shape, because each
+    // dispatch reset the acknowledgement counter and the answer still said
+    // thirty: the caller was told exactly what it asked for while the
+    // simulation had run twice as far.
+    //
+    // Deduplicated on the caller's own id, which the protocol already
+    // requires to be unique per request and which is already echoed back as
+    // requestId. A request without an id cannot be told apart from a repeat
+    // of itself and is let through, which is the old behaviour.
+    const QString id = request.value("id").toString();
+    if (!id.isEmpty() && id == m_lastRequestId)
+        return;
+    m_lastRequestId = id;
+
     m_inRequest = true;
 
     QString action = request.value("action").toString("snapshot");
