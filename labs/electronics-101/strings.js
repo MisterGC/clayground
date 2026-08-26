@@ -94,6 +94,7 @@ var dict = {
 
         "hint.eraser": "eraser: click parts or wire knots to remove · E exits",
         "hint.actuator": "click the switch to flip it · the pads wire",
+        "hint.actuator.pick": "click to pick this switch · then flip it here or on the card",
         "hint.wiring": "click a second pad — or any wire, to tap into it · right-click or Esc cancels",
         "hint.selected": "R turns the part · Q plots it · Del removes it · drag moves it",
         "hint.selected.free": " (Alt snaps)",
@@ -230,6 +231,7 @@ var dict = {
 
         "hint.eraser": "Radierer: Bauteile oder Knoten anklicken zum Löschen · E beendet",
         "hint.actuator": "Schalter anklicken zum Umlegen · Kontakte verdrahten",
+        "hint.actuator.pick": "anklicken zum Auswählen · dann hier oder auf der Karte schalten",
         "hint.wiring": "zweites Kontaktfeld anklicken — oder einen Draht, um dort abzuzweigen · rechte Taste oder Esc bricht ab",
         "hint.selected": "R dreht das Bauteil · Q stellt es dar · Entf löscht es · ziehen verschiebt",
         "hint.selected.free": " (Alt rastet ein)",

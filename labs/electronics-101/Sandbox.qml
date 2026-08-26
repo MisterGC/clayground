@@ -523,6 +523,15 @@ Item {
         el.on = !el.on
         _touch("none")
     }
+    // Setting beats toggling for a control that shows both states at once: a
+    // pair of chips has to be able to say "on" when on is already true and
+    // mean it, or clicking the lit one turns the switch off.
+    function setSwitch(id, on) {
+        const el = elemAt(id)
+        if (!el || el.type !== "switch" || el.on === on) return
+        el.on = on
+        _touch("none")
+    }
     // Which logic function a gate package performs. The same idiom as a
     // resistor's ohms: the part is one thing you place, and what it does is a
     // property you set on it - printed on the package, and the schematic
@@ -1681,6 +1690,19 @@ Item {
     readonly property bool hoverActuator:
         hoverHit !== null && hoverHit.kind === "actuator"
                           && !root.eraser && hands.empty
+                          // Only once it is the selected part: before that the
+                          // click selects, and a cursor promising a flip would
+                          // be describing the click after next.
+                          && root.selectedId === hoverHit.el
+
+    /*! Over an operable part that is not the one being worked on. The next
+        click selects it rather than operating it, and saying so is what keeps
+        the two-step visible instead of something you discover by clicking
+        twice and noticing. */
+    readonly property bool hoverActuatorIdle:
+        hoverHit !== null && hoverHit.kind === "actuator"
+                          && !root.eraser && hands.empty
+                          && root.selectedId !== hoverHit.el
     property var cursorW: Qt.vector3d(0, 1.9, 0)
     property int selectedId: -1         // -1 = nothing selected
     property bool showValues: false     // V: label every part and every wire
@@ -2314,7 +2336,23 @@ Item {
             // change to what is selected. Toggled on RELEASE like the body
             // click always was, so a press that turns into a camera drag
             // still does not flip anything.
+            // Operating is reserved for the part you have SELECTED. The
+            // card is where a part's state is set - a gate's function, a
+            // resistor's ohms, and now a switch's on/off - and selecting is
+            // how you say which part you are working on. Making the lever
+            // follow the same rule is what stops a click during building from
+            // flipping something: to flip it you must already have picked it.
+            //
+            // First click selects, second operates. The hover affordance says
+            // which of the two the next click is, so the two-step is visible
+            // rather than discovered.
             if (hit.kind === "actuator") {
+                if (root.selectedId !== hit.el) {
+                    root.selectedId = hit.el
+                    dragElem = hit.el
+                    root.currentFlow.takeOver()
+                    return
+                }
                 actuateElem = hit.el
                 root.currentFlow.takeOver()
                 return
@@ -2336,13 +2374,13 @@ Item {
                 dragElem = null; dragged = false
                 return
             }
-            if (dragElem && !dragged) {
-                const el = root.elemAt(dragElem)
-                // The body outside the actuator still works, so a click that
-                // lands just wide of the lever is not a dead click.
-                if (el && el.type === "switch") root.toggleSwitch(dragElem)
-                // a resistor is set with the slider on its selection card
-            }
+            // Nothing else operates on release. A part's state is set on its
+            // card, or through the actuator once the part is selected - the
+            // body click that used to toggle a switch is gone, because it was
+            // the one path that could flip something you had not chosen.
+            //
+            // a resistor is set with the slider on its selection card, a gate
+            // with its function chips, a switch with its on/off pair
             dragElem = null; dragged = false
         }
     }
@@ -3627,6 +3665,48 @@ Item {
                     }
                 }
             }
+            // A switch's state, where a gate's function and a resistor's
+            // ohms already live. The switch was the only stateful part whose
+            // state you changed by touching the 3D object, which is what made
+            // building and operating feel like the same gesture - they were
+            // the same gesture. Everything else about a part is set here.
+            //
+            // Two chips rather than one toggle: a toggle says what will
+            // happen, a pair says what IS. On a part whose whole job is to be
+            // on or off, showing the state is the point.
+            Row {
+                id: switchState
+                visible: selCard.el !== null && selCard.el.type === "switch"
+                height: visible ? implicitHeight : 0
+                spacing: LabTheme.px(3)
+                Repeater {
+                    model: [true, false]
+                    Rectangle {
+                        required property bool modelData
+                        readonly property bool active:
+                            selCard.el !== null && selCard.el.on === modelData
+                        width: (selCard.width - 20 - LabTheme.px(3)) / 2
+                        height: LabTheme.px(20)
+                        radius: LabTheme.px(4)
+                        color: active ? LabTheme.secondary : LabTheme.paper
+                        border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                        border.width: LabTheme.borderWidth
+                        Text {
+                            anchors.centerIn: parent
+                            text: LabLang.t(parent.modelData ? "switch.on" : "switch.off")
+                            color: LabTheme.inkOn(parent.color)
+                            font.pixelSize: LabTheme.fontSmall; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: if (selCard.el)
+                                           root.setSwitch(selCard.el.id, parent.modelData)
+                        }
+                    }
+                }
+            }
+
             // Resistance slider: drag it and the colour bands on the part
             // change with the value, because the bands are the real code.
             Item {
@@ -3794,6 +3874,7 @@ Item {
             // half-drawn is the exact moment the two get confused, and the
             // hint should name what the click under the cursor will do.
             if (root.hoverActuator) return LabLang.t("hint.actuator")
+            if (root.hoverActuatorIdle) return LabLang.t("hint.actuator.pick")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
                 return LabLang.t("hint.selected")

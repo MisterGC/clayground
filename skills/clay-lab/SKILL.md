@@ -800,6 +800,26 @@ Do not signal it by recolouring something that already carries state — the
 switch lever's colour is on/off, so hover *lightens* it rather than changing
 it.
 
+**Where state is set, and why the card usually wins.** A part's state belongs
+on its selection card: a resistor's ohms are a slider there, a gate's
+function a row of chips, a switch's on/off a pair of them. Four concerns,
+four channels — navigate with the right button and `Space`, build with the
+left button in the scene, inspect by selecting, and **operate on the card**.
+The switch was for a while the only stateful part that broke that rule, and
+the result was that building and operating felt like the same gesture,
+because they were.
+
+The card is also the only channel that survives having no pointer, which
+matters: labs are published to the web, and there is no hover on a touch
+screen.
+
+Direct operation in the scene is then a *shortcut*, and it is gated on
+selection — the part you picked is the part that responds. That is what stops
+a click during building from flipping something, without introducing a mode
+to remember: selection is the mode, and it is already visible. Say which of
+the two clicks is next in the hint bar, or the two-step is something the
+learner discovers by clicking twice and noticing.
+
 ### Focus mode
 
 `Tab` clears the HUD: `LabView.focus` goes true and the instruments,
