@@ -1673,6 +1673,14 @@ Item {
     property var wiringFrom: null       // {el, ti} while a wire is dangling
     property bool eraser: false
     property var hoverHit: null         // last hit under the cursor
+
+    /*! True while the cursor is over something that can be OPERATED rather
+        than wired to or dragged. What makes "you can flip this" visible: it
+        drives the cursor, the part's own highlight and the hint bar, so the
+        three cannot say different things. */
+    readonly property bool hoverActuator:
+        hoverHit !== null && hoverHit.kind === "actuator"
+                          && !root.eraser && hands.empty
     property var cursorW: Qt.vector3d(0, 1.9, 0)
     property int selectedId: -1         // -1 = nothing selected
     property bool showValues: false     // V: label every part and every wire
@@ -1689,8 +1697,38 @@ Item {
     }
 
     // world-space hit test against the data model (no per-model picking)
+    // The part of a part you OPERATE, as opposed to the part you wire to.
+    //
+    // A switch is 4.6 wide and its two pads sit at +-3.5 with a 2.3 grab
+    // radius, so the pads reach inward to 1.2 and left a 2.4-wide strip in
+    // the middle as the only place a click toggled rather than started a
+    // wire. On screen that strip is a few pixels: the switch was clumsy to
+    // operate and mostly answered by beginning a connection, which is exactly
+    // what it looked like from the outside.
+    //
+    // So the actuator is a region in its own right, tested BEFORE terminals,
+    // covering the body inboard of the pads. Null for a part that is only
+    // ever wired to - which is every other part today, and the reason this is
+    // a lookup rather than a special case for "switch" in the hit test.
+    function actuatorHalf(type) {
+        if (type === "switch") return Qt.vector2d(2.6, 2.0)
+        return null
+    }
+
     function hitAt(wx, wz) {
-        // terminals first (they sit inside the element radius)
+        // What you can operate wins over what you can wire to. A pad still
+        // wires: the actuator stops short of both of them.
+        for (const el of elements) {
+            const ah = actuatorHalf(el.type)
+            if (!ah) continue
+            const x = cellX(el.col), z = cellZ(el.row)
+            const a = (el.rot || 0) * Math.PI / 180
+            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
+            if (Math.abs(x - wx) < ah.x * c + ah.y * s
+                && Math.abs(z - wz) < ah.x * s + ah.y * c)
+                return { kind: "actuator", el: el.id, type: el.type }
+        }
+        // terminals next (they sit inside the element radius)
         for (const el of elements)
             for (let ti = 0; ti < terminalCount(el.type); ++ti) {
                 const p = terminalPos(el.id, ti)
@@ -2067,8 +2105,14 @@ Item {
                     const b = root.batteryOf(modelData.id)
                     return b !== null && b.overloaded
                 }
-                hovered: root.hoverHit !== null && root.hoverHit.kind === "element"
+                hovered: root.hoverHit !== null
+                         && (root.hoverHit.kind === "element"
+                             || root.hoverHit.kind === "actuator")
                          && root.hoverHit.el === modelData.id
+                // Distinct from `hovered`: the frame says "this part", this
+                // says "this part can be operated, here".
+                actuatorHovered: root.hoverActuator
+                                 && root.hoverHit.el === modelData.id
                 wiringTerminal: {
                     if (root.wiringFrom && root.wiringFrom.el === modelData.id)
                         return root.wiringFrom.ti
@@ -2145,8 +2189,13 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-        cursorShape: nav.cursorShape
+        // A pointing hand is the one cursor everybody already reads as
+        // "this does something when you click it".
+        cursorShape: root.hoverActuator && !pressed ? Qt.PointingHandCursor
+                                                    : nav.cursorShape
         property var dragElem: null
+        // The part being operated by this press, if any.
+        property var actuateElem: null
         property bool dragged: false
         property var pressW: null
         // Alt inverts the current grid mode for the length of one drag
@@ -2261,6 +2310,15 @@ Item {
                 }
                 return
             }
+            // Operating a part is its own gesture: no drag, no wire, no
+            // change to what is selected. Toggled on RELEASE like the body
+            // click always was, so a press that turns into a camera drag
+            // still does not flip anything.
+            if (hit.kind === "actuator") {
+                actuateElem = hit.el
+                root.currentFlow.takeOver()
+                return
+            }
             if (hit.kind === "element") {
                 root.selectedId = hit.el
                 dragElem = hit.el
@@ -2271,8 +2329,17 @@ Item {
         function releaseAt() {
             nav.end()          // a flicked drag coasts to a stop from here
             if (hands.release()) return   // the click was the instrument's
+            if (actuateElem !== null) {
+                const a = root.elemAt(actuateElem)
+                if (a && a.type === "switch") root.toggleSwitch(actuateElem)
+                actuateElem = null
+                dragElem = null; dragged = false
+                return
+            }
             if (dragElem && !dragged) {
                 const el = root.elemAt(dragElem)
+                // The body outside the actuator still works, so a click that
+                // lands just wide of the lever is not a dead click.
                 if (el && el.type === "switch") root.toggleSwitch(dragElem)
                 // a resistor is set with the slider on its selection card
             }
@@ -3723,6 +3790,10 @@ Item {
             // about clicking pads describes something you are not doing
             if (!hands.empty) return LabLang.t(hands.held.hint)
             if (root.eraser) return LabLang.t("hint.eraser")
+            // Above wiring on purpose: pointing at a switch while a wire is
+            // half-drawn is the exact moment the two get confused, and the
+            // hint should name what the click under the cursor will do.
+            if (root.hoverActuator) return LabLang.t("hint.actuator")
             if (root.wiringFrom) return LabLang.t("hint.wiring")
             if (root.selectedId !== -1)
                 return LabLang.t("hint.selected")

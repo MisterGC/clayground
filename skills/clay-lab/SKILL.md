@@ -765,6 +765,41 @@ Narrator owns bottom-centre while a flow runs — hide the hint bar then
 — a translation is routinely 25% longer than the English it replaced
 (cap against neighboring panels, not `root.width`).
 
+### Operating things in the scene
+
+A part you can **operate** needs a hit region of its own, tested before the
+regions that mean something else.
+
+electronics-101's switch is the worked example and the cautionary tale. Its
+body is 4.6 wide; its two wiring pads sit at ±3.5 with a 2.3 grab radius, so
+the pads reached inward to ±1.2 and left a 2.4-wide strip in the middle as
+the only place a click flipped the switch rather than starting a wire. On
+screen that is a few pixels. The switch was clumsy to operate and mostly
+answered by beginning a connection — which is precisely what it looked like
+from the outside, and why it read as a bug in wiring rather than in the
+switch.
+
+The pattern:
+
+- **An actuator region, first in the hit test.** `actuatorHalf(type)`
+  returns half-extents for parts that have one and null for the rest, so the
+  hit test stays a lookup rather than a special case for one type. Operating
+  wins over wiring; the pads still wire because the actuator stops short of
+  them.
+- **Its own gesture.** An actuator press sets no selection, starts no drag
+  and touches no pending wire, and fires on *release* — so a press that
+  turns into a camera drag flips nothing.
+- **Three signals that agree**, all reading one predicate (`hoverActuator`):
+  a pointing-hand cursor, the part's own highlight (`actuatorHovered` on the
+  component — the *lever* lightens, not the case), and a hint-bar line
+  naming what the click will do. The hint outranks the wiring hint: pointing
+  at a switch with a wire half-drawn is the exact moment the two get
+  confused.
+
+Do not signal it by recolouring something that already carries state — the
+switch lever's colour is on/off, so hover *lightens* it rather than changing
+it.
+
 ### Focus mode
 
 `Tab` clears the HUD: `LabView.focus` goes true and the instruments,

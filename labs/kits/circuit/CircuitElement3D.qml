@@ -29,6 +29,11 @@ Node {
     property string mode: ""         // transistor region: off / active / sat
     property string func: "and"      // gate function: and/or/xor/nand/nor/not
     property bool hovered: false
+    /*! The cursor is over this part's actuator - its lever, its button, the
+        bit you operate. Drawn distinctly from \l hovered, which only says the
+        part is under the cursor: a learner asking "can I flip this?" is asking
+        about the lever, not the case. */
+    property bool actuatorHovered: false
     property bool selected: false
     property int wiringTerminal: -1  // terminal glowing during wiring, -1 none
 
@@ -717,7 +722,14 @@ Node {
             Part {
                 width: 3.4; height: 0.65; depth: 1.5
                 position: Qt.vector3d(1.6, -0.32, 0)
-                color: root.switchOn ? LabTheme.forest : LabTheme.clay
+                // Lightened rather than recoloured: the lever's colour is
+                // already carrying on/off, and a hover that changed it would
+                // be answering a question nobody asked.
+                color: root.actuatorHovered
+                       ? Qt.lighter(root.switchOn ? LabTheme.forest
+                                                  : LabTheme.clay, 1.45)
+                       : (root.switchOn ? LabTheme.forest : LabTheme.clay)
+                Behavior on color { ColorAnimation { duration: 90 } }
             }
             eulerRotation.z: root.switchOn ? 0 : 28
             Behavior on eulerRotation.z { NumberAnimation { duration: 120 } }
