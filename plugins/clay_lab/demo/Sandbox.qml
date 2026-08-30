@@ -135,8 +135,9 @@ Rectangle {
     function startFlow(id) { if (id === shelfFlow.flowId) shelfFlow.start() }
 
     // what the watch loop is watching: three traces of the same experiment
-    function traceValue(id) {
-        if (monitor.quantity === "energy")
+    function traceValue(id, q) {
+        const k = q || monitor.quantity
+        if (k === "energy")
             return id === "envelope" ? envelope * envelope : signal * signal
         if (id === "envelope") return envelope
         if (id === "measured") return measurement
@@ -394,7 +395,7 @@ Rectangle {
         idPrefix: "trace."
         quantities: [{ key: "signal", label: "readout.signal", unit: "V" },
                      { key: "energy", label: "readout.energy", unit: "" }]
-        valueOf: (id) => sandbox.traceValue(id)
+        valueOf: (id, q) => sandbox.traceValue(id, q)
         labelOf: (id) => LabLang.t("readout." + id)
         placeholder: LabLang.t("plot.empty")
         windowSeconds: 16

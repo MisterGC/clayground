@@ -86,7 +86,11 @@ Everything below was hand-rolled in two labs before it moved here.
 - **ScenarioBar** — clickable preset chips, each with the one-line reason
   it exists (`scenario.note.<name>`).
 - **WatchMonitor** — watch a thing, get a probe, a colour and a curve;
-  owns probe lifecycle, stable names and the one-quantity-per-axis rule.
+  owns probe lifecycle, stable names and the one-quantity-per-axis rule —
+  which, since traces became `(id, quantity)` pairs (`traceIn`), means one
+  **strip** per traced quantity, stacked on a shared time axis and cursor
+  (`maxStrips`, default 3). A part keeps one colour across strips, so its
+  WatchMark matches every curve it owns.
   **WatchChip** is the per-object toggle that feeds it (watch / watched /
   plot full, the limit read off the monitor), **WatchMark** the dot the
   object then wears in the world, in its curve's colour.

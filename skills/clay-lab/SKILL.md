@@ -178,8 +178,12 @@ Kernel (`import Clayground.Lab`):
 - **`Probe` + `Plot2D`** — time series. `Plot2D.series:
   [{probe, label, color, style, sigmaProbe}]` when the plotted set is
   runtime-chosen; `series: []` draws the placeholder, `null` falls back to
-  all probes. One autoscaled axis ⇒ plot **one quantity at a time** (I/V/P
-  switch pattern), clear samples on switch. `style: "scatter"` for a
+  all probes. One autoscaled axis ⇒ **one quantity per strip**: traces in
+  more than one quantity stack as strips on a shared time axis and cursor
+  (`Plot2D.strips`, fed by `WatchMonitor.traceIn(quantity, id, on)`; the
+  monitor's `valueOf` is `(id, quantityKey)` — a 1-arg lab is refused a
+  second strip rather than given wrong numbers). The single-quantity case
+  renders exactly as before. `style: "scatter"` for a
   quantity that arrives as discrete events — joining fixes with a line
   invents values nobody measured; `sigmaProbe` fills the ±σ band behind a
   curve, so "where it is" and "what that is worth" are one picture.

@@ -150,15 +150,16 @@ Item {
     // itself, and it fails silently as an invisible chip.
     readonly property alias watchMonitor: monitor
 
-    function watchValueOf(roadId) {
-        if (monitor.quantity === "flow") return Traffic.roadRate(simState, roadId)
+    function watchValueOf(roadId, q) {
+        const k = q || monitor.quantity
+        if (k === "flow") return Traffic.roadRate(simState, roadId)
         var n = 0, sum = 0
         for (const c of simState.cars) {
             if (c.kind !== 0) continue
             if (net.lanes[c.idx].roadId !== roadId) continue
             ++n; sum += c.v
         }
-        if (monitor.quantity === "load") return n
+        if (k === "load") return n
         return n ? sum / n : 0
     }
     function isWatched(id) { return monitor.isWatched(id) }
@@ -2191,7 +2192,7 @@ Item {
         plotHeight: LabTheme.px(142)
         windowSeconds: 40
         placeholder: LabLang.t("plot.empty")
-        valueOf: (id) => root.watchValueOf(id)
+        valueOf: (id, q) => root.watchValueOf(id, q)
         labelOf: (id) => root.roadLabel(id)
         revision: root.graphRev
     }
