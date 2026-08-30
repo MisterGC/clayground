@@ -734,8 +734,16 @@ checked against.
 
 ### Canonical key map
 
-`1..9` scenarios · `C` clear · `E` eraser · `V` values · `M` abstract
-view · `Q` watch/plot · `F` frame selection · `0`/`Home` reset view · `R`
+`1..9` scenarios · `C` clear · `E` eraser · `V` cycles the scene-wide
+value attribute (off → first → … → off, the kit's quantity list; a
+one-attribute kit keeps the old binary toggle) · `M` abstract
+view · `Q` watch/plot · `f` jump labels — type the letter to select in
+place (`HintJump`; labs that wire none keep plain `F` framing) · `⇧F`
+frame selection · `0`/`Home` reset view · while something is selected:
+`j`/`k` walk the selection card's control rows, `h`/`l` adjust the
+focused one, `⏎` operates the part's actuator (the lab hands LabKeys a
+`selection:` adapter; `h` belongs to the card under selection and to the
+instrument belt otherwise — nearest context wins, `Esc` releases) · `R`
 rotate · `Del` delete · `#` grid mode · `T` flow ·
 `H` takes the next instrument, `P` keeps its reading · `Space` held hands
 the view over (and `Space`/`→` next, `←` back while a flow runs),
@@ -747,7 +755,13 @@ keys, never reassign these — and `W`, `A`, `S` and `D` are as reserved as
 the arrows, which is why watching moved to `Q`. Key letters stay physical
 across languages.
 The arrows used to turn, which a drag already did well; crossing the scene
-had no key at all, so turning moved onto `Shift`. While a flow runs `→`/`←`
+had no key at all, so turning moved onto `Shift`. `f`/`⇧F` are the map's
+first Shift-differentiated letter pair — f *acquires* a target, ⇧F
+*frames* it — introduced with `HintJump` (keyboard selection: every
+target the lab names gets a 1–2 letter label; typing it selects without
+moving the camera, and an off-screen pick flies, the one sanctioned
+exception). A lab opts in by handing LabKeys a `jump:`; without one,
+plain `F` keeps framing. While a flow runs `→`/`←`
 are the flow's, so the arrows are the camera's only when nothing narrates —
 and `Space` is the flow's too while it runs, which is why the quasimode
 takes it only when nothing is narrating.

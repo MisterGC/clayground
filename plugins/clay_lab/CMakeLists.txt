@@ -41,6 +41,8 @@ clay_plugin( Lab
         FlowChip.qml
         WorldLabel.qml
         SelectionFrame3D.qml
+        HintJump.qml
+        CardFocusRing.qml
         LabStage3D.qml
         LabPanel.qml
         LabKeys.qml

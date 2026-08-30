@@ -68,9 +68,16 @@ Everything below was hand-rolled in two labs before it moved here.
 - **LabPanel** — the titled paper panel every HUD is made of; children
   stack, or set a size and anchor to its `body`.
 - **LabKeys / LabHelp** — the canonical key map (`1..9` presets, `T` flow,
-  `F`/`0` view, `H` takes the next instrument, `P` keeps its reading,
+  `f` jump labels / `⇧F` frame (plain `F` in a jump-less lab), `0` reset,
+  `H` takes the next instrument, `P` keeps its reading,
   `Shift+R` record, `?` help, arrows and `WASD` travel, `Shift`+arrows
-  turn) plus the lab's own keys as data. Declaring a key is what documents
+  turn) plus the lab's own keys as data.
+- **HintJump** — keyboard selection: `f` labels every target the lab
+  names (1–2 home-row letters), typing one selects it in place; off-screen
+  targets become a grouped badge strip and *do* fly on pick. The lab
+  supplies `targets()` (id, world pos, name, group) and wires
+  `jump:` on LabKeys; the letters are physical, the capture follows the
+  pin-prompt guard, and a focus loss puts the labels away. Declaring a key is what documents
   it: `LabHelp` renders the map from the same list, so the two can never
   drift. The six travel letters are reserved and dispatched *after* the
   lab's own keys, so claiming one silently costs a pan direction.
