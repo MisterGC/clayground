@@ -38,6 +38,14 @@ import QtQuick3D
     silently cancels its own move. Direct writes are for the declared initial
     pose (they are adopted as the goal while nothing is animating).
 
+    \section2 Where you have been
+
+    An endless ground has nothing to navigate back by, so the rig keeps two
+    memories. \l pushJump / \l jumpBack / \l jumpForward are vim's jumplist:
+    every deliberate jump records the place it left, travel records nothing.
+    \l frameWithReturn is the shorter loop - dive onto something, press again,
+    and the overview you left comes back exactly.
+
     Example usage:
     \qml
     import Clayground.Canvas3D
@@ -622,6 +630,24 @@ Node {
     */
     function frame(points, pad, angles) {
         if (!points || points.length === 0) return
+        const b = _boundsOf(points)
+        var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
+        // one move, not a setPivot followed by a setDistance: two writes to an
+        // animated rig start two glides that arrive at different times, and the
+        // scene visibly slides while it zooms
+        const aYaw = angles && angles.yaw !== undefined ? angles.yaw : _goal.yaw
+        const aPitch = angles && angles.pitch !== undefined ? angles.pitch : _goal.pitch
+        clearReturn()          // framing IS the reset F comes home from
+        _apply(aYaw, aPitch,
+               (b.radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
+               Qt.vector3d(b.cx, b.cy, b.cz))
+    }
+
+    // What framing works from, split out so \l frameWithReturn can ask "is this
+    // the same selection?" without moving anything. Centre and radius only:
+    // they depend on the points alone, while the pose framing produces also
+    // carries the yaw and pitch the viewer has turned to since.
+    function _boundsOf(points) {
         var minX = Infinity, maxX = -Infinity, minY = Infinity
         var maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
         for (var i = 0; i < points.length; ++i) {
@@ -630,16 +656,8 @@ Node {
             minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
             minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
         }
-        var radius = Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2
-        var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
-        // one move, not a setPivot followed by a setDistance: two writes to an
-        // animated rig start two glides that arrive at different times, and the
-        // scene visibly slides while it zooms
-        const aYaw = angles && angles.yaw !== undefined ? angles.yaw : _goal.yaw
-        const aPitch = angles && angles.pitch !== undefined ? angles.pitch : _goal.pitch
-        _apply(aYaw, aPitch,
-               (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
-               Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2))
+        return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, cz: (minZ + maxZ) / 2,
+                 radius: Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2 }
     }
 
     /*!
@@ -653,17 +671,24 @@ Node {
 
         The verb a lab's own picking calls: the input layer never decides what
         is worth looking at, it only offers the ride.
+
+        A journey, so it \l pushJump s: this is where you were before you dived
+        at something, and \l jumpBack is how you get back.
     */
     function focusOn(what, pad, ms) {
         if (!what) return
-        _travel(ms)
         // Array.isArray, not a duck-typed `length` check: a vector3d HAS a
         // length - it is the method that measures the vector - so the obvious
         // test says "array" for exactly the single point this branch is for.
         const pts = Array.isArray(what) ? what : [what]
         if (pts.length === 0) return
-        if (pts.length === 1) { setPivot(pts[0]); return }
-        frame(pts, pad)
+        // after the guards, so a refused focus leaves no trace on the jumplist
+        pushJump()
+        clearReturn()
+        _travel(ms)
+        if (pts.length === 1) setPivot(pts[0])
+        else frame(pts, pad)
+        _settleJump()
     }
 
     /*!
@@ -672,15 +697,21 @@ Node {
 
         Yaw takes the short way round: a rig turned three times over does not
         unwind on the way to a viewpoint that says \c {yaw: 0}.
+
+        Named places are jumps, so this \l pushJump s - and a name that does not
+        exist does not, because it did not go anywhere.
     */
     function goTo(name, ms) {
         const vp = viewpoints ? viewpoints[name] : undefined
         if (vp === undefined || vp === null) return false
+        pushJump()
+        clearReturn()
         _travel(ms)
         const s = {}
         for (const k in vp) s[k] = vp[k]
         if (s.yaw !== undefined) s.yaw = _nearestYaw(_goal.yaw, s.yaw)
         applyState(s)
+        _settleJump()
         return true
     }
 
@@ -732,6 +763,244 @@ Node {
                s.pitch !== undefined ? s.pitch : _goal.pitch,
                s.distance !== undefined ? s.distance : _goal.distance,
                s.px !== undefined ? Qt.vector3d(s.px, s.py, s.pz) : _goal.pivot)
+    }
+
+    // --- where you have been -----------------------------------------------
+    //
+    // Two kinds of memory, and they are different questions. The jumplist
+    // answers "where was I before this?" over a whole session (vim's Ctrl+O /
+    // Ctrl+I, imported as-is); the return pose answers "where do I go back to
+    // when I am done looking at this?" for one dive.
+    //
+    // Both hold GOAL poses, never the interpolant, for the reason state() does:
+    // a jump taken mid-glide has to remember where the rig was headed, or
+    // coming back lands on whichever frame the key happened to fall on.
+    //
+    // The stacks are REASSIGNED rather than mutated in place, so jumpsBack and
+    // jumpsAhead actually notify - an array pushed into is the same array, and
+    // a binding on its length never fires again.
+
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpDepth
+        \brief How many places back the jumplist remembers.
+
+        Bounded because the alternative is a session-long leak of poses nobody
+        will ever walk back to; the oldest entry falls off the bottom.
+    */
+    property int jumpDepth: 50
+
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpsBack
+        \readonly
+        \brief Places \l jumpBack can still take you.
+    */
+    readonly property int jumpsBack: _back.length
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpsAhead
+        \readonly
+        \brief Places \l jumpForward can still take you.
+    */
+    readonly property int jumpsAhead: _fwd.length
+
+    /*!
+        \qmlproperty bool OrbitCamera3D::hasReturnPose
+        \readonly
+        \brief A \l frameWithReturn dive is open, so the next one comes home.
+
+        What a lab shows in its hint bar, so the second press of the framing key
+        is offered rather than discovered.
+    */
+    readonly property bool hasReturnPose: _returnPose !== null
+
+    property var _back: []
+    property var _fwd: []
+    property var _returnPose: null
+    property var _returnTarget: null
+
+    /*!
+        \qmlmethod void OrbitCamera3D::pushJump()
+        \brief Records the pose the rig is in as a place worth coming back to.
+
+        \l goTo, \l focusOn and \l frameWithReturn call it themselves; anything
+        else that means a \e jump rather than travel calls it first - a lab's
+        reset-the-view key, a flow step that aims the camera, a hint label
+        selected and flown to. Travel deliberately does not: a jumplist that
+        filled up with every drag would have nothing recognisable left in it,
+        which is exactly why vim distinguishes the two.
+
+        Clears the forward list, because history that was walked back and then
+        left is no longer where you are going - unless the jump turns out not to
+        move the rig at all, and then nothing about the memory changes. A key
+        that went nowhere must leave no trace, or the next \l jumpBack answers
+        for a press that did nothing.
+    */
+    function pushJump() {
+        const here = state()
+        _jumpPending = true
+        _jumpPrevFwd = _fwd
+        _fwd = []
+        // the pose already on top is not a place you left - but the entry is
+        // still what _settleJump measures the move against, so the flag says
+        // whether it is ours to take back off again
+        _jumpPushed = _back.length === 0 || !_samePose(_back[_back.length - 1], here)
+        if (!_jumpPushed) return
+        var b = _back.concat([here])
+        if (b.length > Math.max(1, jumpDepth)) b = b.slice(b.length - Math.max(1, jumpDepth))
+        _back = b
+    }
+
+    // Every jump verb ends here: whatever the move did, the recorded pose is on
+    // top of the list, so comparing it against the goal pose says whether the
+    // rig actually went anywhere. It did not for a goTo to the viewpoint you
+    // are standing on, or a focusOn onto what is already centred - and those
+    // must not consume the way forward either.
+    property bool _jumpPending: false
+    property bool _jumpPushed: false
+    property var _jumpPrevFwd: null
+    function _settleJump() {
+        if (!_jumpPending) return
+        _jumpPending = false
+        const pushed = _jumpPushed, prevFwd = _jumpPrevFwd
+        _jumpPrevFwd = null
+        if (_back.length === 0) return
+        if (!_samePose(_back[_back.length - 1], state())) return   // it moved
+        if (pushed) _back = _back.slice(0, _back.length - 1)
+        _fwd = prevFwd ? prevFwd : []
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::jumpBack(int ms)
+        \brief Travels to the place before the last jump; false at the end.
+
+        False is the interesting half: nothing moves and the caller is expected
+        to say so, because a key that silently does nothing reads as broken.
+        The pose being left is put on the forward list, so the walk is
+        reversible by \l jumpForward for as long as no new jump happens.
+    */
+    function jumpBack(ms) {
+        if (_back.length === 0) return false
+        const to = _back[_back.length - 1]
+        _back = _back.slice(0, _back.length - 1)
+        _fwd = _fwd.concat([state()]).slice(-Math.max(1, jumpDepth))
+        clearReturn()
+        _travel(ms)
+        applyState(to)
+        return true
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::jumpForward(int ms)
+        \brief Undoes a \l jumpBack; false when there is nothing ahead.
+    */
+    function jumpForward(ms) {
+        if (_fwd.length === 0) return false
+        const to = _fwd[_fwd.length - 1]
+        _fwd = _fwd.slice(0, _fwd.length - 1)
+        // NOT pushJump(): that clears the forward list, which is the one thing
+        // walking it must not do
+        _back = _back.concat([state()]).slice(-Math.max(1, jumpDepth))
+        clearReturn()
+        _travel(ms)
+        applyState(to)
+        return true
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::frameWithReturn(var points, real pad)
+        \brief Dives onto \a points, and the next call on the same thing comes back.
+
+        The framing key pressed twice is a round trip: dive in to read a value
+        up close, press it again, and the overview you left is restored exactly
+        - including the yaw you had turned to, which is what "exactly" has to
+        mean or the second press is just another reframing.
+
+        \list
+        \li No return pose stored: remembers where you are and frames
+            \a points.
+        \li Stored, and \a points is the same extent again (or nothing is
+            selected at all): flies home and forgets.
+        \li Stored, and \a points is a \e different extent: reframes onto it and
+            \b keeps the original return pose. The loop always closes where it
+            began - walking from part to part is one excursion, not a chain of
+            them, and the way home does not drift with it.
+        \endlist
+
+        Sameness is the extent, not the selection: this layer has never been
+        told what a part is, and the centre and radius of what it was asked to
+        frame is the whole of what it can compare. Two different selections that
+        occupy the same box are one place as far as the camera is concerned,
+        which is also how they look.
+
+        Returns false only when there was nothing to do - no points and no way
+        home. Any jump (\l goTo, \l focusOn, \l jumpBack) and any plain \l frame
+        drops the return pose: those are departures, not the end of an
+        excursion.
+    */
+    function frameWithReturn(points, pad) {
+        const target = points && points.length > 0 ? _boundsOf(points) : null
+        if (_returnPose !== null && (target === null || _sameTarget(target, _returnTarget))) {
+            const home = _returnPose
+            pushJump()             // the close-up is a place too: Ctrl+O dives back in
+            clearReturn()
+            _travel()
+            applyState(home)
+            _settleJump()
+            return true
+        }
+        if (target === null) return false
+        const home = _returnPose !== null ? _returnPose : state()
+        pushJump()
+        _travel()
+        frame(points, pad)         // clears the return pose...
+        _returnPose = home         // ...which is why it is stored afterwards
+        _returnTarget = target
+        _settleJump()
+        return true
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::clearJumps()
+        \brief Forgets everywhere the rig has been.
+
+        For a scene that has been replaced under the camera - a scenario
+        applied, a board cleared - where the recorded poses now describe places
+        in a world that no longer exists. Walking the list cannot do this:
+        \l jumpBack and \l jumpForward only move an entry from one side to the
+        other, which is what makes them reversible.
+    */
+    function clearJumps() {
+        _back = []
+        _fwd = []
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::clearReturn()
+        \brief Forgets the open \l frameWithReturn excursion.
+
+        For a lab that ends one by other means - a scenario change, a scene
+        rebuilt under the camera - where the pose the dive began from no longer
+        describes anywhere the viewer would recognise.
+    */
+    function clearReturn() {
+        _returnPose = null
+        _returnTarget = null
+    }
+
+    function _samePose(a, b) {
+        return Math.abs(a.yaw - b.yaw) < 1e-4 && Math.abs(a.pitch - b.pitch) < 1e-4
+               && Math.abs(a.distance - b.distance) < 1e-4
+               && Math.abs(a.px - b.px) < 1e-4 && Math.abs(a.py - b.py) < 1e-4
+               && Math.abs(a.pz - b.pz) < 1e-4
+    }
+
+    // Relative to the extent's own size, so "the same selection" survives the
+    // float noise of a rebuilt scene without calling two neighbouring parts one
+    // place.
+    function _sameTarget(a, b) {
+        if (!a || !b) return false
+        const eps = Math.max(1e-3, Math.max(a.radius, b.radius) * 0.01)
+        return Math.abs(a.cx - b.cx) < eps && Math.abs(a.cy - b.cy) < eps
+               && Math.abs(a.cz - b.cz) < eps && Math.abs(a.radius - b.radius) < eps
     }
 
     Behavior on yaw {
