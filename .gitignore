@@ -130,3 +130,6 @@ docs/_data/lab_cards.yml
 
 # Narration wav masters stay local; the compressed m4a beside them ship
 labs/*/voice/**/*.wav
+
+# Personal groundwork/process notes - never part of the source tree
+mgc/
