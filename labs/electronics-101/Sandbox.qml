@@ -112,11 +112,12 @@ Item {
     // itself, and it fails silently as an invisible chip.
     readonly property alias watchMonitor: monitor
 
-    function watchValueOf(id) {
+    function watchValueOf(id, q) {
         const s = simOf(id)
+        const k = q || monitor.quantity
         // magnitudes, like the value labels: direction is the chevrons' job
-        if (monitor.quantity === "V") return Math.abs(s.v)
-        if (monitor.quantity === "P") return s.power
+        if (k === "V") return Math.abs(s.v)
+        if (k === "P") return s.power
         return Math.abs(s.i) * 1000
     }
     function isWatched(id) { return monitor.isWatched(id) }
@@ -493,6 +494,7 @@ Item {
         // `watch` is a readonly alias onto the monitor's set - a deleted part
         // leaves through the monitor's own API, never by assigning the alias
         monitor.setWatched(id, false)
+        if (watchLabels[id] !== undefined) setWatchLabel(id, null)
         _touch("both")
         endBatch()
     }
@@ -592,6 +594,7 @@ Item {
         selectedId = -1
         setLogic([], [])
         monitor.clear()
+        watchLabels = ({})
         _touch("both")
     }
 
@@ -800,11 +803,25 @@ Item {
         }
     }
 
-    function frameAll() { frameCells(elements) }
+    // Reset is a jump: 0/Home records where you were, so Ctrl+O undoes it.
+    function frameAll() { rig.pushJump(); frameCells(elements) }
     function frameSetup() { frameAll() }          // the flow's "frame" verb
     function frameSelection() {
         const el = elemAt(selectedId)
-        frameCells(el ? [el] : elements)
+        if (!el) {
+            // ⇧F with nothing selected: an open dive is the thing to close;
+            // failing that, frame the board as it always did
+            if (rig.hasReturnPose) { rig.frameWithReturn(null, 1.0); return }
+            frameCells(elements)
+            return
+        }
+        _boardGuards()
+        // The same ±7 extent frameCells gives a single part, but through the
+        // rig's sticky frame: the first press dives, the second flies back to
+        // the view the dive left - even after reselecting in between.
+        rig.frameWithReturn(
+            [Qt.vector3d(cellX(el.col) - 7, 2, cellZ(el.row) - 7),
+             Qt.vector3d(cellX(el.col) + 7, 2, cellZ(el.row) + 7)], 1.15)
     }
     // The camera verbs a flow (or an agent) can call by name. The rig itself
     // is reachable as `rig`; these exist so a flow's action list reads like
@@ -848,6 +865,9 @@ Item {
         return Object.assign(Lab.viewState(), {
             circuit: circuitState(),
             watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
+            traces: monitor.traces(),
+            valueAttr: valueAttr,
+            watchLabels: Object.assign({}, watchLabels),
             lang: LabLang.lang,
             // which palette sections the reader folded away: a fact about the
             // reader and the room, like the theme, so it survives a reload
@@ -880,6 +900,16 @@ Item {
         }
         if (s.watchQuantity) monitor.quantity = s.watchQuantity
         if (s.watch) monitor.watchOnly(s.watch.filter(id => elemAt(id) !== null))
+        // pinned strips are exact (id, quantity) pairs, so they win over the
+        // single-quantity watch list an older state carried
+        if (s.traces) monitor.traceOnly(s.traces.filter(t => elemAt(t.id) !== null))
+        if (s.valueAttr !== undefined) valueAttr = s.valueAttr
+        if (s.watchLabels) {
+            const m = {}
+            for (const k in s.watchLabels)
+                if (elemAt(parseInt(k)) !== null) m[k] = s.watchLabels[k]
+            watchLabels = m
+        }
         if (s.cam) {
             rig.applyState(s.cam)
         }
@@ -1378,7 +1408,7 @@ Item {
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
             "watch":      (id, on) => setWatched(id, on),
             "select":     (id) => { selectedId = id },
-            "showValues": (on) => { showValues = on },
+            "showValues": (on) => { valueAttr = on ? "I" : "" },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
             "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
@@ -1705,7 +1735,117 @@ Item {
                           && root.selectedId !== hoverHit.el
     property var cursorW: Qt.vector3d(0, 1.9, 0)
     property int selectedId: -1         // -1 = nothing selected
+    onSelectedIdChanged: cardFocus = 0  // a fresh card starts at its first row
+
+    // --- the card as a keyboard target (j/k walk, h/l adjust, ⏎ operates) --
+    // Rows in the card's own visual order; the kit's answer to "what can be
+    // set on this part". The watch chip is a row like any other, so h/l on
+    // it toggles the trace.
+    property int cardFocus: 0
+    function cardRows() {
+        const el = elemAt(selectedId)
+        if (!el) return []
+        const rows = []
+        if (el.type === "switch") rows.push("state")
+        if (el.type === "gate") rows.push("func")
+        if (el.type === "resistor" || el.type === "battery") rows.push("value")
+        if (el.type !== "junction") { rows.push("watch"); rows.push("label") }
+        return rows
+    }
+    readonly property string cardFocusedRow: {
+        elemRev; selectedId; cardFocus
+        const rows = cardRows()
+        return rows.length ? rows[Math.min(cardFocus, rows.length - 1)] : ""
+    }
+    readonly property QtObject cardKeys: QtObject {
+        readonly property bool active: root.selectedId !== -1
+        function moveFocus(d) {
+            const n = root.cardRows().length
+            if (!n) return false
+            root.cardFocus = ((root.cardFocus + d) % n + n) % n   // wraps
+            return true
+        }
+        function adjust(d) {
+            const el = root.elemAt(root.selectedId)
+            if (!el) return false
+            const row = root.cardFocusedRow
+            if (row === "state") { root.setSwitch(el.id, !el.on); return true }
+            if (row === "func") {
+                const i = root.gateFuncs.indexOf(el.func || "and")
+                const n = root.gateFuncs.length
+                root.setGateFunc(el.id, root.gateFuncs[((i + d) % n + n) % n])
+                return true
+            }
+            if (row === "value") {
+                if (el.type === "battery") {
+                    const v = (el.value || root.defaultVolts) + d * 0.5
+                    root.setBatteryVolts(el.id, Math.max(1.5, Math.min(12, v)))
+                } else {
+                    const s = root.resistorStepOf(el.value) + d
+                    root.setResistanceStep(el.id,
+                        Math.max(0, Math.min(root.resistorSteps.length - 1, s)))
+                }
+                return true
+            }
+            if (row === "watch") { root.toggleWatch(el.id); return true }
+            if (row === "label") {
+                const cyc = ["", "I", "V", "P"]
+                const cur = root.watchLabels[el.id] || ""
+                root.setWatchLabel(el.id,
+                    cyc[((cyc.indexOf(cur) + d) % cyc.length + cyc.length) % cyc.length])
+                return true
+            }
+            return false
+        }
+        function operate() {
+            const el = root.elemAt(root.selectedId)
+            if (!el || !root.actuatorHalf(el.type)) return false
+            root.toggleSwitch(el.id)
+            return true
+        }
+    }
+    // V cycles the scene-wide watch attribute: off → I → V → P → off, in the
+    // monitor's own quantity order (the kit's list, per groundwork D5). The
+    // bool survives as a two-way twin so every read-site, flow verb and
+    // committed figure script (`showValues = true`) keeps meaning something:
+    // turning the bool on lights the first attribute, turning any attribute
+    // on sets the bool.
+    property string valueAttr: ""
     property bool showValues: false     // V: label every part and every wire
+    onShowValuesChanged: {
+        if (showValues && valueAttr === "") valueAttr = "I"
+        else if (!showValues) valueAttr = ""
+    }
+    onValueAttrChanged: showValues = valueAttr !== ""
+    function cycleValueAttr() {
+        const cyc = ["", "I", "V", "P"]
+        valueAttr = cyc[(cyc.indexOf(valueAttr) + 1) % cyc.length]
+    }
+    // One reading, any attribute - the value labels, the per-part tags and
+    // the card all speak through this, so they cannot disagree.
+    function readingOf(id, attr) {
+        const s = simOf(id)
+        if (attr === "V") return fmtV(Math.abs(s.v))
+        if (attr === "P") return LabLang.qty(s.power, "W", 2)
+        return fmtA(Math.abs(s.i))
+    }
+    // The kit's severity band (groundwork D1): current above the cell's
+    // rating warns; these parts have no rated voltage or power, so only I
+    // has a band. An alarming reading is formatted, never hidden.
+    function severityOf(id, attr) {
+        if (attr === "I" && Math.abs(simOf(id).i) > ratedCurrent) return "warn"
+        return "ok"
+    }
+
+    // --- per-part watch tags (one value on one part, set from its card) ----
+    // The middle rung of the persistence ladder: cheaper than a trace (no
+    // probe, no history), longer-lived than a selection. id → attribute.
+    property var watchLabels: ({})
+    function setWatchLabel(id, attr) {
+        const m = Object.assign({}, watchLabels)
+        if (!attr) delete m[id]; else m[id] = attr
+        watchLabels = m
+    }
     property bool showPlan: true        // M: the schematic minimap
     // Z: the same schematic, filling the window. Not a second view - the same
     // canvas, given room. A diagram the size of a postage stamp can only show
@@ -2640,11 +2780,13 @@ Item {
                     width: parent.width - LabTheme.spaceL
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
-                    text: LabLang.t(root.showValues ? "btn.values.on" : "btn.values.off")
+                    text: root.showValues
+                          ? LabLang.t("btn.values.on") + " · " + root.valueAttr
+                          : LabLang.t("btn.values.off")
                     color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
                     font.family: LabTheme.monoFont
                 }
-                MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
+                MouseArea { anchors.fill: parent; onClicked: root.cycleValueAttr() }
             }
             Rectangle {
                 width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
@@ -3459,7 +3601,12 @@ Item {
             height: LabTheme.px(20)
             radius: LabTheme.px(5)
             color: LabTheme.panel
-            border.color: LabTheme.panelEdge; border.width: LabTheme.px(1)
+            readonly property string sev: {
+                root.elemRev; root.sim
+                return root.severityOf(modelData.id, root.valueAttr)
+            }
+            border.color: sev === "warn" ? LabTheme.alarm : LabTheme.panelEdge
+            border.width: LabTheme.px(1)
             opacity: 0.94
             Text {
                 id: valueText
@@ -3467,16 +3614,18 @@ Item {
                 // magnitudes only: direction is what the chevrons are for,
                 // and a signed reading here only invites "why is it minus?"
                 text: {
-                    const s = root.simOf(modelData.id)
-                    return root.fmtA(Math.abs(s.i)) + "  " + root.fmtV(Math.abs(s.v))
+                    root.elemRev; root.sim
+                    return root.readingOf(modelData.id, root.valueAttr)
                 }
-                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall
+                color: parent.sev === "warn" ? LabTheme.alarm : LabTheme.primary
+                font.pixelSize: LabTheme.fontSmall
                 font.family: LabTheme.monoFont
             }
         }
     }
+    // Wires only carry a current, so their labels ride only that attribute.
     Repeater {
-        model: root.showValues ? root.wires : []
+        model: root.showValues && root.valueAttr === "I" ? root.wires : []
         Text {
             readonly property var screenAt: {
                 root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
@@ -3522,6 +3671,54 @@ Item {
             y: Math.max(2, Math.min(root.height - height - 2,
                                     screenAt.y - height
                                     - (root.showValues ? LabTheme.px(23) : 0)))
+        }
+    }
+
+    // --- per-part watch tags -----------------------------------------------
+    // One value on one part, pinned from its card: the middle rung between
+    // "selected once" and "traced". Wears the trace colour when the part is
+    // also on the plot, the severity tint when its band trips.
+    Repeater {
+        model: Object.keys(root.watchLabels)
+        Rectangle {
+            required property string modelData
+            readonly property int elId: parseInt(modelData)
+            readonly property string attr: root.watchLabels[modelData] || "I"
+            readonly property var screenAt: {
+                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
+                const e = root.elemAt(elId)
+                if (!e) return Qt.vector3d(0, 0, 0)
+                return view3d.mapFrom3DScene(Qt.vector3d(
+                    root.cellX(e.col), 7.6, root.cellZ(e.row)))
+            }
+            readonly property string sev: {
+                root.elemRev; root.sim
+                return root.severityOf(elId, attr)
+            }
+            visible: root.elemAt(elId) !== null && screenAt.z > 0
+                     && !root.labelsHidden
+            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
+            y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
+            width: tagText.width + 12
+            height: LabTheme.px(20)
+            radius: LabTheme.px(5)
+            color: LabTheme.panel
+            border.color: sev === "warn" ? LabTheme.alarm
+                        : root.isWatched(elId) ? root.watchColorOf(elId)
+                        : LabTheme.secondary
+            border.width: LabTheme.px(2)
+            opacity: 0.96
+            Text {
+                id: tagText
+                anchors.centerIn: parent
+                text: {
+                    root.elemRev; root.sim
+                    return parent.attr + " " + root.readingOf(parent.elId, parent.attr)
+                }
+                color: parent.sev === "warn" ? LabTheme.alarm : LabTheme.ink
+                font.pixelSize: LabTheme.fontSmall; font.bold: true
+                font.family: LabTheme.monoFont
+            }
         }
     }
 
@@ -3635,14 +3832,20 @@ Item {
                 height: visible ? implicitHeight : 0
                 columns: 3
                 spacing: LabTheme.px(3)
+                CardFocusRing { on: root.cardFocusedRow === "func" }
                 readonly property real cellW:
                     (selCard.width - 20 - 2 * LabTheme.px(3)) / 3
                 Repeater {
                     model: root.gateFuncs
                     Rectangle {
                         required property string modelData
-                        readonly property bool active:
-                            selCard.el !== null && selCard.el.func === modelData
+                        // elemRev here too: `el` is the same reference after an
+                        // in-place func change, so without it the scene flips
+                        // to OR while this chip keeps highlighting AND
+                        readonly property bool active: {
+                            root.elemRev
+                            return selCard.el !== null && selCard.el.func === modelData
+                        }
                         width: funcGrid.cellW
                         height: LabTheme.px(20)
                         radius: LabTheme.px(4)
@@ -3679,12 +3882,17 @@ Item {
                 visible: selCard.el !== null && selCard.el.type === "switch"
                 height: visible ? implicitHeight : 0
                 spacing: LabTheme.px(3)
+                CardFocusRing { on: root.cardFocusedRow === "state" }
                 Repeater {
                     model: [true, false]
                     Rectangle {
                         required property bool modelData
-                        readonly property bool active:
-                            selCard.el !== null && selCard.el.on === modelData
+                        // same elemRev discipline as the gate chips: `on` is
+                        // mutated in place, the reference never changes
+                        readonly property bool active: {
+                            root.elemRev
+                            return selCard.el !== null && selCard.el.on === modelData
+                        }
                         width: (selCard.width - 20 - LabTheme.px(3)) / 2
                         height: LabTheme.px(20)
                         radius: LabTheme.px(4)
@@ -3713,6 +3921,7 @@ Item {
                 visible: selCard.isResistor || selCard.isBattery
                 width: selCard.width - 20
                 height: visible ? 22 : 0
+                CardFocusRing { on: root.cardFocusedRow === "value" }
 
                 Item {
                     id: rSlider
@@ -3815,6 +4024,47 @@ Item {
                         ? selCard.el.id : undefined
                 labels: ({ add: "card.watch", on: "card.watched",
                            full: "card.watch.full" })
+                CardFocusRing { on: root.cardFocusedRow === "watch" }
+            }
+            // Pin one attribute to this part as a tag in the scene - the
+            // watch rung: no probe, no history, just a reading that stays.
+            Row {
+                id: tagChips
+                visible: selCard.el !== null && selCard.el.type !== "junction"
+                height: visible ? implicitHeight : 0
+                spacing: LabTheme.px(3)
+                CardFocusRing { on: root.cardFocusedRow === "label" }
+                Text {
+                    text: LabLang.t("card.tag")
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
+                    font.family: LabTheme.handFont
+                }
+                Repeater {
+                    model: ["", "I", "V", "P"]
+                    Rectangle {
+                        required property string modelData
+                        readonly property bool active: selCard.el !== null
+                            && (root.watchLabels[selCard.el.id] || "") === modelData
+                        width: LabTheme.px(24); height: LabTheme.px(20)
+                        radius: LabTheme.px(4)
+                        color: active ? LabTheme.secondary : LabTheme.paper
+                        border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                        border.width: LabTheme.borderWidth
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData === "" ? "–" : parent.modelData
+                            color: LabTheme.inkOn(parent.color)
+                            font.pixelSize: LabTheme.fontSmall; font.bold: true
+                            font.family: LabTheme.monoFont
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: if (selCard.el)
+                                root.setWatchLabel(selCard.el.id, parent.modelData)
+                        }
+                    }
+                }
             }
             Text {
                 text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
@@ -3901,7 +4151,7 @@ Item {
             { key: "P", label: "quantity.power", unit: "W" }]
         windowSeconds: 30
         placeholder: LabLang.t("plot.empty")
-        valueOf: (id) => root.watchValueOf(id)
+        valueOf: (id, q) => root.watchValueOf(id, q)
         labelOf: (id) => root.partLabel(id)
         // a solder dot has no reading of its own
         canWatch: (id) => {
@@ -3911,6 +4161,29 @@ Item {
         // labels carry ordinals (BULB becomes BULB1 when a second one lands),
         // so the legend has to be rebuilt when the board changes
         revision: root.elemRev + root.elements.length
+    }
+
+    // --- keyboard selection ------------------------------------------------
+    // f puts a letter on every part; typing it selects, exactly as a click
+    // would, and the camera holds still (⇧F is the dive). A switch needs no
+    // extra target: its actuator sits at the body centre, so the part's own
+    // chip already labels the lever.
+    function jumpTargets() {
+        return elements.map(el => ({
+            id: el.id,
+            pos: Qt.vector3d(cellX(el.col), 3, cellZ(el.row)),
+            name: partLabel(el.id),
+            group: LabLang.t("code." + el.type)
+        }))
+    }
+
+    HintJump {
+        id: hintJump
+        view: view3d
+        camera: rig.camera
+        rig: rig
+        targets: root.jumpTargets
+        onSelected: (t) => root.selectedId = t.id
     }
 
     // --- keys --------------------------------------------------------------
@@ -3925,10 +4198,13 @@ Item {
         hands: hands
         flow: root.currentFlow
         recorder: recorder
+        jump: hintJump
+        hints: hintBar
+        selection: root.cardKeys
         keys: [
             { key: "C", label: "key.clear", action: () => root.clearBoard() },
             { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
-            { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
+            { key: "V", label: "key.values", action: () => root.cycleValueAttr() },
             { key: "M", label: "key.plan", action: () => {
                 root.showPlan = !root.showPlan
                 if (!root.showPlan) root.planMax = false } },

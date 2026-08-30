@@ -72,6 +72,7 @@ var dict = {
         "card.watch": "plot it (Q)",
         "card.watched": "on the plot ✓",
         "card.watch.full": "plot is full",
+        "card.tag": "tag:",
         "card.hint.resistor": "drag to set Ω · R turn · Del remove",
         "card.hint.battery": "drag to set volts · R turn · Del remove",
         "card.hint.part": "R turn · Del remove · drag to move",
@@ -207,6 +208,7 @@ var dict = {
         "truth.note": "gemessen, nicht abgedruckt — jede Zeile ist diese Schaltung, noch einmal gerechnet",
 
         "card.watch": "aufs Diagramm (Q)",
+        "card.tag": "Schild:",
         "card.watched": "im Diagramm ✓",
         "card.watch.full": "Diagramm ist voll",
         "card.hint.resistor": "ziehen für Ω · R drehen · Entf löschen",
