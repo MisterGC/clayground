@@ -811,4 +811,26 @@ K.section('robustness')
     K.eq('the same board solves to the same numbers', a, c)
 }
 
+
+// --- the board contract (parts.js) ---------------------------------------------
+const Parts = K.load(__dirname, 'parts.js', ['spec', 'catalog', 'DEFAULT_VOLTS'])
+K.section('board spec')
+K.ok('every catalog type has a spec', Parts.catalog.every(c => Parts.spec[c.type] !== undefined))
+K.ok('the junction has two coincident pads at the origin, as the solver models it',
+     Parts.spec.junction.terminals.length === 2 && Parts.spec.junction.terminals.every(t => t.x === 0 && t.y === 0))
+K.ok('two pads in a line is the rule', ['battery', 'switch', 'resistor', 'led', 'bulb', 'diode', 'ammeter', 'voltmeter']
+     .every(t => Parts.spec[t].terminals.length === 2 && Parts.spec[t].terminals[0].x === -3.5))
+K.ok('the transistor has three pads, the base off axis', Parts.spec.transistor.terminals.length === 3 && Parts.spec.transistor.terminals[1].y === 3.5)
+K.ok('the gate is a five-pin package', Parts.spec.gate.terminals.length === 5 && Parts.spec.gate.half.x === 7.0)
+K.ok('only the switch has an actuator', Object.keys(Parts.spec).every(t => (Parts.spec[t].actuator !== null) === (t === 'switch')))
+K.ok('every part carries value, on and func', Object.keys(Parts.spec).every(t => {
+    const f = Parts.spec[t].fields
+    return 'value' in f && 'on' in f && 'func' in f && f.on === false
+}))
+K.ok('defaults: 470 ohm, 4.5 V, a gate answers AND', Parts.spec.resistor.fields.value === 470
+     && Parts.spec.battery.fields.value === Parts.DEFAULT_VOLTS && Parts.spec.gate.fields.func === 'and')
+K.ok('card rows: state / func / value', Parts.spec.switch.rows[0] === 'state' && Parts.spec.gate.rows[0] === 'func'
+     && Parts.spec.resistor.rows[0] === 'value' && Parts.spec.battery.rows[0] === 'value' && Parts.spec.led.rows.length === 0)
+K.ok('the junction takes no plot', Parts.spec.junction.watch === false)
+
 process.exit(K.report('circuit kit'))

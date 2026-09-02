@@ -76,6 +76,14 @@ clay_plugin( Lab
         InstrumentBelt.qml
         Tour.qml
         TourStep.qml
+        board.js
+        Board.qml
+        BoardInput.qml
+        BoardWires3D.qml
+        PartPlacer.qml
+        BoardPalette.qml
+        PartCard.qml
+        BoardOverlay.qml
 
     LINK_LIBS
         Qt::Core
@@ -107,3 +115,6 @@ clay_add_node_test(lab_record  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/record.test.js
 # only exists inside a paint call can only be checked by looking at a picture
 # (#204).
 clay_add_node_test(lab_measure SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/measure.test.js)
+# The board's rules - cell arithmetic, pad rotation, the hit test order, keep-out,
+# serialization - used to live inline in every build lab (#211).
+clay_add_node_test(lab_board   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board.test.js)
