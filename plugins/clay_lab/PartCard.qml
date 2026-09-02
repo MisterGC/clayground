@@ -225,12 +225,16 @@ LabPanel {
                     required property string modelData
                     readonly property bool active: root.part !== null && root.overlay !== null
                         && (root.overlay.tags[root.part.id] || "") === modelData
-                    width: LabTheme.px(24); height: LabTheme.px(20)
+                    // sized to the attribute's name: a one-letter kit gets a
+                    // square chip, a kit that says "flow" gets room for it
+                    width: Math.max(LabTheme.px(24), chipText.implicitWidth + LabTheme.px(10))
+                    height: LabTheme.px(20)
                     radius: LabTheme.px(4)
                     color: active ? LabTheme.secondary : LabTheme.paper
                     border.color: active ? LabTheme.secondary : LabTheme.panelEdge
                     border.width: LabTheme.borderWidth
                     Text {
+                        id: chipText
                         anchors.centerIn: parent
                         text: chip.modelData === "" ? "–" : chip.modelData
                         color: LabTheme.inkOn(chip.color)

@@ -5,7 +5,7 @@
 What a generator owes: the lab it writes is complete, translated, executable
 where it has to be, and free of leftover placeholders - for EVERY kind and
 EVERY purpose in the tree, not for the two that happened to be written first.
-So the matrix here is discovered, never listed: add templates/build/Sandbox.qml
+So the matrix here is discovered, never listed: add templates/<kind>/Sandbox.qml
 and these checks cover it without a line changing.
 
 Pure - no engine, no GPU, no build. That the templates actually LOAD is the
@@ -30,6 +30,10 @@ sys.path.insert(0, TOOLDIR)
 import lab_new as L            # noqa: E402
 
 LAUNCHER = os.path.join(TOOLDIR, "lab-new")
+# The kernel's own chrome is worded once, in LabLang's fallback layer: a key a
+# sandbox shows may come from there rather than from its strings.js.
+KERNEL_DICT = os.path.join(os.path.dirname(os.path.dirname(TOOLDIR)),
+                           "plugins", "clay_lab", "LabLang.qml")
 
 # What every generated lab has, whatever its kind and purpose. A kind that
 # ships without one of these is a kind that cannot be finished.
@@ -76,6 +80,15 @@ def keys_of(src, lang):
     return set(re.findall(r'"((?:[^"\\]|\\.)+)"\s*:', block))
 
 
+def kernel_keys():
+    """The keys LabLang answers for every lab without registration."""
+    try:
+        with open(KERNEL_DICT, encoding="utf-8") as f:
+            return keys_of(f.read(), "en") or set()
+    except OSError:
+        return set()
+
+
 def t_keys(qml):
     """Every dictionary key the sandbox looks up by literal: LabLang.t(),
     LabLang.tf(), the label of a declared key, and a flow step's hint."""
@@ -83,7 +96,9 @@ def t_keys(qml):
     keys |= set(re.findall(r'LabLang\.tf\(\s*"([^"]+)"', qml))
     keys |= set(re.findall(r'\blabel:\s*"([^"]+)"', qml))
     keys |= set(re.findall(r'"hint":\s*"([^"]+)"', qml))
-    return keys
+    # a literal ending in "." is a prefix the lab completes at runtime
+    # (LabLang.t("code." + type)), not a key
+    return {k for k in keys if not k.endswith(".")}
 
 
 def run_cli(*args):
@@ -182,7 +197,7 @@ class TestGeneratedSet(unittest.TestCase):
         for kind, purpose in self.each():
             with self.subTest(kind=kind, purpose=purpose), \
                     TempLab(kind, purpose) as lab:
-                have = keys_of(lab.read("strings.js"), "en")
+                have = keys_of(lab.read("strings.js"), "en") | kernel_keys()
                 for key in sorted(t_keys(lab.read("Sandbox.qml"))):
                     self.assertIn(key, have,
                                   f"Sandbox.qml shows {key} and nothing defines it")
@@ -325,9 +340,9 @@ class TestRefusals(unittest.TestCase):
 
     def test_missing_kind_directory_names_itself(self):
         with self.assertRaises(L.LabNewError) as cm:
-            L.plan_files("build", "learning")
+            L.plan_files("nosuchkind", "learning")
         msg = cm.exception.args[0]
-        self.assertIn(os.path.join(L.TEMPLATES, "build"), msg)
+        self.assertIn(os.path.join(L.TEMPLATES, "nosuchkind"), msg)
 
     def test_missing_purpose_directory_names_itself(self):
         with self.assertRaises(L.LabNewError) as cm:
@@ -380,9 +395,9 @@ class TestCli(unittest.TestCase):
             self.assertNotIn("// clobbered", f.read())
 
     def test_unknown_kind_exits_two_and_names_the_directory(self):
-        code, _out, err = run_cli("heat-101", "--dir", self.tmp, "--kind", "build")
+        code, _out, err = run_cli("heat-101", "--dir", self.tmp, "--kind", "nosuchkind")
         self.assertEqual(code, 2)
-        self.assertIn(os.path.join("templates", "build"), err)
+        self.assertIn(os.path.join("templates", "nosuchkind"), err)
 
     def test_bad_slug_exits_two(self):
         code, _out, err = run_cli("Heat_101", "--dir", self.tmp)

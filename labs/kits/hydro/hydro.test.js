@@ -381,8 +381,8 @@ K.section('the board contract')
     K.eq('a two-terminal body is 4.6 half-wide', P.spec.pipe.half.x, 4.6)
     K.eq('and 3.4 half-deep', P.spec.pipe.half.y, 3.4)
     K.eq('a T-piece is a 2.3 square', P.spec.junction.half.x, 2.3)
-    K.eq('parts keep two cells clear', P.spec.pump.keepOut, 2)
-    K.eq('a T-piece keeps one', P.spec.junction.keepOut, 1)
+    K.ok('the keep-out is left to the board, which derives it from the footprint',
+         P.spec.pump.keepOut === undefined && P.spec.junction.keepOut === undefined)
 
     K.ok('the valve is the only part you operate', !!P.spec.valve.actuator)
     K.eq('its handwheel is 2.6 half-wide', P.spec.valve.actuator.x, 2.6)

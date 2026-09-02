@@ -13,7 +13,8 @@
 //                              // part's plan geometry is 2D)
 //   half:      {x, y},         // body footprint half-extents
 //   actuator:  {x, y} | null,  // operable region, tested BEFORE the pads
-//   keepOut:   2,              // cells of clearance around the part
+//   (the keep-out is the board's: derived from `half`, two pegs for a real
+//   part and one for a T-piece, so it can never disagree with the body)
 //   fields:    {value, on},    // domain state and its defaults per type
 //   rows:      ["state"],      // card rows the domain offers for this type
 //   termNames: ["a", "b"]      // what the pads are, for labels and hints
@@ -37,7 +38,7 @@ function _half() { return { x: HALF_X, y: HALF_Y }; }
 
 var spec = {
     "pump": {
-        terminals: _pair(), half: _half(), actuator: null, keepOut: 2,
+        terminals: _pair(), half: _half(), actuator: null,
         fields: { value: 40, on: false }, rows: ["value"],
         termNames: ["out", "in"]
     },
@@ -46,27 +47,27 @@ var spec = {
         // the one part you operate rather than configure: the handwheel sits
         // in the middle of the body and is tested before the pads, so grabbing
         // the handle never starts a pipe run by accident
-        actuator: { x: 2.6, y: 2.0 }, keepOut: 2,
+        actuator: { x: 2.6, y: 2.0 },
         fields: { value: 0, on: true }, rows: ["state"],
         termNames: ["in", "out"]
     },
     "pipe": {
-        terminals: _pair(), half: _half(), actuator: null, keepOut: 2,
+        terminals: _pair(), half: _half(), actuator: null,
         fields: { value: 8, on: false }, rows: ["value"],
         termNames: ["in", "out"]
     },
     "wheel": {
-        terminals: _pair(), half: _half(), actuator: null, keepOut: 2,
+        terminals: _pair(), half: _half(), actuator: null,
         fields: { value: 0, on: false }, rows: [],
         termNames: ["in", "out"]
     },
     "flowmeter": {
-        terminals: _pair(), half: _half(), actuator: null, keepOut: 2,
+        terminals: _pair(), half: _half(), actuator: null,
         fields: { value: 0, on: false }, rows: [],
         termNames: ["in", "out"]
     },
     "gauge": {
-        terminals: _pair(), half: _half(), actuator: null, keepOut: 2,
+        terminals: _pair(), half: _half(), actuator: null,
         fields: { value: 0, on: false }, rows: [],
         termNames: ["+", "-"]
     },
@@ -74,7 +75,6 @@ var spec = {
         // one pad, at the part's own origin: a T-piece is a place, not a body
         terminals: [{ x: 0, y: 0 }],
         half: { x: JUNCTION_HALF, y: JUNCTION_HALF }, actuator: null,
-        keepOut: 1,
         fields: { value: 0, on: false }, rows: [],
         termNames: ["tap"]
     }
