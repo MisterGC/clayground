@@ -61,6 +61,29 @@ interactive, deterministic, agent-verifiable experimentation space.
   `FlowChip` is the on-screen offer to be taught, so the lesson is not
   hidden behind a key nobody knows.
 
+### The board — what a build lab is made of
+
+A lab that places typed parts on a grid, wires their pads and solves the
+result owns none of that mechanism any more. The domain kit hands over a
+**part spec** (`spec[type] = { terminals, half, actuator, fields, rows,
+watch }`, see `board.js`), a solver and a part visual; the kernel does the
+rest. `board.js` is pure JS (`node board.test.js`), `tests/tst_board.qml`
+drives the store and the gesture with no GPU.
+
+- **Board** — the store: parts, wires, `rev`, hit test, keep-out, the
+  mutations, batching, `state()`/`load()`, an optional `router`; `changed`
+  is where the domain re-solves.
+- **BoardInput** — the mouse: wire pads, select and drag, tap a wire, the
+  two-step actuator (`operate`), eraser, the right-click cancel chain; the
+  camera and the instrument belt are asked first, always.
+- **BoardWires3D** — every wire as one flat batch plus the dangling preview;
+  the lab's `lineOf` styles them.
+- **PartPlacer** — the palette's parts as one handheld: take, ghost, place.
+- **BoardPalette** — presets, parts and tools in foldable sections.
+- **PartCard** — the selection card with the domain's rows between the
+  kernel's title/reading and plot/tag rows; a keyboard target via `keys`.
+- **BoardOverlay** — value labels, wire readings, watch marks, pinned tags.
+
 ### Chrome — what makes two labs look like one product
 
 Everything below was hand-rolled in two labs before it moved here.
@@ -207,25 +230,18 @@ Same seed + same stepped frames ⇒ identical probe series.
 
 ## Minimal lab skeleton
 
-```qml
-import QtQuick
-import Clayground.Lab
+Do not write one — generate it:
 
-Item {
-    SimClock { id: clock; seed: 42 }
-    Parameter { id: pGain; name: "gain"; value: 1; from: 0; to: 5 }
-    Probe { name: "output"; expr: () => mySystem.output }
-
-    ParamPanel { anchors.right: parent.right }
-    Plot2D { anchors.bottom: parent.bottom; width: parent.width; height: 150 }
-
-    ScenarioSet { id: scen; Scenario { name: "default"; script: () => {} } }
-    function scenarios() { return scen.names() }
-    function applyScenario(n) { scen.apply(n) }
-    function labInfo() { return Lab.labInfo() }
-    function flagInfo() { return Lab.labInfo() }
-}
+```sh
+tools/lab-new/lab-new <slug> --kind build|continuous|draw --purpose learning|teaching|research
 ```
+
+The generated `Sandbox.qml` answers the whole conventions contract
+(`scenarios()`, `applyScenario()`, `labInfo()`, `viewState()`,
+`flowActions()`, …), comes with a bilingual `strings.js`, the records and
+figures drivers and the paper/board skeletons, and its template is itself
+a lab that `ctest -R lab_new` boots. `tools/lab-new/README.md` explains the
+tokens and how a kind is added.
 
 See `demo/Sandbox.qml` — a damped oscillator with a noisy measurement, used
 as an excuse to put every instrument on one page, and the fastest way to see
@@ -237,4 +253,4 @@ clayrender plugins/clay_lab/demo/Sandbox.qml --out shot.png --size 1400x900 \
     --eval 'LabTheme.mode = "dark"' --eval 'LabTheme.uiScale = 1.6' --frames 300
 ```
 
-`labs/electronics-101/` is a full lab.
+`labs/electronics-101/` and `labs/hydraulics-101/` are full build labs on the board layer.
