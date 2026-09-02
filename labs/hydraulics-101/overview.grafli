@@ -1,0 +1,51 @@
+#!grafli v1
+# Hydraulics 101 — reveal storyboard
+# Companion board to paper.md. Purpose: teaching — so this board is a
+# STORYBOARD: one node per beat, in reveal order, mirroring the guided flow
+# in Sandbox.qml exactly (same order, same vocabulary). Started 2026-09-02.
+#
+# Skeleton. Replace every "…" with the real thing. If the flow gains or
+# loses a step, this board changes in the same commit - the flow is the
+# primary artifact and this is its map.
+
+# ── entry ──
+@ box paper "Paper →\nthe lesson plan" 60,60 220x80 %soft &link:./paper.md
+@ note legend 900,60 """
+press T in the lab
+this board is that tour
+""" ~small
+
+# ── what they arrive with ──
+@ box belief "THE BELIEF THEY ARRIVE WITH\n…" 60,230 300x130 %accent &link:./paper.md#the-misconception-it-targets
+
+# ── the beats, in reveal order ──
+@ box beat1 "1 …\nscenario: intro\nflow step: intro" 440,220 260x130 %primary &link:./paper.md#the-demonstration-sequence
+@ box beat2 "2 …\nthey act\nflow step: try" 440,400 260x130 %teal &link:./paper.md#the-demonstration-sequence
+@ box beat3 "3 …\nflow step: check" 440,580 260x130 %primary &link:./paper.md#the-demonstration-sequence
+
+# ── the moment ──
+@ box moment "THE NUMBER THAT CONTRADICTS IT\n… lands on …" 780,400 280x140 %rose &link:./paper.md#the-moment-the-number-contradicts-the-belief
+
+# ── the takeaway ──
+@ box takeaway "the takeaway\n\"…\"" 780,620 280x120 %highlight &link:./paper.md#the-takeaway
+
+# ── arrows ──
+@ arrow belief -> beat1 "start here"
+@ arrow beat1 -> beat2
+@ arrow beat2 -> beat3
+@ arrow beat3 -> moment
+@ arrow moment -> takeaway
+@ arrow moment -> belief "revises" !dashed
+
+# ── the lab itself ──
+@ note scen 60,470 """
+scenarios (keys 1-2)
+1 intro - …
+2 … - …
+""" ~small &link:./paper.md#the-demonstration-sequence
+
+@ note keys 60,660 """
+keys
+1-2 presets · T tour · Space next · ← back
+F frame · 0 reset · Shift+R record · ? all
+""" ~small &link:./paper.md#how-to-run-it

@@ -1,0 +1,6 @@
+{
+    "purpose": "teaching",
+    "steps": 600,
+    "flows": ["hydraulics_101-intro"],
+    "scenarios": "all"
+}
