@@ -13,3 +13,5 @@ clay_add_node_test(kit_traffic
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/traffic/traffic.test.js)
 clay_add_node_test(kit_sensor
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/sensor/sensor.test.js)
+clay_add_node_test(kit_hydro
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/hydro/hydro.test.js)
