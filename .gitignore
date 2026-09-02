@@ -76,6 +76,8 @@ Thumbs.db
 *.exe
 
 build*
+# the lab-new template KIND named build is a source directory, not a build tree
+!tools/lab-new/templates/build/
 .qmlls.ini
 
 # WASM build artifacts (built by CI)

@@ -10,6 +10,7 @@ import "../kits/circuit/circuit.js" as Circuit
 import "../kits/circuit/route.js" as Route
 import "../kits/circuit/plan.js" as Plan
 import "../kits/circuit/symbols.js" as Symbols
+import "../kits/circuit/parts.js" as Parts
 import "../kits/circuit/strings.js" as CircuitStrings
 import "strings.js" as Strings
 
@@ -127,30 +128,50 @@ Item {
     function watchOnly(ids) { monitor.watchOnly(ids) }
 
     // --- circuit state ---------------------------------------------------
-    // elements: {id, type, col, row, rot, value, on} - col/row are fractional
-    // cell coordinates (snapping rounds them) - wires: {id, a:[el,ti], b:[el,ti]}
-    property var elements: []
-    property var wires: []
-    property int nextId: 1
+    // The board owns the parts and the wires: where they stand, what they are
+    // wired to, the hit test, the keep-out, the batching that lets a preset
+    // make eighty mutations and publish once (see Board). What stays here is
+    // electricity - the solver bridge and the circuit's own readings - and a
+    // few short names the scenarios, the flows and the figure scripts use.
+    // elements: {id, type, col, row, rot, value, on, func} - col/row are
+    // fractional cell coordinates (snapping rounds them) - wires: {id, a:[el,ti], b:[el,ti]}
+    readonly property alias elements: board.parts
+    readonly property alias wires: board.wires
+    readonly property alias nextId: board.nextId
+    readonly property alias elemRev: board.rev     // bumped on moves so positions rebind
+    property alias selectedId: board.selectedId   // -1 = nothing selected
+    property alias hoverHit: board.hoverHit       // last hit under the cursor
+    property alias wiringFrom: board.wiringFrom   // {el, ti} while a wire is dangling
+    property alias eraser: board.eraser
     property var sim: ({ ok: true, perElement: {}, shorted: false, overloaded: false,
                         iterations: 0 })
-    property int elemRev: 0          // bumped on moves so positions rebind
 
     // Peg raster: 5 world units, so a part can be nudged half a part-width.
-    // A part body is ~9 units wide, hence the two-peg keep-out in cellFree.
-    // The board grew with the logic presets: an XOR is thirty-odd parts on
-    // three rails, and it simply did not fit on the twenty by twelve the
-    // one-loop circuits were laid out on.
+    // A part body is ~9 units wide, hence the two-peg keep-out the board
+    // derives from it. The board grew with the logic presets: an XOR is
+    // thirty-odd parts on three rails, and it simply did not fit on the
+    // twenty by twelve the one-loop circuits were laid out on.
     readonly property int cols: 28
     readonly property int rows: 16
     readonly property real cell: 5
 
-    function cellX(col) { return (col - (cols - 1) / 2) * cell }
-    function cellZ(row) { return (row - (rows - 1) / 2) * cell }
-    function elemAt(id) {
-        for (const el of elements) if (el.id === id) return el
-        return null
+    Board {
+        id: board
+        cols: root.cols; rows: root.rows; cell: root.cell
+        spec: Parts.spec
+        // A wire leaves each pad on that pad's own side and turns at right
+        // angles - the kit's route.js does the choosing, the board only asks.
+        router: ({ all: (links, obstacles, lane) => Route.routeAll(links, obstacles, lane),
+                   one: (a, b, lane) => Route.routeOne(a, b, [], null, lane) })
+        // geometry is not electricity: a move or a turn does not re-solve
+        onChanged: (kind) => { if (kind !== "view") root.resolve() }
+        onCleared: { root.setLogic([], []); monitor.clear() }
+        onRemoved: (id) => monitor.setWatched(id, false)
     }
+
+    function cellX(col) { return board.cellX(col) }
+    function cellZ(row) { return board.cellZ(row) }
+    function elemAt(id) { return board.partAt(id) }
     function batteryOf(id) {
         const b = sim.batteries ? sim.batteries[id] : null
         return b ? b : null
@@ -253,80 +274,20 @@ Item {
         return e ? e : { v: 0, i: 0, on: false, power: 0 }
     }
     // --- terminals ---------------------------------------------------------
-    // How many pads a part has and where they sit, in the part's OWN frame.
-    // Two in a line is the rule; a transistor is the exception - collector and
-    // emitter in line like everything else, and the base on the part's near
-    // side, so all three stay far enough apart to be clicked. The kit's
-    // CircuitElement3D draws the pads from the same numbers.
-    function terminalCount(type) {
-        return type === "transistor" ? 3 : (type === "gate" ? 5 : 2)
-    }
-
-    function terminalLocal(type, ti) {
-        if (type === "junction") return Qt.vector2d(0, 0)
-        if (type === "transistor")
-            return ti === 0 ? Qt.vector2d(-3.5, 0)      // collector
-                 : ti === 1 ? Qt.vector2d(0, 3.5)       // base
-                            : Qt.vector2d(3.5, 0)       // emitter
-        // A gate is a PACKAGE, so it has supply pins like a real chip: the two
-        // inputs on the left, the output on the right, and power across the
-        // short sides where a board's rails run.
-        if (type === "gate")
-            return ti === 0 ? Qt.vector2d(0, -4.6)      // VCC
-                 : ti === 1 ? Qt.vector2d(-6.0, -2.6)   // A
-                 : ti === 2 ? Qt.vector2d(-6.0, 2.6)    // B
-                 : ti === 3 ? Qt.vector2d(6.0, 0)       // Y
-                            : Qt.vector2d(0, 4.6)       // GND
-        return Qt.vector2d(ti === 0 ? -3.5 : 3.5, 0)
-    }
-
-    // Which way a lead LEAVES its pad, in world x/z. Read off the pad's own
-    // offset from the part's middle - the dominant axis of it - so it is the
-    // same single source of truth as the pad positions themselves: a resistor's
-    // wire leaves the end of the resistor, a transistor's base lead leaves the
-    // base side, and a gate's output leaves the output side. This is what the
-    // router turns a straight diagonal into a wire with: without it, an
-    // orthogonal path is merely orthogonal, and may still start by crossing the
-    // part it belongs to. A solder dot has no side, hence null.
-    function terminalDir(elId, ti) {
-        elemRev
-        const el = elemAt(elId)
-        if (!el || el.type === "junction") return null
-        const l = terminalLocal(el.type, ti)
-        if (Math.abs(l.x) < 1e-6 && Math.abs(l.y) < 1e-6) return null
-        let lx = 0, lz = 0
-        if (Math.abs(l.x) >= Math.abs(l.y)) lx = Math.sign(l.x)
-        else lz = Math.sign(l.y)
-        // the same rotation the pad itself gets; rounded because cos(90 deg)
-        // is 6e-17 and a lead that is a hair off axis is not on an axis
-        const a = (el.rot || 0) * Math.PI / 180
-        const c = Math.round(Math.cos(a)), s = Math.round(Math.sin(a))
-        return { x: lx * c + lz * s, z: -lx * s + lz * c }
-    }
-
-    // How far a part's own footprint reaches, in world units. One place, so the
-    // hit test, the keep-out and the kit's bodies cannot disagree.
-    function bodyHalf(type) {
-        if (type === "gate") return Qt.vector2d(7.0, 5.6)
-        if (type === "transistor") return Qt.vector2d(4.6, 4.6)
-        return Qt.vector2d(4.6, 3.4)
-    }
-
-    function terminalPos(elId, ti) {
-        elemRev
-        const el = elemAt(elId)
-        if (!el) return Qt.vector3d(0, 0, 0)
-        // turned by the part's yaw. Qt rotates about y counter-clockwise seen
-        // from above, which for a local (x, z) is
-        //   x' =  x*cos + z*sin      z' = -x*sin + z*cos
-        // The old form only handled points ON the local x axis, which is
-        // exactly what a third pad off that axis broke.
-        const l = terminalLocal(el.type, ti)
-        const a = (el.rot || 0) * Math.PI / 180
-        const c = Math.cos(a), s = Math.sin(a)
-        return Qt.vector3d(cellX(el.col) + l.x * c + l.y * s, 0.35,
-                           cellZ(el.row) - l.x * s + l.y * c)
-    }
+    // Where a part's pads sit, how far its body reaches and which part of it
+    // you operate all come from the kit's parts.js, through the board;
+    // CircuitElement3D draws the pads from the same numbers. These are the
+    // short names the schematic and the scenarios use.
+    function terminalCount(type) { return board.terminalCount(type) }
+    function terminalLocal(type, ti) { return board.terminalLocal(type, ti) }
+    function terminalDir(elId, ti) { return board.terminalDir(elId, ti) }
+    function bodyHalf(type) { return board.bodyHalf(type) }
+    function actuatorHalf(type) { return board.actuatorHalf(type) }
+    function terminalPos(elId, ti) { return board.terminalPos(elId, ti) }
+    function keepOut(type) { return board.keepOut(type) }
+    function cellFree(col, row, ignoreId, type) { return board.cellFree(col, row, ignoreId, type) }
+    function nearestFreeCell(col, row, type) { return board.nearestFreeCell(col, row, type) }
+    function hitAt(wx, wz) { return board.hitAt(wx, wz) }
 
     // What the solver is handed. Everything it is allowed to read about a part
     // has to be listed here - a field left out does not fail, it silently takes
@@ -348,191 +309,44 @@ Item {
         const el = elemAt(id)
         if (!el || el.type !== "battery") return
         const nv = Math.round(Math.max(1.5, Math.min(12, v)) * 2) / 2
-        if (nv === el.value) return
-        el.value = nv
-        _touch("none")
+        board.setField(id, "value", nv)
     }
 
-    // Two pegs of clearance for real parts; junctions are dots and need one.
-    // A gate package is nearly three cells wide, so it asks for more - derived
-    // from bodyHalf rather than from a second table, or the two drift and parts
-    // start overlapping on the board while the keep-out says they do not.
-    function keepOut(type) {
-        if (type === "junction") return 0.7
-        const h = bodyHalf(type)
-        return Math.max(h.x, h.y) / cell + 0.7
-    }
-    function cellFree(col, row, ignoreId, type) {
-        for (const el of elements) {
-            if (el.id === ignoreId) continue
-            const k = (type === "junction" || el.type === "junction")
-                    ? 0.7 : Math.max(keepOut(type), keepOut(el.type))
-            if (Math.abs(el.col - col) < k && Math.abs(el.row - row) < k) return false
-        }
-        return true
-    }
-    function nearestFreeCell(col, row, type) {
-        col = Math.max(0, Math.min(cols - 1, Math.round(col)))
-        row = Math.max(0, Math.min(rows - 1, Math.round(row)))
-        for (let radius = 0; radius < cols; ++radius)
-            for (let dr = -radius; dr <= radius; ++dr)
-                for (let dc = -radius; dc <= radius; ++dc) {
-                    const c = col + dc, r = row + dr
-                    if (c < 0 || c >= cols || r < 0 || r >= rows) continue
-                    if (cellFree(c, r, -1, type)) return { col: c, row: r }
-                }
-        return null
-    }
-
-    // --- batching ----------------------------------------------------------
-    // Every mutation below edits `elements` / `wires` IN PLACE and then says so
-    // here. Outside a batch that publishes immediately - a fresh array so QML
-    // sees a change, plus a solve - which is what one click wants.
-    //
-    // Inside a batch it only marks what changed. That is the whole difference
-    // between a preset that builds in 36 ms and one that takes 1.7 seconds:
-    // reassigning `elements` hands the Repeater3D a new model and it destroys
-    // and rebuilds EVERY part (measured: 22 ms at 38 parts, 15 ms for the
-    // wires). The XOR preset makes 85 mutations, so it paid that 85 times over
-    // and rebuilt roughly 740 parts to end up with 38. The solver was never the
-    // problem - all 85 solves together are 85 ms of it.
-    property int batchDepth: 0
-    property bool _elemsDirty: false
-    property bool _wiresDirty: false
-    property bool _revDirty: false
-
-    function beginBatch() { ++batchDepth }
-    function endBatch() {
-        if (batchDepth > 0) --batchDepth
-        if (batchDepth === 0) _flush()
-    }
-    function _touch(what) {
-        if (what !== "wires") _elemsDirty = true
-        if (what !== "elements") _wiresDirty = true
-        _revDirty = true
-        if (batchDepth === 0) _flush()
-    }
-    // A view-only change (a part moved or turned): no re-solve, because
-    // geometry is not electricity - but the bindings still have to re-read.
-    function _touchView() {
-        _revDirty = true
-        if (batchDepth === 0) { ++elemRev; _revDirty = false }
-    }
-    function _flush() {
-        if (_elemsDirty) { elements = elements.slice(); _elemsDirty = false }
-        if (_wiresDirty) { wires = wires.slice(); _wiresDirty = false }
-        if (_revDirty) { ++elemRev; _revDirty = false }
-        resolve()
-    }
-
+    // --- mutations ---------------------------------------------------------
+    // One mutation API, three drivers: the UI calls these, a Flow calls them
+    // by name (flowActions), an agent through the inspector's eval. The
+    // board does the editing and the batching; what is here is what the
+    // circuit adds - which parts can be set to what.
+    function beginBatch() { board.beginBatch() }
+    function endBatch() { board.endBatch() }
     function addElement(type, col, row) {
-        const spot = nearestFreeCell(col === undefined ? 10 : col,
-                                     row === undefined ? 6 : row, type)
-        if (!spot) return -1
-        const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
-                     value: type === "resistor" ? 470
-                          : (type === "battery" ? defaultVolts : 0), on: false,
-                     func: type === "gate" ? "and" : "" }
-        elements.push(el)
-        _touch("elements")
-        return el.id
+        return board.addPart(type, col === undefined ? 10 : col, row === undefined ? 6 : row)
     }
-    // Place and turn in one go. Turning is a user verb (R), so this is the
-    // same act a hand performs - and the logic presets need it on nearly every
-    // part, because a gate is drawn as vertical branches between two rails.
-    // A quarter turn is 90 degrees counter-clockwise seen from above; three of
-    // them put terminal 0 at the TOP, which is what a branch fed from the plus
-    // rail wants (and, on a transistor, the collector up, the emitter down and
-    // the base facing left into the incoming signal).
+    // Place and turn in one go. A quarter turn is 90 degrees counter-clockwise
+    // seen from above; three of them put terminal 0 at the TOP, which is what
+    // a branch fed from the plus rail wants.
     function addRotated(type, col, row, quarters) {
-        const id = addElement(type, col, row)
-        for (let i = 0; i < (quarters || 0); ++i) rotateElement(id)
-        return id
+        return board.addRotated(type, col === undefined ? 10 : col, row === undefined ? 6 : row, quarters)
     }
     // Resistance by value rather than by step index, for scenarios and flows.
     function setOhms(id, ohms) { setResistanceStep(id, resistorStepOf(ohms)) }
-    // A solder dot: wires meet here, so a board is no longer limited to
-    // point-to-point links between part terminals. Placed exactly (never
-    // snapped), because it lands wherever the wire was clicked.
-    function addJunction(col, row) {
-        const j = { id: nextId++, type: "junction", col: col, row: row,
-                    rot: 0, value: 0, on: false, func: "" }
-        elements.push(j)
-        _touch("elements")
-        return j.id
-    }
-
-    // Drops a junction onto an existing wire and splits it in two, which is
-    // what makes a branch (and therefore a parallel circuit) buildable.
-    function splitWireAt(wireId, wx, wz) {
-        let w = null
-        for (const x of wires) if (x.id === wireId) w = x
-        if (!w) return -1
-        // on the DRAWN path, so the dot lands under the cursor and on the wire
-        // - projecting onto the straight line between the pads would drop it
-        // beside an L-shaped wire rather than on it
-        const p = Route.closestOnPath(wireRoutes[w.id] || wirePath(w), wx, wz)
-        beginBatch()
-        const j = addJunction(p.x / cell + (cols - 1) / 2,
-                              p.z / cell + (rows - 1) / 2)
-        for (let i = wires.length - 1; i >= 0; --i)
-            if (wires[i].id === wireId) wires.splice(i, 1)
-        wires.push({ id: nextId++, a: w.a, b: [j, 0] })
-        wires.push({ id: nextId++, a: [j, 0], b: w.b })
-        _touch("wires")
-        endBatch()
-        return j
-    }
-
-    function removeElement(id) {
-        beginBatch()
-        for (let i = wires.length - 1; i >= 0; --i)
-            if (wires[i].a[0] === id || wires[i].b[0] === id) wires.splice(i, 1)
-        for (let i = elements.length - 1; i >= 0; --i)
-            if (elements[i].id === id) elements.splice(i, 1)
-        if (selectedId === id) selectedId = -1
-        // `watch` is a readonly alias onto the monitor's set - a deleted part
-        // leaves through the monitor's own API, never by assigning the alias
-        monitor.setWatched(id, false)
-        if (watchLabels[id] !== undefined) setWatchLabel(id, null)
-        _touch("both")
-        endBatch()
-    }
-    // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
-    // follows the cursor freely and may sit anywhere on the board
-    function moveElement(id, col, row, snap) {
-        const el = elemAt(id)
-        if (!el) return
-        col = Math.max(0, Math.min(cols - 1, col))
-        row = Math.max(0, Math.min(rows - 1, row))
-        if (snap) {
-            col = Math.round(col); row = Math.round(row)
-            if (!cellFree(col, row, id, el.type)) return
-        }
-        el.col = col; el.row = row
-        _touchView()
-    }
-    // 90 degree steps, kept unbounded so the animation always turns forward
-    function rotateElement(id) {
-        const el = elemAt(id)
-        if (!el) return
-        el.rot = (el.rot || 0) + 90
-        _touchView()
-    }
+    function addJunction(col, row) { return board.addJunction(col, row) }
+    function splitWireAt(wireId, wx, wz) { return board.splitWireAt(wireId, wx, wz) }
+    function removeElement(id) { board.removePart(id) }
+    function moveElement(id, col, row, snap) { board.movePart(id, col, row, snap) }
+    function rotateElement(id) { board.rotatePart(id) }
     function toggleSwitch(id) {
         const el = elemAt(id)
         if (!el || el.type !== "switch") return
-        el.on = !el.on
-        _touch("none")
+        board.setField(id, "on", !el.on)
     }
     // Setting beats toggling for a control that shows both states at once: a
     // pair of chips has to be able to say "on" when on is already true and
     // mean it, or clicking the lit one turns the switch off.
     function setSwitch(id, on) {
         const el = elemAt(id)
-        if (!el || el.type !== "switch" || el.on === on) return
-        el.on = on
-        _touch("none")
+        if (!el || el.type !== "switch") return
+        board.setField(id, "on", on)
     }
     // Which logic function a gate package performs. The same idiom as a
     // resistor's ohms: the part is one thing you place, and what it does is a
@@ -542,9 +356,7 @@ Item {
     function setGateFunc(id, f) {
         const el = elemAt(id)
         if (!el || el.type !== "gate" || gateFuncs.indexOf(f) < 0) return
-        if (el.func === f) return
-        el.func = f
-        _touch("none")
+        board.setField(id, "func", f)
     }
     // Resistance runs over the real E12 series, the values a shop actually
     // sells - which is also what makes the colour bands honest, since a band
@@ -569,34 +381,13 @@ Item {
         const el = elemAt(id)
         if (!el || el.type !== "resistor") return
         const v = resistorSteps[Math.max(0, Math.min(resistorSteps.length - 1, step))]
-        if (v === el.value) return
-        el.value = v
-        _touch("none")
+        board.setField(id, "value", v)
     }
-    function addWire(a, b) {
-        if (a[0] === b[0] && a[1] === b[1]) return
-        for (const w of wires) {
-            const same = (w.a[0] === a[0] && w.a[1] === a[1] && w.b[0] === b[0] && w.b[1] === b[1])
-                      || (w.a[0] === b[0] && w.a[1] === b[1] && w.b[0] === a[0] && w.b[1] === a[1])
-            if (same) return
-        }
-        wires.push({ id: nextId++, a: a, b: b })
-        _touch("wires")
-    }
-    function removeWire(id) {
-        for (let i = wires.length - 1; i >= 0; --i)
-            if (wires[i].id === id) wires.splice(i, 1)
-        _touch("wires")
-    }
-    function clearBoard() {
-        elements.length = 0; wires.length = 0
-        wiringFrom = null
-        selectedId = -1
-        setLogic([], [])
-        monitor.clear()
-        watchLabels = ({})
-        _touch("both")
-    }
+    function addWire(a, b) { board.addWire(a, b) }
+    function removeWire(id) { board.removeWire(id) }
+    // The board empties itself and says so; the logic table and the plot go
+    // with it (Board.onCleared above), the tags through the overlay's own ear.
+    function clearBoard() { board.clear() }
 
     // --- the truth table ---------------------------------------------------
     // A gate preset says which switches are its inputs and which part is its
@@ -833,9 +624,8 @@ Item {
 
     // --- serialization (survives reloads via the viewState convention) ---
     function circuitState() {
-        return { elements: elements.map(el => Object.assign({}, el)),
-                 wires: wires.map(w => ({ id: w.id, a: w.a.slice(), b: w.b.slice() })),
-                 nextId: nextId,
+        const s = board.state()
+        return { elements: s.parts, wires: s.wires, nextId: s.nextId,
                  // which parts the gate presets call inputs and output: the
                  // truth table is derived, but WHAT it is a table of is a
                  // choice, and it has to survive a reload with the board
@@ -844,9 +634,6 @@ Item {
                           names: logicOutputNames.slice() } }
     }
     function loadCircuit(s) {
-        elements = s.elements.map(el => Object.assign({ rot: 0, func: "" }, el))
-        wires = s.wires.map(w => ({ id: w.id, a: w.a.slice(), b: w.b.slice() }))
-        nextId = s.nextId
         // outputs used to be a single id; a board saved before the half-adder
         // preset existed still has to come back
         if (s.logic)
@@ -856,9 +643,7 @@ Item {
                         ? [s.logic.output] : []),
                      s.logic.names)
         else setLogic([], [])
-        wiringFrom = null
-        selectedId = -1
-        resolve()
+        board.load({ parts: s.elements, wires: s.wires, nextId: s.nextId })   // re-solves
     }
 
     function viewState() {
@@ -866,12 +651,12 @@ Item {
             circuit: circuitState(),
             watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
             traces: monitor.traces(),
-            valueAttr: valueAttr,
-            watchLabels: Object.assign({}, watchLabels),
+            valueAttr: overlay.valueAttr,
+            watchLabels: Object.assign({}, overlay.tags),
             lang: LabLang.lang,
             // which palette sections the reader folded away: a fact about the
             // reader and the room, like the theme, so it survives a reload
-            sections: Object.assign({}, sectionsOpen),
+            sections: Object.assign({}, palette.sectionsOpen),
             // and whether the schematic is up, and how big - the same kind of
             // fact: it is about how this reader wants to look at the board
             plan: { open: showPlan, max: planMax },
@@ -893,7 +678,7 @@ Item {
         // the watched set is the user's, so it wins over what a preset seeded;
         // parts that no longer exist are dropped rather than plotted as zero
         if (s.lang) LabLang.lang = s.lang
-        if (s.sections) sectionsOpen = Object.assign({}, s.sections)
+        if (s.sections) palette.sectionsOpen = Object.assign({}, s.sections)
         if (s.plan) {
             if (s.plan.open !== undefined) showPlan = s.plan.open
             if (s.plan.max !== undefined) planMax = s.plan.max
@@ -903,13 +688,8 @@ Item {
         // pinned strips are exact (id, quantity) pairs, so they win over the
         // single-quantity watch list an older state carried
         if (s.traces) monitor.traceOnly(s.traces.filter(t => elemAt(t.id) !== null))
-        if (s.valueAttr !== undefined) valueAttr = s.valueAttr
-        if (s.watchLabels) {
-            const m = {}
-            for (const k in s.watchLabels)
-                if (elemAt(parseInt(k)) !== null) m[k] = s.watchLabels[k]
-            watchLabels = m
-        }
+        if (s.valueAttr !== undefined) overlay.valueAttr = s.valueAttr
+        if (s.watchLabels) overlay.load({ tags: s.watchLabels })
         if (s.cam) {
             rig.applyState(s.cam)
         }
@@ -1709,118 +1489,20 @@ Item {
     // when free). GridMode itself draws nothing - the stage does, from here.
     GridMode { id: grid; step: root.cell }
 
-    property var wiringFrom: null       // {el, ti} while a wire is dangling
-    property bool eraser: false
-    property var hoverHit: null         // last hit under the cursor
+    // Selection, hover, the dangling wire and the eraser live on the board;
+    // the "you can flip this" affordance on the mouse (BoardInput) - it
+    // drives the cursor, the part's own highlight and the hint bar, so the
+    // three cannot say different things.
+    readonly property alias hoverActuator: boardMouse.hoverActuator
+    readonly property alias hoverActuatorIdle: boardMouse.hoverActuatorIdle
 
-    /*! True while the cursor is over something that can be OPERATED rather
-        than wired to or dragged. What makes "you can flip this" visible: it
-        drives the cursor, the part's own highlight and the hint bar, so the
-        three cannot say different things. */
-    readonly property bool hoverActuator:
-        hoverHit !== null && hoverHit.kind === "actuator"
-                          && !root.eraser && hands.empty
-                          // Only once it is the selected part: before that the
-                          // click selects, and a cursor promising a flip would
-                          // be describing the click after next.
-                          && root.selectedId === hoverHit.el
-
-    /*! Over an operable part that is not the one being worked on. The next
-        click selects it rather than operating it, and saying so is what keeps
-        the two-step visible instead of something you discover by clicking
-        twice and noticing. */
-    readonly property bool hoverActuatorIdle:
-        hoverHit !== null && hoverHit.kind === "actuator"
-                          && !root.eraser && hands.empty
-                          && root.selectedId !== hoverHit.el
-    property var cursorW: Qt.vector3d(0, 1.9, 0)
-    property int selectedId: -1         // -1 = nothing selected
-    onSelectedIdChanged: cardFocus = 0  // a fresh card starts at its first row
-
-    // --- the card as a keyboard target (j/k walk, h/l adjust, ⏎ operates) --
-    // Rows in the card's own visual order; the kit's answer to "what can be
-    // set on this part". The watch chip is a row like any other, so h/l on
-    // it toggles the trace.
-    property int cardFocus: 0
-    function cardRows() {
-        const el = elemAt(selectedId)
-        if (!el) return []
-        const rows = []
-        if (el.type === "switch") rows.push("state")
-        if (el.type === "gate") rows.push("func")
-        if (el.type === "resistor" || el.type === "battery") rows.push("value")
-        if (el.type !== "junction") { rows.push("watch"); rows.push("label") }
-        return rows
-    }
-    readonly property string cardFocusedRow: {
-        elemRev; selectedId; cardFocus
-        const rows = cardRows()
-        return rows.length ? rows[Math.min(cardFocus, rows.length - 1)] : ""
-    }
-    readonly property QtObject cardKeys: QtObject {
-        readonly property bool active: root.selectedId !== -1
-        function moveFocus(d) {
-            const n = root.cardRows().length
-            if (!n) return false
-            root.cardFocus = ((root.cardFocus + d) % n + n) % n   // wraps
-            return true
-        }
-        function adjust(d) {
-            const el = root.elemAt(root.selectedId)
-            if (!el) return false
-            const row = root.cardFocusedRow
-            if (row === "state") { root.setSwitch(el.id, !el.on); return true }
-            if (row === "func") {
-                const i = root.gateFuncs.indexOf(el.func || "and")
-                const n = root.gateFuncs.length
-                root.setGateFunc(el.id, root.gateFuncs[((i + d) % n + n) % n])
-                return true
-            }
-            if (row === "value") {
-                if (el.type === "battery") {
-                    const v = (el.value || root.defaultVolts) + d * 0.5
-                    root.setBatteryVolts(el.id, Math.max(1.5, Math.min(12, v)))
-                } else {
-                    const s = root.resistorStepOf(el.value) + d
-                    root.setResistanceStep(el.id,
-                        Math.max(0, Math.min(root.resistorSteps.length - 1, s)))
-                }
-                return true
-            }
-            if (row === "watch") { root.toggleWatch(el.id); return true }
-            if (row === "label") {
-                const cyc = ["", "I", "V", "P"]
-                const cur = root.watchLabels[el.id] || ""
-                root.setWatchLabel(el.id,
-                    cyc[((cyc.indexOf(cur) + d) % cyc.length + cyc.length) % cyc.length])
-                return true
-            }
-            return false
-        }
-        function operate() {
-            const el = root.elemAt(root.selectedId)
-            if (!el || !root.actuatorHalf(el.type)) return false
-            root.toggleSwitch(el.id)
-            return true
-        }
-    }
     // V cycles the scene-wide watch attribute: off → I → V → P → off, in the
     // monitor's own quantity order (the kit's list, per groundwork D5). The
-    // bool survives as a two-way twin so every read-site, flow verb and
-    // committed figure script (`showValues = true`) keeps meaning something:
-    // turning the bool on lights the first attribute, turning any attribute
-    // on sets the bool.
-    property string valueAttr: ""
-    property bool showValues: false     // V: label every part and every wire
-    onShowValuesChanged: {
-        if (showValues && valueAttr === "") valueAttr = "I"
-        else if (!showValues) valueAttr = ""
-    }
-    onValueAttrChanged: showValues = valueAttr !== ""
-    function cycleValueAttr() {
-        const cyc = ["", "I", "V", "P"]
-        valueAttr = cyc[(cyc.indexOf(valueAttr) + 1) % cyc.length]
-    }
+    // overlay keeps the bool as a two-way twin so every read-site, flow verb
+    // and committed figure script (`showValues = true`) keeps meaning something.
+    property alias valueAttr: overlay.valueAttr
+    property alias showValues: overlay.showValues     // V: label every part and every wire
+    function cycleValueAttr() { overlay.cycleValueAttr() }
     // One reading, any attribute - the value labels, the per-part tags and
     // the card all speak through this, so they cannot disagree.
     function readingOf(id, attr) {
@@ -1839,13 +1521,10 @@ Item {
 
     // --- per-part watch tags (one value on one part, set from its card) ----
     // The middle rung of the persistence ladder: cheaper than a trace (no
-    // probe, no history), longer-lived than a selection. id → attribute.
-    property var watchLabels: ({})
-    function setWatchLabel(id, attr) {
-        const m = Object.assign({}, watchLabels)
-        if (!attr) delete m[id]; else m[id] = attr
-        watchLabels = m
-    }
+    // probe, no history), longer-lived than a selection. id → attribute,
+    // kept by the overlay that draws them.
+    readonly property alias watchLabels: overlay.tags
+    function setWatchLabel(id, attr) { overlay.setTag(id, attr) }
     property bool showPlan: true        // M: the schematic minimap
     // Z: the same schematic, filling the window. Not a second view - the same
     // canvas, given room. A diagram the size of a postage stamp can only show
@@ -1858,193 +1537,56 @@ Item {
         planMax = !planMax
     }
 
-    // world-space hit test against the data model (no per-model picking)
-    // The part of a part you OPERATE, as opposed to the part you wire to.
-    //
-    // A switch is 4.6 wide and its two pads sit at +-3.5 with a 2.3 grab
-    // radius, so the pads reach inward to 1.2 and left a 2.4-wide strip in
-    // the middle as the only place a click toggled rather than started a
-    // wire. On screen that strip is a few pixels: the switch was clumsy to
-    // operate and mostly answered by beginning a connection, which is exactly
-    // what it looked like from the outside.
-    //
-    // So the actuator is a region in its own right, tested BEFORE terminals,
-    // covering the body inboard of the pads. Null for a part that is only
-    // ever wired to - which is every other part today, and the reason this is
-    // a lookup rather than a special case for "switch" in the hit test.
-    function actuatorHalf(type) {
-        if (type === "switch") return Qt.vector2d(2.6, 2.0)
-        return null
-    }
-
-    function hitAt(wx, wz) {
-        // What you can operate wins over what you can wire to. A pad still
-        // wires: the actuator stops short of both of them.
-        for (const el of elements) {
-            const ah = actuatorHalf(el.type)
-            if (!ah) continue
-            const x = cellX(el.col), z = cellZ(el.row)
-            const a = (el.rot || 0) * Math.PI / 180
-            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
-            if (Math.abs(x - wx) < ah.x * c + ah.y * s
-                && Math.abs(z - wz) < ah.x * s + ah.y * c)
-                return { kind: "actuator", el: el.id, type: el.type }
-        }
-        // terminals next (they sit inside the element radius)
-        for (const el of elements)
-            for (let ti = 0; ti < terminalCount(el.type); ++ti) {
-                const p = terminalPos(el.id, ti)
-                if (Math.hypot(p.x - wx, p.z - wz) < 2.3)
-                    return { kind: "terminal", el: el.id, ti: ti }
-            }
-        for (const el of elements) {
-            const x = cellX(el.col), z = cellZ(el.row)
-            if (el.type === "junction") continue   // handled as a terminal
-            // body box turned by the part's yaw -> axis-aligned bound of it
-            const h = bodyHalf(el.type)
-            const a = (el.rot || 0) * Math.PI / 180
-            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
-            if (Math.abs(x - wx) < h.x * c + h.y * s
-                && Math.abs(z - wz) < h.x * s + h.y * c)
-                return { kind: "element", el: el.id, type: el.type }
-        }
-        // wires lie flat on the board, so the distance to the DRAWN path is
-        // all it takes to grab one anywhere along its length. It has to be the
-        // drawn path and not the straight line between the pads, or a click
-        // would land on a wire that is no longer there.
-        for (const w of wires) {
-            if (Route.closestOnPath(wireRoutes[w.id] || [], wx, wz).dist < 1.3)
-                return { kind: "wire", wire: w.id }
-        }
-        return null
-    }
-
-    // --- wires --------------------------------------------------------------
-    // Wires are drawn flat on the board, as one instanced line batch: that is
-    // what buys arrowheads and a flowing current animation, and it stays a
-    // single draw call however many wires the board grows. Nothing expects a
-    // shadow from a line lying on the paper, so the shadow question is simply
-    // gone (a batch could not cast one anyway - see LineBatch3D).
-    // The top of the stage's overlay budget: as high as a marking may sit and
-    // still belong to the paper rather than float above it.
     readonly property real wireY: stage.overlayMaxY
 
     // --- routing -------------------------------------------------------------
     // A wire is not the straight line between two pads any more. It leaves each
     // pad on that pad's own side and then turns at right angles, the way a
     // wire on a real board and a line on a real diagram both do - the kit's
-    // route.js does the choosing, this only tells it what the board looks like.
-    //
-    // Routing is GEOMETRY, so it is recomputed when the board moves and never
-    // when the currents change: `elemRev` is bumped by every mutation and by
-    // every move, `sim` is not listed on purpose. Getting that wrong would put
-    // a search over candidate paths inside the solve loop.
-    //
-    // Every wire on the board is routed in one call rather than one at a time,
-    // because a wire has to know which lanes are already taken - two wires that
-    // change lane in the same column hide under one another and read as one.
-    readonly property var wireRoutes: {
-        elemRev
-        const obstacles = []
-        for (const el of elements) {
-            if (el.type === "junction") continue
-            const h = bodyHalf(el.type)
-            const a = (el.rot || 0) * Math.PI / 180
-            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
-            obstacles.push({ id: el.id, x: cellX(el.col), z: cellZ(el.row),
-                             hx: h.x * c + h.y * s, hz: h.x * s + h.y * c })
-        }
-        const links = wires.map(w => {
-            const pa = terminalPos(w.a[0], w.a[1])
-            const pb = terminalPos(w.b[0], w.b[1])
-            return { id: w.id,
-                     a: { x: pa.x, z: pa.z, dir: terminalDir(w.a[0], w.a[1]) },
-                     b: { x: pb.x, z: pb.z, dir: terminalDir(w.b[0], w.b[1]) },
-                     ends: [w.a[0], w.b[0]] }
-        })
-        // half a peg: the lane a route turns in lands on the same raster the
-        // parts stand on, so the corners line up with the board instead of
-        // falling wherever the arithmetic put them
-        return Route.routeAll(links, obstacles, cell / 2)
-    }
-
-    // The drawn path of one wire, in world space. Falls back to the straight
-    // line, so a wire asked about before the routes are rebuilt still draws.
-    function wirePath(w) {
-        const p = wireRoutes[w.id]
-        if (p && p.length > 1)
-            return p.map(q => Qt.vector3d(q.x, wireY, q.z))
-        const a = terminalPos(w.a[0], w.a[1])
-        const b = terminalPos(w.b[0], w.b[1])
-        return [Qt.vector3d(a.x, wireY, a.z), Qt.vector3d(b.x, wireY, b.z)]
-    }
-
-    // Half the wire's LENGTH along it - where a reading belongs. The mean of
-    // the two ends stopped being on the wire the moment wires grew corners.
-    function wireMid(w) {
-        const p = wireRoutes[w.id]
-        if (p && p.length > 1) {
-            const m = Route.midOfPath(p)
-            return Qt.vector3d(m.x, wireY, m.z)
-        }
-        const e = wirePath(w)
-        return Qt.vector3d((e[0].x + e[1].x) / 2, wireY, (e[0].z + e[1].z) / 2)
-    }
+    // route.js does the choosing, the board asks it (see the router above)
+    // and caches the answer per board change, never per solve.
+    readonly property var wireRoutes: board.routes
+    function wirePath(w) { return wires3d.pathOf(w) }
+    function wireMid(w) { return wires3d.midOf(w) }
 
     // Style 0 is the idle wire; 1..flowSteps march chevrons at increasing
     // speed. The speed is relative to the largest current on the board, not
     // absolute, so a junction visibly splits: the trunk runs at full speed
     // and each branch at its share of it.
-    readonly property int flowSteps: 6
-
+    readonly property int flowSteps: wires3d.flowSteps
     function wireStyle(amps, iMax) {
         const m = Math.abs(amps)
         if (!(m > 1e-5)) return 0
-        const rel = iMax > 1e-9 ? m / iMax : 1
-        return 1 + Math.min(flowSteps - 1, Math.max(0, Math.round((flowSteps - 1) * rel)))
+        return wires3d.flowStyle(iMax > 1e-9 ? m / iMax : 1)
     }
-
-    // Two lines per wire: the ink body, plus a chevron overlay that marches
-    // along it while current flows. The overlay rides a hair above the body
-    // so the two never fight over depth.
-    function wireLines() {
-        elemRev
-        let iMax = 0
+    readonly property real iMax: {
+        elemRev; sim
+        let m = 0
         for (const w of wires) {
             const c = sim.wireCurrent ? sim.wireCurrent[w.id] : null
-            if (c !== null && c !== undefined) iMax = Math.max(iMax, Math.abs(c))
+            if (c !== null && c !== undefined) m = Math.max(m, Math.abs(c))
         }
-        const out = []
-        for (const w of wires) {
-            const pts = wirePath(w)
-            const i = sim.wireCurrent ? sim.wireCurrent[w.id] : null
-            const amps = (i === null || i === undefined) ? 0 : i
-            const style = wireStyle(amps, iMax)
-            const hovered = hoverHit && hoverHit.kind === "wire" && hoverHit.wire === w.id
-
-            // a wire past the cell's rating is the one that would get hot:
-            // in a short this paints the bypass path, which is the answer to
-            // "where is all that current going?"
-            const hot = Math.abs(amps) > root.ratedCurrent
-            out.push({ points: pts,
-                       color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
-                            : hot ? LabTheme.alarm
-                            : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
-                       width: hot ? 0.66 : 0.5, styleId: 0 })
-            if (style === 0) continue
-
-            // chevrons point from the first point to the last, so a negative
-            // current simply draws the overlay the other way round. The dash
-            // phase runs continuously along a polyline (LineBatch3D packs the
-            // accumulated path distance per segment), so the chevrons march
-            // round the corners instead of restarting at each one.
-            const flow = amps < 0 ? pts.slice().reverse() : pts
-            out.push({ points: flow.map(p => Qt.vector3d(p.x, p.y + 0.05, p.z)),
-                       color: LabTheme.highlight, width: 0.62, styleId: style })
-        }
-        return out
+        return m
     }
-
+    // How one wire is drawn: the ink body, plus a chevron overlay that marches
+    // along it while current flows. A wire past the cell's rating is the one
+    // that would get hot: in a short this paints the bypass path, which is
+    // the answer to "where is all that current going?"
+    function wireLine(w, pts, hovered) {
+        const i = sim.wireCurrent ? sim.wireCurrent[w.id] : null
+        const amps = (i === null || i === undefined) ? 0 : i
+        const style = wireStyle(amps, iMax)
+        const hot = Math.abs(amps) > ratedCurrent
+        return { color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
+                      : hot ? LabTheme.alarm
+                      : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
+                 width: hot ? 0.66 : 0.5, styleId: 0,
+                 // chevrons point from the first point to the last, so a
+                 // negative current simply draws the overlay the other way round
+                 flow: style === 0 ? null
+                     : { reverse: amps < 0, color: LabTheme.highlight, width: 0.62, styleId: style } }
+    }
+    function wireLines() { return wires3d.lines }
 
     // --- 3D scene ---------------------------------------------------------
     View3D {
@@ -2126,39 +1668,8 @@ Item {
             // about to place. A build tool is an instrument whose reading is
             // an act: it takes a place, and instead of remembering it, it puts
             // something there. That is the whole of "build is not a mode".
-            HandheldInstrument {
-                id: placer
-                name: "place"
-                label: LabLang.t("part." + partType)
-                glyph: "✎"
-                pickKind: "point"
-                maxPicks: 1
-                tone: LabTheme.secondary
-                hint: "hint.placing"
+            PartPlacer { id: placer; board: board; partType: "resistor" }
 
-                property string partType: "resistor"
-
-                // where the part would land, as board cells - null off-board
-                readonly property var spot: {
-                    if (!hovering || !hovering.point) return null
-                    const p = hovering.point
-                    const col = p.x / root.cell + (root.cols - 1) / 2
-                    const row = p.z / root.cell + (root.rows - 1) / 2
-                    if (col < -0.5 || col > root.cols - 0.5
-                        || row < -0.5 || row > root.rows - 0.5) return null
-                    return { col: Math.round(col), row: Math.round(row) }
-                }
-                readonly property bool free: spot !== null
-                                             && root.cellFree(spot.col, spot.row, -1, partType)
-
-                // A click PLACES rather than accumulating: the pick is the
-                // instruction, not the subject. Refused where the cell is
-                // taken - and the ghost said so before the click.
-                function add(pick) {
-                    if (!spot || !free) return
-                    root.addElement(partType, spot.col, spot.row)
-                }
-            }
         }
         environment: stage.environment
 
@@ -2286,49 +1797,18 @@ Item {
             }
         }
 
-        LineBatch3D {  // every wire, one instanced draw call
-            widthUnits: LineBatch3D.World
-            orientation: LineBatch3D.Flat     // ribbons lie in the board plane
-            opaque: true                      // crossings resolve by depth
-            depthBias: 4
-            castsShadows: false
-            flowTime: clock.time              // sim clock: the flow is deterministic
-            flowAutoPlay: false
-            styles: [
-                { dash: [0, 0], capRound: true, opacity: 1.0 },
-                // deliberately unhurried: the flow is there to be read, not
-                // to make the board feel busy
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.0 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.8 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 2.8 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 4.0 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 5.4 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 7.0 }
-            ]
-            lines: {
-                root.elemRev; root.sim; root.hoverHit; root.eraser
-                return root.wireLines()
-            }
+        // Every wire, one instanced draw call, flat on the board - plus the
+        // dangling preview, routed like the real thing. The kit says how a
+        // wire is drawn (wireLine); the kernel draws it.
+        BoardWires3D {
+            id: wires3d
+            board: board
+            y: root.wireY
+            clock: clock                      // sim clock: the flow is deterministic
+            solved: root.sim
+            lineOf: (w, pts, hovered) => root.wireLine(w, pts, hovered)
         }
 
-        MultiLine3D {  // dangling wire preview - flat, and routed like the real
-                       // thing, so what you see while dragging is the wire you
-                       // get when you let go
-            visible: root.wiringFrom !== null
-            coords: {
-                if (!root.wiringFrom) return []
-                const a = root.terminalPos(root.wiringFrom.el, root.wiringFrom.ti)
-                const b = root.cursorW
-                const p = Route.routeOne(
-                    { x: a.x, z: a.z,
-                      dir: root.terminalDir(root.wiringFrom.el, root.wiringFrom.ti) },
-                    { x: b.x, z: b.z, dir: null },
-                    [], null, root.cell / 2)
-                return [p.map(q => Qt.vector3d(q.x, root.wireY, q.z))]
-            }
-            color: LabTheme.secondary
-            width: 0.4
-        }
     }
 
     // --- navigation --------------------------------------------------------
@@ -2346,502 +1826,50 @@ Item {
     }
 
     // --- mouse interaction ------------------------------------------------
-    MouseArea {
+    // The gesture is the kernel's (BoardInput): an empty hand wires pads,
+    // selects and drags a part, taps a wire to branch from it, and operates
+    // the SELECTED part's actuator on a second click. What this lab adds is
+    // what operating means here - a switch flips - and that a click on the
+    // board hands the flow over to the learner.
+    BoardInput {
         id: boardMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-        // A pointing hand is the one cursor everybody already reads as
-        // "this does something when you click it".
-        cursorShape: root.hoverActuator && !pressed ? Qt.PointingHandCursor
-                                                    : nav.cursorShape
-        property var dragElem: null
-        // The part being operated by this press, if any.
-        property var actuateElem: null
-        property bool dragged: false
-        property var pressW: null
-        // Alt inverts the current grid mode for the length of one drag
-        function snapping(mods) {
-            return grid.snapping(mods)
-        }
-
-        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
-
-        // The gesture lives in named functions rather than in the signal
-        // handlers, so a flow, a test or an agent can perform the SAME drag a
-        // hand does - the inspector can synthesize a click but not a drag, and
-        // wiring two pads together is the one thing this lab is for. The
-        // handlers below are three one-liners that forward to them.
-        function moveAt(mx, my, mods, isDown) {
-            if (isDown && nav.active) { nav.move(mx, my); return }
-            if (isDown && hands.held) { hands.move(mx, my); return }
-            if (!isDown) nav.hoverAt(mx, my)
-            const w = worldAt(mx, my)
-            if (!w) return
-            root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
-            if (isDown && dragElem) {
-                if (!dragged && pressW && Math.hypot(w.x - pressW.x, w.z - pressW.z) > 1.2)
-                    dragged = true
-                if (dragged)
-                    root.moveElement(dragElem,
-                                     w.x / root.cell + (root.cols - 1) / 2,
-                                     w.z / root.cell + (root.rows - 1) / 2,
-                                     snapping(mods))
-            } else {
-                root.hoverHit = root.hitAt(w.x, w.z)
-            }
-        }
-
-        // A click, as one call: press and release with no movement between.
-        function clickAt(x, y, mods) {
-            pressAt(x, y, Qt.LeftButton, mods || 0)
-            releaseAt()
-        }
-        // Drag a part from one window point to another, in one call.
-        function dragFrom(x1, y1, x2, y2, mods) {
-            pressAt(x1, y1, Qt.LeftButton, mods || 0)
-            moveAt(x2, y2, mods || 0, true)
-            releaseAt()
-        }
-
-        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
-
-        onDoubleClicked: (mouse) => {
-            // only over bare board: a double-click on a part belongs to the part
-            const w = worldAt(mouse.x, mouse.y)
-            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
-        }
-
-        onPositionChanged: (mouse) => moveAt(mouse.x, mouse.y, mouse.modifiers, pressed)
-        onPressed: (mouse) => pressAt(mouse.x, mouse.y, mouse.button, mouse.modifiers)
-        onReleased: releaseAt()
-
-        function pressAt(mx, my, button, mods) {
-            root.forceActiveFocus()
-            nav.cancel()
-            // Ask the camera first, and with the default buttons the answer for
-            // the left button is always no - so nothing below has to think
-            // about the camera again, and nothing below can be starved by it.
-            if (nav.begin(mx, my, button, mods) !== "") return
-            // Then the hand: an instrument out means the click is the
-            // instrument's, and it decides click-versus-drag itself.
-            if (hands.held) { hands.press(mx, my); return }
-            const w = worldAt(mx, my)
-            pressW = w; dragged = false; dragElem = null
-            const hit = w ? root.hitAt(w.x, w.z) : null
-            // empty board (or off-board): a click there means "nothing"
-            if (!hit) {
-                root.selectedId = -1
-                if (!root.eraser) root.wiringFrom = null
-                return
-            }
-            if (root.eraser) {
-                if (hit.kind === "wire") root.removeWire(hit.wire)
-                else if (hit.kind === "element" || hit.kind === "terminal")
-                    root.removeElement(hit.el)
-                return
-            }
-            // Clicking a wire taps into it: a junction is dropped where you
-            // clicked and the wire splits, so you can branch off anywhere.
-            if (hit.kind === "wire") {
-                const j = root.splitWireAt(hit.wire, w.x, w.z)
-                if (j === -1) return
-                if (root.wiringFrom) {
-                    root.addWire([root.wiringFrom.el, root.wiringFrom.ti], [j, 0])
-                    root.wiringFrom = null
-                } else {
-                    root.wiringFrom = { el: j, ti: 0 }
-                }
-                return
-            }
-            if (hit.kind === "terminal") {
-                const el = root.elemAt(hit.el)
-                // an idle click on a junction grabs the dot itself; while
-                // wiring, the same click connects to it
-                if (el && el.type === "junction" && root.wiringFrom === null) {
-                    root.selectedId = hit.el
-                    dragElem = hit.el
-                    return
-                }
-                if (root.wiringFrom === null)
-                    root.wiringFrom = { el: hit.el, ti: hit.ti }
-                else {
-                    root.addWire([root.wiringFrom.el, root.wiringFrom.ti],
-                                 [hit.el, hit.ti])
-                    root.wiringFrom = null
-                }
-                return
-            }
-            // Operating a part is its own gesture: no drag, no wire, no
-            // change to what is selected. Toggled on RELEASE like the body
-            // click always was, so a press that turns into a camera drag
-            // still does not flip anything.
-            // Operating is reserved for the part you have SELECTED. The
-            // card is where a part's state is set - a gate's function, a
-            // resistor's ohms, and now a switch's on/off - and selecting is
-            // how you say which part you are working on. Making the lever
-            // follow the same rule is what stops a click during building from
-            // flipping something: to flip it you must already have picked it.
-            //
-            // First click selects, second operates. The hover affordance says
-            // which of the two the next click is, so the two-step is visible
-            // rather than discovered.
-            if (hit.kind === "actuator") {
-                if (root.selectedId !== hit.el) {
-                    root.selectedId = hit.el
-                    dragElem = hit.el
-                    root.currentFlow.takeOver()
-                    return
-                }
-                actuateElem = hit.el
-                root.currentFlow.takeOver()
-                return
-            }
-            if (hit.kind === "element") {
-                root.selectedId = hit.el
-                dragElem = hit.el
-            }
-            root.currentFlow.takeOver()   // the learner is driving now, not the flow
-        }
-
-        function releaseAt() {
-            nav.end()          // a flicked drag coasts to a stop from here
-            if (hands.release()) return   // the click was the instrument's
-            if (actuateElem !== null) {
-                const a = root.elemAt(actuateElem)
-                if (a && a.type === "switch") root.toggleSwitch(actuateElem)
-                actuateElem = null
-                dragElem = null; dragged = false
-                return
-            }
-            // Nothing else operates on release. A part's state is set on its
-            // card, or through the actuator once the part is selected - the
-            // body click that used to toggle a switch is gone, because it was
-            // the one path that could flip something you had not chosen.
-            //
-            // a resistor is set with the slider on its selection card, a gate
-            // with its function chips, a switch with its on/off pair
-            dragElem = null; dragged = false
-        }
+        board: board
+        nav: nav
+        hands: hands
+        stage: stage
+        view: view3d
+        grid: grid
+        onOperate: (id) => root.toggleSwitch(id)
+        onInteracted: root.currentFlow.takeOver()   // the learner is driving now, not the flow
     }
-
-    // A right CLICK is "put it down" - the RTS cancel. It empties the hand and
-    // drops whatever the board had half-started, in that order, so one press
-    // walks back one step. A right DRAG still turns the view and cancels
-    // nothing; only the distance travelled tells them apart.
-    Connections {
-        target: nav
-        function onCancelled() {
-            if (!hands.empty) { hands.putAway(); return }
-            if (root.wiringFrom) { root.wiringFrom = null; return }
-            if (root.eraser) { root.eraser = false; return }
-            root.selectedId = -1
-        }
-    }
-
-    // --- palette sections --------------------------------------------------
-    // Eleven parts, eleven presets and four tools stopped fitting a laptop
-    // screen. Shrinking the type would be the wrong fix - it is the same list
-    // either way, only harder to read. So the reader folds away the half they
-    // are not using, and what stays open is theirs, which is why it rides in
-    // viewState() rather than resetting on every reload.
-    property var sectionsOpen: ({ presets: true, parts: true, tools: true })
-    function sectionOpen(k) { return sectionsOpen[k] !== false }
-    function toggleSection(k) {
-        const s = Object.assign({}, sectionsOpen)
-        s[k] = !sectionOpen(k)
-        sectionsOpen = s
-    }
-
-    component PaletteSection: Column {
-        id: sec
-        property string title: ""
-        property string sectionKey: ""
-        default property alias content: _inner.data
-        readonly property bool open: root.sectionOpen(sectionKey)
-        width: LabTheme.px(188)
-        spacing: LabTheme.spaceS
-
-        Rectangle {
-            width: sec.width
-            height: LabTheme.px(20)
-            radius: LabTheme.px(4)
-            color: _hdr.containsMouse ? LabTheme.paper : "transparent"
-            Text {
-                x: LabTheme.px(3)
-                anchors.verticalCenter: parent.verticalCenter
-                width: sec.width - LabTheme.px(6)
-                elide: Text.ElideRight
-                text: (sec.open ? "▾ " : "▸ ") + sec.title
-                color: LabTheme.inkFaint
-                font.pixelSize: LabTheme.fontSmall; font.bold: true
-                font.letterSpacing: 1.2
-                font.family: LabTheme.monoFont
-            }
-            MouseArea {
-                id: _hdr
-                anchors.fill: parent
-                hoverEnabled: true
-                onClicked: root.toggleSection(sec.sectionKey)
-            }
-        }
-        Column {
-            id: _inner
-            width: sec.width
-            spacing: LabTheme.spaceS
-            visible: sec.open
-            height: visible ? implicitHeight : 0
-        }
-    }
-
-    // --- how much page there is -------------------------------------------
-    // Turn the text size up and the left column stops fitting. Two answers,
-    // both measured rather than switched on the scale: the palette lays its
-    // parts and tools two across and drops their one-line hints (captions give
-    // way before things you click), and the schematic steps out from under it
-    // into the empty middle. On a tall screen at the same scale neither fires.
-    readonly property bool compactPalette:
-        root.height < LabTheme.px(760)
-    // Where the small schematic sits relative to the palette. Held false while
-    // the panel is maximised: it reads plan.y, the maximised panel moves, and
-    // a rule about dodging the palette has nothing to say about a panel that
-    // is covering it.
-    readonly property bool planUnderPalette: root.planMax ? false
-        : plan.y > palette.y + palette.height + LabTheme.px(16)
 
     // --- palette ----------------------------------------------------------
-    readonly property var partCatalog: [
-        { type: "battery", color: "#3e9b92" },
-        { type: "switch", color: "#c56c54" },
-        { type: "resistor", color: "#d9c9a0" },
-        { type: "led", color: "#e05a40" },
-        { type: "bulb", color: "#d4ba6a" },
-        { type: "diode", color: "#3a3630" },
-        { type: "transistor", color: "#2a2724" },
-        { type: "gate", color: "#4a4f55" },
-        { type: "ammeter", color: "#3f7a57" },
-        { type: "voltmeter", color: "#8160a8" }
-    ]
+    // The kernel's: presets, the parts to take, the tools, in sections the
+    // reader folds. Where the small schematic sits relative to it is this
+    // lab's question - held false while the panel is maximised: it reads
+    // plan.y, the maximised panel moves, and a rule about dodging the palette
+    // has nothing to say about a panel that is covering it.
+    readonly property bool planUnderPalette: root.planMax ? false
+        : plan.y > palette.y + palette.height + LabTheme.px(16)
+    readonly property alias sectionsOpen: palette.sectionsOpen
 
-    LabPanel {
+    BoardPalette {
         id: palette
         // Named so a figure can ask for it by name: a paper wants a picture of
         // "the palette", and a pixel rectangle for it goes wrong the moment the
         // UI scale changes. See clayrender --crop.
         objectName: "palette"
-        x: LabTheme.px(12); y: LabTheme.px(12)
-        width: LabTheme.px(208)
-        title: LabLang.t("lab.title")
-
-        // Bounded and flickable, so nothing in here can ever be off the bottom
-        // of the screen. Folding a section is the fast way to make room; this
-        // is the guarantee that the slow way always exists.
-        Flickable {
-            id: paletteScroll
-            width: LabTheme.px(188)
-            height: Math.min(contentHeight,
-                             root.height - palette.y - LabTheme.px(58))
-            contentWidth: width
-            contentHeight: paletteCol.implicitHeight
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-
-            Column {
-                id: paletteCol
-                width: parent.width
-                spacing: LabTheme.spaceS
-
-        PaletteSection {
-            title: LabLang.t("section.presets")
-            sectionKey: "presets"
-            // The presets, clickable and each carrying what it is worth
-            // noticing. They used to be reachable only by pressing 1..4, with
-            // nothing but the active name on screen - the best material in the
-            // lab, hidden.
-            ScenarioBar {
-                lab: root
-                width: LabTheme.px(188)
-            }
-            // and the offer to be taught, from the first frame
-            FlowChip { flow: root.currentFlow }
-        }
-
-        PaletteSection {
-            title: LabLang.t("section.parts")
-            sectionKey: "parts"
-        // The parts. Turn the text size up and this list alone is taller than
-        // the window, so it reflows into two columns and drops the one-line
-        // hints - captions give way before the things you click, and the
-        // symbol beside each name still says what the part is.
-        Grid {
-            id: partGrid
-            columns: root.compactPalette ? 2 : 1
-            spacing: LabTheme.spaceS
-            readonly property real cellW: columns === 1 ? LabTheme.px(188)
-                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
-            Repeater {
-                model: root.partCatalog
-                Rectangle {
-                    width: partGrid.cellW
-                    height: root.compactPalette ? LabTheme.px(28) : LabTheme.px(40)
-                    radius: LabTheme.px(6)
-                    color: partArea.containsMouse ? LabTheme.panel : LabTheme.paper
-                    border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
-                    Rectangle {  // the part's colour on the board
-                        x: LabTheme.px(6); anchors.verticalCenter: parent.verticalCenter
-                        width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(3)
-                        color: modelData.color
-                    }
-                    // and its schematic symbol: the palette is where a kit can
-                    // teach "this lump is that squiggle" for free
-                    SymbolIcon {
-                        visible: !root.compactPalette
-                        x: LabTheme.px(20); anchors.verticalCenter: parent.verticalCenter
-                        type: modelData.type
-                        ink: LabTheme.inkSoft
-                    }
-                    Column {
-                        x: root.compactPalette ? LabTheme.px(22) : LabTheme.px(60)
-                        anchors.verticalCenter: parent.verticalCenter
-                        Text {
-                            text: LabLang.t("part." + modelData.type)
-                            width: partGrid.cellW - LabTheme.px(28)
-                            elide: Text.ElideRight
-                            color: LabTheme.ink; font.pixelSize: LabTheme.fontBody
-                            font.bold: true; font.family: LabTheme.monoFont
-                        }
-                        // bounded: a translated hint is often longer than the
-                        // English one and must not run out of the panel
-                        Text {
-                            visible: !root.compactPalette
-                            text: LabLang.t("part." + modelData.type + ".hint")
-                            width: LabTheme.px(122); elide: Text.ElideRight
-                            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
-                            font.family: LabTheme.handFont
-                        }
-                    }
-                    // Clicking a part TAKES it, it does not place it. The
-                    // press-here-release-there drag this replaces dropped the
-                    // part wherever the release happened to land - including
-                    // under the palette panel itself, which is where most of
-                    // them ended up. Now the board shows a ghost where it
-                    // would go, a click puts it there, and Esc or the right
-                    // button puts it back down.
-                    MouseArea {
-                        id: partArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: {
-                            if (hands.held === placer
-                                && placer.partType === modelData.type) {
-                                hands.putAway()          // clicking it again puts it back
-                                return
-                            }
-                            placer.partType = modelData.type
-                            hands.takeNamed("place")
-                        }
-                    }
-                }
-            }
-        }
-        }
-
-        PaletteSection {
-            title: LabLang.t("section.tools")
-            sectionKey: "tools"
-        // The tools. Two across when the column is tight, one when it is not.
-        Grid {
-            id: toolGrid
-            columns: root.compactPalette ? 2 : 1
-            spacing: LabTheme.spaceS
-            readonly property real cellW: columns === 1 ? LabTheme.px(188)
-                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: root.eraser ? LabTheme.clay : LabTheme.paper
-                border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
-                    color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper
-                border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: root.showValues
-                          ? LabLang.t("btn.values.on") + " · " + root.valueAttr
-                          : LabLang.t("btn.values.off")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.cycleValueAttr() }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper
-                border.color: grid.snap ? LabTheme.secondary : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t(grid.snap ? "btn.grid.snap" : "btn.grid.free")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: grid.toggle() }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper; border.color: LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t("btn.clear")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
-            }
-        }
-        }
-            }
-
-            // Only there when there IS more below: a bar that is always visible
-            // teaches nothing, and one that never appears leaves the reader
-            // wondering whether the list simply ended. It lives INSIDE the
-            // Flickable, so it has to be drawn at contentY to stay put - a
-            // child of a Flickable scrolls with the content by definition.
-            Rectangle {
-                readonly property real over:
-                    paletteScroll.contentHeight - paletteScroll.height
-                visible: over > 1
-                x: paletteScroll.width - width
-                y: paletteScroll.contentY
-                   + (over > 0 ? paletteScroll.contentY / over : 0)
-                     * (paletteScroll.height - height)
-                width: LabTheme.px(3)
-                height: Math.max(LabTheme.px(24),
-                                 paletteScroll.height * paletteScroll.height
-                                 / Math.max(1, paletteScroll.contentHeight))
-                radius: width / 2
-                color: LabTheme.panelEdge
-            }
-        }
+        board: board
+        lab: root
+        flow: root.currentFlow
+        hands: hands
+        placer: placer
+        grid: grid
+        overlay: overlay
+        catalog: Parts.catalog
+        // and each part's schematic symbol: the palette is where a kit can
+        // teach "this lump is that squiggle" for free
+        icon: Component { SymbolIcon {} }
     }
 
     // --- flow (SPIKE) ------------------------------------------------------
@@ -3579,499 +2607,314 @@ Item {
         }
     }
 
-    // --- value labels ------------------------------------------------------
+    // --- readings over the board -------------------------------------------
     // The whole point of the lab in one toggle: with V on, every part shows
     // its current and voltage and every wire its current, so series (one
     // current everywhere, voltages divide) and parallel (one voltage, the
-    // current splits) can simply be read off the board.
-    Repeater {
-        model: root.showValues ? root.elements : []
-        Rectangle {
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.elemAt(modelData.id)
-                if (!e) return Qt.vector3d(0, 0, 0)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
-            }
-            visible: modelData.type !== "junction" && screenAt.z > 0
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
-            width: valueText.width + 12
-            height: LabTheme.px(20)
-            radius: LabTheme.px(5)
-            color: LabTheme.panel
-            readonly property string sev: {
-                root.elemRev; root.sim
-                return root.severityOf(modelData.id, root.valueAttr)
-            }
-            border.color: sev === "warn" ? LabTheme.alarm : LabTheme.panelEdge
-            border.width: LabTheme.px(1)
-            opacity: 0.94
-            Text {
-                id: valueText
-                anchors.centerIn: parent
-                // magnitudes only: direction is what the chevrons are for,
-                // and a signed reading here only invites "why is it minus?"
-                text: {
-                    root.elemRev; root.sim
-                    return root.readingOf(modelData.id, root.valueAttr)
-                }
-                color: parent.sev === "warn" ? LabTheme.alarm : LabTheme.primary
-                font.pixelSize: LabTheme.fontSmall
-                font.family: LabTheme.monoFont
-            }
-        }
-    }
-    // Wires only carry a current, so their labels ride only that attribute.
-    Repeater {
-        model: root.showValues && root.valueAttr === "I" ? root.wires : []
-        Text {
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const m = root.wireMid(modelData)
-                return view3d.mapFrom3DScene(Qt.vector3d(m.x, 0.6, m.z))
-            }
-            visible: root.showValues && screenAt.z > 0 && !root.labelsHidden
-            x: screenAt.x - width / 2
-            y: screenAt.y - height / 2
-            text: {
-                const i = root.sim.wireCurrent ? root.sim.wireCurrent[modelData.id] : null
-                if (i === null || i === undefined) return "?"
-                return root.fmtA(Math.abs(i))
-            }
-            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall; font.bold: true
-            font.family: LabTheme.monoFont
-            style: Text.Outline; styleColor: LabTheme.paperDeep
-        }
-    }
-
-    // --- watch marks -------------------------------------------------------
-    // A tag in the curve's own colour, so "which line is which part" is read
-    // off the board instead of guessed from the legend order.
-    Repeater {
-        model: root.watch
-        WatchMark {
-            readonly property int pid: modelData
-            // the projection needs the camera's own scene transform listed, or
-            // the binding freezes the moment the rig moves
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.elemAt(pid)
-                if (!e) return Qt.vector3d(0, 0, 0)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
-            }
-            monitor: root.watchMonitor
-            target: pid
-            label: { root.elemRev; return root.partLabel(pid) }
-            visible: screenAt.z > 0 && root.isWatched(pid) && !root.labelsHidden
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            // steps aside for the value label when V is on
-            y: Math.max(2, Math.min(root.height - height - 2,
-                                    screenAt.y - height
-                                    - (root.showValues ? LabTheme.px(23) : 0)))
-        }
-    }
-
-    // --- per-part watch tags -----------------------------------------------
-    // One value on one part, pinned from its card: the middle rung between
-    // "selected once" and "traced". Wears the trace colour when the part is
-    // also on the plot, the severity tint when its band trips.
-    Repeater {
-        model: Object.keys(root.watchLabels)
-        Rectangle {
-            required property string modelData
-            readonly property int elId: parseInt(modelData)
-            readonly property string attr: root.watchLabels[modelData] || "I"
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.elemAt(elId)
-                if (!e) return Qt.vector3d(0, 0, 0)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    root.cellX(e.col), 7.6, root.cellZ(e.row)))
-            }
-            readonly property string sev: {
-                root.elemRev; root.sim
-                return root.severityOf(elId, attr)
-            }
-            visible: root.elemAt(elId) !== null && screenAt.z > 0
-                     && !root.labelsHidden
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
-            width: tagText.width + 12
-            height: LabTheme.px(20)
-            radius: LabTheme.px(5)
-            color: LabTheme.panel
-            border.color: sev === "warn" ? LabTheme.alarm
-                        : root.isWatched(elId) ? root.watchColorOf(elId)
-                        : LabTheme.secondary
-            border.width: LabTheme.px(2)
-            opacity: 0.96
-            Text {
-                id: tagText
-                anchors.centerIn: parent
-                text: {
-                    root.elemRev; root.sim
-                    return parent.attr + " " + root.readingOf(parent.elId, parent.attr)
-                }
-                color: parent.sev === "warn" ? LabTheme.alarm : LabTheme.ink
-                font.pixelSize: LabTheme.fontSmall; font.bold: true
-                font.family: LabTheme.monoFont
-            }
+    // current splits) can simply be read off the board. Watch marks in the
+    // curve's own colour, and the per-part tags pinned from the card, are the
+    // same overlay - all speaking through readingOf, so they cannot disagree.
+    BoardOverlay {
+        id: overlay
+        anchors.fill: parent
+        board: board
+        view: view3d
+        camera: rig.camera
+        monitor: monitor
+        solved: root.sim
+        hidden: root.labelsHidden
+        readingOf: (id, attr) => root.readingOf(id, attr)
+        severityOf: (id, attr) => root.severityOf(id, attr)
+        labelOf: (id) => root.partLabel(id)
+        // wires only carry a current, so their labels ride only that attribute
+        wireReadingOf: (w) => {
+            const i = root.sim.wireCurrent ? root.sim.wireCurrent[w.id] : null
+            if (i === null || i === undefined) return "?"
+            return root.fmtA(Math.abs(i))
         }
     }
 
     // --- selection card (what is selected, what it reads, what you can do) -
-    LabPanel {
+    // The kernel's card follows the part and carries the watch and tag rows;
+    // what a circuit part is called, what it reads and which of its values
+    // can be set here are this lab's. A part's state belongs on its card: a
+    // resistor's ohms are a slider, a gate's function a row of chips, a
+    // switch's on/off a pair of them.
+    function cardTitle(e) {
+        const name = LabLang.t("part." + e.type).toUpperCase()
+        if (e.type === "resistor")
+            return name + "  " + (e.value >= 1000
+                ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
+                : e.value + " Ω")
+        if (e.type === "battery")
+            return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
+        if (e.type === "switch")
+            return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
+        if (e.type === "transistor") {
+            const m = root.simOf(e.id).mode
+            return name + "  " + LabLang.t("npn." + (m === undefined ? "off" : m))
+        }
+        if (e.type === "gate")
+            return LabLang.t("gate." + (e.func || "and")).toUpperCase()
+        return name
+    }
+    // h/l on the card's rows: a switch's state, a gate's function, a value.
+    function adjustCardRow(el, row, d) {
+        if (row === "state") { setSwitch(el.id, !el.on); return true }
+        if (row === "func") {
+            const i = gateFuncs.indexOf(el.func || "and")
+            const n = gateFuncs.length
+            setGateFunc(el.id, gateFuncs[((i + d) % n + n) % n])
+            return true
+        }
+        if (row === "value") {
+            if (el.type === "battery") {
+                const v = (el.value || defaultVolts) + d * 0.5
+                setBatteryVolts(el.id, Math.max(1.5, Math.min(12, v)))
+            } else {
+                const s = resistorStepOf(el.value) + d
+                setResistanceStep(el.id, Math.max(0, Math.min(resistorSteps.length - 1, s)))
+            }
+            return true
+        }
+        return false
+    }
+
+    PartCard {
         id: selCard
         objectName: "partCard"
-        padding: 10
-        spacing: LabTheme.px(1)
-        border.color: LabTheme.secondary
-        readonly property var el: {
-            root.elemRev
-            return root.selectedId === -1 ? null : root.elemAt(root.selectedId)
+        board: board
+        view: view3d
+        camera: rig.camera
+        monitor: monitor
+        overlay: overlay
+        titleOf: (e) => root.cardTitle(e)
+        readingOf: (e) => { const s = root.simOf(e.id); return root.fmtV(s.v) + "   " + root.fmtA(s.i) }
+        hintOf: (e) => LabLang.t(e.type === "resistor" ? "card.hint.resistor"
+                                : e.type === "battery" ? "card.hint.battery" : "card.hint.part")
+        minWidthOf: (e) => (e.type === "resistor" || e.type === "battery") ? LabTheme.px(196)
+                          : e.type === "gate" ? LabTheme.px(228) : 0
+        adjust: (e, row, d) => root.adjustCardRow(e, row, d)
+        operate: (e) => {
+            if (!root.actuatorHalf(e.type)) return false
+            root.toggleSwitch(e.id)
+            return true
         }
-        readonly property var screenAt: {
-            root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-            if (!el) return Qt.vector3d(0, 0, 0)
-            return view3d.mapFrom3DScene(Qt.vector3d(root.cellX(el.col), 0,
-                                                     root.cellZ(el.row) + 5.5))
-        }
-        visible: el !== null && screenAt.z > 0
-        // kept inside the window: zoomed in, the anchor point can sit far
-        // below the viewport
-        x: Math.max(8, Math.min(root.width - width - 8, screenAt.x - width / 2))
-        y: Math.max(8, Math.min(root.height - height - 44, screenAt.y + 6))
-        width: Math.max(selCol.width + 20,
-                        (isResistor || isBattery) ? LabTheme.px(196) : 0,
-                        isGate ? LabTheme.px(228) : 0)
-        height: selCol.height + 14
-        readonly property bool isResistor: el !== null && el.type === "resistor"
-        readonly property bool isBattery: el !== null && el.type === "battery"
-        readonly property bool isGate: el !== null && el.type === "gate"
+        readonly property bool isResistor: part !== null && part.type === "resistor"
+        readonly property bool isBattery: part !== null && part.type === "battery"
+        readonly property bool isGate: part !== null && part.type === "gate"
         readonly property var bat: {
             root.elemRev; root.sim
-            return el && el.type === "battery" ? root.batteryOf(el.id) : null
+            return part && part.type === "battery" ? root.batteryOf(part.id) : null
         }
 
-        Column {
-            id: selCol
-            spacing: LabTheme.px(1)
-            Text {
-                text: {
-                    // elemRev per binding: `el` hands back the same object
-                    // every time, and re-assigning an identical reference is
-                    // not a change as far as QML is concerned
-                    root.elemRev
-                    if (!selCard.el) return ""
-                    const e = selCard.el
-                    const name = LabLang.t("part." + e.type).toUpperCase()
-                    if (e.type === "resistor")
-                        return name + "  " + (e.value >= 1000
-                            ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
-                            : e.value + " Ω")
-                    if (e.type === "battery")
-                        return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
-                    if (e.type === "switch")
-                        return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
-                    if (e.type === "transistor") {
-                        const m = root.simOf(e.id).mode
-                        return name + "  " + LabLang.t("npn." + (m === undefined ? "off" : m))
-                    }
-                    if (e.type === "gate")
-                        return LabLang.t("gate." + (e.func || "and")).toUpperCase()
-                    return name
-                }
-                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
-                font.letterSpacing: 1.0; font.family: LabTheme.monoFont
+        // The transistor's own account of itself. Its v/i line above is
+        // the collector-emitter pair, which is what every other readout in
+        // the lab shows for it; what only this card can add is the tiny
+        // current on the third leg, and the ratio between the two - which
+        // is the entire reason the part exists.
+        Text {
+            visible: selCard.part !== null && selCard.part.type === "transistor"
+            text: {
+                root.elemRev; root.sim
+                if (!selCard.part || selCard.part.type !== "transistor") return ""
+                const s = root.simOf(selCard.part.id)
+                const gain = Math.abs(s.ib) > 1e-9
+                             ? LabLang.num(Math.abs(s.ic / s.ib), 0) : "—"
+                return "Ib " + root.fmtA(s.ib) + "   Ic " + root.fmtA(s.ic)
+                     + "   ×" + gain
             }
-            Text {
-                text: {
-                    root.elemRev
-                    if (!selCard.el) return ""
-                    const s = root.simOf(selCard.el.id)
-                    return root.fmtV(s.v) + "   " + root.fmtA(s.i)
-                }
-                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                font.family: LabTheme.monoFont
-            }
-            // The transistor's own account of itself. Its v/i line above is
-            // the collector-emitter pair, which is what every other readout in
-            // the lab shows for it; what only this card can add is the tiny
-            // current on the third leg, and the ratio between the two - which
-            // is the entire reason the part exists.
-            Text {
-                visible: selCard.el !== null && selCard.el.type === "transistor"
-                text: {
-                    root.elemRev; root.sim
-                    if (!selCard.el || selCard.el.type !== "transistor") return ""
-                    const s = root.simOf(selCard.el.id)
-                    const gain = Math.abs(s.ib) > 1e-9
-                                 ? LabLang.num(Math.abs(s.ic / s.ib), 0) : "—"
-                    return "Ib " + root.fmtA(s.ib) + "   Ic " + root.fmtA(s.ic)
-                         + "   ×" + gain
-                }
-                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                font.family: LabTheme.monoFont
-            }
-            // Which logic the selected package performs. Same idiom as the
-            // resistor's slider: you place one part and then say what it is,
-            // and the case, the schematic symbol and the truth table all
-            // follow. Changing it re-solves, so the table redraws under your
-            // finger - which is the fastest way there is to learn what six
-            // gates actually do.
-            // A Grid and not a Flow: `Flow` in this file is the LAB's Flow -
-            // the narrated walkthrough - because Clayground.Lab is imported
-            // after QtQuick and wins the name. Three across, two rows.
-            Grid {
-                id: funcGrid
-                visible: selCard.el !== null && selCard.el.type === "gate"
-                width: selCard.width - 20
-                height: visible ? implicitHeight : 0
-                columns: 3
-                spacing: LabTheme.px(3)
-                CardFocusRing { on: root.cardFocusedRow === "func" }
-                readonly property real cellW:
-                    (selCard.width - 20 - 2 * LabTheme.px(3)) / 3
-                Repeater {
-                    model: root.gateFuncs
-                    Rectangle {
-                        required property string modelData
-                        // elemRev here too: `el` is the same reference after an
-                        // in-place func change, so without it the scene flips
-                        // to OR while this chip keeps highlighting AND
-                        readonly property bool active: {
-                            root.elemRev
-                            return selCard.el !== null && selCard.el.func === modelData
-                        }
-                        width: funcGrid.cellW
-                        height: LabTheme.px(20)
-                        radius: LabTheme.px(4)
-                        color: active ? LabTheme.secondary : LabTheme.paper
-                        border.color: active ? LabTheme.secondary : LabTheme.panelEdge
-                        border.width: LabTheme.borderWidth
-                        Text {
-                            id: _fn
-                            anchors.centerIn: parent
-                            text: LabLang.t("gate." + modelData).toUpperCase()
-                            color: LabTheme.inkOn(parent.color)
-                            font.pixelSize: LabTheme.fontSmall; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: if (selCard.el)
-                                           root.setGateFunc(selCard.el.id, modelData)
-                        }
-                    }
-                }
-            }
-            // A switch's state, where a gate's function and a resistor's
-            // ohms already live. The switch was the only stateful part whose
-            // state you changed by touching the 3D object, which is what made
-            // building and operating feel like the same gesture - they were
-            // the same gesture. Everything else about a part is set here.
-            //
-            // Two chips rather than one toggle: a toggle says what will
-            // happen, a pair says what IS. On a part whose whole job is to be
-            // on or off, showing the state is the point.
-            Row {
-                id: switchState
-                visible: selCard.el !== null && selCard.el.type === "switch"
-                height: visible ? implicitHeight : 0
-                spacing: LabTheme.px(3)
-                CardFocusRing { on: root.cardFocusedRow === "state" }
-                Repeater {
-                    model: [true, false]
-                    Rectangle {
-                        required property bool modelData
-                        // same elemRev discipline as the gate chips: `on` is
-                        // mutated in place, the reference never changes
-                        readonly property bool active: {
-                            root.elemRev
-                            return selCard.el !== null && selCard.el.on === modelData
-                        }
-                        width: (selCard.width - 20 - LabTheme.px(3)) / 2
-                        height: LabTheme.px(20)
-                        radius: LabTheme.px(4)
-                        color: active ? LabTheme.secondary : LabTheme.paper
-                        border.color: active ? LabTheme.secondary : LabTheme.panelEdge
-                        border.width: LabTheme.borderWidth
-                        Text {
-                            anchors.centerIn: parent
-                            text: LabLang.t(parent.modelData ? "switch.on" : "switch.off")
-                            color: LabTheme.inkOn(parent.color)
-                            font.pixelSize: LabTheme.fontSmall; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: if (selCard.el)
-                                           root.setSwitch(selCard.el.id, parent.modelData)
-                        }
-                    }
-                }
-            }
-
-            // Resistance slider: drag it and the colour bands on the part
-            // change with the value, because the bands are the real code.
-            Item {
-                visible: selCard.isResistor || selCard.isBattery
-                width: selCard.width - 20
-                height: visible ? 22 : 0
-                CardFocusRing { on: root.cardFocusedRow === "value" }
-
-                Item {
-                    id: rSlider
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width; height: LabTheme.px(16)
-                    readonly property int steps: selCard.isBattery
-                        ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
-                    readonly property real ratio: {
+            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
+            font.family: LabTheme.monoFont
+        }
+        // Which logic the selected package performs. Same idiom as the
+        // resistor's slider: you place one part and then say what it is,
+        // and the case, the schematic symbol and the truth table all
+        // follow. Changing it re-solves, so the table redraws under your
+        // finger - which is the fastest way there is to learn what six
+        // gates actually do.
+        // A Grid and not a Flow: `Flow` in this file is the LAB's Flow -
+        // the narrated walkthrough - because Clayground.Lab is imported
+        // after QtQuick and wins the name. Three across, two rows.
+        Grid {
+            id: funcGrid
+            visible: selCard.part !== null && selCard.part.type === "gate"
+            width: selCard.width - 20
+            height: visible ? implicitHeight : 0
+            columns: 3
+            spacing: LabTheme.px(3)
+            CardFocusRing { on: selCard.focusedRow === "func" }
+            readonly property real cellW:
+                (selCard.width - 20 - 2 * LabTheme.px(3)) / 3
+            Repeater {
+                model: root.gateFuncs
+                Rectangle {
+                    required property string modelData
+                    // elemRev here too: `part` is the same reference after an
+                    // in-place func change, so without it the scene flips
+                    // to OR while this chip keeps highlighting AND
+                    readonly property bool active: {
                         root.elemRev
-                        if (!selCard.el) return 0
-                        if (selCard.isBattery)
-                            return ((selCard.el.value || root.defaultVolts) - 1.5) / 10.5
-                        return steps > 0 ? root.resistorStepOf(selCard.el.value) / steps : 0
+                        return selCard.part !== null && selCard.part.func === modelData
                     }
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
-                        color: LabTheme.panelEdge
-                    }
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: rSlider.ratio * parent.width
-                        height: LabTheme.px(4); radius: LabTheme.px(2)
-                        color: LabTheme.secondary
-                    }
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: rSlider.ratio * (parent.width - width)
-                        width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
-                        color: LabTheme.panel
-                        border.color: LabTheme.ink; border.width: LabTheme.px(2)
+                    width: funcGrid.cellW
+                    height: LabTheme.px(20)
+                    radius: LabTheme.px(4)
+                    color: active ? LabTheme.secondary : LabTheme.paper
+                    border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                    border.width: LabTheme.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: LabLang.t("gate." + parent.modelData).toUpperCase()
+                        color: LabTheme.inkOn(parent.color)
+                        font.pixelSize: LabTheme.fontSmall; font.bold: true
+                        font.family: LabTheme.monoFont
                     }
                     MouseArea {
                         anchors.fill: parent
-                        anchors.margins: -6
-                        function applyAt(mx) {
-                            if (!selCard.el) return
-                            const t = Math.max(0, Math.min(1, (mx + 6) / rSlider.width))
-                            if (selCard.isBattery)
-                                root.setBatteryVolts(selCard.el.id, 1.5 + t * 10.5)
-                            else
-                                root.setResistanceStep(selCard.el.id,
-                                                       Math.round(t * rSlider.steps))
-                        }
-                        onPressed: (mouse) => applyAt(mouse.x)
-                        onPositionChanged: (mouse) => { if (pressed) applyAt(mouse.x) }
+                        onClicked: if (selCard.part)
+                                       root.setGateFunc(selCard.part.id, parent.modelData)
                     }
                 }
             }
-            // The cell's own account of itself: EMF splits into what it
-            // burns inside and what actually reaches the parts. A short is
-            // then not a slogan on a banner but a bar gone all-red.
-            BudgetBar {
-                visible: selCard.isBattery && selCard.bat !== null
-                width: selCard.width - 20
-                height: visible ? implicitHeight : 0
-                unit: "V"
-                total: selCard.bat ? selCard.bat.emf : 1
-                segments: {
+        }
+        // A switch's state, where a gate's function and a resistor's
+        // ohms already live. Two chips rather than one toggle: a toggle
+        // says what will happen, a pair says what IS.
+        Row {
+            id: switchState
+            visible: selCard.part !== null && selCard.part.type === "switch"
+            height: visible ? implicitHeight : 0
+            spacing: LabTheme.px(3)
+            CardFocusRing { on: selCard.focusedRow === "state" }
+            Repeater {
+                model: [true, false]
+                Rectangle {
+                    required property bool modelData
+                    // same elemRev discipline as the gate chips: `on` is
+                    // mutated in place, the reference never changes
+                    readonly property bool active: {
+                        root.elemRev
+                        return selCard.part !== null && selCard.part.on === modelData
+                    }
+                    width: (selCard.width - 20 - LabTheme.px(3)) / 2
+                    height: LabTheme.px(20)
+                    radius: LabTheme.px(4)
+                    color: active ? LabTheme.secondary : LabTheme.paper
+                    border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                    border.width: LabTheme.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: LabLang.t(parent.modelData ? "switch.on" : "switch.off")
+                        color: LabTheme.inkOn(parent.color)
+                        font.pixelSize: LabTheme.fontSmall; font.bold: true
+                        font.family: LabTheme.monoFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: if (selCard.part)
+                                       root.setSwitch(selCard.part.id, parent.modelData)
+                    }
+                }
+            }
+        }
+
+        // Resistance slider: drag it and the colour bands on the part
+        // change with the value, because the bands are the real code.
+        Item {
+            visible: selCard.isResistor || selCard.isBattery
+            width: selCard.width - 20
+            height: visible ? 22 : 0
+            CardFocusRing { on: selCard.focusedRow === "value" }
+
+            Item {
+                id: rSlider
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width; height: LabTheme.px(16)
+                readonly property int steps: selCard.isBattery
+                    ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
+                readonly property real ratio: {
                     root.elemRev
-                    const b = selCard.bat
-                    if (!b) return []
-                    return [{ label: LabLang.t("cell.reaches"), value: b.vTerm,
-                              color: LabTheme.teal },
-                            { label: LabLang.t("cell.lost"), value: b.internalDrop,
-                              color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
+                    if (!selCard.part) return 0
+                    if (selCard.isBattery)
+                        return ((selCard.part.value || root.defaultVolts) - 1.5) / 10.5
+                    return steps > 0 ? root.resistorStepOf(selCard.part.value) / steps : 0
                 }
-            }
-            Text {
-                visible: selCard.isBattery && selCard.bat !== null
-                width: selCard.width - 20
-                wrapMode: Text.WordWrap
-                text: {
-                    const b = selCard.bat
-                    if (!b) return ""
-                    if (b.shorted)
-                        return LabLang.tf("cell.short", LabLang.num(b.rExt, 2))
-                    if (b.overloaded)
-                        return LabLang.tf("cell.heavy", LabLang.num(Math.abs(b.i), 2),
-                                          LabLang.num(b.rated, 1))
-                    return LabLang.tf("cell.ok", b.rExt > 9999 ? LabLang.t("cell.open")
-                        : LabLang.num(b.rExt, b.rExt < 100 ? 1 : 0) + " Ω")
-                }
-                color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
-                     : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
-                     : LabTheme.inkFaint
-                font.pixelSize: LabTheme.fontBody
-                font.family: LabTheme.handFont
-            }
-            // Monitoring is a per-part act, like selecting: this puts the part
-            // on the plot in the colour it then wears on the board. The chip
-            // is the kernel's - it reads the series limit off the monitor
-            // itself, so this card can no longer disagree with the plot about
-            // whether there is a colour left - and a junction hides it by
-            // having no target rather than by a second visibility rule.
-            WatchChip {
-                monitor: root.watchMonitor
-                target: selCard.el !== null && selCard.el.type !== "junction"
-                        ? selCard.el.id : undefined
-                labels: ({ add: "card.watch", on: "card.watched",
-                           full: "card.watch.full" })
-                CardFocusRing { on: root.cardFocusedRow === "watch" }
-            }
-            // Pin one attribute to this part as a tag in the scene - the
-            // watch rung: no probe, no history, just a reading that stays.
-            Row {
-                id: tagChips
-                visible: selCard.el !== null && selCard.el.type !== "junction"
-                height: visible ? implicitHeight : 0
-                spacing: LabTheme.px(3)
-                CardFocusRing { on: root.cardFocusedRow === "label" }
-                Text {
-                    text: LabLang.t("card.tag")
+
+                Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
-                    color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
-                    font.family: LabTheme.handFont
+                    width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
+                    color: LabTheme.panelEdge
                 }
-                Repeater {
-                    model: ["", "I", "V", "P"]
-                    Rectangle {
-                        required property string modelData
-                        readonly property bool active: selCard.el !== null
-                            && (root.watchLabels[selCard.el.id] || "") === modelData
-                        width: LabTheme.px(24); height: LabTheme.px(20)
-                        radius: LabTheme.px(4)
-                        color: active ? LabTheme.secondary : LabTheme.paper
-                        border.color: active ? LabTheme.secondary : LabTheme.panelEdge
-                        border.width: LabTheme.borderWidth
-                        Text {
-                            anchors.centerIn: parent
-                            text: parent.modelData === "" ? "–" : parent.modelData
-                            color: LabTheme.inkOn(parent.color)
-                            font.pixelSize: LabTheme.fontSmall; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: if (selCard.el)
-                                root.setWatchLabel(selCard.el.id, parent.modelData)
-                        }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: rSlider.ratio * parent.width
+                    height: LabTheme.px(4); radius: LabTheme.px(2)
+                    color: LabTheme.secondary
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: rSlider.ratio * (parent.width - width)
+                    width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
+                    color: LabTheme.panel
+                    border.color: LabTheme.ink; border.width: LabTheme.px(2)
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    function applyAt(mx) {
+                        if (!selCard.part) return
+                        const t = Math.max(0, Math.min(1, (mx + 6) / rSlider.width))
+                        if (selCard.isBattery)
+                            root.setBatteryVolts(selCard.part.id, 1.5 + t * 10.5)
+                        else
+                            root.setResistanceStep(selCard.part.id,
+                                                   Math.round(t * rSlider.steps))
                     }
+                    onPressed: (mouse) => applyAt(mouse.x)
+                    onPositionChanged: (mouse) => { if (pressed) applyAt(mouse.x) }
                 }
             }
-            Text {
-                text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
-                     : selCard.isBattery ? "card.hint.battery" : "card.hint.part")
-                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
-                font.family: LabTheme.handFont
+        }
+        // The cell's own account of itself: EMF splits into what it
+        // burns inside and what actually reaches the parts. A short is
+        // then not a slogan on a banner but a bar gone all-red.
+        BudgetBar {
+            visible: selCard.isBattery && selCard.bat !== null
+            width: selCard.width - 20
+            height: visible ? implicitHeight : 0
+            unit: "V"
+            total: selCard.bat ? selCard.bat.emf : 1
+            segments: {
+                root.elemRev
+                const b = selCard.bat
+                if (!b) return []
+                return [{ label: LabLang.t("cell.reaches"), value: b.vTerm,
+                          color: LabTheme.teal },
+                        { label: LabLang.t("cell.lost"), value: b.internalDrop,
+                          color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
             }
+        }
+        Text {
+            visible: selCard.isBattery && selCard.bat !== null
+            width: selCard.width - 20
+            wrapMode: Text.WordWrap
+            text: {
+                const b = selCard.bat
+                if (!b) return ""
+                if (b.shorted)
+                    return LabLang.tf("cell.short", LabLang.num(b.rExt, 2))
+                if (b.overloaded)
+                    return LabLang.tf("cell.heavy", LabLang.num(Math.abs(b.i), 2),
+                                      LabLang.num(b.rated, 1))
+                return LabLang.tf("cell.ok", b.rExt > 9999 ? LabLang.t("cell.open")
+                    : LabLang.num(b.rExt, b.rExt < 100 ? 1 : 0) + " Ω")
+            }
+            color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
+                 : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
+                 : LabTheme.inkFaint
+            font.pixelSize: LabTheme.fontBody
+            font.family: LabTheme.handFont
         }
     }
 
@@ -4115,24 +2958,7 @@ Item {
         id: hintBar
         flow: root.currentFlow        // the narrator owns this slot while it runs
         rightGuard: monitor
-        text: {
-            // the hand outranks everything: while an instrument is out, a hint
-            // about clicking pads describes something you are not doing
-            if (!hands.empty) return LabLang.t(hands.held.hint)
-            if (root.eraser) return LabLang.t("hint.eraser")
-            // Above wiring on purpose: pointing at a switch while a wire is
-            // half-drawn is the exact moment the two get confused, and the
-            // hint should name what the click under the cursor will do.
-            if (root.hoverActuator) return LabLang.t("hint.actuator")
-            if (root.hoverActuatorIdle) return LabLang.t("hint.actuator.pick")
-            if (root.wiringFrom) return LabLang.t("hint.wiring")
-            if (root.selectedId !== -1)
-                return LabLang.t("hint.selected")
-                + LabLang.t(grid.snap ? "hint.selected.snap"
-                                      : "hint.selected.free")
-                + LabLang.t("hint.selected.frame")
-            return LabLang.t("hint.idle")
-        }
+        text: boardMouse.hint         // the hand, the eraser, the actuator, the wire, the selection
     }
 
     // --- monitor -----------------------------------------------------------
@@ -4169,12 +2995,7 @@ Item {
     // extra target: its actuator sits at the body centre, so the part's own
     // chip already labels the lever.
     function jumpTargets() {
-        return elements.map(el => ({
-            id: el.id,
-            pos: Qt.vector3d(cellX(el.col), 3, cellZ(el.row)),
-            name: partLabel(el.id),
-            group: LabLang.t("code." + el.type)
-        }))
+        return board.jumpTargets((id) => partLabel(id), (el) => LabLang.t("code." + el.type))
     }
 
     HintJump {
@@ -4188,8 +3009,10 @@ Item {
 
     // --- keys --------------------------------------------------------------
     // The reserved half of the map (presets, flow transport, view, record,
-    // help) belongs to LabKeys; what is listed here is what this lab adds -
-    // and declaring a key here is also what documents it in LabHelp.
+    // help) belongs to LabKeys, the board's half (clear, eraser, values,
+    // plot, turn, grid, remove) to the Board; what is listed here is what
+    // this lab adds - and declaring a key here is also what documents it in
+    // LabHelp.
     LabKeys {
         id: keymap
         lab: root
@@ -4200,24 +3023,13 @@ Item {
         recorder: recorder
         jump: hintJump
         hints: hintBar
-        selection: root.cardKeys
-        keys: [
-            { key: "C", label: "key.clear", action: () => root.clearBoard() },
-            { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
-            { key: "V", label: "key.values", action: () => root.cycleValueAttr() },
+        selection: selCard.keys
+        keys: board.keys(grid, overlay).concat([
             { key: "M", label: "key.plan", action: () => {
                 root.showPlan = !root.showPlan
                 if (!root.showPlan) root.planMax = false } },
-            { key: "Z", label: "key.planmax", action: () => root.togglePlanMax() },
-            { key: "Q", label: "key.watch", action: () => {
-                if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
-            { key: "R", label: "key.rotate", action: () => {
-                if (root.selectedId !== -1) root.rotateElement(root.selectedId) } },
-            { key: "#", label: "key.grid", action: () => grid.toggle() },
-            { key: "G", label: "key.grid", hidden: true, action: () => grid.toggle() },
-            { key: "Del", label: "key.delete", action: () => {
-                if (root.selectedId !== -1) root.removeElement(root.selectedId) } }
-        ]
+            { key: "Z", label: "key.planmax", action: () => root.togglePlanMax() }
+        ]).concat(board.selectionKeys(monitor, grid))
     }
     LabHelp {
         keymap: keymap
@@ -4233,7 +3045,7 @@ Item {
             // the diagram first: while it is covering the window, Esc is what
             // anyone would expect to close it, not what clears a selection
             if (planMax) { planMax = false; return }
-            wiringFrom = null; eraser = false; selectedId = -1
+            boardMouse.cancelAll()
         }
     }
     // the other half of the Space quasimode: without it the hand stays down

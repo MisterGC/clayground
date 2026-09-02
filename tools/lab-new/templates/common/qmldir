@@ -1,0 +1,17 @@
+# {{Title}}'s own components. Sandbox.qml is the entry and is loaded by URL, so
+# it is deliberately not listed - everything it refers to by bare type name is.
+#
+# This file exists because the lab is also published, and launches full-screen
+# from /labs/run/?lab={{slug}}. A directory import resolves by LISTING the
+# directory, and a directory cannot be listed over HTTP - so without this
+# manifest every sibling type silently stops existing in the browser while
+# still working on the desktop ("MyPanel is not a type").
+#
+# Nothing to list yet. Add a line the moment you split a component out of
+# Sandbox.qml:
+#
+#     MyPanel 1.0 MyPanel.qml
+#
+# Comments here start with '#'. A '//' comment fails the whole file to parse,
+# and the error surfaces on the import line instead, which sends you looking
+# in the wrong place entirely.

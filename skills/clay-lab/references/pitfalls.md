@@ -71,6 +71,17 @@ writing lab code; skim again when something "impossible" happens.
   `watch` onto `monitor.watched` is right, but every old `watch = [...]`
   write then throws at runtime (not at lint time) — route them through
   `setWatched()` / `watchOnly()` / `prune()` / `clear()`.
+- **`pragma ComponentBehavior: Bound` + a `Behavior` on a `Repeater3D`
+  delegate = SIGSEGV** the moment the model is republished (Qt 6.11.1) — and
+  a `Board` republishes on every mutation. Either drop the pragma (the
+  electronics lab) or animate inside the part component instead of on the
+  delegate (the build template). Found by `clayrender` exiting 139 on
+  `addPart`, with nothing in the log.
+- **`Qt.vector2d` is single precision.** A pad offset of 4.6 stored in one
+  comes back as 4.599999904632568; the board keeps pad offsets as plain JS
+  numbers and the schematic, the router and the hit test now agree to the
+  last digit. Do not carry geometry through `Qt.vector2d`/`vector3d`
+  properties when it is compared or serialized.
 - **Duplicate property bindings are an error**, so when you re-base a
   Rectangle onto `LabPanel`, delete the `radius`/`color`/`border.*` lines
   the panel already provides.
