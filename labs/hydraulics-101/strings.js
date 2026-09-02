@@ -1,79 +1,78 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 .pragma library
 
-// Every user-visible string of Hydraulics 101, EN and DE, from the first commit.
-// The two blocks must carry the SAME KEYS - a missing German key shows the raw
-// key on screen, and retrofitting eighty call sites is a whole session.
-//
-// The board's own chrome - the palette sections, the tool buttons, the hint
-// lines, the card's plot and tag rows, the C/E/V/Q/R/#/Del key labels - is
-// worded in the kernel dictionary and NOT repeated here; a lab that wants
-// its own wording adds the key (see plugins/clay_lab/LabLang.qml) and wins.
-// What is here is the DOMAIN: what a part is called, what it reads, what the
-// lesson says.
+// Every user-visible string of Hydraulics 101, EN and DE. The kit
+// (labs/kits/hydro/strings.js) owns the part vocabulary and is registered
+// first; the board's own chrome is worded in the kernel dictionary. What is
+// here is this lab's copy: the presets, the lesson, and the two hint lines
+// re-worded for water (a pipe is run, not wired).
 var dict = {
     "en": {
-        "lab.title": "Hydraulics 101",
+        "lab.title": "HYDRAULICS 101",
 
-        "scenario.intro": "a lever between two blocks",
-        "scenario.chain": "a chain",
-        "scenario.note.intro": "one lever, two blocks, two wires: flip the lever and both light",
-        "scenario.note.chain": "a lever at the head of three blocks in a row - one flip powers the whole line",
+        "scenario.wheel-basic": "one wheel",
+        "scenario.series": "two wheels in series",
+        "scenario.parallel": "two wheels in parallel",
+        "scenario.metering": "metering",
+        "scenario.note.wheel-basic": "one loop: the narrow pipe sets the flow, and the wheel turns on what is left",
+        "scenario.note.series": "the same water passes both wheels - one flow, the pressure shared",
+        "scenario.note.parallel": "two branches off one T-piece - one pressure, the flow split, and the pump sags",
+        "scenario.note.metering": "a flow meter in line, a pressure gauge across the wheel - the two ways of reading",
 
-        "part.block": "Block",
-        "part.lever": "Lever",
-        "part.block.hint": "select it to set its weight",
-        "part.lever.hint": "select it, then click to flip",
-        "code.block": "B",
-        "code.lever": "L",
-        "code.junction": "J",
+        "hint.plumbing": "click a second flange — or any pipe run, to tee off it · right-click or Esc cancels",
+        "hint.idle.water": "click two brass flanges to run a pipe · click a pipe to tee off it · V shows values · right-drag turns the view",
+        "card.hint.pump": "drag to set the head · R turn · Del remove",
+        "card.hint.pipe": "drag to set the bore · R turn · Del remove",
+        "card.hint.valve": "click the handwheel to open or shut · R turn · Del remove",
 
-        "lever.on": "on",
-        "lever.off": "off",
-        "card.weight": "weight",
-        "card.lit": "powered",
-        "card.dark": "not powered",
-        "card.hint.lever": "click the lever to flip it · R turn · Del remove",
+        "banner.short": "The pump's outlet is piped straight back to its suction: it is working flat out and nothing reaches the parts.",
+        "banner.heavy": "More flow than the pump is rated for: it still delivers, but its head is sagging.",
 
-        "quantity.links": "links",
-        "quantity.weight": "weight",
-
-        "flow.hydraulics_101-intro.title": "Why does the block light?",
-        "flow.hydraulics_101-intro.intro": "Two blocks and a lever, wired in a line. Nothing is powered yet - the lever is off.",
-        "flow.hydraulics_101-intro.try": "Flip the lever: select it and click it again, or use the on/off chips on its card.",
-        "flow.hydraulics_101-intro.try.hint": "Click the lever once to pick it, then once more to flip it.",
-        "flow.hydraulics_101-intro.check": "Both blocks are powered: a lever powers everything it is wired to. Press V to read every part."
+        "flow.wheel-basics.title": "Why does the wheel turn?",
+        "flow.wheel-basics.empty": "An empty board. We will build the smallest water circuit there is: something that pushes, something that resists, something that works.",
+        "flow.wheel-basics.pump": "A pump. It holds a pressure difference between its two flanges - 40 kPa - the way a cell holds a voltage. The gold side is the outlet.",
+        "flow.wheel-basics.wheel": "A water wheel. Water pushed through it makes it turn; it is the load, what the pump is for.",
+        "flow.wheel-basics.pipe": "A narrow pipe. It resists the flow - 8 kPa·s/L of it - and that resistance is what decides how much water gets through.",
+        "flow.wheel-basics.plumb": "Plumbed into one loop, with a valve so we can start it. Nothing moves yet: the valve is shut.",
+        "flow.wheel-basics.open": "Open the valve. Select it and click its handwheel, or use the open/shut chips on its card.",
+        "flow.wheel-basics.open.hint": "Click the valve once to pick it, then once more on the handwheel.",
+        "flow.wheel-basics.turning": "The wheel turns, and there is one flow everywhere in the loop: 1.18 L/s. Watch it on the plot.",
+        "flow.wheel-basics.why": "Why that number? The pump pushes with 40 kPa against everything in the loop: the pipe, the wheel, and its own inner loss. Divide, and the flow is what comes out.",
+        "flow.wheel-basics.values": "V prints every reading. Add the pressure drops round the loop: they sum to the pump's head. That is the rule.",
+        "flow.wheel-basics.try": "Select the narrow pipe and drag its bore. Narrower pipe, less flow, slower wheel - and the pressure shifts onto the pipe."
     },
     "de": {
-        "lab.title": "Hydraulics 101",
+        "lab.title": "HYDRAULIK 101",
 
-        "scenario.intro": "ein Hebel zwischen zwei Blöcken",
-        "scenario.chain": "eine Kette",
-        "scenario.note.intro": "ein Hebel, zwei Blöcke, zwei Drähte: Hebel umlegen, und beide leuchten",
-        "scenario.note.chain": "ein Hebel vor drei Blöcken in Reihe – ein Umlegen versorgt die ganze Zeile",
+        "scenario.wheel-basic": "ein Rad",
+        "scenario.series": "zwei Räder in Reihe",
+        "scenario.parallel": "zwei Räder parallel",
+        "scenario.metering": "Messen",
+        "scenario.note.wheel-basic": "eine Schleife: die Drossel bestimmt den Durchfluss, das Rad dreht sich mit dem Rest",
+        "scenario.note.series": "dasselbe Wasser durch beide Räder – ein Durchfluss, der Druck geteilt",
+        "scenario.note.parallel": "zwei Zweige an einem T-Stück – ein Druck, der Durchfluss geteilt, und die Pumpe sackt ab",
+        "scenario.note.metering": "ein Durchflussmesser in Reihe, ein Manometer über dem Rad – die zwei Arten zu messen",
 
-        "part.block": "Block",
-        "part.lever": "Hebel",
-        "part.block.hint": "auswählen, um das Gewicht zu setzen",
-        "part.lever.hint": "auswählen, dann klicken zum Umlegen",
-        "code.block": "B",
-        "code.lever": "H",
-        "code.junction": "K",
+        "hint.plumbing": "zweiten Flansch anklicken — oder eine Leitung, um dort abzuzweigen · rechte Taste oder Esc bricht ab",
+        "hint.idle.water": "zwei Messingflansche verbinden · Leitung anklicken zweigt ab · V zeigt alle Werte · rechte Taste dreht die Ansicht",
+        "card.hint.pump": "ziehen setzt den Druck · R drehen · Entf löschen",
+        "card.hint.pipe": "ziehen setzt den Querschnitt · R drehen · Entf löschen",
+        "card.hint.valve": "Handrad anklicken zum Öffnen oder Schließen · R drehen · Entf löschen",
 
-        "lever.on": "an",
-        "lever.off": "aus",
-        "card.weight": "Gewicht",
-        "card.lit": "versorgt",
-        "card.dark": "nicht versorgt",
-        "card.hint.lever": "Hebel anklicken zum Umlegen · R drehen · Entf löschen",
+        "banner.short": "Die Druckseite der Pumpe führt direkt zurück zur Saugseite: sie arbeitet mit voller Kraft, und nichts kommt bei den Bauteilen an.",
+        "banner.heavy": "Mehr Durchfluss, als die Pumpe vorgesehen ist: sie fördert noch, aber ihr Druck sackt ab.",
 
-        "quantity.links": "Verbindungen",
-        "quantity.weight": "Gewicht",
-
-        "flow.hydraulics_101-intro.title": "Warum leuchtet der Block?",
-        "flow.hydraulics_101-intro.intro": "Zwei Blöcke und ein Hebel, in einer Reihe verdrahtet. Noch ist nichts versorgt – der Hebel ist aus.",
-        "flow.hydraulics_101-intro.try": "Lege den Hebel um: auswählen und noch einmal klicken, oder die an/aus-Chips auf seiner Karte.",
-        "flow.hydraulics_101-intro.try.hint": "Den Hebel einmal anklicken zum Auswählen, dann noch einmal zum Umlegen.",
-        "flow.hydraulics_101-intro.check": "Beide Blöcke sind versorgt: ein Hebel versorgt alles, was mit ihm verdrahtet ist. V zeigt jeden Wert."
+        "flow.wheel-basics.title": "Warum dreht sich das Rad?",
+        "flow.wheel-basics.empty": "Ein leeres Brett. Wir bauen den kleinsten Wasserkreis, den es gibt: etwas, das drückt, etwas, das bremst, etwas, das arbeitet.",
+        "flow.wheel-basics.pump": "Eine Pumpe. Sie hält zwischen ihren Flanschen einen Druckunterschied – 40 kPa – so wie eine Zelle eine Spannung hält. Die goldene Seite ist der Ausgang.",
+        "flow.wheel-basics.wheel": "Ein Wasserrad. Wasser, das hindurchgedrückt wird, dreht es; es ist die Last, wofür die Pumpe da ist.",
+        "flow.wheel-basics.pipe": "Eine Drossel. Sie bremst den Durchfluss – 8 kPa·s/L – und dieser Widerstand entscheidet, wie viel Wasser durchkommt.",
+        "flow.wheel-basics.plumb": "Zu einer Schleife verrohrt, mit einem Ventil zum Starten. Noch bewegt sich nichts: das Ventil ist zu.",
+        "flow.wheel-basics.open": "Öffne das Ventil. Auswählen und das Handrad anklicken, oder die auf/zu-Chips auf seiner Karte.",
+        "flow.wheel-basics.open.hint": "Das Ventil einmal anklicken zum Auswählen, dann noch einmal aufs Handrad.",
+        "flow.wheel-basics.turning": "Das Rad dreht sich, und überall in der Schleife fließt dasselbe: 1,18 L/s. Sieh es dir im Diagramm an.",
+        "flow.wheel-basics.why": "Warum diese Zahl? Die Pumpe drückt mit 40 kPa gegen alles in der Schleife: die Drossel, das Rad und ihren eigenen inneren Verlust. Teilen, und heraus kommt der Durchfluss.",
+        "flow.wheel-basics.values": "V zeigt jeden Wert. Addiere die Druckabfälle rund um die Schleife: sie ergeben den Druck der Pumpe. Das ist die Regel.",
+        "flow.wheel-basics.try": "Wähle die Drossel und ziehe ihren Querschnitt. Engeres Rohr, weniger Durchfluss, langsameres Rad – und der Druck wandert auf die Drossel."
     }
 }

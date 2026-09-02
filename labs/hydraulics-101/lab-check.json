@@ -1,6 +1,6 @@
 {
     "purpose": "teaching",
     "steps": 600,
-    "flows": ["hydraulics_101-intro"],
+    "flows": ["wheel-basics"],
     "scenarios": "all"
 }

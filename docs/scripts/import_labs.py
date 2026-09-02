@@ -46,7 +46,7 @@ REPO = REPO_ROOT + "/blob/main"
 
 # Order is editorial, not alphabetical: this is the sequence a newcomer
 # should meet them in - simplest domain first, most open-ended last.
-ORDER = ["electronics-101", "sensor-fusion-101", "street-network-101"]
+ORDER = ["electronics-101", "hydraulics-101", "sensor-fusion-101", "street-network-101"]
 
 # Which kit each lab leans on, for the fact strip. Derived from the lab's
 # own imports rather than hardcoded.

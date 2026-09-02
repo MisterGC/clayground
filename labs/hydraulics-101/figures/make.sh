@@ -49,12 +49,34 @@ shot() {
         --out "$here/$name.png"
 }
 
+# What a figure about the water does not need. Panels off rather than the
+# window narrowed: the layout reflows, and a figure has to be a picture of
+# the real thing.
+bare_js='palette.visible = false; monitor.visible = false; hintBar.visible = false; hands.visible = false; topSwitches.visible = false; transport.visible = false'
+open_js='elements.filter(e => e.type === "valve").forEach(e => setValve(e.id, true))'
+
 # --- the lab itself ---------------------------------------------------------
-# The one shot that keeps the WHOLE window: it answers "what does this lab look
-# like", so the palette, the parameters and the monitor belong in it. Every
-# other figure crops to the thing it is about - add them below as the paper
-# grows, one shot per claim.
+# The loop the paper opens with, running, every part and pipe labelled. The
+# one shot that keeps the whole window: palette and plot belong in it.
 shot board --size 1400x900 \
-    --eval 'applyScenario("intro")'
+    --eval 'applyScenario("wheel-basic")' --eval "$open_js" \
+    --eval 'overlay.valueAttr = "Q"'
+
+# --- the headline contrast ----------------------------------------------------
+# Same two wheels, same pump, only the plumbing differs - the pair the paper's
+# measured table is about.
+for wiring in series parallel; do
+    shot "$wiring" --size 1400x900 \
+        --eval "applyScenario(\"$wiring\")" --eval "$open_js" \
+        --eval 'overlay.valueAttr = "Q"' \
+        --eval "$bare_js" \
+        --eval 'rig.zoomBy(0.85)'
+done
+
+# The pump's card: head split into what reaches the parts and what the pump
+# keeps - the bar the prose cannot draw.
+shot budget --size 1400x900 --crop partCard --crop-pad 8 \
+    --eval 'applyScenario("parallel")' --eval "$open_js" \
+    --eval 'selectedId = elements.filter(e => e.type === "pump")[0].id'
 
 echo "wrote $(ls "$here"/*.png | wc -l | tr -d ' ') figures in $here"

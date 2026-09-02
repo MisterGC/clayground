@@ -76,6 +76,7 @@ var spec = {
         terminals: [{ x: 0, y: 0 }],
         half: { x: JUNCTION_HALF, y: JUNCTION_HALF }, actuator: null,
         fields: { value: 0, on: false }, rows: [],
+        watch: false,               // a place has no reading of its own
         termNames: ["tap"]
     }
 };

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 #
-# Produces the committed run records for hydraulics-101.
+# Produces the committed run records for hydraulics-101. Every preset starts
+# with its valve SHUT, so each run opens the valves first - a record of a
+# loop nothing flows through would cite zeros.
 #
 #     labs/hydraulics-101/records/make.sh            # every scenario
-#     labs/hydraulics-101/records/make.sh intro      # one of them
+#     labs/hydraulics-101/records/make.sh series     # one of them
 #     labs/hydraulics-101/records/make.sh --verify   # determinism check
 #
 # Each record's "command" field is this script plus the scenario name, built
@@ -33,7 +35,7 @@ self="labs/$lab/records/make.sh"
 
 SEED=42
 STEPS=600           # 10 simulated seconds at 1/60 s, sampled every 0.1 s
-SCENARIOS=(intro chain)
+SCENARIOS=(wheel-basic series parallel metering)
 
 [ -x "$render" ] || {
     echo "clayrender not found at $render - build it first" >&2
@@ -49,6 +51,7 @@ run_one() {
         --eval "clock._frameTicker.running = false;
                 clock.seed = $SEED;
                 applyScenario('$scenario');
+                elements.filter(e => e.type === 'valve').forEach(e => setValve(e.id, true));
                 recorder.lab = '$lab';
                 recorder.destination = '$out';
                 recorder.recordId = '$id';
