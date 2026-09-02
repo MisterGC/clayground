@@ -1,0 +1,58 @@
+#!grafli v1
+# {{Title}} — model diagram
+# Companion board to paper.md. Purpose: {{purpose}} — so this board is a
+# MODEL DIAGRAM: what feeds what, where each assumption sits, which
+# quantities are measured and which derived. Started {{date}}.
+#
+# Skeleton. Replace every "…" with the real thing. Numbers on this board are
+# measured numbers with the same provenance rule as the paper: if you cannot
+# name the record it came out of, it does not go on the board.
+
+# ── entry ──
+@ box paper "Paper →\nthe lab report" 60,60 220x80 %soft &link:./paper.md
+@ note legend 900,60 """
+solid = measured (a probe, in a record)
+dashed = derived or assumed
+""" ~small
+
+# ── inputs ──
+@ box params "parameters (swept)\n…" 60,240 240x120 %clay &link:./paper.md#method
+@ box fixed "held fixed\nseed 42 · 600 steps at 1/60 s" 60,420 240x120 %muted &link:./paper.md#method
+
+# ── the model ──
+@ box model "THE MODEL\n…" 400,300 280x140 %primary &link:./paper.md#the-model-and-its-assumptions
+@ box assume "assumptions\n…" 400,500 280x130 %accent &link:./paper.md#the-model-and-its-assumptions
+
+# ── what comes out ──
+@ box probe1 "probe: …\nmeasured" 760,240 250x110 %teal &link:./paper.md#results
+@ box probe2 "probe: …\nmeasured" 760,400 250x110 %teal &link:./paper.md#results
+@ box derived "derived\n…" 760,560 250x110 %plum &link:./paper.md#results
+
+# ── the answer ──
+@ box answer "THE NUMBER\n… ± …\nrecord: intro-42" 1080,340 260x140 %highlight &link:./paper.md#results
+@ box limits "limitations\nbeyond … the answer\nstops being trustworthy" 1080,540 260x130 %rose &link:./paper.md#limitations
+
+# ── arrows ──
+@ arrow params -> model
+@ arrow fixed -> model
+@ arrow assume -> model "constrains" !dashed
+@ arrow model -> probe1
+@ arrow model -> probe2
+@ arrow probe1 -> derived !dashed
+@ arrow probe2 -> derived !dashed
+@ arrow derived -> answer
+@ arrow answer -> limits !dashed
+
+# ── the lab itself ──
+@ note scen 60,620 """
+scenarios (keys 1-2)
+1 intro - …
+2 … - …
+""" ~small &link:./paper.md#method
+
+@ note keys 60,800 """
+keys
+1-2 presets · T tour · F frame · 0 reset
+arrows/WASD travel · Shift+arrows turn
+Shift+R record · ? every key
+""" ~small &link:./paper.md#how-to-run-it

@@ -1,0 +1,7 @@
+{
+    "purpose": "{{purpose}}",
+    "steps": 600,
+    "flows": "none",
+    "flowsReason": "A research lab is an instrument, not a lesson: the guided tour shipped with the template is scaffolding and is expected to be deleted. Replace this with a flow id and a list once the lab has a tour worth checking.",
+    "scenarios": "all"
+}
