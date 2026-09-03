@@ -10,7 +10,11 @@ Creates `labs/<slug>/` with everything the definition of done asks for: a
 `Sandbox.qml` that boots in the dojo and answers the whole conventions
 contract, a bilingual `strings.js` covering every key it shows, a `qmldir`,
 a records driver, a figures driver, a `lab-check.json`, and the `paper.md` +
-`overview.grafli` skeletons for the purpose you picked.
+`overview.grafli` skeletons for the purpose you picked. The generated lab is
+green under `tools/lab-check/lab-check` from its first commit, which is what
+`lab-check.json` is for: it says how long a determinism run is, which flows to
+run, and - for a research lab, whose scaffold tour is meant to be deleted - why
+it has none yet.
 
 The point is not that typing is saved. It is that the *starting* state of a
 new lab is already a lab: it has scenarios, a flow, probes, a key map, a

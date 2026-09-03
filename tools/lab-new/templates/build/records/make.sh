@@ -6,6 +6,7 @@
 #     labs/{{slug}}/records/make.sh            # every scenario
 #     labs/{{slug}}/records/make.sh intro      # one of them
 #     labs/{{slug}}/records/make.sh --verify   # determinism check
+#     labs/{{slug}}/records/make.sh --out-dir DIR   # regenerate elsewhere
 #
 # Each record's "command" field is this script plus the scenario name, built
 # here from the script's own path - so what a record says about how to
@@ -62,6 +63,19 @@ run_one() {
 
 cd "$root"
 
+# Where the records go. Committed location by default; --out-dir sends them
+# somewhere else, which is how `tools/lab-check/lab-check` regenerates them and
+# compares without ever writing into the tree it is checking. The record's
+# `command` field stays the committed spelling either way - it says how to
+# reproduce the record, not where this particular copy landed.
+outdir="labs/$lab/records"
+if [ "${1:-}" = "--out-dir" ]; then
+    [ -n "${2:-}" ] || { echo "--out-dir needs a directory" >&2; exit 1; }
+    outdir="$2"
+    mkdir -p "$outdir"
+    shift 2
+fi
+
 if [ "${1:-}" = "--verify" ]; then
     # The determinism claim, as a command anyone can re-run: the same scenario
     # and seed twice, into two files, byte-compared.
@@ -81,7 +95,7 @@ if [ "${1:-}" = "--verify" ]; then
 fi
 
 for scenario in "${@:-${SCENARIOS[@]}}"; do
-    out="labs/$lab/records/$scenario-$SEED.labrec"
+    out="$outdir/$scenario-$SEED.labrec"
     run_one "$scenario" "$out" "$scenario-$SEED"
     echo "wrote $out ($(wc -c < "$out" | tr -d ' ') bytes)"
 done

@@ -10,6 +10,7 @@ tools/lab-sweep/lab-sweep <study-dir>                  # run it
 tools/lab-sweep/lab-sweep <study-dir> --check          # answerability, no runs
 tools/lab-sweep/lab-sweep <study-dir> --dry-run        # print the matrix
 tools/lab-sweep/lab-sweep <study-dir> --only topology=ring --seed 42
+tools/lab-sweep/lab-sweep <study-dir> --records-dir DIR # regenerate elsewhere
 ```
 
 Worked example: `labs/street-network-101/studies/topology-four-houses/`.
@@ -33,6 +34,11 @@ Three properties it does owe:
   files, own record path. `--jobs` has no effect on results.
 - **Budgeted** — `run.budget` is a hard cap on matrix size, checked before
   anything launches. Widening a sweep has to be a deliberate edit.
+
+`--records-dir` writes the records somewhere other than the study's `records/`
+and, like a filtered run, leaves `results.md` alone. It is how
+`tools/lab-check/lab-check` regenerates a study's records and compares them
+against the committed ones without ever writing into the tree it is checking.
 
 A **filtered** run (`--only` / `--seed`) rewrites its records and leaves
 `results.md` alone. A table built from three of sixteen runs, looking exactly
