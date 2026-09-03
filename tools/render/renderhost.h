@@ -3,6 +3,7 @@
 
 #include <clayscenehost.h>
 
+#include <QJsonValue>
 #include <QObject>
 #include <QSize>
 #include <QString>
@@ -60,6 +61,12 @@ public:
     // errors() when the QML fails to load or the render stack cannot start.
     bool load(const QString& sandboxFile, const QSize& size);
 
+    // Sets Clayground.paused before the root is created, so no frame ticker
+    // ever starts. Has to be decided before load(): SimClock's ticker is
+    // running by its own Component.onCompleted, and a flag flipped afterwards
+    // has already let sim time move. Call it before load() or not at all.
+    void setPausedOnLoad(bool paused) { m_pauseOnLoad = paused; }
+
     // Applies "<expression>=<value>" assignments in the root's own context, so
     // ids, dotted paths and JS values all work. Returns false on the first
     // failure - a picture of a state you did not reach is worse than an error.
@@ -68,7 +75,12 @@ public:
     // Runs statements in the root's own context for their side effect - the
     // half of "reach a state" that --set cannot express, because an assignment
     // cannot call anything. Returns false with the QML message on error.
-    bool evalScript(const QString& source, QString* error);
+    //
+    // With 'value' the fragment is evaluated for what it EVALUATES to as well
+    // (--result), which is a different wrapping - so a caller that does not
+    // ask for a value gets exactly the behaviour it always got.
+    bool evalScript(const QString& source, QString* error,
+                    QJsonValue* value = nullptr);
 
     // Renders n additional frames, giving animations and lazily-built scene
     // graph nodes a chance to appear.
@@ -106,4 +118,5 @@ private:
     int m_generation = 0;
     QStringList m_errors;
     bool m_initialized = false;
+    bool m_pauseOnLoad = false;
 };
