@@ -36,7 +36,10 @@ Rectangle {
     */
     property bool showText: true
 
-    visible: flow !== null && flow.running
+    // Lab.headless is a run with nobody in front of it: the panel would
+    // still animate its ripening Next control frame after frame for a
+    // reader who does not exist.
+    visible: flow !== null && flow.running && !Lab.headless
     implicitWidth: LabTheme.px(640)
     implicitHeight: _col.implicitHeight + 2 * LabTheme.spaceXl + LabTheme.spaceXs
     width: implicitWidth

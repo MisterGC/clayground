@@ -108,6 +108,20 @@ Item {
     property bool hintShown: false
 
     /*!
+        \qmlproperty var Flow::unresolvedVerbs
+        \readonly
+        \brief Verb names a demo or a solve asked for and the lab does not have.
+
+        Cleared by \l start(). A verb that does not resolve fails SILENTLY -
+        the action does nothing and the flow walks on teaching nothing - so a
+        headless run has to be able to read the list rather than hope somebody
+        was watching the log.
+
+        \sa Lab::runFlow
+    */
+    property var unresolvedVerbs: []
+
+    /*!
         \qmlproperty string Flow::pacing
         \brief How a step ends: "ready" (default), "auto" or "manual".
 
@@ -188,6 +202,7 @@ Item {
     */
     function start() {
         _checkpoints = ({}); _names = ({})
+        unresolvedVerbs = []
         paused = false
         goTo(0)
     }
@@ -296,7 +311,11 @@ Item {
             let verb = a[0], args = a.slice(1), bind = null
             if (verb === "let") { bind = args[0]; verb = args[1]; args = args.slice(2) }
             const fn = vs[verb]
-            if (!fn) { console.warn("Flow: lab has no verb '" + verb + "'"); continue }
+            if (!fn) {
+                console.warn("Flow: lab has no verb '" + verb + "'")
+                unresolvedVerbs = unresolvedVerbs.concat([verb])
+                continue
+            }
             const out = fn.apply(null, args.map(x => nameOf(x)))
             if (bind !== null) _names[bind] = out
         }
@@ -309,6 +328,22 @@ Item {
         if (s.dwell !== "auto") return Number(s.dwell)
         const words = sayOf(s).split(/\s+/).length
         return Math.max(2.5, words / 2.2)
+    }
+
+    // Filed with the kernel so Lab.runFlow() can find it by id. Registration
+    // follows Parameter's rule - the moment the id is known, not at completion
+    // - because a lab's own Component.onCompleted runs before its children's.
+    Component.onCompleted: _register()
+    Component.onDestruction: Lab.unregisterFlow(_flow)
+    onFlowIdChanged: _register()
+
+    property string _registered: ""
+
+    function _register() {
+        if (flowId === _registered) return
+        if (_registered !== "") Lab.unregisterFlowNamed(_registered, _flow)
+        _registered = flowId
+        if (flowId !== "") Lab.registerFlow(_flow)
     }
 
     // Sim-time driven, never a wall clock: same states live and headless.
