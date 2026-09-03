@@ -1,0 +1,7 @@
+{
+    "purpose": "research",
+    "steps": 600,
+    "flows": "none",
+    "flowsReason": "The lab is an instrument for the topology study, not a lesson: you draw a network and the cars report what you drew, and there is no sequence of steps that is THE way through it. A guided tour is wanted (#158) and will replace this line with a flow id; until someone writes one, a flow here would be a tour of the toolbar rather than of an argument.",
+    "scenarios": "all"
+}

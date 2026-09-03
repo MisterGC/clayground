@@ -103,7 +103,9 @@ if(CLAYGROUND_WITH_EXAMPLES)
     add_subdirectory (examples)
 endif()
 
-# Builds nothing - it only registers the kits' node suites with CTest (#199).
+# Builds nothing - it registers the kits' node suites (#199) and one
+# lab_check_<lab> gate per lab (#208) with CTest. After tools/, because both
+# gates run clayliveloader and clayrender.
 add_subdirectory (labs)
 
 
