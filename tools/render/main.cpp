@@ -11,6 +11,7 @@
 #include <claysettle.h>
 #include <claystorage.h>
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -209,6 +210,20 @@ int main(int argc, char* argv[])
     QCommandLineOption scriptOpt("script",
         "Run a JS file in the root's context - the same thing as --eval for "
         "setups too long for one line.", "file");
+    QCommandLineOption resultOpt("result",
+        "Write what each --eval/--script evaluated to: a JSON array in "
+        "command-line order, one {\"source\", \"value\"} per fragment, to "
+        "this file or to stdout for '-'. A fragment that is an expression "
+        "answers with its value ('clock.time' -> 0); anything JSON cannot "
+        "carry answers with its String(). Values are captured where the "
+        "fragment runs, which is BEFORE --wait-for and the capture. Without "
+        "the flag nothing is captured.", "file|-");
+    QCommandLineOption pausedOpt("paused",
+        "Start with Clayground.paused set, before the sandbox root exists, so "
+        "no frame ticker ever runs and the first --eval sees clock.time === 0. "
+        "This is what a stepped, reproducible run wants: advance the clock "
+        "yourself (Lab.runFlow(), clock._advance(1/60)) instead of racing a "
+        "wall clock.");
     QCommandLineOption waitForOpt("wait-for",
         "Hold the capture until this expression is truthy: --wait-for "
         "'spawned.length === 12'. Exits 3 if it never is, rather than "
@@ -249,7 +264,8 @@ int main(int argc, char* argv[])
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
     parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
-                       scriptOpt, waitForOpt, waitMsOpt, framesOpt, settleOpt,
+                       scriptOpt, resultOpt, pausedOpt, waitForOpt, waitMsOpt,
+                       framesOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
                        cropOpt, cropPadOpt, scaleOpt, widthOpt});
     parser.process(app);
@@ -294,32 +310,68 @@ int main(int argc, char* argv[])
         return fail(QString("cannot parse --size '%1'").arg(parser.value(sizeOpt)));
 
     RenderHost host;
+    host.setPausedOnLoad(parser.isSet(pausedOpt));
     if (!host.load(sandbox, size)) {
         for (const auto& e : host.errors())
             QTextStream(stderr) << "clayrender: " << e << "\n";
         return 1;
     }
 
+    // One entry per --eval/--script, in the order they ran. Filled only when
+    // --result asked for it: capturing a value needs a different wrapping, and
+    // a run without the flag must behave exactly as it always did.
+    const bool wantResults = parser.isSet(resultOpt);
+    QJsonArray results;
+
     for (const auto& step : collectSteps(app.arguments())) {
         QString error;
+        QJsonValue value;
         switch (step.kind) {
         case Step::Assign:
             if (!host.applyAssignment(step.value, &error))
                 return fail(error);
             break;
         case Step::Eval:
-            if (!host.evalScript(step.value, &error))
+            if (!host.evalScript(step.value, &error,
+                                 wantResults ? &value : nullptr))
                 return fail(QString("--eval '%1': %2").arg(step.value, error));
+            if (wantResults)
+                results.append(QJsonObject{{"source", step.value},
+                                           {"value", value}});
             break;
         case Step::Script: {
             QFile file(step.value);
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
                 return fail(QString("cannot read --script %1").arg(step.value));
             const QString source = QString::fromUtf8(file.readAll());
-            if (!host.evalScript(source, &error))
+            if (!host.evalScript(source, &error,
+                                 wantResults ? &value : nullptr))
                 return fail(QString("--script %1: %2").arg(step.value, error));
+            if (wantResults)
+                // The path, not the file's contents: that is what the command
+                // line said, and a setup script is not a one-liner to read
+                // back in a report.
+                results.append(QJsonObject{{"source", step.value},
+                                           {"value", value}});
             break;
         }
+        }
+    }
+
+    // Written here rather than at the end, because this is where the values
+    // were taken: a --wait-for that never comes true exits 3, and the numbers
+    // the run already produced are still worth having.
+    if (wantResults) {
+        const QString path = parser.value(resultOpt);
+        const QByteArray json =
+            QJsonDocument(results).toJson(QJsonDocument::Indented);
+        if (path == QLatin1String("-")) {
+            QTextStream(stdout) << QString::fromUtf8(json);
+        } else {
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                return fail(QString("cannot write --result %1").arg(path));
+            file.write(json);
         }
     }
 

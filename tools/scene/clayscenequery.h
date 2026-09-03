@@ -104,6 +104,16 @@ QJsonValue callJsonFunction(QQuickItem* root, const QString& functionName);
 bool callVoid(QQuickItem* root, const QString& expression,
               QString* error = nullptr);
 
+// Evaluates a fragment for its VALUE and hands it back as JSON.
+//
+// A fragment that parses as an expression yields what it evaluates to
+// ("clock.time" -> 0); anything longer yields what it returns, or null. What
+// JSON cannot carry - a QML object, a function, NaN, undefined - comes back as
+// its String(), because an unreadable answer is worse than an approximate one.
+// Returns false with the QML message for a fragment that throws.
+bool evalValue(QQuickItem* root, const QString& source, QJsonValue* value,
+               QString* error = nullptr);
+
 // Evaluates an expression and reports whether it is truthy. 'error' is filled
 // only for a broken expression - a typo must not read the same as "the
 // condition is not met yet".

@@ -100,6 +100,24 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     if (!createRenderTarget(size))
         return false;
 
+    // Before the component, not after: SimClock starts its FrameAnimation from
+    // its own Component.onCompleted, and a pause flipped after that has
+    // already let sim time move - which is why every recipe in the repo used
+    // to open with `clock._frameTicker.running = false`.
+    if (m_pauseOnLoad) {
+        auto* clayground = m_engine->singletonInstance<QObject*>(
+            QStringLiteral("Clayground.Common"), QStringLiteral("Clayground"));
+        if (!clayground) {
+            m_errors << QStringLiteral(
+                "--paused: cannot reach the Clayground.Common singleton "
+                "(is bin/qml on the import path?)");
+            return false;
+        }
+        // An ordinary property whose binding tracks the dojo's time control.
+        // No dojo here, so writing it is simply the answer.
+        clayground->setProperty("paused", true);
+    }
+
     m_component = std::make_unique<QQmlComponent>(m_engine.get(),
                                                   QUrl::fromLocalFile(fi.absoluteFilePath()));
     if (m_component->isLoading()) {
@@ -223,7 +241,8 @@ bool RenderHost::applyAssignment(const QString& assignment, QString* error)
     return true;
 }
 
-bool RenderHost::evalScript(const QString& source, QString* error)
+bool RenderHost::evalScript(const QString& source, QString* error,
+                            QJsonValue* value)
 {
     if (!m_rootItem) {
         if (error) *error = QStringLiteral("nothing loaded");
@@ -231,6 +250,14 @@ bool RenderHost::evalScript(const QString& source, QString* error)
     }
 
     QString qmlError;
+    if (value) {
+        if (!ClayScene::evalValue(m_rootItem, source, value, &qmlError)) {
+            if (error) *error = qmlError;
+            return false;
+        }
+        return true;
+    }
+
     // Wrapped in a function body so several statements, local vars and an
     // early return all behave the way they do in the sandbox itself.
     const QString wrapped = QStringLiteral("(function(){\n%1\n})()").arg(source);

@@ -65,6 +65,80 @@ that was never reached is worse than no picture. A *broken* expression is a
 different thing: that is exit 1 with the QML error, so a typo never reads as
 "the state never happened".
 
+## Getting an answer back
+
+`--eval` and `--script` change the scene; `--result` says what they came out
+to. It writes a JSON array with one entry per fragment, in the order they ran:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out board.png --paused \
+    --result - --eval 'Lab.scenario' --eval 'toggleSwitch(2); return simOf(4).i'
+```
+
+```json
+[
+    { "source": "Lab.scenario", "value": "led-basic" },
+    { "source": "toggleSwitch(2); return simOf(4).i", "value": 0.005149224103621227 }
+]
+```
+
+`-` means stdout; anything else is a file. `source` is the fragment as the
+command line spelled it — for `--script`, the path.
+
+A fragment that parses as an *expression* answers with what it evaluates to,
+so `clock.time` is a number rather than `null`. A fragment of several
+statements answers with what it `return`s, and with `null` when it returns
+nothing. A value JSON cannot carry — a QML object, a function, `NaN` — comes
+back as its `String()`, because an unreadable answer is worse than an
+approximate one.
+
+Values are captured **where the fragment runs**, which is before `--wait-for`,
+before `--settle` and before the capture. An `--eval` written after
+`--wait-for` on the command line still runs first, so it reports the state
+*before* the wait; put the assertion in the `--wait-for` expression instead and
+read the exit code.
+
+## Starting paused
+
+`--paused` sets `Clayground.paused` before the sandbox root is created, so no
+frame ticker ever starts:
+
+```bash
+clayrender labs/sensor-fusion-101/Sandbox.qml --out shot.png \
+    --paused --result - --eval 'clock.time'      # 0, not "some wall clock"
+```
+
+Without it, the frames rendered at load have already moved sim time by the
+first `--eval` — which is why recipes used to open with
+`clock._frameTicker.running = false`, and why one that forgot produced a
+different number on every machine. A stepped run advances the clock itself
+(`Lab.runFlow()`, `clock._advance(1 / 60)`), and `--paused` is what stops
+anything else from advancing it underneath.
+
+## Running a lab's flow
+
+`Lab.runFlow(flowId)` walks a lab's guided flow with nobody watching and
+reports what broke — the headless half of *every flow is also a test*:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out /tmp/x.png \
+    --paused --result - --eval 'Lab.runFlow("led-basics")'
+```
+
+```json
+{ "flowId": "led-basics", "steps": 5292, "finished": true,
+  "unresolvedVerbs": [], "failedTasks": [], "failedExpects": [] }
+```
+
+It forces `pacing: "auto"`, advances the clock in 1/60 s steps and performs
+every learner task itself, so a whole lesson runs in a second or two. A verb
+the lab does not have lands in `unresolvedVerbs` (a missing verb otherwise
+fails silently), a `FlowStep.expect` that does not hold lands in
+`failedExpects` with its step key, and `finished: false` means the step bound
+was hit rather than the end — never a hang. While it runs, `Lab.headless` is
+set: the narrator hides, the professor stays put and no narration audio is
+decoded.
+
 ## Getting a usable image
 
 | Option | Effect |
