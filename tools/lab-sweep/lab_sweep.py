@@ -365,6 +365,12 @@ def main():
     ap.add_argument("--jobs", type=int, default=4, help="parallel runs")
     ap.add_argument("--clayrender", default=None,
                     help="path to clayrender (default: build/bin/clayrender)")
+    ap.add_argument("--records-dir", default=None, metavar="DIR",
+                    help="write the records here instead of into the study's "
+                         "records/, and leave results.md alone. This is how "
+                         "tools/lab-check/lab-check regenerates a study's "
+                         "records and compares them without writing into the "
+                         "tree it is checking.")
     args = ap.parse_args()
 
     study_dir, doc = find_study(args.study)
@@ -419,7 +425,7 @@ def main():
               "from the model card that the model holds for the question.")
         return 0
 
-    records_dir = os.path.join(study_dir, "records")
+    records_dir = args.records_dir or os.path.join(study_dir, "records")
     os.makedirs(records_dir, exist_ok=True)
 
     print()
@@ -453,7 +459,9 @@ def main():
     # looking exactly like the full one - is the worst artifact this tool could
     # produce. Re-running one cell (to check determinism, or after a fix) must
     # not be able to silently truncate the table the conclusion was read from.
-    partial = len(runs) != M.matrix_size(m)
+    # Records written somewhere else are not the study's records, so they
+    # cannot be what its table is built from either - same rule as --only.
+    partial = len(runs) != M.matrix_size(m) or bool(args.records_dir)
     if partial:
         print(f"\n{len(results)} record(s) rewritten; results.md left alone "
               "(a partial run must not rewrite the study's table - re-run "

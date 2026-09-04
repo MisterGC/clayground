@@ -43,10 +43,12 @@ A lab is finished when `labs/<lab>/` contains, consistent with each other:
 | `overview.grafli` | overview: concept topology, deep links into the paper (grafli conventions) |
 | `records/make.sh` | the driver that regenerates the committed run records, with `--verify` |
 | `figures/make.sh` | the driver that regenerates every picture in the paper |
-| `lab-check.json` | the lab's purpose and what its gate checks (#208) |
+| `lab-check.json` | the lab's purpose and what its gate checks — `steps`, `flows` (or `"none"` **with** a `flowsReason`), `scenarios`; see `tools/lab-check/README.md` |
 
 `tools/lab-new <slug>` writes all of them, loadable, in one go — see *The
-conventions contract*.
+conventions contract*. Finished is checkable, not felt:
+`tools/lab-check/lab-check labs/<slug>` (ctest: `lab_check_<slug>`) has to be
+green, and a lab with no flow has to say so in `lab-check.json` and say why.
 
 **Decide the purpose before writing either.** A lab is built for
 **learning** (you are working it out), **teaching** (you are explaining
@@ -593,8 +595,10 @@ Framework blocks labs lean on: `ClayWorld3d` + `OrbitCamera3D`
 
 ## The conventions contract
 
-The root item implements the names the inspector, the flows and an agent
-drive the lab through: `scenarios()`, `applyScenario(n)`, `labInfo()`,
+The root item is `id: root` — `lab-check` evaluates its drivers in the root's
+own context and has to be able to name it — and implements the names the
+inspector, the flows and an agent drive the lab through: `scenarios()`,
+`applyScenario(n)`, `labInfo()`,
 `flagInfo()`, `viewState()` / `applyViewState(s)`, `flowActions()`,
 `flows()`, `startFlow(id)`, `frameAll()`, `frameSelection()`, plus a
 `SimClock`, a `ScenarioSet` the lab cold-opens into, `LabKeys` + `LabHelp`
@@ -628,7 +632,11 @@ Two rules a skeleton cannot show, easy to get wrong:
 - **Put the user's *whole* place into `viewState()`** — camera, selection,
   toggles, and for a build lab the entire built artifact (`board.state()`,
   the overlay's tags, the palette's folded sections) — that is what makes
-  the fix loop and flow checkpoints seamless.
+  the fix loop and flow checkpoints seamless. The cost of that reach: a
+  reload is *not* a fresh start, because the loader hands the outgoing root's
+  view state to the incoming one and `Lab.applyViewState` re-steps the new
+  clock to the old sim time. Any measurement that wants a virgin lab has to
+  reset the outgoing clock first, or start a new process (#208).
 
 ## Design language — paper and ink
 
@@ -883,11 +891,25 @@ Every lab must: (a) derive all randomness from `SimClock` — and
 jitter uses a hash, not `clock.random()`); (b) run correctly under the
 inspector's `time` pause/step actions; (c) expose `labInfo()`.
 
+**Run the gate first, then verify what it does not cover.**
+`tools/lab-check/lab-check labs/<slug>` is the contract as a test: load,
+determinism over every scenario, every flow to its end with its `expect`s,
+EN/DE key parity, records regenerating to the committed bytes, and a count of
+the open remarks in the prose. It registers as `lab_check_<slug>` in ctest, so
+`ctest --preset default -R lab_check_` is the whole of it. `--only load,flows`
+narrows it while you work. What it reports is the floor, not the ceiling:
+nothing in it looks at a picture.
+
 Verify in this order (clay-crew skill has the full protocol):
 
 1. `qmllint` + `waitForRoot` after every edit round.
-2. **Determinism run**: apply a scenario, `time`-step N frames, record
-   probe series; repeat with the same seed; byte-identical or it's a bug.
+2. **Determinism run**: `lab-check --only determinism` — apply a scenario,
+   step N frames, record the probe series, repeat with the same seed,
+   byte-identical or it's a bug. Two things make that true and both are easy
+   to lose: no wall-clock frame may run before `applyScenario` (pause the
+   clock **before** the root that will be measured exists), and each run needs
+   its own process. Any state a reset does not rewind is the bug the check
+   finds — sensor-fusion-101's satellites were one (#208).
 3. **Assertions over screenshots**: `eval` the quantity you changed;
    screenshot only for a visual claim, pixel-sample it when the claim is
    about color or position (never make a screenshot the only evidence).
@@ -901,8 +923,9 @@ Verify in this order (clay-crew skill has the full protocol):
    per feature — property pokes hide real bugs (a pick-scan via
    `mapFrom3DScene` gets you screen coords for click targets).
 5. **Kit JS**: run the node unit suite.
-6. **Flows as tests**: one command per flow, no session and no
-   hand-written step loop —
+6. **Flows as tests**: `lab-check --only flows` runs every flow of a lab
+   through `Lab.runFlow()`; one flow on its own is one command, no session and
+   no hand-written step loop —
 
    ```bash
    ./build/bin/clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
@@ -910,7 +933,7 @@ Verify in this order (clay-crew skill has the full protocol):
    ```
 
    `Lab.runFlow()` forces `pacing: "auto"`, advances the clock in 1/60 s
-   steps and solves every task itself. The answer on stdout must read
+   steps and solves every task itself. The answer must read
    `"finished": true` with `unresolvedVerbs`, `failedTasks` and
    `failedExpects` all empty: a verb the lab does not have, a task its
    own `solve` cannot satisfy and an `expect` that no longer holds are
@@ -921,7 +944,8 @@ Verify in this order (clay-crew skill has the full protocol):
    fades): parameter sweep + pixel sampling.
 
 The authoring gym (`tools/loader/tests/gym/run_gym.py`) guards loader
-conventions; labs add their determinism/flow checks there as they land.
+conventions; the per-lab contract is `lab_check_<slug>` (#208), and
+`ctest -R lab_check` adds the tool's own pure suite to those gates.
 The generator's templates are guarded the same way: `ctest -R lab_new`
 runs the generator matrix (every kind × every purpose, no engine) and boots
 each kind's generated lab offscreen (`lab_new_boot_<kind>`); the board
@@ -1223,7 +1247,15 @@ Details: `tools/lab-sweep/README.md`.
 
 ## Agent operation cheat-sheet
 
-**Which tool.** Anything you can express as *"put the lab in state X and
+**Which tool.** *"Is this lab still a lab?"* goes to `lab-check`, which needs
+no display and answers in named PASS/FAIL lines:
+
+```bash
+tools/lab-check/lab-check labs/electronics-101              # the whole contract
+tools/lab-check/lab-check labs/electronics-101 --only flows # while you work
+```
+
+Anything you can express as *"put the lab in state X and
 show me"* goes to `clayrender` — one command, no session, and several
 variants render in parallel:
 

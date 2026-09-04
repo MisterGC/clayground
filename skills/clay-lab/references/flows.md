@@ -121,7 +121,9 @@ A step with none of the three just narrates.
   `failedTasks` and `failedExpects` (each with its step key) plus
   `finished`. Give the key steps `expect` predicates with the *measured*
   value — a drifted lab then breaks its own lesson loudly instead of
-  teaching a wrong number.
+  teaching a wrong number. `lab_check_<lab>` (#208) runs the same call for
+  every id in `flows()`, so a lesson that drifts is red in a build; the
+  command above is for one flow while you are working on it.
 - **End with a handoff**: explain the number the learner just produced
   ("2.4 V over 470 Ω is 5.1 mA"), then "now try it yourself" — and
   ideally a final *task* that verifies transfer ("build two bulbs in
@@ -164,6 +166,6 @@ under its `flowId`; `Lab.headless` is what the Narrator, the professor
 kit's `FlowGuide` and narration audio stand down for). **Not yet built**
 (planned, don't reference in code): `FlowSet`, a flow picker,
 `FlowCursor` (animated pointer), callout bubbles, flows as files under
-`labs/<lab>/flows/`, resume-after-reload of a running flow, record mode,
-gym integration. Declare flows inline in `Sandbox.qml` and expose
-`flows()` / `startFlow(id)` manually until then.
+`labs/<lab>/flows/`, resume-after-reload of a running flow, record mode.
+Declare flows inline in `Sandbox.qml` and expose `flows()` / `startFlow(id)`
+manually until then.

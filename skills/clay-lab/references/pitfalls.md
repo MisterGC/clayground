@@ -209,6 +209,27 @@ until you publish.
   boundaries instead of blending across a reset.
 - A drifting constellation or similar background motion should be a pure
   function of `clock.time`, touching no RNG at all.
+- **A reset has to rewind everything sim time is read from, not just the
+  clock.** `clock.reset()` rewinds time, the RNG and the probes; anything
+  the lab derives from `t` in a `Lab.sampled` handler and stores in a
+  property is *not* rewound, so the first sample of the new run reads the
+  last sky of the old one. That was sensor-fusion-101's first GPS fix
+  alternating between 4.34302 and 4.34346 across machines (#208): the
+  answer depended on how many wall-clock frames happened to run before
+  `applyScenario`. Snap that state on `wasReset` too, and give the
+  property an initial value that is the state at `t = 0` rather than empty.
+- **A reload is not a fresh start.** The loader captures `viewState()` from
+  the outgoing root and re-applies it to the new one, and
+  `Lab.applyViewState` re-steps a world-less clock to the recorded sim
+  time — so a reloaded lab arrives having replayed the run you just
+  finished. Reset the outgoing clock *after* pausing and before asking for
+  the reload, or take a new process. (Reset before pausing and the ticker
+  fills the gap, which is why the first run of a session was the only one
+  that differed.)
+- **A record's identity is per-process.** A probe named after a
+  monotonically increasing part id (`part12`) names a different part in a
+  session that built something earlier. Two runs of one scenario belong in
+  two processes, which is what `records/make.sh` and `lab-check` both do.
 
 ## Numbers and UI copy
 
