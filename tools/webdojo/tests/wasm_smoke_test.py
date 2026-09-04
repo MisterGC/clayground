@@ -33,7 +33,7 @@ MODULES_OK_MARKER = "SMOKE MODULES OK"
 FS_OK_MARKER = "SMOKE FS OK"
 # The app shell preloads asset files into the in-memory FS (/game/) so Qt can QFile-open
 # them; loading a QML file from there proves the mechanism end to end.
-FS_PROBE_JS = """
+FS_PROBE_JS = r"""
 window.clayground.FS.mkdirTree('/game/probe');
 window.clayground.FS.writeFile('/game/probe/Probe.qml',
     'import QtQuick\nItem { Component.onCompleted: console.log("%s") }');
