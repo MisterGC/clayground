@@ -2,12 +2,19 @@
 //
 // Music — public QML-facing background music player.
 //
-// Wraps QMediaPlayer + QAudioOutput. On WASM, QMediaPlayer's backend
-// (QWasmMediaPlayer) tries to open the source URL through the local
-// file engine and bails on http(s). Music sidesteps that by pre-fetching
-// remote sources via QNetworkAccessManager and feeding the bytes through
-// a QBuffer with QMediaPlayer::setSourceDevice(). Local file:/qrc: paths
-// take the shortcut — they go straight to QMediaPlayer::setSource().
+// Wraps QMediaPlayer + QAudioOutput. Local file:/qrc: paths go straight
+// to QMediaPlayer::setSource(); on desktop, http(s) sources are pre-fetched
+// via QNetworkAccessManager and fed through a QBuffer with
+// QMediaPlayer::setSourceDevice(), so a backend that cannot open network
+// URLs still plays them.
+//
+// On WASM every source goes to setSource(): QWasmAudioOutput hands the URL
+// to an HTML <audio> element, and its QIODevice overload plays nothing.
+// What that backend does NOT do (#216): report mediaStatus beyond
+// EndOfMedia, report duration/position, or honour setLoops() — so `status`,
+// `loaded`, `duration`, `position` stay at their initial values there and
+// `loop` has no effect. Playback itself needs a user gesture first, as it
+// does for any audio in a browser.
 
 #ifndef CLAY_SOUND_MUSIC_H
 #define CLAY_SOUND_MUSIC_H

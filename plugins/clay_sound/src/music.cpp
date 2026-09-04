@@ -2,12 +2,16 @@
 
 #include "music.h"
 
+#include "audio_devices.h"
+
 #include <QAudioOutput>
 #include <QDebug>
 #include <QMediaPlayer>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QQmlContext>
+#include <QQmlEngine>
 
 namespace {
 
@@ -21,11 +25,21 @@ bool isLocal(const QUrl &url)
         || s == QLatin1String("qrc");
 }
 
+#ifdef Q_OS_WASM
+constexpr bool WASM_PLAYS_URLS_DIRECTLY = true;
+#else
+constexpr bool WASM_PLAYS_URLS_DIRECTLY = false;
+#endif
+
 } // namespace
 
 Music::Music(QObject *parent)
     : QObject(parent)
 {
+    // QAudioOutput resolves the default device on construction, which is
+    // the call that used to hang the page on WASM - see #216.
+    clay::sound::primeAudioDevices();
+
     audioOut_ = new QAudioOutput(this);
     audioOut_->setVolume(volume_);
 
@@ -50,8 +64,17 @@ Music::~Music()
 
 void Music::setSource(const QUrl &url)
 {
-    if (source_ == url) return;
-    source_ = url;
+    // Same defensive resolution SampleInstrument does: QML auto-resolves
+    // relative URLs for a C++ QUrl property only in some type-binding paths,
+    // so `source: "music.mp3"` can arrive here unresolved and reach the
+    // backend as a bare filename.
+    QUrl resolved = url;
+    if (resolved.isRelative()) {
+        if (QQmlContext *ctx = QQmlEngine::contextForObject(this))
+            resolved = ctx->resolvedUrl(url);
+    }
+    if (source_ == resolved) return;
+    source_ = resolved;
     emit sourceChanged();
 
     cancelInFlightReply();
@@ -59,21 +82,26 @@ void Music::setSource(const QUrl &url)
     const bool hadError = hasError_;
     hasError_ = false;
 
-    if (url.isEmpty()) {
+    if (source_.isEmpty()) {
         resetSource();
         if (hadError) emit statusChanged();
         return;
     }
 
-    if (isLocal(url)) {
+    if (isLocal(source_) || WASM_PLAYS_URLS_DIRECTLY) {
         // Desktop / file:/qrc: — QMediaPlayer handles these directly.
+        // On WASM every scheme goes here: QWasmAudioOutput hands an http(s)
+        // URL straight to an HTML <audio> element, while its QIODevice
+        // overload only stores the device and never plays it — so the QBuffer
+        // detour below would leave the player at NoMedia, and prefetching
+        // would download the track a second time. (#216)
         // Drop any prior buffer so the player isn't pinned to old data.
         buffer_.reset();
-        player_->setSource(url);
+        player_->setSource(source_);
     } else {
-        // http(s) — pull bytes via QNAM, feed via QBuffer to dodge the
-        // QWasmMediaPlayer file-engine path that bails on URLs.
-        beginRemoteFetch(url);
+        // Desktop http(s) — pull bytes via QNAM and feed them through a
+        // QBuffer, so a backend that cannot open network URLs still plays.
+        beginRemoteFetch(source_);
     }
     if (hadError) emit statusChanged();
 }
