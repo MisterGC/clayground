@@ -29,6 +29,29 @@ import threading
 BOOT_MARKER = "Clayground Web Runtime"
 QML_OK_MARKER = "QML loaded successfully"
 ERROR_MARKERS = ("QML Error", "Failed to create QML object")
+MODULES_OK_MARKER = "SMOKE MODULES OK"
+FS_OK_MARKER = "SMOKE FS OK"
+# The app shell preloads asset files into the in-memory FS (/game/) so Qt can QFile-open
+# them; loading a QML file from there proves the mechanism end to end.
+FS_PROBE_JS = """
+window.clayground.FS.mkdirTree('/game/probe');
+window.clayground.FS.writeFile('/game/probe/Probe.qml',
+    'import QtQuick\nItem { Component.onCompleted: console.log("%s") }');
+window.clayground.loadQmlFromUrl('file:///game/probe/Probe.qml');
+""" % FS_OK_MARKER
+# QML modules a deployed game may import - each one is linked into the runtime binary and
+# is missing at runtime (not at build time) if a link line or QmlModules.qml is forgotten.
+REQUIRED_MODULES = (
+    "QtQuick3D", "QtQuick3D.Helpers",
+    "QtQuick3D.AssetUtils",   # RuntimeLoader: glTF/GLB from a URL
+    "QtQuick.Timeline",       # balsam-exported skeletal animation clips
+    "QtMultimedia", "QtQuick.Particles", "QtQuick.LocalStorage",
+    "Clayground.Canvas3D", "Clayground.World", "Clayground.Behavior", "Clayground.Storage",
+)
+MODULE_PROBE_QML = "\n".join(f"import {m}" for m in REQUIRED_MODULES) + f"""
+import QtQuick
+Item {{ Component.onCompleted: console.log("{MODULES_OK_MARKER}") }}
+"""
 
 
 class IsolatedHandler(http.server.SimpleHTTPRequestHandler):
@@ -92,7 +115,7 @@ def run(args, serve_dir):
 
     from playwright.sync_api import sync_playwright
 
-    booted = qml_loaded = False
+    booted = qml_loaded = modules_ok = fs_ok = False
     # No --expect means nothing extra to wait for.
     marker_seen = not args.expect
     errors = []
@@ -106,7 +129,7 @@ def run(args, serve_dir):
         page = browser.new_page()
 
         def on_console(msg):
-            nonlocal booted, qml_loaded, marker_seen
+            nonlocal booted, qml_loaded, marker_seen, modules_ok, fs_ok
             text = msg.text
             print(f"[console] {text}")
             if BOOT_MARKER in text:
@@ -115,6 +138,10 @@ def run(args, serve_dir):
                 qml_loaded = True
             if args.expect and args.expect in text:
                 marker_seen = True
+            if MODULES_OK_MARKER in text:
+                modules_ok = True
+            if FS_OK_MARKER in text:
+                fs_ok = True
             if any(marker in text for marker in ERROR_MARKERS):
                 errors.append(text)
 
@@ -133,6 +160,21 @@ def run(args, serve_dir):
         if args.screenshot:
             page.screenshot(path=args.screenshot)
             print(f"Screenshot written to {args.screenshot}")
+        if qml_loaded and not errors:
+            # Second load: a QML snippet importing every module the runtime promises.
+            # A missing module surfaces as "QML Error: ... module is not installed".
+            page.evaluate("qml => window.clayground.loadQml(qml)", MODULE_PROBE_QML)
+            waited = 0
+            while waited < 30000 and not (modules_ok or errors):
+                page.wait_for_timeout(250)
+                waited += 250
+        if modules_ok and not errors:
+            # Third load: a QML file written into the preloaded-assets filesystem.
+            page.evaluate(FS_PROBE_JS)
+            waited = 0
+            while waited < 30000 and not (fs_ok or errors):
+                page.wait_for_timeout(250)
+                waited += 250
         browser.close()
     server.shutdown()
 
@@ -150,7 +192,13 @@ def run(args, serve_dir):
     if not marker_seen:
         print(f"FAIL: page never printed {args.expect!r}")
         return 1
-    print("PASS: runtime booted and Main.qml loaded without errors")
+    if not modules_ok:
+        print("FAIL: module probe did not load - a module from REQUIRED_MODULES is missing")
+        return 1
+    if not fs_ok:
+        print("FAIL: QML from the preloaded-assets filesystem (/game/) did not load")
+        return 1
+    print("PASS: runtime booted, Main.qml loaded, all required QML modules available, /game/ FS works")
     return 0
 
 

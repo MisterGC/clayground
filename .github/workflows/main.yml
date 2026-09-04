@@ -23,7 +23,7 @@ env:
   # Pin to 6.10.1 - wildcard causes issues when new versions are released (checksum propagation delays)
   QT_VERSION: '6.10.1'
   QT_VERSION_WASM: '6.10.1'
-  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
   AQT_VERSION: '>=3.2.0'
   EMSDK_VERSION: '4.0.7'

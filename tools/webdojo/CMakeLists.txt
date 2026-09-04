@@ -25,6 +25,8 @@ clay_app(webdojo
         Qt::QuickLayouts
         Qt::Quick3D
         Qt::Quick3DHelpers
+        Qt::Quick3DAssetUtils
+        Qt::QuickTimeline
         Qt::Sql
         Qt::Svg
         Qt6::QSvgPlugin

@@ -32,6 +32,15 @@ Because the page is cross-origin isolated, assets from *other* domains need
 CORS/CORP headers - keep your game's assets in this folder (same origin) and
 you never have to think about it.
 
+## 3D models, textures, animation clips
+
+Qt reads meshes, textures, balsam's `.qad` keyframes and GLB files with `QFile`, which
+cannot fetch from a URL. List those files in an `assets-manifest.json` next to `Main.qml`
+(a JSON array of relative paths) and `index.html` downloads them into the in-memory
+filesystem before your game starts. Refer to them as `file:///game/<path>` in QML, e.g.
+`Loader3D { source: "file:///game/assets/orc/Orc.qml" }`. Plain QML, images and sounds
+referenced from `Main.qml` keep working by relative URL as before.
+
 ## Check the runtime version
 
 Open the browser console - the runtime prints a banner like
