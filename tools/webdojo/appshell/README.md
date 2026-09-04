@@ -35,10 +35,14 @@ you never have to think about it.
 ## 3D models, textures, animation clips
 
 Qt reads meshes, textures, balsam's `.qad` keyframes and GLB files with `QFile`, which
-cannot fetch from a URL. List those files in an `assets-manifest.json` next to `Main.qml`
-(a JSON array of relative paths) and `index.html` downloads them into the in-memory
-filesystem before your game starts. Refer to them as `file:///game/<path>` in QML, e.g.
-`Loader3D { source: "file:///game/assets/orc/Orc.qml" }`. Plain QML, images and sounds
+cannot fetch from a URL. Put such files under `assets/` and run
+
+    python3 make-assets-manifest.py            # writes assets-manifest.json
+
+whenever you add, rename or remove one; `index.html` downloads the listed files into the
+in-memory filesystem before your game starts. Refer to them as `file:///game/<path>` in QML,
+e.g. `Loader3D { source: "file:///game/assets/orc/Orc.qml" }`. A file that fails to download
+is logged in the console and skipped - the game still starts. Plain QML, images and sounds
 referenced from `Main.qml` keep working by relative URL as before.
 
 ## Check the runtime version

@@ -51,16 +51,17 @@ Qt Quick 3D is in the runtime, and two more modules since v2026.7: `QtQuick.Time
 
 One wrinkle: Qt opens meshes, textures, `.qad` keyframe files and GLBs with `QFile`, which
 cannot read from a URL - a `Model { source: "meshes/x.mesh" }` served over HTTP silently
-shows nothing. So the app shell preloads them: list the files in an
-`assets-manifest.json` next to `Main.qml`
+shows nothing. So the app shell preloads them: keep such files under `assets/` next to
+`Main.qml` and run the script that ships in the folder
 
-```json
-["assets/orc/Orc.qml", "assets/orc/meshes/orc.mesh", "assets/orc/maps/diffuse.png",
- "assets/orc/animations/hips_rotation_0.qad"]
+```bash
+python3 make-assets-manifest.py        # -> assets-manifest.json, one entry per file under assets/
 ```
 
-and `index.html` fetches them into the in-memory filesystem under `/game/` before your
-game starts. Reference them with `file:///game/<path>`:
+whenever you add, rename or remove an asset. `index.html` fetches the listed files into the
+in-memory filesystem under `/game/` before your game starts; a file that cannot be fetched is
+logged in the console and skipped rather than blocking the start. Reference them with
+`file:///game/<path>`:
 
 ```qml
 Loader3D { source: "file:///game/assets/orc/Orc.qml" }        // balsam output, relative
@@ -69,9 +70,8 @@ RuntimeLoader { source: "file:///game/assets/orc.glb" }       // or the GLB itse
 ```
 
 `balsam model.glb -o assets/orc` (Qt's importer, part of any Qt install) produces the QML,
-`.mesh`, textures and `.qad` files; generate the manifest with a one-liner such as
-`find assets -type f | jq -R . | jq -s . > assets-manifest.json`. Everything else - QML,
-images, sounds - keeps loading by relative URL as before. A `.qml` referenced only by URL
+`.mesh`, textures and `.qad` files. Everything else - QML, images, sounds - keeps loading by
+relative URL as before. A `.qml` referenced only by URL
 is not compiled, so keep its imports to modules the runtime has; the console reports
 `module "X" is not installed` otherwise.
 

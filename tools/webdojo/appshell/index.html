@@ -76,14 +76,23 @@
                 list = await res.json();
             } catch (e) { return; }
             if (!Array.isArray(list) || list.length === 0) return;
-            let done = 0;
+            // Deliberate policy: a missing or unreadable asset is NOT fatal. The game still
+            // starts and Qt reports the file as missing where it is used (a model shows nothing,
+            // a sound stays silent) - better than a blank page because one of a hundred files
+            // was renamed. Every miss is logged so it is visible in the console.
+            let done = 0; const missing = [];
             const put = async (path) => {
-                const res = await fetch(path);
-                if (!res.ok) throw new Error(`asset ${path}: HTTP ${res.status}`);
-                const bytes = new Uint8Array(await res.arrayBuffer());
-                const full = '/game/' + path.replace(/^\.?\//, '');
-                runtime.FS.mkdirTree(full.substring(0, full.lastIndexOf('/')));
-                runtime.FS.writeFile(full, bytes);
+                try {
+                    const res = await fetch(path);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const bytes = new Uint8Array(await res.arrayBuffer());
+                    const full = '/game/' + path.replace(/^\.?\//, '');
+                    runtime.FS.mkdirTree(full.substring(0, full.lastIndexOf('/')));
+                    runtime.FS.writeFile(full, bytes);
+                } catch (e) {
+                    missing.push(path);
+                    console.warn(`Clayground: asset not preloaded - ${path} (${e.message})`);
+                }
                 loading.textContent = `Loading assets ${++done}/${list.length}…`;
             };
             // a few fetches at a time: enough parallelism, no connection storm
@@ -91,7 +100,8 @@
             await Promise.all(Array.from({ length: 6 }, async () => {
                 while (queue.length) await put(queue.shift());
             }));
-            console.log(`Clayground: preloaded ${done} asset file(s) into /game/`);
+            console.log(`Clayground: preloaded ${done - missing.length} asset file(s) into /game/`
+                        + (missing.length ? `, ${missing.length} missing` : ''));
         }
 
         async function boot() {
