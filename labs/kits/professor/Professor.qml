@@ -529,7 +529,12 @@ Node {
     */
     function tell(what, clip) {
         root.line = what
-        const url = (clip === undefined || clip === null) ? "" : "" + clip
+        // A headless run has no ears. Assigning the source is what starts the
+        // decode - Qt Multimedia's ffmpeg plugin loads the file on a worker
+        // thread - so a check that walks a narrated flow pays for every clip
+        // it will never play (#207).
+        const url = (clip === undefined || clip === null || Lab.headless)
+                    ? "" : "" + clip
         _voice.stop()
         _voice.source = url
         _talking = (what !== undefined && what !== "")
@@ -650,6 +655,9 @@ Node {
     function say(what) {
         root.line = what
         _char.speechBodyLanguage = false
+        // Same as tell(): nobody is listening, and the speech engine is the
+        // one part of a lesson that cannot be stepped in sim time.
+        if (Lab.headless) { _talking = false; return }
         _talking = true
         _saying = true
         _sayStarted = false

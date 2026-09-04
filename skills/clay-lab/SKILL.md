@@ -923,13 +923,23 @@ Verify in this order (clay-crew skill has the full protocol):
    per feature — property pokes hide real bugs (a pick-scan via
    `mapFrom3DScene` gets you screen coords for click targets).
 5. **Kit JS**: run the node unit suite.
-6. **Flows as tests**: `lab-check --only flows` runs each flow headless with
-   `pacing: "auto"`; every `demo` verb must resolve against `flowActions()`,
-   every `task.until` must hold after its `solve` (called **once**, not once a
-   frame — a verb like `flipSwitch` is a toggle), and every `expect` must hold
-   *while its own step is current*, since the next step's demo has already run
-   by the time the step change is visible. A drifted lab breaks its own
-   lessons — that is the point.
+6. **Flows as tests**: `lab-check --only flows` runs every flow of a lab
+   through `Lab.runFlow()`; one flow on its own is one command, no session and
+   no hand-written step loop —
+
+   ```bash
+   ./build/bin/clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
+       --paused --result - --eval 'Lab.runFlow("<flowId>")'
+   ```
+
+   `Lab.runFlow()` forces `pacing: "auto"`, advances the clock in 1/60 s
+   steps and solves every task itself. The answer must read
+   `"finished": true` with `unresolvedVerbs`, `failedTasks` and
+   `failedExpects` all empty: a verb the lab does not have, a task its
+   own `solve` cannot satisfy and an `expect` that no longer holds are
+   each named with the step key they belong to. A drifted lab breaks its
+   own lessons — that is the point. `--paused` is not optional here: sim
+   time that the frame ticker already moved makes the run unrepeatable.
 7. **Measure, don't guess**, anything with a numeric knob (shadows,
    fades): parameter sweep + pixel sampling.
 
@@ -962,12 +972,11 @@ The loop, in order:
    only finite values, so `NaN` is the honest answer for "no reading" —
    it leaves a blank cell rather than repeating the last one.
 2. **Drive the run stepped, never live.** Frames are wall-clock, so a lab
-   left to play itself is not reproducible. Stop the ticker and advance
-   the clock:
+   left to play itself is not reproducible. `--paused` keeps the frame
+   ticker from ever starting; advance the clock yourself:
 
    ```bash
-   clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png --frames 1 --eval "
-       clock._frameTicker.running = false;
+   clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png --frames 1 --paused --eval "
        clock.seed = 42;
        applyScenario('open-sky');
        recorder.lab = '<lab>'; recorder.destination = 'labs/<lab>/records/open-sky-42.labrec';

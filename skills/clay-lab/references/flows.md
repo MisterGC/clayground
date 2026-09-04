@@ -109,11 +109,21 @@ A step with none of the three just narrates.
   and replays only step k's demo. Progress dots are clickable. In Box2D
   labs a backward jump resumes from the scenario boundary, not the exact
   frame (see pitfalls).
-- **Every flow is also a test.** Run it headless with `pacing: "auto"`:
-  verbs must resolve, each `task.until` must hold after its `solve`,
-  each `expect` must pass. Give the key steps `expect` predicates with
-  the *measured* value — a drifted lab then breaks its own lesson
-  loudly instead of teaching a wrong number.
+- **Every flow is also a test.** One command walks it:
+
+  ```bash
+  clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
+      --paused --result - --eval 'Lab.runFlow("<flowId>")'
+  ```
+
+  `Lab.runFlow()` forces `pacing: "auto"`, steps the clock at 1/60 s and
+  runs each task's `solve` itself, then reports `unresolvedVerbs`,
+  `failedTasks` and `failedExpects` (each with its step key) plus
+  `finished`. Give the key steps `expect` predicates with the *measured*
+  value — a drifted lab then breaks its own lesson loudly instead of
+  teaching a wrong number. `lab_check_<lab>` (#208) runs the same call for
+  every id in `flows()`, so a lesson that drifts is red in a build; the
+  command above is for one flow while you are working on it.
 - **End with a handoff**: explain the number the learner just produced
   ("2.4 V over 470 Ω is 5.1 mA"), then "now try it yourself" — and
   ideally a final *task* that verifies transfer ("build two bulbs in
@@ -150,9 +160,12 @@ A flow nobody finds teaches nobody. Ship all three:
 Implemented: `Flow`, `FlowStep`, `Narrator`, `FlowChip`, verbs-as-data
 with `let` bindings, task/watch/expect, checkpoint scrubbing, ripening
 pacing, `takeOver`, `LabLang` narration keys (the `flow.*` chrome lives
-in the kernel dictionary — never copy it into a lab). **Not yet built** (planned, don't
-reference in code): `FlowSet`, a flow picker, `FlowCursor` (animated
-pointer), callout bubbles, flows as files under `labs/<lab>/flows/`,
-resume-after-reload of a running flow, record mode, `flow --check`
-validation, gym integration. Declare flows inline in `Sandbox.qml` and
-expose `flows()` / `startFlow(id)` manually until then.
+in the kernel dictionary — never copy it into a lab), and the headless
+run `Lab.runFlow(flowId)` (every `Flow` registers itself with `Lab`
+under its `flowId`; `Lab.headless` is what the Narrator, the professor
+kit's `FlowGuide` and narration audio stand down for). **Not yet built**
+(planned, don't reference in code): `FlowSet`, a flow picker,
+`FlowCursor` (animated pointer), callout bubbles, flows as files under
+`labs/<lab>/flows/`, resume-after-reload of a running flow, record mode.
+Declare flows inline in `Sandbox.qml` and expose `flows()` / `startFlow(id)`
+manually until then.

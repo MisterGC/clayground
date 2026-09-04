@@ -24,15 +24,22 @@ WHAT IS CHECKED, IN ORDER
 Exit 0 when everything passed, 1 on any FAIL, 77 (the ctest SKIP_RETURN_CODE)
 when the machine cannot run the check at all - no clayliveloader built.
 
-WHY THE LOADER AND NOT clayrender. Issue #208 proposed `clayrender --paused`.
-clayrender needs a real graphics session and refuses to run under
-QT_QPA_PLATFORM=offscreen, so a gate built on it could never be green in CI -
-and a gate that only runs on one desk is a footnote again. clayliveloader runs
-offscreen, and its inspector protocol *returns eval values*, which is the other
-half of what #208 wanted from #207. The same route tools/lab-new's boot tests
-take. The records check is the one part that still shells out to clayrender
-(that is what the committed `command` field says regenerates a record); it
-reports itself as not-run rather than failing when there is no display.
+WHY THE LOADER AND NOT clayrender. Issue #208 proposed
+`clayrender --paused --result -`, which exists now (#207) and is the right
+command for asking ONE lab ONE question by hand. It is the wrong one for a
+gate: clayrender needs a real graphics session and refuses to run under
+QT_QPA_PLATFORM=offscreen, so every lab_check_<lab> would skip on a headless
+runner, and a gate that only runs on one desk is the footnote this tool exists
+to remove. clayliveloader runs offscreen and its inspector protocol returns
+eval values, so the same questions get the same answers - the route
+tools/lab-new's boot tests already take. The records check is the one part that
+still shells out to clayrender (that is what the committed `command` field says
+regenerates a record); with no display it reports itself as not-run rather than
+inventing a verdict.
+
+The flow check is `Lab.runFlow()` (#207) called through that protocol, not a
+second implementation of it: one place decides what "the task was solved" and
+"the expect held" mean, and this is not it.
 
 WHY A RUN IS STEPPED. Left alone a lab advances on a FrameAnimation, and a
 frame is a wall-clock interval: two runs of one seed then sample different
@@ -268,9 +275,8 @@ class Loader:
 
 PROBE_JS = """
 (function () {
-    %(walk)s
     var out = { scenarios: [], flows: [], flowsError: "", langs: [],
-                keys: {}, kernelKeys: {}, flowKeys: [], recorderOk: false };
+                keys: {}, kernelKeys: {}, flowKeys: [] };
     try { out.scenarios = root.scenarios() } catch (e) { out.scenariosError = String(e) }
     try { out.flows = root.flows ? root.flows() : [] }
     catch (e) { out.flowsError = String(e) }
@@ -282,41 +288,30 @@ PROBE_JS = """
         for (var k in LabLang._kernel) out.kernelKeys[k] = Object.keys(LabLang._kernel[k]);
     } catch (e) { out.langsError = String(e) }
     // Which narration keys the flows actually ask for: `flow.<flowId>.<key>`
-    // for every step that carries one, plus whatever a task names as its hint.
+    // for every step that carries one, plus a task's hint and the flow title.
+    // Every Flow files itself with the kernel as soon as its id is known
+    // (#207), so this reads a registry rather than walking the object graph.
     try {
         var found = [];
-        _walk(root, [], function (o) {
-            var id = null;
-            try { id = o.flowId } catch (e) { return }
-            if (!id || o.steps === undefined) return;
-            for (var i = 0; i < o.steps.length; ++i) {
-                var s = o.steps[i];
-                if (s.key) found.push("flow." + id + "." + s.key);
-                try { if (s.task && s.task.hint) found.push(String(s.task.hint)) } catch (e) {}
+        for (var fi = 0; fi < Lab.flowIds.length; ++fi) {
+            var id = Lab.flowIds[fi];
+            var f = Lab._flows[id];
+            if (!f) continue;
+            for (var i = 0; i < f.steps.length; ++i) {
+                var st = f.steps[i];
+                if (st.key) found.push("flow." + id + "." + st.key);
+                try { if (st.task && st.task.hint) found.push(String(st.task.hint)) }
+                catch (e) {}
             }
-            if (o.titleKey) found.push(String(o.titleKey));
-        });
+            if (f.titleKey) found.push(String(f.titleKey));
+        }
         out.flowKeys = found;
+        out.registered = Lab.flowIds.slice();
     } catch (e) { out.flowKeysError = String(e) }
     return out;
 })()
 """
 
-# Shared by everything that has to find a Flow (or every Flow) in the scene.
-# A lab declares its flows as plain children of the root, so the default
-# property is the whole search space; `seen` guards against the cycles a QML
-# object graph is full of.
-WALK_JS = """
-function _walk(o, seen, visit) {
-    if (!o || seen.indexOf(o) >= 0) return;
-    seen.push(o);
-    visit(o);
-    var kids = [];
-    try { var d = o.data; if (d) for (var i = 0; i < d.length; ++i) kids.push(d[i]) }
-    catch (e) {}
-    for (var k = 0; k < kids.length; ++k) _walk(kids[k], seen, visit);
-}
-"""
 
 RUN_JS = """
 (function () {
@@ -352,112 +347,13 @@ RUN_JS = """
 
 FLOW_JS = """
 (function () {
-    %(walk)s
-    var id = %(flow)s;
-    var out = { flowId: id, found: false, started: false, steps: 0, total: 0,
-                reached: -1, unresolvedVerbs: [], failedTasks: [],
-                failedExpects: [], finished: false, error: "" };
-    var flow = null;
-    _walk(root, [], function (o) {
-        if (flow) return;
-        var fid = null;
-        try { fid = o.flowId } catch (e) { return }
-        if (fid === id && o.steps !== undefined && typeof o.start === "function")
-            flow = o;
-    });
-    if (!flow) { out.error = "flows() names '" + id + "' but no Flow carries that id"; return out }
-    out.found = true;
-    out.total = flow.steps.length;
-
-    // A flow may only do what a user could do: every verb it names has to be
-    // in the lab's own action map. Flow.run() merely warns about the rest and
-    // carries on, which is how a step can quietly do nothing at all.
-    var verbs = {};
-    try { verbs = root.flowActions ? root.flowActions() : {} } catch (e) {}
-    function checkActions(list, where) {
-        if (!list) return;
-        for (var i = 0; i < list.length; ++i) {
-            var a = list[i];
-            if (!a || a.length === 0) continue;
-            var v = a[0];
-            if (v === "let") v = a[2];
-            if (!verbs[v]) out.unresolvedVerbs.push(where + ": " + v);
-        }
-    }
-    for (var s = 0; s < flow.steps.length; ++s) {
-        var st = flow.steps[s];
-        checkActions(st.demo, st.key);
-        try { if (st.task && st.task.solve) checkActions(st.task.solve, st.key) } catch (e) {}
-    }
-
-    // An expect belongs to the step it stands in and is asserted WHILE that
-    // step is current, retried every tick until the step ends. Two reasons
-    // for that rather than one shot: a demo's effect reaches the readouts a
-    // sample later, and the next step's demo has already run by the time a
-    // step change is observable from out here - so asserting on the way out
-    // would test one lesson's claim against the next lesson's board.
-    var pending = -1;
-    function watchStep(i) {
-        pending = (i >= 0 && i < flow.steps.length && flow.steps[i].expect) ? i : -1;
-    }
-    function tryPending() {
-        if (pending < 0) return;
-        var held = false;
-        try { held = !!flow.steps[pending].expect(flow.nameOf) } catch (e) { held = false }
-        if (held) pending = -1;
-    }
-    function closeStep() {
-        if (pending >= 0) out.failedExpects.push(flow.steps[pending].key);
-        pending = -1;
-    }
-
-    flow.finished.connect(function () { out.finished = true });
-    flow.pacing = "auto";
-    var ok = false;
-    try { ok = root.startFlow(id) } catch (e) { out.error = String(e); return out }
-    if (ok === false) { out.error = "startFlow('" + id + "') returned false"; return out }
-    out.started = true;
-
-    var last = flow.index;
-    out.reached = last;
-    watchStep(last);
-    var stuck = 0;
-    var solvedFor = -1;
-    var n = 0;
-    while (n < %(maxSteps)d && !out.finished) {
-        // ONCE per task, never once per frame: a verb like flipSwitch is a
-        // toggle, so calling solve() every tick would flip the switch sixty
-        // times a second and whether the task looks done would come down to
-        // the parity of the sample interval.
-        if (flow.waiting && solvedFor !== flow.index) {
-            flow.solve();
-            solvedFor = flow.index;
-            stuck = 0;
-        }
-        Lab.clock._advance(1 / 60);
-        ++n;
-        if (flow.index !== last) {
-            closeStep();
-            last = flow.index;
-            watchStep(last);
-            if (last > out.reached) out.reached = last;
-            stuck = 0;
-        } else if (flow.waiting) {
-            // solve() performs the task; the step ends on the next probe
-            // sample. Two sim seconds is many samples - a task still waiting
-            // after that is one its own solution does not satisfy.
-            if (++stuck > 120) {
-                out.failedTasks.push(flow.step ? flow.step.key : String(last));
-                stuck = 0;
-                flow.next();
-            }
-        }
-        tryPending();
-    }
-    closeStep();
-    out.steps = n;
-    if (!out.finished) out.error = "still running after " + n + " steps";
-    return out;
+    var r = Lab.runFlow(%(flow)s, { maxSteps: %(maxSteps)d });
+    // The lab's own entry point is what a learner triggers, and a lab may
+    // refuse an id it does not publish; runFlow calls it when it exists, so
+    // the only thing left to say here is whether the id was one of the
+    // lab's own rather than merely a registered Flow.
+    r.published = (root.flows ? root.flows() : []).indexOf(%(flow)s) >= 0;
+    return r;
 })()
 """
 
@@ -570,8 +466,7 @@ def check_flows(rep, spawn, flows, flows_none_reason, max_steps):
                                    "the lab did not come up for this run")
                 continue
             res = session.insp.eval_json(
-                FLOW_JS % {"walk": WALK_JS, "flow": js_str(flow_id),
-                           "maxSteps": max_steps},
+                FLOW_JS % {"flow": js_str(flow_id), "maxSteps": max_steps},
                 timeout=600)
         if res.get("__error__"):
             all_ok = rep.check(f"flows: {flow_id}", False, res["__error__"]) and all_ok
@@ -579,18 +474,33 @@ def check_flows(rep, spawn, flows, flows_none_reason, max_steps):
         problems = []
         if res.get("error"):
             problems.append(res["error"])
+        if not res.get("published", True):
+            problems.append("flows() does not publish this id")
         for verb in res.get("unresolvedVerbs", []):
-            problems.append("unresolved verb " + verb)
-        for key in res.get("failedTasks", []):
-            problems.append("task never satisfied: " + key)
-        for key in res.get("failedExpects", []):
-            problems.append("expect failed: " + key)
+            problems.append("unresolved verb " + str(verb))
+        for entry in res.get("failedTasks", []):
+            problems.append("task never satisfied: " + step_of(entry))
+        for entry in res.get("failedExpects", []):
+            problems.append("expect failed: " + step_of(entry))
         if not res.get("finished"):
             problems.append("finished: false")
         detail = "; ".join(problems) if problems else \
-            f"{res.get('total')} steps, {res.get('steps')} sim frames"
+            f"{res.get('steps')} sim frames"
         all_ok = rep.check(f"flows: {flow_id}", not problems, detail) and all_ok
     return all_ok
+
+
+def step_of(entry):
+    """Name a runFlow failure by its step key, with the index as a fallback.
+
+    runFlow reports {index, step} (plus `error` when an expect threw). The
+    key is what the author reads; the index is what is left when a step has
+    no key, which is legal.
+    """
+    if not isinstance(entry, dict):
+        return str(entry)
+    name = entry.get("step") or f"step {entry.get('index')}"
+    return f"{name} ({entry['error']})" if entry.get("error") else name
 
 
 def check_strings(rep, probe):
@@ -851,7 +761,7 @@ def run_scene_checks(rep, spawn, cfg, wanted, lab_dir, lab_id, steps,
             rep.check("load: the lab came up", False,
                       "phase=" + str(session.insp.state().get("phase")))
             return
-        probe = session.insp.eval_json(PROBE_JS % {"walk": WALK_JS})
+        probe = session.insp.eval_json(PROBE_JS)
 
     if probe.get("__error__"):
         rep.check("contract: the lab answers scenarios()/flows()", False,

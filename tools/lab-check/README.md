@@ -30,7 +30,7 @@ Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
 |---|---|
 | `load` | the lab reaches phase `ready`, a root exists, and it logged no QML warning or error of its own |
 | `determinism` | for every name in `scenarios()`, two stepped runs of N steps produce byte-identical run records |
-| `flows` | every id in `flows()` runs to `finished`, with no unresolved verb, no unsatisfied task and no failed `expect` |
+| `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
 | `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes |
 | `remarks` | open CriticMarkup marks in `paper.md` and `studies/*/study.md` — counted, reported, never failed |
@@ -67,14 +67,28 @@ not an error; the defaults below apply.
 Through **`clayliveloader` offscreen**, over the file-based inspector protocol
 (`.clay/inspect/`) — the same route `tools/lab-new`'s boot tests take.
 
-Issue #208 proposed `clayrender --paused` instead. `clayrender` needs a real
-graphics session and refuses to run under `QT_QPA_PLATFORM=offscreen`, so a gate
-built on it could never be green in CI, and a gate that only runs on one desk is
-a footnote again. The loader runs offscreen, and its `eval` **returns values**,
-which is the other half of what #208 wanted from #207. The `records` check is
-the one part that still shells out to `clayrender`, because that is what a
+Issue #208 proposed `clayrender --paused --result -` instead. That command
+exists (#207) and is the right one for asking one lab one question by hand:
+
+```bash
+./build/bin/clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
+    --paused --result - --eval 'Lab.runFlow("<flowId>")'
+```
+
+It is the wrong one for a gate. `clayrender` needs a real graphics session and
+refuses to run under `QT_QPA_PLATFORM=offscreen`, so every `lab_check_<lab>`
+would skip on a headless runner, and a gate that only runs on one desk is the
+footnote this tool exists to remove. The loader runs offscreen and its `eval`
+returns values, so the same questions get the same answers. The `records` check
+is the one part that still shells out to `clayrender`, because that is what a
 record's own `command` field says regenerates it; with no display it reports
 itself as not-run rather than inventing a verdict.
+
+**The flow check is `Lab.runFlow()`, not a second implementation of it.** The
+kernel decides what "this task was solved" and "this expect held" mean — a flow
+run by hand through `clayrender` and a flow run by the gate have to agree, or
+one of them is lying. What the gate adds is running *every* flow of a lab, each
+in a lab nobody has touched, and turning the answer into a line.
 
 Three things the runs do that are easy to get wrong, and each cost a session:
 

@@ -20,6 +20,7 @@
 
 import QtQuick
 import Clayground.Character3D
+import Clayground.Lab
 
 Item {
     id: root
@@ -187,7 +188,10 @@ Item {
     // --- what happens when ----------------------------------------------------
 
     onRunningChanged: {
-        if (!root.professor)
+        // Lab.headless is a run with no audience: no arrival, no flight, no
+        // narration clip. The professor is the slowest thing in a lesson and
+        // none of it is state the flow's own checks look at.
+        if (!root.professor || Lab.headless)
             return
         if (root.running) {
             if (root.entrance)
@@ -219,7 +223,7 @@ Item {
 
     function _go() {
         const p = root.professor
-        if (!p || !root.running || root.step < 0)
+        if (!p || !root.running || root.step < 0 || Lab.headless)
             return
 
         const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
@@ -380,7 +384,7 @@ Item {
     // one moment the professor is deliberately silent, and arriving speaks the
     // current text anyway.
     onTextChanged: {
-        if (!root.running || root.step < 0)
+        if (!root.running || root.step < 0 || Lab.headless)
             return
         if (root.professor && root.professor.travelling)
             return

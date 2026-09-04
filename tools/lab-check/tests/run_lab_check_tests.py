@@ -177,11 +177,10 @@ def test_strings():
 
 def test_drivers():
     """The JS is built by string templating, so a stray %% or a renamed key is
-    a runtime error inside a lab an hour later. Render all three here."""
+    a runtime error inside a lab an hour later. Render both here."""
     ok = True
     try:
-        L.PROBE_JS % {"walk": L.WALK_JS}
-        L.FLOW_JS % {"walk": L.WALK_JS, "flow": L.js_str("f"), "maxSteps": 10}
+        L.FLOW_JS % {"flow": L.js_str("f"), "maxSteps": 10}
         L.RUN_JS % {"scenario": L.js_str("s"), "steps": 5, "lab": L.js_str("l"),
                     "dest": L.js_str("/tmp/x"), "command": L.js_str("c")}
     except (KeyError, ValueError, TypeError) as e:
@@ -189,10 +188,9 @@ def test_drivers():
     if ok:
         check("drivers: every template renders", True)
 
-    js = L.FLOW_JS % {"walk": L.WALK_JS, "flow": L.js_str("led-basics"),
-                      "maxSteps": 42}
-    check("drivers: the flow driver carries the flow id and the bound",
-          '"led-basics"' in js and "n < 42" in js)
+    js = L.FLOW_JS % {"flow": L.js_str("led-basics"), "maxSteps": 42}
+    check("drivers: the flow check calls the kernel's runFlow, not its own loop",
+          "Lab.runFlow(" in js and '"led-basics"' in js and "maxSteps: 42" in js)
     check("drivers: braces balance in the rendered flow driver",
           js.count("{") == js.count("}"),
           f"{js.count('{')} open, {js.count('}')} close")
@@ -204,6 +202,16 @@ def test_drivers():
           L.js_str("it's \"x\"") == '"it\'s \\"x\\""', L.js_str("it's \"x\""))
 
 
+def test_step_of():
+    check("runFlow: a failure is named by its step key",
+          L.step_of({"index": 3, "step": "lit"}) == "lit")
+    check("runFlow: a step with no key falls back to its index",
+          L.step_of({"index": 3, "step": ""}) == "step 3")
+    check("runFlow: an expect that threw carries what it threw",
+          L.step_of({"index": 3, "step": "lit", "error": "TypeError"})
+          == "lit (TypeError)")
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -213,6 +221,7 @@ def main():
         test_remarks(tmp)
         test_strings()
         test_drivers()
+        test_step_of()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
