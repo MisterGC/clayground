@@ -185,6 +185,7 @@ Item {
                 gaitFromBuild: root.fromBuild
                 gait: sheetGait
                 realism: 0.3
+                roundness: 0.15
                 detail: Character.Detail.Low
                 autoBlink: false
                 gazeBehaviour: false

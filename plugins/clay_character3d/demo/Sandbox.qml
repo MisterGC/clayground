@@ -155,6 +155,17 @@ Item {
             orbitDistance: root.cameraDistance
             orbitPitch: root.cameraPitch
             orbitYawOffset: root.cameraYaw
+
+            // A soft fill that travels with the camera, so no orbit angle
+            // looks at an unlit side: the key above is fixed (its shadows
+            // must not swing with the view) and a fixed rig always has a
+            // dark quarter. Aimed a little below the view line so a face
+            // read from above still has its lit and its shaded planes.
+            DirectionalLight {
+                eulerRotation.x: -12
+                brightness: 0.45
+                castsShadow: false
+            }
         }
 
         // Mouse area for camera drag rotation
@@ -222,6 +233,7 @@ Item {
         ParametricCharacter {
             id: character
             name: "Player"
+            roundness: 0.15
             position: Qt.vector3d(0, 0, 0)
 
             // Body parameters
@@ -252,6 +264,7 @@ Item {
             id: npcThinker
             position: Qt.vector3d(-25, 0, -30)
             name: "Thinker"
+            roundness: 0.15
             bodyHeight: 9.0
             realism: 0.6
             maturity: 0.7
@@ -280,6 +293,7 @@ Item {
             id: npcEater
             position: Qt.vector3d(-12, 0, -30)
             name: "Eater"
+            roundness: 0.15
             bodyHeight: 10.0
             realism: 0.2
             maturity: 0.5
@@ -307,6 +321,7 @@ Item {
             id: npcHero
             position: Qt.vector3d(0, 0, -30)
             name: "Hero"
+            roundness: 0.15
             bodyHeight: 11.0
             realism: 0.3
             maturity: 0.5
@@ -336,6 +351,7 @@ Item {
             id: npcChild
             position: Qt.vector3d(12, 0, -30)
             name: "Child"
+            roundness: 0.15
             bodyHeight: 6.0
             realism: 0.0
             maturity: 0.0
@@ -362,6 +378,7 @@ Item {
             id: npcStylized
             position: Qt.vector3d(25, 0, -30)
             name: "Stylized"
+            roundness: 0.15
             bodyHeight: 9.5
             realism: 0.5
             maturity: 0.5
@@ -390,6 +407,7 @@ Item {
         Character {
             id: gesturer
             name: "Gesturer"
+            roundness: 0.15
             position: Qt.vector3d(-14, 0, 6)
             // Fingers, so a point reads as a point rather than as a stub
             detail: Character.Detail.High
