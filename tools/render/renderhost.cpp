@@ -285,6 +285,9 @@ void RenderHost::renderFrames(int count)
         m_renderControl->sync();
         m_renderControl->render();
         m_renderControl->endFrame();
+
+        if (m_frameRendered)
+            m_frameRendered();
     }
 }
 
@@ -313,6 +316,12 @@ QImage RenderHost::grabImage(int timeoutMs, QString* error) const
     self->m_renderControl->commandBuffer()->resourceUpdate(batch);
     self->m_renderControl->endFrame();
     rhi->finish();
+
+    // A capture is a rendered frame like any other - and under --settle it is
+    // the ONLY kind of frame there is, so without this a settle would leave a
+    // hole in the trace exactly where the scene was still moving.
+    if (m_frameRendered)
+        m_frameRendered();
 
     if (readback.data.isEmpty()) {
         if (error) *error = QStringLiteral("render produced no image");

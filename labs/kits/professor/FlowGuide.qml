@@ -55,8 +55,45 @@ Item {
         are", no \c look means "say it without pointing at anything". Return
         null for a step that wants neither - a step about the whole board, or
         one that is only a question for the reader.
+
+        Two optional fields, only read when a \l director is set. \c extent
+        is an array of world points the camera should keep in the picture
+        for this step: every part a line like "two of them reading the same
+        inputs" is about, not only the one the finger lands on. \c hold
+        (true) keeps the subject in the picture for the whole step: the
+        professor still turns to the reader, but the camera stays on the
+        two-shot instead of pulling in to a portrait. For a step that asks
+        the learner to click something - a portrait of the teacher is no
+        help finding the switch - and for one whose line names the parts of
+        the thing.
     */
     property var subjectOf: null
+
+    /*!
+        Optional: given a step index, the title of the scene the step opens,
+        or "" for a step that stays in the scene it is in.
+
+        \code
+        sceneOf: (i) => stepReplacesTheBoard(i) ? LabLang.t("scenario.and") : ""
+        \endcode
+
+        A step that replaces the setup under the professor is a cut to a
+        different scene, and it is shown as one: the \l director takes an
+        establishing shot of the whole new setup (\l scenePointsOf) under
+        the title for \l sceneMs, the professor waits, and only then walks
+        to the step's subject. Without a title the step starts as any other.
+    */
+    property var sceneOf: null
+
+    /*!
+        The world points an establishing shot holds: \c{function(step)}
+        returning an array, typically the whole board. Falls back to the
+        step's extent.
+    */
+    property var scenePointsOf: null
+
+    /*! How long an establishing shot holds before the professor moves, in ms. */
+    property int sceneMs: 2200
 
     /*!
         Where the professor is standing when it appears, as a \c vector3d.
@@ -157,6 +194,33 @@ Item {
     */
     property var scriptVoiceOf: null
 
+    /*!
+        The camera's director, a \c CameraDirector from the lab kernel. Null
+        leaves the camera to the lab.
+
+        Set, the guide orders the shots television would: the walk to a
+        step's subject is a \l {CameraDirector::journey}{journey} (start,
+        destination and subject in one frame, the professor followed), the
+        point on arrival a \l {CameraDirector::twoShot}{two-shot} of
+        professor and subject, the turn to the reader a
+        \l {CameraDirector::portrait}{portrait}. Directed steps get the same
+        treatment from their cues - \c{*point at X*} and \c{*present X*}
+        reframe on X, \c{*face viewer*} pulls in - and a script may ask for
+        an insert with \c{*cut to X*}, which shows X alone for a beat and
+        comes back. A step that opens a new scene (\l sceneOf) starts with
+        an establishing shot under its title.
+
+        The subject a shot frames is the step's \c extent when
+        \l subjectOf gives one, else its \c look point.
+    */
+    property var director: null
+
+    /*!
+        How long a \c{*cut to X*} insert holds before the shot before it
+        comes back, in milliseconds.
+    */
+    property int cutawayMs: 2500
+
     /*! The step's director. Exposed for state assertions (\c{guide.script.done}). */
     readonly property Performance script: _perf
 
@@ -170,8 +234,55 @@ Item {
         spoken: false
         viewerPosition: () => {
             const p = root.professor
-            return p && p.view && p.view.camera ? p.view.camera.scenePosition : null
+            if (!p) return null
+            if (typeof p.viewerPosition === "function") return p.viewerPosition()
+            return p.view && p.view.camera ? p.view.camera.scenePosition : null
         }
+        // The camera follows the performance. Fired BEFORE the cue is
+        // dispatched to the professor, so a *face viewer* finds the camera
+        // already on its way to the portrait and turns to where it is going.
+        onCueFired: (type, arg) => root._onCue(type, arg)
+        Component.onCompleted: _perf.registerVerb("cut to", (name) => root._cutTo(name))
+    }
+
+    function _onCue(type, arg) {
+        const d = root.director
+        if (!d) return
+        if (type === "face" && arg === "viewer") {
+            if (root._held) d.twoShot(root._extentNow()); else d.portrait()
+            return
+        }
+        if (type === "point" || type === "present") {
+            const pos = _resolveCue(arg)
+            if (pos) d.twoShot(root._extentNow().concat([pos]))
+        }
+    }
+
+    function _cutTo(name) {
+        const d = root.director
+        const pos = _resolveCue(name)
+        if (!d || !pos) return
+        d.cutaway([pos], root.cutawayMs)
+    }
+
+    // The same lookup the sequencer uses for its own point cues.
+    function _resolveCue(name) {
+        if (typeof root.scriptResolve === "function") {
+            const p = root.scriptResolve(name)
+            return p && p.x !== undefined ? p : null
+        }
+        return _perf._resolve(name)
+    }
+
+    // What the current step's camera should hold: its extent, else its look.
+    function _extentNow() {
+        const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
+        return _extentOf(s)
+    }
+    function _extentOf(s) {
+        if (!s) return []
+        if (Array.isArray(s.extent) && s.extent.length) return s.extent
+        return s.look ? [s.look] : []
     }
 
     function _scriptFor(step) {
@@ -203,10 +314,12 @@ Item {
             _resume.restart()
         } else {
             _hold.stop()
+            _scene.stop()
             _perf.stop()
             _addressing = false
             root.professor.stopGesture()
             root.professor.vanish()
+            if (root.director) root.director.release()
         }
     }
 
@@ -225,8 +338,43 @@ Item {
         const p = root.professor
         if (!p || !root.running || root.step < 0 || Lab.headless)
             return
+        _scene.stop()
+        _held = false
+        const title = (typeof root.sceneOf === "function") ? root.sceneOf(root.step) : ""
+        if (title && root.director) {
+            const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
+            const pts = (typeof root.scenePointsOf === "function") ? root.scenePointsOf(root.step) : null
+            if (root.director.establish(pts && pts.length ? pts : _extentOf(s), title, root.sceneMs)) {
+                _hold.stop()
+                _perf.stop()
+                _addressing = false
+                p.quiet()
+                p.stopGesture()
+                _scene.restart()
+                return
+            }
+        }
+        _proceed()
+    }
+
+    // The establishing shot is over: now the step itself.
+    Timer {
+        id: _scene
+        interval: root.sceneMs
+        onTriggered: root._proceed()
+    }
+
+    // Whether the current step keeps the camera on its subject (subjectOf's
+    // `hold`), decided when the step starts.
+    property bool _held: false
+
+    function _proceed() {
+        const p = root.professor
+        if (!p || !root.running || root.step < 0 || Lab.headless)
+            return
 
         const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
+        _held = !!(s && s.hold)
         const stand = s && s.stand ? s.stand : null
         const look = s && s.look ? s.look : null
 
@@ -243,7 +391,7 @@ Item {
                 _pending = null
                 _pendingScript = script
                 p.quiet()
-                p.travelTo(stand)
+                _setOff(stand, s)
             } else {
                 _pendingScript = ""
                 _perf.play(script)
@@ -263,7 +411,7 @@ Item {
             // silent, and the sentence starts where the sentence is about.
             _pending = look
             p.quiet()
-            p.travelTo(stand)
+            _setOff(stand, s)
         } else {
             _pending = null
             root._speak()
@@ -272,8 +420,20 @@ Item {
         }
     }
 
+    // The walk. The camera is told first: the journey shot has to hold the
+    // start as well as the destination, and the start is where the professor
+    // is standing NOW - a frame taken after lift-off would already be late.
+    function _setOff(stand, s) {
+        if (root.director) root.director.journey(stand, _extentOf(s))
+        root.professor.travelTo(stand)
+    }
+
     // Point at it, and start the clock on how long that stays interesting.
     function _point(look) {
+        // The camera before the finger: a point is only a point if the thing
+        // and the hand share the picture, and the professor turns to where
+        // the camera is headed.
+        if (root.director) root.director.twoShot(root._extentNow())
         root.professor.pointAt(look)
         if (!root.addressViewer)
             return
@@ -289,6 +449,14 @@ Item {
         const p = root.professor
         if (!p) return
         _addressing = true
+        // The shot moves in before the body turns, so faceViewer() aims at
+        // the portrait's camera position rather than the wide shot's. A
+        // held step keeps the two-shot: the learner is about to be asked to
+        // find something on the board, or the line is naming its parts.
+        if (root.director) {
+            if (root._held) root.director.twoShot(root._extentNow())
+            else root.director.portrait()
+        }
         p.faceViewer()
         // Only if there is still something being said. Hands that talk while
         // the mouth is shut are worse than no hands: turning to the reader is
@@ -387,6 +555,9 @@ Item {
         if (!root.running || root.step < 0 || Lab.headless)
             return
         if (root.professor && root.professor.travelling)
+            return
+        // ...nor during an establishing shot, which is the other silence
+        if (_scene.running)
             return
         // A directed step's lines come from its script; the flow's text is
         // not part of that performance and must not talk over it.

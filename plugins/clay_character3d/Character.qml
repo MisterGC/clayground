@@ -399,8 +399,8 @@ BodyPartsGroup {
     /*!
         \qmlproperty string Character::gesture
         \readonly
-        \brief What the hands are doing: "point", "thumbsUp", "talk", or ""
-               for nothing.
+        \brief What the hands are doing: "point", "present", "thumbsUp",
+               "talk", or "" for nothing.
 
         Set the moment a gesture is asked for, while the arm is still on its
         way there - which is what makes it the thing to assert on. Reading
@@ -715,6 +715,29 @@ BodyPartsGroup {
         if (_character.activity !== Character.Activity.Idle)
             return
         _gestureAnim.request("point", worldPos, which)
+    }
+
+    /*!
+        \qmlmethod void Character::presentAt(vector3d worldPos, string which)
+        \brief Offers an open hand toward a position in the scene and holds
+               it - the presenter's "here we have".
+
+        Palm up, hand at chest height, elbow bent: the gesture for a GROUP or
+        an AREA - several parts, a whole circuit - where a finger at the
+        centroid would point at nothing in particular. \a which picks the
+        arm exactly as in \l pointAt(); the body turns toward the target by
+        the same rule and the head looks at it.
+
+        The hand is never raised toward the target - only turned toward it -
+        so the silhouette stays folded whatever the target's height. Something
+        far above or below the hand is what \l pointAt() is for.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function presentAt(worldPos, which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("present", worldPos, which)
     }
 
     /*!

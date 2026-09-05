@@ -5,7 +5,6 @@
 # Harmless on the desktop, where Qt scans the directory either way.
 Professor 1.0 Professor.qml
 FlowGuide 1.0 FlowGuide.qml
-PointAnim 1.0 PointAnim.qml
 Puff 1.0 Puff.qml
 Hoverboard 1.0 Hoverboard.qml
 Hair 1.0 Hair.qml

@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#include <functional>
 #include <memory>
 
 class QQmlComponent;
@@ -86,6 +87,15 @@ public:
     // graph nodes a chance to appear.
     void renderFrames(int count);
 
+    // Called once after EVERY frame this host renders - the ones renderFrames()
+    // draws and the one grabImage() draws for a capture - so a caller can
+    // observe the scene over time (--trace). Frames are the only clock here:
+    // there is no timer that could fire between two of them, so a sample
+    // taken from this callback always describes a frame that was drawn.
+    // An empty function turns it off.
+    void setFrameRendered(std::function<void()> callback)
+    { m_frameRendered = std::move(callback); }
+
     // Nothing renders here unless asked, so waiting has to drive a frame.
     void advance() override { renderFrames(1); }
 
@@ -119,4 +129,5 @@ private:
     QStringList m_errors;
     bool m_initialized = false;
     bool m_pauseOnLoad = false;
+    std::function<void()> m_frameRendered;
 };

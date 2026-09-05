@@ -69,6 +69,8 @@ clay_plugin( Lab
         Compass.qml
         GridMode.qml
         CameraAnchorMark.qml
+        CameraDirector.qml
+        SceneTitle.qml
         measure.js
         HandheldInstrument.qml
         TapeMeasure.qml

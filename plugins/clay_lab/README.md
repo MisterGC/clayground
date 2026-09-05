@@ -60,6 +60,15 @@ interactive, deterministic, agent-verifiable experimentation space.
   demo/task/watch steps, hint→solve escalation, checkpoint scrubbing.
   `FlowChip` is the on-screen offer to be taught, so the lesson is not
   hidden behind a key nobody knows.
+- **CameraDirector** — which shot when, for a lab with a presenter in it:
+  `journey` (start, destination and subject in one frame, the presenter
+  followed until it lands), `twoShot` (presenter and the thing pointed at),
+  `portrait` (level with the face, for explanation), `cutaway` (one thing
+  alone for a beat, then back), `wide`. Science-TV grammar written once,
+  composed through `OrbitCamera3D.fit()` with a `safe` area for the chrome,
+  so no lab hand-rolls arrival/address hooks and no finger points at
+  something outside the picture. The professor kit's `FlowGuide` takes one
+  as `director:`.
 
 ### The board — what a build lab is made of
 

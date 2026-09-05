@@ -376,6 +376,7 @@ prof.stopGesture()               // eases everything back to rest
 | verb | what it does |
 |---|---|
 | `pointAt(worldPos, which)` | Holds a point at a scene position. `which` is `"auto"` (default), `"left"` or `"right"`. |
+| `presentAt(worldPos, which)` | Offers an open hand toward a scene position - palm up, at chest height, elbow bent - and holds it. Same `which` as `pointAt`. |
 | `thumbsUp(which)` | Holds a thumbs up; `"right"` by default. |
 | `gesticulate()` | Two-handed talking gesture, looping until stopped. |
 | `stopGesture()` | Eases every held joint - and the head - back to rest. |
@@ -387,10 +388,18 @@ What to assert on, rather than watching:
 
 | property | meaning |
 |---|---|
-| `gesture` | `"point"`, `"thumbsUp"`, `"talk"` or `""`. Set the moment a gesture is asked for. |
+| `gesture` | `"point"`, `"present"`, `"thumbsUp"`, `"talk"` or `""`. Set the moment a gesture is asked for. |
 | `gestureSettled` | The pose has arrived. Measuring joint angles before this reports the pose being left. |
 | `gestureHand` | `"left"`, `"right"`, or `""` while released or talking. |
 | `emotion` | The lasting face, as distinct from `speechEmotion`, which belongs to one line. |
+
+**Point or present?** A point is for one thing: the finger goes on it, and
+the arm reaches as far as the target asks. A present is for a group or an
+area - several parts, a whole circuit - where a finger at the centroid would
+point at bare board. The hand stays in front of the body at chest height,
+palm up, and only turns toward the target; the head and the body turn as they
+do for a point. Something far above or below the hand is a point's job.
+The busy hand takes the `open` pose.
 
 Two rules the layer depends on:
 
@@ -598,6 +607,7 @@ outside a `*...*` is spoken.
 |---|---|---|
 | `*happy*` `*sad*` `*angry*` `*neutral*` | Sets the emotion for the lines that follow. Aliases: `joy`, `sadness`, `anger`, `calm` | `setEmotion(value)`, else the `*emotion*` annotation is prefixed to the next `say()` |
 | `*point at NAME*` | Points at the target | `pointAt(pos)` |
+| `*present NAME*` / `*show NAME*` | Offers an open hand toward the target - for a group or an area | `presentAt(pos)` |
 | `*look at NAME*` | Head-only aim at the target | `lookAt(pos)`, else `turnTo(pos)` |
 | `*face NAME*` | Whole-body turn to the target | `turnTo(pos)` |
 | `*look at viewer*` / `*face viewer*` | Same, at the camera | `faceViewer()` for `face`, else the position from `viewerPosition` |

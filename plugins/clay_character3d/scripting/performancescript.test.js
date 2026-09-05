@@ -51,6 +51,19 @@ section('directives: targets')
     eq('a target is an objectName, so its case survives',
        cues('*point at BatteryTerminal*')[0].target, 'BatteryTerminal')
 
+    const p = cues('*present the circuit*')[0]
+    eq('present type', p.type, 'present')
+    eq('present target', p.target, 'the circuit')
+    eq('present describes itself', shape('*present the circuit*'), 'present the circuit')
+    eq('show is the same cue', cues('*show the circuit*')[0].type, 'present')
+    eq('with the same target', cues('*show the circuit*')[0].target, 'the circuit')
+    eq('and the same description', shape('*show the circuit*'), 'present the circuit')
+    eq('a bare present is an error', errs('*present*').length, 1)
+    eq('a bare show is an error too', errs('*show*').length, 1)
+    eq('present is not a point',
+       cues('*present battery*')[0].type + '/' + cues('*point at battery*')[0].type,
+       'present/point')
+
     eq('look at a name', shape('*look at battery*'), 'look at battery')
     eq('look at the viewer', shape('*look at viewer*'), 'look at viewer')
     eq('viewer is case-insensitive', cues('*look at Viewer*')[0].target, 'viewer')
@@ -222,6 +235,10 @@ section('lint: two languages of one script')
        P.lint('*pause 2s*', '*pause 3s*').length, 1)
     eq('a changed emotion is a difference',
        P.lint('*happy*', '*sad*').length, 1)
+    eq('show and present are one directive to the lint',
+       P.lint('*present the circuit* Here.', '*show the circuit* Hier.').length, 0)
+    eq('but a present is not a point',
+       P.lint('*present the circuit*', '*point at the circuit*').length, 1)
     eq('a changed time hint is not',
        P.lint('*happy* Hello. (1s)', '*happy* Hallo. (3s)').length, 0)
 }
@@ -230,6 +247,7 @@ section('lint: two languages of one script')
 section('describe')
 {
     eq('point', P.describe({ type: 'point', target: 'battery' }), 'point at battery')
+    eq('present', P.describe({ type: 'present', target: 'the circuit' }), 'present the circuit')
     eq('long lines are cut',
        P.describe({ type: 'say', text: 'This is the battery and it stores energy.', hintMs: null }),
        "say 'This is the battery and…'")

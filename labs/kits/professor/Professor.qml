@@ -90,8 +90,12 @@ Node {
 
     position: Qt.vector3d(root.stand.x, root.stand.y + root._hover, root.stand.z)
     // Leaning into the direction of travel is the only motion cue there is -
-    // the legs do not move - so it does the work a walk cycle would.
-    eulerRotation: Qt.vector3d(root._lean, root.heading, 0)
+    // the legs do not move - so it does the work a walk cycle would. Into
+    // the direction of travel, not forwards: a slide to the side banks the
+    // board sideways, a slide backwards leans back.
+    eulerRotation: Qt.vector3d(root._lean * Math.cos(root._rel * Math.PI / 180),
+                               root.heading,
+                               root._lean * Math.sin(root._rel * Math.PI / 180))
 
     /*!
         Flies to \a worldPos, landing on it. Ignored while away.
@@ -105,19 +109,68 @@ Node {
     function travelTo(worldPos) {
         if (!_present || !worldPos) return
         _trip.stop()
+        _turn.stop()
         stopGesture()
         _from = root.stand
         _to = worldPos
         const dx = _to.x - _from.x
         const dz = _to.z - _from.z
         const far = Math.sqrt(dx * dx + dz * dz)
-        // Turn to face the way it is going, unless it is going nowhere in
-        // particular - a spin on the spot for a 2 cm hop looks like a fault.
-        _headTo = far > root.standHeight * 0.25
-                ? root.heading + _shortWay(Math.atan2(dx, dz) * 180 / Math.PI - root.heading)
+        // Already there: say so and do nothing else. Lifting off, hovering
+        // and landing on the spot you were standing on reads as fidgeting,
+        // and a flow whose next subject is where the last one was asks for
+        // exactly that trip.
+        if (far < root.standHeight * 0.25) {
+            _stayed.restart()
+            return
+        }
+        // Turn to face the way it is going only when it is going somewhere
+        // BEHIND it, and far. A presenter steps sideways to the next
+        // exhibit and walks towards the audience without turning away from
+        // them - the board drifts, and the lean below banks into the drift.
+        // What does get a turn is a real walk away from the viewer: flying
+        // backwards for thirty units reads as a rig. Distance alone was the
+        // rule before, and it produced a full 180-degree spin on the spot
+        // for a 2.4-unit hop in the logic-gates flow and an about-face on
+        // every step of the LED flow (#219).
+        const travelYaw = Math.atan2(dx, dz) * 180 / Math.PI
+        const rel = _shortWay(travelYaw - root.heading)
+        const behind = Math.abs(rel) > root.turnBehind
+        _headTo = behind && far > root.standHeight * root.turnDistance
+                ? root.heading + rel
                 : root.heading
+        _rel = _shortWay(travelYaw - _headTo)
         _flightMs = Math.max(320, Math.min(4000, far / Math.max(0.1, root.travelSpeed) * 1000))
         _trip.restart()
+    }
+
+    /*!
+        How far a trip has to be, in body heights, before the professor
+        turns round to face the way it is going. Shorter hops slide
+        whichever way they go.
+    */
+    property real turnDistance: 2.0
+
+    /*!
+        How far off its facing, in degrees, a destination has to be before
+        it counts as behind. Up to this the professor slides - sideways or
+        towards the viewer - without turning away from the audience. Wider
+        than a right angle on purpose: a presenter faces the camera ten or
+        fifteen degrees off-axis after a portrait, and a hop straight along
+        the board is then a hundred-odd degrees off, which is still sideways.
+    */
+    property real turnBehind: 125
+
+    // The direction of the flight relative to the way the professor faces
+    // while flying: 0 is straight ahead, 90 is off to its left.
+    property real _rel: 0
+
+    // The zero-length trip. A beat later, so that a handler for arrived()
+    // sees a distinct event and never runs inside the caller's stack.
+    Timer {
+        id: _stayed
+        interval: 40
+        onTriggered: root.arrived(root.stand)
     }
 
     /*! Turns on the spot to face \a worldPos, without going anywhere. */
@@ -277,8 +330,8 @@ Node {
         They are not decoration. A block hand at the end of a raised arm ends
         in an ambiguous stub; an extended index finger is the clearest signal
         there is that a gesture means "that thing there". Together with the
-        forced elbow bend in PointAnim, that is what keeps a raised point from
-        reading as a salute - see the note in PointAnim's _apply().
+        forced elbow bend of the plugin's GestureAnim (safeSilhouette), that
+        is what keeps a raised point from reading as a salute.
     */
     property bool detailedHands: true
 
@@ -322,21 +375,21 @@ Node {
     readonly property bool present: _present
 
     /*! True once a gesture has arrived - the cue to start talking. */
-    readonly property bool settled: _point.settled
+    readonly property bool settled: _char.gestureSettled
 
     /*!
-        What the hands are doing: "point", "thumbsUp", "talk", or "" for
-        nothing.
+        What the hands are doing: "point", "present", "thumbsUp", "talk", or
+        "" for nothing.
 
         Set the moment a gesture is asked for, while the arm is still on its
         way there - which is what makes it the thing to assert on. The joint
         angles ease in over settleMs, so a test that reads those immediately
         after the call is reading the pose the professor has just left.
     */
-    readonly property string gesture: _point.activeGesture
+    readonly property string gesture: _char.gesture
 
     /*! Which hand is doing it: "left", "right" or "". */
-    readonly property string gestureHand: _point.activeHand
+    readonly property string gestureHand: _char.gestureHand
 
     /*! Where the bubble is pinned, so a lab can put something else there. */
     readonly property vector3d headAnchor: _char.scenePosition.plus(
@@ -377,12 +430,24 @@ Node {
     /*! Turns to \a worldPos and points at it. Ignored while away. */
     function pointAt(worldPos) {
         if (!_present) return
-        _point.gesture = "point"
-        _point.hand = "auto"
-        _point.target = worldPos
-        _point.active = true
-        // A hand that arrives somewhere its owner is not looking reads as a
-        // signpost rather than as a person indicating something.
+        _char.pointAt(worldPos, "auto")
+        // The gesture aims the head; this aims the EYES as well. A hand that
+        // arrives somewhere its owner is not looking reads as a signpost
+        // rather than as a person indicating something.
+        lookAt(worldPos)
+    }
+
+    /*!
+        Turns to \a worldPos and offers an open hand toward it - palm up, at
+        chest height, the "here we have" of a presenter. Ignored while away.
+
+        For a GROUP or an AREA: several parts, a whole circuit. A finger at
+        the centroid of those points at bare board; an open hand takes in
+        all of it.
+    */
+    function presentAt(worldPos) {
+        if (!_present) return
+        _char.presentAt(worldPos, "auto")
         lookAt(worldPos)
     }
 
@@ -396,10 +461,7 @@ Node {
     */
     function thumbsUp(which) {
         if (!_present) return
-        _point.gesture = "thumbsUp"
-        _point.hand = which === undefined ? "right" : which
-        _point.target = null
-        _point.active = true
+        _char.thumbsUp(which === undefined ? "right" : which)
     }
 
     /*!
@@ -416,10 +478,7 @@ Node {
     */
     function gesticulate() {
         if (!_present) return
-        _point.gesture = "talk"
-        _point.hand = "auto"
-        _point.target = null
-        _point.active = true
+        _char.gesticulate()
         // Long enough to cover the line being said, and never open-ended.
         _gestureCap.interval = Math.max(root.gestureMaxMs,
                                         _mouth.running ? _mouth.interval : 0)
@@ -454,13 +513,33 @@ Node {
     */
     function faceViewer() {
         if (!root.view || !root.view.camera) return
-        const at = root.view.camera.scenePosition
+        const at = viewerPosition()
         turnTo(at)
         // The body turn is slow and coarse; the eyes arrive first and hold
         // the reader while it finishes. Without this the professor addresses
         // the camera with a fixed forward stare, which is the difference
         // between being looked at and being aimed at.
         lookAt(at)
+    }
+
+    /*!
+        Where the viewer is, for \l faceViewer(): the camera's goal position
+        when the camera sits on a rig that has one (OrbitCamera3D), else
+        where it is right now.
+
+        The goal, because the shot usually moves as the professor turns: a
+        director pulls in for the explanation at the same moment. Aimed at
+        where the camera WAS, the professor ended up eleven to sixteen
+        degrees off the lens in every step of both electronics flows - a
+        presenter looking past the viewer (#219).
+    */
+    function viewerPosition() {
+        if (!root.view || !root.view.camera) return null
+        const cam = root.view.camera
+        const rig = cam.parent
+        if (rig && rig.goalPosition !== undefined && rig.goalPosition !== null)
+            return rig.goalPosition
+        return cam.scenePosition
     }
 
     /*!
@@ -499,13 +578,14 @@ Node {
         else if (n === "neutral" || n === "") root.mood = "neutral"
     }
 
-    /*! Drops the arm and lets the character stand normally again. */
+    /*!
+        Drops the arm and lets the character stand normally again. The eyes
+        are handed back with it; \l faceViewer() or \l lookAt() aims them
+        again.
+    */
     function stopGesture() {
         _gestureCap.stop()
-        _point.active = false
-        _point.target = null
-        _point.gesture = "point"
-        _point.hand = "auto"
+        _char.stopGesture()
     }
 
     /*!
@@ -603,7 +683,7 @@ Node {
     // point outlives the sentence that introduced it, on purpose.
     function _speechEnded() {
         root._talking = false
-        if (_point.gesture === "talk" && _point.active)
+        if (root.gesture === "talk")
             stopGesture()
     }
 
@@ -648,9 +728,12 @@ Node {
         \l tell() for a lab that should stay silent.
 
         Emotion is deliberately not passed through. The character's talking
-        body language drives both upper arms in a loop, which fights a held
-        point and wins - measured at 41 degrees of aim error. Suppressing the
-        arm-waving keeps the gesture; the face still carries the tone.
+        body language drives both upper arms in a loop of its own - it used
+        to fight a held point and win, measured at 41 degrees of aim error,
+        and the gesture layer outranks it now - but the professor's hands
+        are choreographed by the flow (\l gesticulate(), FlowGuide), so a
+        second, emotion-driven animator is not wanted on them at all. The
+        face still carries the tone.
     */
     function say(what) {
         root.line = what
@@ -961,38 +1044,32 @@ Node {
         slip: 0.2
     }
 
-    // --- the hands ------------------------------------------------------------
-    // The plugin's own articulated hands now, rather than the copy this kit
-    // carried until the plugin grew one. They live inside Arm, so there is
-    // nothing to attach here - only the pose to feed them.
+    // --- the hands and the gesture ------------------------------------------
+    // Both the plugin's own now. The articulated hands live inside Arm, and
+    // the held poses - point, present, thumbs up, gesticulation - are the
+    // character's GestureAnim, which this kit's PointAnim was promoted into
+    // (beat table and silhouette policy included). Character wires
+    // Arm.handPose to that layer itself: whichever arm the gesture picked
+    // gets the pointing finger, and the other keeps whatever the lab asked
+    // for - which is what the professor's handPose is, so it is handed down
+    // rather than bound onto each arm.
     //
-    // Character wires Arm.handPose to its own GestureAnim, and the professor
-    // does not use that one: PointAnim drives these arms, with a beat table
-    // and a silhouette policy tuned against this exact body. So the pose is
-    // overridden, the same way the oversized hands and head are. Whichever arm
-    // the gesture picked gets the pointing finger and the other keeps whatever
-    // the lab asked for.
+    // Two things the plugin has to be told, as Bindings for the same reason
+    // the oversized head is one: the character is declared above with the
+    // knobs that shape it, and these two shape the gesture.
 
     Binding {
-        target: _char.rightArm
+        target: _char
         property: "handPose"
-        value: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
+        value: root.handPose
     }
 
     Binding {
-        target: _char.leftArm
-        property: "handPose"
-        value: _point.leftHandPose !== "" ? _point.leftHandPose : root.handPose
-    }
-
-    // --- the gesture --------------------------------------------------------
-
-    PointAnim {
-        id: _point
-        character: _char
-        // no point aiming a body that is still swelling out of a cloud
-        active: false
-        settleMs: 420
+        target: _char
+        property: "gestureSettleMs"
+        // The arm arrives a shade faster than the plugin's default, as it
+        // did when the kit drove it; FlowGuide's hold is timed from here.
+        value: 420
     }
 
     // --- what it is saying --------------------------------------------------

@@ -70,8 +70,9 @@ Item {
         \brief The character that acts the script.
 
         Duck-typed. Cues call, when present: \c say(), \c tell(what, clip),
-        \c setEmotion(), \c pointAt(), \c lookAt(), \c turnTo(),
-        \c faceViewer(), \c thumbsUp(), \c gesticulate(), \c stopGesture(),
+        \c setEmotion(), \c pointAt(), \c presentAt(), \c lookAt(),
+        \c turnTo(), \c faceViewer(), \c thumbsUp(), \c gesticulate(),
+        \c stopGesture(),
         \c stopSpeaking() / \c quiet(). Speech end is read from \c talking if
         the performer has it, otherwise from \c speaking.
     */
@@ -436,6 +437,7 @@ Item {
             _advanceLater()
             break
         case "point":
+        case "present":
         case "look":
         case "face":
             _aim(cue)
@@ -486,6 +488,8 @@ Item {
         }
         if (cue.type === "point") {
             if (!_call("pointAt", pos)) _skip(cue, "performer has no pointAt()")
+        } else if (cue.type === "present") {
+            if (!_call("presentAt", pos)) _skip(cue, "performer has no presentAt()")
         } else if (cue.type === "look") {
             // Head-only if the performer has a head aim, whole body otherwise.
             if (!_call("lookAt", pos) && !_call("turnTo", pos))

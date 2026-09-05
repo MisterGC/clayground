@@ -26,13 +26,16 @@ it had not earned.
 |---|---|
 | `Professor` | the whole character, one `Node`. Drop it in a `View3D`, give it `view`. |
 | `FlowGuide` | hands a lab's guided flow to a professor — the wiring, so no lab writes it twice |
-| `PointAnim` | the held gestures (point, thumbs up). One driver, because they share eight joints |
 | `Hair` | five cuts: `wild`, `swept`, `tidy`, `ring`, `none` |
 | `Beard` | five: `full`, `walrus`, `goatee`, `chin`, `none` |
 | `Spectacles` | rims, bridge, arms, placed off the head's own eye geometry |
-| `DetailedHand` | four fingers and a thumb, opt-in per character |
 | `Hoverboard` | what it travels on, so nobody has to animate a walk cycle |
 | `Puff` | the cloud it arrives in and leaves by |
+
+The gestures and the hands are not in this table because they are not in
+this kit any more: `Professor` drives the character plugin's own `GestureAnim`
+(point, present, thumbs up, gesticulation, look-at) and `DetailedHand`. See
+"What this kit pioneered" below.
 
 ## Using one
 
@@ -47,6 +50,7 @@ Professor {
 prof.appear()                 // arrives in a puff
 prof.travelTo(spot)           // flies there on the board, lands, emits arrived()
 prof.pointAt(thing)           // turns and points, with the elbow bent
+prof.presentAt(group)         // turns and offers an open hand - for an area, not a part
 prof.faceViewer()             // turns to the camera - says it to the reader
 prof.gesticulate()            // talks with the hands, until told otherwise
 prof.tell("Two in series.")   // bubble + mouth, NO audio
@@ -70,6 +74,12 @@ itself.
 
 `nod()` rides on its own rotation channel, so it does not disturb where the
 head is aimed — a nod at someone is still a nod *at* them.
+
+`pointAt()` is for one thing; `presentAt()` is for several — a group of parts,
+a whole circuit — where a finger at the centroid would point at bare board.
+The open hand stays at chest height, palm up, and turns toward the target
+rather than reaching for it. In a performance script it is `*present NAME*`
+(or `*show NAME*`).
 
 `tell()` is the narration verb. `say()` is the same thing through the
 character plugin's speech engine, which means text-to-speech — right for a
@@ -111,6 +121,38 @@ deliver explanation to a face.
 `addressViewer: false` keeps the finger on the part for the whole step, for a
 lab whose steps are one short label each. `pointHoldMs` overrides the
 first-sentence estimate with a fixed hold.
+
+### The camera follows the beat
+
+Give the guide a `director:` — the lab kernel's `CameraDirector`, wired to
+the lab's rig and to the professor — and it orders the shots television
+would, in step with the choreography above:
+
+```qml
+CameraDirector { id: director; rig: rig; presenter: prof
+                 safe: ({ top: 0.1, bottom: 0.18 }) }   // the chrome
+FlowGuide { director: director; ... }
+```
+
+- **journey** as the professor sets off: where it stands, where it is going
+  and what it will talk about, held in one frame, and the professor
+  followed until it lands — the walk is watched, not cut around.
+- **two-shot** on the point: professor *and* subject, from the presenting
+  angle. A finger and the thing it points at have to share a picture.
+- **portrait** on the turn to the reader: level with the face, the board
+  floors relaxed for as long as it lasts.
+- **cutaway** on request: `*cut to NAME*` in a script shows NAME alone for
+  `cutawayMs` and comes back to the shot before, unless a later cue takes
+  another shot first.
+
+Directed steps get the same shots from their cues (`*point at*`,
+`*present*`, `*face viewer*`). `subjectOf` may add `extent: [points]` so
+the camera holds every part a step is about, not only the one the finger
+lands on. Without a `director` the guide never touches the camera.
+
+The turn to the reader aims at where the camera is *going*, not where it
+is: the portrait moves the camera at the same moment, and a body aimed at
+the old position ended up eleven to sixteen degrees past the lens.
 
 **The hands stop when the sentence does.** Talking body language is only
 talking body language while something is being said; left running past the end
@@ -196,19 +238,36 @@ label) aims at the chest. Read **`standHeight`**, or `faceY` for the eyes.
 proportional to `height3d`, so one number fits a board measured in
 centimetres or in metres. Nothing else needs touching.
 
-**A raised straight arm is not an acceptable silhouette** and `PointAnim`
-enforces that: the higher the aim, the more the elbow is forced to bend, so
+**A raised straight arm is not an acceptable silhouette** and the plugin's
+`GestureAnim` enforces that (`Character.safeSilhouette`, on by default and
+left on here): the higher the aim, the more the elbow is forced to bend, so
 the upper arm stays low and the forearm reaches. It costs no accuracy — the
 bend is given back through the shoulder and the wrist — which means it looks
 like dead code to anyone optimising the solve. It is not. Together with the
 extended index finger on `DetailedHand`, it is what keeps a point upward from
 reading as a fascist salute. Re-check the silhouette, not just the aim error,
-after touching that maths.
+after touching that maths — `PointBench.qml` reports both.
 
 **Measure a gesture after `settled`, not after `pointAt()`.** The pose eases
-in over ~450 ms. Measuring immediately reports 60–160° of aim error and looks
+in over ~420 ms. Measuring immediately reports 60–160° of aim error and looks
 exactly like a broken solver; `clayrender --wait-for 'prof.settled'` gives the
 true 0.0–0.3°.
+
+**One animator per joint.** The professor used to carry a gesture driver of
+its own next to the character's, and the two wrote the same eight joints:
+the character's look-only pose eased the arms to zero while the kit's point
+eased them up, and the zero won — a `pointAt()` turned the head and left the
+arm hanging. Everything that moves an arm goes through `Character`'s verbs
+now. Do not add a second driver.
+
+**Hops slide, walks away turn.** `travelTo()` turns the professor to face the
+way it is going only for a destination *behind* it (`turnBehind`, 125°)
+and further than `turnDistance` body heights (2). Everything else slides
+on the board — sideways or towards the viewer — with the lean banked into
+the direction of travel. Distance alone was the rule, and it produced a
+full 180° spin on the spot for a 2.4-unit hop and an about-face on every
+step of the LED flow. A destination under a quarter body height away is
+not a trip at all: `arrived` fires a beat later and nothing lifts off.
 
 **A gesture is solved once**, against the frame the professor stood in when it
 was asked for. `travelTo()` therefore drops it at take-off; point again after
@@ -229,10 +288,10 @@ multi-line `Label3D` has to.
 **Only one thing may own the top centre of the window.** The bubble hangs over
 the professor's head and is sized in *pixels*, so it does not shrink when the
 shot pulls back: frame to the top of the head and the bubble goes off the edge
-into the chrome. A lab that keeps the professor in shot frames to about twice
-the figure height, and hides whatever else lives in that strip while
-`prof.present` — the same call the hint bar makes when the Narrator takes the
-bottom one.
+into the chrome. `CameraDirector` frames to `headroom` (2.2 figure heights)
+and keeps the chrome out with its `safe` area; a lab framing by hand does the
+same, and hides whatever else lives in that strip while `prof.present` — the
+same call the hint bar makes when the Narrator takes the bottom one.
 
 **`OrbitCamera3D.clipNear` defaults to 10**, which is fine for a lab looking
 at a board from 80 units and slices the ground away when you stand 3 units
@@ -253,9 +312,14 @@ proportions) and the professor draws the plugin's hands, fed from this kit's
 gesture layer through a `Binding` on `Arm.handPose`. `plugins/clay_character3d/bench/HandSandbox.qml`
 is where a hand is worked on now.
 
-The professor still runs its own `PointAnim`: its beat table and silhouette
-policy are tuned against this exact body, and moving it onto `GestureAnim` is
-a planned, separate step.
+The gestures have gone back the same way. The kit's `PointAnim` is deleted:
+`GestureAnim` carries its beat table and its silhouette policy unchanged, the
+professor's `pointAt`, `thumbsUp`, `gesticulate`, `stopGesture`, `gesture`,
+`gestureHand` and `settled` are the character's own verbs and state under the
+same names, and its `handPose` is `Character.handPose` — the resting pose of
+whichever hand the gesture is not using. The one gesture added since,
+`presentAt()`, was added to the plugin directly, which is where new ones go.
+`PointBench.qml` measures the real professor now.
 
 Still kit-only: the beard, the spectacles and the hair styles. They attach
 through arithmetic the plugin's new head anchors now publish, so promoting
@@ -272,5 +336,9 @@ judged by looking. What there is:
   and a scripted scene on `P` that exercises the whole directive vocabulary
 - `PointBench.qml`, `LookBench.qml`, `HairBench.qml` — isolated scenes, one
   per hard problem, kept because each was needed twice. The hand's bench lives
-  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`
+  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`.
+  `PointBench` prints aim error and elbow bend for a point (`report()`) and
+  hand height against waist and chest for a present (`presentReport()`):
+  `clayrender labs/kits/professor/PointBench.qml --eval 'presentAt("board")'
+  --wait-for 'prof.settled'`
 - `clayrender --wait-for` against the bench for anything numeric

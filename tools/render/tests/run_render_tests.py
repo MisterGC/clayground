@@ -363,6 +363,74 @@ Item {
     check("a broken --wait-for is an error, not a timeout",
           code == 1 and "noSuchThing" in err, f"exit {code} {err.strip()[:80]}")
 
+    # --trace: the scene over time, one sample per rendered frame (#219). A
+    # property that an animation moves is the smallest thing that must show
+    # up as a changing series and cannot be read off a single picture.
+    write(os.path.join(tmp, "Moving.qml"), """
+import QtQuick
+Item {
+    id: root
+    property real pos: 0
+    NumberAnimation on pos { from: 0; to: 100; duration: 400; running: true }
+    Rectangle { anchors.fill: parent; color: "#101820" }
+}
+""")
+    moving = os.path.join(tmp, "Moving.qml")
+
+    def trace_lines(path):
+        try:
+            with open(path) as f:
+                return [json.loads(line) for line in f if line.strip()]
+        except (OSError, ValueError):
+            return None
+
+    trace_file = os.path.join(tmp, "trace.jsonl")
+    code, _, err = run(args.clayrender,
+                       [moving, "--out", os.path.join(tmp, "trace.png"),
+                        "--size", "60x40", "--frames", "6",
+                        "--trace", "pos", "--trace", "noSuchThing.x",
+                        "--trace-out", trace_file])
+    lines = trace_lines(trace_file) or []
+    meta, samples = (lines[0] if lines else {}), lines[1:]
+    check("--trace with a throwing expression still exits 0",
+          code == 0, f"exit {code} {err.strip()[:80]}")
+    check("the trace opens with the loader's meta line",
+          meta.get("meta") == "trace_start" and isinstance(meta.get("epochMs"), (int, float))
+          and meta.get("watch") == ["pos", "noSuchThing.x"], json.dumps(meta)[:160])
+    check("one sample per rendered frame, at least --frames of them",
+          len(samples) >= 6 and all("frame" in s and "t" in s and "values" in s for s in samples),
+          f"{len(samples)} samples")
+    ts = [s.get("t", -1) for s in samples]
+    check("t never runs backwards",
+          bool(ts) and ts[0] == 0 and all(a <= b for a, b in zip(ts, ts[1:])), str(ts)[:120])
+    series = [s["values"].get("pos") for s in samples]
+    check("the traced value moves over the run",
+          len(set(series)) > 1 and all(isinstance(v, (int, float)) for v in series),
+          str(series)[:120])
+    errors = [s["values"].get("noSuchThing.x") for s in samples]
+    check("a throwing expression yields an error object in every sample",
+          errors and all(isinstance(e, dict) and "noSuchThing" in e.get("error", "")
+                         for e in errors), str(errors[:1])[:120])
+
+    code, _, err = run(args.clayrender,
+                       [moving, "--out", os.path.join(tmp, "trace.png"),
+                        "--size", "60x40", "--trace", "pos"])
+    check("--trace without --trace-out is a usage error",
+          code == 1 and "--trace-out" in err, f"exit {code} {err.strip()[:80]}")
+
+    # A state that never arrives still leaves its trace: that is the evidence
+    # of what the scene did instead, and exit 3 must not throw it away.
+    late_trace = os.path.join(tmp, "late.jsonl")
+    code, _, _ = run(args.clayrender,
+                     [moving, "--out", os.path.join(tmp, "late.png"),
+                      "--size", "60x40", "--trace", "pos",
+                      "--trace-out", late_trace,
+                      "--wait-for", "pos > 1000", "--wait-timeout", "300"])
+    late = trace_lines(late_trace) or []
+    check("a --wait-for that exits 3 still writes the trace so far",
+          code == 3 and len(late) >= 3 and late[0].get("meta") == "trace_start",
+          f"exit {code} {len(late)} lines")
+
     # Crop and scale, applied in that order.
     out_crop = os.path.join(tmp, "crop.png")
     code, _, _ = run(args.clayrender,
