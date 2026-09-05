@@ -59,12 +59,19 @@ ProceduralAnim {
         \brief Ground speed that keeps the feet from sliding, from the hip
                angles, the leg and the cycle length.
     */
-    readonly property real derivedSpeed: GaitLib.speedFor(_cycle.table, entity.legHeight)
+    readonly property real derivedSpeed: GaitLib.speedFor(_cycle.table, entity.legHeight,
+                                                          _cycle._upperRatio)
 
     /*! \qmlproperty real GaitCycleAnim::strideLength
         \readonly
         \brief How far the feet travel in one full cycle. */
-    readonly property real strideLength: GaitLib.strideLength(_cycle.table, entity.legHeight)
+    readonly property real strideLength: GaitLib.strideLength(_cycle.table, entity.legHeight,
+                                                              _cycle._upperRatio)
+
+    // Thigh share of the leg, for the ankle's travel; 0.5 when the entity
+    // does not say (a stub, or a body built before the ratio existed).
+    readonly property real _upperRatio: (entity && entity.legUpperRatio !== undefined)
+                                        ? entity.legUpperRatio : 0.5
 
     /*!
         \qmlproperty real GaitCycleAnim::lift
@@ -142,10 +149,16 @@ ProceduralAnim {
             to: Qt.vector3d(0, 0, 0)
         }
 
-        // The leg swinging forward
+        // The leg swinging forward. The hips move LINEARLY, both legs: the
+        // planted foot must travel under the body at the body's own speed,
+        // and an eased hip parks it at the ends of the step and rushes it
+        // through the middle, which is the skating this cycle used to have.
+        // Knees and feet keep their ease; they shape the swing, not the
+        // contact.
         EulerAnim {
             target: _step.lead.upperLeg
             duration: _cycle.duration
+            easing.type: Easing.Linear
             from: Qt.vector3d(_cycle.table.hipBack, 0, 0)
             to: Qt.vector3d(-_cycle.table.hipFwd, 0, 0)
         }
@@ -166,6 +179,7 @@ ProceduralAnim {
         EulerAnim {
             target: _step.trail.upperLeg
             duration: _cycle.duration
+            easing.type: Easing.Linear
             from: Qt.vector3d(-_cycle.table.hipFwd, 0, 0)
             to: Qt.vector3d(_cycle.table.hipBack, 0, 0)
         }

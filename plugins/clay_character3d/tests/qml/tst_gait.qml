@@ -77,11 +77,15 @@ Item {
 
         // --- the legacy numbers reach the cycle ---------------------------------
 
+        // The planted foot's travel over a step, knee included - what the
+        // speed is derived from now (the old straight-leg arc skated).
+        function ankleZ(hip, knee) {
+            const rad = Math.PI / 180, L = 5.333 / 2
+            return -L * Math.sin(hip * rad) - L * Math.sin((hip + knee) * rad)
+        }
+
         function test_neutral_walk_is_the_legacy_walk() {
-            // Character.walkSpeed for the default leg, as WalkAnim computed it
-            // before the gait model: stride per cycle over 0.8 s.
-            const rad = Math.PI / 180
-            const stride = 5.333 * (Math.sin(25 * rad) + Math.sin(20 * rad)) * 2
+            const stride = (ankleZ(-25, 15) - ankleZ(20, 45)) * 2
             fuzzyCompare(walk.derivedWalkSpeed, stride / 0.8, 1e-9)
             compare(walk.cycleMs, 800)
             compare(walk.duration, 400)
@@ -92,8 +96,7 @@ Item {
         }
 
         function test_neutral_run_is_the_legacy_run() {
-            const rad = Math.PI / 180
-            const stride = 5.333 * (Math.sin(55 * rad) + Math.sin(45 * rad)) * 2
+            const stride = (ankleZ(-55, run.table.kneeExtend) - ankleZ(45, run.table.kneeLift)) * 2
             fuzzyCompare(run.derivedRunSpeed, stride / 0.45, 1e-9)
             compare(run.cycleMs, 450)
             compare(run.duration, 225)

@@ -547,7 +547,7 @@ character-local coordinates for the same reason.
 
 Walk and run are one cycle, `GaitCycleAnim`, animated from a table that
 `animation/gait.js` derives from a base - the walk or the run as it was
-authored - and ten factors around neutral. A factor that scales an amplitude
+authored - and eleven factors around neutral. A factor that scales an amplitude
 is 1 at neutral, one that offsets is 0, and the all-neutral gait is the walk
 and run the framework always had, to the digit: `gait.test.js` asserts the
 derived table against the formulas `WalkAnim` and `RunAnim` used to carry, so
@@ -600,6 +600,7 @@ The factors, as `Gait` exposes them:
 | `lean` | adds | 0 | torso pitch in degrees on top of the cycle's own, bending at the waist so the legs stay planted; positive forward, negative chest out |
 | `headPitch` | adds | 0 | head pitch in degrees; positive looks down, negative lifts the chin |
 | `armSwing` | multiplies | 1 | arm swing amplitude; 0 hangs the arms |
+| `armForward` | adds | 0 | degrees the whole swing is carried ahead of the body, same amplitude; bent elbows plus this is fists pumping before the chest |
 | `elbow` | adds | 0 | elbow bend in degrees on top of the cycle's own (a walk bends 10, a run 70) |
 | `kneeLift` | multiplies | 1 | knee lift; below 1 drags the feet, above it high-steps; the foot angles follow |
 | `sway` | adds | 0 | hip yaw in degrees, alternating with the step, the torso countering by half |

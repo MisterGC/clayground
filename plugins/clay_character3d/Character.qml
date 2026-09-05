@@ -132,7 +132,7 @@ BodyPartsGroup {
 
         The thing to assert on: it says what the character was asked to do,
         where a joint angle mid-swing says only where the leg happens to be.
-        Keys are the ten factors of \l Gait.
+        Keys are the eleven factors of \l Gait.
     */
     readonly property var gaitFactors: GaitLib.compose([
         _character.gaitFromBuild ? GaitLib.buildFactors(_character.gaitBuild) : null,

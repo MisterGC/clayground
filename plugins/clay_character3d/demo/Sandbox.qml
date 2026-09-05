@@ -482,143 +482,16 @@ Item {
         gameController: gameController
     }
 
-    // Gait panel: preset and emotion for the edited character (or the
-    // player), so face and walk can be put together. The other archetypes
-    // need nothing here - Eater's mass, Child's maturity and Stylized's
-    // femininity already shape their patrol walks through the build.
-    Rectangle {
-        id: gaitPanel
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.margins: 10
-        width: 300
-        height: gaitColumn.height + 16
-        color: _gaitPal.window
-        opacity: 0.92
-        radius: 8
-        border.color: Qt.alpha(_gaitPal.windowText, 0.2)
-
-        SystemPalette { id: _gaitPal }
-
-        readonly property var target: charEditor.editTarget ?? character
-        readonly property var gait: target ? target.gait : null
-
-        Column {
-            id: gaitColumn
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 8
-            spacing: 4
-
-            Text {
-                text: "Gait: " + (gaitPanel.target ? gaitPanel.target.name : "-")
-                font.bold: true
-                color: _gaitPal.windowText
-            }
-            Text {
-                text: "Emotion (face + walk)"
-                font.pixelSize: 10
-                color: Qt.alpha(_gaitPal.windowText, 0.6)
-            }
-            // One of each row is on and "neutral" is the off. Drawn by hand
-            // rather than as Buttons: under the native macOS style the loader
-            // runs with, a Button's highlighted and checked looks do not
-            // repaint when the state leaves them, so a row of them shows every
-            // choice ever clicked.
-            component Chip: Rectangle {
-                id: chip
-                required property string modelData
-                property bool active: false
-                signal picked(string name)
-                width: chipLabel.implicitWidth + 16
-                height: chipLabel.implicitHeight + 8
-                radius: 5
-                color: active ? _gaitPal.highlight : Qt.alpha(_gaitPal.windowText, 0.08)
-                border.color: Qt.alpha(_gaitPal.windowText, active ? 0 : 0.25)
-                Text {
-                    id: chipLabel
-                    anchors.centerIn: parent
-                    text: chip.modelData
-                    font.pixelSize: 11
-                    color: chip.active ? _gaitPal.highlightedText : _gaitPal.windowText
-                }
-                MouseArea { anchors.fill: parent; onClicked: chip.picked(chip.modelData) }
-            }
-            Flow {
-                width: parent.width
-                spacing: 4
-                Repeater {
-                    model: ["neutral", "happy", "sad", "angry"]
-                    Chip {
-                        active: gaitPanel.target !== null
-                                && (gaitPanel.target.emotion === modelData
-                                    || (modelData === "neutral" && gaitPanel.target.emotion === ""))
-                        onPicked: (name) => { if (gaitPanel.target) gaitPanel.target.setEmotion(name) }
-                    }
-                }
-            }
-            Text {
-                text: "Preset"
-                font.pixelSize: 10
-                color: Qt.alpha(_gaitPal.windowText, 0.6)
-            }
-            Flow {
-                width: parent.width
-                spacing: 4
-                Repeater {
-                    model: gaitPanel.gait ? gaitPanel.gait.presetNames : []
-                    Chip {
-                        active: gaitPanel.gait !== null
-                                && (gaitPanel.gait.preset === modelData
-                                    || (modelData === "neutral" && gaitPanel.gait.preset === ""))
-                        onPicked: (name) => { if (gaitPanel.gait) gaitPanel.gait.preset = name }
-                    }
-                }
-            }
-            Row {
-                spacing: 8
-                CheckBox {
-                    text: "from build"
-                    font.pixelSize: 10
-                    checked: gaitPanel.target ? gaitPanel.target.gaitFromBuild : true
-                    onToggled: if (gaitPanel.target) gaitPanel.target.gaitFromBuild = checked
-                }
-                CheckBox {
-                    text: "from emotion"
-                    font.pixelSize: 10
-                    checked: gaitPanel.target ? gaitPanel.target.gaitFromEmotion : true
-                    onToggled: if (gaitPanel.target) gaitPanel.target.gaitFromEmotion = checked
-                }
-            }
-            Text {
-                width: parent.width
-                wrapMode: Text.WordWrap
-                font.pixelSize: 10
-                color: _gaitPal.windowText
-                text: {
-                    const c = gaitPanel.target
-                    if (!c) return ""
-                    const f = c.gaitFactors
-                    const mul = ["tempo", "stride", "armSwing", "kneeLift"]
-                    let parts = []
-                    for (const k in f) {
-                        const n = mul.indexOf(k) >= 0 ? 1 : 0
-                        if (Math.abs(f[k] - n) > 1e-9) parts.push(k + " " + (+f[k].toFixed(2)))
-                    }
-                    return "factors: " + (parts.length ? parts.join("  ") : "neutral")
-                         + "\nwalk " + c.walkSpeed.toFixed(1) + "  run " + c.runSpeed.toFixed(1)
-                         + "   (walk: WASD, or the editor's Walk/Run)"
-                }
-            }
-        }
-    }
+    // Gait, emotion and activity of the edited character live in the editor
+    // panel on the right; the archetypes need nothing here - Eater's mass,
+    // Child's maturity and Stylized's femininity shape their patrol walks
+    // through the build, Thinker and Hero carry an explicit Gait.
 
     // Gesture keys, and what the layer says it is doing - the state a test
     // asserts on rather than watching the arm.
     Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.bottom: gameController.top
+        anchors.left: parent.left
         anchors.margins: 10
         width: gestureHelp.width + 20
         height: gestureHelp.height + 16
@@ -637,19 +510,19 @@ Item {
             Text {
                 text: "Gesturer (plain Character)"
                 font.bold: true
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
             Text {
-                text: "P point   O thumbs up   I gesticulate   X stop\n"
-                      + "L look at camera   K release look   Y turn to marker\n"
-                      + "H fingers on/off   N walk/idle   1/2/3/0 emotion"
+                text: "P point  O thumbs up  I gesticulate  X stop  L/K look at camera / release\n"
+                      + "Y turn to marker  H fingers  N walk/idle  1/2/3/0 emotion"
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
             Text {
-                text: "gesture: \"" + gesturer.gesture + "\""
-                      + "   hand: \"" + gesturer.gestureHand + "\""
-                      + "   settled: " + gesturer.gestureSettled
-                      + "   emotion: \"" + gesturer.emotion + "\""
+                text: "gesture \"" + gesturer.gesture + "\"  hand \"" + gesturer.gestureHand + "\""
+                      + "  settled " + gesturer.gestureSettled + "  emotion \"" + gesturer.emotion + "\""
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
         }

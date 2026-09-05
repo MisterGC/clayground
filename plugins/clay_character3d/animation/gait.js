@@ -40,6 +40,7 @@ var FACTORS = {
     lean:      { kind: "add", neutral: 0, min: -30, max: 30 },
     headPitch: { kind: "add", neutral: 0, min: -40, max: 40 },
     armSwing:  { kind: "mul", neutral: 1, min: 0,   max: 2 },
+    armForward:{ kind: "add", neutral: 0, min: -30, max: 60 },
     elbow:     { kind: "add", neutral: 0, min: -10, max: 80 },
     kneeLift:  { kind: "mul", neutral: 1, min: 0.3, max: 2 },
     sway:      { kind: "add", neutral: 0, min: 0,   max: 20 },
@@ -125,12 +126,14 @@ var BASES = {
 // walks off; they are deliberately smaller than a preset can go, because an
 // emotion is worn on top of a build, not instead of one.
 var EMOTIONS = {
-    happy: { tempo: 1.12, bounce: 0.04, armSwing: 1.25, kneeLift: 1.12, headPitch: -5, lean: -2 },
+    // Happy is the arms: the bounce is there but it is the big swing that
+    // says "I am so happy" - the arms go well past the hips both ways.
+    happy: { tempo: 1.12, bounce: 0.04, armSwing: 1.7, elbow: 6, kneeLift: 1.12, headPitch: -5, lean: -2 },
     sad:   { tempo: 0.82, stride: 0.82, armSwing: 0.55, kneeLift: 0.75, headPitch: 16, lean: 7, elbow: 4 },
-    // The elbows bend only a little: with the walk's small arm swing a bent
-    // forearm points straight ahead and reads as reaching, not as a fist
-    // pumping. The swing is what carries the anger; the bend just closes it.
-    angry: { tempo: 1.15, stride: 1.08, lean: 9, armSwing: 1.4, elbow: 18, kneeLift: 1.08, headPitch: 5, rock: 2 }
+    // Angry is arms half bent and carried IN FRONT: the swing's centre moves
+    // ahead of the body (armForward), so the fists pump before the chest,
+    // ready to hit, rather than swinging past the hips like a walk.
+    angry: { tempo: 1.15, stride: 1.08, lean: 9, armSwing: 1.3, elbow: 45, armForward: 22, kneeLift: 1.08, headPitch: 5, rock: 2 }
 }
 
 function canonicalEmotion(e) {
@@ -241,8 +244,11 @@ function derive(baseName, factors) {
         kneeExtend: b.kneeExtend,
         footUp: clamp(b.footUp * kneeK, 0, 60),
         footDown: clamp(b.footDown * kneeK, 0, 60),
-        armFwd: clamp(b.armFwd * get("armSwing"), 0, 90),
-        armBack: clamp(b.armBack * get("armSwing"), 0, 90),
+        // armForward shifts the whole swing ahead of the body: more reach in
+        // front, less behind, the same amplitude. A negative armBack means the
+        // arm never gets behind the hip at all.
+        armFwd: clamp(b.armFwd * get("armSwing") + get("armForward"), 0, 110),
+        armBack: clamp(b.armBack * get("armSwing") - get("armForward"), -60, 90),
         elbow: clamp(b.elbow + get("elbow"), 0, 140),
         lean: clamp(b.lean + get("lean"), -30, 40),
         // The factor's share of the lean pivots at the WAIST: the hip counters
@@ -258,16 +264,31 @@ function derive(baseName, factors) {
     }
 }
 
-// How far the feet travel in one cycle, from the hip angles and the leg, and
-// the speed that keeps the ground moving under them. Same formula the old
-// cycles used, so movement stays foot-locked whatever the gait.
-function strideLength(table, legHeight) {
+// Where the ankle is, along the walking direction, for a hip angle and a
+// knee angle - forward kinematics of the two-segment leg. Positive z is
+// forward; a forward hip is negative, a knee bends the shin back.
+function ankleZ(hip, knee, upper, lower) {
     var rad = Math.PI / 180
-    return legHeight * (Math.sin(table.hipFwd * rad) + Math.sin(table.hipBack * rad)) * 2
+    return -upper * Math.sin(hip * rad) - lower * Math.sin((hip + knee) * rad)
 }
 
-function speedFor(table, legHeight) {
-    return strideLength(table, legHeight) / (table.cycleMs / 1000)
+// How far the feet travel in one cycle, and the speed that keeps the ground
+// moving under them. Measured on the PLANTED foot, knee included: over one
+// step the stance leg goes from forward-and-nearly-straight to back-and-bent,
+// and the ankle's travel between those two poses is what the body has to
+// cover for the foot not to slide. The old cycles used the straight-leg
+// arc, which over-reached the walk by a fifth and under-shot the run by a
+// quarter - visible as feet skating - and the difference is the knee.
+function strideLength(table, legHeight, upperRatio) {
+    var r = (upperRatio === undefined || !isFinite(upperRatio)) ? 0.5 : upperRatio
+    var upper = legHeight * r, lower = legHeight * (1 - r)
+    var start = ankleZ(-table.hipFwd, table.kneeExtend, upper, lower)
+    var end = ankleZ(table.hipBack, table.kneeLift, upper, lower)
+    return Math.max(0, start - end) * 2
+}
+
+function speedFor(table, legHeight, upperRatio) {
+    return strideLength(table, legHeight, upperRatio) / (table.cycleMs / 1000)
 }
 
 // --- the cycle, replayed -------------------------------------------------------
@@ -293,17 +314,22 @@ function liftAt(u) {
 function poseAt(table, t) {
     t = t - Math.floor(t)
     var second = t >= 0.5
-    var u = easeInOutQuad((second ? t - 0.5 : t) * 2)
+    var raw = (second ? t - 0.5 : t) * 2
+    var u = easeInOutQuad(raw)
     function mix(a, b) { return a + (b - a) * u }
+    // The hips move LINEARLY: the planted foot has to travel under the body
+    // at the body's own speed, and an eased hip parks it at both ends of the
+    // step and rushes it through the middle - the feet skate either way.
+    function mixHip(a, b) { return a + (b - a) * raw }
 
     // The leg that swings forward this phase, and the one that goes back.
     var fwd = {
-        upper: mix(table.hipBack, -table.hipFwd),
+        upper: mixHip(table.hipBack, -table.hipFwd),
         lower: mix(table.kneeLift, table.kneeExtend),
         foot: mix(table.footDown, -table.footUp)
     }
     var back = {
-        upper: mix(-table.hipFwd, table.hipBack),
+        upper: mixHip(-table.hipFwd, table.hipBack),
         lower: mix(table.kneeExtend, table.kneeLift),
         foot: mix(-table.footUp, table.footDown)
     }

@@ -17,7 +17,7 @@ const G = K.load(__dirname, 'gait.js', [
     'FACTORS', 'FACTOR_NAMES', 'BASES', 'PRESETS', 'PRESET_NAMES',
     'neutral', 'compose', 'scaled', 'emotionFactors', 'canonicalEmotion',
     'buildFactors', 'presetFactors', 'presetKnown', 'derive', 'strideLength',
-    'speedFor', 'poseAt', 'easeInOutQuad', 'liftAt'
+    'speedFor', 'poseAt', 'easeInOutQuad', 'liftAt', 'ankleZ'
 ])
 
 const ok = K.ok, eq = K.eq, near = K.near, section = K.section
@@ -46,11 +46,16 @@ section('the neutral gait is the legacy walk, digit for digit')
     eq('walk holds the head level', t.headPitch, 0)
     eq('walk has no waist lean', t.waistLean, 0)
 
-    // And the speed Character.walkSpeed used to report for the default leg.
-    const legHeight = 5.333
-    const stridePerStep = legHeight * (Math.sin(fwd * rad) + Math.sin(back * rad))
-    near('walk speed for the default leg', G.speedFor(t, legHeight),
-         stridePerStep * 2 / 0.8, 1e-9)
+    // The speed is NOT the legacy one on purpose: it is the planted foot's
+    // real travel (knee included) over the step, where the old cycle used
+    // the straight-leg arc and the feet skated by a fifth.
+    const legHeight = 5.333, L = legHeight / 2
+    const start = G.ankleZ(-fwd, legacyWalk.kneeExtend, L, L)
+    const end = G.ankleZ(back, legacyWalk.kneeLift, L, L)
+    near('walk speed is the stance foot travel over the step',
+         G.speedFor(t, legHeight), (start - end) * 2 / 0.8, 1e-9)
+    ok('the old straight-leg speed over-reached', G.speedFor(t, legHeight)
+       > legHeight * (Math.sin(fwd * rad) + Math.sin(back * rad)) * 2 / 0.8)
 }
 
 section('the neutral gait is the legacy run, digit for digit')
@@ -68,8 +73,31 @@ section('the neutral gait is the legacy run, digit for digit')
     for (const k of Object.keys(legacyRun))
         near('run.' + k, t[k], legacyRun[k], 1e-9)
     eq('run lean is whole-body, not at the waist', t.waistLean, 0)
-    near('run speed for the default leg', G.speedFor(t, 5.333),
-         5.333 * (Math.sin(fwd * rad) + Math.sin(back * rad)) * 2 / 0.45, 1e-9)
+    const L = 5.333 / 2
+    near('run speed is the stance foot travel over the step', G.speedFor(t, 5.333),
+         (G.ankleZ(-fwd, legacyRun.kneeExtend, L, L) - G.ankleZ(back, legacyRun.kneeLift, L, L)) * 2 / 0.45, 1e-9)
+    ok('the old straight-leg run speed over-shot', G.speedFor(t, 5.333)
+       < 5.333 * (Math.sin(fwd * rad) + Math.sin(back * rad)) * 2 / 0.45)
+}
+
+section('the planted foot does not slide: net slip is zero by construction')
+{
+    for (const [name, base, f] of [['walk', 'walk', null], ['run', 'run', null],
+                                   ['sneak', 'walk', G.compose([G.presetFactors('sneak')])],
+                                   ['march', 'walk', G.compose([G.presetFactors('march')])]]) {
+        const t = G.derive(base, f), leg = 5.333, L = leg / 2
+        const v = G.speedFor(t, leg), phaseS = t.cycleMs / 2000
+        const p0 = G.poseAt(t, 0), p1 = G.poseAt(t, 0.4999999)
+        // the left leg is planted in the first phase: forward at t=0, back at t=0.5
+        const travel = G.ankleZ(p0.leftLeg.upper, p0.leftLeg.lower, L, L)
+                     - G.ankleZ(p1.leftLeg.upper, p1.leftLeg.lower, L, L)
+        near(name + ': body travel per step equals stance foot travel', v * phaseS, travel, 1e-3)
+        // and the hip moves linearly, so mid-step it is exactly halfway
+        const pm = G.poseAt(t, 0.25)
+        near(name + ': hip is halfway at mid-step', pm.leftLeg.upper, (-t.hipFwd + t.hipBack) / 2, 1e-9)
+    }
+    eq('upperRatio defaults to a half', G.strideLength(G.derive('walk', null), 4), G.strideLength(G.derive('walk', null), 4, 0.5))
+    ok('a longer thigh changes the stride', G.strideLength(G.derive('walk', null), 4, 0.6) !== G.strideLength(G.derive('walk', null), 4, 0.5))
 }
 
 section('a factor lean bends at the waist, a base lean does not')
@@ -161,6 +189,18 @@ section('emotions: the same vocabulary the face uses')
     ok('angry leans in', angry.lean > 0)
     ok('angry bends the elbows', angry.elbow > n.elbow)
     ok('angry is quicker', angry.cycleMs < n.cycleMs)
+    ok('angry carries the arms in front', angry.armFwd > n.armFwd && angry.armBack < n.armBack)
+    ok('happy swings the arms further than angry', happy.armFwd + happy.armBack > angry.armFwd + angry.armBack)
+}
+
+section('armForward shifts the swing, keeps its amplitude')
+{
+    const n = G.derive('walk', null)
+    const f = G.derive('walk', { armForward: 20 })
+    near('forward reach grows', f.armFwd, n.armFwd + 20, 1e-12)
+    near('back reach shrinks', f.armBack, n.armBack - 20, 1e-12)
+    near('amplitude unchanged', f.armFwd + f.armBack, n.armFwd + n.armBack, 1e-12)
+    eq('neutral is zero', G.neutral().armForward, 0)
 }
 
 section('build: zero effect at every default')
@@ -285,6 +325,8 @@ section('poseAt replays the cycle the animation plays')
     // The passing position, mid-phase, has the legs crossing.
     const pQ = G.poseAt(t, 0.25)
     near('t=0.25 right hip halfway', pQ.rightLeg.upper, (t.hipBack - t.hipFwd) / 2, 1e-12)
+    near('t=0.25 right knee is eased, not halfway', pQ.rightLeg.lower,
+         t.kneeLift + (t.kneeExtend - t.kneeLift) * 0.5, 1e-12)
     near('t=0.25 is the top of the lift', pQ.lift, t.bounce, 1e-12)
     near('t=0 is the bottom of the lift', p0.lift, 0, 1e-12)
     near('t=0.5 is the bottom of the lift', pHalf.lift, 0, 1e-12)
