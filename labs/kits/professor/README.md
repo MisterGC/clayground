@@ -122,6 +122,38 @@ deliver explanation to a face.
 lab whose steps are one short label each. `pointHoldMs` overrides the
 first-sentence estimate with a fixed hold.
 
+### The camera follows the beat
+
+Give the guide a `director:` — the lab kernel's `CameraDirector`, wired to
+the lab's rig and to the professor — and it orders the shots television
+would, in step with the choreography above:
+
+```qml
+CameraDirector { id: director; rig: rig; presenter: prof
+                 safe: ({ top: 0.1, bottom: 0.18 }) }   // the chrome
+FlowGuide { director: director; ... }
+```
+
+- **journey** as the professor sets off: where it stands, where it is going
+  and what it will talk about, held in one frame, and the professor
+  followed until it lands — the walk is watched, not cut around.
+- **two-shot** on the point: professor *and* subject, from the presenting
+  angle. A finger and the thing it points at have to share a picture.
+- **portrait** on the turn to the reader: level with the face, the board
+  floors relaxed for as long as it lasts.
+- **cutaway** on request: `*cut to NAME*` in a script shows NAME alone for
+  `cutawayMs` and comes back to the shot before, unless a later cue takes
+  another shot first.
+
+Directed steps get the same shots from their cues (`*point at*`,
+`*present*`, `*face viewer*`). `subjectOf` may add `extent: [points]` so
+the camera holds every part a step is about, not only the one the finger
+lands on. Without a `director` the guide never touches the camera.
+
+The turn to the reader aims at where the camera is *going*, not where it
+is: the portrait moves the camera at the same moment, and a body aimed at
+the old position ended up eleven to sixteen degrees past the lens.
+
 **The hands stop when the sentence does.** Talking body language is only
 talking body language while something is being said; left running past the end
 of the line it is a person miming at an empty room. So the end of a line —
@@ -228,6 +260,15 @@ eased them up, and the zero won — a `pointAt()` turned the head and left the
 arm hanging. Everything that moves an arm goes through `Character`'s verbs
 now. Do not add a second driver.
 
+**Hops slide, walks away turn.** `travelTo()` turns the professor to face the
+way it is going only for a destination *behind* it (`turnBehind`, 100°)
+and further than `turnDistance` body heights (2). Everything else slides
+on the board — sideways or towards the viewer — with the lean banked into
+the direction of travel. Distance alone was the rule, and it produced a
+full 180° spin on the spot for a 2.4-unit hop and an about-face on every
+step of the LED flow. A destination under a quarter body height away is
+not a trip at all: `arrived` fires a beat later and nothing lifts off.
+
 **A gesture is solved once**, against the frame the professor stood in when it
 was asked for. `travelTo()` therefore drops it at take-off; point again after
 `arrived`, which is also how a person does it.
@@ -247,10 +288,10 @@ multi-line `Label3D` has to.
 **Only one thing may own the top centre of the window.** The bubble hangs over
 the professor's head and is sized in *pixels*, so it does not shrink when the
 shot pulls back: frame to the top of the head and the bubble goes off the edge
-into the chrome. A lab that keeps the professor in shot frames to about twice
-the figure height, and hides whatever else lives in that strip while
-`prof.present` — the same call the hint bar makes when the Narrator takes the
-bottom one.
+into the chrome. `CameraDirector` frames to `headroom` (2.2 figure heights)
+and keeps the chrome out with its `safe` area; a lab framing by hand does the
+same, and hides whatever else lives in that strip while `prof.present` — the
+same call the hint bar makes when the Narrator takes the bottom one.
 
 **`OrbitCamera3D.clipNear` defaults to 10**, which is fine for a lab looking
 at a board from 80 units and slices the ground away when you stand 3 units

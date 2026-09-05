@@ -90,8 +90,12 @@ Node {
 
     position: Qt.vector3d(root.stand.x, root.stand.y + root._hover, root.stand.z)
     // Leaning into the direction of travel is the only motion cue there is -
-    // the legs do not move - so it does the work a walk cycle would.
-    eulerRotation: Qt.vector3d(root._lean, root.heading, 0)
+    // the legs do not move - so it does the work a walk cycle would. Into
+    // the direction of travel, not forwards: a slide to the side banks the
+    // board sideways, a slide backwards leans back.
+    eulerRotation: Qt.vector3d(root._lean * Math.cos(root._rel * Math.PI / 180),
+                               root.heading,
+                               root._lean * Math.sin(root._rel * Math.PI / 180))
 
     /*!
         Flies to \a worldPos, landing on it. Ignored while away.
@@ -120,23 +124,43 @@ Node {
             _stayed.restart()
             return
         }
-        // Turn to face the way it is going - but only for a real crossing. A
-        // board can drift a body length or two sideways without turning
-        // round, and a person steps to the next exhibit without an
-        // about-face; turning for a hop was a full 180-degree spin on the
-        // spot for a 2.4-unit move, measured in the logic-gates flow (#219).
-        _headTo = far > root.standHeight * root.turnDistance
-                ? root.heading + _shortWay(Math.atan2(dx, dz) * 180 / Math.PI - root.heading)
+        // Turn to face the way it is going only when it is going somewhere
+        // BEHIND it, and far. A presenter steps sideways to the next
+        // exhibit and walks towards the audience without turning away from
+        // them - the board drifts, and the lean below banks into the drift.
+        // What does get a turn is a real walk away from the viewer: flying
+        // backwards for thirty units reads as a rig. Distance alone was the
+        // rule before, and it produced a full 180-degree spin on the spot
+        // for a 2.4-unit hop in the logic-gates flow and an about-face on
+        // every step of the LED flow (#219).
+        const travelYaw = Math.atan2(dx, dz) * 180 / Math.PI
+        const rel = _shortWay(travelYaw - root.heading)
+        const behind = Math.abs(rel) > root.turnBehind
+        _headTo = behind && far > root.standHeight * root.turnDistance
+                ? root.heading + rel
                 : root.heading
+        _rel = _shortWay(travelYaw - _headTo)
         _flightMs = Math.max(320, Math.min(4000, far / Math.max(0.1, root.travelSpeed) * 1000))
         _trip.restart()
     }
 
     /*!
         How far a trip has to be, in body heights, before the professor
-        turns to face the way it is going. Shorter hops slide.
+        turns round to face the way it is going. Shorter hops slide
+        whichever way they go.
     */
-    property real turnDistance: 3.5
+    property real turnDistance: 2.0
+
+    /*!
+        How far off its facing, in degrees, a destination has to be before
+        it counts as behind. Up to this the professor slides - sideways or
+        towards the viewer - without turning away from the audience.
+    */
+    property real turnBehind: 100
+
+    // The direction of the flight relative to the way the professor faces
+    // while flying: 0 is straight ahead, 90 is off to its left.
+    property real _rel: 0
 
     // The zero-length trip. A beat later, so that a handler for arrived()
     // sees a distinct event and never runs inside the caller's stack.
@@ -303,8 +327,8 @@ Node {
         They are not decoration. A block hand at the end of a raised arm ends
         in an ambiguous stub; an extended index finger is the clearest signal
         there is that a gesture means "that thing there". Together with the
-        forced elbow bend in PointAnim, that is what keeps a raised point from
-        reading as a salute - see the note in PointAnim's _apply().
+        forced elbow bend of the plugin's GestureAnim (safeSilhouette), that
+        is what keeps a raised point from reading as a salute.
     */
     property bool detailedHands: true
 
