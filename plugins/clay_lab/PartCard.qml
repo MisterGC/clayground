@@ -32,6 +32,7 @@ import Clayground.Lab
     PartCard {
         id: selCard
         board: board; view: view3d; camera: rig.camera; monitor: monitor; overlay: overlay
+        flow: root.currentFlow
         titleOf: (p) => root.cardTitle(p)
         readingOf: (p) => root.fmtV(root.simOf(p.id).v)
         adjust: (p, row, d) => root.adjustRow(p, row, d)
@@ -56,6 +57,32 @@ LabPanel {
     property var monitor: null
     /*! \qmlproperty var PartCard::overlay \brief The \l BoardOverlay the tag row pins into. */
     property var overlay: null
+    /*!
+        \qmlproperty var PartCard::flow
+        \brief The lab's \l Flow. While one runs, it says whether this card is live.
+
+        A flow selects parts as it explains them, so the card is up through
+        most of a lesson - and a slider that still moves under it is a learner
+        editing the circuit the next sentence quotes a number from. Wired
+        here, the card answers only for a part the running task named
+        (\l {Flow::grants()}); otherwise it reads, and a touch on it is
+        refused out loud rather than ignored.
+    */
+    property var flow: null
+
+    /*!
+        \qmlproperty bool PartCard::live
+        \readonly
+        \brief The card's controls act right now.
+    */
+    readonly property bool live: {
+        if (!flow || !flow.running) return true
+        // grants() is a function, so it registers no dependency of its own:
+        // these two are what make the card go inert again when the flow walks
+        // off the task that lent this part out.
+        flow.control; flow.index
+        return part !== null && flow.grants(part.id)
+    }
 
     /*! \qmlproperty var PartCard::titleOf \brief \c {(part) -> string}, the first line. */
     property var titleOf: (p) => LabLang.t("part." + p.type).toUpperCase()
@@ -154,22 +181,38 @@ LabPanel {
         function adjust(d) {
             const p = root.part
             if (!p) return false
+            if (!root.live) { root.flow.refuse(); return false }
             const row = root.focusedRow
-            if (row === "watch") { if (root.monitor) root.monitor.toggle(p.id); return true }
+            if (row === "watch") {
+                if (root.monitor) root.monitor.toggle(p.id)
+                root._done(); return true
+            }
             if (row === "label") {
                 const cyc = [""].concat(root.attributes)
                 const cur = (root.overlay && root.overlay.tags[p.id]) || ""
                 if (root.overlay)
                     root.overlay.setTag(p.id, cyc[((cyc.indexOf(cur) + d) % cyc.length + cyc.length) % cyc.length])
-                return true
+                root._done(); return true
             }
-            return root.adjust(p, row, d)
+            const ok = root.adjust(p, row, d)
+            if (ok) root._done()
+            return ok
         }
         function operate() {
             const p = root.part
-            return p ? root.operate(p) : false
+            if (!p) return false
+            if (!root.live) { root.flow.refuse(); return false }
+            const ok = root.operate(p)
+            if (ok) root._done()
+            return ok
         }
     }
+
+    // The card just did something the running task may have been waiting for.
+    // Asked here rather than left to the clock's next sample, for the same
+    // reason BoardInput asks: Enter on a switch is a discrete act, and a
+    // second one landing before the sample would undo the first.
+    function _done() { if (flow && flow.running) flow.check() }
 
     Connections {
         target: root.board
@@ -253,5 +296,23 @@ LabPanel {
             color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
             font.family: LabTheme.handFont
         }
+    }
+
+    // The card while the flow holds the board: it still READS - the lesson
+    // quotes the numbers on it - but nothing on it acts, and a touch is
+    // answered instead of swallowed.
+    //
+    // Reparented on purpose: LabPanel's default property stacks children in a
+    // Column, and a blocker that takes its turn in a column covers nothing.
+    MouseArea {
+        id: _blocker
+        enabled: !root.live
+        visible: enabled
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: if (root.flow) root.flow.refuse()
+        // Both in onCompleted, and the anchor only AFTER the reparent: an
+        // anchored item inside a Column is a warning on the console, and a
+        // lab that logs is a lab-check failure.
+        Component.onCompleted: { parent = root; anchors.fill = root }
     }
 }

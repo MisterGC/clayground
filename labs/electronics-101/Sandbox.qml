@@ -1454,7 +1454,9 @@ Item {
         const f = currentFlow
         info.flow = { id: f.running ? f.flowId : "",
                       offered: f.flowId,
-                      step: f.index, paused: f.paused, waiting: f.waiting }
+                      step: f.index, waiting: f.waiting,
+                      // who has the board: "learner", "flow" or "task"
+                      control: f.control }
         info.ui = { selected: selectedId, snap: grid.snap,
                     watching: watch.map(id => ({ id: id, type: elemAt(id).type })),
                     quantity: monitor.quantity, lang: LabLang.lang }
@@ -1824,8 +1826,8 @@ Item {
     // The gesture is the kernel's (BoardInput): an empty hand wires pads,
     // selects and drags a part, taps a wire to branch from it, and operates
     // the SELECTED part's actuator on a second click. What this lab adds is
-    // what operating means here - a switch flips - and that a click on the
-    // board hands the flow over to the learner.
+    // what operating means here - a switch flips - and which flow owns the
+    // board while it teaches.
     BoardInput {
         id: boardMouse
         board: board
@@ -1834,8 +1836,11 @@ Item {
         stage: stage
         view: view3d
         grid: grid
+        // While a lesson runs the board is the lesson's: a task lends back
+        // exactly the part it asked for and takes it back the moment it is
+        // done, and everything else refuses out loud (#221).
+        flow: root.currentFlow
         onOperate: (id) => root.toggleSwitch(id)
-        onInteracted: root.currentFlow.takeOver()   // the learner is driving now, not the flow
     }
 
     // --- palette ----------------------------------------------------------
@@ -1919,6 +1924,7 @@ Item {
             task: ({ "until": (n) => { const e = root.elemAt(n("sw")); return e && e.on },
                      "hint": "flow.led-basics.flip.hint",
                      "hintAfter": 7,
+                     "allow": ["sw"],
                      "solve": [["flipSwitch", "sw"]] })
         }
         FlowStep {
@@ -1931,9 +1937,19 @@ Item {
             key: "values"
             demo: [["showValues", true]]
         }
+        // The handoff, and a task rather than a closing line: the lesson ends
+        // by lending the learner the one control it has been talking about,
+        // and ends FOR GOOD the moment they use it - after which the whole
+        // board is theirs.
         FlowStep {
             key: "try"
             demo: [["select", "res"], ["frame", "selection"]]
+            task: ({ "until": (n) => { const e = root.elemAt(n("res"))
+                                       return e && e.value !== 470 },
+                     "hint": "flow.led-basics.try.hint",
+                     "hintAfter": 9,
+                     "allow": ["res"],
+                     "solve": [["setOhms", "res", 220]] })
         }
     }
     // --- flow: from one transistor to XOR ----------------------------------
@@ -1955,9 +1971,12 @@ Item {
         }
         FlowStep {
             key: "switch"
+            // The subject is whatever the preset just put on the board, so
+            // the task names it with a function rather than a bound name.
             task: ({ "until": () => root.logicRowIndex() === 1,
                      "hint": "flow.logic-gates.switch.hint",
                      "hintAfter": 7,
+                     "allow": () => root.logicInputs,
                      "solve": [["setInputs", 1]] })
         }
         FlowStep {
@@ -1974,6 +1993,7 @@ Item {
             task: ({ "until": () => root.logicRowIndex() === 3,
                      "hint": "flow.logic-gates.andtask.hint",
                      "hintAfter": 8,
+                     "allow": () => root.logicInputs,
                      "solve": [["setInputs", 3]] })
             // the gate is what the preset claims it is, or this step fails
             expect: () => {
@@ -1999,6 +2019,7 @@ Item {
                                       return r === 1 || r === 2 },
                      "hint": "flow.logic-gates.xortask.hint",
                      "hintAfter": 8,
+                     "allow": () => root.logicInputs,
                      "solve": [["setInputs", 1]] })
             expect: () => {
                 const t = root.truthTable()
@@ -2025,6 +2046,7 @@ Item {
                                       return r === 1 || r === 2 },
                      "hint": "flow.logic-gates.chiptask.hint",
                      "hintAfter": 8,
+                     "allow": () => root.logicInputs,
                      "solve": [["setInputs", 1]] })
             // the package answers the same as the five transistors did
             expect: () => {
@@ -2708,6 +2730,10 @@ Item {
         id: selCard
         objectName: "partCard"
         board: board
+        // The card is up through most of a lesson - the flow selects each
+        // part as it explains it - so it reads throughout and only acts for
+        // the part the running task named (#221).
+        flow: root.currentFlow
         view: view3d
         camera: rig.camera
         monitor: monitor

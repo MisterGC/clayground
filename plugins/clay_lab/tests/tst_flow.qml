@@ -172,6 +172,42 @@ Item {
         }
     }
 
+    // --- who has the board (#221) -----------------------------------------
+    // A lesson explains, hands over exactly the interaction it asked for,
+    // takes the board back when that is done, and continues. These two flows
+    // are the whole of that contract: one that names its subject, one that
+    // names nothing and therefore keeps the pre-#221 behaviour.
+    Flow {
+        id: gatedFlow
+        lab: fakeLab
+        flowId: "tst-gated"
+        pacing: "manual"
+
+        FlowStep { key: "build"; demo: [["let", "sw", "addPart", "switch"],
+                                        ["let", "other", "addPart", "led"]] }
+        FlowStep {
+            key: "flip"
+            task: ({ "until": () => fakeLab.tagged !== -1,
+                     "allow": ["sw"],
+                     "solve": [["tagPart", "sw"]] })
+        }
+        FlowStep { key: "after" }
+    }
+
+    Flow {
+        id: openTaskFlow
+        lab: fakeLab
+        flowId: "tst-opentask"
+        pacing: "manual"
+
+        FlowStep { key: "build"; demo: [["let", "sw", "addPart", "switch"]] }
+        FlowStep {
+            key: "anything"
+            task: ({ "until": () => fakeLab.tagged !== -1,
+                     "solve": [["tagPart", "sw"]] })
+        }
+    }
+
     TestCase {
         name: "Flow"
 
@@ -182,6 +218,7 @@ Item {
             flow.stop(); viewFlow.stop(); blindFlow.stop()
             goodFlow.stop(); verblessFlow.stop(); endlessFlow.stop()
             wrongFlow.stop(); unsolvableFlow.stop()
+            gatedFlow.stop(); openTaskFlow.stop()
             fakeCam.lastCall = ""; fakeCam.lastArg = null
             fakeCam.calls = 0; fakeCam.partsWhenAimed = -1
         }
@@ -348,6 +385,93 @@ Item {
             verify(r.error !== undefined, "it says why")
             compare(r.finished, false)
             compare(r.steps, 0)
+        }
+
+        // --- who has the board (#221) ------------------------------------
+
+        function test_theBoardIsTheLearnersUntilAFlowStarts() {
+            compare(gatedFlow.control, "learner")
+            verify(gatedFlow.grants(1), "with nothing running, everything is live")
+            verify(gatedFlow.grants(999), "including a part that does not exist")
+        }
+
+        function test_aDemoStepLocksTheWholeBoard() {
+            gatedFlow.start()
+            compare(gatedFlow.control, "flow")
+            verify(!gatedFlow.grants(fakeLab.parts[0].id), "not even the switch")
+            verify(!gatedFlow.grants(fakeLab.parts[1].id))
+        }
+
+        function test_aTaskOpensWhatItNamedAndNothingElse() {
+            gatedFlow.start()
+            gatedFlow.next()
+            compare(gatedFlow.control, "task")
+            compare(gatedFlow.grants(gatedFlow.nameOf("sw")), true,
+                    "the part the task named answers")
+            compare(gatedFlow.grants(gatedFlow.nameOf("other")), false,
+                    "the one beside it does not")
+        }
+
+        // The bug this exists for: the task is satisfied, the flow is already
+        // narrating the result, and a second click is still landing on the
+        // board it was talking about.
+        function test_theBoardIsLockedAgainTheInstantTheTaskIsDone() {
+            gatedFlow.start()
+            gatedFlow.next()
+            fakeLab.tagPart(gatedFlow.nameOf("sw"))
+            verify(gatedFlow.check(), "check() saw the task was done")
+            compare(gatedFlow.index, 2, "and walked on")
+            compare(gatedFlow.control, "flow")
+            verify(!gatedFlow.grants(gatedFlow.nameOf("sw")),
+                   "the part the task lent out is the flow's again")
+        }
+
+        function test_checkIsANoOpOutsideAnUnsatisfiedTask() {
+            gatedFlow.start()
+            compare(gatedFlow.check(), false, "not on a demo step")
+            gatedFlow.next()
+            compare(gatedFlow.check(), false, "nor on a task nobody has done")
+            compare(gatedFlow.index, 1, "and it moved nothing")
+        }
+
+        function test_leavingHandsTheWholeBoardBack() {
+            gatedFlow.start()
+            verify(!gatedFlow.grants(fakeLab.parts[0].id))
+            gatedFlow.stop()
+            compare(gatedFlow.control, "learner")
+            verify(gatedFlow.grants(fakeLab.parts[0].id), "at once, with no step in between")
+        }
+
+        // The compatibility story: a task that names nothing is a task that
+        // asks for nothing in particular, and the whole board stays live.
+        function test_aTaskThatNamesNothingKeepsTheBoardLive() {
+            openTaskFlow.start()
+            verify(!openTaskFlow.grants(fakeLab.parts[0].id), "its demo step still locks")
+            openTaskFlow.next()
+            compare(openTaskFlow.control, "task")
+            verify(openTaskFlow.grants(fakeLab.parts[0].id))
+            verify(openTaskFlow.grants(4242), "anything at all")
+        }
+
+        function test_aRefusalIsSaidAndThenForgotten() {
+            gatedFlow.start()
+            compare(gatedFlow.refusal, "")
+            gatedFlow.refuse()
+            compare(gatedFlow.refusal, "flow.refuse.busy", "the flow is working")
+            gatedFlow.next()
+            gatedFlow.refuse()
+            compare(gatedFlow.refusal, "flow.refuse.task", "the learner clicked the wrong thing")
+            gatedFlow.stop()
+            compare(gatedFlow.refusal, "", "leaving clears it")
+        }
+
+        // The headless run performs each task through solve(), which drives
+        // the lab's verbs and never touches the input layer - so a locked
+        // board cannot lock the verification run out.
+        function test_theHeadlessRunSolvesAGatedFlowAnyway() {
+            const r = Lab.runFlow("tst-gated")
+            compare(r.failedTasks, [], "the task was solved")
+            verify(r.finished, "and the flow reached its end")
         }
     }
 }

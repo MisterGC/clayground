@@ -423,8 +423,10 @@ Item {
     BoardInput {
         id: boardMouse
         board: board; nav: nav; hands: hands; stage: stage; view: view3d; grid: grid
+        // While a flow runs the board is the flow's: a task lends back
+        // exactly what it named and takes it back the moment it is done.
+        flow: introFlow
         onOperate: (id) => root.flip(id)
-        onInteracted: introFlow.takeOver()
     }
 
     // --- HUD ---------------------------------------------------------------------
@@ -465,6 +467,7 @@ Item {
         id: selCard
         objectName: "partCard"
         board: board; view: view3d; camera: rig.camera; monitor: monitor; overlay: overlay
+        flow: introFlow     // reads throughout a lesson, acts only for what a task named
         titleOf: (p) => LabLang.t("part." + p.type).toUpperCase()
                         + (p.type === "block" ? "  " + LabLang.t("card.weight") + " " + LabLang.num(p.value, 0) : "")
         readingOf: (p) => LabLang.t(root.simOf(p.id).lit ? "card.lit" : "card.dark")
@@ -594,12 +597,15 @@ Item {
                    ["frame", "setup"]]
         }
         // task: the learner acts; `until` is a predicate on board state, so
-        // the card, the actuator and the h key all satisfy it
+        // the card, the actuator and the h key all satisfy it - and `allow`
+        // is the one part that is live while it runs, everything else on the
+        // board being the flow's
         FlowStep {
             key: "try"
             task: ({ "until": (n) => { const e = board.partAt(n("s")); return e && e.on },
                      "hint": "flow.{{id}}-intro.try.hint",
                      "hintAfter": 8,
+                     "allow": ["s"],
                      "solve": [["flip", "s"]] })
         }
         // expect: the assertion that makes the flow a test
