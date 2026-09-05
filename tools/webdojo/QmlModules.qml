@@ -7,6 +7,8 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick3D.Helpers
+import QtQuick3D.AssetUtils   // RuntimeLoader: glTF/GLB straight from a URL
+import QtQuick.Timeline       // what balsam emits for skeletal animation clips
 import QtQuick.LocalStorage
 import QtQuick.Particles
 import QtMultimedia
