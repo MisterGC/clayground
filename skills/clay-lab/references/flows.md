@@ -59,6 +59,7 @@ Flow {
         task: ({ "until": (n) => { const e = root.elemAt(n("sw")); return e && e.on },
                  "hint": "flow.led-basics.flip.hint",
                  "hintAfter": 7,    // sim seconds until the hint shows
+                 "allow": ["sw"],   // the one part that is live meanwhile
                  "solve": [["flipSwitch", "sw"]] })   // the "show me" path
     }
     FlowStep {
@@ -74,6 +75,8 @@ Flow {
 }
 Narrator { flow: ledFlow }          // bottom-centre; hide the hint bar
                                     // while ledFlow.running
+BoardInput { flow: ledFlow }        // and the board is the flow's while it runs
+PartCard   { flow: ledFlow }
 ```
 
 Three step kinds, by who acts:
@@ -81,22 +84,37 @@ Three step kinds, by who acts:
 - **demo** — the lab acts through its verbs; the learner watches.
 - **task** — the learner acts; `until` is a predicate on *lab state*
   ("the LED is lit"), never on a specific click, so there is always more
-  than one way to satisfy it. Escalation, all optional: narration →
-  after `hintAfter` sim-seconds the hint shows → *show me* runs `solve`.
-  Nobody is ever stuck.
+  than one way to satisfy it. `allow` names what the task lends out —
+  the parts that answer while it runs, written the way `until` and
+  `solve` write them (`"allow": ["sw"]`, or a function of the same
+  lookup when the subject is whatever the step's own preset put there).
+  Escalation, all optional: narration → after `hintAfter` sim-seconds
+  the hint shows → *show me* runs `solve`. Nobody is ever stuck.
 - **watch** — the *simulation* acts; the step ends when the world
   reaches the moment worth explaining. The narrator says "watching…"
-  instead of "your turn"; interruption there counts as taking over,
-  while acting during a task counts as participating (`takeOver()` is a
-  no-op while `waiting`).
+  instead of "your turn".
 
 A step with none of the three just narrates.
 
 ## Rules that make a flow teach
 
-- **A flow never locks the lab.** Input mid-flow pauses it (wire your
-  interaction handlers to call `flow.takeOver()`); the narrator offers
-  resume / replay / leave. No modal overlay, no disabled inputs.
+- **A lesson owns the board while it teaches** (#221). `Flow.control` is
+  `"learner"` (nothing running — everything works), `"flow"` (a demo or a
+  narrated step — the board is inert) or `"task"` (only what `allow`
+  named). The instant a task's `until` holds the board is the flow's
+  again, so a second click cannot undo what the first one just achieved.
+  Wire it by handing the flow to the input rather than by disabling
+  anything: `BoardInput { flow: root.currentFlow }` and
+  `PartCard { flow: root.currentFlow }`. A refused touch is *answered* —
+  `Flow.refuse()` puts a line in the narrator — because a click that does
+  nothing and says nothing reads as a broken lab. Full control comes back
+  by leaving (`flow.stop()`, the narrator's ✕), never by touching
+  something mid-lesson. A task with no `allow` keeps the whole board
+  live, which is what a flow written before this gets.
+  The camera is never gated: looking around is not touching.
+- **The headless run is not affected.** `Lab.runFlow()` performs each
+  task through `solve()`, i.e. through the lab's verbs, and never through
+  the input layer — so a locked board cannot lock `lab_check_<lab>` out.
 - **Pacing ripens, never forces.** `pacing: "ready"` (default): a
   reading-time estimate ripens the Next control — dimmed but **always
   clickable**, never disabled. `"auto"` advances on elapse (kiosk,
@@ -159,7 +177,7 @@ A flow nobody finds teaches nobody. Ship all three:
 
 Implemented: `Flow`, `FlowStep`, `Narrator`, `FlowChip`, verbs-as-data
 with `let` bindings, task/watch/expect, checkpoint scrubbing, ripening
-pacing, `takeOver`, `LabLang` narration keys (the `flow.*` chrome lives
+pacing, `control`/`grants`/`refuse` (#221), `LabLang` narration keys (the `flow.*` chrome lives
 in the kernel dictionary — never copy it into a lab), and the headless
 run `Lab.runFlow(flowId)` (every `Flow` registers itself with `Lab`
 under its `flowId`; `Lab.headless` is what the Narrator, the professor

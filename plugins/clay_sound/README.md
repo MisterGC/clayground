@@ -159,6 +159,20 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
   stage (AudioWorklet backend).
 - **Desktop/Mobile**: Full support — all types above work end-to-end.
 
+### What `Music` cannot do on WASM
+
+Qt's WebAssembly media backend plays a `Music` source through an HTML
+`<audio>` element and reports almost nothing back, so on the web
+(and only there):
+
+- `status` and `loaded` stay at their initial values until the track ends
+- `duration` and `position` stay `0`
+- `loop` has no effect — the track plays once
+
+A background loop on the web therefore needs a `Sound` re-triggered by a
+`Timer` at the clip length, the way `Music` was worked around before it
+played at all (see #216).
+
 ## Technical Notes
 
 - Audio is fully preloaded before playback (no streaming)

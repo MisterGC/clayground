@@ -376,6 +376,7 @@ prof.stopGesture()               // eases everything back to rest
 | verb | what it does |
 |---|---|
 | `pointAt(worldPos, which)` | Holds a point at a scene position. `which` is `"auto"` (default), `"left"` or `"right"`. |
+| `presentAt(worldPos, which)` | Offers an open hand toward a scene position - palm up, at chest height, elbow bent - and holds it. Same `which` as `pointAt`. |
 | `thumbsUp(which)` | Holds a thumbs up; `"right"` by default. |
 | `gesticulate()` | Two-handed talking gesture, looping until stopped. |
 | `stopGesture()` | Eases every held joint - and the head - back to rest. |
@@ -387,10 +388,18 @@ What to assert on, rather than watching:
 
 | property | meaning |
 |---|---|
-| `gesture` | `"point"`, `"thumbsUp"`, `"talk"` or `""`. Set the moment a gesture is asked for. |
+| `gesture` | `"point"`, `"present"`, `"thumbsUp"`, `"talk"` or `""`. Set the moment a gesture is asked for. |
 | `gestureSettled` | The pose has arrived. Measuring joint angles before this reports the pose being left. |
 | `gestureHand` | `"left"`, `"right"`, or `""` while released or talking. |
 | `emotion` | The lasting face, as distinct from `speechEmotion`, which belongs to one line. |
+
+**Point or present?** A point is for one thing: the finger goes on it, and
+the arm reaches as far as the target asks. A present is for a group or an
+area - several parts, a whole circuit - where a finger at the centroid would
+point at bare board. The hand stays in front of the body at chest height,
+palm up, and only turns toward the target; the head and the body turn as they
+do for a point. Something far above or below the hand is a point's job.
+The busy hand takes the `open` pose.
 
 Two rules the layer depends on:
 
@@ -706,12 +715,14 @@ outside a `*...*` is spoken.
 |---|---|---|
 | `*happy*` `*sad*` `*angry*` `*neutral*` | Sets the emotion for the lines that follow. Aliases: `joy`, `sadness`, `anger`, `calm` | `setEmotion(value)`, else the `*emotion*` annotation is prefixed to the next `say()` |
 | `*point at NAME*` | Points at the target | `pointAt(pos)` |
+| `*present NAME*` / `*show NAME*` | Offers an open hand toward the target - for a group or an area | `presentAt(pos)` |
 | `*look at NAME*` | Head-only aim at the target | `lookAt(pos)`, else `turnTo(pos)` |
 | `*face NAME*` | Whole-body turn to the target | `turnTo(pos)` |
 | `*look at viewer*` / `*face viewer*` | Same, at the camera | `faceViewer()` for `face`, else the position from `viewerPosition` |
 | `*thumbs up*` | Approval gesture | `thumbsUp()` |
 | `*gesticulate*` | Talking hands on | `gesticulate()` |
 | `*rest*` | Drops any gesture | `stopGesture()` |
+| `*mark NAME*` / `*mark A, B, C*` | Raises markers on the named things for the length of the line that follows | none - the points come out in `marks` |
 | `*pause 800ms*` `*pause 2s*` `*pause 1.5s*` | Consumes that much time | - |
 | anything else | A reported error in strict mode | - |
 
@@ -720,6 +731,35 @@ and resolved against the scene - there is no second naming scheme. It may
 contain spaces: `*point at the big red battery*`. `viewer` is the one reserved
 name and means the camera. A duration is a number plus a unit, `ms` or `s`,
 both required; `*pause 800*` is an error rather than a guess.
+
+`*mark*` is the one directive that takes several targets, comma separated,
+because naming a group is exactly when it earns its keep:
+`*mark the battery, the switch, the LED* Four parts, one loop.`
+
+### Marks
+
+A line that names things - "collector on the left, emitter on the right, base
+facing you" - asks the eye to find each of them by ear. `*mark ...*` resolves
+its names the way `*point at*` resolves its target and publishes the world
+points in `marks`; `markNames` holds the names that resolved, in the same
+order. A name that does not resolve is skipped and recorded, and the rest of
+the list still marks.
+
+Nothing here draws them. A sequencer has no view, so the points go to whatever
+is showing the scene - `Clayground.Lab`'s `MarkLayer` is the overlay the labs
+use, and a lab's own is one binding away.
+
+The lifetime is the whole of the rule an author has to hold: a mark set is
+raised by its cue, lives for the length of the *one* line that follows it, and
+is gone by the time the next cue starts. `stop()` and the end of the script
+clear it too. A marker says "this one, now", not "this one, still" - so a
+sentence that keeps a mark up needs its own `*mark*`:
+
+```
+*mark the collector* Collector on the left.
+*mark the emitter* Emitter on the right.
+*mark the base* And the base, facing you.
+```
 
 ### Time hints
 
@@ -787,6 +827,7 @@ A script is verified by reading state, not by watching it.
 | `errors` | Parse errors of the last `play()`, each `{at, directive, message}` |
 | `skipped` | Cues that could not be carried out, each `{cue, reason}` - an unresolved target, a missing verb, a handler that threw |
 | `firedLog` | Every cue that fired, each `{ms, cue}`, ms measured from `play()` |
+| `marks` / `markNames` | The world points a `*mark ...*` cue currently raises, and the names behind them. Empty whenever nothing is marked |
 | `finished()` | Emitted after the last cue |
 | `customCue(verb, arg)` | Emitted for a custom cue with no registered handler |
 

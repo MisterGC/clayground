@@ -51,6 +51,19 @@ section('directives: targets')
     eq('a target is an objectName, so its case survives',
        cues('*point at BatteryTerminal*')[0].target, 'BatteryTerminal')
 
+    const p = cues('*present the circuit*')[0]
+    eq('present type', p.type, 'present')
+    eq('present target', p.target, 'the circuit')
+    eq('present describes itself', shape('*present the circuit*'), 'present the circuit')
+    eq('show is the same cue', cues('*show the circuit*')[0].type, 'present')
+    eq('with the same target', cues('*show the circuit*')[0].target, 'the circuit')
+    eq('and the same description', shape('*show the circuit*'), 'present the circuit')
+    eq('a bare present is an error', errs('*present*').length, 1)
+    eq('a bare show is an error too', errs('*show*').length, 1)
+    eq('present is not a point',
+       cues('*present battery*')[0].type + '/' + cues('*point at battery*')[0].type,
+       'present/point')
+
     eq('look at a name', shape('*look at battery*'), 'look at battery')
     eq('look at the viewer', shape('*look at viewer*'), 'look at viewer')
     eq('viewer is case-insensitive', cues('*look at Viewer*')[0].target, 'viewer')
@@ -59,6 +72,40 @@ section('directives: targets')
     eq('face is a whole-body turn, look is not',
        cues('*face viewer*')[0].type + '/' + cues('*look at viewer*')[0].type,
        'face/look')
+}
+
+section('directives: mark')
+{
+    const m = cues('*mark the collector*')[0]
+    eq('mark type', m.type, 'mark')
+    eq('one target', m.target, 'the collector')
+    eq('and it is a list of one', m.targets.join('|'), 'the collector')
+    eq('mark describes itself', shape('*mark the collector*'), 'mark the collector')
+
+    const g = cues('*mark the battery, the switch, the LED*')[0]
+    eq('a list splits', g.targets.join('|'), 'the battery|the switch|the LED')
+    eq('the description keeps the whole list',
+       P.describe(g), 'mark the battery, the switch, the LED')
+    eq('spacing round the commas is normalized',
+       cues('*mark a ,b ,  c*')[0].target, 'a, b, c')
+    eq('a trailing comma is not a target',
+       cues('*mark the battery,*')[0].targets.length, 1)
+    eq('a bare mark is an error', errs('*mark*').length, 1)
+    eq('so is a mark of nothing but commas', errs('*mark , ,*').length, 1)
+    eq('mark is not a point',
+       cues('*mark battery*')[0].type + '/' + cues('*point at battery*')[0].type,
+       'mark/point')
+
+    // The lint's job: a translator may rewrite the sentence, never the list.
+    eq('the same list in two languages is in sync',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the battery, the switch* Ein Kreis.').length, 0)
+    eq('a dropped name is caught',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the battery* Ein Kreis.').length, 1)
+    eq('a reordered list is caught',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the switch, the battery* Ein Kreis.').length, 1)
 }
 
 section('directives: gestures')
@@ -222,6 +269,10 @@ section('lint: two languages of one script')
        P.lint('*pause 2s*', '*pause 3s*').length, 1)
     eq('a changed emotion is a difference',
        P.lint('*happy*', '*sad*').length, 1)
+    eq('show and present are one directive to the lint',
+       P.lint('*present the circuit* Here.', '*show the circuit* Hier.').length, 0)
+    eq('but a present is not a point',
+       P.lint('*present the circuit*', '*point at the circuit*').length, 1)
     eq('a changed time hint is not',
        P.lint('*happy* Hello. (1s)', '*happy* Hallo. (3s)').length, 0)
 }
@@ -230,6 +281,7 @@ section('lint: two languages of one script')
 section('describe')
 {
     eq('point', P.describe({ type: 'point', target: 'battery' }), 'point at battery')
+    eq('present', P.describe({ type: 'present', target: 'the circuit' }), 'present the circuit')
     eq('long lines are cut',
        P.describe({ type: 'say', text: 'This is the battery and it stores energy.', hintMs: null }),
        "say 'This is the battery and…'")

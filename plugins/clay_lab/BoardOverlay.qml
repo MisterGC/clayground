@@ -64,6 +64,27 @@ Item {
     /*! \qmlproperty bool BoardOverlay::hidden \brief Wire readings, marks and tags step aside (a teacher on the board). */
     property bool hidden: false
 
+    /*!
+        \qmlproperty var BoardOverlay::keepOut
+        \brief A screen rectangle (\c {{x, y, width, height}}) nothing is drawn
+               into, or null.
+
+        The overlay is screen space over a 3D scene, so nothing depth-tests a
+        reading against a character standing in front of its part: a lab
+        with a presenter hands over the presenter's projected box here, and
+        a label whose anchor falls inside it steps aside for as long as it
+        does. Softer than \l hidden, which takes everything off; the
+        readings a lesson is about stay up everywhere the presenter is not.
+    */
+    property var keepOut: null
+
+    // Whether a screen point is outside the keep-out box (or there is none).
+    function clear(sx, sy) {
+        const k = root.keepOut
+        if (!k) return true
+        return sx < k.x || sx > k.x + k.width || sy < k.y || sy > k.y + k.height
+    }
+
     /*! \qmlproperty real BoardOverlay::labelY \brief World height the value labels and marks anchor at. */
     property real labelY: 6.0
     /*! \qmlproperty real BoardOverlay::tagY */
@@ -149,6 +170,7 @@ Item {
                 return root.project(root.board.cellX(e.col), root.labelY, root.board.cellZ(e.row))
             }
             visible: root.board.specOf(modelData.type).watch !== false && screenAt.z > 0
+                     && root.clear(screenAt.x, screenAt.y)
             x: root.clampX(screenAt.x, width)
             y: root.clampY(screenAt.y, height)
             width: valueText.width + 12
@@ -189,6 +211,7 @@ Item {
             }
             readonly property var reading: { root.board.rev; root.solved; return root.wireReadingOf(modelData) }
             visible: root.showValues && screenAt.z > 0 && !root.hidden && reading !== null
+                     && root.clear(screenAt.x, screenAt.y)
             x: screenAt.x - width / 2
             y: screenAt.y - height / 2
             text: reading === null ? "" : reading
@@ -215,6 +238,7 @@ Item {
             target: pid
             label: { root.board.rev; return root.labelOf(pid) }
             visible: screenAt.z > 0 && root.monitor.isWatched(pid) && !root.hidden
+                     && root.clear(screenAt.x, screenAt.y)
             x: root.clampX(screenAt.x, width)
             // steps aside for the value label when values are on
             y: Math.max(2, Math.min(root.height - height - 2,
@@ -241,6 +265,7 @@ Item {
                 return root.severityOf(elId, attr)
             }
             visible: root.board.partAt(elId) !== null && screenAt.z > 0 && !root.hidden
+                     && root.clear(screenAt.x, screenAt.y)
             x: root.clampX(screenAt.x, width)
             y: root.clampY(screenAt.y, height)
             width: tagText.width + 12

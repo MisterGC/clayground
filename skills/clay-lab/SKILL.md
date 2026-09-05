@@ -228,6 +228,17 @@ Kernel (`import Clayground.Lab`):
 - **`WorldLabel`** — 2D paper chip pinned to a 3D point (meter pills,
   value tags, selection cards). Sibling of the View3D, not inside it; it
   already carries the camera-dependency fix from the pitfall list.
+- **`MarkLayer`** — rings on the parts a line is naming *while* it names
+  them, so the eye can follow the sentence instead of hunting by ear. Same
+  place as `WorldLabel`, same camera-dependency fix. Two sources, one
+  drawing: `FlowStep.mark: ["battery", "switch"]` marks for the whole step,
+  and a performance script's `*mark the battery, the switch*` marks for the
+  length of the one line that follows it. Names resolve exactly as
+  `*point at NAME*` does, so a mark can land on a sub-part (a transistor's
+  collector pad) as easily as on a part. Give it `keepOut` — the presenter's
+  projected box, the same one `BoardOverlay` takes — or a ring drawn on the
+  teacher's coat marks the coat. Captions come from `FlowGuide.markLabelOf`,
+  because the names themselves are language-neutral authoring tokens.
 - **`LabTheme`** / **`ThemeSwitch`** / **`ScaleSwitch`** — all
   colour/shape/type/spacing tokens in a light and a dark palette, plus
   `inkOn()` and `step()`; see Design language. Drop the switches beside
@@ -576,6 +587,37 @@ knowing:
   a `camera:`: `{viewpoint: "top"}`, `{focus: [pts], pad}` or `{pose: {...}}`,
   applied *after* the demo so a step can frame what it just built. Steps
   without it behave exactly as before.
+- **`fit(points, {pitch, pad, safe, ms})` composes; `frame()` fits a
+  sphere.** `fit` projects every point and finds the nearest distance at
+  which all of them sit inside the picture *minus the chrome* (`safe:
+  {top, bottom, left, right}` as fractions), shifting the pivot to centre
+  them there — so a flow bar along the bottom moves the subject up instead
+  of "ballast" points below the ground. Give the rig `view: view3d` so it
+  knows the aspect. `project(p)` / `covers(points, margin)` answer where a
+  point lands and whether a set is in the picture from the rig's own pose,
+  no View3D needed — that is what a shot is *verified* by.
+- **`follow`** is the operator's pan: `rig.follow = () => [pts]` keeps the
+  points inside the inner zone of the frame (`followSlack`) by panning the
+  pivot along the ground over `followMs`, never zooming; a subject that
+  walks past `panLeash` is left behind on purpose. For anything that moves
+  under its own steam while the camera is close.
+- **A presenter needs a director, not hooks.** `CameraDirector { rig;
+  presenter; safe }` is the shot grammar — `journey` when the presenter
+  sets off (start, destination and subject in one frame, followed until it
+  lands), `twoShot` on a point or a present, `portrait` for the explanation
+  (it relaxes the rig's board floors and restores them for anything else),
+  `cutaway` for an insert that comes back. The professor kit's `FlowGuide`
+  takes it as `director:` and orders the shots itself, including for a
+  script's `*point at*`/`*present*`/`*face viewer*` cues and a `*cut to X*`;
+  a lab's `subjectOf` may add `extent: [pts]` so a step about five
+  transistors frames all five. The flow's own `frame` verb should stand
+  aside while the presenter is on stage (electronics-101 does), or the step
+  entry cuts to a wide shot the presenter then flies out of.
+- **A step that raises marks must hold its shot.** `subjectOf`'s `hold`
+  keeps the two-shot instead of pulling in to a portrait; without it the
+  camera is on the teacher's face while the rings are on the board behind
+  the frame. electronics-101 decides it from the step itself — a task step,
+  or any step with a `mark` list.
 
 One trap, and it cost a render: `WatchChip`, `WatchMark` and `OrbitInput3D`
 all declare a property whose name matches the id a lab habitually uses
@@ -942,6 +984,20 @@ Verify in this order (clay-crew skill has the full protocol):
    time that the frame ticker already moved makes the run unrepeatable.
 7. **Measure, don't guess**, anything with a numeric knob (shadows,
    fades): parameter sweep + pixel sampling.
+8. **Shots are judged by what is in the picture, over time.** Two ways to
+   get the series. One command, no session: `clayrender … --trace <expr>
+   --trace-out <file>` samples an expression once per rendered frame
+   through `--frames`, `--wait-for` and `--settle` (docs:
+   `docs/docs/manual/clayrender.md`, "Watching it move"). A whole lesson,
+   professor and all: start the loader, `startFlow(id)`, set
+   `currentFlow.pacing = "auto"`, then the inspector's `trace` action with
+   `watch` expressions such as `view3d.mapFrom3DScene(prof.headAnchor).x`,
+   `rig.goalDistance`, `prof.heading`, and read `.clay/inspect/trace.jsonl`
+   back (clay-crew skill, "trace"). Ask the rig directly where a check
+   wants a yes/no: `rig.covers(director.shotPoints, 0.05, true)`. Issue
+   #219 was diagnosed this way — the head off-frame for 1.6 s on every
+   task step, a 180° spin for a 2.4-unit hop — and none of it was visible
+   in a still.
 
 The authoring gym (`tools/loader/tests/gym/run_gym.py`) guards loader
 conventions; the per-lab contract is `lab_check_<slug>` (#208), and

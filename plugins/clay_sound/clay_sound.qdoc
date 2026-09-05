@@ -85,6 +85,9 @@
     \li Audio files are fully preloaded before playback (no streaming)
     \li WASM: Browser autoplay policies require user interaction before audio plays
     \li WASM: Remote URLs must have CORS headers enabled
+    \li WASM: Music plays through an HTML audio element, which reports no
+        duration or position back and ignores \c loop; use a Sound
+        re-triggered by a Timer for a looping background track
     \li Desktop: Uses low-latency QSoundEffect for Sound, full-featured QMediaPlayer for Music
     \endlist
 

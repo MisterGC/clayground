@@ -7,10 +7,10 @@
 // why IdleAnim was free to zero all sixteen joints whenever a character
 // stopped moving.
 //
-// Point, thumbs-up, look-at and the loose gesticulation of somebody
+// Point, present, thumbs-up, look-at and the loose gesticulation of somebody
 // explaining live in one driver on purpose. They all need the same eight
 // joints, and two components animating one joint do not take turns: they
-// interleave, and the arm ends up somewhere neither asked for. A fifth
+// interleave, and the arm ends up somewhere neither asked for. A sixth
 // gesture is another branch in _apply(), not another file.
 //
 // Only one animator may own a joint at a time, so the gesture layer is
@@ -30,12 +30,13 @@ import QtQuick3D
     \qmltype GestureAnim
     \inqmlmodule Clayground.Character3D
     \inherits Node
-    \brief Held poses - pointing, thumbs up, gesticulation and look-at - for
-           one character.
+    \brief Held poses - pointing, presenting, thumbs up, gesticulation and
+           look-at - for one character.
 
     Every \l Character owns one of these and publishes it as verbs
-    (\l Character::pointAt(), \l Character::gesticulate(),
-    \l Character::stopGesture(), ...), which is how it is normally used.
+    (\l Character::pointAt(), \l Character::presentAt(),
+    \l Character::gesticulate(), \l Character::stopGesture(), ...), which is
+    how it is normally used.
     Reach for the type itself only to drive a character built by hand.
 
     A gesture holds until it is released, so this layer and the activity
@@ -68,14 +69,20 @@ Node {
 
     /*!
         \qmlproperty string GestureAnim::gesture
-        \brief Which pose is wanted: "point" (needs \l target), "thumbsUp",
-               "talk", or "" to release.
+        \brief Which pose is wanted: "point" or "present" (both need
+               \l target), "thumbsUp", "talk", or "" to release.
+
+        "present" is the open hand offered toward a thing - palm up, at chest
+        height, elbow bent - the "here we have" of a presenter. It is the
+        gesture for a GROUP or an AREA: several parts, a whole circuit,
+        anything where a finger at the centroid would point at nothing.
     */
     property string gesture: ""
 
     /*!
         \qmlproperty var GestureAnim::target
-        \brief Where to point: a scene-space vector3d, or null for nowhere.
+        \brief Where to point or present: a scene-space vector3d, or null
+               for nowhere.
     */
     property var target: null
 
@@ -142,7 +149,8 @@ Node {
     /*!
         \qmlproperty string GestureAnim::activeGesture
         \readonly
-        \brief Which gesture is being held: "point", "thumbsUp", "talk" or "".
+        \brief Which gesture is being held: "point", "present", "thumbsUp",
+               "talk" or "".
 
         A head-only look reports "": it is direction, not a gesture.
     */
@@ -305,6 +313,40 @@ Node {
     readonly property real _thumbSwing: 30         // and out, clear of the body
     readonly property real _thumbRoll: 90          // palm turned to face the body
     readonly property real _thumbHeadPitch: -6     // chin up a fraction; a pleased pose
+
+    // The present - an open hand offered toward the thing, the way a
+    // presenter says "here we have". Nothing is aimed along the arm: the hand
+    // stays in front of the body at chest height and only the forearm turns
+    // toward the target, so the pose can never become the raised straight
+    // arm the point has to guard against - the elbow is never straighter
+    // than _presentElbowMin, whatever the target does.
+    //
+    // The forearm follows the target's elevation from the shoulder, but only
+    // a little: a low target tips the hand down toward it, a high one lifts
+    // it toward level, and the two clamps keep the hand between waist and
+    // chest whatever is being presented. A thing further above or below than
+    // that is what pointing is for. The lift shares the elevation with the
+    // elbow so a low present drops the whole arm slightly rather than
+    // straightening it.
+    readonly property real _presentLift: 25        // upper arm forward of hanging, at level
+    readonly property real _presentLiftMin: 8
+    readonly property real _presentLiftMax: 30
+    readonly property real _presentElbowMin: 45    // "clearly bent"
+    readonly property real _presentElbowMax: 95
+    readonly property real _presentDropMax: -18    // forearm below level, degrees
+    readonly property real _presentRiseMax: 10     // and above it
+    // The forearm turns toward the target about the shoulder's vertical axis,
+    // which yaws the whole arm; capped so a hand never crosses the chest.
+    readonly property real _presentYawMax: 45
+    readonly property real _presentSwing: 12       // elbow out, clear of the body
+    // The palm turns up by rolling the forearm - supination, the way a real
+    // wrist does it - and stops a little short of flat, which is as far as a
+    // forearm comfortably goes and leaves the palm tilted toward the viewer.
+    readonly property real _presentRoll: 165
+    // A hair of wrist lift so the fingers continue the forearm rather than
+    // drooping off the end of it; positive here because the roll above has
+    // turned the hand over, which flips the sense of the bend.
+    readonly property real _presentWristLift: 8
 
     // ------------------------------------------------------------------
     // Talking, as a table of beats. Each row is one shape the character
@@ -522,6 +564,7 @@ Node {
     // separate components and have no idea a gesture is running; this is how
     // they find out, and why a new gesture only has to name a pose here.
     readonly property string _activePose: _pose.mode === "point" ? "point"
+                                        : _pose.mode === "present" ? "open"
                                         : (_pose.mode === "thumbsUp" ? "thumbsUp" : "")
 
     readonly property real _rad: Math.PI / 180
@@ -624,8 +667,9 @@ Node {
         const thumb = root.gesture === "thumbsUp"
         const talk = root.gesture === "talk"
         const point = root.gesture === "point" && root._isVec(root.target)
+        const present = root.gesture === "present" && root._isVec(root.target)
         const looking = root._isVec(root.lookTarget)
-        const on = usable && (thumb || talk || point || looking)
+        const on = usable && (thumb || talk || point || present || looking)
         if (!on && !root._holdsRoot) {
             root._live = false
             return
@@ -719,7 +763,7 @@ Node {
             return
         }
 
-        if (!point) {
+        if (!point && !present) {
             // Nothing but a look: the head aims, the rest of the body is left
             // exactly as it was standing. settled stays false - it answers
             // for a gesture, and looking somewhere is not one.
@@ -728,6 +772,8 @@ Node {
             return
         }
 
+        // Point and present share everything up to the arm: the body turn,
+        // the choice of hand and the shoulder the solve starts from.
         const local = c.mapPositionFromScene(root.target)
 
         // A character faces +Z: nose, eyes and mouth sit on the +Z face of
@@ -757,6 +803,33 @@ Node {
         if (len < 1e-4)
             return
         vx /= len; vy /= len; vz /= len
+
+        if (present) {
+            // The hand is offered, not aimed. The upper arm hangs a little
+            // forward, the elbow folds until the forearm is about level, and
+            // the whole arm is yawed about the shoulder toward the target -
+            // the Y of the shoulder euler, which the point never uses. That
+            // is the one angle that says "toward that", and it costs nothing
+            // in silhouette: the arm stays folded whichever way it turns.
+            const elev = root._clamp(Math.asin(root._clamp(vy, -1, 1)) * root._deg,
+                                     root._presentDropMax, root._presentRiseMax)
+            const lift = root._clamp(root._presentLift + 0.5 * elev,
+                                     root._presentLiftMin, root._presentLiftMax)
+            // pitch is -lift and the forearm sits at lift + bend from hanging,
+            // so level is 90 and the elevation rides on top of it.
+            const bend = root._clamp(90 + elev - lift,
+                                     root._presentElbowMin, root._presentElbowMax)
+            const yaw = root._clamp(Math.atan2(vx, vz) * root._deg,
+                                    -root._presentYawMax, root._presentYawMax)
+            _pose.aim("present", side,
+                      Qt.vector3d(-lift, yaw, side * root._presentSwing),
+                      Qt.vector3d(-bend, 0, 0),
+                      Qt.vector3d(root._presentWristLift, side * root._presentRoll, 0),
+                      root._headPose(root._headAim(tx, ty, tz), turn))
+            root._run()
+            _arrival.restart()
+            return
+        }
 
         // Node rotations compose as Ry * Rx * Rz, so a joint whose rest axis
         // is -Y aims at (sin r, -cos r cos p, -cos r sin p) for euler (p,0,r).
@@ -866,8 +939,9 @@ Node {
 
         property int side: 0
         // Which gesture the joints are currently holding: "", "point",
-        // "thumbsUp", "talk" or "look". `side` cannot answer that on its own
-        // since talking has no side, and the hands have to know which it is.
+        // "present", "thumbsUp", "talk" or "look". `side` cannot answer that
+        // on its own since talking has no side, and the hands have to know
+        // which it is.
         property string mode: ""
         property vector3d rootEuler: Qt.vector3d(0, 0, 0)
         property vector3d head: Qt.vector3d(0, 0, 0)

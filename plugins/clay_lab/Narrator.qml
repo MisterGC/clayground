@@ -63,9 +63,9 @@ Rectangle {
                 font.pixelSize: LabTheme.fontBody; font.bold: true; font.letterSpacing: 1.2
                 font.family: LabTheme.monoFont
             }
-            Text {
-                visible: _nar.flow && _nar.flow.paused
-                text: LabLang.t("flow.paused")
+            Text {  // whose board it is right now, in one word
+                visible: _nar.flow && _nar.flow.control === "task"
+                text: LabLang.t("flow.yourturn")
                 color: LabTheme.accent; font.pixelSize: LabTheme.fontBody
                 font.family: LabTheme.monoFont
             }
@@ -82,11 +82,15 @@ Rectangle {
             lineHeight: 1.15
         }
 
-        Text {  // a task's hint, once the learner has had a moment
+        Text {  // a task's hint, once the learner has had a moment - and
+                // before that, an answer to a touch the flow refused: a click
+                // that does nothing and says nothing reads as a broken lab.
             width: parent.width
             visible: text !== ""
             text: {
-                if (!_nar.flow || !_nar.flow.hintShown) return ""
+                if (!_nar.flow) return ""
+                if (_nar.flow.refusal !== "") return LabLang.t(_nar.flow.refusal)
+                if (!_nar.flow.hintShown) return ""
                 const s = _nar.flow.step
                 return s && s.task && s.task.hint ? LabLang.t(s.task.hint) : ""
             }
@@ -143,21 +147,23 @@ Rectangle {
                     text: LabLang.t("flow.back")
                     TapHandler { onTapped: _nar.flow.prev() }
                 }
-                Action {
-                    visible: _nar.flow && _nar.flow.paused
-                    strong: true
-                    text: LabLang.t("flow.resume")
-                    TapHandler { onTapped: _nar.flow.paused = false }
-                }
-                // Next is ALWAYS clickable - a learner who already knows this
-                // step must never be held back. What changes is how loudly it
-                // asks to be pressed: quiet with a filling bar while the
-                // estimated reading time runs, prominent once it has.
+                // Next is always clickable on a narrated step - a learner who
+                // already knows this step must never be held back. What
+                // changes is how loudly it asks to be pressed: quiet with a
+                // filling bar while the estimated reading time runs,
+                // prominent once it has.
+                //
+                // Not on a task step. There the flow advances itself the
+                // moment the task is done, and a Next that skips the task
+                // leaves the next line assuming it was done ("and the LED
+                // glows" over an open switch). What is offered instead is
+                // "show me", which does the task and therefore advances.
                 Action {
                     visible: _nar.flow && _nar.flow.step && _nar.flow.step.watch
                     text: LabLang.t("flow.watching")
                 }
                 Item {
+                    visible: !(_nar.flow && _nar.flow.waiting)
                     width: _next.width; height: LabTheme.px(20)
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
@@ -185,6 +191,9 @@ Rectangle {
                     }
                     TapHandler { onTapped: _nar.flow.next() }
                 }
+                // Leave is also how the board comes back: while a lesson
+                // runs it is the flow's, and this is the one control that
+                // hands the whole of it over again.
                 Action {
                     text: LabLang.t("flow.leave")
                     TapHandler { onTapped: _nar.flow.stop() }

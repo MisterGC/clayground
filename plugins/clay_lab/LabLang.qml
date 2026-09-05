@@ -194,10 +194,11 @@ QtObject {
     readonly property var _kernel: ({
         "en": {
             "lab.parameters": "PARAMETERS",
-            "flow.paused": "paused — you took over",
+            "flow.yourturn": "your turn",
             "flow.next": "next ›",
             "flow.back": "‹ back",
-            "flow.resume": "resume",
+            "flow.refuse.busy": "watch for a moment — the board is mine until I hand it over",
+            "flow.refuse.task": "not that one — do the thing I just asked for",
             "flow.leave": "✕ leave",
             "flow.showme": "show me",
             "flow.watching": "watching…",
@@ -285,10 +286,11 @@ QtObject {
         },
         "de": {
             "lab.parameters": "PARAMETER",
-            "flow.paused": "angehalten — du übernimmst",
+            "flow.yourturn": "du bist dran",
             "flow.next": "weiter ›",
             "flow.back": "‹ zurück",
-            "flow.resume": "fortsetzen",
+            "flow.refuse.busy": "schau kurz zu — das Brett gehört mir, bis ich es übergebe",
+            "flow.refuse.task": "nicht das — mach bitte das, worum ich eben gebeten habe",
             "flow.leave": "✕ beenden",
             "flow.showme": "zeig es mir",
             "flow.watching": "beobachten…",

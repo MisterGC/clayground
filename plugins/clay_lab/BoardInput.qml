@@ -27,6 +27,10 @@ import Clayground.Lab
     \li a body - selects and starts a drag.
     \endlist
 
+    With a \l flow wired, that whole list is conditional: while a lesson runs
+    the board is the flow's, and only what the running task named answers at
+    all.
+
     The gesture lives in named functions (\l pressAt, \l moveAt, \l releaseAt,
     \l clickAt, \l dragFrom) rather than in the signal handlers, so a flow, a
     test or an agent can perform the SAME drag a hand does - the inspector can
@@ -38,12 +42,12 @@ import Clayground.Lab
     BoardInput {
         id: boardMouse
         board: board; nav: nav; hands: hands; stage: stage; view: view3d; grid: grid
+        flow: root.currentFlow                 // while it runs, the board is its
         onOperate: (id) => root.toggleSwitch(id)
-        onInteracted: root.currentFlow.takeOver()
     }
     \endqml
 
-    \sa Board, OrbitInput3D, InstrumentBelt, GridMode
+    \sa Board, OrbitInput3D, InstrumentBelt, GridMode, Flow
 */
 MouseArea {
     id: root
@@ -62,6 +66,28 @@ MouseArea {
     property var grid: null
 
     /*!
+        \qmlproperty var BoardInput::flow
+        \brief The lab's \l Flow. While one runs, it decides what the board answers to.
+
+        A lesson explains, hands over exactly the interaction it asked for,
+        takes the board back when that is done, and continues. With a flow
+        wired here that rule is the mouse's: a press is checked against
+        \l {Flow::grants()} before anything happens, a refused press says so
+        through \l {Flow::refuse()} instead of quietly doing nothing, and
+        hovering an inert part promises nothing - no highlight, no pointing
+        hand. Left null, every press is the learner's, which is what a lab
+        without a flow (and every flow written before this) gets.
+    */
+    property var flow: null
+
+    /*!
+        \qmlproperty bool BoardInput::gated
+        \readonly
+        \brief A flow is running, so it - not the learner - says what is live.
+    */
+    readonly property bool gated: flow !== null && flow !== undefined && flow.running
+
+    /*!
         \qmlproperty real BoardInput::dragSlop
         \brief World units a press must travel before it is a drag.
     */
@@ -74,9 +100,28 @@ MouseArea {
     signal operate(int id)
     /*!
         \qmlsignal BoardInput::interacted()
-        \brief The learner is driving now (a part was selected or operated) - what a flow's takeOver wants.
+        \brief A part was selected or operated - a touch that was allowed through.
+
+        Not emitted for a press a running \l flow refused: those did not
+        happen as far as the lab is concerned.
     */
     signal interacted()
+
+    /*!
+        \qmlmethod bool BoardInput::granted(var hit)
+        \brief Whether a running \l flow lets the learner touch what \a hit found.
+
+        Everything, with no flow running. With one: only a part the current
+        task named, and only \e as a part - a pad or a wire is the circuit
+        the lesson is teaching, and rewiring it mid-sentence is the thing
+        this exists to stop.
+    */
+    function granted(hit) {
+        if (!gated) return true
+        if (!hit) return false
+        if (hit.kind === "wire" || hit.kind === "terminal") return false
+        return flow.grants(hit.el)
+    }
 
     /*!
         \qmlproperty var BoardInput::hintKeys
@@ -168,7 +213,11 @@ MouseArea {
             if (dragged)
                 board.movePart(dragElem, board.colOf(w.x), board.rowOf(w.z), snapping(mods))
         } else {
-            board.hoverHit = board.hitAt(w.x, w.z)
+            // An inert part must not light up under the cursor: the highlight
+            // and the pointing hand both read off hoverHit, so a refused hit
+            // is no hit at all.
+            const h = board.hitAt(w.x, w.z)
+            board.hoverHit = granted(h) ? h : null
         }
     }
 
@@ -213,6 +262,11 @@ MouseArea {
         const w = worldAt(mx, my)
         pressW = w; dragged = false; dragElem = null
         const hit = w ? board.hitAt(w.x, w.z) : null
+        // Before anything the board would do with it: while a flow runs the
+        // board is the flow's, and a task lends back only what it named. A
+        // refused press says so rather than doing nothing - one that does
+        // nothing and says nothing reads as a broken lab.
+        if (gated && !granted(hit)) { flow.refuse(); return }
         // empty board (or off-board): a click there means "nothing"
         if (!hit) {
             board.selectedId = -1
@@ -286,12 +340,19 @@ MouseArea {
             operate(actuateElem)
             actuateElem = null
             dragElem = null; dragged = false
+            _done()
             return
         }
         // Nothing else operates on release: a part's state is set on its
         // card, or through the actuator once the part is selected.
         dragElem = null; dragged = false
+        _done()
     }
+
+    // The gesture is over: if it satisfied the running task, the board goes
+    // back to the flow NOW and not at the clock's next sample, which is late
+    // enough for a second click to undo what the first one just achieved.
+    function _done() { if (gated) flow.check() }
 
     /*!
         \qmlmethod void BoardInput::cancelAll()
@@ -299,6 +360,15 @@ MouseArea {
     */
     function cancelAll() {
         board.wiringFrom = null; board.eraser = false; board.selectedId = -1
+    }
+
+    // A step change can happen while the mouse is standing still - a task ends
+    // the instant its `until` holds - and a highlight left under the cursor
+    // would go on promising a click the board no longer answers.
+    Connections {
+        target: root.flow
+        enabled: root.flow !== null && root.flow !== undefined
+        function onIndexChanged() { if (root.board) root.board.hoverHit = null }
     }
 
     // A right CLICK is "put it down" - the RTS cancel. It empties the hand and

@@ -5,8 +5,14 @@ Serves the starter directory with COOP/COEP headers, loads it in headless
 Chrome and asserts that the runtime boots (version banner) and Main.qml
 loads without QML errors.
 
+--overlay swaps in a different page (its files are copied over a temp copy
+of the starter bundle), and --expect adds a console marker the page must
+print. Together they turn this into a regression harness for anything that
+can only fail in the browser - see tests/pages/.
+
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
+                               [--overlay dir] [--expect "marker"]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -15,7 +21,9 @@ Chromium (python -m playwright install chromium).
 import argparse
 import functools
 import http.server
+import shutil
 import sys
+import tempfile
 import threading
 
 BOOT_MARKER = "Clayground Web Runtime"
@@ -52,18 +60,41 @@ def main():
     ap.add_argument("starter_dir")
     ap.add_argument("--screenshot", default="")
     ap.add_argument("--timeout", type=int, default=180)
+    ap.add_argument("--overlay", default="",
+                    help="directory copied over a temp copy of the starter bundle")
+    ap.add_argument("--expect", default="",
+                    help="console marker the page must print, on top of loading")
     args = ap.parse_args()
 
-    handler = functools.partial(IsolatedHandler, directory=args.starter_dir)
+    serve_dir = args.starter_dir
+    tmp_dir = ""
+    if args.overlay:
+        tmp_dir = tempfile.mkdtemp(prefix="wasm-smoke-")
+        shutil.copytree(args.starter_dir, tmp_dir, dirs_exist_ok=True)
+        shutil.copytree(args.overlay, tmp_dir, dirs_exist_ok=True)
+        serve_dir = tmp_dir
+        print(f"Overlaying {args.overlay}")
+
+    try:
+        return run(args, serve_dir)
+    finally:
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def run(args, serve_dir):
+    handler = functools.partial(IsolatedHandler, directory=serve_dir)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
-    print(f"Serving {args.starter_dir} at {url}")
+    print(f"Serving {serve_dir} at {url}")
 
     from playwright.sync_api import sync_playwright
 
     booted = qml_loaded = False
+    # No --expect means nothing extra to wait for.
+    marker_seen = not args.expect
     errors = []
 
     with sync_playwright() as p:
@@ -75,13 +106,15 @@ def main():
         page = browser.new_page()
 
         def on_console(msg):
-            nonlocal booted, qml_loaded
+            nonlocal booted, qml_loaded, marker_seen
             text = msg.text
             print(f"[console] {text}")
             if BOOT_MARKER in text:
                 booted = True
             if QML_OK_MARKER in text:
                 qml_loaded = True
+            if args.expect and args.expect in text:
+                marker_seen = True
             if any(marker in text for marker in ERROR_MARKERS):
                 errors.append(text)
 
@@ -93,7 +126,7 @@ def main():
         # and always burn the full timeout even when the app boots in seconds.
         waited = 0
         deadline_ms = args.timeout * 1000
-        while waited < deadline_ms and not (qml_loaded or errors):
+        while waited < deadline_ms and not ((qml_loaded and marker_seen) or errors):
             page.wait_for_timeout(250)
             waited += 250
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
@@ -113,6 +146,9 @@ def main():
         return 1
     if not qml_loaded:
         print("FAIL: Main.qml did not finish loading")
+        return 1
+    if not marker_seen:
+        print(f"FAIL: page never printed {args.expect!r}")
         return 1
     print("PASS: runtime booted and Main.qml loaded without errors")
     return 0

@@ -41,11 +41,20 @@ QtObject {
 
     /*!
         \qmlproperty var FlowStep::task
-        \brief What the learner must do: \c {{until, hint, hintAfter, solve}}.
+        \brief What the learner must do: \c {{until, allow, hint, hintAfter, solve}}.
 
         \c until is a predicate receiving a name lookup function and returning
         true once the step is satisfied; \c solve is an action list that
         performs it (used by "show me" and by the headless verification run).
+
+        \c allow is what the task hands over: the parts the learner may touch
+        while it runs, named the way \c until and \c solve name them
+        (\c {"allow": ["sw"]}), everything else on the board being inert until
+        the task is done. A step whose subject is whatever the preset it just
+        applied put there names it with a function of the same name lookup
+        instead (\c {"allow": (n) => root.logicInputs}). Leaving it out keeps
+        the whole board live, which is what a flow written before
+        \l {Flow::control} existed still gets.
     */
     property var task: null
 
@@ -90,6 +99,28 @@ QtObject {
         entirely, which is what keeps it non-breaking.
     */
     property var view: null
+
+    /*!
+        \qmlproperty var FlowStep::mark
+        \brief Parts (or sub-parts) this step's line names, as a list of names.
+
+        The eye's half of a spoken sentence. A line that says "the battery,
+        the switch, the LED and the resistor, one loop" asks the learner to
+        find four things by ear; \c {mark: ["battery", "switch", "led",
+        "resistor"]} rings all four on the model while the line lasts, and
+        the marks go with the step.
+
+        The names are the lab's own - resolved exactly as a performance
+        script's \c{*point at NAME*} target is, by whatever the presenter's
+        guide was given as a resolver - so they are language-neutral
+        authoring tokens, not display text. Nothing here draws them: a lab
+        binds them to a \l MarkLayer.
+
+        A directed step (one with a performance script) ignores this field:
+        its marks come from the script's own \c{*mark ...*} cues, which can
+        raise a different set per line.
+    */
+    property var mark: []
 
     /*!
         \qmlproperty var FlowStep::expect

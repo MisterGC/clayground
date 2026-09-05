@@ -60,8 +60,18 @@ var PLAIN = {
 // a QML objectName - the scene resolves it, the character never knows about it.
 var TARGETED = {
     "point at": "point",
+    // The open hand offered toward a thing - for a group or an area, where a
+    // finger would point at nothing in particular. "show" is the same cue
+    // under the word a script author reaches for first.
+    "present": "present",
+    "show": "present",
     "look at": "look",
-    "face": "face"
+    "face": "face",
+    // Markers on the things a line names, for as long as that line lasts.
+    // Several at once, comma separated - "the battery, the switch, the LED" -
+    // because naming a group is exactly when a marker earns its keep, and a
+    // sentence that lists four parts is one sentence.
+    "mark": "mark"
 }
 
 // The one reserved target: wherever the camera is. Case-insensitive, and
@@ -77,6 +87,19 @@ var DURATION_RE = /^(\d+(?:\.\d+)?)\s*(ms|s)$/i
 // the last word - is text. The rule stays this blunt on purpose: an author
 // should be able to tell hint from prose without consulting the grammar.
 var HINT_RE = /\s\((\d+(?:\.\d+)?)\s*(ms|s)\)$/i
+
+// "a, b ,c" -> ["a", "b", "c"]. Empty entries are dropped rather than
+// resolved: a trailing comma is a typo, not a target called "".
+function _splitTargets(text) {
+    var out = []
+    var parts = ("" + text).split(",")
+    for (var i = 0; i < parts.length; ++i) {
+        var t = parts[i].trim()
+        if (t !== "")
+            out.push(t)
+    }
+    return out
+}
 
 function _toMs(value, unit) {
     var n = parseFloat(value)
@@ -126,6 +149,15 @@ function _directive(norm, at, extraVerbs) {
             var target = norm.substring(verb.length + 1).trim()
             if (target.toLowerCase() === VIEWER)
                 target = VIEWER
+            if (TARGETED[verb] === "mark") {
+                var names = _splitTargets(target)
+                if (names.length === 0)
+                    return { error: "'mark' needs a target name" }
+                // `target` stays the canonical spelling of the whole list, so
+                // describe() and the cross-language lint compare one string.
+                return { cue: { type: "mark", target: names.join(", "),
+                                targets: names, at: at } }
+            }
             return { cue: { type: TARGETED[verb], target: target, at: at } }
         }
     }
@@ -275,10 +307,14 @@ function describe(cue) {
         return "emotion " + (cue.value === "" ? "neutral" : cue.value)
     case "point":
         return "point at " + cue.target
+    case "present":
+        return "present " + cue.target
     case "look":
         return "look at " + cue.target
     case "face":
         return "face " + cue.target
+    case "mark":
+        return "mark " + cue.target
     case "thumbsUp":
         return "thumbs up"
     case "gesticulate":
@@ -308,7 +344,8 @@ function _isDirective(cue) { return cue.type !== "say" }
 function _argOf(cue) {
     switch (cue.type) {
     case "emotion": return cue.value
-    case "point": case "look": case "face": return cue.target
+    case "point": case "present": case "look": case "face": case "mark":
+        return cue.target
     case "pause": return "" + cue.ms
     case "custom": return cue.arg
     }
