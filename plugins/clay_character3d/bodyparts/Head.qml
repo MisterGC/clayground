@@ -10,14 +10,16 @@ import "../animation"
     \brief A complete head with facial features and expressions.
 
     Head is a complex body part group containing upper head, lower head (jaw),
-    hair, eyes, ears, nose, and mouth. It supports animated facial expressions
-    including joy, anger, sadness, and talking.
+    hair, eyes, ears, nose, and mouth. It supports six animated facial
+    expressions - neutral, joy, sadness, anger, disgust and surprise - plus
+    talking.
 
     The mouth is driven by a small set of continuous shape parameters
-    (\l mouthOpen, \l mouthWide, \l mouthRound, \l mouthCornerLift). The
-    expression activities animate these parameters; a \l speechSource
-    (typically a \l Speech instance) can take over open/wide/round for
-    lip-synced talking while emotions keep control of the mouth corners.
+    (\l mouthOpen, \l mouthWide, \l mouthRound, \l mouthCornerLift,
+    \l mouthSkew). The expression activities animate these parameters; a
+    \l speechSource (typically a \l Speech instance) can take over
+    open/wide/round for lip-synced talking while emotions keep control of the
+    mouth corners.
 
     Example usage:
     \qml
@@ -577,6 +579,47 @@ BodyPartsGroup {
     // for a thing that has two degrees of freedom.
     property real _browRise: 0
     property real _browAngle: 0
+    // The third brow number, and the only asymmetric one on the face: one brow
+    // up while the other goes down. A length, like _browRise.
+    property real _browSkew: 0
+
+    /*!
+        \qmlproperty real Head::browAngle
+        \readonly
+        \brief The angle the current expression is holding the brows at, in
+               degrees. Positive drops the inner ends into a V.
+
+        \sa browRise, browSkew
+    */
+    readonly property real browAngle: _head._browAngle
+
+    /*!
+        \qmlproperty real Head::browRise
+        \readonly
+        \brief How far above their resting place the brows are, as a length
+               in the same units \l eyeWidth is measured in.
+
+        Does NOT include \l browFlash, which is a momentary thing on top.
+
+        \sa browAngle, browSkew
+    */
+    readonly property real browRise: _head._browRise
+
+    /*!
+        \qmlproperty real Head::browSkew
+        \readonly
+        \brief How far one brow is raised above the other, as a length.
+
+        The three brow numbers are published for the same reason
+        \l nodAmount is: together with the mouth parameters and the lids they
+        are WHICH expression the face is wearing, and once the brows are
+        shapes in a shader there is no measuring them from outside. A test
+        that has to tell six expressions apart asserts on these rather than on
+        pixels.
+
+        \sa browAngle, browRise, mouthSkew
+    */
+    readonly property real browSkew: _head._browSkew
 
     /*!
         \qmlproperty real Head::browFlash
@@ -653,6 +696,24 @@ BodyPartsGroup {
     property real mouthCornerLift: 0
 
     /*!
+        \qmlproperty real Head::mouthSkew
+        \brief A one-sided lip curl, -1 to 1. A sneer, not a frown.
+
+        The whole mouth tilts and one corner climbs clear of the other, so a
+        face can be lopsided. Everything else here is mirrored, which is why
+        this exists: disgust is the one expression whose whole point is that
+        the two halves disagree, and without it it comes out as a milder
+        anger. Composes with \l mouthCornerLift - a sneer keeps whatever the
+        corners were already doing.
+
+        Under emotion control while a \l speechSource is talking, exactly as
+        \l mouthCornerLift is.
+
+        \sa mouthCornerLift
+    */
+    property real mouthSkew: 0
+
+    /*!
         \qmlproperty real Head::eyeSquint
         \brief How far the lower lid is raised, 0 open to 1 nearly shut.
 
@@ -719,13 +780,24 @@ BodyPartsGroup {
         \value Head.Activity.ShowAnger Angry expression with frown
         \value Head.Activity.ShowSadness Sad expression
         \value Head.Activity.Talk Animated talking mouth
+        \value Head.Activity.ShowDisgust Sneer - the one lopsided face
+        \value Head.Activity.ShowSurprise Round open mouth under high brows
+
+        \sa Character::setEmotion
     */
+    // The two added last are added at the END, out of the reading order the
+    // documentation above uses. A QML enum numbers its values by position, and
+    // a saved character carries the number rather than the name - inserting
+    // ShowDisgust after ShowAnger would silently turn every stored Talk into a
+    // Sadness.
     enum Activity {
         ShowJoy,
         ShowAnger,
         ShowSadness,
         Talk,
-        Idle
+        Idle,
+        ShowDisgust,
+        ShowSurprise
     }
 
     /*!
@@ -799,6 +871,7 @@ BodyPartsGroup {
         browOffset: Qt.vector2d(0, _head.eyeWidth * 0.465
                                    + _head._browRise + _head.browFlash)
         browAngle: _head._browAngle
+        browSkew: _head._browSkew
 
         // The height the eyes sit at inside this box, and with them the nose
         // and the ears. Named once here so the three cannot drift apart;
@@ -971,6 +1044,7 @@ BodyPartsGroup {
         // becoming a circle rather than a shorter slot is the other half.
         mouthRound: _head.mouthRound
         mouthCornerLift: _head.mouthCornerLift
+        mouthSkew: _head.mouthSkew
 
         // Kept as named values because the anchors publish them: mouthBottom
         // is where a beard has to start, and it is not derivable from the
@@ -984,130 +1058,171 @@ BodyPartsGroup {
 
     // ACTIVITY ANIMATIONS
     //
-    // Emotions animate the mouth parameters, the eyelids and the eyebrows.
-    // While a speechSource is active it overrides open/wide/round (see the
-    // property bindings above); corner lift and the lids stay with the
-    // emotions, so a character can smile while it talks.
+    // An expression is ten numbers, and every expression states ALL ten -
+    // including the ones it leaves at rest. That is the design, and it is a
+    // change from the three shared brow components this file used to pass
+    // around: joy and sadness both asked for "raised brows" and so wore the
+    // same brow, which is most of why a still of the two was hard to tell
+    // apart. A shared component makes expressions differ in degree; a table
+    // makes them differ in kind.
     //
-    // Which lid moves is the whole of the difference between the emotions at
-    // the eyes: up from below is pleasure, down from above is a glare, both
-    // a little is tired or sad. Getting that backwards produces a face that
-    // is unmistakably wrong and impossible to name.
+    // An animation that does not name a channel does not reset it either - it
+    // hands that channel to whatever the last face left there, and half a
+    // sneer under a smile is an expression nobody can name.
+    //
+    // While a speechSource is active it overrides open/wide/round (see the
+    // property bindings above); the corners, the skew and the lids stay with
+    // the emotions, so a character can smile while it talks.
+    //
+    // What separates the six, in the order a viewer reads them:
+    //
+    //   the MOUTH  a smile, a frown, a shout, a sneer, or an O
+    //   the BROWS  their ANGLE first and their height second - an angry V, a
+    //              sad inverted V, a surprised pair up near the hairline, and
+    //              for disgust one brow that disagrees with the other
+    //   the LIDS   up from below is pleasure or revulsion, down from above is
+    //              a glare or a droop, and neither of them is surprise
+    //
+    // Which lid moves is not interchangeable: getting it backwards produces a
+    // face that is unmistakably wrong and impossible to name.
 
-    component MouthParamAnim: NumberAnimation {
+    component FaceParamAnim: NumberAnimation {
         target: _head
         duration: _head.toEmotionDuration
         easing.type: Easing.InOutQuad
     }
 
-    ParallelAnimation {
-        id: _sadnessAnimation
-        running: _head.activity == Head.Activity.ShowSadness
-        MouthParamAnim { property: "mouthCornerLift"; to: -0.8 }
-        MouthParamAnim { property: "_animMouthOpen"; to: 0 }
-        MouthParamAnim { property: "_animMouthWide"; to: 0 }
-        MouthParamAnim { property: "_animMouthRound"; to: 0 }
-        // Half-mast, mostly from above: sadness is a face with no energy in
-        // it, and the small squint keeps it from reading as merely sleepy.
-        MouthParamAnim { property: "eyeHood"; to: 0.45 }
-        MouthParamAnim { property: "eyeSquint"; to: 0.12 }
-        RaiseEyeBrowns {}
+    // One expression, as the numbers that make it - so the six can be read as
+    // a table and compared column by column, which is the only way to keep
+    // them apart while they are being tuned.
+    component Expression: ParallelAnimation {
+        id: _expr
+
+        // -1 a full frown, 1 a full smile.
+        property real cornerLift: 0
+        // The lopsided part: one corner climbs while the other stays pulled
+        // down, and the whole mouth tilts with it.
+        property real skew: 0
+        property real open: 0
+        property real wide: 0
+        property real round: 0
+        // Upper lid down: a glare or a droop.
+        property real hood: 0
+        // Lower lid up: a smile or a wince.
+        property real squint: 0
+        // Degrees. Positive drops the inner ends into a V.
+        property real browAngle: 0
+        // Height above the resting brow, in eye widths.
+        property real browRise: 0
+        // One brow up and the other down, in eye widths.
+        property real browSkew: 0
+
+        FaceParamAnim { property: "mouthCornerLift"; to: _expr.cornerLift }
+        FaceParamAnim { property: "mouthSkew";       to: _expr.skew }
+        FaceParamAnim { property: "_animMouthOpen";  to: _expr.open }
+        FaceParamAnim { property: "_animMouthWide";  to: _expr.wide }
+        FaceParamAnim { property: "_animMouthRound"; to: _expr.round }
+        FaceParamAnim { property: "eyeHood";         to: _expr.hood }
+        FaceParamAnim { property: "eyeSquint";       to: _expr.squint }
+        FaceParamAnim { property: "_browAngle";      to: _expr.browAngle }
+        // The two brow heights are in eye widths because that is the unit the
+        // resting brow offset is written in - a head given bigger eyes raises
+        // its brows the same distance relative to them.
+        FaceParamAnim { property: "_browRise"; to: _expr.browRise * _head.eyeWidth }
+        FaceParamAnim { property: "_browSkew"; to: _expr.browSkew * _head.eyeWidth }
     }
 
-    ParallelAnimation {
+    // Neutral. Every channel at rest, which is also what every other
+    // expression is measured against.
+    Expression {
+        id: _idleAnimation
+        running: _head.activity === Head.Activity.Idle
+    }
+
+    // Joy. An open grin rather than a closed curve - a cartoon smile shows the
+    // mouth - and the cheeks pushing the lower lids up. The squint is the one
+    // that carries a smile when the mouth is hidden: behind a moustache, at a
+    // distance, or turned away. The brows go up and stay nearly level, which
+    // is what keeps this from reading as the sad face below.
+    Expression {
         id: _joyAnimation
-        running: _head.activity == Head.Activity.ShowJoy
-        MouthParamAnim { property: "mouthCornerLift"; to: 0.8 }
-        MouthParamAnim { property: "_animMouthOpen"; to: 0.1 }
-        MouthParamAnim { property: "_animMouthWide"; to: 0.4 }
-        MouthParamAnim { property: "_animMouthRound"; to: 0 }
-        // The cheek pushing the lower lid up. This is the one that carries a
-        // smile when the mouth is hidden - behind a moustache, at a distance,
-        // or turned away.
-        MouthParamAnim { property: "eyeSquint"; to: 0.55 }
-        MouthParamAnim { property: "eyeHood"; to: 0 }
-        RaiseEyeBrowns {}
+        running: _head.activity === Head.Activity.ShowJoy
+        cornerLift: 1.0; open: 0.30; wide: 0.75
+        squint: 0.60
+        browAngle: 4; browRise: 0.34
     }
 
-    ParallelAnimation {
+    // Sadness. The mouth shuts, narrows and turns fully down; no energy goes
+    // into it at all. The brows are raised like joy's but hinge the other way
+    // - the inner ends climb toward each other and the outer ends fall - and
+    // that single sign flip is the difference between the two faces. Lids come
+    // down from above, with just enough squint to stop it reading as sleepy.
+    Expression {
+        id: _sadnessAnimation
+        running: _head.activity === Head.Activity.ShowSadness
+        cornerLift: -1.0; round: 0.18
+        hood: 0.52; squint: 0.16
+        browAngle: -28; browRise: 0.30
+    }
+
+    // Anger. A shout: the mouth is open and wide as well as turned down, which
+    // is what stops it being sadness with different eyebrows. The brows drive
+    // into a V and sit lower than they rest, and the lids come down from above
+    // to meet them. Nothing from below - an angry face is not a squeezed one,
+    // it is a covered one.
+    Expression {
         id: _angerAnimation
-        running: _head.activity == Head.Activity.ShowAnger
-        MouthParamAnim { property: "mouthCornerLift"; to: -0.7 }
-        MouthParamAnim { property: "_animMouthOpen"; to: 0.15 }
-        MouthParamAnim { property: "_animMouthWide"; to: 0.3 }
-        MouthParamAnim { property: "_animMouthRound"; to: 0 }
-        // Narrowed from above, under the brows that are already coming down
-        // to meet it. Nothing from below: an angry face is not a squeezed
-        // one, it is a covered one.
-        MouthParamAnim { property: "eyeHood"; to: 0.4 }
-        MouthParamAnim { property: "eyeSquint"; to: 0 }
-        LowerEyeBrowns {}
+        running: _head.activity === Head.Activity.ShowAnger
+        cornerLift: -0.85; open: 0.45; wide: 0.55
+        hood: 0.50
+        browAngle: 27; browRise: -0.04
+    }
+
+    // Disgust. The only face here whose two halves disagree, and it has to be:
+    // symmetric, with the mouth down and the brows lowered, it is anger with
+    // the volume turned down. The lip curls on one side, the mouth tilts with
+    // it, one brow climbs while the other drops, and the lower lids come up as
+    // if against a smell. The mouth stays small - a wide one is a shout.
+    //
+    // The pair is RAISED before it is skewed, and that is not decoration: the
+    // resting brow bar already overlaps the top of the eye, so skewing from
+    // rest drops one brow onto the white and the face reads as broken rather
+    // than as sceptical - at 0.34 it covered an eye outright. Lifted by 0.14
+    // first, the low brow lands about where a resting one does and only the
+    // high one leaves home.
+    Expression {
+        id: _disgustAnimation
+        running: _head.activity === Head.Activity.ShowDisgust
+        cornerLift: -0.55; skew: 0.85; open: 0.18; wide: 0.10
+        hood: 0.10; squint: 0.55
+        browAngle: 8; browRise: 0.14; browSkew: 0.22
+    }
+
+    // Surprise. A round open mouth under high brows, and the one expression
+    // with NO lid at all: eyes at their full height are half of what a viewer
+    // reads as shock, and any hood or squint immediately turns it into one of
+    // the other five. The brows stop below the hair - past about 0.7 eye
+    // widths they reach the fringe and read as a shadow on it rather than as
+    // eyebrows.
+    Expression {
+        id: _surpriseAnimation
+        running: _head.activity === Head.Activity.ShowSurprise
+        open: 0.85; round: 0.90
+        browAngle: -6; browRise: 0.65
     }
 
     SequentialAnimation {
         id: _talkAnimation
-        running: _head.activity == Head.Activity.Talk && !_head.speechActive
+        running: _head.activity === Head.Activity.Talk && !_head.speechActive
         loops: Animation.Infinite
         ParallelAnimation {
-            MouthParamAnim { property: "_animMouthOpen"; to: 0.65; duration: _head.talkDuration }
-            MouthParamAnim { property: "_animMouthWide"; to: 0.25; duration: _head.talkDuration }
+            FaceParamAnim { property: "_animMouthOpen"; to: 0.65; duration: _head.talkDuration }
+            FaceParamAnim { property: "_animMouthWide"; to: 0.25; duration: _head.talkDuration }
         }
         ParallelAnimation {
-            MouthParamAnim { property: "_animMouthOpen"; to: 0.08; duration: _head.talkDuration }
-            MouthParamAnim { property: "_animMouthWide"; to: 0.1; duration: _head.talkDuration }
+            FaceParamAnim { property: "_animMouthOpen"; to: 0.08; duration: _head.talkDuration }
+            FaceParamAnim { property: "_animMouthWide"; to: 0.1; duration: _head.talkDuration }
         }
-    }
-
-    ParallelAnimation {
-        id: _idleAnimation
-        running: _head.activity == Head.Activity.Idle
-        MouthParamAnim { property: "mouthCornerLift"; to: 0 }
-        MouthParamAnim { property: "_animMouthOpen"; to: 0 }
-        MouthParamAnim { property: "_animMouthWide"; to: 0 }
-        MouthParamAnim { property: "_animMouthRound"; to: 0 }
-        MouthParamAnim { property: "eyeSquint"; to: 0 }
-        MouthParamAnim { property: "eyeHood"; to: 0 }
-        NeutralEyeBrowns {}
-    }
-
-    // ANIMATION BUILDING BLOCKS (eyebrows)
-    //
-    // Two numbers, not two transforms. A brow has one angle and one height;
-    // as a pair of boxes it had a position and an euler each, so the same two
-    // degrees of freedom were spread over four animated targets that had to be
-    // kept mirrored by hand.
-
-    component BrowAnim: NumberAnimation {
-        target: _head
-        easing.type: Easing.InOutQuad
-    }
-
-    component LowerEyeBrowns: ParallelAnimation {
-        id: _lowerEyeBrowns
-        property int duration: _head.toEmotionDuration
-        BrowAnim { duration: _lowerEyeBrowns.duration
-                   property: "_browAngle"; to: 25 }
-        BrowAnim { duration: _lowerEyeBrowns.duration
-                   property: "_browRise"; to: 0 }
-    }
-
-    component RaiseEyeBrowns: ParallelAnimation {
-        id: _raiseEyeBrowns
-        property int duration: _head.toEmotionDuration
-        BrowAnim { duration: _raiseEyeBrowns.duration
-                   property: "_browAngle"; to: -5 }
-        // Up by its own height, which is what the box used to move.
-        BrowAnim { duration: _raiseEyeBrowns.duration
-                   property: "_browRise"; to: _head.eyeWidth * 0.33 }
-    }
-
-    component NeutralEyeBrowns: ParallelAnimation {
-        id: _neutralEyeBrowns
-        property int duration: _head.toEmotionDuration
-        BrowAnim { duration: _neutralEyeBrowns.duration
-                   property: "_browAngle"; to: 0 }
-        BrowAnim { duration: _neutralEyeBrowns.duration
-                   property: "_browRise"; to: 0 }
     }
 
 }

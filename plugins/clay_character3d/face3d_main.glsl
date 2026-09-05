@@ -62,6 +62,8 @@ VARYING float vFaceFront;
 // - float mouthGap         how far the cavity has opened downward
 // - float mouthRound       0 a slot, 1 a circle - the "oo" of a rounded vowel
 // - float mouthCornerLift  -1 frown, 0 neutral, 1 smile
+// - float mouthSkew        -1..1, a one-sided lip curl - a sneer
+// - float browSkew         how far one brow rises while the other drops
 
 // Rounded box, signed. Negative inside.
 float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -147,7 +149,13 @@ vec4 drawBrow(vec4 dst, vec2 p, float side) {
     // Hung off the eye's RESTING position, never off its current one: a brow
     // anchored to the lidded height rides the lids down, and an eyebrow that
     // follows the lid is an eyebrow inside the eye.
-    vec2 c = vec2(side * eyeCentre.x, eyeCentre.y) + vec2(side * browOffset.x, browOffset.y);
+    //
+    // browSkew is the one term that treats the two sides differently: one brow
+    // climbs while the other drops. A symmetric face has five expressions in
+    // it at most - disgust and a raised eyebrow are both a LOPSIDED face, and
+    // without this they come out as a milder anger.
+    vec2 c = vec2(side * eyeCentre.x, eyeCentre.y)
+           + vec2(side * browOffset.x, browOffset.y + side * browSkew);
     vec2 q = rot(p - c, side * browAngle);
     dst = over(dst, browColor, clayFill(sdRoundBox(q, browHalf, browHalf.y * 0.5)));
     return dst;
@@ -156,7 +164,12 @@ vec4 drawBrow(vec4 dst, vec2 p, float side) {
 // The mouth: a dark cavity that opens downward from a lip line that does not
 // move, plus two corner strokes hinged at the ends of that line.
 vec4 drawMouth(vec4 dst, vec2 p) {
-    vec2 q = p - mouthCentre;
+    // The sneer, and the reason it is a rotation of the sample point rather
+    // than a nudge of each shape: turning `q` turns the cavity, the lip line
+    // and both corners together, so the mouth stays ONE mouth when it goes
+    // lopsided. Moving the parts separately pulls it into three marks, which
+    // is the same failure the corners already had before they were hinged.
+    vec2 q = rot(p - mouthCentre, mouthSkew * 14.0);
 
     // Cavity. Its top edge stays at the lip line and the bottom grows down.
     float halfH = (mouthHalf.y + mouthGap) * 0.5;
@@ -199,7 +212,12 @@ vec4 drawMouth(vec4 dst, vec2 p) {
             vec2 hinge = vec2(side * (mouthHalf.x - mouthHalf.y * 0.35), 0.0);
             // rot() turns the sample point, so the shape turns the other way -
             // hence no minus here. With one, joy frowned and anger smiled.
-            vec2 r = rot(q - hinge, side * mouthCornerLift * 40.0);
+            // The two corners take the skew in opposite directions, so one
+            // climbs toward the nose while the other stays pulled down. That
+            // difference - not the tilt - is what a viewer reads as revulsion
+            // rather than as a head held at an angle.
+            float lift = clamp(mouthCornerLift + side * mouthSkew, -1.0, 1.0);
+            vec2 r = rot(q - hinge, side * lift * 40.0);
             // Hung from the mouth line like the lip is, not straddling it -
             // otherwise the corners ride above the stroke they belong to and
             // the mouth reads as three separate marks.

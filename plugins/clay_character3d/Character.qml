@@ -285,8 +285,8 @@ BodyPartsGroup {
     /*!
         \qmlproperty string Character::speechEmotion
         \readonly
-        \brief The emotion of the current speech ("happy", "sad", "angry"
-               or empty for neutral).
+        \brief The emotion of the current speech ("happy", "sad", "angry",
+               "disgust", "surprised", or empty for neutral).
     */
     readonly property string speechEmotion: _emotionCtl.current
 
@@ -304,18 +304,19 @@ BodyPartsGroup {
         which is the only way a /m/ closes reliably - a bilabial is voiced,
         so every acoustic measurement of one says "loud", not "shut".
 
-        The optional emotion ("happy", "sad" or "angry") colors the
-        conversation: facial expression, voice pitch/rate (for TTS) and -
-        if the character is idle and \l speechBodyLanguage is enabled -
-        matching body language. Everything is restored when the speech
-        finishes.
+        The optional emotion ("happy", "sad", "angry", "disgust" or
+        "surprised") colors the conversation: facial expression, voice
+        pitch/rate (for TTS) and - if the character is idle and
+        \l speechBodyLanguage is enabled - matching body language.
+        Everything is restored when the speech finishes.
 
         Text may switch the emotion mid-speech with inline annotations:
         \qml
         npc.say("*angry* Get off my ground! *happy* Just kidding, come in.")
         \endqml
-        Recognized annotations are *happy*, *sad*, *angry* and *neutral*
-        (plus the aliases *joy*, *anger*, *sadness* and *calm*); each one
+        Recognized annotations are *happy*, *sad*, *angry*, *disgust*,
+        *surprised* and *neutral* (plus the aliases *joy*, *anger*,
+        *sadness*, *disgusted*, *surprise*, *shocked* and *calm*); each one
         applies from where it appears. The emotion argument sets the tone
         before the first annotation. Unknown annotations are left in the
         text untouched.
@@ -353,19 +354,16 @@ BodyPartsGroup {
         property bool active: false
 
         function parse(text, baseEmotion) {
-            const known = {
-                happy: "happy", joy: "happy",
-                sad: "sad", sadness: "sad",
-                angry: "angry", anger: "angry",
-                neutral: "", calm: ""
-            }
+            // The vocabulary is _emotionCtl's, not a second copy of it. It
+            // was a copy, and a copy is an emotion that works as an argument
+            // and is spoken aloud as an annotation.
             const re = /\*(\w+)\*/g
             let result = []
             let emotion = baseEmotion
             let last = 0
             let m
             while ((m = re.exec(text)) !== null) {
-                const e = known[m[1].toLowerCase()]
+                const e = _emotionCtl.known(m[1])
                 if (e === undefined)
                     continue // unknown annotation: keep it as spoken text
                 const chunk = text.slice(last, m.index).trim()
@@ -419,21 +417,54 @@ BodyPartsGroup {
         property real savedPitch: 0
         property real savedRate: 0
 
+        // The six faces, by the names a caller uses, with the aliases say()
+        // has always accepted. One table rather than three if-chains: an
+        // emotion added to only two of them is an emotion whose face works
+        // and whose voice does not, and nothing reports that.
+        //
+        // pitch and rate are OFFSETS applied to whatever the voice was set
+        // to, and are clamped to the -1..1 the Speech engine takes.
+        readonly property var faces: ({
+            happy:     { face: Head.Activity.ShowJoy,      pitch:  0.35, rate:  0.10 },
+            sad:       { face: Head.Activity.ShowSadness,  pitch: -0.35, rate: -0.30 },
+            angry:     { face: Head.Activity.ShowAnger,    pitch: -0.15, rate:  0.25 },
+            // Revulsion drags: lower and slower, the "ugh" of it.
+            disgust:   { face: Head.Activity.ShowDisgust,  pitch: -0.25, rate: -0.15 },
+            // Shock is the opposite - up and quick, the pitch jump of it.
+            surprised: { face: Head.Activity.ShowSurprise, pitch:  0.50, rate:  0.20 }
+        })
+
+        readonly property var aliases: ({
+            joy: "happy", sadness: "sad", anger: "angry",
+            disgusted: "disgust", surprise: "surprised", shocked: "surprised"
+        })
+
         function canonical(emotion) {
             emotion = ("" + emotion).toLowerCase()
-            if (emotion === "joy") emotion = "happy"
-            if (emotion === "sadness") emotion = "sad"
-            if (emotion === "anger") emotion = "angry"
-            if (emotion !== "happy" && emotion !== "sad" && emotion !== "angry")
-                return ""
-            return emotion
+            if (aliases[emotion] !== undefined)
+                emotion = aliases[emotion]
+            return faces[emotion] !== undefined ? emotion : ""
         }
 
         function faceFor(emotion) {
-            if (emotion === "happy") return Head.Activity.ShowJoy
-            if (emotion === "sad") return Head.Activity.ShowSadness
-            if (emotion === "angry") return Head.Activity.ShowAnger
-            return Head.Activity.Idle
+            const spec = faces[emotion]
+            return spec === undefined ? Head.Activity.Idle : spec.face
+        }
+
+        // The words that name the neutral face. Kept apart from the aliases
+        // because the annotation parser is the one caller that has to tell
+        // "*calm*" - a real cue, for no expression - from "*shrug*", which is
+        // not a cue at all and has to stay in the text and be spoken.
+        readonly property var neutralNames: ({ neutral: true, calm: true })
+
+        // What an annotation word means: a canonical emotion, "" for the
+        // neutral face, or undefined when the word is not an emotion.
+        function known(word) {
+            const w = ("" + word).toLowerCase()
+            if (neutralNames[w] === true)
+                return ""
+            const c = canonical(w)
+            return c === "" ? undefined : c
         }
 
         function persist(emotion) {
@@ -456,19 +487,10 @@ BodyPartsGroup {
             savedFace = _character.faceActivity
             savedPitch = _speech.pitch
             savedRate = _speech.rate
-            if (emotion === "happy") {
-                _character.faceActivity = Head.Activity.ShowJoy
-                _speech.pitch = Math.min(1, savedPitch + 0.35)
-                _speech.rate = Math.min(1, savedRate + 0.1)
-            } else if (emotion === "sad") {
-                _character.faceActivity = Head.Activity.ShowSadness
-                _speech.pitch = Math.max(-1, savedPitch - 0.35)
-                _speech.rate = Math.max(-1, savedRate - 0.3)
-            } else {
-                _character.faceActivity = Head.Activity.ShowAnger
-                _speech.pitch = Math.max(-1, savedPitch - 0.15)
-                _speech.rate = Math.min(1, savedRate + 0.25)
-            }
+            const spec = faces[emotion]
+            _character.faceActivity = spec.face
+            _speech.pitch = Math.max(-1, Math.min(1, savedPitch + spec.pitch))
+            _speech.rate = Math.max(-1, Math.min(1, savedRate + spec.rate))
             current = emotion
         }
 
@@ -820,7 +842,7 @@ BodyPartsGroup {
         \qmlproperty string Character::emotion
         \readonly
         \brief The face the character is wearing between lines: "happy",
-               "sad", "angry" or "" for neutral.
+               "sad", "angry", "disgust", "surprised" or "" for neutral.
 
         Unlike \l speechEmotion this one persists - it is what the face
         returns to when a spoken line with its own emotion has finished.
@@ -970,11 +992,16 @@ BodyPartsGroup {
     /*!
         \qmlmethod void Character::setEmotion(string name)
         \brief Puts a lasting expression on the face: "happy", "sad",
-               "angry", or "neutral"/"" for none.
+               "angry", "disgust", "surprised", or "neutral"/"" for none.
+
+        Aliases: "joy", "sadness", "anger", "disgusted", "surprise",
+        "shocked", "calm". A name that is none of these is neutral.
 
         Persists until it is changed, which is what separates it from the
         emotion of one spoken line: \l say() colors the face for the length
         of that line and then restores whatever was set here.
+
+        \sa emotion, Head::Activity
     */
     function setEmotion(name) {
         _emotionCtl.persist(name)

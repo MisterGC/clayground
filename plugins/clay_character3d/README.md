@@ -143,6 +143,26 @@ Item {
 
 ### Facial Expressions
 
+Six of them, and they are meant to be told apart at a glance rather than
+studied: the mouth first (a smile, a frown, a shout, a sneer or an O), the
+brows' *angle* second, the lids last. Which lid moves is not
+interchangeable - up from below is pleasure or revulsion, down from above is
+a glare or a droop, and neither of them is surprise.
+
+| expression | `Head.Activity` | `setEmotion` | the mouth | the brows | the lids |
+|---|---|---|---|---|---|
+| neutral | `Idle` | `"neutral"`, `""` | flat | level | open |
+| joy | `ShowJoy` | `"happy"` | an open grin | up, flat | squint, from below |
+| sadness | `ShowSadness` | `"sad"` | small, fully down | up, inner ends in | hooded |
+| anger | `ShowAnger` | `"angry"` | open and wide - a shout | down into a V | hooded |
+| disgust | `ShowDisgust` | `"disgust"` | a one-sided sneer | one up, one down | squint |
+| surprise | `ShowSurprise` | `"surprised"` | a round O | high | wide open |
+
+Disgust is the only one whose halves disagree, and that is deliberate: made
+symmetric it is a quieter anger and nothing else. It is worth two parameters
+of its own - `Head.mouthSkew` and the brow skew behind it - which anything
+can drive without an emotion.
+
 ```qml
 Character {
     id: character
@@ -262,6 +282,8 @@ npc.say("dialog/intro.wav")
 npc.say("I lost my favorite shovel...", "sad")
 npc.say("We found the treasure!", "happy")
 npc.say("Give it back right now!", "angry")
+npc.say("You want me to eat THAT?", "disgust")
+npc.say("It was here a second ago!", "surprised")
 
 // Inline annotations switch the emotion mid-speech
 npc.say("*angry* Get off my ground immediately! " +
@@ -382,7 +404,7 @@ prof.stopGesture()               // eases everything back to rest
 | `stopGesture()` | Eases every held joint - and the head - back to rest. |
 | `lookAt(worldPos)` | Aims the head only; outranks the gesture's own head aim. `null` releases it. |
 | `turnTo(worldPos)` | Turns the whole body on the spot; changes the resting orientation. |
-| `setEmotion(name)` | A lasting face: `"happy"`, `"sad"`, `"angry"`, `"neutral"`/`""`. |
+| `setEmotion(name)` | A lasting face: `"happy"`, `"sad"`, `"angry"`, `"disgust"`, `"surprised"`, `"neutral"`/`""`. |
 
 What to assert on, rather than watching:
 
@@ -671,7 +693,7 @@ The Character3D plugin implements:
 - **Modular Body Parts**: Head, torso, arms, legs with independent dimensions
 - **Procedural Animation**: Idle derived from body geometry; walk and run are one `GaitCycleAnim` over a table that `gait.js` derives from a base (the authored walk or run) plus the composed gait factors
 - **Animation-Speed Coupling**: Movement speeds calculated from the derived table's leg swing angles and the leg height, so speed still follows the feet whatever the gait
-- **Facial Expressions**: Multiple expression states (idle, joy, anger, sadness, talk)
+- **Facial Expressions**: Six expression states (neutral, joy, sadness, anger, disgust, surprise) plus talk, each a table of ten shader parameters rather than a shared set of building blocks
 - **Editor Integration**: 3D picking, parameter sliders, and per-character persistence
 - **Coordinate System**: Origin at ground level (Y=0 at feet), character faces +Z when rotation is (0,0,0) - the nose sits on the +Z face of the head and `CharacterController` walks along +Z at yaw 0
 
@@ -714,7 +736,7 @@ outside a `*...*` is spoken.
 
 | Directive | What it does | Performer method |
 |---|---|---|
-| `*happy*` `*sad*` `*angry*` `*neutral*` | Sets the emotion for the lines that follow. Aliases: `joy`, `sadness`, `anger`, `calm` | `setEmotion(value)`, else the `*emotion*` annotation is prefixed to the next `say()` |
+| `*happy*` `*sad*` `*angry*` `*disgust*` `*surprised*` `*neutral*` | Sets the emotion for the lines that follow. Aliases: `joy`, `sadness`, `anger`, `disgusted`, `surprise`, `shocked`, `calm` | `setEmotion(value)`, else the `*emotion*` annotation is prefixed to the next `say()` |
 | `*point at NAME*` | Points at the target | `pointAt(pos)` |
 | `*present NAME*` / `*show NAME*` | Offers an open hand toward the target - for a group or an area | `presentAt(pos)` |
 | `*look at NAME*` | Head-only aim at the target | `lookAt(pos)`, else `turnTo(pos)` |
