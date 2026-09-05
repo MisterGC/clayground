@@ -348,21 +348,21 @@ Node {
     readonly property bool present: _present
 
     /*! True once a gesture has arrived - the cue to start talking. */
-    readonly property bool settled: _point.settled
+    readonly property bool settled: _char.gestureSettled
 
     /*!
-        What the hands are doing: "point", "thumbsUp", "talk", or "" for
-        nothing.
+        What the hands are doing: "point", "present", "thumbsUp", "talk", or
+        "" for nothing.
 
         Set the moment a gesture is asked for, while the arm is still on its
         way there - which is what makes it the thing to assert on. The joint
         angles ease in over settleMs, so a test that reads those immediately
         after the call is reading the pose the professor has just left.
     */
-    readonly property string gesture: _point.activeGesture
+    readonly property string gesture: _char.gesture
 
     /*! Which hand is doing it: "left", "right" or "". */
-    readonly property string gestureHand: _point.activeHand
+    readonly property string gestureHand: _char.gestureHand
 
     /*! Where the bubble is pinned, so a lab can put something else there. */
     readonly property vector3d headAnchor: _char.scenePosition.plus(
@@ -403,12 +403,24 @@ Node {
     /*! Turns to \a worldPos and points at it. Ignored while away. */
     function pointAt(worldPos) {
         if (!_present) return
-        _point.gesture = "point"
-        _point.hand = "auto"
-        _point.target = worldPos
-        _point.active = true
-        // A hand that arrives somewhere its owner is not looking reads as a
-        // signpost rather than as a person indicating something.
+        _char.pointAt(worldPos, "auto")
+        // The gesture aims the head; this aims the EYES as well. A hand that
+        // arrives somewhere its owner is not looking reads as a signpost
+        // rather than as a person indicating something.
+        lookAt(worldPos)
+    }
+
+    /*!
+        Turns to \a worldPos and offers an open hand toward it - palm up, at
+        chest height, the "here we have" of a presenter. Ignored while away.
+
+        For a GROUP or an AREA: several parts, a whole circuit. A finger at
+        the centroid of those points at bare board; an open hand takes in
+        all of it.
+    */
+    function presentAt(worldPos) {
+        if (!_present) return
+        _char.presentAt(worldPos, "auto")
         lookAt(worldPos)
     }
 
@@ -422,10 +434,7 @@ Node {
     */
     function thumbsUp(which) {
         if (!_present) return
-        _point.gesture = "thumbsUp"
-        _point.hand = which === undefined ? "right" : which
-        _point.target = null
-        _point.active = true
+        _char.thumbsUp(which === undefined ? "right" : which)
     }
 
     /*!
@@ -442,10 +451,7 @@ Node {
     */
     function gesticulate() {
         if (!_present) return
-        _point.gesture = "talk"
-        _point.hand = "auto"
-        _point.target = null
-        _point.active = true
+        _char.gesticulate()
         // Long enough to cover the line being said, and never open-ended.
         _gestureCap.interval = Math.max(root.gestureMaxMs,
                                         _mouth.running ? _mouth.interval : 0)
@@ -545,13 +551,14 @@ Node {
         else if (n === "neutral" || n === "") root.mood = "neutral"
     }
 
-    /*! Drops the arm and lets the character stand normally again. */
+    /*!
+        Drops the arm and lets the character stand normally again. The eyes
+        are handed back with it; \l faceViewer() or \l lookAt() aims them
+        again.
+    */
     function stopGesture() {
         _gestureCap.stop()
-        _point.active = false
-        _point.target = null
-        _point.gesture = "point"
-        _point.hand = "auto"
+        _char.stopGesture()
     }
 
     /*!
@@ -649,7 +656,7 @@ Node {
     // point outlives the sentence that introduced it, on purpose.
     function _speechEnded() {
         root._talking = false
-        if (_point.gesture === "talk" && _point.active)
+        if (root.gesture === "talk")
             stopGesture()
     }
 
@@ -694,9 +701,12 @@ Node {
         \l tell() for a lab that should stay silent.
 
         Emotion is deliberately not passed through. The character's talking
-        body language drives both upper arms in a loop, which fights a held
-        point and wins - measured at 41 degrees of aim error. Suppressing the
-        arm-waving keeps the gesture; the face still carries the tone.
+        body language drives both upper arms in a loop of its own - it used
+        to fight a held point and win, measured at 41 degrees of aim error,
+        and the gesture layer outranks it now - but the professor's hands
+        are choreographed by the flow (\l gesticulate(), FlowGuide), so a
+        second, emotion-driven animator is not wanted on them at all. The
+        face still carries the tone.
     */
     function say(what) {
         root.line = what
@@ -1007,38 +1017,32 @@ Node {
         slip: 0.2
     }
 
-    // --- the hands ------------------------------------------------------------
-    // The plugin's own articulated hands now, rather than the copy this kit
-    // carried until the plugin grew one. They live inside Arm, so there is
-    // nothing to attach here - only the pose to feed them.
+    // --- the hands and the gesture ------------------------------------------
+    // Both the plugin's own now. The articulated hands live inside Arm, and
+    // the held poses - point, present, thumbs up, gesticulation - are the
+    // character's GestureAnim, which this kit's PointAnim was promoted into
+    // (beat table and silhouette policy included). Character wires
+    // Arm.handPose to that layer itself: whichever arm the gesture picked
+    // gets the pointing finger, and the other keeps whatever the lab asked
+    // for - which is what the professor's handPose is, so it is handed down
+    // rather than bound onto each arm.
     //
-    // Character wires Arm.handPose to its own GestureAnim, and the professor
-    // does not use that one: PointAnim drives these arms, with a beat table
-    // and a silhouette policy tuned against this exact body. So the pose is
-    // overridden, the same way the oversized hands and head are. Whichever arm
-    // the gesture picked gets the pointing finger and the other keeps whatever
-    // the lab asked for.
+    // Two things the plugin has to be told, as Bindings for the same reason
+    // the oversized head is one: the character is declared above with the
+    // knobs that shape it, and these two shape the gesture.
 
     Binding {
-        target: _char.rightArm
+        target: _char
         property: "handPose"
-        value: _point.rightHandPose !== "" ? _point.rightHandPose : root.handPose
+        value: root.handPose
     }
 
     Binding {
-        target: _char.leftArm
-        property: "handPose"
-        value: _point.leftHandPose !== "" ? _point.leftHandPose : root.handPose
-    }
-
-    // --- the gesture --------------------------------------------------------
-
-    PointAnim {
-        id: _point
-        character: _char
-        // no point aiming a body that is still swelling out of a cloud
-        active: false
-        settleMs: 420
+        target: _char
+        property: "gestureSettleMs"
+        // The arm arrives a shade faster than the plugin's default, as it
+        // did when the kit drove it; FlowGuide's hold is timed from here.
+        value: 420
     }
 
     // --- what it is saying --------------------------------------------------

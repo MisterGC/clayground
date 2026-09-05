@@ -26,13 +26,16 @@ it had not earned.
 |---|---|
 | `Professor` | the whole character, one `Node`. Drop it in a `View3D`, give it `view`. |
 | `FlowGuide` | hands a lab's guided flow to a professor — the wiring, so no lab writes it twice |
-| `PointAnim` | the held gestures (point, thumbs up). One driver, because they share eight joints |
 | `Hair` | five cuts: `wild`, `swept`, `tidy`, `ring`, `none` |
 | `Beard` | five: `full`, `walrus`, `goatee`, `chin`, `none` |
 | `Spectacles` | rims, bridge, arms, placed off the head's own eye geometry |
-| `DetailedHand` | four fingers and a thumb, opt-in per character |
 | `Hoverboard` | what it travels on, so nobody has to animate a walk cycle |
 | `Puff` | the cloud it arrives in and leaves by |
+
+The gestures and the hands are not in this table because they are not in
+this kit any more: `Professor` drives the character plugin's own `GestureAnim`
+(point, present, thumbs up, gesticulation, look-at) and `DetailedHand`. See
+"What this kit pioneered" below.
 
 ## Using one
 
@@ -47,6 +50,7 @@ Professor {
 prof.appear()                 // arrives in a puff
 prof.travelTo(spot)           // flies there on the board, lands, emits arrived()
 prof.pointAt(thing)           // turns and points, with the elbow bent
+prof.presentAt(group)         // turns and offers an open hand - for an area, not a part
 prof.faceViewer()             // turns to the camera - says it to the reader
 prof.gesticulate()            // talks with the hands, until told otherwise
 prof.tell("Two in series.")   // bubble + mouth, NO audio
@@ -70,6 +74,12 @@ itself.
 
 `nod()` rides on its own rotation channel, so it does not disturb where the
 head is aimed — a nod at someone is still a nod *at* them.
+
+`pointAt()` is for one thing; `presentAt()` is for several — a group of parts,
+a whole circuit — where a finger at the centroid would point at bare board.
+The open hand stays at chest height, palm up, and turns toward the target
+rather than reaching for it. In a performance script it is `*present NAME*`
+(or `*show NAME*`).
 
 `tell()` is the narration verb. `say()` is the same thing through the
 character plugin's speech engine, which means text-to-speech — right for a
@@ -196,19 +206,27 @@ label) aims at the chest. Read **`standHeight`**, or `faceY` for the eyes.
 proportional to `height3d`, so one number fits a board measured in
 centimetres or in metres. Nothing else needs touching.
 
-**A raised straight arm is not an acceptable silhouette** and `PointAnim`
-enforces that: the higher the aim, the more the elbow is forced to bend, so
+**A raised straight arm is not an acceptable silhouette** and the plugin's
+`GestureAnim` enforces that (`Character.safeSilhouette`, on by default and
+left on here): the higher the aim, the more the elbow is forced to bend, so
 the upper arm stays low and the forearm reaches. It costs no accuracy — the
 bend is given back through the shoulder and the wrist — which means it looks
 like dead code to anyone optimising the solve. It is not. Together with the
 extended index finger on `DetailedHand`, it is what keeps a point upward from
 reading as a fascist salute. Re-check the silhouette, not just the aim error,
-after touching that maths.
+after touching that maths — `PointBench.qml` reports both.
 
 **Measure a gesture after `settled`, not after `pointAt()`.** The pose eases
-in over ~450 ms. Measuring immediately reports 60–160° of aim error and looks
+in over ~420 ms. Measuring immediately reports 60–160° of aim error and looks
 exactly like a broken solver; `clayrender --wait-for 'prof.settled'` gives the
 true 0.0–0.3°.
+
+**One animator per joint.** The professor used to carry a gesture driver of
+its own next to the character's, and the two wrote the same eight joints:
+the character's look-only pose eased the arms to zero while the kit's point
+eased them up, and the zero won — a `pointAt()` turned the head and left the
+arm hanging. Everything that moves an arm goes through `Character`'s verbs
+now. Do not add a second driver.
 
 **A gesture is solved once**, against the frame the professor stood in when it
 was asked for. `travelTo()` therefore drops it at take-off; point again after
@@ -253,9 +271,14 @@ proportions) and the professor draws the plugin's hands, fed from this kit's
 gesture layer through a `Binding` on `Arm.handPose`. `plugins/clay_character3d/bench/HandSandbox.qml`
 is where a hand is worked on now.
 
-The professor still runs its own `PointAnim`: its beat table and silhouette
-policy are tuned against this exact body, and moving it onto `GestureAnim` is
-a planned, separate step.
+The gestures have gone back the same way. The kit's `PointAnim` is deleted:
+`GestureAnim` carries its beat table and its silhouette policy unchanged, the
+professor's `pointAt`, `thumbsUp`, `gesticulate`, `stopGesture`, `gesture`,
+`gestureHand` and `settled` are the character's own verbs and state under the
+same names, and its `handPose` is `Character.handPose` — the resting pose of
+whichever hand the gesture is not using. The one gesture added since,
+`presentAt()`, was added to the plugin directly, which is where new ones go.
+`PointBench.qml` measures the real professor now.
 
 Still kit-only: the beard, the spectacles and the hair styles. They attach
 through arithmetic the plugin's new head anchors now publish, so promoting
@@ -272,5 +295,9 @@ judged by looking. What there is:
   and a scripted scene on `P` that exercises the whole directive vocabulary
 - `PointBench.qml`, `LookBench.qml`, `HairBench.qml` — isolated scenes, one
   per hard problem, kept because each was needed twice. The hand's bench lives
-  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`
+  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`.
+  `PointBench` prints aim error and elbow bend for a point (`report()`) and
+  hand height against waist and chest for a present (`presentReport()`):
+  `clayrender labs/kits/professor/PointBench.qml --eval 'presentAt("board")'
+  --wait-for 'prof.settled'`
 - `clayrender --wait-for` against the bench for anything numeric
