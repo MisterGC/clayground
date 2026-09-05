@@ -149,15 +149,23 @@ Rectangle {
                     text: LabLang.t("flow.resume")
                     TapHandler { onTapped: _nar.flow.paused = false }
                 }
-                // Next is ALWAYS clickable - a learner who already knows this
-                // step must never be held back. What changes is how loudly it
-                // asks to be pressed: quiet with a filling bar while the
-                // estimated reading time runs, prominent once it has.
+                // Next is always clickable on a narrated step - a learner who
+                // already knows this step must never be held back. What
+                // changes is how loudly it asks to be pressed: quiet with a
+                // filling bar while the estimated reading time runs,
+                // prominent once it has.
+                //
+                // Not on a task step. There the flow advances itself the
+                // moment the task is done, and a Next that skips the task
+                // leaves the next line assuming it was done ("and the LED
+                // glows" over an open switch). What is offered instead is
+                // "show me", which does the task and therefore advances.
                 Action {
                     visible: _nar.flow && _nar.flow.step && _nar.flow.step.watch
                     text: LabLang.t("flow.watching")
                 }
                 Item {
+                    visible: !(_nar.flow && _nar.flow.waiting)
                     width: _next.width; height: LabTheme.px(20)
                     anchors.verticalCenter: parent.verticalCenter
                     Text {

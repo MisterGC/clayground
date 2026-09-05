@@ -56,12 +56,44 @@ Item {
         null for a step that wants neither - a step about the whole board, or
         one that is only a question for the reader.
 
-        An optional third field, \c extent, is an array of world points the
-        camera should keep in the picture for this step: every part a line
-        like "two of them reading the same inputs" is about, not only the
-        one the finger lands on. Only read when a \l director is set.
+        Two optional fields, only read when a \l director is set. \c extent
+        is an array of world points the camera should keep in the picture
+        for this step: every part a line like "two of them reading the same
+        inputs" is about, not only the one the finger lands on. \c hold
+        (true) keeps the subject in the picture for the whole step: the
+        professor still turns to the reader, but the camera stays on the
+        two-shot instead of pulling in to a portrait. For a step that asks
+        the learner to click something - a portrait of the teacher is no
+        help finding the switch - and for one whose line names the parts of
+        the thing.
     */
     property var subjectOf: null
+
+    /*!
+        Optional: given a step index, the title of the scene the step opens,
+        or "" for a step that stays in the scene it is in.
+
+        \code
+        sceneOf: (i) => stepReplacesTheBoard(i) ? LabLang.t("scenario.and") : ""
+        \endcode
+
+        A step that replaces the setup under the professor is a cut to a
+        different scene, and it is shown as one: the \l director takes an
+        establishing shot of the whole new setup (\l scenePointsOf) under
+        the title for \l sceneMs, the professor waits, and only then walks
+        to the step's subject. Without a title the step starts as any other.
+    */
+    property var sceneOf: null
+
+    /*!
+        The world points an establishing shot holds: \c{function(step)}
+        returning an array, typically the whole board. Falls back to the
+        step's extent.
+    */
+    property var scenePointsOf: null
+
+    /*! How long an establishing shot holds before the professor moves, in ms. */
+    property int sceneMs: 2200
 
     /*!
         Where the professor is standing when it appears, as a \c vector3d.
@@ -175,7 +207,8 @@ Item {
         treatment from their cues - \c{*point at X*} and \c{*present X*}
         reframe on X, \c{*face viewer*} pulls in - and a script may ask for
         an insert with \c{*cut to X*}, which shows X alone for a beat and
-        comes back.
+        comes back. A step that opens a new scene (\l sceneOf) starts with
+        an establishing shot under its title.
 
         The subject a shot frames is the step's \c extent when
         \l subjectOf gives one, else its \c look point.
@@ -215,7 +248,10 @@ Item {
     function _onCue(type, arg) {
         const d = root.director
         if (!d) return
-        if (type === "face" && arg === "viewer") { d.portrait(); return }
+        if (type === "face" && arg === "viewer") {
+            if (root._held) d.twoShot(root._extentNow()); else d.portrait()
+            return
+        }
         if (type === "point" || type === "present") {
             const pos = _resolveCue(arg)
             if (pos) d.twoShot(root._extentNow().concat([pos]))
@@ -278,6 +314,7 @@ Item {
             _resume.restart()
         } else {
             _hold.stop()
+            _scene.stop()
             _perf.stop()
             _addressing = false
             root.professor.stopGesture()
@@ -301,8 +338,43 @@ Item {
         const p = root.professor
         if (!p || !root.running || root.step < 0 || Lab.headless)
             return
+        _scene.stop()
+        _held = false
+        const title = (typeof root.sceneOf === "function") ? root.sceneOf(root.step) : ""
+        if (title && root.director) {
+            const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
+            const pts = (typeof root.scenePointsOf === "function") ? root.scenePointsOf(root.step) : null
+            if (root.director.establish(pts && pts.length ? pts : _extentOf(s), title, root.sceneMs)) {
+                _hold.stop()
+                _perf.stop()
+                _addressing = false
+                p.quiet()
+                p.stopGesture()
+                _scene.restart()
+                return
+            }
+        }
+        _proceed()
+    }
+
+    // The establishing shot is over: now the step itself.
+    Timer {
+        id: _scene
+        interval: root.sceneMs
+        onTriggered: root._proceed()
+    }
+
+    // Whether the current step keeps the camera on its subject (subjectOf's
+    // `hold`), decided when the step starts.
+    property bool _held: false
+
+    function _proceed() {
+        const p = root.professor
+        if (!p || !root.running || root.step < 0 || Lab.headless)
+            return
 
         const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
+        _held = !!(s && s.hold)
         const stand = s && s.stand ? s.stand : null
         const look = s && s.look ? s.look : null
 
@@ -378,8 +450,13 @@ Item {
         if (!p) return
         _addressing = true
         // The shot moves in before the body turns, so faceViewer() aims at
-        // the portrait's camera position rather than the wide shot's.
-        if (root.director) root.director.portrait()
+        // the portrait's camera position rather than the wide shot's. A
+        // held step keeps the two-shot: the learner is about to be asked to
+        // find something on the board, or the line is naming its parts.
+        if (root.director) {
+            if (root._held) root.director.twoShot(root._extentNow())
+            else root.director.portrait()
+        }
         p.faceViewer()
         // Only if there is still something being said. Hands that talk while
         // the mouth is shut are worse than no hands: turning to the reader is
@@ -478,6 +555,9 @@ Item {
         if (!root.running || root.step < 0 || Lab.headless)
             return
         if (root.professor && root.professor.travelling)
+            return
+        // ...nor during an establishing shot, which is the other silence
+        if (_scene.running)
             return
         // A directed step's lines come from its script; the flow's text is
         // not part of that performance and must not talk over it.

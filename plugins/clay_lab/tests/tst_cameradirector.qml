@@ -114,12 +114,26 @@ Item {
             compare(director.shot, "portrait", "the later shot wins, the return is forgotten")
         }
 
+        function test_establish_shows_the_title_for_the_hold_and_frames_it_all() {
+            reset()
+            const board = [Qt.vector3d(-70, 2, -40), Qt.vector3d(70, 2, 40)]
+            verify(director.establish(board, "AND gate", 80))
+            compare(director.shot, "wide")
+            compare(director.title, "AND gate")
+            verify(rig.covers(board, 0.02, true), "the whole setup is in the picture")
+            wait(200)
+            compare(director.title, "", "the card comes down after the hold")
+            compare(director.shot, "wide", "and the shot stays")
+        }
+
         function test_release_hands_the_camera_back() {
             reset()
             director.journey(Qt.vector3d(10, 0, 10), part)
             director.portrait()
+            director.establish([Qt.vector3d(0, 0, 0), Qt.vector3d(10, 0, 10)], "x", 5000)
             director.release()
             compare(director.shot, "")
+            compare(director.title, "")
             compare(rig.follow, null)
             compare(rig.minPitch, 22)
             compare(rig.minHeight, 9)

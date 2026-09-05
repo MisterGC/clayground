@@ -134,6 +134,11 @@ Item {
         \c auto advances by itself once the estimate elapses (kiosk mode,
         recordings, and the headless verification run); \c manual offers no
         estimate at all.
+
+        A task step is the exception in every mode: it ends when its
+        \c until holds (or \l solve is asked for), never on a Next - the
+        \l Narrator offers none while \l waiting - so no later line can
+        assume the learner did something they did not.
     */
     property string pacing: "ready"
 

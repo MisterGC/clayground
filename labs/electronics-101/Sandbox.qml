@@ -1184,16 +1184,70 @@ Item {
         // professor inside the package, wearing it.
         const half = root.bodyHalf(best.type)
         const reach = Math.max(half.x, half.y) + root.profClear
+        // Beside the part, not behind it. Behind kept the part uncovered
+        // from the steep working angle, but the presenting shots are flat
+        // (22 degrees, 8 for a portrait) and from there a figure standing
+        // behind a transistor stands ON it - the learner saw a coat where
+        // the three legs were being named (#219). To the side, a little
+        // back, on whichever side has no other part within reach; behind
+        // only when both sides are taken.
+        const side = root._freeSide(best, parts, reach)
+        const stand = side === 0 ? Qt.vector3d(bx, 0, bz - reach)
+                    : Qt.vector3d(bx + side * reach, 0, bz - reach * 0.45)
         return { id: best.id,
                  ids: parts.map(p => p.id),
-                 stand: Qt.vector3d(bx, 0, bz - reach),
+                 stand: stand,
                  // A hand's breadth above the board, so the finger lands on
                  // the part rather than on the ground under it.
                  look: Qt.vector3d(bx, 1.5, bz),
                  // Every part the step is about, for the camera: a step whose
                  // line is "two of them reading the same inputs" that shows
                  // one gate has framed the pointing and lost the sentence.
-                 extent: root.cellExtent(parts) }
+                 extent: root.cellExtent(parts),
+                 // The camera stays on the two-shot for a step that asks the
+                 // learner to click something, or whose line names the
+                 // parts of the thing: a portrait of the teacher helps with
+                 // neither. Decided per step by holdStep().
+                 hold: root.holdStep() }
+    }
+
+    // +1 for the right of the part, -1 for the left, 0 for behind: the first
+    // side with no part of the board (not just this step's) within the
+    // professor's reach.
+    function _freeSide(best, parts, reach) {
+        const bx = root.cellX(best.col), bz = root.cellZ(best.row)
+        for (const side of [1, -1]) {
+            const sx = bx + side * reach, sz = bz - reach * 0.45
+            let free = true
+            for (const e of root.elements) {
+                if (e.id === best.id) continue
+                const dx = root.cellX(e.col) - sx, dz = root.cellZ(e.row) - sz
+                if (Math.abs(dx) < root.profClear && Math.abs(dz) < root.profClear) { free = false; break }
+            }
+            if (free) return side
+        }
+        return 0
+    }
+
+    // Whether the running step keeps the camera on its subject: every task
+    // step (the learner has to find the thing), and the steps whose line
+    // walks through the parts of one thing.
+    readonly property var heldSteps: ["meet", "chip"]
+    function holdStep() {
+        const f = root.currentFlow
+        if (!f || !f.step) return false
+        return f.step.task !== null || root.heldSteps.indexOf(f.step.key) >= 0
+    }
+
+    // The scene a step opens, for the establishing shot: a step whose demo
+    // replaces the board with a preset is a different scene, and it is
+    // announced with the preset's own name.
+    function flowScene(i) {
+        const f = root.currentFlow
+        if (!f || !f.step || !f.step.demo) return ""
+        for (const a of f.step.demo)
+            if (a && a[0] === "scenario") return LabLang.t("scenario." + a[1])
+        return ""
     }
 
     // The gap between the professor and its subject's edge. Enough that a
@@ -1581,6 +1635,8 @@ Item {
             scriptVoiceOf: (i, sayIndex) => root.flowScriptVoice(i, sayIndex)
             scriptResolve: (name) => root.scriptTarget(name)
             director: director
+            sceneOf: (i) => root.flowScene(i)
+            scenePointsOf: (i) => root.cellExtent(root.elements)
             // Arrives at the far edge, centred - off the board, so the puff
             // does not go off in the middle of the circuit, and behind it, so
             // the first flight is toward the viewer.
@@ -1986,6 +2042,15 @@ Item {
                     && !carry[0] && !carry[1] && !carry[2] && carry[3]
             }
         }
+    }
+
+    // The scene card: the director's title while an establishing shot
+    // holds. The banner is the kernel's status pill, worn here as a title.
+    LabBanner {
+        text: director.title
+        active: director.title !== ""
+        topMargin: LabTheme.px(72)
+        fill: LabTheme.secondary
     }
 
     Narrator {
@@ -2560,6 +2625,20 @@ Item {
         monitor: monitor
         solved: root.sim
         hidden: root.labelsHidden
+        // The readings a lesson leaves on ("values", "try") step aside where
+        // the professor stands: they are screen space, and a "2.1 mA" pill
+        // sat on his face in the last step of the LED flow (#219).
+        keepOut: {
+            if (!prof.present) return null
+            rig.pivot; rig.yaw; rig.pitch; rig.distance; prof.stand; prof.headAnchor
+            const feet = view3d.mapFrom3DScene(prof.position)
+            const head = view3d.mapFrom3DScene(prof.headAnchor)
+            if (feet.z <= 0 || head.z <= 0) return null
+            const h = Math.abs(feet.y - head.y)
+            const w = h * 0.45
+            return { x: Math.min(feet.x, head.x) - w, y: head.y - h * 0.15,
+                     width: Math.abs(feet.x - head.x) + 2 * w, height: h * 1.2 }
+        }
         readingOf: (id, attr) => root.readingOf(id, attr)
         severityOf: (id, attr) => root.severityOf(id, attr)
         labelOf: (id) => root.partLabel(id)

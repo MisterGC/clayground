@@ -21,6 +21,10 @@ import QtQuick
     \table
     \header \li verb \li what is in the picture \li when
     \row \li \l wide \li the bench, nobody in it \li establishing the situation
+    \row \li \l establish \li the whole new setup, wide, under a title
+         \li the setup changed - the board was replaced, the scene is a
+         different one, and the eye needs a beat and a name before the
+         presenter moves
     \row \li \l journey \li where the presenter stands, where it is going and
          what it will talk about, all at once \li the presenter is on its way
          somewhere. The walk is \e watched, not cut around; a follow keeps the
@@ -205,6 +209,45 @@ Item {
     }
 
     /*!
+        \qmlproperty string CameraDirector::title
+        \readonly
+        \brief The scene title an \l establish is showing; "" otherwise.
+
+        The director draws nothing itself. A lab binds a \c LabBanner (or
+        whatever card it likes) to this, so the title sits in the lab's own
+        chrome rather than in a scene node.
+    */
+    readonly property string title: _title
+    property string _title: ""
+
+    /*!
+        \qmlmethod bool CameraDirector::establish(var points, string title, int holdMs)
+        \brief A new scene: the whole of \a points, wide, under \a title for
+               \a holdMs (default 2200), before anything else happens.
+
+        The cut television makes when the setup changes - and the one the
+        lessons were missing: a board replaced under the presenter in one
+        frame, followed straight away by a walk and a two-shot, reads as the
+        same scene gone wrong rather than as a different scene. The title
+        is what says "this is somewhere else now"; the hold is what gives
+        the eye time to take the new layout in. \l title carries the text
+        for the duration.
+    */
+    function establish(points, title, holdMs) {
+        const ok = _shoot("wide", _pts(points), root.widePitch, undefined, false)
+        if (!ok) return false
+        root._title = title === undefined || title === null ? "" : "" + title
+        _titleOff.interval = holdMs === undefined ? 2200 : Math.max(1, holdMs)
+        _titleOff.restart()
+        return true
+    }
+
+    Timer {
+        id: _titleOff
+        onTriggered: root._title = ""
+    }
+
+    /*!
         \qmlmethod bool CameraDirector::twoShot(var subject)
         \brief Presenter and \a subject in one picture, from \l widePitch.
 
@@ -306,6 +349,8 @@ Item {
     */
     function release() {
         _return.stop()
+        _titleOff.stop()
+        root._title = ""
         root._before = null
         if (root.rig) root.rig.follow = null
         _restoreFloors()
