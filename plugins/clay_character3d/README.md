@@ -597,7 +597,7 @@ The factors, as `Gait` exposes them:
 | `tempo` | multiplies | 1 | cadence; 1.2 takes steps a fifth quicker and covers ground a fifth faster |
 | `stride` | multiplies | 1 | how far the legs swing, and the speed with it |
 | `bounce` | adds | 0 | how high the whole figure rises at mid-step, in leg heights; 0.1 is the cap |
-| `lean` | adds | 0 | torso pitch in degrees on top of the cycle's own; positive forward, negative chest out |
+| `lean` | adds | 0 | torso pitch in degrees on top of the cycle's own, bending at the waist so the legs stay planted; positive forward, negative chest out |
 | `headPitch` | adds | 0 | head pitch in degrees; positive looks down, negative lifts the chin |
 | `armSwing` | multiplies | 1 | arm swing amplitude; 0 hangs the arms |
 | `elbow` | adds | 0 | elbow bend in degrees on top of the cycle's own (a walk bends 10, a run 70) |

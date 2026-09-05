@@ -143,6 +143,8 @@ Item {
             walk.start()
             tryVerify(() => Math.abs(body.torso.eulerRotation.x - 8) < 0.05, 1000)
             tryVerify(() => Math.abs(body.head.poseEuler.x - 15) < 0.05, 1000)
+            // The hip counters the waist lean so the legs stay planted.
+            tryVerify(() => Math.abs(body.hip.eulerRotation.x + 8) < 0.05, 1000)
             tryVerify(() => Math.abs(Math.abs(body.hip.eulerRotation.y) - 6) < 0.05, 1500)
             tryVerify(() => Math.abs(Math.abs(body.torso.eulerRotation.z) - 4) < 0.05, 1500)
         }

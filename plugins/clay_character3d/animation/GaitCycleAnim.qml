@@ -118,10 +118,12 @@ ProceduralAnim {
                             _cycle.table.sway * 0.5 * _step.s,
                             _cycle.table.rock * _step.s)
         }
+        // The hip hangs off the torso, so it counters the waist share of the
+        // lean - legs stay planted while the chest tips - and carries the sway.
         EulerAnim {
             target: entity.hip
             duration: _cycle.duration
-            to: Qt.vector3d(0, -_cycle.table.sway * _step.s, 0)
+            to: Qt.vector3d(-_cycle.table.waistLean, -_cycle.table.sway * _step.s, 0)
         }
         HeadEulerAnim {
             target: entity.head

@@ -44,6 +44,7 @@ section('the neutral gait is the legacy walk, digit for digit')
     eq('walk has no sway', t.sway, 0)
     eq('walk has no rock', t.rock, 0)
     eq('walk holds the head level', t.headPitch, 0)
+    eq('walk has no waist lean', t.waistLean, 0)
 
     // And the speed Character.walkSpeed used to report for the default leg.
     const legHeight = 5.333
@@ -66,8 +67,19 @@ section('the neutral gait is the legacy run, digit for digit')
     const t = G.derive('run', G.neutral())
     for (const k of Object.keys(legacyRun))
         near('run.' + k, t[k], legacyRun[k], 1e-9)
+    eq('run lean is whole-body, not at the waist', t.waistLean, 0)
     near('run speed for the default leg', G.speedFor(t, 5.333),
          5.333 * (Math.sin(fwd * rad) + Math.sin(back * rad)) * 2 / 0.45, 1e-9)
+}
+
+section('a factor lean bends at the waist, a base lean does not')
+{
+    const w = G.derive('walk', { lean: 8 })
+    eq('walk: torso carries it', w.lean, 8)
+    eq('walk: hip counters it', w.waistLean, 8)
+    const r = G.derive('run', { lean: 8 })
+    eq('run: torso carries base plus factor', r.lean, 20)
+    eq('run: hip counters only the factor', r.waistLean, 8)
 }
 
 section('derive without factors, and with nonsense, is neutral')
@@ -283,6 +295,7 @@ section('poseAt replays the cycle the animation plays')
     near('roll at t=0', p0.torso[2], -t.rock, 1e-12)
     near('roll at t=0.5', pHalf.torso[2], t.rock, 1e-12)
     near('lean holds', pQ.torso[0], t.lean, 1e-12)
+    near('the hip counters the waist lean', pQ.hip[0], -t.waistLean, 1e-12)
     near('head holds', pQ.head[0], t.headPitch, 1e-12)
     near('elbow holds', pQ.rightArm.lower, -t.elbow, 1e-12)
     // The easing is Qt's InOutQuad.

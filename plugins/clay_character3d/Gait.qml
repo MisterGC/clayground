@@ -75,7 +75,9 @@ QtObject {
 
     /*! \qmlproperty real Gait::lean
         \brief Torso pitch in degrees on top of the cycle's own. Positive
-               leans forward (a slump, a charge), negative back (chest out). */
+               leans forward (a slump, a charge), negative back (chest out).
+               Bends at the waist: the hip counters it, so the legs stay
+               planted and only chest, head and arms tip. */
     property real lean: 0
 
     /*! \qmlproperty real Gait::headPitch

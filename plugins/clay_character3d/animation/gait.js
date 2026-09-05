@@ -245,6 +245,12 @@ function derive(baseName, factors) {
         armBack: clamp(b.armBack * get("armSwing"), 0, 90),
         elbow: clamp(b.elbow + get("elbow"), 0, 140),
         lean: clamp(b.lean + get("lean"), -30, 40),
+        // The factor's share of the lean pivots at the WAIST: the hip counters
+        // it so the legs stay planted and only chest, head and arms tip. The
+        // base's own lean (a run's 12) stays whole-body - a sprinter leans
+        // with everything, a slump bends. Without this a sad character rotates
+        // like a plank about its waist and looks about to fall on its face.
+        waistLean: clamp(get("lean"), -30, 30),
         headPitch: clamp(get("headPitch"), -40, 40),
         bounce: clamp(get("bounce"), 0, 0.1),
         sway: clamp(get("sway"), 0, 20),
@@ -278,7 +284,8 @@ function liftAt(u) {
 }
 
 // Joint angles at phase t of the cycle, 0..1, as the cycle animation would
-// have them. t in [0, 0.5) is the first phase (right leg swinging forward),
+// have them. The hip is a child of the torso, so its pitch is the counter to
+// the waist lean and its yaw the sway. t in [0, 0.5) is the first phase (right leg swinging forward),
 // [0.5, 1) the second; t = 1 is t = 0 again. Angles follow the joints' own
 // conventions: positive x pitches forward and down, so a forward leg or arm is
 // negative x. Legs and arms are {upper, lower, foot|hand}; torso, hip and head
@@ -317,7 +324,7 @@ function poseAt(table, t) {
         leftLeg: second ? fwd : back,
         rightArm: second ? armFwd : armBack,
         leftArm: second ? armBack : armFwd,
-        hip: [0, yaw, 0],
+        hip: [-table.waistLean, yaw, 0],
         torso: [table.lean, -yaw * 0.5, roll],
         head: [table.headPitch, 0, 0],
         lift: table.bounce * liftAt(second ? (t - 0.5) * 2 : t * 2)

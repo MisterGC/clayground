@@ -109,7 +109,7 @@ Item {
         anchors.fill: parent
         
         environment: SceneEnvironment {
-            clearColor: "#f0f0f0"
+            clearColor: "#f2eee7"
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
@@ -118,64 +118,36 @@ Item {
             tonemapMode: SceneEnvironment.TonemapModeNone
         }
 
-        // Lighting setup - high ambient with visible shadows
-        // Main key light (primary shadow caster)
+        // The lab stage's rig (plugins/clay_lab/LabStage3D.qml): a key that
+        // casts, a side fill and a low camera-side fill, values from the
+        // light palette. Five lights used to be here, which is one over
+        // Quick3D's cap of four and flattened everything into the same tone.
         DirectionalLight {
             id: mainLight
-            eulerRotation.x: -40
-            eulerRotation.y: -45
-
+            eulerRotation.x: -36
+            eulerRotation.y: -26
+            brightness: 0.9
+            ambientColor: "#737380"
             castsShadow: true
-            shadowFactor: 90
+            shadowFactor: 58
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            pcfFactor: 2
-            shadowBias: 5
-            softShadowQuality: Light.PCF16
-            shadowMapFar: 200
-
-            brightness: 0.5
-            ambientColor: Qt.rgba(0.55, 0.55, 0.6, 1.0)
+            shadowMapFar: 250
+            csmNumSplits: 2
+            shadowBias: 3
+            softShadowQuality: Light.PCF4
+            pcfFactor: 1
         }
-
-        // Front fill light - ensures face is always lit
         DirectionalLight {
-            id: frontLight
-            eulerRotation.x: -20
-            eulerRotation.y: 180
-
-            castsShadow: false
-            brightness: 0.5
-        }
-
-        // Side fill lights for even coverage
-        DirectionalLight {
-            id: leftFill
-            eulerRotation.x: -25
-            eulerRotation.y: 90
-
-            castsShadow: false
+            eulerRotation.x: -60
+            eulerRotation.y: 142
             brightness: 0.35
         }
-
         DirectionalLight {
-            id: rightFill
-            eulerRotation.x: -25
-            eulerRotation.y: -90
-
-            castsShadow: false
-            brightness: 0.35
+            eulerRotation.x: -24
+            eulerRotation.y: 19
+            brightness: 0.27
         }
 
-        // Back light for rim
-        DirectionalLight {
-            id: backLight
-            eulerRotation.x: -20
-            eulerRotation.y: 0
-
-            castsShadow: false
-            brightness: 0.3
-        }
-        
         // Character camera that follows the editor's target (or player when nothing selected)
         CharacterCamera {
             id: charCamera
@@ -531,18 +503,40 @@ Item {
                 font.pixelSize: 10
                 color: Qt.alpha(_gaitPal.windowText, 0.6)
             }
-            Row {
+            // One of each row is on and "neutral" is the off. Drawn by hand
+            // rather than as Buttons: under the native macOS style the loader
+            // runs with, a Button's highlighted and checked looks do not
+            // repaint when the state leaves them, so a row of them shows every
+            // choice ever clicked.
+            component Chip: Rectangle {
+                id: chip
+                required property string modelData
+                property bool active: false
+                signal picked(string name)
+                width: chipLabel.implicitWidth + 16
+                height: chipLabel.implicitHeight + 8
+                radius: 5
+                color: active ? _gaitPal.highlight : Qt.alpha(_gaitPal.windowText, 0.08)
+                border.color: Qt.alpha(_gaitPal.windowText, active ? 0 : 0.25)
+                Text {
+                    id: chipLabel
+                    anchors.centerIn: parent
+                    text: chip.modelData
+                    font.pixelSize: 11
+                    color: chip.active ? _gaitPal.highlightedText : _gaitPal.windowText
+                }
+                MouseArea { anchors.fill: parent; onClicked: chip.picked(chip.modelData) }
+            }
+            Flow {
+                width: parent.width
                 spacing: 4
                 Repeater {
                     model: ["neutral", "happy", "sad", "angry"]
-                    Button {
-                        required property string modelData
-                        text: modelData
-                        font.pixelSize: 10
-                        highlighted: gaitPanel.target
-                                     && (gaitPanel.target.emotion === modelData
-                                         || (modelData === "neutral" && gaitPanel.target.emotion === ""))
-                        onClicked: if (gaitPanel.target) gaitPanel.target.setEmotion(modelData)
+                    Chip {
+                        active: gaitPanel.target !== null
+                                && (gaitPanel.target.emotion === modelData
+                                    || (modelData === "neutral" && gaitPanel.target.emotion === ""))
+                        onPicked: (name) => { if (gaitPanel.target) gaitPanel.target.setEmotion(name) }
                     }
                 }
             }
@@ -556,14 +550,11 @@ Item {
                 spacing: 4
                 Repeater {
                     model: gaitPanel.gait ? gaitPanel.gait.presetNames : []
-                    Button {
-                        required property string modelData
-                        text: modelData
-                        font.pixelSize: 10
-                        highlighted: gaitPanel.gait
-                                     && (gaitPanel.gait.preset === modelData
-                                         || (modelData === "neutral" && gaitPanel.gait.preset === ""))
-                        onClicked: if (gaitPanel.gait) gaitPanel.gait.preset = modelData
+                    Chip {
+                        active: gaitPanel.gait !== null
+                                && (gaitPanel.gait.preset === modelData
+                                    || (modelData === "neutral" && gaitPanel.gait.preset === ""))
+                        onPicked: (name) => { if (gaitPanel.gait) gaitPanel.gait.preset = name }
                     }
                 }
             }
