@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QMap>
+#include <QVariantMap>
 #include <QQmlComponent>
 
 /**
@@ -23,11 +24,23 @@ public:
     ClayWebAccess(QObject* parent = nullptr);
 
 public slots:
-    /** Performs an HTTP GET request, returns a unique request ID. */
-    int get(const QString& url, const QString& auth = "");
+    /**
+     *  Performs an HTTP GET request, returns a unique request ID.
+     *
+     *  \a auth is a space separated auth spec: "Bearer <token>" or
+     *  "Basic <user> <password>". \a headers are extra raw headers, e.g. an
+     *  API key header. Every value - token, user, password, header value -
+     *  may be given literally, as "env.<VARIABLE>" or as "file://<path>".
+     */
+    int get(const QString& url,
+            const QString& auth = "",
+            const QVariantMap& headers = QVariantMap());
 
     /** Performs an HTTP POST request, returns a unique request ID. */
-    int post(const QString& url, const QString& json, const QString& auth = "");
+    int post(const QString& url,
+             const QString& json,
+             const QString& auth = "",
+             const QVariantMap& headers = QVariantMap());
 
 signals:
     /** Signal emitted when a request is successfully processed. */
@@ -42,11 +55,13 @@ private slots:
 private:
     QString resolveAuthString(const QString &authStr);
     void handleAuthorization(QNetworkRequest &req, const QString &authString);
+    void applyHeaders(QNetworkRequest &req, const QVariantMap &headers);
     int remPendingRequest(QNetworkReply *reply);
     void handleNetworkError(QNetworkReply *reply, const QString &errorDetails);
     int sendRequest(QNetworkAccessManager::Operation operation,
                     const QString &url,
                     const QString &authString = "",
+                    const QVariantMap &headers = QVariantMap(),
                     const QByteArray &data = QByteArray(),
                     const QString &contentType = ""
                     );
