@@ -1617,7 +1617,9 @@ Item {
             id: director
             rig: rig
             presenter: prof
-            safe: ({ top: 0.08, bottom: 0.27, left: 0.17, right: 0.04 })
+            // The presets panel is hidden during a lesson, so the picture
+            // starts at the left edge; outside one it is the palette's width.
+            safe: ({ top: 0.08, bottom: 0.27, left: 0.04, right: 0.04 })
         }
 
         // The flow, handed to the professor. Bound to currentFlow rather than
@@ -1852,6 +1854,14 @@ Item {
         // "the palette", and a pixel rectangle for it goes wrong the moment the
         // UI scale changes. See clayrender --crop.
         objectName: "palette"
+        // Off during a lesson: nothing in it is used while the flow builds
+        // and explains, and a column of presets beside a teacher is one more
+        // thing to look at. It fades rather than pops, and comes back the
+        // moment the flow ends.
+        readonly property bool inLesson: root.currentFlow ? root.currentFlow.running : false
+        visible: opacity > 0.001
+        opacity: inLesson ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: 300 } }
         board: board
         lab: root
         flow: root.currentFlow
@@ -2045,12 +2055,10 @@ Item {
     }
 
     // The scene card: the director's title while an establishing shot
-    // holds. The banner is the kernel's status pill, worn here as a title.
-    LabBanner {
+    // holds, over the whole picture.
+    SceneTitle {
+        anchors.fill: parent
         text: director.title
-        active: director.title !== ""
-        topMargin: LabTheme.px(72)
-        fill: LabTheme.secondary
     }
 
     Narrator {

@@ -70,6 +70,7 @@ clay_plugin( Lab
         GridMode.qml
         CameraAnchorMark.qml
         CameraDirector.qml
+        SceneTitle.qml
         measure.js
         HandheldInstrument.qml
         TapeMeasure.qml
