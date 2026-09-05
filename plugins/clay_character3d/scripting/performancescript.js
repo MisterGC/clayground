@@ -46,6 +46,8 @@ var EMOTIONS = {
     happy: "happy", joy: "happy",
     sad: "sad", sadness: "sad",
     angry: "angry", anger: "angry",
+    disgust: "disgust", disgusted: "disgust",
+    surprised: "surprised", surprise: "surprised", shocked: "surprised",
     neutral: "", calm: ""
 }
 
