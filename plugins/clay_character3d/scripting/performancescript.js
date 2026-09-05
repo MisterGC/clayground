@@ -60,6 +60,11 @@ var PLAIN = {
 // a QML objectName - the scene resolves it, the character never knows about it.
 var TARGETED = {
     "point at": "point",
+    // The open hand offered toward a thing - for a group or an area, where a
+    // finger would point at nothing in particular. "show" is the same cue
+    // under the word a script author reaches for first.
+    "present": "present",
+    "show": "present",
     "look at": "look",
     "face": "face"
 }
@@ -275,6 +280,8 @@ function describe(cue) {
         return "emotion " + (cue.value === "" ? "neutral" : cue.value)
     case "point":
         return "point at " + cue.target
+    case "present":
+        return "present " + cue.target
     case "look":
         return "look at " + cue.target
     case "face":
@@ -308,7 +315,7 @@ function _isDirective(cue) { return cue.type !== "say" }
 function _argOf(cue) {
     switch (cue.type) {
     case "emotion": return cue.value
-    case "point": case "look": case "face": return cue.target
+    case "point": case "present": case "look": case "face": return cue.target
     case "pause": return "" + cue.ms
     case "custom": return cue.arg
     }
