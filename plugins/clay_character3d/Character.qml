@@ -10,6 +10,7 @@ import QtQuick
 import Clayground.Canvas3D
 import "bodyparts"
 import "animation"
+import "animation/gait.js" as GaitLib
 
 pragma ComponentBehavior: Bound
 
@@ -70,6 +71,136 @@ BodyPartsGroup {
         \brief Duration of the idle animation cycle in milliseconds.
     */
     property alias idleCycleDuration: _idleAnim.duration
+
+    // ============================================================================
+    // GAIT
+    // ============================================================================
+    // How the character walks and runs is one composed factor vector, fed by
+    // three sources that each default to nothing: the author's Gait object, the
+    // build (a ParametricCharacter hands its sliders over as gaitBuild), and
+    // the emotion the face is wearing. The cycles read gaitFactors; with every
+    // source at neutral they are the walk and run the framework always had.
+
+    /*!
+        \qmlproperty Gait Character::gait
+        \brief How this character walks and runs, by preset and by factor.
+
+        A neutral \l Gait - the default - changes nothing. Replace it to ask
+        for something:
+        \qml
+        Character { gait: Gait { preset: "heavy"; bounce: 0.02 } }
+        \endqml
+        It composes with what the build and the mood say rather than
+        overriding them; see \l gaitFactors.
+    */
+    property Gait gait: Gait {}
+
+    /*!
+        \qmlproperty bool Character::gaitFromBuild
+        \brief Whether the body's build shapes the gait. On by default.
+
+        A \l ParametricCharacter walks by its sliders: a child's quick high
+        steps, an elderly shuffle, a heavy rock, a feminine sway. All subtle,
+        zero at every default, and switched off here for a character whose
+        walk should ignore its body.
+    */
+    property bool gaitFromBuild: true
+
+    /*!
+        \qmlproperty bool Character::gaitFromEmotion
+        \brief Whether the mood shapes the gait. On by default.
+
+        The same channel the face uses: a spoken line's emotion while it is
+        spoken, \l emotion otherwise. A sad character slows and slumps, a happy
+        one springs, an angry one leans in with the elbows bent - the walking
+        counterpart of \l speechBodyLanguage.
+    */
+    property bool gaitFromEmotion: true
+
+    /*!
+        \qmlproperty var Character::gaitBuild
+        \brief The build as the gait model reads it: an object with
+               \c maturity, \c femininity, \c mass and \c muscle in 0..1, or
+               null. A \l ParametricCharacter binds its sliders here.
+    */
+    property var gaitBuild: null
+
+    /*!
+        \qmlproperty var Character::gaitFactors
+        \readonly
+        \brief The composed, clamped factor vector the cycles are walking with.
+
+        The thing to assert on: it says what the character was asked to do,
+        where a joint angle mid-swing says only where the leg happens to be.
+        Keys are the ten factors of \l Gait.
+    */
+    readonly property var gaitFactors: GaitLib.compose([
+        _character.gaitFromBuild ? GaitLib.buildFactors(_character.gaitBuild) : null,
+        _character.gaitFromEmotion ? GaitLib.emotionFactors(_character._gaitEmotion) : null,
+        _character.gait ? _character.gait.factors : null
+    ])
+
+    readonly property string _gaitEmotion: _emotionCtl.current !== "" ? _emotionCtl.current
+                                                                     : _emotionCtl.persistent
+
+    /*!
+        \qmlproperty real Character::gaitLift
+        \readonly
+        \brief How far the gait has raised the whole figure right now, in world
+               units - the bounce. Zero unless a cycle is running or a pose is
+               held by \l applyGaitPose().
+    */
+    readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
+                                   : _runAnim.running ? _runAnim.lift
+                                   : _character._heldLift
+    property real _heldLift: 0
+
+    /*!
+        \qmlmethod var Character::gaitPoseAt(string base, real t)
+        \brief The joint angles this character's gait has at phase \a t of the
+               \a base cycle ("walk" or "run"), 0..1, with nothing running.
+
+        Pure: the same answer as the running cycle would give at that moment,
+        computed from \l gaitFactors. Returns \c {{rightLeg, leftLeg, rightArm,
+        leftArm, hip, torso, head, lift}} in the joints' own conventions, lift
+        in leg heights. The cycle sheet is drawn from it.
+    */
+    function gaitPoseAt(base, t) {
+        return GaitLib.poseAt(GaitLib.derive(base, _character.gaitFactors), t)
+    }
+
+    /*!
+        \qmlmethod void Character::applyGaitPose(string base, real t)
+        \brief Freezes the joints at phase \a t of the \a base cycle.
+
+        For looking, not for playing: it writes the pose of \l gaitPoseAt()
+        straight onto the joints, which only makes sense while \l activity is
+        Idle and no gesture holds them - a running cycle would animate over it
+        within a frame. A row of characters frozen at successive phases is a
+        walk cycle on one sheet, the way animators check one; see
+        \c bench/GaitSheetSandbox.qml.
+    */
+    function applyGaitPose(base, t) {
+        const p = _character.gaitPoseAt(base, t)
+        function leg(l, a) {
+            l.upperLeg.eulerRotation = Qt.vector3d(a.upper, 0, 0)
+            l.lowerLeg.eulerRotation = Qt.vector3d(a.lower, 0, 0)
+            l.foot.eulerRotation = Qt.vector3d(a.foot, 0, 0)
+        }
+        function arm(m, a) {
+            m.upperArm.eulerRotation = Qt.vector3d(a.upper, 0, 0)
+            m.lowerArm.eulerRotation = Qt.vector3d(a.lower, 0, 0)
+            m.hand.eulerRotation = Qt.vector3d(0, 0, 0)
+        }
+        leg(_rightLeg, p.rightLeg)
+        leg(_leftLeg, p.leftLeg)
+        arm(_rightArm, p.rightArm)
+        arm(_leftArm, p.leftArm)
+        _hip.eulerRotation = Qt.vector3d(p.hip[0], p.hip[1], p.hip[2])
+        _torso.eulerRotation = Qt.vector3d(p.torso[0], p.torso[1], p.torso[2])
+        _head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
+        _character._heldLift = p.lift * _character.legHeight
+    }
 
     // Bounding box dimensions (derived from body parts)
     width: Math.max(shoulderWidth, waistWidth, hipWidth)
@@ -1043,8 +1174,11 @@ BodyPartsGroup {
 
         scaledFace: Box3DGeometry.BottomFace
         faceScale: Qt.vector2d(waistWidth/width, 1.0)
-        // Position torso above legs, feet, and hip
-        basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height, 0)
+        // Position torso above legs, feet, and hip - plus whatever the gait
+        // is lifting the whole figure by this instant. Everything hangs off
+        // the torso, so this is the figure's bounce, feet included.
+        basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height
+                                + _character.gaitLift, 0)
 
         Head {
             id: _head
@@ -1165,10 +1299,11 @@ BodyPartsGroup {
         }
     }
 
+    // The two gaits. Angles and cycle length come from gaitFactors through
+    // gait.js; the entity's legHeight sets the stride and so the speed.
     WalkAnim {
         id: _walkAnim
         entity: _character
-        // Duration is calculated internally from leg geometry
         running: _character.activity === Character.Activity.Walking
         loops: Animation.Infinite
     }
@@ -1176,7 +1311,6 @@ BodyPartsGroup {
     RunAnim {
         id: _runAnim
         entity: _character
-        // Duration is calculated internally from leg geometry
         running: _character.activity === Character.Activity.Running
         loops: Animation.Infinite
     }

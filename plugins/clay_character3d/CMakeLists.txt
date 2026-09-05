@@ -37,6 +37,7 @@ clay_plugin( Character3D
     QML_FILES
         # Core Components
         Character.qml
+        Gait.qml
         CharacterEditor.qml
         ParametricCharacter.qml
         RatioBasedCharacter.qml
@@ -59,6 +60,8 @@ clay_plugin( Character3D
 
         # Animation System
         animation/ProceduralAnim.qml
+        animation/gait.js
+        animation/GaitCycleAnim.qml
         animation/WalkAnim.qml
         animation/RunAnim.qml
         animation/IdleAnim.qml
@@ -91,6 +94,11 @@ target_include_directories(ClayCharacter3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/s
 if(Qt6TextToSpeech_FOUND)
     target_compile_definitions(ClayCharacter3D PRIVATE CLAY_CHARACTER3D_HAS_TTS)
 endif()
+
+# The gait model is Qt-free on purpose, so node checks in a second that the
+# all-neutral gait is the legacy walk and run to the digit - the one claim a
+# screenshot cannot make.
+clay_add_node_test(character3d_gait SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/gait.test.js)
 
 # Behaviour suites. GazeAnim and ListenAnim ask their head and speaker for a
 # handful of properties and nothing else, so they are tested against stubs -

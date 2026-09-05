@@ -248,8 +248,13 @@ Character {
     legHeight: bodyHeight * _legToBodyRatio
     legDepth: legWidth * 1.2
 
-    // Movement properties are now derived from leg animation geometry
-    // walkSpeed and strideLength are calculated in WalkAnim based on leg swing angles
+    // Movement properties are derived from leg animation geometry: walkSpeed
+    // and strideLength come out of the gait cycle from the leg swing angles.
+
+    // The build walks. The four sliders go to the gait model, which is
+    // neutral at every default and fades each effect in toward the ends -
+    // see gait.js buildFactors(). Character.gaitFromBuild switches it off.
+    gaitBuild: ({ maturity: maturity, femininity: femininity, mass: mass, muscle: muscle })
 
     // Colors
     skinColor: skin
