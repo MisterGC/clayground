@@ -178,7 +178,8 @@ Item {
             skin: target.skin.toString(),
             hairTone: target.hairTone.toString(),
             topClothing: target.topClothing.toString(),
-            bottomClothing: target.bottomClothing.toString()
+            bottomClothing: target.bottomClothing.toString(),
+            gaitPreset: target.gait ? target.gait.preset : ""
         }
         store.set("char_" + target.name, JSON.stringify(settings))
         console.log("Saved settings for: " + target.name)
@@ -206,6 +207,7 @@ Item {
             if (settings.hairTone) target.hairTone = settings.hairTone
             if (settings.topClothing) target.topClothing = settings.topClothing
             if (settings.bottomClothing) target.bottomClothing = settings.bottomClothing
+            if (settings.gaitPreset !== undefined && target.gait) target.gait.preset = settings.gaitPreset
             console.log("Loaded settings for: " + target.name)
         } catch (e) {
             console.log("Failed to load settings for: " + target.name)
@@ -523,6 +525,49 @@ Item {
                         highlighted: root.editTarget && root.editTarget.activity === Character.Fighting
                         enabled: root.editTarget !== null
                         onClicked: if (root.editTarget) root.editTarget.activity = Character.Fighting
+                    }
+                }
+
+                // Gait: how the walk and run above are performed. A preset
+                // here composes with the build sliders and the expression
+                // below rather than replacing them - see Character.gaitFactors.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Gait"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                ComboBox {
+                    id: gaitPresetBox
+                    Layout.fillWidth: true
+                    font.pixelSize: 10
+                    readonly property var gait: root.editTarget ? root.editTarget.gait : null
+                    enabled: gait !== null
+                    model: gait ? gait.presetNames : []
+                    currentIndex: {
+                        if (!gait) return 0
+                        const i = gait.presetNames.indexOf(gait.preset)
+                        return i < 0 ? 0 : i
+                    }
+                    onActivated: (index) => {
+                        if (!gait) return
+                        gait.preset = gait.presetNames[index]
+                        root.scheduleAutoSave()
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const f = c.gaitFactors
+                        const mul = ["tempo", "stride", "armSwing", "kneeLift"]
+                        let parts = []
+                        for (const k in f) {
+                            const n = mul.indexOf(k) >= 0 ? 1 : 0
+                            if (Math.abs(f[k] - n) > 1e-9) parts.push(k + " " + (+f[k].toFixed(2)))
+                        }
+                        return (parts.length ? parts.join("  ") : "neutral")
+                             + "   walk " + c.walkSpeed.toFixed(1) + "  run " + c.runSpeed.toFixed(1)
                     }
                 }
 

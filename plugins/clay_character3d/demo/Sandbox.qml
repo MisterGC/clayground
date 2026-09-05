@@ -1,5 +1,5 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// @brief Parametric 3D characters with animation and patrol
+// @brief Parametric 3D characters with animation, gait and patrol
 // @tags 3D, Character, Animation
 // @category Plugin Demos
 
@@ -293,6 +293,8 @@ Item {
             hairTone: "#3d3d3d"
             topClothing: "#5d4e37"
             bottomClothing: "#3d3d3d"
+            // Explicit factors: a slow, head-down walk with quiet arms.
+            gait: Gait { tempo: 0.85; headPitch: 10; armSwing: 0.7 }
         }
         PatrolController {
             character: npcThinker
@@ -347,6 +349,8 @@ Item {
             hairTone: "#1a1a1a"
             topClothing: "#3498db"
             bottomClothing: "#2c3e50"
+            // A preset by name; the athletic build (muscle 0.9) composes on top.
+            gait: Gait { preset: "proud" }
         }
         PatrolController {
             character: npcHero
@@ -486,6 +490,119 @@ Item {
         characters: root.allCharacters
         view3d: view3d
         gameController: gameController
+    }
+
+    // Gait panel: preset and emotion for the edited character (or the
+    // player), so face and walk can be put together. The other archetypes
+    // need nothing here - Eater's mass, Child's maturity and Stylized's
+    // femininity already shape their patrol walks through the build.
+    Rectangle {
+        id: gaitPanel
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 10
+        width: 300
+        height: gaitColumn.height + 16
+        color: _gaitPal.window
+        opacity: 0.92
+        radius: 8
+        border.color: Qt.alpha(_gaitPal.windowText, 0.2)
+
+        SystemPalette { id: _gaitPal }
+
+        readonly property var target: charEditor.editTarget ?? character
+        readonly property var gait: target ? target.gait : null
+
+        Column {
+            id: gaitColumn
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 8
+            spacing: 4
+
+            Text {
+                text: "Gait: " + (gaitPanel.target ? gaitPanel.target.name : "-")
+                font.bold: true
+                color: _gaitPal.windowText
+            }
+            Text {
+                text: "Emotion (face + walk)"
+                font.pixelSize: 10
+                color: Qt.alpha(_gaitPal.windowText, 0.6)
+            }
+            Row {
+                spacing: 4
+                Repeater {
+                    model: ["neutral", "happy", "sad", "angry"]
+                    Button {
+                        required property string modelData
+                        text: modelData
+                        font.pixelSize: 10
+                        highlighted: gaitPanel.target
+                                     && (gaitPanel.target.emotion === modelData
+                                         || (modelData === "neutral" && gaitPanel.target.emotion === ""))
+                        onClicked: if (gaitPanel.target) gaitPanel.target.setEmotion(modelData)
+                    }
+                }
+            }
+            Text {
+                text: "Preset"
+                font.pixelSize: 10
+                color: Qt.alpha(_gaitPal.windowText, 0.6)
+            }
+            Flow {
+                width: parent.width
+                spacing: 4
+                Repeater {
+                    model: gaitPanel.gait ? gaitPanel.gait.presetNames : []
+                    Button {
+                        required property string modelData
+                        text: modelData
+                        font.pixelSize: 10
+                        highlighted: gaitPanel.gait
+                                     && (gaitPanel.gait.preset === modelData
+                                         || (modelData === "neutral" && gaitPanel.gait.preset === ""))
+                        onClicked: if (gaitPanel.gait) gaitPanel.gait.preset = modelData
+                    }
+                }
+            }
+            Row {
+                spacing: 8
+                CheckBox {
+                    text: "from build"
+                    font.pixelSize: 10
+                    checked: gaitPanel.target ? gaitPanel.target.gaitFromBuild : true
+                    onToggled: if (gaitPanel.target) gaitPanel.target.gaitFromBuild = checked
+                }
+                CheckBox {
+                    text: "from emotion"
+                    font.pixelSize: 10
+                    checked: gaitPanel.target ? gaitPanel.target.gaitFromEmotion : true
+                    onToggled: if (gaitPanel.target) gaitPanel.target.gaitFromEmotion = checked
+                }
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                font.pixelSize: 10
+                color: _gaitPal.windowText
+                text: {
+                    const c = gaitPanel.target
+                    if (!c) return ""
+                    const f = c.gaitFactors
+                    const mul = ["tempo", "stride", "armSwing", "kneeLift"]
+                    let parts = []
+                    for (const k in f) {
+                        const n = mul.indexOf(k) >= 0 ? 1 : 0
+                        if (Math.abs(f[k] - n) > 1e-9) parts.push(k + " " + (+f[k].toFixed(2)))
+                    }
+                    return "factors: " + (parts.length ? parts.join("  ") : "neutral")
+                         + "\nwalk " + c.walkSpeed.toFixed(1) + "  run " + c.runSpeed.toFixed(1)
+                         + "   (walk: WASD, or the editor's Walk/Run)"
+                }
+            }
+        }
     }
 
     // Gesture keys, and what the layer says it is doing - the state a test
