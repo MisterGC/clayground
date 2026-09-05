@@ -569,7 +569,7 @@ character-local coordinates for the same reason.
 
 Walk and run are one cycle, `GaitCycleAnim`, animated from a table that
 `animation/gait.js` derives from a base - the walk or the run as it was
-authored - and twelve factors around neutral. A factor that scales an amplitude
+authored - and thirteen factors around neutral. A factor that scales an amplitude
 is 1 at neutral, one that offsets is 0, and the all-neutral gait is the walk
 and run the framework always had, to the digit: `gait.test.js` asserts the
 derived table against the formulas `WalkAnim` and `RunAnim` used to carry, so
@@ -624,6 +624,7 @@ The factors, as `Gait` exposes them:
 | `headPitch` | adds | 0 | head pitch in degrees; positive looks down, negative lifts the chin |
 | `armSwing` | multiplies | 1 | arm swing amplitude; 0 hangs the arms |
 | `armForward` | adds | 0 | degrees the whole swing is carried ahead of the body, same amplitude; bent elbows plus this is fists pumping before the chest |
+| `armOut` | adds | 0 | degrees the upper arms are carried out from the ribs, held through the cycle rather than alternating. Only reads head-on, and it is what separates a walk with somewhere to be from one ready to hit something |
 | `elbow` | adds | 0 | elbow bend in degrees on top of the cycle's own (a walk bends 10, a run 70) |
 | `kneeLift` | multiplies | 1 | knee lift; below 1 drags the feet, above it high-steps; the foot angles follow |
 | `sway` | adds | 0 | hip yaw in degrees, alternating with the step, the shoulders countering by half |
@@ -667,8 +668,8 @@ swinging over a slightly longer, slower step; `march` is high knees, a wide
 arm swing, straight elbows and a straight back.
 
 `furious` is short, hard, quick steps with the knees stamping, the shoulders
-hunched over a forward head and the fists carried before the chest by a bent
-elbow - not a bigger walk. Two earlier versions of it were: one slid the whole
+hunched over a forward head, the upper arms carried off the ribs and the fists
+before the chest by a bent elbow - not a bigger walk. Two earlier versions of it were: one slid the whole
 arm swing 22 degrees forward, the other folded the elbow to 80, and both put
 the forearms out in front where they barely alternated, which reads as a
 sleepwalker from every angle. The cycle sheet is what settled it. A name that is not in the list does nothing

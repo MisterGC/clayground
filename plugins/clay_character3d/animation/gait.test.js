@@ -203,6 +203,28 @@ section('emotions: the same vocabulary the face uses')
     ok('happy swings the arms further than angry', happy.armFwd + happy.armBack > angry.armFwd + angry.armBack)
 }
 
+section('armOut carries the upper arms off the ribs, and only that')
+{
+    const n = G.derive('walk', null)
+    eq('neutral holds them against the body', n.armOut, 0)
+    const f = G.derive('walk', G.compose([{ armOut: 14 }]))
+    eq('the factor arrives', f.armOut, 14)
+    near('and moves nothing else', f.armFwd, n.armFwd, 1e-12)
+    near('nor the reach behind', f.armBack, n.armBack, 1e-12)
+    eq('never adducts past the body', G.derive('walk', G.compose([{ armOut: -30 }])).armOut, 0)
+
+    // Signed by the side, not by the phase: both arms go OUT, and they stay
+    // out for the whole cycle.
+    for (const t of [0, 0.2, 0.5, 0.75]) {
+        const p = G.poseAt(f, t)
+        near('t=' + t + ': the right arm rolls +out', p.rightArm.out, 14, 1e-12)
+        near('t=' + t + ': the left arm rolls -out', p.leftArm.out, -14, 1e-12)
+    }
+    const p0 = G.poseAt(G.derive('walk', null), 0)
+    eq('a neutral walk keeps them in', p0.rightArm.out, 0)
+    eq('and on the other side too', p0.leftArm.out, 0)
+}
+
 section('armForward shifts the swing, keeps its amplitude')
 {
     const n = G.derive('walk', null)
@@ -365,6 +387,8 @@ section('a neutral pose is the legacy key pose')
     const p = G.poseAt(G.derive('walk', null), 0)
     eq('no lift', p.lift, 0)
     eq('level hip', JSON.stringify(p.hip), JSON.stringify([0, 0, 0]))
+    eq('arms against the body', p.rightArm.out + p.leftArm.out, 0)
+    eq('and not held out at all', p.rightArm.out, 0)
     eq('upright torso', JSON.stringify(p.torso), JSON.stringify([0, 0, 0]))
     eq('straight belly', JSON.stringify(p.belly), JSON.stringify([0, 0, 0]))
     eq('straight chest', JSON.stringify(p.chest), JSON.stringify([0, 0, 0]))
@@ -451,7 +475,12 @@ section('the angry walk is short, hard steps with the arms held in')
     ok('angry reaches less far back than a neutral walk', angry.armBack < n.armBack)
     ok('angry hunches the shoulders over the head',
        angry.chestLean - angry.bellyLean > 8)
-    ok('angry throws its weight side to side', angry.rock > n.rock)
+    ok('angry shifts its weight side to side', angry.rock > n.rock)
+    // ...but not much. Four degrees each way at this tempo is a waddle, and
+    // rolling side to side is what WEIGHT looks like, not what anger does.
+    ok('angry does not waddle', angry.rock <= G.derive('walk',
+       G.compose([G.presetFactors('heavy')])).rock / 2)
+    ok('angry carries the upper arms off the ribs', angry.armOut > 8)
 }
 
 process.exit(K.report('gait model'))

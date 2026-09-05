@@ -6,7 +6,7 @@ import "animation/gait.js" as GaitLib
     \qmltype Gait
     \inqmlmodule Clayground.Character3D
     \inherits QtObject
-    \brief How a character walks and runs: a named preset, twelve factors, or both.
+    \brief How a character walks and runs: a named preset, thirteen factors, or both.
 
     Every factor is 1 (the multiplicative ones) or 0 (the additive ones) at
     neutral, and a neutral Gait is the walk and run the framework always had.
@@ -111,6 +111,18 @@ QtObject {
                elbows plus this is fists pumping before the chest. */
     property real armForward: 0
 
+    /*!
+        \qmlproperty real Gait::armOut
+        \brief How far the upper arms are carried out from the ribs, in
+               degrees. 0 hangs them against the body.
+
+        Held through the cycle rather than alternating with it - a carriage,
+        not a movement - and signed by the side, so both arms go outward. It
+        is what separates a walk with somewhere to be from one ready to hit
+        something, and it only reads head-on: a profile cannot see it.
+    */
+    property real armOut: 0
+
     /*! \qmlproperty real Gait::elbow
         \brief Elbow bend in degrees on top of the cycle's own (a walk bends
                10, a run 70). Bent elbows with a quick tempo read as fists
@@ -144,7 +156,7 @@ QtObject {
             tempo: _gait.tempo, stride: _gait.stride, bounce: _gait.bounce,
             lean: _gait.lean, spineCurve: _gait.spineCurve,
             headPitch: _gait.headPitch, armSwing: _gait.armSwing,
-            armForward: _gait.armForward,
+            armForward: _gait.armForward, armOut: _gait.armOut,
             elbow: _gait.elbow, kneeLift: _gait.kneeLift, sway: _gait.sway,
             rock: _gait.rock
         }

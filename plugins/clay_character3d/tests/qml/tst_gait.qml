@@ -126,6 +126,8 @@ Item {
             verify(!body.belly.moved())
             verify(!body.chest.moved())
             verify(!body.hip.moved())
+            compare(body.rightArm.upperArm.eulerRotation.z, 0)
+            compare(body.leftArm.upperArm.eulerRotation.z, 0)
             compare(body.head.poseEuler, Qt.vector3d(0, 0, 0))
             compare(walk.lift, 0)
         }
@@ -178,6 +180,21 @@ Item {
             // And the legs are untouched: nothing was asked to lean.
             verify(Math.abs(body.belly.eulerRotation.x
                             + body.hip.eulerRotation.x) < 0.05)
+        }
+
+        // The channel that did not exist before: a Vector3dAnimation writing a
+        // z that nothing reads would be silent, so this asserts the roll lands
+        // on both upper arms, with opposite signs, and holds through the cycle.
+        function test_armOut_rolls_both_upper_arms_off_the_ribs() {
+            body.gaitFactors = { armOut: 14 }
+            compare(walk.table.armOut, 14)
+            walk.start()
+            tryVerify(() => Math.abs(body.rightArm.upperArm.eulerRotation.z - 14) < 0.05, 1000)
+            verify(Math.abs(body.leftArm.upperArm.eulerRotation.z + 14) < 0.05)
+            // still there half a cycle later - it is a carriage, not a swing
+            wait(450)
+            verify(Math.abs(body.rightArm.upperArm.eulerRotation.z - 14) < 0.05)
+            verify(Math.abs(body.leftArm.upperArm.eulerRotation.z + 14) < 0.05)
         }
 
         function test_tempo_and_stride_change_the_speed() {

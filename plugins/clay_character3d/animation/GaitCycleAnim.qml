@@ -209,12 +209,15 @@ ProceduralAnim {
             to: Qt.vector3d(_cycle.table.footDown, 0, 0)
         }
 
-        // The arm on the leading leg's side goes back
+        // The arm on the leading leg's side goes back. The outward roll is
+        // signed by the SIDE, and `s` is it: phase 1 leads with the right arm
+        // and phase 2 with the left, so `s` on the lead and `-s` on the trail
+        // is +armOut on the right arm and -armOut on the left in both.
         EulerAnim {
             target: _step.leadArm.upperArm
             duration: _cycle.duration
-            from: Qt.vector3d(-_cycle.table.armFwd, 0, 0)
-            to: Qt.vector3d(_cycle.table.armBack, 0, 0)
+            from: Qt.vector3d(-_cycle.table.armFwd, 0, _cycle.table.armOut * _step.s)
+            to: Qt.vector3d(_cycle.table.armBack, 0, _cycle.table.armOut * _step.s)
         }
         EulerAnim {
             target: _step.leadArm.lowerArm
@@ -227,8 +230,8 @@ ProceduralAnim {
         EulerAnim {
             target: _step.trailArm.upperArm
             duration: _cycle.duration
-            from: Qt.vector3d(_cycle.table.armBack, 0, 0)
-            to: Qt.vector3d(-_cycle.table.armFwd, 0, 0)
+            from: Qt.vector3d(_cycle.table.armBack, 0, -_cycle.table.armOut * _step.s)
+            to: Qt.vector3d(-_cycle.table.armFwd, 0, -_cycle.table.armOut * _step.s)
         }
         EulerAnim {
             target: _step.trailArm.lowerArm

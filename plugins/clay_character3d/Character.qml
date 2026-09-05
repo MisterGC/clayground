@@ -132,7 +132,7 @@ BodyPartsGroup {
 
         The thing to assert on: it says what the character was asked to do,
         where a joint angle mid-swing says only where the leg happens to be.
-        Keys are the twelve factors of \l Gait.
+        Keys are the thirteen factors of \l Gait.
     */
     readonly property var gaitFactors: GaitLib.compose([
         _character.gaitFromBuild ? GaitLib.buildFactors(_character.gaitBuild) : null,
@@ -188,7 +188,7 @@ BodyPartsGroup {
             l.foot.eulerRotation = Qt.vector3d(a.foot, 0, 0)
         }
         function arm(m, a) {
-            m.upperArm.eulerRotation = Qt.vector3d(a.upper, 0, 0)
+            m.upperArm.eulerRotation = Qt.vector3d(a.upper, 0, a.out)
             m.lowerArm.eulerRotation = Qt.vector3d(a.lower, 0, 0)
             m.hand.eulerRotation = Qt.vector3d(0, 0, 0)
         }

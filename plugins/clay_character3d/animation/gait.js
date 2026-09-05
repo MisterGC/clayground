@@ -47,6 +47,12 @@ var FACTORS = {
     headPitch: { kind: "add", neutral: 0, min: -40, max: 40 },
     armSwing:  { kind: "mul", neutral: 1, min: 0,   max: 2 },
     armForward:{ kind: "add", neutral: 0, min: -30, max: 60 },
+    // How far the upper arms are held OUT from the ribs, in degrees. The
+    // cycle swung them fore and aft and nothing else, so every gait had the
+    // arms glued to the sides whatever else it was doing - which is why an
+    // angry walk could not be told from a hurried one head-on. Held through
+    // the cycle rather than alternating: it is a carriage, not a movement.
+    armOut:    { kind: "add", neutral: 0, min: 0,   max: 45 },
     elbow:     { kind: "add", neutral: 0, min: -10, max: 80 },
     kneeLift:  { kind: "mul", neutral: 1, min: 0.3, max: 2 },
     sway:      { kind: "add", neutral: 0, min: 0,   max: 20 },
@@ -155,14 +161,21 @@ var EMOTIONS = {
     // a sleepwalker from every angle. Folding the elbow to 80 instead put
     // both forearms out horizontally, which is the same silhouette by another
     // route, and it left the arms swinging at the hips with no attitude at
-    // all. What works is a NORMAL swing with a hard bend and almost no
+    // all. What works is a NORMAL swing with a hard bend and a small
     // forward bias: the upper arms still pass each other, so the swing reads
     // head-on as well as in profile, and 65 degrees of elbow carries the
     // fists from in front of the hip to in front of the chest and back -
     // which is the pumping the forward bias was reaching for and could not
     // make without folding the silhouette flat.
+    //
+    // armOut is the other half of it, and the cycle had no way to say it: the
+    // upper arms are carried thirteen degrees off the ribs, which is what
+    // makes a body look ready to hit something rather than in a hurry. The
+    // rock went back down to 2 at the same time - a trunk rolling four
+    // degrees each way at this tempo reads as a waddle, and side-to-side
+    // weight is the HEAVY cue anyway, not the angry one.
     angry: { tempo: 1.22, stride: 0.92, lean: 11, spineCurve: 6, armSwing: 1.0, elbow: 55,
-             armForward: 4, kneeLift: 1.25, headPitch: 7, rock: 4, bounce: 0.015 }
+             armForward: 8, armOut: 13, kneeLift: 1.25, headPitch: 7, rock: 2, bounce: 0.015 }
 }
 
 function canonicalEmotion(e) {
@@ -196,7 +209,8 @@ var BUILD = {
     // Weight in front has to be counterbalanced behind: a heavy walker leans
     // BACK and leads with the belly. The old forward 2 degrees fought the
     // gut it was supposed to be carrying.
-    heavy:     { tempo: 0.82, stride: 0.86, rock: 6, elbow: 4, kneeLift: 0.9, lean: -3, spineCurve: -3 },
+    heavy:     { tempo: 0.82, stride: 0.86, rock: 6, elbow: 4, kneeLift: 0.9, lean: -3,
+                 spineCurve: -3, armOut: 7 },
     light:     { tempo: 1.06, bounce: 0.01 },
     athletic:  { lean: 3, armSwing: 1.15, tempo: 1.05, elbow: 8, spineCurve: -4 },
     soft:      { lean: 4, headPitch: 4, armSwing: 0.85, spineCurve: 6 }
@@ -333,6 +347,7 @@ function derive(baseName, factors) {
         // arm never gets behind the hip at all.
         armFwd: clamp(b.armFwd * get("armSwing") + get("armForward"), 0, 110),
         armBack: clamp(b.armBack * get("armSwing") - get("armForward"), -60, 90),
+        armOut: clamp(get("armOut"), 0, 45),
         elbow: clamp(b.elbow + get("elbow"), 0, 140),
         lean: lean,
         // The factor's share of the lean pivots at the WAIST: the hip counters
@@ -405,7 +420,8 @@ function liftAt(u) {
 // the belly's bend and its yaw the sway. t in [0, 0.5) is the first phase (right leg swinging forward),
 // [0.5, 1) the second; t = 1 is t = 0 again. Angles follow the joints' own
 // conventions: positive x pitches forward and down, so a forward leg or arm is
-// negative x. Legs and arms are {upper, lower, foot|hand}; torso, belly, chest,
+// negative x. Legs are {upper, lower, foot}, arms {upper, lower, out} with out
+// the roll that carries them away from the ribs; torso, belly, chest,
 // hip and head are [x, y, z]; lift is in leg heights. belly and chest are the
 // two halves of the trunk on either side of the waist joint: their pitches sum
 // to the table's lean and their difference is how round the back is.
@@ -434,6 +450,10 @@ function poseAt(table, t) {
     // Arms oppose their leg: the arm on the forward leg's side goes back.
     var armBack = { upper: mix(-table.armFwd, table.armBack), lower: -table.elbow }
     var armFwd = { upper: mix(table.armBack, -table.armFwd), lower: -table.elbow }
+    // The outward angle is signed by the SIDE, not by the phase: a positive
+    // roll on the +X arm and a negative one on the other take both away from
+    // the body.
+    function out(a, side) { return { upper: a.upper, lower: a.lower, out: table.armOut * side } }
 
     // Right leg forward means the right hip leads: a negative yaw brings the
     // +X side forward, so over the first phase the hip yaws from +sway to
@@ -446,8 +466,8 @@ function poseAt(table, t) {
     return {
         rightLeg: second ? back : fwd,
         leftLeg: second ? fwd : back,
-        rightArm: second ? armFwd : armBack,
-        leftArm: second ? armBack : armFwd,
+        rightArm: out(second ? armFwd : armBack, 1),
+        leftArm: out(second ? armBack : armFwd, -1),
         hip: [table.hipLean, yaw, 0],
         // The trunk group carries no pitch of its own any more: the tilt
         // lives in the two spine segments below it, whose angles add up to
