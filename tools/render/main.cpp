@@ -16,7 +16,9 @@
 #include <QJsonObject>
 
 #include <QCommandLineParser>
+#include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QQuickWindow>
 #include <QFile>
@@ -25,6 +27,8 @@
 #include <QQuickItem>
 #include <QTemporaryDir>
 #include <QTextStream>
+
+#include <memory>
 
 namespace {
 
@@ -148,6 +152,116 @@ QList<Step> collectSteps(const QStringList& args)
     return steps;
 }
 
+// What the scene did over time, as the loader's trace.jsonl says it: a meta
+// line, then one JSON object per sample. The one difference is the clock -
+// the loader samples on a timer, this samples once per rendered frame, so a
+// sample here is always a frame that was actually drawn.
+//
+// Written a line at a time and flushed, never buffered until the end: a
+// --wait-for that times out exits 3 without an image, and the trace of how
+// the state was NOT reached is the evidence the caller came for.
+class FrameTrace
+{
+public:
+    // 'path' is a file, or "-" for stdout. Fails only when the file cannot be
+    // opened, which is a usage error to report before anything renders.
+    bool open(const QString& path, const QStringList& expressions,
+              QString* error)
+    {
+        m_expressions = expressions;
+        if (path == QLatin1String("-")) {
+            m_stdout = true;
+            return true;
+        }
+        m_file.setFileName(path);
+        if (!m_file.open(QIODevice::WriteOnly | QIODevice::Truncate
+                         | QIODevice::Text)) {
+            if (error) *error = QStringLiteral("cannot write --trace-out %1")
+                                .arg(path);
+            return false;
+        }
+        return true;
+    }
+
+    // One sample: every expression against the root, this frame. A throw is
+    // recorded as {"error": ...} for that expression and nothing else - the
+    // trace is an observer, and an observer that aborts the run would turn
+    // "what happened" into "nothing happened".
+    void sample(QQuickItem* root)
+    {
+        if (m_frames == 0) {
+            m_clock.start();
+            writeMeta();
+        }
+        QJsonObject values;
+        for (const auto& expression : m_expressions) {
+            QJsonValue value;
+            QString error;
+            if (ClayScene::evalValue(root, expression, &value, &error))
+                values[expression] = value;
+            else
+                values[expression] = QJsonObject{{"error", error}};
+        }
+        QJsonObject line;
+        line["frame"] = m_frames;
+        line["t"] = static_cast<double>(m_clock.elapsed());
+        line["values"] = values;
+        writeLine(line);
+        ++m_frames;
+    }
+
+    // Stops observing. The meta line is still written for a run that never
+    // rendered a frame, so the file always says what was being watched.
+    void close()
+    {
+        if (m_closed)
+            return;
+        m_closed = true;
+        if (m_frames == 0)
+            writeMeta();
+        if (m_file.isOpen())
+            m_file.close();
+    }
+
+    ~FrameTrace() { close(); }
+
+    int frames() const { return m_frames; }
+
+private:
+    void writeMeta()
+    {
+        QJsonObject meta;
+        meta["meta"] = "trace_start";
+        // Wall clock of the first sample, so epochMs + t is an absolute time
+        // the same way it is for the loader's trace.
+        meta["epochMs"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+        meta["sampling"] = "frame";
+        meta["watch"] = QJsonArray::fromStringList(m_expressions);
+        writeLine(meta);
+    }
+
+    void writeLine(const QJsonObject& object)
+    {
+        const QByteArray line =
+            QJsonDocument(object).toJson(QJsonDocument::Compact) + "\n";
+        if (m_stdout) {
+            QTextStream out(stdout);
+            out << QString::fromUtf8(line);
+            out.flush();
+        } else if (m_file.isOpen()) {
+            m_file.write(line);
+            m_file.flush();
+        }
+    }
+
+    QStringList m_expressions;
+    QFile m_file;
+    bool m_stdout = false;
+    bool m_closed = false;
+    int m_frames = 0;
+    QElapsedTimer m_clock;
+};
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -230,6 +344,27 @@ int main(int argc, char* argv[])
         "photographing a state that was never reached.", "js");
     QCommandLineOption waitMsOpt("wait-timeout",
         "Upper bound for --wait-for in ms.", "ms", "3000");
+    QCommandLineOption traceOpt("trace",
+        "Evaluate this expression in the root's context once per rendered "
+        "frame - from the first --set/--eval/--script through --frames, "
+        "--wait-for and --settle, up to the capture - and write the samples "
+        "to --trace-out. The one way to observe motion without a session: "
+        "--trace 'view3d.mapFrom3DScene(prof.headAnchor).x'. Objects come "
+        "back as JSON, an expression that throws yields {\"error\": ...} "
+        "for that frame and never aborts the run. Repeatable.\n"
+        "Example - a character's screen position through a flight:\n"
+        "  clayrender labs/kits/professor/Sandbox.qml --out x.png "
+        "--eval 'prof.appear()' --eval 'prof.travelTo(Qt.vector3d(6,0,4))' "
+        "--trace 'view3d.mapFrom3DScene(prof.headAnchor).x' "
+        "--trace 'prof.travelling' --trace-out flight.jsonl "
+        "--wait-for '!prof.travelling' --wait-timeout 8000", "js");
+    QCommandLineOption traceOutOpt("trace-out",
+        "Where --trace samples go: JSONL in the shape of the loader's "
+        "trace.jsonl - a {\"meta\":\"trace_start\",...} line, then one "
+        "{\"frame\",\"t\",\"values\"} object per rendered frame, 't' in ms "
+        "since the first sample and 'values' keyed by expression. Streamed "
+        "as it goes, so a --wait-for that exits 3 still leaves the trace of "
+        "how the state was not reached. Required with --trace.", "file|-");
     QCommandLineOption framesOpt("frames",
         "Render this many frames before capturing.", "n", "2");
     QCommandLineOption settleOpt("settle",
@@ -265,7 +400,7 @@ int main(int argc, char* argv[])
 
     parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
                        scriptOpt, resultOpt, pausedOpt, waitForOpt, waitMsOpt,
-                       framesOpt, settleOpt,
+                       traceOpt, traceOutOpt, framesOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
                        cropOpt, cropPadOpt, scaleOpt, widthOpt});
     parser.process(app);
@@ -309,6 +444,15 @@ int main(int argc, char* argv[])
     if (!ok)
         return fail(QString("cannot parse --size '%1'").arg(parser.value(sizeOpt)));
 
+    // Both halves or neither: a trace with nowhere to go would be silently
+    // dropped, and a destination with nothing to watch is a typo.
+    const QStringList traced = parser.values(traceOpt);
+    if (!traced.isEmpty() && !parser.isSet(traceOutOpt))
+        return fail("--trace without --trace-out: say where the samples go "
+                    "(a file, or - for stdout)");
+    if (traced.isEmpty() && parser.isSet(traceOutOpt))
+        return fail("--trace-out without --trace: nothing to write");
+
     RenderHost host;
     host.setPausedOnLoad(parser.isSet(pausedOpt));
     if (!host.load(sandbox, size)) {
@@ -322,6 +466,18 @@ int main(int argc, char* argv[])
     // a run without the flag must behave exactly as it always did.
     const bool wantResults = parser.isSet(resultOpt);
     QJsonArray results;
+
+    // Armed before the first step, so every frame from here to the capture
+    // is a sample - but not the frames load() drew, which show a scene nobody
+    // has asked anything of yet. Declared after host, so it is destroyed
+    // (and flushed) first on every return path, including the exit-3 one.
+    FrameTrace trace;
+    if (!traced.isEmpty()) {
+        QString error;
+        if (!trace.open(parser.value(traceOutOpt), traced, &error))
+            return fail(error);
+        host.setFrameRendered([&]() { trace.sample(host.rootObject()); });
+    }
 
     for (const auto& step : collectSteps(app.arguments())) {
         QString error;
@@ -498,6 +654,11 @@ int main(int argc, char* argv[])
         capReq.targetWidth = parser.value(widthOpt).toInt();
 
     auto capture = ClayScene::capture(host, capReq);
+    // The capture's frame is the last sample: it is the frame the picture
+    // shows. Whatever renders after this (--pick grabs the full frame again)
+    // is not part of the run being observed.
+    host.setFrameRendered({});
+    trace.close();
     if (!capture.ok())
         return fail(capture.error);
 

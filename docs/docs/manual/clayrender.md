@@ -98,6 +98,58 @@ before `--settle` and before the capture. An `--eval` written after
 *before* the wait; put the assertion in the `--wait-for` expression instead and
 read the exit code.
 
+## Watching it move
+
+`--result` answers at one moment; `--trace` answers at every frame. It
+evaluates an expression in the root's context once per rendered frame — from
+the first `--set`/`--eval`/`--script` through `--frames`, `--wait-for` and
+`--settle`, up to and including the frame the picture shows — and writes the
+samples to `--trace-out`. That is how a question about *motion* gets answered
+without a Dojo session: did the professor stay in frame for the whole flight,
+how did the camera's goal pose change while a step ran.
+
+```bash
+clayrender labs/kits/professor/Sandbox.qml --out x.png \
+    --eval 'prof.appear()' --eval 'prof.travelTo(Qt.vector3d(6,0,4))' \
+    --trace 'view3d.mapFrom3DScene(prof.headAnchor).x' \
+    --trace 'prof.travelling' --trace-out flight.jsonl \
+    --wait-for '!prof.travelling' --wait-timeout 8000
+```
+
+```
+{"epochMs":1788600672519,"meta":"trace_start","sampling":"frame","watch":["view3d.mapFrom3DScene(prof.headAnchor).x","prof.travelling"]}
+{"frame":0,"t":0,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":640}}
+{"frame":1,"t":19,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":640}}
+...
+{"frame":49,"t":2847,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":2533.457275390625}}
+{"frame":50,"t":2906,"values":{"prof.travelling":false,"view3d.mapFrom3DScene(prof.headAnchor).x":2531.55224609375}}
+```
+
+Fifty-two frames later the professor has landed — and at 2533 px on a
+1280-wide viewport, its head left the picture on the way. That is a fact
+about the sandbox's default camera, and the single frame `--out` wrote could
+never have told you.
+
+The file is JSONL in the shape of the Dojo inspector's `trace.jsonl`: a meta
+line naming what was watched, then one object per rendered frame with the
+`frame` index, `t` in milliseconds since the first sample and `values` keyed by
+the expression as the command line spelled it. `-` writes it to stdout. The
+one difference from the inspector's trace is the clock — the inspector samples
+on a timer, `clayrender` samples the frames it draws, so a sample is never a
+moment between two frames.
+
+Values follow the `--result` rules: numbers, strings and booleans as they are,
+objects and arrays as JSON (a `vector3d` comes back as `{x, y, z}`), and
+anything JSON cannot carry as its `String()`. An expression that throws yields
+`{"error": "..."}` for that frame and nothing else; a trace is an observer,
+and one that aborted the run would turn *what happened* into *nothing
+happened*. Exit codes are unaffected by tracing, and the file is written a line
+at a time — so a `--wait-for` that exits 3 leaves the trace of how the state
+was *not* reached, which is usually the evidence you wanted.
+
+`--trace` needs `--trace-out`, and the other way round: both together or it is
+a usage error.
+
 ## Starting paused
 
 `--paused` sets `Clayground.paused` before the sandbox root is created, so no
@@ -220,6 +272,7 @@ clayrender Sandbox.qml --out shot.png \
 | 0 | rendered, no complaints |
 | 1 | never loaded (missing file, QML that does not parse) — nothing written |
 | 2 | rendered, but the scene logged warnings or errors — image still written |
+| 3 | `--wait-for` never came true — no image, but a `--trace` is still written |
 
 Exit 2 exists because a runtime `ReferenceError` does not stop a component from
 instantiating: a broken scene can produce a perfectly plausible picture. The
