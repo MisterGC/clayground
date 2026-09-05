@@ -907,7 +907,21 @@ BodyPartsGroup {
 
         // Default dimensions
         width: 1.0
-        height: baseHeight + jawStretch
+        // Reaches UP into the cranium by the width of the chamfer: a rounded
+        // jaw and a rounded skull meeting edge to edge make a groove across
+        // the cheek, and the only way two chamfered boxes read as one is for
+        // one to be inside the other where they meet. The face shader places
+        // the mouth in world units from the box's bottom, so the extra height
+        // moves nothing on the face. Estimated from the rest dimensions, not
+        // read from the geometry - the geometry's width depends on this
+        // height, and that would be a loop.
+        height: baseHeight + jawStretch + _seamOverlap
+        readonly property real _seamOverlap: {
+            const own = bevel * Math.min(width, baseHeight, depth)
+            const above = _upperHead.bevel
+                        * Math.min(_upperHead.width, _upperHead.height, _upperHead.depth)
+            return Math.max(own, above) * 1.15
+        }
         depth: 1.2
         showEdges: true
         // Everything except the four TOP borders (bits 3-6). Those four run

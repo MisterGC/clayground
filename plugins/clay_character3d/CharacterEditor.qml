@@ -178,7 +178,8 @@ Item {
             skin: target.skin.toString(),
             hairTone: target.hairTone.toString(),
             topClothing: target.topClothing.toString(),
-            bottomClothing: target.bottomClothing.toString()
+            bottomClothing: target.bottomClothing.toString(),
+            gaitPreset: target.gait ? target.gait.preset : ""
         }
         store.set("char_" + target.name, JSON.stringify(settings))
         console.log("Saved settings for: " + target.name)
@@ -206,6 +207,7 @@ Item {
             if (settings.hairTone) target.hairTone = settings.hairTone
             if (settings.topClothing) target.topClothing = settings.topClothing
             if (settings.bottomClothing) target.bottomClothing = settings.bottomClothing
+            if (settings.gaitPreset !== undefined && target.gait) target.gait.preset = settings.gaitPreset
             console.log("Loaded settings for: " + target.name)
         } catch (e) {
             console.log("Failed to load settings for: " + target.name)
@@ -242,6 +244,29 @@ Item {
     }
 
     // Parameter slider component
+    // A choice in a row, drawn by hand: under the native macOS style a
+    // Button's highlighted and checked looks do not repaint when the state
+    // leaves them, so a row of Buttons shows every choice ever clicked.
+    component Chip: Rectangle {
+        id: chip
+        property string label: ""
+        property bool active: false
+        signal picked()
+        width: chipLabel.implicitWidth + 16
+        height: chipLabel.implicitHeight + 8
+        radius: 5
+        color: active ? _sysPal.highlight : Qt.alpha(root._panelFg, 0.08)
+        border.color: Qt.alpha(root._panelFg, active ? 0 : 0.25)
+        Text {
+            id: chipLabel
+            anchors.centerIn: parent
+            text: chip.label
+            font.pixelSize: 10
+            color: chip.active ? _sysPal.highlightedText : root._panelFg
+        }
+        MouseArea { anchors.fill: parent; onClicked: chip.picked() }
+    }
+
     component ParamSlider: RowLayout {
         property string label: ""
         property real value: 0.5
@@ -489,78 +514,100 @@ Item {
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
-                    Button {
-                        text: "Idle"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Idle
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Idle
-                    }
-                    Button {
-                        text: "Walk"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Walking
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Walking
-                    }
-                    Button {
-                        text: "Run"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Running
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Running
-                    }
-                    Button {
-                        text: "Using"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Using
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Using
-                    }
-                    Button {
-                        text: "Fight"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Fighting
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Fighting
+                    Repeater {
+                        model: [
+                            { label: "idle", value: Character.Activity.Idle },
+                            { label: "walk", value: Character.Activity.Walking },
+                            { label: "run", value: Character.Activity.Running },
+                            { label: "use", value: Character.Activity.Using },
+                            { label: "fight", value: Character.Activity.Fighting }
+                        ]
+                        Chip {
+                            required property var modelData
+                            label: modelData.label
+                            active: root.editTarget !== null && root.editTarget.activity === modelData.value
+                            onPicked: if (root.editTarget) root.editTarget.activity = modelData.value
+                        }
                     }
                 }
 
-                // Facial expressions
+                // Emotion: face AND walk, and it persists. This used to set the
+                // face alone (faceActivity), which left the walk unmoved and
+                // needed a second row for the gait's mood; one channel now.
                 Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
-                Text { text: "Expression"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Text { text: "Emotion"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
-                    Button {
-                        text: "Idle"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.Idle
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.Idle
+                    Repeater {
+                        model: ["neutral", "happy", "sad", "angry"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.emotion === modelData
+                                        || (modelData === "neutral" && root.editTarget.emotion === ""))
+                            onPicked: if (root.editTarget) root.editTarget.setEmotion(modelData)
+                        }
                     }
-                    Button {
-                        text: "Joy"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowJoy
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowJoy
+                }
+
+                // Gait: how the walk and run are performed. A preset composes
+                // with the build sliders above and the emotion - it does not
+                // replace them - which is what the factor line shows.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Gait"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: root.editTarget && root.editTarget.gait ? root.editTarget.gait.presetNames : []
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null && root.editTarget.gait !== null
+                                    && (root.editTarget.gait.preset === modelData
+                                        || (modelData === "neutral" && root.editTarget.gait.preset === ""))
+                            onPicked: {
+                                if (!root.editTarget || !root.editTarget.gait) return
+                                root.editTarget.gait.preset = modelData
+                                root.scheduleAutoSave()
+                            }
+                        }
                     }
-                    Button {
-                        text: "Anger"
+                }
+                Row {
+                    spacing: 8
+                    CheckBox {
+                        text: "from build"
                         font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowAnger
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowAnger
+                        checked: root.editTarget ? root.editTarget.gaitFromBuild : true
+                        onToggled: if (root.editTarget) root.editTarget.gaitFromBuild = checked
                     }
-                    Button {
-                        text: "Sad"
+                    CheckBox {
+                        text: "from emotion"
                         font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowSadness
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowSadness
+                        checked: root.editTarget ? root.editTarget.gaitFromEmotion : true
+                        onToggled: if (root.editTarget) root.editTarget.gaitFromEmotion = checked
                     }
-                    Button {
-                        text: "Talk"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.Talk
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.Talk
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const f = c.gaitFactors
+                        const mul = ["tempo", "stride", "armSwing", "kneeLift"]
+                        let parts = []
+                        for (const k in f) {
+                            const n = mul.indexOf(k) >= 0 ? 1 : 0
+                            if (Math.abs(f[k] - n) > 1e-9) parts.push(k + " " + (+f[k].toFixed(2)))
+                        }
+                        return (parts.length ? parts.join("  ") : "neutral")
+                             + "   walk " + c.walkSpeed.toFixed(1) + "  run " + c.runSpeed.toFixed(1)
                     }
                 }
 
@@ -574,22 +621,24 @@ Item {
                     font.pixelSize: 11
                     onAccepted: root.sayCurrentInput()
                 }
+                // The mood of the LINE, borrowed for its length; the lasting one
+                // is the Emotion row above.
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
+                    Text { text: "line:"; font.pixelSize: 10; color: root._panelFgDim; height: 22; verticalAlignment: Text.AlignVCenter }
                     Repeater {
                         model: [
-                            { label: "Neutral", emotion: "" },
-                            { label: "Happy", emotion: "happy" },
-                            { label: "Sad", emotion: "sad" },
-                            { label: "Angry", emotion: "angry" }
+                            { label: "neutral", emotion: "" },
+                            { label: "happy", emotion: "happy" },
+                            { label: "sad", emotion: "sad" },
+                            { label: "angry", emotion: "angry" }
                         ]
-                        Button {
+                        Chip {
                             required property var modelData
-                            text: modelData.label
-                            font.pixelSize: 10
-                            highlighted: root.speechEmotion === modelData.emotion
-                            onClicked: root.speechEmotion = modelData.emotion
+                            label: modelData.label
+                            active: root.speechEmotion === modelData.emotion
+                            onPicked: root.speechEmotion = modelData.emotion
                         }
                     }
                 }

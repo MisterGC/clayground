@@ -778,6 +778,78 @@ which is the determinism check every lab change should re-run. For
 *composing* labs (blocks, conventions, flows, design language), use the
 sibling skill `skills/clay-lab/`.
 
+## Reading a walk on a cycle sheet
+
+Any time a gait, a preset or the build mapping in
+`plugins/clay_character3d/animation/gait.js` is changed or verified, render
+the cycle sheet, not a moving character. `bench/GaitSheetSandbox.qml`
+freezes N idle figures at successive phases of one cycle
+(`Character.applyGaitPose(base, t)`, t = i/frames); nothing animates, so the
+render is deterministic and a sheet compares across presets and commits. A
+flaw that hides from a debugger and springs to the eye in motion is on paper.
+
+```bash
+clayrender plugins/clay_character3d/bench/GaitSheetSandbox.qml --size 1800x500 \
+    --set 'preset="elderly"' --set 'emotion="sad"' --set 'base="walk"' \
+    --set 'maturity=0.9' --set 'yaw=90' --set 'frames=8' \
+    --wait-for 'ready' --out /tmp/elderly.png
+```
+
+Settable: `preset`, `emotion` (`happy`/`sad`/`angry`/empty), `base`
+(`walk`/`run`), the build sliders `maturity`/`femininity`/`mass`/`muscle`
+plus `bodyHeight`, `fromBuild`, `yaw` (90 side-on walking screen-right, 0
+head-on, 45 three-quarter), `frames`.
+
+**Always `--wait-for 'ready'`, never `--frames` alone.** Each figure takes
+its first pose 300 ms after IdleAnim has zeroed its joints, and `ready` is
+every figure having had that first pass. Every later change (a `--set` of
+emotion, base or a slider, an `--eval` on `sheetGait`) re-poses the figures
+synchronously in the handler, so a capture on any frame after the change is
+current. A capture without the wait can land inside IdleAnim's 200 ms and
+show sixteen zeroed joints under a header naming a gait.
+
+How to read it (the labels under the figures say which is which):
+
+- `t = 0` and `t = 0.5` are the **contacts**: legs furthest apart, leading
+  heel down, figure at its lowest.
+- `t = 0.25` and `t = 0.75` are the **passing** positions: legs crossing,
+  free knee at its highest, figure at its highest if the gait bounces.
+- Between them: the arms oppose the legs, the head holds its attitude,
+  nothing folds the wrong way, and the lift reads against the floor line
+  (orthographic camera, floor top face at y = 0, so a bounce leaves it
+  visibly).
+
+If one of the four poses looks wrong on the sheet it looks wrong at speed.
+
+The header line in the PNG is `report()`: base, preset (`(UNKNOWN)` when the
+name is not in the table), emotion, build, every non-neutral factor of the
+first figure's `gaitFactors`, and the derived speed. Read numbers there.
+
+Tuning loop:
+
+```bash
+# 1. change numbers in gait.js (FACTORS, BASES, EMOTIONS, BUILD, PRESETS)
+node plugins/clay_character3d/animation/gait.test.js
+# 2. REBUILD - plugin QML/JS is baked into the plugin's resources; a render
+#    without this shows the OLD table and looks like the edit did nothing
+cmake --build build --target ClayCharacter3D
+# 3. re-render the sheet
+```
+
+Factors beyond a preset go through the sheet's shared Gait object:
+`--eval 'sheetGait.lean = 6'`.
+
+Trap: an `--eval` placed after `--wait-for` still runs before the wait, so a
+trailing `--eval` probe reads the scene before it is posed. Read values from
+the header text in the PNG, or put the probe inside the `--wait-for`
+expression.
+
+Reading a live gait: `character.gaitFactors` is the thing to assert on - it
+says what the character was asked to do, where a joint angle mid-swing says
+only where the leg happens to be. For a visual check of an actual walking
+character use the demo sandbox (`plugins/clay_character3d/demo/Sandbox.qml`,
+`n` toggles the gesturer between Idle and Walking) or the dojo.
+
 ## Fix loop discipline
 
 Live `eval` patches are preview only — a way to confirm a fix hypothesis on

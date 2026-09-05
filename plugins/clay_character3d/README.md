@@ -543,6 +543,115 @@ nothing checks.
 `Character` publishes `rightShoulderPos`, `leftShoulderPos` and `headPos` in
 character-local coordinates for the same reason.
 
+### Gait
+
+Walk and run are one cycle, `GaitCycleAnim`, animated from a table that
+`animation/gait.js` derives from a base - the walk or the run as it was
+authored - and eleven factors around neutral. A factor that scales an amplitude
+is 1 at neutral, one that offsets is 0, and the all-neutral gait is the walk
+and run the framework always had, to the digit: `gait.test.js` asserts the
+derived table against the formulas `WalkAnim` and `RunAnim` used to carry, so
+a retyped digit cannot pass as neutral.
+
+Three sources feed a character's gait, and each defaults to nothing:
+
+```qml
+ParametricCharacter {
+    maturity: 0.9                                   // the build: an elderly shuffle
+    gait: Gait { preset: "elderly"; tempo: 1.2 }    // the author: elderly, a fifth quicker
+    Component.onCompleted: setEmotion("sad")        // the mood: slows and slumps the walk too
+}
+```
+
+- **The build.** A `ParametricCharacter` hands `maturity`, `femininity`,
+  `mass` and `muscle` to the gait model as `gaitBuild`.
+- **The emotion.** The same channel the face uses: a spoken line's emotion
+  while it is spoken, `emotion` otherwise. `setEmotion("sad")` slows the
+  walk, shortens the step and hangs the head as well as pulling the face.
+- **A `Gait` object** with a preset, factors, or both.
+
+`Character.gaitFactors` is the three folded into one vector: multiplicative
+factors multiply, additive ones add, and the result is clamped once. There is
+no override layer on purpose - `preset: "elderly"` with `tempo: 1.2` is
+"elderly, a fifth quicker" and reads that way, and a sad and heavy character
+is slower than either alone. `gaitFromBuild` and `gaitFromEmotion` switch the
+first two sources off:
+
+```qml
+Character {
+    gaitFromBuild: false       // the walk ignores the body
+    gaitFromEmotion: false     // and the mood
+}
+```
+
+Speed follows the feet, whatever the gait. `walkSpeed`, `runSpeed` and
+`currentSpeed` come out of the derived table and the leg height with the
+formula the old cycles used, so a controller that moves the character by
+`currentSpeed` needs no change: a shorter stride or a slower tempo covers
+less ground, and the feet do not slide.
+
+The factors, as `Gait` exposes them:
+
+| factor | kind | neutral | what it moves |
+|---|---|---|---|
+| `tempo` | multiplies | 1 | cadence; 1.2 takes steps a fifth quicker and covers ground a fifth faster |
+| `stride` | multiplies | 1 | how far the legs swing, and the speed with it |
+| `bounce` | adds | 0 | how high the whole figure rises at mid-step, in leg heights; 0.1 is the cap |
+| `lean` | adds | 0 | torso pitch in degrees on top of the cycle's own, bending at the waist so the legs stay planted; positive forward, negative chest out |
+| `headPitch` | adds | 0 | head pitch in degrees; positive looks down, negative lifts the chin |
+| `armSwing` | multiplies | 1 | arm swing amplitude; 0 hangs the arms |
+| `armForward` | adds | 0 | degrees the whole swing is carried ahead of the body, same amplitude; bent elbows plus this is fists pumping before the chest |
+| `elbow` | adds | 0 | elbow bend in degrees on top of the cycle's own (a walk bends 10, a run 70) |
+| `kneeLift` | multiplies | 1 | knee lift; below 1 drags the feet, above it high-steps; the foot angles follow |
+| `sway` | adds | 0 | hip yaw in degrees, alternating with the step, the torso countering by half |
+| `rock` | adds | 0 | torso roll in degrees over the planted leg, alternating with the step |
+
+Presets, by name (`Gait.presetNames`): `neutral` changes nothing; `cheerful`,
+`dejected` and `furious` are exactly what the `happy`, `sad` and `angry`
+emotions do to a walk - they share their rows in `gait.js`, so
+`setEmotion("sad")` and `preset: "dejected"` cannot drift apart; `elderly` is
+the top of the maturity slider (slow, short, shuffling, stooped) and `toddler`
+its bottom with a touch more tempo; `heavy` is the top of the mass slider with
+more rock; `sneak` is slow and short with high knees, leaning in, head down,
+elbows bent and the arms held still; `proud` is chest out, chin up and arms
+swinging over a slightly longer, slower step; `march` is high knees, a wide
+arm swing and straight elbows. A name that is not in the list does nothing
+and clears `Gait.presetKnown`.
+
+How the build maps (`buildFactors()` in `gait.js`): every default is exactly
+neutral, and each effect fades in linearly toward the end of its slider.
+`maturity` below 0.4 is the child zone (quicker, high-stepping, a little
+bounce), above 0.75 the elderly zone, and neutral in between - the proportion
+tables treat 1 as a full adult, so only the top quarter reads as elderly, for
+gait alone. `femininity`, `mass` and `muscle` fade out toward 0.5: feminine
+sways and swings the arms less, masculine rocks a little; heavy is slower and
+rocks more, light a touch quicker; athletic leans in and swings the arms, soft
+slumps. `bodyHeight` and `realism` do not enter the gait (the leg height they
+set enters the speed). The effects are kept subtle so the sliders stay a body
+and not a costume: `gait.test.js` checks that no corner of the four sliders
+leaves a walk.
+
+A factor change lands at the next half-cycle, when the phase that is starting
+reads its targets. There is no blend, which is how every other activity
+switch behaves.
+
+To look at a gait, draw it as a cycle sheet rather than watching it:
+`bench/GaitSheetSandbox.qml` freezes a row of figures at successive phases of
+one cycle, so the whole walk is on one sheet. Its header comment says how to
+read one; `ready` is the property to wait for, since a `--set` lands after
+the first pose pass.
+
+```bash
+clayrender plugins/clay_character3d/bench/GaitSheetSandbox.qml --size 1800x500 \
+    --set 'preset="elderly"' --set 'emotion="sad"' --set 'maturity=0.9' \
+    --set 'frames=8' --set 'yaw=90' --wait-for 'ready' --out /tmp/elderly.png
+```
+
+To assert on a gait, read `gaitFactors`: it says what the character was asked
+to do, where a joint angle mid-swing says only where the leg happens to be.
+`gaitPoseAt(base, t)` gives the joint angles at any phase with nothing
+running, and `applyGaitPose(base, t)` freezes an idle character there.
+
 ## Best Practices
 
 1. **Use ParametricCharacter** for quick character creation with intuitive parameters.
@@ -560,8 +669,8 @@ character-local coordinates for the same reason.
 The Character3D plugin implements:
 
 - **Modular Body Parts**: Head, torso, arms, legs with independent dimensions
-- **Procedural Animation**: Walk, run, idle animations derived from body geometry
-- **Animation-Speed Coupling**: Movement speeds calculated from leg swing geometry
+- **Procedural Animation**: Idle derived from body geometry; walk and run are one `GaitCycleAnim` over a table that `gait.js` derives from a base (the authored walk or run) plus the composed gait factors
+- **Animation-Speed Coupling**: Movement speeds calculated from the derived table's leg swing angles and the leg height, so speed still follows the feet whatever the gait
 - **Facial Expressions**: Multiple expression states (idle, joy, anger, sadness, talk)
 - **Editor Integration**: 3D picking, parameter sliders, and per-character persistence
 - **Coordinate System**: Origin at ground level (Y=0 at feet), character faces +Z when rotation is (0,0,0) - the nose sits on the +Z face of the head and `CharacterController` walks along +Z at yaw 0

@@ -1,5 +1,5 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// @brief Parametric 3D characters with animation and patrol
+// @brief Parametric 3D characters with animation, gait and patrol
 // @tags 3D, Character, Animation
 // @category Plugin Demos
 
@@ -109,7 +109,7 @@ Item {
         anchors.fill: parent
         
         environment: SceneEnvironment {
-            clearColor: "#f0f0f0"
+            clearColor: "#f2eee7"
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
@@ -118,64 +118,36 @@ Item {
             tonemapMode: SceneEnvironment.TonemapModeNone
         }
 
-        // Lighting setup - high ambient with visible shadows
-        // Main key light (primary shadow caster)
+        // The lab stage's rig (plugins/clay_lab/LabStage3D.qml): a key that
+        // casts, a side fill and a low camera-side fill, values from the
+        // light palette. Five lights used to be here, which is one over
+        // Quick3D's cap of four and flattened everything into the same tone.
         DirectionalLight {
             id: mainLight
-            eulerRotation.x: -40
-            eulerRotation.y: -45
-
+            eulerRotation.x: -36
+            eulerRotation.y: -26
+            brightness: 0.9
+            ambientColor: "#737380"
             castsShadow: true
-            shadowFactor: 90
+            shadowFactor: 58
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
-            pcfFactor: 2
-            shadowBias: 5
-            softShadowQuality: Light.PCF16
-            shadowMapFar: 200
-
-            brightness: 0.5
-            ambientColor: Qt.rgba(0.55, 0.55, 0.6, 1.0)
+            shadowMapFar: 250
+            csmNumSplits: 2
+            shadowBias: 3
+            softShadowQuality: Light.PCF4
+            pcfFactor: 1
         }
-
-        // Front fill light - ensures face is always lit
         DirectionalLight {
-            id: frontLight
-            eulerRotation.x: -20
-            eulerRotation.y: 180
-
-            castsShadow: false
-            brightness: 0.5
-        }
-
-        // Side fill lights for even coverage
-        DirectionalLight {
-            id: leftFill
-            eulerRotation.x: -25
-            eulerRotation.y: 90
-
-            castsShadow: false
+            eulerRotation.x: -60
+            eulerRotation.y: 142
             brightness: 0.35
         }
-
         DirectionalLight {
-            id: rightFill
-            eulerRotation.x: -25
-            eulerRotation.y: -90
-
-            castsShadow: false
-            brightness: 0.35
+            eulerRotation.x: -24
+            eulerRotation.y: 19
+            brightness: 0.27
         }
 
-        // Back light for rim
-        DirectionalLight {
-            id: backLight
-            eulerRotation.x: -20
-            eulerRotation.y: 0
-
-            castsShadow: false
-            brightness: 0.3
-        }
-        
         // Character camera that follows the editor's target (or player when nothing selected)
         CharacterCamera {
             id: charCamera
@@ -183,6 +155,17 @@ Item {
             orbitDistance: root.cameraDistance
             orbitPitch: root.cameraPitch
             orbitYawOffset: root.cameraYaw
+
+            // A soft fill that travels with the camera, so no orbit angle
+            // looks at an unlit side: the key above is fixed (its shadows
+            // must not swing with the view) and a fixed rig always has a
+            // dark quarter. Aimed a little below the view line so a face
+            // read from above still has its lit and its shaded planes.
+            DirectionalLight {
+                eulerRotation.x: -12
+                brightness: 0.45
+                castsShadow: false
+            }
         }
 
         // Mouse area for camera drag rotation
@@ -250,6 +233,7 @@ Item {
         ParametricCharacter {
             id: character
             name: "Player"
+            roundness: 0.15
             position: Qt.vector3d(0, 0, 0)
 
             // Body parameters
@@ -280,6 +264,7 @@ Item {
             id: npcThinker
             position: Qt.vector3d(-25, 0, -30)
             name: "Thinker"
+            roundness: 0.15
             bodyHeight: 9.0
             realism: 0.6
             maturity: 0.7
@@ -293,6 +278,8 @@ Item {
             hairTone: "#3d3d3d"
             topClothing: "#5d4e37"
             bottomClothing: "#3d3d3d"
+            // Explicit factors: a slow, head-down walk with quiet arms.
+            gait: Gait { tempo: 0.85; headPitch: 10; armSwing: 0.7 }
         }
         PatrolController {
             character: npcThinker
@@ -306,6 +293,7 @@ Item {
             id: npcEater
             position: Qt.vector3d(-12, 0, -30)
             name: "Eater"
+            roundness: 0.15
             bodyHeight: 10.0
             realism: 0.2
             maturity: 0.5
@@ -333,6 +321,7 @@ Item {
             id: npcHero
             position: Qt.vector3d(0, 0, -30)
             name: "Hero"
+            roundness: 0.15
             bodyHeight: 11.0
             realism: 0.3
             maturity: 0.5
@@ -347,6 +336,8 @@ Item {
             hairTone: "#1a1a1a"
             topClothing: "#3498db"
             bottomClothing: "#2c3e50"
+            // A preset by name; the athletic build (muscle 0.9) composes on top.
+            gait: Gait { preset: "proud" }
         }
         PatrolController {
             character: npcHero
@@ -360,6 +351,7 @@ Item {
             id: npcChild
             position: Qt.vector3d(12, 0, -30)
             name: "Child"
+            roundness: 0.15
             bodyHeight: 6.0
             realism: 0.0
             maturity: 0.0
@@ -386,6 +378,7 @@ Item {
             id: npcStylized
             position: Qt.vector3d(25, 0, -30)
             name: "Stylized"
+            roundness: 0.15
             bodyHeight: 9.5
             realism: 0.5
             maturity: 0.5
@@ -414,6 +407,7 @@ Item {
         Character {
             id: gesturer
             name: "Gesturer"
+            roundness: 0.15
             position: Qt.vector3d(-14, 0, 6)
             // Fingers, so a point reads as a point rather than as a stub
             detail: Character.Detail.High
@@ -488,11 +482,16 @@ Item {
         gameController: gameController
     }
 
+    // Gait, emotion and activity of the edited character live in the editor
+    // panel on the right; the archetypes need nothing here - Eater's mass,
+    // Child's maturity and Stylized's femininity shape their patrol walks
+    // through the build, Thinker and Hero carry an explicit Gait.
+
     // Gesture keys, and what the layer says it is doing - the state a test
     // asserts on rather than watching the arm.
     Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.bottom: gameController.top
+        anchors.left: parent.left
         anchors.margins: 10
         width: gestureHelp.width + 20
         height: gestureHelp.height + 16
@@ -511,19 +510,19 @@ Item {
             Text {
                 text: "Gesturer (plain Character)"
                 font.bold: true
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
             Text {
-                text: "P point   O thumbs up   I gesticulate   X stop\n"
-                      + "L look at camera   K release look   Y turn to marker\n"
-                      + "H fingers on/off   N walk/idle   1/2/3/0 emotion"
+                text: "P point  O thumbs up  I gesticulate  X stop  L/K look at camera / release\n"
+                      + "Y turn to marker  H fingers  N walk/idle  1/2/3/0 emotion"
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
             Text {
-                text: "gesture: \"" + gesturer.gesture + "\""
-                      + "   hand: \"" + gesturer.gestureHand + "\""
-                      + "   settled: " + gesturer.gestureSettled
-                      + "   emotion: \"" + gesturer.emotion + "\""
+                text: "gesture \"" + gesturer.gesture + "\"  hand \"" + gesturer.gestureHand + "\""
+                      + "  settled " + gesturer.gestureSettled + "  emotion \"" + gesturer.emotion + "\""
+                font.pixelSize: 11
                 color: _gesturePal.windowText
             }
         }
