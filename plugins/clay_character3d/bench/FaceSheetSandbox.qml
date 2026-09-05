@@ -194,8 +194,11 @@ Item {
 
     Grid {
         anchors.fill: parent
+        // columns only. Setting rows as well makes Grid warn whenever the two
+        // disagree with the number of visible items for even one binding pass,
+        // which a solo view does on every change - and a bench that warns
+        // makes clayrender exit 2 on a render that is perfectly fine.
         columns: root.solo ? 1 : 3
-        rows: root.solo ? 1 : 2
         Repeater {
             id: _heads
             model: root.expressions
@@ -235,7 +238,9 @@ Item {
         anchors.margins: 8
         horizontalAlignment: Text.AlignRight
         color: "#6b7075"
-        font.family: "monospace"
+        // No font.family: "monospace" resolves to nothing on macOS and Qt
+        // warns about it once, which is enough to make clayrender exit 2 -
+        // "loaded with scene errors" - on a bench that has none.
         font.pixelSize: 12
         text: "1-6 one face   0 the sheet   F face  Q quarter  P profile   H silhouette"
     }
