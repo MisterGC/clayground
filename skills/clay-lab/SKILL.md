@@ -228,6 +228,17 @@ Kernel (`import Clayground.Lab`):
 - **`WorldLabel`** — 2D paper chip pinned to a 3D point (meter pills,
   value tags, selection cards). Sibling of the View3D, not inside it; it
   already carries the camera-dependency fix from the pitfall list.
+- **`MarkLayer`** — rings on the parts a line is naming *while* it names
+  them, so the eye can follow the sentence instead of hunting by ear. Same
+  place as `WorldLabel`, same camera-dependency fix. Two sources, one
+  drawing: `FlowStep.mark: ["battery", "switch"]` marks for the whole step,
+  and a performance script's `*mark the battery, the switch*` marks for the
+  length of the one line that follows it. Names resolve exactly as
+  `*point at NAME*` does, so a mark can land on a sub-part (a transistor's
+  collector pad) as easily as on a part. Give it `keepOut` — the presenter's
+  projected box, the same one `BoardOverlay` takes — or a ring drawn on the
+  teacher's coat marks the coat. Captions come from `FlowGuide.markLabelOf`,
+  because the names themselves are language-neutral authoring tokens.
 - **`LabTheme`** / **`ThemeSwitch`** / **`ScaleSwitch`** — all
   colour/shape/type/spacing tokens in a light and a dark palette, plus
   `inkOn()` and `step()`; see Design language. Drop the switches beside
@@ -602,6 +613,11 @@ knowing:
   transistors frames all five. The flow's own `frame` verb should stand
   aside while the presenter is on stage (electronics-101 does), or the step
   entry cuts to a wide shot the presenter then flies out of.
+- **A step that raises marks must hold its shot.** `subjectOf`'s `hold`
+  keeps the two-shot instead of pulling in to a portrait; without it the
+  camera is on the teacher's face while the rings are on the board behind
+  the frame. electronics-101 decides it from the step itself — a task step,
+  or any step with a `mark` list.
 
 One trap, and it cost a render: `WatchChip`, `WatchMark` and `OrbitInput3D`
 all declare a property whose name matches the id a lab habitually uses

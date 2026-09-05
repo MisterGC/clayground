@@ -74,6 +74,40 @@ section('directives: targets')
        'face/look')
 }
 
+section('directives: mark')
+{
+    const m = cues('*mark the collector*')[0]
+    eq('mark type', m.type, 'mark')
+    eq('one target', m.target, 'the collector')
+    eq('and it is a list of one', m.targets.join('|'), 'the collector')
+    eq('mark describes itself', shape('*mark the collector*'), 'mark the collector')
+
+    const g = cues('*mark the battery, the switch, the LED*')[0]
+    eq('a list splits', g.targets.join('|'), 'the battery|the switch|the LED')
+    eq('the description keeps the whole list',
+       P.describe(g), 'mark the battery, the switch, the LED')
+    eq('spacing round the commas is normalized',
+       cues('*mark a ,b ,  c*')[0].target, 'a, b, c')
+    eq('a trailing comma is not a target',
+       cues('*mark the battery,*')[0].targets.length, 1)
+    eq('a bare mark is an error', errs('*mark*').length, 1)
+    eq('so is a mark of nothing but commas', errs('*mark , ,*').length, 1)
+    eq('mark is not a point',
+       cues('*mark battery*')[0].type + '/' + cues('*point at battery*')[0].type,
+       'mark/point')
+
+    // The lint's job: a translator may rewrite the sentence, never the list.
+    eq('the same list in two languages is in sync',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the battery, the switch* Ein Kreis.').length, 0)
+    eq('a dropped name is caught',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the battery* Ein Kreis.').length, 1)
+    eq('a reordered list is caught',
+       P.lint('*mark the battery, the switch* One loop.',
+              '*mark the switch, the battery* Ein Kreis.').length, 1)
+}
+
 section('directives: gestures')
 {
     eq('thumbs up', shape('*thumbs up*'), 'thumbs up')

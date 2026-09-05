@@ -54,6 +54,14 @@ import "scripting/performancescript.js" as Script
     \l skipped and \l errors are all readable from an inspector or a headless
     render, and \l debug narrates every cue to the console.
 
+    \b{Marks.} \c{*mark the collector*} - or \c{*mark the battery, the
+    switch*} - resolves its names the way \c{*point at*} resolves its target
+    and publishes the points in \l marks. Nothing here draws them: a
+    sequencer has no view, and the overlay that does belongs to whatever is
+    showing the scene. They live for the length of the line the cue precedes
+    and are dropped when it ends, which is the whole of the rule an author
+    has to hold: a marker says "this one, now", not "this one, still".
+
     \sa Character
 */
 Item {
@@ -182,6 +190,17 @@ Item {
         to be debugged without being watched.
     */
     readonly property var firedLog: _firedLog
+    /*!
+        The world points a \c{*mark ...*} cue currently raises, as
+        \c vector3d, resolved exactly as a point target is. Empty whenever
+        nothing is marked. Bind an overlay to it.
+    */
+    readonly property var marks: _marks
+    /*!
+        The names behind \l marks, in the same order and only the ones that
+        resolved - a name that did not is in \l skipped instead.
+    */
+    readonly property var markNames: _markNames
 
     /*! Emitted after the last cue of a script. Not emitted by \l stop(). */
     signal finished()
@@ -278,6 +297,7 @@ Item {
         _stopTimers()
         _running = false
         _currentCue = ""
+        _clearMarks()
         // Whichever of the three the performer calls it.
         if (!_call("stopSpeaking") && !_call("hush"))
             _call("quiet")
@@ -333,6 +353,12 @@ Item {
     property var _skipped: []
     property var _firedLog: []
     property var _handlers: ({})
+    property var _marks: []
+    property var _markNames: []
+    // "" nothing marked, "armed" raised and waiting for its line, "showing"
+    // that line is being spoken. The state is what makes "for the length of
+    // the line" a rule rather than a guess about timing.
+    property string _markState: ""
     property var _warned: ({})
     property bool _running: false
     property bool _done: false
@@ -379,6 +405,36 @@ Item {
         return true
     }
 
+    function _clearMarks() {
+        if (_marks.length === 0 && _markNames.length === 0 && _markState === "")
+            return
+        _marks = []
+        _markNames = []
+        _markState = ""
+    }
+
+    // Raise the marks a cue asks for. Every name goes through the point
+    // resolver, so a scene that can be pointed at can be marked; a name that
+    // does not resolve is skipped and the rest of the list still shows.
+    function _mark(cue) {
+        const names = (cue.targets && cue.targets.length) ? cue.targets : [cue.target]
+        const pts = []
+        const kept = []
+        for (let i = 0; i < names.length; ++i) {
+            const pos = _resolve(names[i])
+            if (!pos) {
+                _skip({ type: "mark", target: names[i] },
+                      "target '" + names[i] + "' did not resolve")
+                continue
+            }
+            pts.push(pos)
+            kept.push(names[i])
+        }
+        _marks = pts
+        _markNames = kept
+        _markState = pts.length > 0 ? "armed" : ""
+    }
+
     function _skip(cue, reason) {
         _skipped = _skipped.concat([{ cue: Script.describe(cue), reason: reason }])
         const key = Script.describe(cue) + "|" + reason
@@ -399,10 +455,15 @@ Item {
     function _play() {
         if (!_running)
             return
+        // The line the marks belong to is over the moment the cue after it
+        // starts - that is the one edge "for the length of the line" has.
+        if (_markState === "showing")
+            _clearMarks()
         if (_next >= _cues.length) {
             _running = false
             _done = true
             _currentCue = ""
+            _clearMarks()
             if (debug)
                 console.log("[perform] " + _elapsed() + "ms done, "
                             + _cues.length + " cues")
@@ -453,6 +514,12 @@ Item {
             break
         case "rest":
             if (!_call("stopGesture")) _skip(cue, "performer has no stopGesture()")
+            _advanceLater()
+            break
+        case "mark":
+            // Nothing is asked of the performer: a mark is drawn by whatever
+            // is showing the scene, and the sequencer only says what and when.
+            _mark(cue)
             _advanceLater()
             break
         case "pause":
@@ -572,6 +639,9 @@ Item {
             _advanceLater()
             return
         }
+        // This is the line the marks were raised for.
+        if (_markState === "armed")
+            _markState = "showing"
         const clip = _clipFor(_sayIndex)
         _sayIndex++
         const timed = cue.hintMs !== null && cue.hintMs !== undefined

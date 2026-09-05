@@ -1230,13 +1230,16 @@ Item {
     }
 
     // Whether the running step keeps the camera on its subject: every task
-    // step (the learner has to find the thing), and the steps whose line
-    // walks through the parts of one thing.
+    // step (the learner has to find the thing), every step that raises marks
+    // (the ring is on the board, so a portrait of the teacher shows none of
+    // it), and the steps whose line walks through the parts of one thing.
     readonly property var heldSteps: ["meet", "chip"]
     function holdStep() {
         const f = root.currentFlow
         if (!f || !f.step) return false
-        return f.step.task !== null || root.heldSteps.indexOf(f.step.key) >= 0
+        return f.step.task !== null
+            || (f.step.mark && f.step.mark.length > 0)
+            || root.heldSteps.indexOf(f.step.key) >= 0
     }
 
     // The scene a step opens, for the establishing shot: a step whose demo
@@ -1404,14 +1407,44 @@ Item {
         return Qt.resolvedUrl("voice/en/" + s.key + "-" + sayIndex + ".m4a")
     }
 
-    // What a script's `*point at NAME*` means in THIS scene. The parts are
-    // model data, not named nodes, so the lookup answers from the model - the
-    // same authority subjectOf() uses - rather than from a scene walk.
+    // What a script's `*point at NAME*` - and a step's `mark:` list - means in
+    // THIS scene. The parts are model data, not named nodes, so the lookup
+    // answers from the model - the same authority subjectOf() uses - rather
+    // than from a scene walk.
+    //
+    // Two spellings on purpose. A script is prose ("the resistor"), so it
+    // reads that way; a `mark:` list is authoring, written once and shown in
+    // both languages, so it is the bare type ("resistor"). Both land on the
+    // same part.
+    readonly property var scriptTypes: ({
+        "the battery": "battery", "the cell": "battery", "battery": "battery",
+        "the LED": "led", "led": "led",
+        "the resistor": "resistor", "resistor": "resistor",
+        "the switch": "switch", "switch": "switch",
+        "the transistor": "transistor", "transistor": "transistor",
+        "the gate": "gate", "gate": "gate"
+    })
+    // The transistor's legs, by the terminal index circuit.js gives them.
+    // This is what "or sub-parts" means here: a mark can land on one pad of
+    // one part, which is the whole of "collector on the left".
+    readonly property var scriptLegs: ({
+        "the collector": 0, "collector": 0,
+        "the base": 1, "base": 1,
+        "the emitter": 2, "emitter": 2
+    })
     function scriptTarget(name) {
         root.elemRev
-        const type = ({ "the battery": "battery", "the cell": "battery",
-                        "the LED": "led", "the resistor": "resistor",
-                        "the switch": "switch" })[name]
+        const leg = root.scriptLegs[name]
+        if (leg !== undefined) {
+            const qs = root.idsOfType("transistor")
+            if (!qs.length)
+                return null
+            // The pad itself, lifted a little so a ring sits on the leg
+            // rather than in the board under it.
+            const p = root.terminalPos(qs[0], leg)
+            return Qt.vector3d(p.x, 1.5, p.z)
+        }
+        const type = root.scriptTypes[name]
         if (!type)
             return null
         const ids = root.idsOfType(type)
@@ -1420,6 +1453,17 @@ Item {
         const e = root.elemAt(ids[0])
         // A hand's breadth above the board, as subjectOf() aims.
         return e ? Qt.vector3d(root.cellX(e.col), 1.5, root.cellZ(e.row)) : null
+    }
+
+    // What a mark's ring is captioned with, in the reader's language. The
+    // names above are authoring tokens - identical in EN and DE, which is what
+    // lets the cross-language lint compare two versions of a script - so the
+    // caption cannot come from the name itself.
+    function markLabel(name) {
+        if (root.scriptLegs[name] !== undefined)
+            return LabLang.t("npn." + name.replace("the ", ""))
+        const type = root.scriptTypes[name]
+        return type ? LabLang.t("part." + type) : ""
     }
 
     // Which lesson `T` and the chip offer. Two flows, one key: a lab with a
@@ -1636,6 +1680,11 @@ Item {
             scriptOf: (i) => root.flowScript(i)
             scriptVoiceOf: (i, sayIndex) => root.flowScriptVoice(i, sayIndex)
             scriptResolve: (name) => root.scriptTarget(name)
+            // The eye's half of a line that names things: the step says which
+            // parts it is about, the guide resolves them and the MarkLayer
+            // below rings them for as long as the line lasts.
+            marks: root.currentFlow ? root.currentFlow.marks : []
+            markLabelOf: (n) => root.markLabel(n)
             director: director
             sceneOf: (i) => root.flowScene(i)
             scenePointsOf: (i) => root.cellExtent(root.elements)
@@ -1907,6 +1956,10 @@ Item {
         }
         FlowStep {
             key: "wire"
+            // "cell to switch, switch to LED, LED through the resistor and
+            // back to the cell" - four parts named in one breath, and until
+            // now four things to find by ear.
+            mark: ["battery", "switch", "led", "resistor"]
             demo: [["let", "sw", "addPart", "switch", 12, 2],
                    ["select", -1], ["frame", "setup"],
                    ["wire", "bat", 1, "sw", 0],
@@ -1950,6 +2003,10 @@ Item {
 
         FlowStep {
             key: "meet"
+            // "collector on the left, emitter on the right, base facing you":
+            // three sub-parts of one part, each ringed and captioned in the
+            // reader's language while the line names them.
+            mark: ["collector", "base", "emitter"]
             demo: [["scenario", "transistor"], ["showValues", false],
                    ["setInputs", 0], ["frame", "setup"]]
         }
@@ -2656,6 +2713,24 @@ Item {
             if (i === null || i === undefined) return "?"
             return root.fmtA(Math.abs(i))
         }
+    }
+
+    // --- the parts the lesson is naming right now --------------------------
+    // Over the readings, because a mark is deixis and a reading is data: while
+    // the professor says "the battery, the switch, the LED and the resistor,
+    // one loop", the ring is the sentence and the numbers are background.
+    // Same keep-out as the readings - a ring drawn on a coat marks the coat.
+    // NOT `id: marks` - the type has a property of that name, and an id that
+    // shadows it turns `marks: ...` into an assignment to itself (the
+    // WatchChip/OrbitInput3D trap).
+    MarkLayer {
+        id: markLayer
+        objectName: "markLayer"
+        anchors.fill: parent
+        view: view3d
+        camera: rig.camera
+        marks: guide.markPoints
+        keepOut: overlay.keepOut
     }
 
     // --- selection card (what is selected, what it reads, what you can do) -

@@ -614,6 +614,7 @@ outside a `*...*` is spoken.
 | `*thumbs up*` | Approval gesture | `thumbsUp()` |
 | `*gesticulate*` | Talking hands on | `gesticulate()` |
 | `*rest*` | Drops any gesture | `stopGesture()` |
+| `*mark NAME*` / `*mark A, B, C*` | Raises markers on the named things for the length of the line that follows | none - the points come out in `marks` |
 | `*pause 800ms*` `*pause 2s*` `*pause 1.5s*` | Consumes that much time | - |
 | anything else | A reported error in strict mode | - |
 
@@ -622,6 +623,35 @@ and resolved against the scene - there is no second naming scheme. It may
 contain spaces: `*point at the big red battery*`. `viewer` is the one reserved
 name and means the camera. A duration is a number plus a unit, `ms` or `s`,
 both required; `*pause 800*` is an error rather than a guess.
+
+`*mark*` is the one directive that takes several targets, comma separated,
+because naming a group is exactly when it earns its keep:
+`*mark the battery, the switch, the LED* Four parts, one loop.`
+
+### Marks
+
+A line that names things - "collector on the left, emitter on the right, base
+facing you" - asks the eye to find each of them by ear. `*mark ...*` resolves
+its names the way `*point at*` resolves its target and publishes the world
+points in `marks`; `markNames` holds the names that resolved, in the same
+order. A name that does not resolve is skipped and recorded, and the rest of
+the list still marks.
+
+Nothing here draws them. A sequencer has no view, so the points go to whatever
+is showing the scene - `Clayground.Lab`'s `MarkLayer` is the overlay the labs
+use, and a lab's own is one binding away.
+
+The lifetime is the whole of the rule an author has to hold: a mark set is
+raised by its cue, lives for the length of the *one* line that follows it, and
+is gone by the time the next cue starts. `stop()` and the end of the script
+clear it too. A marker says "this one, now", not "this one, still" - so a
+sentence that keeps a mark up needs its own `*mark*`:
+
+```
+*mark the collector* Collector on the left.
+*mark the emitter* Emitter on the right.
+*mark the base* And the base, facing you.
+```
 
 ### Time hints
 
@@ -689,6 +719,7 @@ A script is verified by reading state, not by watching it.
 | `errors` | Parse errors of the last `play()`, each `{at, directive, message}` |
 | `skipped` | Cues that could not be carried out, each `{cue, reason}` - an unresolved target, a missing verb, a handler that threw |
 | `firedLog` | Every cue that fired, each `{ms, cue}`, ms measured from `play()` |
+| `marks` / `markNames` | The world points a `*mark ...*` cue currently raises, and the names behind them. Empty whenever nothing is marked |
 | `finished()` | Emitted after the last cue |
 | `customCue(verb, arg)` | Emitted for a custom cue with no registered handler |
 

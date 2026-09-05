@@ -227,6 +227,40 @@ directed steps. Measured with pre-rendered clips: the sequencer advances
 about 80 ms after the recording actually ends — the clip's real duration is
 the cue clock, not an estimate.
 
+### Marks — the eye's half of a sentence that names things
+
+"The battery, the switch, the LED and the resistor, one loop" asks the learner
+to find four things by ear. `FlowGuide` resolves the names and hands out the
+points; the kernel's `MarkLayer` rings them.
+
+```qml
+FlowGuide {
+    marks: root.currentFlow ? root.currentFlow.marks : []   // FlowStep.mark
+    markLabelOf: (n) => root.markLabel(n)                   // caption, localized
+}
+
+MarkLayer {
+    anchors.fill: parent
+    view: view3d; camera: rig.camera
+    marks: guide.markPoints
+    keepOut: overlay.keepOut       // a ring on the coat marks the coat
+}
+```
+
+Two sources, one drawing. A plain step names its parts in `FlowStep.mark` and
+they are marked for the whole step. A *directed* step names them per line, in
+its script's own `*mark ...*` cues, and each set lives for the length of the
+line that follows it — `guide.markPoints` follows whichever applies, and the
+step's `mark` field is ignored while a script is running.
+
+Names resolve through `scriptResolve` (else the `scriptTargets` walk), exactly
+as `*point at NAME*` does, so a name can be a whole part or a sub-part of one:
+electronics-101 answers "collector" with the transistor's first pad. They are
+authoring tokens, identical in every language — which is what lets the
+cross-language lint compare two versions of a script — so the caption under a
+ring comes from `markLabelOf` instead, and only the lab knows what "collector"
+is called in German.
+
 ## Traps
 
 **`height3d` is not the height it renders at.** It is `bodyHeight` on the

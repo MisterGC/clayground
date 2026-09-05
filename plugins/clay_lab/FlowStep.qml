@@ -92,6 +92,28 @@ QtObject {
     property var view: null
 
     /*!
+        \qmlproperty var FlowStep::mark
+        \brief Parts (or sub-parts) this step's line names, as a list of names.
+
+        The eye's half of a spoken sentence. A line that says "the battery,
+        the switch, the LED and the resistor, one loop" asks the learner to
+        find four things by ear; \c {mark: ["battery", "switch", "led",
+        "resistor"]} rings all four on the model while the line lasts, and
+        the marks go with the step.
+
+        The names are the lab's own - resolved exactly as a performance
+        script's \c{*point at NAME*} target is, by whatever the presenter's
+        guide was given as a resolver - so they are language-neutral
+        authoring tokens, not display text. Nothing here draws them: a lab
+        binds them to a \l MarkLayer.
+
+        A directed step (one with a performance script) ignores this field:
+        its marks come from the script's own \c{*mark ...*} cues, which can
+        raise a different set per line.
+    */
+    property var mark: []
+
+    /*!
         \qmlproperty var FlowStep::expect
         \brief Optional predicate asserted after the step, for headless checks.
     */

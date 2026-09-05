@@ -195,6 +195,48 @@ Item {
     property var scriptVoiceOf: null
 
     /*!
+        The names of the parts the CURRENT step's line is about, as the lab
+        spells them: bind it to the flow's own \c marks (from
+        \c {FlowStep.mark}). Each is resolved the way a script's
+        \c{*point at NAME*} target is - through \l scriptResolve, else the
+        \l scriptTargets walk - and comes out in \l markPoints for a
+        \c MarkLayer to draw.
+
+        \code
+        marks: root.currentFlow ? root.currentFlow.marks : []
+        \endcode
+
+        Ignored on a step that carries a \l scriptOf script: that step's
+        marks are its own \c{*mark ...*} cues, which can raise a different
+        set for every line.
+    */
+    property var marks: []
+
+    /*!
+        Optional: given a mark's name, what to write under its ring in the
+        reader's language, or "" for a ring with no caption.
+
+        \code
+        markLabelOf: (n) => LabLang.t("npn." + n)
+        \endcode
+
+        The names in \l marks and in a script's \c{*mark ...*} cue are
+        authoring tokens - they are the same in every language, which is what
+        lets the cross-language lint compare them. Only the lab knows what
+        "collector" is called in German, so the caption comes from here.
+    */
+    property var markLabelOf: null
+
+    /*!
+        \readonly The marks to draw right now, each \c {{at, label}} - the
+        script's while a directed step is running, the step's \l marks
+        otherwise. Hand it straight to a \c MarkLayer.
+    */
+    readonly property var markPoints: root._directed
+        ? root._labelled(_perf.markNames, _perf.marks)
+        : root._resolveMarks(root.marks)
+
+    /*!
         The camera's director, a \c CameraDirector from the lab kernel. Null
         leaves the camera to the lab.
 
@@ -274,6 +316,39 @@ Item {
         return _perf._resolve(name)
     }
 
+    // Whether the running step is directed by a script. Decided when the step
+    // starts rather than derived, so a script that has finished speaking does
+    // not hand the step's own mark field back mid-step.
+    property bool _directed: false
+
+    function _markLabel(name) {
+        if (typeof root.markLabelOf !== "function" || !name)
+            return ""
+        const t = root.markLabelOf(name)
+        return (t === undefined || t === null) ? "" : "" + t
+    }
+
+    // Names -> [{at, label}], dropping the ones this scene cannot place.
+    function _resolveMarks(names) {
+        const out = []
+        const src = names || []
+        for (let i = 0; i < src.length; ++i) {
+            const pos = root._resolveCue(src[i])
+            if (pos) out.push({ at: pos, label: root._markLabel(src[i]) })
+        }
+        return out
+    }
+
+    // The same, for points the sequencer has already resolved.
+    function _labelled(names, points) {
+        const out = []
+        const pts = points || []
+        const ns = names || []
+        for (let i = 0; i < pts.length; ++i)
+            out.push({ at: pts[i], label: root._markLabel(i < ns.length ? ns[i] : "") })
+        return out
+    }
+
     // What the current step's camera should hold: its extent, else its look.
     function _extentNow() {
         const s = (typeof root.subjectOf === "function") ? root.subjectOf(root.step) : null
@@ -317,6 +392,7 @@ Item {
             _scene.stop()
             _perf.stop()
             _addressing = false
+            _directed = false
             root.professor.stopGesture()
             root.professor.vanish()
             if (root.director) root.director.release()
@@ -386,6 +462,7 @@ Item {
         // where to stand - but everything after landing belongs to the
         // script, not to the built-in beat.
         const script = root._scriptFor(root.step)
+        _directed = script !== ""
         if (script !== "") {
             if (stand && p.present) {
                 _pending = null
