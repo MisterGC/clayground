@@ -81,6 +81,28 @@ ParametricCharacter {
 }
 ```
 
+`mass` and `muscle` reach the body as a belly and a chest, not only as a
+width. The trunk is two boxes on a waist joint (see
+[The trunk is two segments](#the-trunk-is-two-segments)), so `mass` bulges the
+belly forward over the hip and `muscle` deepens the chest, and a build shows
+in the shape of the body rather than in how wide all of it is. Both are
+exactly neutral at 0.5, and `muscle` also draws a waist in that a single
+tapered box could not make.
+
+The same three dials are on `Character` directly for a body built by hand:
+
+| property | default | what it does |
+|---|---|---|
+| `bellyRatio` | 0.45 | the belly's share of `torsoHeight`; the waist joint sits between the two segments |
+| `bellyBulge` | 1 | how far the belly swells past the plain trunk taper - mostly depth, and forward. 1.3 is a gut |
+| `chestSwell` | 1 | how much deeper the chest is. Depth only: the chest's width is `shoulderWidth` |
+| `waistPinch` | 0 | how far in the waist joint is drawn |
+| `bellyColor`, `chestColor` | `torsoColor` | either segment can take its own colour |
+
+At every default the two boxes trace exactly the tapered box the torso used to
+be: same shoulders, same waist, same depth, same height. The only thing that
+is drawn and was not is the seam at the joint.
+
 ### Character with Movement
 
 ```qml
@@ -547,7 +569,7 @@ character-local coordinates for the same reason.
 
 Walk and run are one cycle, `GaitCycleAnim`, animated from a table that
 `animation/gait.js` derives from a base - the walk or the run as it was
-authored - and eleven factors around neutral. A factor that scales an amplitude
+authored - and twelve factors around neutral. A factor that scales an amplitude
 is 1 at neutral, one that offsets is 0, and the all-neutral gait is the walk
 and run the framework always had, to the digit: `gait.test.js` asserts the
 derived table against the formulas `WalkAnim` and `RunAnim` used to carry, so
@@ -597,14 +619,40 @@ The factors, as `Gait` exposes them:
 | `tempo` | multiplies | 1 | cadence; 1.2 takes steps a fifth quicker and covers ground a fifth faster |
 | `stride` | multiplies | 1 | how far the legs swing, and the speed with it |
 | `bounce` | adds | 0 | how high the whole figure rises at mid-step, in leg heights; 0.1 is the cap |
-| `lean` | adds | 0 | torso pitch in degrees on top of the cycle's own, bending at the waist so the legs stay planted; positive forward, negative chest out |
+| `lean` | adds | 0 | trunk pitch in degrees on top of the cycle's own, bending at the waist so the legs stay planted; positive forward, negative chest out |
+| `spineCurve` | adds | 0 | how round the back is: the angle between belly and chest. Differential, so it changes the shape of the trunk without moving the head - positive rounds it forward, negative arches it and lifts the chest |
 | `headPitch` | adds | 0 | head pitch in degrees; positive looks down, negative lifts the chin |
 | `armSwing` | multiplies | 1 | arm swing amplitude; 0 hangs the arms |
 | `armForward` | adds | 0 | degrees the whole swing is carried ahead of the body, same amplitude; bent elbows plus this is fists pumping before the chest |
 | `elbow` | adds | 0 | elbow bend in degrees on top of the cycle's own (a walk bends 10, a run 70) |
 | `kneeLift` | multiplies | 1 | knee lift; below 1 drags the feet, above it high-steps; the foot angles follow |
-| `sway` | adds | 0 | hip yaw in degrees, alternating with the step, the torso countering by half |
-| `rock` | adds | 0 | torso roll in degrees over the planted leg, alternating with the step |
+| `sway` | adds | 0 | hip yaw in degrees, alternating with the step, the shoulders countering by half |
+| `rock` | adds | 0 | trunk roll in degrees over the planted leg, alternating with the step |
+
+#### The trunk is two segments
+
+`Character.torso` is a group that draws nothing. What draws is `belly` and
+`chest`, two boxes on a waist joint, and that is where a trunk pitch lives -
+the group carries only the sway and the rock. The two pitches always add up to
+`lean`, so the head and the shoulders end up exactly where a single-box torso
+put them; their DIFFERENCE is `spineCurve`, and it is the difference that
+reads. A `lean` on its own tips the figure like a plank; a `lean` with a curve
+settles the belly back and rounds the chest forward over it, which is what
+makes a slump look like weight and a proud walk like air in the chest.
+
+A factor `lean` brings a little curve with it on its own, because a body that
+is asked to lean bends. A BASE lean does not: a run's authored 12 degrees is a
+sprinter's straight line from the ankles, so it goes on the belly whole and
+the waist joint stays shut.
+
+The hip hangs off the belly and gives the belly's share of the bend straight
+back, so the legs stay where the base asked for them - upright under a factor
+lean, tipped with the whole figure under a run's. `gaitPoseAt()` reports all
+four: `hip`, `torso`, `belly`, `chest`.
+
+The same split is what `TalkGestureAnim`, `GestureAnim`'s talking beats and
+`UseAnim` bend with, so a character that leans while it speaks and a character
+that leans while it walks bend the same way.
 
 Presets, by name (`Gait.presetNames`): `neutral` changes nothing; `cheerful`,
 `dejected` and `furious` are exactly what the `happy`, `sad` and `angry`
@@ -612,10 +660,18 @@ emotions do to a walk - they share their rows in `gait.js`, so
 `setEmotion("sad")` and `preset: "dejected"` cannot drift apart; `elderly` is
 the top of the maturity slider (slow, short, shuffling, stooped) and `toddler`
 its bottom with a touch more tempo; `heavy` is the top of the mass slider with
-more rock; `sneak` is slow and short with high knees, leaning in, head down,
-elbows bent and the arms held still; `proud` is chest out, chin up and arms
+more rock, leaning BACK over the weight it is carrying; `sneak` is slow and
+short with high knees, a rounded back, head down, elbows bent and the arms
+held still; `proud` is an arched back and a lifted chest, chin up and arms
 swinging over a slightly longer, slower step; `march` is high knees, a wide
-arm swing and straight elbows. A name that is not in the list does nothing
+arm swing, straight elbows and a straight back.
+
+`furious` is short, hard, quick steps with the knees stamping, the shoulders
+hunched over a forward head and the fists carried before the chest by a bent
+elbow - not a bigger walk. Two earlier versions of it were: one slid the whole
+arm swing 22 degrees forward, the other folded the elbow to 80, and both put
+the forearms out in front where they barely alternated, which reads as a
+sleepwalker from every angle. The cycle sheet is what settled it. A name that is not in the list does nothing
 and clears `Gait.presetKnown`.
 
 How the build maps (`buildFactors()` in `gait.js`): every default is exactly
@@ -624,9 +680,10 @@ neutral, and each effect fades in linearly toward the end of its slider.
 bounce), above 0.75 the elderly zone, and neutral in between - the proportion
 tables treat 1 as a full adult, so only the top quarter reads as elderly, for
 gait alone. `femininity`, `mass` and `muscle` fade out toward 0.5: feminine
-sways and swings the arms less, masculine rocks a little; heavy is slower and
-rocks more, light a touch quicker; athletic leans in and swings the arms, soft
-slumps. `bodyHeight` and `realism` do not enter the gait (the leg height they
+sways and swings the arms less, masculine rocks a little; heavy is slower,
+rocks more and leans back over its weight, light a touch quicker; athletic
+leans in with the chest up and swings the arms, soft slumps and rounds its
+back. `bodyHeight` and `realism` do not enter the gait (the leg height they
 set enters the speed). The effects are kept subtle so the sliders stay a body
 and not a costume: `gait.test.js` checks that no corner of the four sliders
 leaves a walk.
@@ -646,6 +703,12 @@ clayrender plugins/clay_character3d/bench/GaitSheetSandbox.qml --size 1800x500 \
     --set 'preset="elderly"' --set 'emotion="sad"' --set 'maturity=0.9' \
     --set 'frames=8' --set 'yaw=90' --wait-for 'ready' --out /tmp/elderly.png
 ```
+
+`yaw` turns the figures - 90 side-on, 0 head-on, 180 from behind - and `pitch`
+lifts the camera instead, 90 being straight down. Check a change against all
+four: a silhouette that reads as walking from the side and from nowhere else
+is a side view, and the overhead is the only one that shows sway and shoulder
+counter-rotation honestly.
 
 To assert on a gait, read `gaitFactors`: it says what the character was asked
 to do, where a joint angle mid-swing says only where the leg happens to be.
@@ -668,7 +731,7 @@ running, and `applyGaitPose(base, t)` freezes an idle character there.
 
 The Character3D plugin implements:
 
-- **Modular Body Parts**: Head, torso, arms, legs with independent dimensions
+- **Modular Body Parts**: Head, a two-segment trunk on a waist joint, arms, legs, all with independent dimensions
 - **Procedural Animation**: Idle derived from body geometry; walk and run are one `GaitCycleAnim` over a table that `gait.js` derives from a base (the authored walk or run) plus the composed gait factors
 - **Animation-Speed Coupling**: Movement speeds calculated from the derived table's leg swing angles and the leg height, so speed still follows the feet whatever the gait
 - **Facial Expressions**: Multiple expression states (idle, joy, anger, sadness, talk)

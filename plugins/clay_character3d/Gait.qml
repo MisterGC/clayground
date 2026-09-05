@@ -6,7 +6,7 @@ import "animation/gait.js" as GaitLib
     \qmltype Gait
     \inqmlmodule Clayground.Character3D
     \inherits QtObject
-    \brief How a character walks and runs: a named preset, eleven factors, or both.
+    \brief How a character walks and runs: a named preset, twelve factors, or both.
 
     Every factor is 1 (the multiplicative ones) or 0 (the additive ones) at
     neutral, and a neutral Gait is the walk and run the framework always had.
@@ -77,8 +77,24 @@ QtObject {
         \brief Torso pitch in degrees on top of the cycle's own. Positive
                leans forward (a slump, a charge), negative back (chest out).
                Bends at the waist: the hip counters it, so the legs stay
-               planted and only chest, head and arms tip. */
+               planted and only belly, chest, head and arms tip. It is shared
+               between the two trunk segments and brings a little curve with
+               it; \l spineCurve asks for more. */
     property real lean: 0
+
+    /*!
+        \qmlproperty real Gait::spineCurve
+        \brief How round the back is, in degrees: the angle between belly and
+               chest at the waist joint. Positive rounds it forward (sad,
+               elderly, sneaking), negative arches it and lifts the chest
+               (proud, marching).
+
+        Differential, not a tilt: it bends the belly back by as much as it
+        bends the chest forward, so it changes the SHAPE of the trunk without
+        moving where the head ends up. That is \l lean's job, and the two are
+        meant to be used together - a slump is both.
+    */
+    property real spineCurve: 0
 
     /*! \qmlproperty real Gait::headPitch
         \brief Head pitch in degrees. Positive looks down, negative lifts
@@ -126,7 +142,8 @@ QtObject {
         GaitLib.presetFactors(_gait.preset),
         {
             tempo: _gait.tempo, stride: _gait.stride, bounce: _gait.bounce,
-            lean: _gait.lean, headPitch: _gait.headPitch, armSwing: _gait.armSwing,
+            lean: _gait.lean, spineCurve: _gait.spineCurve,
+            headPitch: _gait.headPitch, armSwing: _gait.armSwing,
             armForward: _gait.armForward,
             elbow: _gait.elbow, kneeLift: _gait.kneeLift, sway: _gait.sway,
             rock: _gait.rock

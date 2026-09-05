@@ -543,6 +543,16 @@ Node {
     // Taken once per gesture, not per re-aim, so switching targets while
     // pointing still knows where "released" was. turnTo() moves it.
     property vector3d _restEuler: Qt.vector3d(0, 0, 0)
+
+    // How a beat's `lean` reaches the body. It used to be a pitch on the
+    // character's own node, which tipped the FEET with the shoulders by a
+    // degree or two - cheap, and wrong: a speaker leaning in bends, it does
+    // not fall toward the listener. On the waist joint the same number buys
+    // more, because nothing below the belt moves with it, so it is scaled up
+    // and given a curve: the chest comes forward over a lower back that
+    // barely moves.
+    readonly property real _talkLeanScale: 2.4
+    readonly property real _talkLeanCurve: 1.2
     property bool _holdsRoot: false
 
     // restart() stops before it starts, and that stop must not be mistaken
@@ -740,9 +750,10 @@ Node {
             // facing, not a facing of their own, which is why they are added
             // to the rest orientation rather than replacing it - a talking
             // body that decided where to look would fight turnTo() and win.
-            _pose.rootEuler = Qt.vector3d(root._restEuler.x + b.lean,
+            _pose.rootEuler = Qt.vector3d(root._restEuler.x,
                                           root._restEuler.y + b.turn,
                                           root._restEuler.z)
+            _pose.spine(b.lean * root._talkLeanScale, b.lean * root._talkLeanCurve)
             _pose.gesticulate(root._talkUpper(b.rUp, b.rOut, 1),
                               root._talkLower(b.rEl),
                               root._talkWrist(b.rWr, b.rRo, 1),
@@ -944,6 +955,13 @@ Node {
         // which it is.
         property string mode: ""
         property vector3d rootEuler: Qt.vector3d(0, 0, 0)
+        // The waist joint: the two trunk segments, straight unless a beat
+        // bends them. Their pitches add up to the lean that was asked for and
+        // their difference is how round the back is - the same split the gait
+        // model makes, so a character that leans while it talks and a
+        // character that leans while it walks bend the same way.
+        property vector3d belly: Qt.vector3d(0, 0, 0)
+        property vector3d chest: Qt.vector3d(0, 0, 0)
         property vector3d head: Qt.vector3d(0, 0, 0)
         property vector3d rUpper: Qt.vector3d(0, 0, 0)
         property vector3d rLower: Qt.vector3d(0, 0, 0)
@@ -961,10 +979,18 @@ Node {
 
         readonly property vector3d zero: Qt.vector3d(0, 0, 0)
 
+        // lean is the total forward pitch of the trunk, curve how much of it
+        // is a bend rather than a tilt.
+        function spine(lean, curve) {
+            belly = Qt.vector3d(lean * 0.4 - curve * 0.5, 0, 0)
+            chest = Qt.vector3d(lean * 0.6 + curve * 0.5, 0, 0)
+        }
+
         function aim(what, which, upper, lower, wrist, look) {
             side = which
             mode = what
             head = look
+            belly = zero; chest = zero
             rPose = ""; lPose = ""
             rUpper = which > 0 ? upper : zero
             rLower = which > 0 ? lower : zero
@@ -993,6 +1019,7 @@ Node {
             mode = "look"
             rootEuler = rest
             head = look
+            belly = zero; chest = zero
             rPose = ""; lPose = ""
             rUpper = zero; rLower = zero; rHand = zero
             lUpper = zero; lLower = zero; lHand = zero
@@ -1028,6 +1055,18 @@ Node {
             duration: root._msBody
             easing.type: root._moveEase
             to: _pose.rootEuler
+        }
+        EulerAnim {
+            target: root.entity ? root.entity.belly : null
+            duration: root._msBody
+            easing.type: root._moveEase
+            to: _pose.belly
+        }
+        EulerAnim {
+            target: root.entity ? root.entity.chest : null
+            duration: root._msBody
+            easing.type: root._moveEase
+            to: _pose.chest
         }
         HeadEulerAnim {
             target: root.entity ? root.entity.head : null

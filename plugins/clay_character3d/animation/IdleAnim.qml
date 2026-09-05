@@ -4,10 +4,23 @@ ProceduralAnim {
     id: _idleAnim
 
     ParallelAnimation {
-        // Reset torso to upright
+        // Reset the trunk to upright - the group, and the two spine segments
+        // under it. A gait that rounded the back leaves the curve in the
+        // belly and the chest, not in the group, so zeroing the group alone
+        // would let a character stand still with a slump it never asked for.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.torso
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.belly
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            duration: _idleAnim.duration
+            target: entity.chest
             to: Qt.vector3d(0, 0, 0)
         }
 

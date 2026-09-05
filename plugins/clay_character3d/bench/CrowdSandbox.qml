@@ -28,12 +28,28 @@
 // those boxes rounder or smoother is close to free while having more of them
 // is not.
 //
-// A character is 21 boxes at Low, 43 at High and 20 at Minimal, measured here
-// at twenty characters: 420, 860 and 400 draw calls, for 10.68, 17.13 and
-// 10.07 ms of render time.
+// A character is 22 boxes at Low, 44 at High and 21 at Minimal: 440, 880 and
+// 420 draw calls at twenty characters.
 //
-// Those three numbers used to be 33, 53 and 20, and the gap between the first
-// and the last was the face - thirteen boxes carrying none of the silhouette,
+// WHAT THE WAIST JOINT COSTS (#227). Splitting the torso into a belly and a
+// chest is EXACTLY ONE DRAW CALL and 36 vertices per character, at every
+// detail tier. Measured against the build before it, same machine, same
+// session: at twenty characters 420 draws became 440 at Low and 860 became
+// 880 at High; at forty, 840 became 880 and 1720 became 1760. The trunk group
+// that holds the two segments draws nothing itself, and they are the same
+// material, shader and geometry type as the one box they replaced.
+//
+// In time that is about 0.02 ms per character, which is what this bench's own
+// fit (0.0178 ms per draw call) predicts. Medians of three runs at forty
+// characters: 5.30 -> 5.96 ms at Low, 8.14 -> 8.22 ms at High. The Low figure
+// matches the fit; the High one is inside the run-to-run spread, so treat the
+// fit as the number and the measurement as agreeing with it.
+//
+// Detail does not help with it. The tiers are about the face and the fingers;
+// the trunk is silhouette, and a character has one at every distance.
+//
+// The box counts used to be 33, 53 and 20, and the gap between the first and
+// the last was the face - thirteen boxes carrying none of the silhouette,
 // which is why Minimal deleted it. The face is drawn in a fragment shader now
 // and costs no draw calls at all, so it no longer appears in this table. Two
 // consequences worth knowing before tuning anything:

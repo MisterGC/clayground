@@ -20,8 +20,19 @@ ProceduralAnim {
     readonly property real punchUpperArm: 75 + intensity * 10       // Arm extends forward horizontally (75-85)
     readonly property real punchElbow: 15 + intensity * 10          // Nearly straight arm (15-25)
 
-    // Torso rotation during punch
+    // Torso rotation during punch. It is shared: the trunk group turns the
+    // hips and the legs with it, the chest turns further on the waist joint.
+    // A punch that came entirely from the group swung the feet round with the
+    // shoulders; the shoulders arriving ahead of the hips is what a thrown
+    // punch looks like, and it keeps the stance planted.
     readonly property real torsoTwist: 15 + intensity * 10          // 15-25 degrees
+    readonly property real hipTwist: torsoTwist * 0.4
+    readonly property real chestTwist: torsoTwist * 0.6
+
+    // The guard is a rolled-forward chest over a level lower back: shoulders
+    // up and in, chin behind them. On the chest alone, so the legs stay where
+    // the stance put them.
+    readonly property real guardChestLean: 8
 
     // Athletic stance - slight crouch
     readonly property real kneeBend: 10 + intensity * 5             // 10-15 degrees
@@ -35,12 +46,18 @@ ProceduralAnim {
 
     // Phase 1: Guard stance (both fists in front of face)
     ParallelAnimation {
-        // Torso centered
+        // Torso centered, chest rolled forward over the guard
         EulerAnim {
             target: entity.torso
             duration: guardDuration
-            from: Qt.vector3d(0, -torsoTwist, 0)
+            from: Qt.vector3d(0, -hipTwist, 0)
             to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: guardDuration
+            from: Qt.vector3d(guardChestLean, -chestTwist, 0)
+            to: Qt.vector3d(guardChestLean, 0, 0)
         }
 
         // Right arm in guard - fist in front of face
@@ -104,12 +121,18 @@ ProceduralAnim {
 
     // Phase 2: Right punch - horizontal forward strike
     ParallelAnimation {
-        // Torso rotates into punch
+        // Torso rotates into punch - the chest leads, the hips follow
         EulerAnim {
             target: entity.torso
             duration: _fightAnim.duration
             from: Qt.vector3d(0, 0, 0)
-            to: Qt.vector3d(0, torsoTwist, 0)
+            to: Qt.vector3d(0, hipTwist, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _fightAnim.duration
+            from: Qt.vector3d(guardChestLean, 0, 0)
+            to: Qt.vector3d(guardChestLean, chestTwist, 0)
         }
 
         // Right arm extends forward horizontally
@@ -167,8 +190,14 @@ ProceduralAnim {
         EulerAnim {
             target: entity.torso
             duration: guardDuration
-            from: Qt.vector3d(0, torsoTwist, 0)
+            from: Qt.vector3d(0, hipTwist, 0)
             to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: guardDuration
+            from: Qt.vector3d(guardChestLean, chestTwist, 0)
+            to: Qt.vector3d(guardChestLean, 0, 0)
         }
 
         // Right arm back to guard
@@ -227,7 +256,13 @@ ProceduralAnim {
             target: entity.torso
             duration: _fightAnim.duration
             from: Qt.vector3d(0, 0, 0)
-            to: Qt.vector3d(0, -torsoTwist, 0)
+            to: Qt.vector3d(0, -hipTwist, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _fightAnim.duration
+            from: Qt.vector3d(guardChestLean, 0, 0)
+            to: Qt.vector3d(guardChestLean, -chestTwist, 0)
         }
 
         // Right arm in guard

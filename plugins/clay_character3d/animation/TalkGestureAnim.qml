@@ -22,9 +22,18 @@ ProceduralAnim {
     // Pace: sad drags, angry is agitated
     duration: _sad ? 1400 : _angry ? 400 : 650
 
-    // Posture
+    // Posture. The lean is shared over the waist joint the same way a gait's
+    // is: the two segments add up to torsoLean, and the curve between them is
+    // what makes a sad speaker read as slumped rather than tipped. The twist
+    // is shared too - the chest turns further than the hips, which is what a
+    // person talking with their hands actually does.
     readonly property real torsoLean: _sad ? 9 : _angry ? 5 : -2
+    readonly property real spineCurve: _sad ? 13 : _angry ? 5 : _happy ? -7 : -3
+    readonly property real bellyLean: torsoLean * 0.4 - spineCurve * 0.5
+    readonly property real chestLean: torsoLean * 0.6 + spineCurve * 0.5
     readonly property real torsoTwist: _angry ? 5 : _happy ? 2 : 1
+    readonly property real hipTwist: torsoTwist * 0.35
+    readonly property real chestTwist: torsoTwist * 0.65
     readonly property real headTilt: _sad ? 15 : _angry ? 6 : -2
     readonly property real headSway: _happy ? 7 : _sad ? 2 : 0
 
@@ -40,7 +49,17 @@ ProceduralAnim {
         EulerAnim {
             target: entity.torso
             duration: _gesture.duration
-            to: Qt.vector3d(torsoLean, torsoTwist, 0)
+            to: Qt.vector3d(0, hipTwist, 0)
+        }
+        EulerAnim {
+            target: entity.belly
+            duration: _gesture.duration
+            to: Qt.vector3d(bellyLean, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _gesture.duration
+            to: Qt.vector3d(chestLean, chestTwist, 0)
         }
         HeadEulerAnim {
             target: entity.head
@@ -74,7 +93,17 @@ ProceduralAnim {
         EulerAnim {
             target: entity.torso
             duration: _gesture.duration
-            to: Qt.vector3d(torsoLean, -torsoTwist, 0)
+            to: Qt.vector3d(0, -hipTwist, 0)
+        }
+        EulerAnim {
+            target: entity.belly
+            duration: _gesture.duration
+            to: Qt.vector3d(bellyLean, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _gesture.duration
+            to: Qt.vector3d(chestLean, -chestTwist, 0)
         }
         HeadEulerAnim {
             target: entity.head

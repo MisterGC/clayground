@@ -38,6 +38,12 @@ var FACTORS = {
     stride:    { kind: "mul", neutral: 1, min: 0.3, max: 1.6 },
     bounce:    { kind: "add", neutral: 0, min: 0,   max: 0.1 },
     lean:      { kind: "add", neutral: 0, min: -30, max: 30 },
+    // How much of the trunk's bend is a CURVE rather than a tilt: the angle
+    // between belly and chest, positive rounding the back forward, negative
+    // arching it and lifting the chest. Differential on purpose - it changes
+    // the shape of the spine without moving where the head ends up, which is
+    // lean's job. A slump is lean AND spineCurve; a plank is lean alone.
+    spineCurve:{ kind: "add", neutral: 0, min: -25, max: 30 },
     headPitch: { kind: "add", neutral: 0, min: -40, max: 40 },
     armSwing:  { kind: "mul", neutral: 1, min: 0,   max: 2 },
     armForward:{ kind: "add", neutral: 0, min: -30, max: 60 },
@@ -127,13 +133,36 @@ var BASES = {
 // emotion is worn on top of a build, not instead of one.
 var EMOTIONS = {
     // Happy is the arms: the bounce is there but it is the big swing that
-    // says "I am so happy" - the arms go well past the hips both ways.
-    happy: { tempo: 1.12, bounce: 0.04, armSwing: 1.7, elbow: 6, kneeLift: 1.12, headPitch: -5, lean: -2 },
-    sad:   { tempo: 0.82, stride: 0.82, armSwing: 0.55, kneeLift: 0.75, headPitch: 16, lean: 7, elbow: 4 },
-    // Angry is arms half bent and carried IN FRONT: the swing's centre moves
-    // ahead of the body (armForward), so the fists pump before the chest,
-    // ready to hit, rather than swinging past the hips like a walk.
-    angry: { tempo: 1.15, stride: 1.08, lean: 9, armSwing: 1.3, elbow: 45, armForward: 22, kneeLift: 1.08, headPitch: 5, rock: 2 }
+    // says "I am so happy" - the arms go well past the hips both ways. The
+    // chest is open, so the spine arches rather than rounds.
+    happy: { tempo: 1.12, bounce: 0.075, armSwing: 1.7, elbow: 6, kneeLift: 1.25, headPitch: -8, lean: -2, spineCurve: -7 },
+    // Sad is the back. The lean alone made a plank tip; the curve is what
+    // makes it read as weight - the belly settles back, the chest rounds
+    // forward over it, and the head hangs off the end of that curve.
+    sad:   { tempo: 0.82, stride: 0.82, armSwing: 0.45, kneeLift: 0.75, headPitch: 20, lean: 7, elbow: 4, spineCurve: 14 },
+    // Angry is SHORT, HARD steps with the arms held in - not a big swing.
+    // The first version swung the arms half again as far as a walk and
+    // carried them 22 degrees forward on top, which came out as a lope with
+    // the forearms flapping across the chest; a stride longer than a neutral
+    // walk made it worse, because ground covered easily is the opposite of
+    // what anger looks like. So: quicker and shorter (tempo up, stride down),
+    // the knees stamping, the shoulders hunched over a forward head - the
+    // bull, not the strider.
+    //
+    // The arms are the part that had to be measured on a sheet rather than
+    // reasoned about. Sliding the whole swing 22 degrees forward put both
+    // upper arms ahead of the body at once and left them barely alternating -
+    // a sleepwalker from every angle. Folding the elbow to 80 instead put
+    // both forearms out horizontally, which is the same silhouette by another
+    // route, and it left the arms swinging at the hips with no attitude at
+    // all. What works is a NORMAL swing with a hard bend and almost no
+    // forward bias: the upper arms still pass each other, so the swing reads
+    // head-on as well as in profile, and 65 degrees of elbow carries the
+    // fists from in front of the hip to in front of the chest and back -
+    // which is the pumping the forward bias was reaching for and could not
+    // make without folding the silhouette flat.
+    angry: { tempo: 1.22, stride: 0.92, lean: 11, spineCurve: 6, armSwing: 1.0, elbow: 55,
+             armForward: 4, kneeLift: 1.25, headPitch: 7, rock: 4, bounce: 0.015 }
 }
 
 function canonicalEmotion(e) {
@@ -152,14 +181,25 @@ function emotionFactors(emotion) {
 // The two ends of the maturity slider, and the four build directions. Each is
 // the FULL effect; buildFactors() fades them in over the slider's zone.
 var BUILD = {
-    child:     { tempo: 1.22, stride: 0.92, kneeLift: 1.3, bounce: 0.025, armSwing: 1.2 },
-    elderly:   { tempo: 0.72, stride: 0.72, kneeLift: 0.6, lean: 8, headPitch: 12, elbow: 12, armSwing: 0.5 },
-    feminine:  { sway: 9, armSwing: 0.8, elbow: 6, stride: 0.95 },
-    masculine: { rock: 2, armSwing: 1.15, stride: 1.05 },
-    heavy:     { tempo: 0.82, stride: 0.86, rock: 6, elbow: 4, kneeLift: 0.9, lean: 2 },
+    // A small child stands with the belly forward and the back arched, not
+    // slumped - the spine curve is negative for the same reason the lean is.
+    child:     { tempo: 1.22, stride: 0.92, kneeLift: 1.3, bounce: 0.025, armSwing: 1.2,
+                 lean: -3, spineCurve: -8 },
+    // Deliberately further from `sad` than the numbers first were: on a cycle
+    // sheet the two came out as the same slouch, and the thing that separates
+    // them is not more sadness, it is the feet. Age is short careful steps
+    // that barely leave the ground.
+    elderly:   { tempo: 0.72, stride: 0.60, kneeLift: 0.45, lean: 8, headPitch: 15, elbow: 18,
+                 armSwing: 0.45, spineCurve: 18 },
+    feminine:  { sway: 9, armSwing: 0.8, elbow: 6, stride: 0.95, spineCurve: -3 },
+    masculine: { rock: 2, armSwing: 1.15, stride: 1.05, spineCurve: 2 },
+    // Weight in front has to be counterbalanced behind: a heavy walker leans
+    // BACK and leads with the belly. The old forward 2 degrees fought the
+    // gut it was supposed to be carrying.
+    heavy:     { tempo: 0.82, stride: 0.86, rock: 6, elbow: 4, kneeLift: 0.9, lean: -3, spineCurve: -3 },
     light:     { tempo: 1.06, bounce: 0.01 },
-    athletic:  { lean: 3, armSwing: 1.15, tempo: 1.05, elbow: 8 },
-    soft:      { lean: 4, headPitch: 4, armSwing: 0.85 }
+    athletic:  { lean: 3, armSwing: 1.15, tempo: 1.05, elbow: 8, spineCurve: -4 },
+    soft:      { lean: 4, headPitch: 4, armSwing: 0.85, spineCurve: 6 }
 }
 
 // build: { maturity, femininity, mass, muscle }, each 0..1, 0.5 = neutral.
@@ -207,9 +247,14 @@ var PRESETS = {
     elderly:  BUILD.elderly,
     toddler:  compose([BUILD.child, { tempo: 1.1 }]),
     heavy:    compose([BUILD.heavy, { rock: 2 }]),
-    sneak:    { tempo: 0.7, stride: 0.7, kneeLift: 1.5, lean: 12, headPitch: 8, elbow: 26, armSwing: 0.5 },
-    proud:    { tempo: 0.92, stride: 1.08, lean: -7, headPitch: -9, armSwing: 1.25, elbow: 8 },
-    march:    { kneeLift: 1.7, armSwing: 1.5, lean: -3, bounce: 0.015, elbow: -10 }
+    sneak:    { tempo: 0.7, stride: 0.7, kneeLift: 1.5, lean: 12, headPitch: 8, elbow: 26,
+                armSwing: 0.5, spineCurve: 12 },
+    // Proud is the chest, and the chest is a NEGATIVE curve: the back arches,
+    // the ribs come up and forward, the shoulders go back. A backward lean on
+    // its own only makes a figure recline.
+    proud:    { tempo: 0.92, stride: 1.08, lean: -7, headPitch: -9, armSwing: 1.25, elbow: 8,
+                spineCurve: -12 },
+    march:    { kneeLift: 1.7, armSwing: 1.5, lean: -3, bounce: 0.015, elbow: -10, spineCurve: -6 }
 }
 
 var PRESET_NAMES = Object.keys(PRESETS)
@@ -226,6 +271,39 @@ function presetFactors(name) {
 
 // --- derivation ---------------------------------------------------------------
 
+// How a trunk bend is shared between the two spine segments.
+//
+// BELLY_SHARE is the belly's part of the total tilt; the chest takes the rest
+// on top of it, so the head still ends up tipped by exactly `lean` and the
+// foot placement the speed is derived from is untouched. The chest gets the
+// larger share because that is where a slump reads - the upper back is what
+// an audience sees round.
+//
+// AUTO_CURVE turns part of a FACTOR lean into curvature on its own: a
+// character asked to lean 8 degrees bends over its spine instead of tipping
+// like a plank, which is the whole reason the trunk was split.
+//
+// A BASE lean is different and gets none of this. A run's 12 degrees is a
+// sprinter's straight line from the ankles: the whole figure tips, legs
+// included, and the waist joint stays shut. It goes on the belly alone, with
+// nothing at the joint - the first version shared it like a factor lean and
+// put a seven-degree kink in the middle of every runner's back.
+var BELLY_SHARE = 0.4
+var AUTO_CURVE = 0.5
+
+// The two spine angles. `baseLean` tips the trunk rigidly; `waistLean` is
+// shared between the segments; `curve` is differential - it bends the belly
+// back by as much as it bends the chest forward, so it changes the shape of
+// the trunk without moving the head. belly + chest is always
+// baseLean + waistLean.
+function spineFrom(baseLean, waistLean, curve) {
+    var half = 0.5 * (curve + AUTO_CURVE * waistLean)
+    return {
+        belly: clamp(baseLean + waistLean * BELLY_SHARE - half, -45, 45),
+        chest: clamp(waistLean * (1 - BELLY_SHARE) + half, -45, 45)
+    }
+}
+
 // The table a cycle animates from. Joint limits here are geometric: whatever
 // the factors say, a knee does not pass 150 degrees and a hip does not swing
 // past 80, and a cycle shorter than a quarter second or longer than two is a
@@ -235,6 +313,12 @@ function derive(baseName, factors) {
     var f = factors || neutral()
     function get(k) { var v = Number(f[k]); return isFinite(v) ? v : FACTORS[k].neutral }
     var kneeK = get("kneeLift")
+    // The trunk, solved once: the total tilt, the share of it that pivots at
+    // the waist, and the curve the two segments take.
+    var lean = clamp(b.lean + get("lean"), -30, 40)
+    var waistLean = clamp(get("lean"), -30, 30)
+    var curve = clamp(get("spineCurve"), -25, 30)
+    var spine = spineFrom(b.lean, waistLean, curve)
     return {
         base: BASES[baseName] ? baseName : "walk",
         cycleMs: clamp(b.cycleMs / get("tempo"), 250, 2000),
@@ -250,13 +334,25 @@ function derive(baseName, factors) {
         armFwd: clamp(b.armFwd * get("armSwing") + get("armForward"), 0, 110),
         armBack: clamp(b.armBack * get("armSwing") - get("armForward"), -60, 90),
         elbow: clamp(b.elbow + get("elbow"), 0, 140),
-        lean: clamp(b.lean + get("lean"), -30, 40),
+        lean: lean,
         // The factor's share of the lean pivots at the WAIST: the hip counters
         // it so the legs stay planted and only chest, head and arms tip. The
         // base's own lean (a run's 12) stays whole-body - a sprinter leans
         // with everything, a slump bends. Without this a sad character rotates
         // like a plank about its waist and looks about to fall on its face.
-        waistLean: clamp(get("lean"), -30, 30),
+        waistLean: waistLean,
+        // The trunk is two segments on a waist joint, so the tilt above is
+        // reported as the pair of angles the segments actually take. Their
+        // sum is `lean`; their difference is how round the back is.
+        bellyLean: spine.belly,
+        chestLean: spine.chest,
+        spineCurve: curve,
+        // What the hip does about all that. The pelvis hangs off the BELLY, so
+        // it only ever sees the belly's share of the tilt, and it gives back
+        // exactly enough of it to leave the legs where the base asked for
+        // them: standing upright under a factor lean, tipped with the whole
+        // figure under a run's.
+        hipLean: b.lean - spine.belly,
         headPitch: clamp(get("headPitch"), -40, 40),
         bounce: clamp(get("bounce"), 0, 0.1),
         sway: clamp(get("sway"), 0, 20),
@@ -305,12 +401,14 @@ function liftAt(u) {
 }
 
 // Joint angles at phase t of the cycle, 0..1, as the cycle animation would
-// have them. The hip is a child of the torso, so its pitch is the counter to
-// the waist lean and its yaw the sway. t in [0, 0.5) is the first phase (right leg swinging forward),
+// have them. The hip is a child of the belly, so its pitch is the counter to
+// the belly's bend and its yaw the sway. t in [0, 0.5) is the first phase (right leg swinging forward),
 // [0.5, 1) the second; t = 1 is t = 0 again. Angles follow the joints' own
 // conventions: positive x pitches forward and down, so a forward leg or arm is
-// negative x. Legs and arms are {upper, lower, foot|hand}; torso, hip and head
-// are [x, y, z]; lift is in leg heights.
+// negative x. Legs and arms are {upper, lower, foot|hand}; torso, belly, chest,
+// hip and head are [x, y, z]; lift is in leg heights. belly and chest are the
+// two halves of the trunk on either side of the waist joint: their pitches sum
+// to the table's lean and their difference is how round the back is.
 function poseAt(table, t) {
     t = t - Math.floor(t)
     var second = t >= 0.5
@@ -350,8 +448,14 @@ function poseAt(table, t) {
         leftLeg: second ? fwd : back,
         rightArm: second ? armFwd : armBack,
         leftArm: second ? armBack : armFwd,
-        hip: [-table.waistLean, yaw, 0],
-        torso: [table.lean, -yaw * 0.5, roll],
+        hip: [table.hipLean, yaw, 0],
+        // The trunk group carries no pitch of its own any more: the tilt
+        // lives in the two spine segments below it, whose angles add up to
+        // table.lean. Sway and rock stay here, where they turn and roll the
+        // whole trunk over the planted leg.
+        torso: [0, -yaw * 0.5, roll],
+        belly: [table.bellyLean, 0, 0],
+        chest: [table.chestLean, 0, 0],
         head: [table.headPitch, 0, 0],
         lift: table.bounce * liftAt(second ? (t - 0.5) * 2 : t * 2)
     }

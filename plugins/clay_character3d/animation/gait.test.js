@@ -17,8 +17,10 @@ const G = K.load(__dirname, 'gait.js', [
     'FACTORS', 'FACTOR_NAMES', 'BASES', 'PRESETS', 'PRESET_NAMES',
     'neutral', 'compose', 'scaled', 'emotionFactors', 'canonicalEmotion',
     'buildFactors', 'presetFactors', 'presetKnown', 'derive', 'strideLength',
-    'speedFor', 'poseAt', 'easeInOutQuad', 'liftAt', 'ankleZ'
+    'speedFor', 'poseAt', 'easeInOutQuad', 'liftAt', 'ankleZ', 'spineFrom',
+    'BUILD'
 ])
+G.BUILD_SOFT = G.BUILD.soft
 
 const ok = K.ok, eq = K.eq, near = K.near, section = K.section
 const rad = Math.PI / 180
@@ -103,11 +105,19 @@ section('the planted foot does not slide: net slip is zero by construction')
 section('a factor lean bends at the waist, a base lean does not')
 {
     const w = G.derive('walk', { lean: 8 })
-    eq('walk: torso carries it', w.lean, 8)
-    eq('walk: hip counters it', w.waistLean, 8)
+    eq('walk: the trunk carries it', w.lean, 8)
+    eq('walk: it is all waist', w.waistLean, 8)
+    // What the legs end up doing: belly + hip is where the pelvis points, and
+    // under a factor lean that must be straight up.
+    near('walk: the legs stay planted', w.bellyLean + w.hipLean, 0, 1e-12)
     const r = G.derive('run', { lean: 8 })
-    eq('run: torso carries base plus factor', r.lean, 20)
-    eq('run: hip counters only the factor', r.waistLean, 8)
+    eq('run: the trunk carries base plus factor', r.lean, 20)
+    eq('run: only the factor is at the waist', r.waistLean, 8)
+    near('run: the legs tip with the base lean', r.bellyLean + r.hipLean, 12, 1e-12)
+    near('run neutral: the legs tip the whole 12',
+         G.derive('run', null).bellyLean + G.derive('run', null).hipLean, 12, 1e-12)
+    near('walk neutral: nothing tips at all',
+         G.derive('walk', null).bellyLean + G.derive('walk', null).hipLean, 0, 1e-12)
 }
 
 section('derive without factors, and with nonsense, is neutral')
@@ -336,8 +346,9 @@ section('poseAt replays the cycle the animation plays')
     near('torso counters the hip', p0.torso[1], -t.sway / 2, 1e-12)
     near('roll at t=0', p0.torso[2], -t.rock, 1e-12)
     near('roll at t=0.5', pHalf.torso[2], t.rock, 1e-12)
-    near('lean holds', pQ.torso[0], t.lean, 1e-12)
-    near('the hip counters the waist lean', pQ.hip[0], -t.waistLean, 1e-12)
+    near('the trunk group carries no pitch', pQ.torso[0], 0, 1e-12)
+    near('belly and chest add up to the lean', pQ.belly[0] + pQ.chest[0], t.lean, 1e-12)
+    near('the hip gives back the belly bend', pQ.hip[0], t.hipLean, 1e-12)
     near('head holds', pQ.head[0], t.headPitch, 1e-12)
     near('elbow holds', pQ.rightArm.lower, -t.elbow, 1e-12)
     // The easing is Qt's InOutQuad.
@@ -355,7 +366,92 @@ section('a neutral pose is the legacy key pose')
     eq('no lift', p.lift, 0)
     eq('level hip', JSON.stringify(p.hip), JSON.stringify([0, 0, 0]))
     eq('upright torso', JSON.stringify(p.torso), JSON.stringify([0, 0, 0]))
+    eq('straight belly', JSON.stringify(p.belly), JSON.stringify([0, 0, 0]))
+    eq('straight chest', JSON.stringify(p.chest), JSON.stringify([0, 0, 0]))
     eq('level head', JSON.stringify(p.head), JSON.stringify([0, 0, 0]))
+}
+
+// ------------------------------------------------------------------- the spine
+section('the trunk is two segments: the lean is shared, the curve is differential')
+{
+    // Whatever the split does, the head must end up where the single-box
+    // torso put it - the stride, the speed and every anchor above the waist
+    // are derived from that.
+    for (const f of [{ lean: 8 }, { lean: -6 }, { spineCurve: 20 }, { lean: 9, spineCurve: -14 }, {}]) {
+        const t = G.derive('walk', G.compose([f]))
+        near('walk ' + JSON.stringify(f) + ': belly + chest == lean',
+             t.bellyLean + t.chestLean, t.lean, 1e-9)
+        const r = G.derive('run', G.compose([f]))
+        near('run ' + JSON.stringify(f) + ': belly + chest == lean',
+             r.bellyLean + r.chestLean, r.lean, 1e-9)
+    }
+
+    const n = G.derive('walk', null)
+    eq('a neutral walk has a straight back', n.bellyLean, 0)
+    eq('a neutral walk has a straight chest', n.chestLean, 0)
+
+    // spineCurve alone is a pure curve: the back rounds, the head does not move.
+    const c = G.derive('walk', G.compose([{ spineCurve: 20 }]))
+    near('a pure curve does not tilt the trunk', c.bellyLean + c.chestLean, 0, 1e-9)
+    ok('a positive curve rounds the back forward', c.chestLean > 0 && c.bellyLean < 0)
+    const a = G.derive('walk', G.compose([{ spineCurve: -20 }]))
+    ok('a negative curve arches it and lifts the chest', a.chestLean < 0 && a.bellyLean > 0)
+
+    // A factor lean bends over the spine rather than tipping as one piece:
+    // even with no spineCurve asked for, the two segments differ.
+    const l = G.derive('walk', G.compose([{ lean: 10 }]))
+    ok('a factor lean curves on its own', l.chestLean - l.bellyLean > 4)
+    // A base lean does not curve at all: a sprinter is a straight line from
+    // the ankles, so the whole 12 degrees goes on the belly and the waist
+    // joint stays shut.
+    const run = G.derive('run', null)
+    near('a neutral run tips rigidly', run.bellyLean, 12, 1e-9)
+    near('a neutral run keeps the waist shut', run.chestLean, 0, 1e-9)
+    near('a neutral run tips the legs with it', run.hipLean, 0, 1e-9)
+}
+
+section('the moods that need a back have one')
+{
+    const n = G.derive('walk', null)
+    const back = (t) => t.chestLean - t.bellyLean   // how round the back is
+    for (const [name, f] of [['dejected', G.presetFactors('dejected')],
+                             ['elderly', G.presetFactors('elderly')],
+                             ['sneak', G.presetFactors('sneak')],
+                             ['soft build', G.BUILD_SOFT]]) {
+        if (!f) continue
+        ok(name + ' rounds the back', back(G.derive('walk', G.compose([f]))) > back(n) + 8)
+    }
+    for (const [name, f] of [['proud', G.presetFactors('proud')],
+                             ['cheerful', G.presetFactors('cheerful')],
+                             ['march', G.presetFactors('march')]]) {
+        ok(name + ' arches it', back(G.derive('walk', G.compose([f]))) < back(n) - 4)
+    }
+    const toddler = G.derive('walk', G.compose([G.presetFactors('toddler')]))
+    ok('a toddler stands belly-first', back(toddler) < 0 && toddler.lean < 0)
+    const heavy = G.derive('walk', G.compose([G.presetFactors('heavy')]))
+    ok('a heavy walker leans back over its weight', heavy.lean < 0)
+}
+
+section('the angry walk is short, hard steps with the arms held in')
+{
+    // The failure this pins: anger written as a BIGGER walk. It came out as a
+    // lope with the forearms flapping, because ground covered easily is the
+    // opposite of what anger looks like.
+    const n = G.derive('walk', null)
+    const angry = G.derive('walk', G.compose([G.emotionFactors('angry')]))
+    ok('angry takes shorter steps than a neutral walk', angry.hipFwd < n.hipFwd)
+    ok('angry takes them quicker', angry.cycleMs < n.cycleMs)
+    ok('angry stamps', angry.kneeLift > n.kneeLift)
+    // The fists ride in front of the hips because the elbow is bent, not
+    // because the whole swing was slid forward - that produced two arms held
+    // out in front that barely alternated.
+    ok('angry bends the elbows', angry.elbow > 30)
+    ok('angry still swings the upper arms past each other',
+       angry.armFwd > 10 && angry.armBack > 4)
+    ok('angry reaches less far back than a neutral walk', angry.armBack < n.armBack)
+    ok('angry hunches the shoulders over the head',
+       angry.chestLean - angry.bellyLean > 8)
+    ok('angry throws its weight side to side', angry.rock > n.rock)
 }
 
 process.exit(K.report('gait model'))

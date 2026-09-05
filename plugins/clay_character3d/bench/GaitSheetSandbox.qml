@@ -25,8 +25,23 @@
 // of them looks wrong on the sheet it looks wrong at speed.
 //
 // yaw turns the figures: 90 is the classic side view walking screen-right,
-// 0 is head-on, 45 three-quarter. Factors beyond a preset go through the
-// shared Gait: --eval 'sheetGait.lean = 6'.
+// 0 is head-on, 180 from behind, 45 three-quarter. pitch lifts the CAMERA
+// instead - 0 is eye level, 90 straight down - so the same sheet can be read
+// from above, which is the only angle that shows sway and rock honestly.
+// Factors beyond a preset go through the shared Gait:
+// --eval 'sheetGait.lean = 6'.
+//
+// The four views worth checking a change against, as one loop:
+//
+//   for v in "front 0 0" "side 90 0" "back 180 0" "top 90 88"; do
+//     set -- $v
+//     clayrender plugins/clay_character3d/bench/GaitSheetSandbox.qml \
+//       --size 1800x520 --set 'preset="dejected"' \
+//       --set "yaw=$2" --set "pitch=$3" --wait-for 'ready' --out /tmp/sheet-$1.png
+//   done
+//
+// A silhouette that reads as walking from all four is a cycle; one that only
+// reads from the side is a side view.
 
 import QtQuick
 import QtQuick3D
@@ -60,8 +75,13 @@ Item {
     /*! Whether the build feeds the gait (Character.gaitFromBuild). */
     property bool fromBuild: true
 
-    /*! How the figures are turned: 90 is side-on walking screen-right. */
+    /*! How the figures are turned: 90 is side-on walking screen-right,
+        0 head-on, 180 from behind. */
     property real yaw: 90
+
+    /*! How far the camera is lifted, in degrees: 0 is eye level, 90 straight
+        down. The floor is dropped past 60, where it would cover the figures. */
+    property real pitch: 0
 
     /*! The shared gait; drive its factors with --eval for tuning. */
     readonly property Gait gait: sheetGait
@@ -109,6 +129,12 @@ Item {
         }
         const cycle = root.base === "run" ? c.runSpeed : c.walkSpeed
         s += " | speed " + cycle.toFixed(2)
+        // What the trunk is actually doing, which is the thing a sheet is read
+        // for and the one thing a factor list does not say outright.
+        const p = c.gaitPoseAt(root.base, 0)
+        s += "  | belly " + p.belly[0].toFixed(1) + " chest " + p.chest[0].toFixed(1)
+           + " back " + (p.chest[0] - p.belly[0]).toFixed(1)
+        s += "  | yaw " + root.yaw.toFixed(0) + " pitch " + root.pitch.toFixed(0)
         return s
     }
 
@@ -141,12 +167,17 @@ Item {
             brightness: 0.4
         }
 
-        // Head-on, orthographic: figures along X map linearly to the screen, so
-        // a frame label sits under its figure and the lift reads against the
-        // floor line without perspective in the way.
+        // Orthographic: figures along X map linearly to the screen, so a frame
+        // label sits under its figure and the lift reads against the floor
+        // line without perspective in the way. pitch swings the camera up over
+        // the row on the same arc, keeping the row centred whatever it is.
         OrthographicCamera {
             id: cam
-            position: Qt.vector3d(root._span * 0.5 - root._spacing * 0.5, root.bodyHeight * 0.5, 200)
+            readonly property real _r: Math.PI / 180 * root.pitch
+            position: Qt.vector3d(root._span * 0.5 - root._spacing * 0.5,
+                                  root.bodyHeight * 0.5 + 200 * Math.sin(cam._r),
+                                  200 * Math.cos(cam._r))
+            eulerRotation: Qt.vector3d(-root.pitch, 0, 0)
             horizontalMagnification: Math.max(0.01, v3d.width) / (root._span * 1.05)
             verticalMagnification: horizontalMagnification
             clipNear: 1
@@ -156,6 +187,8 @@ Item {
         // The floor: a slab whose top face is y = 0, so the feet stand on a
         // line and a bounce leaves it visibly.
         Box3D {
+            // From overhead it would be a lid over the whole sheet.
+            visible: root.pitch < 60
             position: Qt.vector3d(root._span * 0.5 - root._spacing * 0.5, -0.3, 0)
             width: root._span * 1.1
             height: 0.6
@@ -263,6 +296,8 @@ Item {
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_Right) root.yaw += 15
         else if (e.key === Qt.Key_Left) root.yaw -= 15
+        else if (e.key === Qt.Key_W) root.pitch = Math.min(90, root.pitch + 15)
+        else if (e.key === Qt.Key_S) root.pitch = Math.max(0, root.pitch - 15)
         else if (e.key === Qt.Key_Up) root.frames = Math.min(16, root.frames + 1)
         else if (e.key === Qt.Key_Down) root.frames = Math.max(2, root.frames - 1)
         else if (e.key === Qt.Key_B) root.base = root.base === "walk" ? "run" : "walk"
@@ -285,6 +320,7 @@ Item {
         font.family: _header.font.family
         font.pixelSize: 11
         color: "#6b6b72"
-        text: "left/right turn   up/down frames   b walk/run   p next preset   1/2/3/0 emotion"
+        text: "left/right turn   w/s camera up/down   up/down frames   b walk/run"
+            + "   p next preset   1/2/3/0 emotion"
     }
 }

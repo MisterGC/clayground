@@ -108,6 +108,8 @@ clay_add_qml_test(character3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qm
 
 # The head itself needs Canvas3D's C++ Box3DGeometry, so this half loads the
 # built module and is the half Windows has to skip.
+# tst_headpose.qml and tst_torso.qml both live here: a Head and a Character
+# are made of Box3D, whose geometry is C++ in Canvas3D.
 clay_add_qml_test(character3d_head_qml IMPORTS_BUILT_MODULE
                   DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_head)
 

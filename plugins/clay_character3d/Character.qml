@@ -132,7 +132,7 @@ BodyPartsGroup {
 
         The thing to assert on: it says what the character was asked to do,
         where a joint angle mid-swing says only where the leg happens to be.
-        Keys are the eleven factors of \l Gait.
+        Keys are the twelve factors of \l Gait.
     */
     readonly property var gaitFactors: GaitLib.compose([
         _character.gaitFromBuild ? GaitLib.buildFactors(_character.gaitBuild) : null,
@@ -162,8 +162,8 @@ BodyPartsGroup {
 
         Pure: the same answer as the running cycle would give at that moment,
         computed from \l gaitFactors. Returns \c {{rightLeg, leftLeg, rightArm,
-        leftArm, hip, torso, head, lift}} in the joints' own conventions, lift
-        in leg heights. The cycle sheet is drawn from it.
+        leftArm, hip, torso, belly, chest, head, lift}} in the joints' own
+        conventions, lift in leg heights. The cycle sheet is drawn from it.
     */
     function gaitPoseAt(base, t) {
         return GaitLib.poseAt(GaitLib.derive(base, _character.gaitFactors), t)
@@ -198,14 +198,17 @@ BodyPartsGroup {
         arm(_leftArm, p.leftArm)
         _hip.eulerRotation = Qt.vector3d(p.hip[0], p.hip[1], p.hip[2])
         _torso.eulerRotation = Qt.vector3d(p.torso[0], p.torso[1], p.torso[2])
+        _belly.eulerRotation = Qt.vector3d(p.belly[0], p.belly[1], p.belly[2])
+        _chest.eulerRotation = Qt.vector3d(p.chest[0], p.chest[1], p.chest[2])
         _head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
         _character._heldLift = p.lift * _character.legHeight
     }
 
     // Bounding box dimensions (derived from body parts)
-    width: Math.max(shoulderWidth, waistWidth, hipWidth)
+    width: Math.max(shoulderWidth, waistWidth, hipWidth, _belly.width,
+                    _character._waistJointWidth)
     height: footHeight + legHeight + hipHeight + torsoHeight + neckHeight + headHeight
-    depth: Math.max(torsoDepth, hipDepth)
+    depth: Math.max(torsoDepth, hipDepth, _belly.depth, _chest.depth)
 
     // ============================================================================
     // ACTIVITY & BEHAVIOR PROPERTIES
@@ -1028,11 +1031,94 @@ BodyPartsGroup {
     property alias torsoHeight: _torso.height
     /*! Depth of the torso. */
     property alias torsoDepth: _torso.depth
-    /*! Width at the waist. */
+    /*! Width at the waist - where the trunk meets the hip. */
     property alias waistWidth: _torso.waistWidth
 
-    /*! Torso/shirt color. */
-    property alias torsoColor: _torso.color
+    /*!
+        \qmlproperty real Character::bellyRatio
+        \brief The belly's share of \l torsoHeight, 0..1. The rest is the
+               chest, and the waist joint sits between them.
+
+        The trunk is two boxes on a joint rather than one box, which is what
+        lets a back round and a chest swell. 0.45 puts the joint where a waist
+        is; at that value, and with \l bellyBulge, \l chestSwell and
+        \l waistPinch left alone, the pair traces exactly the tapered box the
+        torso used to be.
+
+        \sa belly, chest, Gait::spineCurve
+    */
+    property real bellyRatio: 0.45
+
+    /*!
+        \qmlproperty real Character::bellyBulge
+        \brief How far the belly swells past the plain trunk taper. 1 leaves
+               it alone, 1.3 is a gut, below 1 tucks it in.
+
+        Mostly depth and rather less width, because that is how a belly reads:
+        it grows forward. The bottom of the belly stays at \l waistWidth by
+        \l torsoDepth however far it bulges, so the swell hangs off the ribs
+        rather than off the pelvis. \l ParametricCharacter drives it from
+        \c mass.
+    */
+    property real bellyBulge: 1.0
+
+    /*!
+        \qmlproperty real Character::chestSwell
+        \brief How much deeper the chest is than the plain trunk taper. 1
+               leaves it alone.
+
+        Depth only: the chest's width is \l shoulderWidth and stays it.
+        \l ParametricCharacter drives it from \c muscle.
+    */
+    property real chestSwell: 1.0
+
+    /*!
+        \qmlproperty real Character::waistPinch
+        \brief How far in the waist joint is drawn, as a fraction of the
+               width the taper would have there. 0 (the default) is no pinch.
+
+        The one shape a single tapered box could not make: narrow in the
+        middle and wider at both ends.
+    */
+    property real waistPinch: 0.0
+
+    /*! Torso/shirt color - both segments unless one is given its own. */
+    property color torsoColor: "red"
+
+    /*!
+        \qmlproperty color Character::bellyColor
+        \brief Colour of the lower trunk. Follows \l torsoColor until set.
+    */
+    property color bellyColor: _character.torsoColor
+
+    /*!
+        \qmlproperty color Character::chestColor
+        \brief Colour of the upper trunk. Follows \l torsoColor until set.
+    */
+    property color chestColor: _character.torsoColor
+
+    // The geometry the two segments are cut from. Clamped here rather than at
+    // every use: a bellyRatio of 0 or 1 is a box of zero height, and a
+    // faceScale divides by these.
+    readonly property real _bellyRatioC: Math.max(0.05, Math.min(0.95, _character.bellyRatio))
+    readonly property real _bellyBulgeC: Math.max(0.2, _character.bellyBulge)
+    readonly property real _chestSwellC: Math.max(0.2, _character.chestSwell)
+    // Where the old single box was, at the height the joint cuts it, less
+    // whatever the waist is pinched by.
+    readonly property real _waistJointWidth:
+        (_character.waistWidth
+         + (_character.shoulderWidth - _character.waistWidth) * _character._bellyRatioC)
+        * (1 - Math.max(0, Math.min(0.6, _character.waistPinch)))
+    // A belly is mostly depth: a third of the bulge goes into the width and
+    // the rest forward. Width is the expensive axis - a ParametricCharacter
+    // already widens the whole body with mass, and adding much more here is
+    // how a heavy, muscular build turns into a slab wider than it is tall.
+    readonly property real _bellyWidthK: 1 + (_character._bellyBulgeC - 1) * 0.35
+    // How far forward the belly box is pushed, so a gut is in front of the
+    // body rather than around it. A third of the extra depth; the chest and
+    // the hip take it straight back out.
+    readonly property real _bellyForward:
+        _character.torsoDepth * (_character._bellyBulgeC - 1) * 0.33
 
     // ============================================================================
     // HIP PROPERTIES
@@ -1144,10 +1230,39 @@ BodyPartsGroup {
     readonly property Leg rightLeg: _rightLeg
     /*! Reference to the head for animation. */
     readonly property Head head: _head
-    /*! Reference to the torso. */
+    /*!
+        \qmlproperty BodyPart Character::torso
+        \readonly
+        \brief The trunk as a whole - the frame \l belly and \l chest hang
+               in. It draws nothing; turning it turns the whole upper body,
+               which is what sway and rock do.
+    */
     readonly property BodyPart torso: _torso
+    /*!
+        \qmlproperty BodyPart Character::belly
+        \readonly
+        \brief The lower trunk. Pitching it bends the body at the hip; the
+               chest, the arms and the head come with it.
+    */
+    readonly property BodyPart belly: _belly
+    /*!
+        \qmlproperty BodyPart Character::chest
+        \readonly
+        \brief The upper trunk, on the waist joint. Pitching it against the
+               belly is what rounds a back or lifts a chest - a curve rather
+               than a tilt.
+    */
+    readonly property BodyPart chest: _chest
     /*! Reference to the hip. */
     readonly property BodyPart hip: _hip
+
+    // Where the chest node sits in the character's own frame. The belly's
+    // forward offset and the chest's counter-offset cancel, so this is the
+    // waist joint on the trunk's own axis however far the belly bulges.
+    readonly property vector3d _chestOrigin: Qt.vector3d(
+        _torso.basePos.x + _belly.basePos.x + _chest.basePos.x,
+        _torso.basePos.y + _belly.basePos.y + _chest.basePos.y,
+        _torso.basePos.z + _belly.basePos.z + _chest.basePos.z)
 
     /*!
         \qmlproperty vector3d Character::rightShoulderPos
@@ -1161,9 +1276,9 @@ BodyPartsGroup {
         keeps pointing at a shoulder when the torso's proportions change.
     */
     readonly property vector3d rightShoulderPos: Qt.vector3d(
-        _torso.basePos.x + _rightArm.basePos.x,
-        _torso.basePos.y + _rightArm.basePos.y,
-        _torso.basePos.z + _rightArm.basePos.z)
+        _character._chestOrigin.x + _rightArm.basePos.x,
+        _character._chestOrigin.y + _rightArm.basePos.y,
+        _character._chestOrigin.z + _rightArm.basePos.z)
 
     /*!
         \qmlproperty vector3d Character::leftShoulderPos
@@ -1172,9 +1287,9 @@ BodyPartsGroup {
                coordinates.
     */
     readonly property vector3d leftShoulderPos: Qt.vector3d(
-        _torso.basePos.x + _leftArm.basePos.x,
-        _torso.basePos.y + _leftArm.basePos.y,
-        _torso.basePos.z + _leftArm.basePos.z)
+        _character._chestOrigin.x + _leftArm.basePos.x,
+        _character._chestOrigin.y + _leftArm.basePos.y,
+        _character._chestOrigin.z + _leftArm.basePos.z)
 
     /*!
         \qmlproperty vector3d Character::headPos
@@ -1183,11 +1298,19 @@ BodyPartsGroup {
                the origin of the anchors published by \l Head.
     */
     readonly property vector3d headPos: Qt.vector3d(
-        _torso.basePos.x + _head.basePos.x,
-        _torso.basePos.y + _head.basePos.y,
-        _torso.basePos.z + _head.basePos.z)
+        _character._chestOrigin.x + _head.basePos.x,
+        _character._chestOrigin.y + _head.basePos.y,
+        _character._chestOrigin.z + _head.basePos.z)
 
-    BodyPart {
+    // The trunk. The node itself draws nothing: it is the frame the two
+    // segments hang in, and it keeps every dimension the single-box torso had
+    // - width is the shoulders, height the whole torso, depth the trunk - so
+    // shoulderWidth, torsoHeight, torsoDepth and waistWidth still name what
+    // they always named. What changed is what is inside it: a belly and a
+    // chest on a waist joint, so the trunk can round and swell instead of
+    // only tipping. At the default bellyRatio, bellyBulge, chestSwell and
+    // waistPinch the pair traces exactly the trapezoid the one box drew.
+    BodyPartsGroup {
         id: _torso
 
         width: 3.5
@@ -1195,17 +1318,62 @@ BodyPartsGroup {
         depth: 1.25
         property real waistWidth: 3.0
 
-        scaledFace: Box3DGeometry.BottomFace
-        faceScale: Qt.vector2d(waistWidth/width, 1.0)
         // Position torso above legs, feet, and hip - plus whatever the gait
         // is lifting the whole figure by this instant. Everything hangs off
         // the torso, so this is the figure's bounce, feet included.
         basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height
                                 + _character.gaitLift, 0)
 
+      BodyPart {
+        id: _belly
+
+        // The box is measured at its BOTTOM, where it meets the hip, and its
+        // top face is scaled to the width the old trapezoid had at the waist
+        // joint. That way round on purpose: a belly is widest low and hangs
+        // OVER the belt, so the bulge has to grow the end that sits on the
+        // hip. Scaled the other way it grew under the ribs and tapered into
+        // the pelvis, which reads as a barrel rather than as a gut.
+        //
+        // At bellyBulge 1 the bottom is exactly waistWidth by torsoDepth and
+        // the top exactly the joint section, so the pair still traces the
+        // single box's outline.
+        width: _character.waistWidth * _character._bellyWidthK
+        height: _character.torsoHeight * _character._bellyRatioC
+        depth: _character.torsoDepth * _character._bellyBulgeC
+        color: _character.bellyColor
+
+        scaledFace: Box3DGeometry.TopFace
+        faceScale: Qt.vector2d(_character._waistJointWidth / Math.max(1e-6, _belly.width),
+                               _character.torsoDepth / Math.max(1e-6, _belly.depth))
+
+        // A belly grows forward more than back. Only the box moves; the chest
+        // and the hip take the offset straight back out (see their basePos)
+        // so the head, the shoulders and the legs all stay on the trunk's own
+        // axis however far it bulges.
+        basePos: Qt.vector3d(0, 0, _character._bellyForward)
+
+      BodyPart {
+        id: _chest
+
+        // Sits on the waist joint. The z undoes the belly's forward offset.
+        basePos: Qt.vector3d(0, _belly.height, -_character._bellyForward)
+
+        width: _character.shoulderWidth
+        height: _character.torsoHeight * (1 - _character._bellyRatioC)
+        depth: _character.torsoDepth * _character._chestSwellC
+        color: _character.chestColor
+
+        // The bottom face is the belly's TOP face - the joint section, which
+        // is the same whatever the belly is doing below it. A bulged belly
+        // therefore steps out from under the chest rather than dragging the
+        // ribcage wider with it.
+        scaledFace: Box3DGeometry.BottomFace
+        faceScale: Qt.vector2d(_character._waistJointWidth / Math.max(1e-6, _chest.width),
+                               _character.torsoDepth / Math.max(1e-6, _chest.depth))
+
         Head {
             id: _head
-            basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
+            basePos:  Qt.vector3d(0, (_chest.height + _character.neckHeight), 0)
             speechSource: _speech
 
             // The face is no longer something a distant character stops paying
@@ -1241,7 +1409,7 @@ BodyPartsGroup {
         // keeps whatever the character was asked to hold.
         Arm {
             id: _rightArm
-            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _torso.height, 0)
+            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _chest.height, 0)
 
             articulated: _character.detailedHands
             handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
@@ -1250,7 +1418,7 @@ BodyPartsGroup {
 
         Arm {
             id: _leftArm
-            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _torso.height, 0)
+            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _chest.height, 0)
 
             mirrored: true
             articulated: _character.detailedHands
@@ -1279,7 +1447,12 @@ BodyPartsGroup {
             handDepth: _rightArm.handDepth
         }
 
-        // Hip (containing legs)
+      }   // _chest
+
+        // Hip (containing legs). It hangs off the BELLY, not off the trunk
+        // group: the pelvis follows the lower back, so a hip that counters
+        // the trunk's tilt only has the belly's share of it to counter. See
+        // hipLean in gait.js.
         BodyPart {
             id: _hip
             width: 3.0
@@ -1289,7 +1462,9 @@ BodyPartsGroup {
 
             scaledFace: Box3DGeometry.TopFace
             faceScale: Qt.vector2d(_torso.waistWidth/width, 1.0)
-            basePos: Qt.vector3d(0, -_hip.height, 0)
+            // The z undoes the belly's forward offset, the same way the
+            // chest's does: a gut moves the box, not the skeleton.
+            basePos: Qt.vector3d(0, -_hip.height, -_character._bellyForward)
 
             // Legs (containing feet)
             // Hip joint aligns with hip bottom (legs extend downward from there)
@@ -1320,7 +1495,9 @@ BodyPartsGroup {
                 footDepth: _rightLeg.footDepth
             }
         }
-    }
+
+      }   // _belly
+    }   // _torso
 
     // The two gaits. Angles and cycle length come from gaitFactors through
     // gait.js; the entity's legHeight sets the stride and so the speed.
