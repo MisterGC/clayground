@@ -105,19 +105,45 @@ Node {
     function travelTo(worldPos) {
         if (!_present || !worldPos) return
         _trip.stop()
+        _turn.stop()
         stopGesture()
         _from = root.stand
         _to = worldPos
         const dx = _to.x - _from.x
         const dz = _to.z - _from.z
         const far = Math.sqrt(dx * dx + dz * dz)
-        // Turn to face the way it is going, unless it is going nowhere in
-        // particular - a spin on the spot for a 2 cm hop looks like a fault.
-        _headTo = far > root.standHeight * 0.25
+        // Already there: say so and do nothing else. Lifting off, hovering
+        // and landing on the spot you were standing on reads as fidgeting,
+        // and a flow whose next subject is where the last one was asks for
+        // exactly that trip.
+        if (far < root.standHeight * 0.25) {
+            _stayed.restart()
+            return
+        }
+        // Turn to face the way it is going - but only for a real crossing. A
+        // board can drift a body length or two sideways without turning
+        // round, and a person steps to the next exhibit without an
+        // about-face; turning for a hop was a full 180-degree spin on the
+        // spot for a 2.4-unit move, measured in the logic-gates flow (#219).
+        _headTo = far > root.standHeight * root.turnDistance
                 ? root.heading + _shortWay(Math.atan2(dx, dz) * 180 / Math.PI - root.heading)
                 : root.heading
         _flightMs = Math.max(320, Math.min(4000, far / Math.max(0.1, root.travelSpeed) * 1000))
         _trip.restart()
+    }
+
+    /*!
+        How far a trip has to be, in body heights, before the professor
+        turns to face the way it is going. Shorter hops slide.
+    */
+    property real turnDistance: 3.5
+
+    // The zero-length trip. A beat later, so that a handler for arrived()
+    // sees a distinct event and never runs inside the caller's stack.
+    Timer {
+        id: _stayed
+        interval: 40
+        onTriggered: root.arrived(root.stand)
     }
 
     /*! Turns on the spot to face \a worldPos, without going anywhere. */
@@ -454,13 +480,33 @@ Node {
     */
     function faceViewer() {
         if (!root.view || !root.view.camera) return
-        const at = root.view.camera.scenePosition
+        const at = viewerPosition()
         turnTo(at)
         // The body turn is slow and coarse; the eyes arrive first and hold
         // the reader while it finishes. Without this the professor addresses
         // the camera with a fixed forward stare, which is the difference
         // between being looked at and being aimed at.
         lookAt(at)
+    }
+
+    /*!
+        Where the viewer is, for \l faceViewer(): the camera's goal position
+        when the camera sits on a rig that has one (OrbitCamera3D), else
+        where it is right now.
+
+        The goal, because the shot usually moves as the professor turns: a
+        director pulls in for the explanation at the same moment. Aimed at
+        where the camera WAS, the professor ended up eleven to sixteen
+        degrees off the lens in every step of both electronics flows - a
+        presenter looking past the viewer (#219).
+    */
+    function viewerPosition() {
+        if (!root.view || !root.view.camera) return null
+        const cam = root.view.camera
+        const rig = cam.parent
+        if (rig && rig.goalPosition !== undefined && rig.goalPosition !== null)
+            return rig.goalPosition
+        return cam.scenePosition
     }
 
     /*!
