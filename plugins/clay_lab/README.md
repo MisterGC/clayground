@@ -127,6 +127,10 @@ Everything below was hand-rolled in two labs before it moved here.
   plot full, the limit read off the monitor), **WatchMark** the dot the
   object then wears in the world, in its curve's colour.
 - **WorldLabel** — 2D paper chip pinned to a 3D point.
+- **MarkLayer** — rings on the world points something is naming right
+  now, optionally captioned. Fed by a `FlowStep.mark` list or a
+  performance script's `*mark ...*` cue; `keepOut` keeps a ring off a
+  presenter standing in front of the part it marks.
 - **SelectionFrame3D** — the shared hover/select language on the work
   surface (thin outline hovering, full frame plus facing mark selected).
   Used by the circuit kit; note that its lift is measured from the object,

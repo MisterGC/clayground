@@ -40,6 +40,7 @@ clay_plugin( Lab
         Narrator.qml
         FlowChip.qml
         WorldLabel.qml
+        MarkLayer.qml
         SelectionFrame3D.qml
         HintJump.qml
         CardFocusRing.qml

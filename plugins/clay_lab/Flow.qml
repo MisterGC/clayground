@@ -176,6 +176,18 @@ Item {
     readonly property string title: titleKey === "" ? "" : LabLang.t(titleKey)
 
     /*!
+        \qmlproperty var Flow::marks
+        \readonly
+        \brief The active step's \l {FlowStep::mark} names; empty when idle.
+
+        One binding for the lab: hand it to whatever resolves and draws the
+        marks (the professor kit's \c FlowGuide, or a \l MarkLayer
+        directly). It empties itself when the flow stops, so a mark cannot
+        outlive the lesson.
+    */
+    readonly property var marks: (step === null || !step.mark) ? [] : step.mark
+
+    /*!
         \qmlproperty string Flow::narration
         \readonly
         \brief The active step's text in the current language.
