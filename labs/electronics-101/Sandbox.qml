@@ -459,27 +459,18 @@ Item {
     // matters is minHeight - flatten the angle and the rig backs off instead
     // of diving through the setup, which a minimum DISTANCE could not do
     // without also blocking a zoom onto a single part.
-    // Once the professor has landed, put the camera on what it came to show.
     //
-    // Without this the logic flow's steps keep the framing their scenario
-    // asked for, which is the whole 140x80 board - and at that distance the
-    // teacher is thirty pixels tall, small enough that its own speech bubble
-    // covers it completely. The flow frames the situation; this frames the
-    // sentence. It runs on arrival, so it is the later of the two and wins.
-    function frameSubject() {
-        const s = root.flowSubject(-1)
-        if (!s || !s.ids)
-            return
-        // Every part the step is about, not just the one being pointed at: a
-        // step whose line is "two of them reading the same inputs" that shows
-        // one gate has framed the pointing and lost the sentence.
-        const cells = []
-        for (const id of s.ids) {
-            const e = root.elemAt(id)
-            if (e) cells.push(e)
-        }
-        if (cells.length) frameCells(cells)
-    }
+    // While the teacher is on the board the camera is the director's (the
+    // kernel's CameraDirector, wired into the FlowGuide below): journey,
+    // two-shot, portrait, cutaway, in the order television would take them.
+    // This file used to carry that grammar itself - a frame on arrival, a
+    // portrait on addressing, a pair of hooks into the script's cues, floors
+    // relaxed here and restored there - and it was where the pointing lost
+    // its subject: nothing in it reframed for a *point at* cue, and the
+    // ballast trick that pushed the part up out of the flow bar was a safe
+    // area spelled as geometry (#219). What is left here is the camera
+    // OUTSIDE a lesson: the keys, and the flow's own `frame` verb for a
+    // flow that runs with nobody on stage.
 
     // While the teacher is on the board, the part tags and the wire readings
     // come off.
@@ -496,108 +487,38 @@ Item {
     // exactly as they always did.
     readonly property bool labelsHidden: prof.present
 
-    // Where the professor is, or is about to be. Null when it is not on stage,
-    // which is every use of the camera outside a flow.
-    function profSpot() {
-        if (!prof.present)
-            return null
-        const s = root.flowSubject(root.currentFlow ? root.currentFlow.index : -1)
-        return s && s.stand ? s.stand : prof.stand
-    }
-
     function frameCells(cells) {
-        _boardGuards()
         if (!cells || !cells.length) {
-            // Nothing on the board. If somebody is standing on it, frame them
-            // against the empty sheet instead of pulling back to the far
-            // limit, where a teacher is four pixels tall and the lesson opens
-            // on a picture of nothing.
-            const who = profSpot()
-            if (who) {
-                rig.frame([Qt.vector3d(who.x - 26, 0, who.z - 8),
-                           Qt.vector3d(who.x + 26, prof.standHeight, who.z + 30)],
-                          1.15, { pitch: root.presentPitch })
-                return
-            }
             // one applyState, not a pivot write plus a setDistance: the rig
             // eases, so two writes would start two glides and the board would
             // slide sideways while it zoomed out
             rig.applyState({ px: 0, py: 2, pz: 0, distance: rig.maxDistance })
             return
         }
-        // a single part is a point; give the frame some extent so the camera
-        // lands on something rather than diving at it
+        rig.frame(cellExtent(cells), 1.25)
+    }
+    // a single part is a point; give the frame some extent so the camera
+    // lands on something rather than diving at it - the same box the
+    // director is handed as a step's extent, so a key and a lesson frame a
+    // part the same way
+    function cellExtent(cells) {
         const pts = []
         for (const c of cells) {
             pts.push(Qt.vector3d(cellX(c.col) - 7, 2, cellZ(c.row) - 7))
             pts.push(Qt.vector3d(cellX(c.col) + 7, 2, cellZ(c.row) + 7))
         }
-        // Keep the teacher in shot. Its position for THIS step, not the one
-        // it is still standing on: the flow frames during the step's demo and
-        // the professor leaves for the new subject a moment later, so framing
-        // where it currently is would frame where it has just been.
-        const spot = profSpot()
-        if (spot) {
-            pts.push(Qt.vector3d(spot.x - 5, 0, spot.z - 5))
-            // Headroom, not height. Framing to the top of the head puts the
-            // head at the top of the window, and the speech bubble - which
-            // hangs above it and is sized in pixels, so it does not shrink
-            // when the shot pulls back - goes off the edge into the chrome.
-            // Asking for twice the figure keeps the bubble inside the
-            // picture at any framing distance.
-            pts.push(Qt.vector3d(spot.x + 5, prof.standHeight * 2.2, spot.z + 5))
-            // Ballast. At the presenting pitch, world height maps almost
-            // straight onto screen height, and a box that starts at the
-            // board puts the part on the frame's bottom edge - which is
-            // where the selection card and the flow bar live. Extending the
-            // box below the board pushes the centre down, so the part rides
-            // up into the clear part of the picture (and the fit backs off
-            // a little further, which the lower angle needs anyway).
-            pts.push(Qt.vector3d(spot.x, -prof.standHeight, spot.z))
-        }
-        rig.frame(pts, 1.25, spot ? { pitch: root.presentPitch } : undefined)
-    }
-    // The mid-shot. Pointing is a wide two-shot - teacher AND part - but the
-    // moment the professor turns to the reader the part has had its moment,
-    // and what carries the next sentence is the face: at the wide framing the
-    // smile is a few pixels behind a moustache, which reads as no smile at
-    // all. So addressing pulls the camera in on the professor alone; the next
-    // step's demo reframes wide again. The two hooks below cover both ways a
-    // step can address - the built-in beat (guide.addressing) and a directed
-    // script's *face viewer* cue.
-    // The rig's guards exist for circuit work: a learner orbiting the board
-    // must not skim it. A portrait is the opposite regime - the camera has to
-    // come down LEVEL with the face, or the shot looks at the crown and the
-    // eyes (and the smile under the moustache) disappear. So the mid-shot
-    // relaxes the two floors and every wide framing puts them back.
-    function frameProf() {
-        const spot = profSpot()
-        if (!spot) return
-        rig.minPitch = 6
-        rig.minHeight = 2
-        rig.frame([Qt.vector3d(spot.x - 6, 0, spot.z - 6),
-                   Qt.vector3d(spot.x + 6, prof.standHeight * 1.35, spot.z + 6)],
-                  1.1, { pitch: 8 })
-    }
-    function _boardGuards() {
-        rig.minPitch = 22
-        rig.minHeight = 9
-    }
-    Connections {
-        target: guide
-        function onAddressingChanged() { if (guide.addressing) root.frameProf() }
-    }
-    Connections {
-        target: guide.script
-        function onCueFired(type, arg) {
-            if (type === "face" && arg === "viewer") root.frameProf()
-        }
+        return pts
     }
 
     // Reset is a jump: 0/Home records where you were, so Ctrl+O undoes it.
     function frameAll() { rig.pushJump(); frameCells(elements) }
-    function frameSetup() { frameAll() }          // the flow's "frame" verb
+    // The flow's "frame" verb. A no-op while the teacher is on the board: the
+    // director frames each step from the professor's own choreography, and a
+    // wide shot cut here at step entry was the jump the professor then flew
+    // out of (#219).
+    function frameSetup() { if (!prof.present) frameAll() }
     function frameSelection() {
+        if (prof.present) return
         const el = elemAt(selectedId)
         if (!el) {
             // ⇧F with nothing selected: an open dive is the thing to close;
@@ -606,13 +527,10 @@ Item {
             frameCells(elements)
             return
         }
-        _boardGuards()
         // The same ±7 extent frameCells gives a single part, but through the
         // rig's sticky frame: the first press dives, the second flies back to
         // the view the dive left - even after reselecting in between.
-        rig.frameWithReturn(
-            [Qt.vector3d(cellX(el.col) - 7, 2, cellZ(el.row) - 7),
-             Qt.vector3d(cellX(el.col) + 7, 2, cellZ(el.row) + 7)], 1.15)
+        rig.frameWithReturn(cellExtent([el]), 1.15)
     }
     // The camera verbs a flow (or an agent) can call by name. The rig itself
     // is reachable as `rig`; these exist so a flow's action list reads like
@@ -1271,7 +1189,11 @@ Item {
                  stand: Qt.vector3d(bx, 0, bz - reach),
                  // A hand's breadth above the board, so the finger lands on
                  // the part rather than on the ground under it.
-                 look: Qt.vector3d(bx, 1.5, bz) }
+                 look: Qt.vector3d(bx, 1.5, bz),
+                 // Every part the step is about, for the camera: a step whose
+                 // line is "two of them reading the same inputs" that shows
+                 // one gate has framed the pointing and lost the sentence.
+                 extent: root.cellExtent(parts) }
     }
 
     // The gap between the professor and its subject's edge. Enough that a
@@ -1394,8 +1316,11 @@ Item {
             "*point at the resistor* And a 470 Ω resistor."
             + " *face viewer* *gesticulate* Without it the LED would take all"
             + " the current it can get and die. This is its seatbelt.",
+        // The insert: the LED alone for a beat as it is named, the way a
+        // science programme cuts to the thing at the moment it does its
+        // thing - then back out for the number, said to the reader.
         "lit":
-            "*happy* *point at the LED* There it is."
+            "*happy* *point at the LED* There it is. *cut to the LED* *pause 1.8s*"
             + " *face viewer* *gesticulate* 5.1 mA flow, and the LED glows.",
         "why":
             "*face viewer* *gesticulate* Why 5.1 mA? The cell offers 4.5 V,"
@@ -1627,8 +1552,16 @@ Item {
             // clamp instead - this is a hop between parts, not a commute.
             travelSpeed: 34
             objectName: "professor"
+        }
 
-            onArrived: root.frameSubject()
+        // Which shot when - the kernel's grammar, not this file's. The safe
+        // area is the chrome: the narrator bar and the selection card along
+        // the bottom, the hint strip at the top.
+        CameraDirector {
+            id: director
+            rig: rig
+            presenter: prof
+            safe: ({ top: 0.10, bottom: 0.18, left: 0.03, right: 0.03 })
         }
 
         // The flow, handed to the professor. Bound to currentFlow rather than
@@ -1645,6 +1578,7 @@ Item {
             scriptOf: (i) => root.flowScript(i)
             scriptVoiceOf: (i, sayIndex) => root.flowScriptVoice(i, sayIndex)
             scriptResolve: (name) => root.scriptTarget(name)
+            director: director
             // Arrives at the far edge, centred - off the board, so the puff
             // does not go off in the middle of the circuit, and behind it, so
             // the first flight is toward the viewer.
@@ -1675,6 +1609,7 @@ Item {
 
         OrbitCamera3D {
             id: rig
+            view: view3d          // the frame's shape, for the director's fits
             pivot: Qt.vector3d(0, 2, 0)
             yaw: 0
             pitch: 48
