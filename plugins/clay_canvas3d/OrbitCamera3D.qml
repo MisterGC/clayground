@@ -31,8 +31,8 @@ import QtQuick3D
     was asked for, not to the frame it happened to be caught on.
 
     \note Move the rig with \l orbitBy, \l zoomBy, \l zoomToward,
-    \l setDistance, \l setPivot, \l reanchor, \l panBy, \l frame, \l focusOn
-    and \l goTo rather than by writing the pose properties. Every one of them computes the limited value first and writes
+    \l setDistance, \l setPivot, \l reanchor, \l panBy, \l frame, \l fit,
+    \l focusOn and \l goTo rather than by writing the pose properties. Every one of them computes the limited value first and writes
     it \e once, which is what makes an animated rig correct: a Behavior defers
     the write, so a write-then-clamp reads back what was there before and
     silently cancels its own move. Direct writes are for the declared initial
@@ -219,6 +219,64 @@ Node {
         down from wherever you are". \l goTo travels to one.
     */
     property var viewpoints: ({})
+
+    /*!
+        \qmlproperty var OrbitCamera3D::view
+        \brief The View3D this rig renders through. Optional.
+
+        What tells the rig the shape of its frame. Without it every fit is
+        made against the vertical field alone, which is right for a landscape
+        window and too tight for a portrait one; with it \l aspect is known
+        and \l fit composes against the real picture. Nothing else reads it.
+    */
+    property var view: null
+
+    /*!
+        \qmlproperty real OrbitCamera3D::aspect
+        \readonly
+        \brief Width over height of the frame; 0 while \l view is not set.
+    */
+    readonly property real aspect: (view && view.height > 0) ? view.width / view.height : 0
+
+    // --- following ---------------------------------------------------------
+    // A moving subject and a camera that only ever cuts is the one thing a
+    // television audience will not forgive: the presenter walks out of the
+    // side of the picture and the cut lands on an empty frame. A follow is
+    // the operator's pan - the subject may wander inside a central zone
+    // freely, and the rig moves only once it reaches the edge of that zone,
+    // and then just far enough to keep it there. That lag is the point: a
+    // camera locked to a moving thing reads as the thing standing still and
+    // the world sliding, which is the opposite of what happened.
+
+    /*!
+        \qmlproperty var OrbitCamera3D::follow
+        \brief What to keep in frame while it moves: a function returning a
+               \c vector3d or an array of them, called every frame. Null is off.
+
+        The subject may drift within the inner part of the frame without the
+        rig reacting (\l followSlack); once any point crosses that zone the
+        pivot pans along the ground - never zooms - just far enough to bring
+        it back, over \l followMs. A \l frame, \l fit or \l goTo made while a
+        follow is on still happens; the follow only corrects what leaves the
+        picture after it. The pan leash still applies, so a subject that walks
+        past \l panLeash does get left behind - back the shot off, that is
+        what \l fit's \c pad is for.
+    */
+    property var follow: null
+
+    /*!
+        \qmlproperty real OrbitCamera3D::followSlack
+        \brief How much of the half-frame the subject may cross before the
+               rig pans: 0 pans at the first pixel, 0.25 (default) lets it
+               reach three quarters of the way to the edge.
+    */
+    property real followSlack: 0.25
+
+    /*!
+        \qmlproperty int OrbitCamera3D::followMs
+        \brief How long one follow correction glides; the lag of the pan.
+    */
+    property int followMs: 500
 
     /*!
         \qmlproperty PerspectiveCamera OrbitCamera3D::camera
@@ -658,6 +716,234 @@ Node {
         }
         return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, cz: (minZ + maxZ) / 2,
                  radius: Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2 }
+    }
+
+    // --- composing a shot ----------------------------------------------------
+    // frame() fits a bounding sphere against the vertical field of view, which
+    // is safe and often loose: a presenter beside a part is a flat, wide set
+    // of points, and a sphere around it backs off for a height it does not
+    // have. What a shot actually needs is every point INSIDE the picture with
+    // a margin, and the picture is not the whole window - the bottom carries
+    // a flow bar, the top a hint strip. fit() does that in screen space.
+
+    // The camera's axes at a yaw/pitch: right (on the ground), up (in the
+    // image) and forward (from the camera INTO the scene) - the three a shot
+    // is composed in. dir is the view axis the rest of the rig uses,
+    // pointing the other way.
+    function _axes(y, p) {
+        const a = y * Math.PI / 180
+        const dir = _dirTo(y, p)
+        const r = Qt.vector3d(Math.cos(a), 0, -Math.sin(a))
+        const f = Qt.vector3d(-dir.x, -dir.y, -dir.z)
+        const u = Qt.vector3d(r.y * f.z - r.z * f.y,
+                              r.z * f.x - r.x * f.z,
+                              r.x * f.y - r.y * f.x)
+        return { r: r, u: u, f: f, dir: dir }
+    }
+
+    function _dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z }
+
+    // Half-extents of the frame at unit depth. Without a view the frame is
+    // assumed landscape (16:9): a fit that assumed square would back off for
+    // width no real window lacks.
+    function _tanHV(asp) {
+        const tanV = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
+        const a = asp !== undefined && asp > 0 ? asp : (aspect > 0 ? aspect : 16 / 9)
+        return { v: tanV, h: tanV * a }
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::fit(var points, var opts)
+        \brief Composes a shot: every point inside the picture, as close as that allows.
+
+        The screen-space fit. \a points is an array of \c vector3d (or
+        \c {{x, y, z}}); \a opts is an optional object:
+
+        \list
+        \li \c yaw, \c pitch - the angles to shoot from; either alone is fine,
+            what is left out keeps its goal value. Folded into the same glide.
+        \li \c pad - headroom factor on the distance found (default 1.15).
+        \li \c safe - \c {{top, bottom, left, right}}, each the fraction of the
+            frame that is NOT picture: chrome, a flow bar, a hint strip. The
+            points are fitted into what is left and centred in it, so a bar
+            along the bottom moves the subject \e up rather than shrinking it.
+        \li \c aspect - overrides \l aspect for this shot.
+        \li \c ms - glide time for this move; left out, the rig's current
+            glide applies (\l smoothMs, or \l travelMs inside a journey).
+        \endlist
+
+        Where \l frame fits a sphere against the vertical field and keeps the
+        pivot on the centre of the points, this projects every point and finds
+        the nearest distance at which all of them sit inside the safe
+        rectangle, shifting the pivot within the image plane to centre them
+        there. The pivot may therefore leave the ground; \l minPivotY still
+        bounds it. Returns false when there is nothing to fit. Clears the
+        \l frameWithReturn excursion, like \l frame.
+    */
+    function fit(points, opts) {
+        if (!points || points.length === 0) return false
+        opts = opts || {}
+        const y = opts.yaw !== undefined ? opts.yaw : _goal.yaw
+        const p = _fitPitch(opts.pitch !== undefined ? opts.pitch : _goal.pitch)
+        const pad = opts.pad === undefined ? 1.15 : Math.max(0.5, opts.pad)
+        const safe = opts.safe || {}
+        const b = _boundsOf(points)
+        const ax = _axes(y, p)
+        const t = _tanHV(opts.aspect)
+        // the safe rectangle, normalized: +1 is the top and the right
+        const xmin = -1 + 2 * (safe.left || 0), xmax = 1 - 2 * (safe.right || 0)
+        const ymin = -1 + 2 * (safe.bottom || 0), ymax = 1 - 2 * (safe.top || 0)
+        if (xmin >= xmax || ymin >= ymax) return false
+        // every point in the camera's axes, relative to the centre of them all
+        const rel = []
+        for (let i = 0; i < points.length; ++i) {
+            const q = points[i]
+            const v = Qt.vector3d(q.x - b.cx, q.y - b.cy, q.z - b.cz)
+            rel.push({ r: _dot(v, ax.r), u: _dot(v, ax.u), f: _dot(v, ax.f) })
+        }
+        // At distance d the camera sits d behind the centre, so a point is
+        // d + f deep, and it needs a pivot offset (ro, uo) in the image plane
+        // that keeps it between the safe edges. Intersect those intervals
+        // over all points: non-empty means d is enough. They only widen as d
+        // grows, which is what lets the nearest d be found by bisection.
+        function offsets(d) {
+            let rLo = -Infinity, rHi = Infinity, uLo = -Infinity, uHi = Infinity
+            for (let i = 0; i < rel.length; ++i) {
+                const e = rel[i]
+                const depth = d + e.f
+                if (depth <= 1e-6) return null
+                rLo = Math.max(rLo, e.r - xmax * depth * t.h)
+                rHi = Math.min(rHi, e.r - xmin * depth * t.h)
+                uLo = Math.max(uLo, e.u - ymax * depth * t.v)
+                uHi = Math.min(uHi, e.u - ymin * depth * t.v)
+            }
+            if (rLo > rHi || uLo > uHi) return null
+            return { ro: (rLo + rHi) / 2, uo: (uLo + uHi) / 2 }
+        }
+        let lo = Math.max(1e-3, minDistance), hi = Math.max(lo, maxDistance)
+        let d, off
+        if (!offsets(hi)) {
+            // not even the furthest allowed pose holds them all: take it, and
+            // centre on the middle of the set as frame() would
+            d = hi
+            off = { ro: 0, uo: 0 }
+        } else {
+            if (offsets(lo)) {
+                hi = lo
+            } else {
+                for (let i = 0; i < 40 && hi - lo > 1e-4; ++i) {
+                    const mid = (lo + hi) / 2
+                    if (offsets(mid)) hi = mid; else lo = mid
+                }
+            }
+            d = Math.min(maxDistance, hi * pad)
+            off = offsets(d) || offsets(hi)
+        }
+        const pv = Qt.vector3d(b.cx + ax.r.x * off.ro + ax.u.x * off.uo,
+                               b.cy + ax.r.y * off.ro + ax.u.y * off.uo,
+                               b.cz + ax.r.z * off.ro + ax.u.z * off.uo)
+        clearReturn()
+        if (opts.ms !== undefined && opts.ms !== null) _travel(opts.ms)
+        _apply(y, p, d, pv)
+        return true
+    }
+
+    /*!
+        \qmlmethod var OrbitCamera3D::project(var p, bool goal)
+        \brief Where a world point lands in the frame, without a View3D.
+
+        Returns \c {{x, y, depth}}: \c x and \c y normalized so that -1..1 is
+        the picture (\c y up), \c depth the distance in front of the lens - a
+        point at or behind it has \c depth <= 0 and its x/y mean nothing.
+        Computed from the rig's own pose, so it answers for a rig that is not
+        rendering at all; \a goal true projects through the goal pose rather
+        than the interpolant, which is what a follow correction needs.
+    */
+    function project(p, goal) {
+        const y = goal ? _goal.yaw : yaw, pt = goal ? _goal.pitch : pitch
+        const d = goal ? _goal.distance : distance, pv = goal ? _goal.pivot : pivot
+        const ax = _axes(y, pt)
+        const t = _tanHV()
+        const cx = pv.x + ax.dir.x * d, cy = pv.y + ax.dir.y * d, cz = pv.z + ax.dir.z * d
+        const v = Qt.vector3d(p.x - cx, p.y - cy, p.z - cz)
+        const depth = _dot(v, ax.f)
+        if (depth <= 1e-9) return { x: 0, y: 0, depth: depth }
+        return { x: _dot(v, ax.r) / (depth * t.h), y: _dot(v, ax.u) / (depth * t.v),
+                 depth: depth }
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::covers(var points, real margin, bool goal)
+        \brief Whether every point is inside the frame, \a margin (0..1, a
+               fraction of the half-frame) away from its edges.
+
+        The question a shot is verified by: not "did the camera move" but
+        "is the thing still in the picture". \a goal as for \l project.
+    */
+    function covers(points, margin, goal) {
+        if (!points) return false
+        const pts = Array.isArray(points) ? points : [points]
+        const lim = 1 - (margin === undefined ? 0 : margin)
+        for (let i = 0; i < pts.length; ++i) {
+            const n = project(pts[i], goal)
+            if (n.depth <= 0 || Math.abs(n.x) > lim || Math.abs(n.y) > lim)
+                return false
+        }
+        return pts.length > 0
+    }
+
+    // One frame of the follow: find how far past the inner zone the subject
+    // has got, and pan the goal pivot by exactly the ground move that puts it
+    // back on the zone's edge. Screen right is a ground direction already, so
+    // that half is a division; screen up is "away" along the ground, and a
+    // pan away changes a point's depth as well as its height, so that half
+    // solves the projection for the move (the depth term is what made the
+    // first version overshoot by a third). A flat shot cannot pan a tall
+    // thing into frame at all - the solve degenerates - and then the point
+    // is left where it is rather than chased the wrong way. Nothing happens
+    // while the subject is inside the zone, so a follow at rest costs a
+    // projection per point and no writes.
+    function _followTick() {
+        if (typeof follow !== "function") return
+        let pts = follow()
+        if (!pts) return
+        if (!Array.isArray(pts)) pts = [pts]
+        if (pts.length === 0) return
+        const lim = 1 - Math.max(0, Math.min(0.9, followSlack))
+        const t = _tanHV()
+        const s = Math.sin(_goal.pitch * Math.PI / 180)
+        const c = Math.cos(_goal.pitch * Math.PI / 180)
+        let dR = 0, dA = 0
+        for (let i = 0; i < pts.length; ++i) {
+            const n = project(pts[i], true)
+            if (n.depth <= 0) continue
+            if (Math.abs(n.x) > lim) {
+                const want = n.x > 0 ? lim : -lim
+                const m = (n.x - want) * n.depth * t.h
+                dR = m > 0 ? Math.max(dR, m) : Math.min(dR, m)
+            }
+            if (Math.abs(n.y) > lim) {
+                const want = n.y > 0 ? lim : -lim
+                const up = n.y * n.depth * t.v
+                const den = s - want * t.v * c
+                if (Math.abs(den) < 0.05) continue
+                const m = (up - want * t.v * n.depth) / den
+                dA = m > 0 ? Math.max(dA, m) : Math.min(dA, m)
+            }
+        }
+        if (Math.abs(dR) < 1e-4 && Math.abs(dA) < 1e-4) return
+        const a = _goal.yaw * Math.PI / 180
+        const rx = Math.cos(a), rz = -Math.sin(a)
+        const ax = -Math.sin(a), az = -Math.cos(a)
+        _travel(followMs)
+        _apply(_goal.yaw, _goal.pitch, _goal.distance,
+               Qt.vector3d(_goal.pivot.x + rx * dR + ax * dA, _goal.pivot.y,
+                           _goal.pivot.z + rz * dR + az * dA))
+    }
+
+    FrameAnimation {
+        running: typeof root.follow === "function"
+        onTriggered: root._followTick()
     }
 
     /*!
