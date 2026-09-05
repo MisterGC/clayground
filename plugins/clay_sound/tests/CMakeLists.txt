@@ -23,6 +23,8 @@ add_executable(tst_clay_sound_engine
     ../src/engine/sample_voice.h
     ../src/engine/sampler_instrument.cpp
     ../src/engine/sampler_instrument.h
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
     ../src/audio_output.cpp
     ../src/audio_output.h
     ../src/synth_instrument.cpp
@@ -110,6 +112,8 @@ set_tests_properties(clay_sound_song_player PROPERTIES LABELS "clay_sound;unit")
 
 add_executable(tst_clay_sound_synth_bake
     tst_synth_bake.cpp
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
     ../src/audio_output.cpp
     ../src/audio_output.h
     ../src/synth_instrument.cpp

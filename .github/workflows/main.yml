@@ -156,6 +156,16 @@ jobs:
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --screenshot starter-smoke.png
 
+    # Clayground.Sound's first audio-device query used to deadlock the page's
+    # main thread (#216) - a failure no desktop test can see.
+    - name: Sound Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/sound \
+          --expect "clay-sound: audio device query returned" \
+          --timeout 90
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build

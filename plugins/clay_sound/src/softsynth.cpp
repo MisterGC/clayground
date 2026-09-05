@@ -5,6 +5,8 @@
 #include "engine/note_event.h"
 #include "engine/oscillator_voice.h"
 
+#include "audio_devices.h"
+
 #include <QAudioSink>
 #include <QMediaDevices>
 #include <QAudioDevice>
@@ -123,6 +125,9 @@ void SoftSynth::play()
     format.setSampleRate(SAMPLE_RATE);
     format.setChannelCount(CHANNELS);
     format.setSampleFormat(QAudioFormat::Float);
+
+    // Must come before any QMediaDevices/QAudioSink use - see #216.
+    clay::sound::primeAudioDevices();
 
     QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
     if (outputDevice.isNull()) {
