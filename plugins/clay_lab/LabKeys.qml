@@ -344,7 +344,12 @@ Item {
 
         While a flow runs, \c Space / \c → advance it and \c ← steps back, so
         the narration reads the same in every lab. The lab's own keys keep
-        working throughout - a flow never locks the lab.
+        working throughout: what a running flow takes is the board (see
+        \l {Flow::control}), not the key map - the view, the text size, the
+        help and the transport are the reader's at every moment. The one
+        exception is the selected part's card, whose \c h / \c l / \b Enter
+        go through \l selection and are refused for a part the flow has not
+        lent out.
     */
     function handle(ev) {
         // --- the name prompt, before ANYTHING: while it is open the keyboard

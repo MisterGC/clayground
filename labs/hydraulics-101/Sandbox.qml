@@ -479,8 +479,10 @@ Item {
                      wiring: "hint.plumbing", selected: "hint.selected", selectedSnap: "hint.selected.snap",
                      selectedFree: "hint.selected.free", selectedFrame: "hint.selected.frame",
                      idle: "hint.idle.water" })
+        // While the lesson runs the board is the lesson's; its one task
+        // lends back the valve and takes it straight back (#221).
+        flow: wheelFlow
         onOperate: (id) => root.toggleValve(id)
-        onInteracted: wheelFlow.takeOver()
     }
 
     // --- HUD ------------------------------------------------------------------------------------
@@ -542,6 +544,7 @@ Item {
         id: selCard
         objectName: "partCard"
         board: board; view: view3d; camera: rig.camera; monitor: monitor; overlay: overlay
+        flow: wheelFlow     // reads throughout a lesson, acts only for what a task named
         titleOf: (e) => root.cardTitle(e)
         readingOf: (e) => { const s = root.simOf(e.id); return root.fmtP(Math.abs(s.dp)) + "   " + root.fmtQ(Math.abs(s.q)) }
         hintOf: (e) => LabLang.t(e.type === "pump" ? "card.hint.pump"
@@ -753,6 +756,7 @@ Item {
             task: ({ "until": (n) => { const e = board.partAt(n("valve")); return e && e.on },
                      "hint": "flow.wheel-basics.open.hint",
                      "hintAfter": 7,
+                     "allow": ["valve"],
                      "solve": [["openValve", "valve", true]] })
         }
         FlowStep {

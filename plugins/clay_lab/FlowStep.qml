@@ -41,11 +41,20 @@ QtObject {
 
     /*!
         \qmlproperty var FlowStep::task
-        \brief What the learner must do: \c {{until, hint, hintAfter, solve}}.
+        \brief What the learner must do: \c {{until, allow, hint, hintAfter, solve}}.
 
         \c until is a predicate receiving a name lookup function and returning
         true once the step is satisfied; \c solve is an action list that
         performs it (used by "show me" and by the headless verification run).
+
+        \c allow is what the task hands over: the parts the learner may touch
+        while it runs, named the way \c until and \c solve name them
+        (\c {"allow": ["sw"]}), everything else on the board being inert until
+        the task is done. A step whose subject is whatever the preset it just
+        applied put there names it with a function of the same name lookup
+        instead (\c {"allow": (n) => root.logicInputs}). Leaving it out keeps
+        the whole board live, which is what a flow written before
+        \l {Flow::control} existed still gets.
     */
     property var task: null
 

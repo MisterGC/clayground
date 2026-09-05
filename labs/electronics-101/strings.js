@@ -105,10 +105,8 @@ var dict = {
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Why does the LED light?",
-        "flow.paused": "paused — you took over",
         "flow.next": "next ›",
         "flow.back": "‹ back",
-        "flow.resume": "resume",
         "flow.leave": "✕ leave",
         "flow.showme": "show me",
         "flow.watching": "watching…",
@@ -123,6 +121,7 @@ var dict = {
         "flow.led-basics.why": "Why 5.1 mA? The cell offers 4.5 V, the LED eats about 2.1 of them, and the rest — 2.4 V — falls across the resistor. 2.4 V over 470 Ω is 5.1 mA. The resistor sets the current.",
         "flow.led-basics.values": "Read it off the board: each part shows its own voltage and current. Same current everywhere in one ring — that is a series circuit.",
         "flow.led-basics.try": "Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED — until it gives up.",
+        "flow.led-basics.try.hint": "Its card is already up — drag the slider on it, or press h and l.",
 
         // --- flow: logic-gates ---
         "flow.logic-gates.title": "From one transistor to XOR",
@@ -243,10 +242,8 @@ var dict = {
 
         // --- flow: led-basics (SPIKE) ---
         "flow.led-basics.title": "Warum leuchtet die LED?",
-        "flow.paused": "angehalten — du hast übernommen",
         "flow.next": "weiter ›",
         "flow.back": "‹ zurück",
-        "flow.resume": "fortsetzen",
         "flow.leave": "✕ beenden",
         "flow.showme": "zeig es mir",
         "flow.watching": "beobachten…",
@@ -261,6 +258,7 @@ var dict = {
         "flow.led-basics.why": "Warum 5,1 mA? Die Zelle bietet 4,5 V, die LED nimmt davon etwa 2,1 — der Rest, 2,4 V, fällt über dem Widerstand ab. 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
         "flow.led-basics.values": "Lies es am Brett ab: jedes Bauteil zeigt seine Spannung und seinen Strom. Überall derselbe Strom in einem Ring — das ist eine Reihenschaltung.",
         "flow.led-basics.try": "Probiere selbst: wähle den Widerstand und zieh seinen Schieber. Weniger Ohm, mehr Strom, hellere LED — bis sie aufgibt.",
+        "flow.led-basics.try.hint": "Seine Karte ist schon offen — zieh den Schieber darauf, oder drück h und l.",
 
         // --- flow: logic-gates ---
         "flow.logic-gates.title": "Von einem Transistor zum XOR",
