@@ -1555,13 +1555,15 @@ Item {
         }
 
         // Which shot when - the kernel's grammar, not this file's. The safe
-        // area is the chrome: the narrator bar and the selection card along
-        // the bottom, the hint strip at the top.
+        // area is the chrome, measured off a 1400x900 window: the presets
+        // panel down the left, the selection card and the narrator bar
+        // along the bottom (the card reaches a quarter of the way up), the
+        // hint strip at the top.
         CameraDirector {
             id: director
             rig: rig
             presenter: prof
-            safe: ({ top: 0.10, bottom: 0.18, left: 0.03, right: 0.03 })
+            safe: ({ top: 0.08, bottom: 0.27, left: 0.17, right: 0.04 })
         }
 
         // The flow, handed to the professor. Bound to currentFlow rather than

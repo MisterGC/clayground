@@ -261,7 +261,7 @@ arm hanging. Everything that moves an arm goes through `Character`'s verbs
 now. Do not add a second driver.
 
 **Hops slide, walks away turn.** `travelTo()` turns the professor to face the
-way it is going only for a destination *behind* it (`turnBehind`, 100°)
+way it is going only for a destination *behind* it (`turnBehind`, 125°)
 and further than `turnDistance` body heights (2). Everything else slides
 on the board — sideways or towards the viewer — with the lean banked into
 the direction of travel. Distance alone was the rule, and it produced a

@@ -154,9 +154,12 @@ Node {
     /*!
         How far off its facing, in degrees, a destination has to be before
         it counts as behind. Up to this the professor slides - sideways or
-        towards the viewer - without turning away from the audience.
+        towards the viewer - without turning away from the audience. Wider
+        than a right angle on purpose: a presenter faces the camera ten or
+        fifteen degrees off-axis after a portrait, and a hop straight along
+        the board is then a hundred-odd degrees off, which is still sideways.
     */
-    property real turnBehind: 100
+    property real turnBehind: 125
 
     // The direction of the flight relative to the way the professor faces
     // while flying: 0 is straight ahead, 90 is off to its left.
