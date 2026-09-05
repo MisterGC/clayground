@@ -107,8 +107,8 @@ ProceduralAnim {
     // One step. `lead` is the leg swinging forward this phase and `trail` the
     // one pushing back; the arms oppose their legs. Sign conventions are the
     // joints' own: positive x pitches forward and down, so a forward limb is
-    // negative x. Sway is a hip yaw with the torso countering by half, rock a
-    // torso roll over the planted leg; `s` flips both between the phases.
+    // negative x. Sway is a hip yaw with the trunk countering by half, rock a
+    // trunk roll over the planted leg; `s` flips both between the phases.
     component Step: ParallelAnimation {
         id: _step
         required property var lead
@@ -117,20 +117,33 @@ ProceduralAnim {
         required property var trailArm
         required property real s
 
-        // Posture: lean and head hold, sway and rock alternate.
+        // Posture. The trunk group turns and rolls the whole upper body; the
+        // pitch is not here, it is in the two spine segments below, whose
+        // angles sum to the table's lean and whose difference is the curve of
+        // the back. Sway and rock alternate with the step, lean and curve hold.
         EulerAnim {
             target: entity.torso
             duration: _cycle.duration
-            to: Qt.vector3d(_cycle.table.lean,
+            to: Qt.vector3d(0,
                             _cycle.table.sway * 0.5 * _step.s,
                             _cycle.table.rock * _step.s)
         }
-        // The hip hangs off the torso, so it counters the waist share of the
-        // lean - legs stay planted while the chest tips - and carries the sway.
+        EulerAnim {
+            target: entity.belly
+            duration: _cycle.duration
+            to: Qt.vector3d(_cycle.table.bellyLean, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _cycle.duration
+            to: Qt.vector3d(_cycle.table.chestLean, 0, 0)
+        }
+        // The hip hangs off the belly, so it gives back the belly's bend -
+        // legs stay planted while the back rounds - and carries the sway.
         EulerAnim {
             target: entity.hip
             duration: _cycle.duration
-            to: Qt.vector3d(-_cycle.table.waistLean, -_cycle.table.sway * _step.s, 0)
+            to: Qt.vector3d(_cycle.table.hipLean, -_cycle.table.sway * _step.s, 0)
         }
         HeadEulerAnim {
             target: entity.head
@@ -196,12 +209,15 @@ ProceduralAnim {
             to: Qt.vector3d(_cycle.table.footDown, 0, 0)
         }
 
-        // The arm on the leading leg's side goes back
+        // The arm on the leading leg's side goes back. The outward roll is
+        // signed by the SIDE, and `s` is it: phase 1 leads with the right arm
+        // and phase 2 with the left, so `s` on the lead and `-s` on the trail
+        // is +armOut on the right arm and -armOut on the left in both.
         EulerAnim {
             target: _step.leadArm.upperArm
             duration: _cycle.duration
-            from: Qt.vector3d(-_cycle.table.armFwd, 0, 0)
-            to: Qt.vector3d(_cycle.table.armBack, 0, 0)
+            from: Qt.vector3d(-_cycle.table.armFwd, 0, _cycle.table.armOut * _step.s)
+            to: Qt.vector3d(_cycle.table.armBack, 0, _cycle.table.armOut * _step.s)
         }
         EulerAnim {
             target: _step.leadArm.lowerArm
@@ -214,8 +230,8 @@ ProceduralAnim {
         EulerAnim {
             target: _step.trailArm.upperArm
             duration: _cycle.duration
-            from: Qt.vector3d(_cycle.table.armBack, 0, 0)
-            to: Qt.vector3d(-_cycle.table.armFwd, 0, 0)
+            from: Qt.vector3d(_cycle.table.armBack, 0, -_cycle.table.armOut * _step.s)
+            to: Qt.vector3d(-_cycle.table.armFwd, 0, -_cycle.table.armOut * _step.s)
         }
         EulerAnim {
             target: _step.trailArm.lowerArm

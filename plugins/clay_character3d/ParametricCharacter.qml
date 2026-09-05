@@ -233,6 +233,23 @@ Character {
     torsoDepth: _headSize * 0.7 * _widthMultiplier
     waistWidth: shoulderWidth * _waistRatio
 
+    // The two trunk segments. Where the sliders used to reach the body only
+    // as one width multiplier - a heavy character was a wider character, from
+    // the shoulders to the shins - mass now shows as a belly and muscle as a
+    // chest, which is where they show on a person. Every one of these is
+    // exactly neutral at 0.5, so a default ParametricCharacter is the tapered
+    // box it always was.
+    bellyBulge: mass >= 0.5 ? lerp(1.0, 1.45, (mass - 0.5) * 2)
+                            : lerp(1.0, 0.90, (0.5 - mass) * 2)
+    chestSwell: muscle >= 0.5 ? lerp(1.0, 1.22, (muscle - 0.5) * 2)
+                              : lerp(1.0, 0.93, (0.5 - muscle) * 2)
+    // A waist is what a build has when it is not carrying weight in front of
+    // it: the pinch comes from muscle and femininity and is given back by
+    // mass. The single tapered box could not make this shape at all.
+    waistPinch: Math.max(0, lerp(0, 0.10, Math.max(0, (muscle - 0.5) * 2))
+                          + lerp(0, 0.07, Math.max(0, (femininity - 0.5) * 2))
+                          - lerp(0, 0.14, Math.max(0, (mass - 0.5) * 2)))
+
     // Hip dimensions
     hipWidth: _headSize * 1.6 * (1.0 / _shoulderHipRatio) * _widthMultiplier
     hipHeight: _headSize * 0.6

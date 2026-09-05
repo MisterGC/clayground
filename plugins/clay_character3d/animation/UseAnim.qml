@@ -13,8 +13,15 @@ ProceduralAnim {
     property real intensity: 0.5        // 0=subtle, 1=vigorous movements
 
     // Derived angles based on workHeight
-    // Upper body lean (hip counter-rotates to keep legs upright)
+    // Upper body lean. It is shared between the two spine segments, and the
+    // chest takes more than its share so the back ROUNDS over the work rather
+    // than tipping as one board; the hip gives the belly's part straight back
+    // so the legs stay upright. The three still add up to torsoLean, so the
+    // head and hands arrive exactly where they used to.
     readonly property real torsoLean: 10 + intensity * 5                    // 10-15 degrees forward
+    readonly property real spineCurve: 8                                     // how round the back gets
+    readonly property real bellyLean: torsoLean * 0.4 - spineCurve * 0.5
+    readonly property real chestLean: torsoLean * 0.6 + spineCurve * 0.5
     readonly property real headTilt: 15 + intensity * 10                    // 15-25 degrees down
 
     // Upper arm angles: forward reach + downward angle based on work height
@@ -38,20 +45,32 @@ ProceduralAnim {
 
     // Phase 1: Right hand down, left hand up (working motion)
     ParallelAnimation {
-        // Torso leaning forward (upper body only)
+        // Torso leaning forward (upper body only), bent over the spine
         EulerAnim {
             target: entity.torso
             duration: _useAnim.duration
-            from: Qt.vector3d(torsoLean, 0, 0)
-            to: Qt.vector3d(torsoLean, 0, 0)
+            from: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.belly
+            duration: _useAnim.duration
+            from: Qt.vector3d(bellyLean, 0, 0)
+            to: Qt.vector3d(bellyLean, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _useAnim.duration
+            from: Qt.vector3d(chestLean, 0, 0)
+            to: Qt.vector3d(chestLean, 0, 0)
         }
 
         // Hip counter-rotates to keep legs upright
         EulerAnim {
             target: entity.hip
             duration: _useAnim.duration
-            from: Qt.vector3d(-torsoLean, 0, 0)
-            to: Qt.vector3d(-torsoLean, 0, 0)
+            from: Qt.vector3d(-bellyLean, 0, 0)
+            to: Qt.vector3d(-bellyLean, 0, 0)
         }
 
         // Head looking down at work
@@ -131,16 +150,28 @@ ProceduralAnim {
         EulerAnim {
             target: entity.torso
             duration: _useAnim.duration
-            from: Qt.vector3d(torsoLean, 0, 0)
-            to: Qt.vector3d(torsoLean, 0, 0)
+            from: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, 0, 0)
+        }
+        EulerAnim {
+            target: entity.belly
+            duration: _useAnim.duration
+            from: Qt.vector3d(bellyLean, 0, 0)
+            to: Qt.vector3d(bellyLean, 0, 0)
+        }
+        EulerAnim {
+            target: entity.chest
+            duration: _useAnim.duration
+            from: Qt.vector3d(chestLean, 0, 0)
+            to: Qt.vector3d(chestLean, 0, 0)
         }
 
         // Hip stays counter-rotated
         EulerAnim {
             target: entity.hip
             duration: _useAnim.duration
-            from: Qt.vector3d(-torsoLean, 0, 0)
-            to: Qt.vector3d(-torsoLean, 0, 0)
+            from: Qt.vector3d(-bellyLean, 0, 0)
+            to: Qt.vector3d(-bellyLean, 0, 0)
         }
 
         // Head stays looking down

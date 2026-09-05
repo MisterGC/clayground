@@ -46,6 +46,8 @@ Item {
         property StubLimb rightArm: StubLimb {}
         property StubLimb leftArm: StubLimb {}
         property Joint torso: Joint {}
+        property Joint belly: Joint {}
+        property Joint chest: Joint {}
         property Joint hip: Joint {}
         property StubHead head: StubHead {}
         function reset() {
@@ -53,6 +55,8 @@ Item {
                 for (const j of [l.upperLeg, l.lowerLeg, l.foot, l.upperArm, l.lowerArm, l.hand])
                     j.eulerRotation = Qt.vector3d(0, 0, 0)
             torso.eulerRotation = Qt.vector3d(0, 0, 0)
+            belly.eulerRotation = Qt.vector3d(0, 0, 0)
+            chest.eulerRotation = Qt.vector3d(0, 0, 0)
             hip.eulerRotation = Qt.vector3d(0, 0, 0)
             head.poseEuler = Qt.vector3d(0, 0, 0)
         }
@@ -115,17 +119,26 @@ Item {
             tryVerify(() => body.rightArm.upperArm.moved(), 1000)
             tryVerify(() => body.leftArm.upperArm.moved(), 1000)
             tryVerify(() => body.rightArm.lowerArm.moved(), 1000)
-            // A neutral walk holds the torso, hip and head level throughout.
+            // A neutral walk holds the trunk, the two spine segments, the hip
+            // and the head level throughout.
             wait(450)
             verify(!body.torso.moved())
+            verify(!body.belly.moved())
+            verify(!body.chest.moved())
             verify(!body.hip.moved())
+            compare(body.rightArm.upperArm.eulerRotation.z, 0)
+            compare(body.leftArm.upperArm.eulerRotation.z, 0)
             compare(body.head.poseEuler, Qt.vector3d(0, 0, 0))
             compare(walk.lift, 0)
         }
 
         function test_run_leans_and_bends_the_elbows() {
             run.start()
-            tryVerify(() => Math.abs(body.torso.eulerRotation.x - 12) < 0.01, 1000)
+            // The 12-degree run lean is shared over the waist joint, so it is
+            // belly plus chest that comes to 12 - the group itself stays level.
+            tryVerify(() => Math.abs(body.belly.eulerRotation.x
+                                     + body.chest.eulerRotation.x - 12) < 0.01, 1000)
+            verify(Math.abs(body.torso.eulerRotation.x) < 0.01)
             tryVerify(() => Math.abs(body.rightArm.lowerArm.eulerRotation.x + 70) < 0.01, 1000)
         }
 
@@ -144,12 +157,44 @@ Item {
         function test_posture_factors_reach_the_joints() {
             body.gaitFactors = { lean: 8, headPitch: 15, sway: 6, rock: 4 }
             walk.start()
-            tryVerify(() => Math.abs(body.torso.eulerRotation.x - 8) < 0.05, 1000)
+            // The lean arrives as two angles that add up to it.
+            tryVerify(() => Math.abs(body.belly.eulerRotation.x
+                                     + body.chest.eulerRotation.x - 8) < 0.05, 1000)
             tryVerify(() => Math.abs(body.head.poseEuler.x - 15) < 0.05, 1000)
-            // The hip counters the waist lean so the legs stay planted.
-            tryVerify(() => Math.abs(body.hip.eulerRotation.x + 8) < 0.05, 1000)
+            // The hip gives back the belly's share, so the legs stay planted.
+            tryVerify(() => Math.abs(body.belly.eulerRotation.x
+                                     + body.hip.eulerRotation.x) < 0.05, 1000)
             tryVerify(() => Math.abs(Math.abs(body.hip.eulerRotation.y) - 6) < 0.05, 1500)
             tryVerify(() => Math.abs(Math.abs(body.torso.eulerRotation.z) - 4) < 0.05, 1500)
+        }
+
+        // The one claim the split has to keep: a rounded back is a difference
+        // between the two segments, and it does not move the head.
+        function test_a_spine_curve_rounds_the_back_without_tipping_it() {
+            body.gaitFactors = { spineCurve: 20 }
+            walk.start()
+            tryVerify(() => body.chest.eulerRotation.x > 5, 1000)
+            verify(body.belly.eulerRotation.x < -5)
+            verify(Math.abs(body.belly.eulerRotation.x
+                            + body.chest.eulerRotation.x) < 0.05)
+            // And the legs are untouched: nothing was asked to lean.
+            verify(Math.abs(body.belly.eulerRotation.x
+                            + body.hip.eulerRotation.x) < 0.05)
+        }
+
+        // The channel that did not exist before: a Vector3dAnimation writing a
+        // z that nothing reads would be silent, so this asserts the roll lands
+        // on both upper arms, with opposite signs, and holds through the cycle.
+        function test_armOut_rolls_both_upper_arms_off_the_ribs() {
+            body.gaitFactors = { armOut: 14 }
+            compare(walk.table.armOut, 14)
+            walk.start()
+            tryVerify(() => Math.abs(body.rightArm.upperArm.eulerRotation.z - 14) < 0.05, 1000)
+            verify(Math.abs(body.leftArm.upperArm.eulerRotation.z + 14) < 0.05)
+            // still there half a cycle later - it is a carriage, not a swing
+            wait(450)
+            verify(Math.abs(body.rightArm.upperArm.eulerRotation.z - 14) < 0.05)
+            verify(Math.abs(body.leftArm.upperArm.eulerRotation.z + 14) < 0.05)
         }
 
         function test_tempo_and_stride_change_the_speed() {
@@ -195,6 +240,8 @@ Item {
             fuzzyCompare(walk.cycleMs, 800 / (0.72 * 1.2), 1e-6)
             compare(walk.table.lean, 8)
             verify(walk.table.kneeLift < 45)
+            // and an elderly walk rounds the back rather than tipping it
+            verify(walk.table.chestLean - walk.table.bellyLean > 8)
         }
     }
 }
