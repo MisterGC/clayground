@@ -143,6 +143,71 @@
 */
 
 /*!
+    \qmltype CircleBody
+    \inqmlmodule Clayground.Physics
+    \brief Circle-shaped physics body with visual representation.
+
+    CircleBody combines a round visual with a Box2D circle fixture. Unlike a
+    box fixture it has no corners to snag on, which is what makes it the
+    collider of choice for characters and projectiles moving along walls.
+
+    \c xWu and \c yWu address the bounding box's corner, exactly as they do
+    for RectBoxBody - not the circle's centre. The centre sits \c radiusWu
+    away from both.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+    import Box2D
+
+    CircleBody {
+        xWu: 5; yWu: 5
+        radiusWu: 0.5
+        color: "red"
+        bodyType: Body.Dynamic
+        density: 1
+        friction: 0.3
+        restitution: 0.5
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real CircleBody::radiusWu
+    Radius in world units. Drives both the fixture and the visual.
+
+    \qmlproperty Fixture CircleBody::fixture
+    The Box2D circle fixture.
+
+    \qmlproperty color CircleBody::color
+    Fill color of the circle.
+
+    \qmlproperty Border CircleBody::border
+    Border properties of the circle.
+
+    \qmlproperty real CircleBody::density
+    Fixture density affecting mass.
+
+    \qmlproperty real CircleBody::friction
+    Friction coefficient (0-1).
+
+    \qmlproperty real CircleBody::restitution
+    Bounciness coefficient (0-1).
+
+    \qmlproperty bool CircleBody::sensor
+    If true, detects collisions without physical response.
+
+    \qmlproperty int CircleBody::categories
+    Collision category bits.
+
+    \qmlproperty int CircleBody::collidesWith
+    Collision mask bits.
+
+    \qmlproperty int CircleBody::groupIndex
+    Collision group index.
+*/
+
+/*!
     \qmltype ImageBoxBody
     \inqmlmodule Clayground.Physics
     \brief Image-based physics body with Box2D box collision.

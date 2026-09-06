@@ -9,6 +9,7 @@ clay_plugin( Physics
     VERSION 1.0
 
     QML_FILES
+            CircleBody.qml
             CollisionTracker.qml
             ImageBoxBody.qml
             PhysicsItem.qml
@@ -21,3 +22,11 @@ clay_plugin( Physics
         Qt::Quick
         Qt::Qml
 )
+
+# QML checks on the body types. The suite drives a Box2D World by hand
+# (running: false + step()) so the outcome does not depend on frame timing.
+include(claytest)
+# IMPORTS_BUILT_MODULE: Box2D and Clayground.Physics are loaded as built
+# plugins from bin/qml, not imported as QML sources (#192).
+clay_add_qml_test(physics_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
