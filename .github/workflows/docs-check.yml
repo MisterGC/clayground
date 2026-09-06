@@ -23,7 +23,7 @@ env:
   QT_VERSION_WASM: '6.10.1'
   QT_VERSION_HOST: '6.10.1'
   # Note: qtquick3dphysics excluded - crashes browser in WASM (not yet supported)
-  QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquicktimeline qtshadertools qt5compat qtimageformats'
   EMSDK_VERSION: '4.0.7'
   # How many past releases to include in the site (each adds ~38 MB)
   MAX_RELEASE_VERSIONS: 5

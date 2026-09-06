@@ -7,6 +7,8 @@
 // All Clayground modules are available, e.g.:
 //   import Clayground.Canvas   // 2D drawing
 //   import Clayground.World    // game world + physics
+//   import QtQuick3D           // 3D scenes; balsam-converted models and their
+//                              // QtQuick.Timeline clips, or RuntimeLoader (QtQuick3D.AssetUtils)
 // Explore live examples: https://mistergc.github.io/clayground/webdojo/
 
 import QtQuick

@@ -43,6 +43,38 @@ wrinkle: QML *directory* imports over HTTP need a
 [`qmldir` file](https://doc.qt.io/qt-6/qtqml-modules-qmldir.html) listing the
 sibling components.
 
+## 3D models and animation
+
+Qt Quick 3D is in the runtime, and two more modules since v2026.7: `QtQuick.Timeline`
+(what balsam emits for skeletal animation clips) and `QtQuick3D.AssetUtils`
+(`RuntimeLoader`, glTF/GLB parsed at load time).
+
+One wrinkle: Qt opens meshes, textures, `.qad` keyframe files and GLBs with `QFile`, which
+cannot read from a URL - a `Model { source: "meshes/x.mesh" }` served over HTTP silently
+shows nothing. So the app shell preloads them: keep such files under `assets/` next to
+`Main.qml` and run the script that ships in the folder
+
+```bash
+python3 make-assets-manifest.py        # -> assets-manifest.json, one entry per file under assets/
+```
+
+whenever you add, rename or remove an asset. `index.html` fetches the listed files into the
+in-memory filesystem under `/game/` before your game starts; a file that cannot be fetched is
+logged in the console and skipped rather than blocking the start. Reference them with
+`file:///game/<path>`:
+
+```qml
+Loader3D { source: "file:///game/assets/orc/Orc.qml" }        // balsam output, relative
+                                                             // meshes/maps/animations resolve
+RuntimeLoader { source: "file:///game/assets/orc.glb" }       // or the GLB itself
+```
+
+`balsam model.glb -o assets/orc` (Qt's importer, part of any Qt install) produces the QML,
+`.mesh`, textures and `.qad` files. Everything else - QML, images, sounds - keeps loading by
+relative URL as before. A `.qml` referenced only by URL
+is not compiled, so keep its imports to modules the runtime has; the console reports
+`module "X" is not installed` otherwise.
+
 ## Deploying
 
 Copy the folder to any static host — that is the whole deployment.

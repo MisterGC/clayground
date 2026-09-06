@@ -68,6 +68,42 @@
             return false;
         }
 
+        async function preloadAssets(runtime, loading) {
+            let list;
+            try {
+                const res = await fetch('assets-manifest.json');
+                if (!res.ok) return;
+                list = await res.json();
+            } catch (e) { return; }
+            if (!Array.isArray(list) || list.length === 0) return;
+            // Deliberate policy: a missing or unreadable asset is NOT fatal. The game still
+            // starts and Qt reports the file as missing where it is used (a model shows nothing,
+            // a sound stays silent) - better than a blank page because one of a hundred files
+            // was renamed. Every miss is logged so it is visible in the console.
+            let done = 0; const missing = [];
+            const put = async (path) => {
+                try {
+                    const res = await fetch(path);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const bytes = new Uint8Array(await res.arrayBuffer());
+                    const full = '/game/' + path.replace(/^\.?\//, '');
+                    runtime.FS.mkdirTree(full.substring(0, full.lastIndexOf('/')));
+                    runtime.FS.writeFile(full, bytes);
+                } catch (e) {
+                    missing.push(path);
+                    console.warn(`Clayground: asset not preloaded - ${path} (${e.message})`);
+                }
+                loading.textContent = `Loading assets ${++done}/${list.length}…`;
+            };
+            // a few fetches at a time: enough parallelism, no connection storm
+            const queue = list.slice();
+            await Promise.all(Array.from({ length: 6 }, async () => {
+                while (queue.length) await put(queue.shift());
+            }));
+            console.log(`Clayground: preloaded ${done - missing.length} asset file(s) into /game/`
+                        + (missing.length ? `, ${missing.length} missing` : ''));
+        }
+
         async function boot() {
             const loading = document.getElementById('loading');
             const screen = document.getElementById('screen');
@@ -87,6 +123,13 @@
                 // ... and hand over to your game. Everything referenced from
                 // Main.qml (images, sounds, more QML) is fetched relative to
                 // it - just put files next to it.
+                // Files Qt opens with QFile - Qt Quick 3D meshes and textures, balsam's
+                // Timeline keyframes (.qad), GLBs for RuntimeLoader - cannot come from an
+                // http URL. If the game ships an assets-manifest.json (a JSON array of
+                // relative paths), fetch them into the in-memory filesystem under /game/
+                // and reference them from QML as file:///game/<path>.
+                await preloadAssets(runtime, loading);
+
                 runtime.loadQmlFromUrl(new URL('Main.qml', window.location.href).href);
                 loading.style.display = 'none';
 
