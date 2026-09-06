@@ -14,20 +14,25 @@ ClayWebAccess::ClayWebAccess(QObject* parent)
             this, &ClayWebAccess::onFinished);
 }
 
-int ClayWebAccess::get(const QString &url, const QString& auth)
+int ClayWebAccess::get(const QString &url,
+                       const QString& auth,
+                       const QVariantMap& headers)
 {
     return sendRequest(QNetworkAccessManager::GetOperation,
                        url,
-                       auth);
+                       auth,
+                       headers);
 }
 
 int ClayWebAccess::post(const QString &url,
                         const QString& json,
-                        const QString& auth)
+                        const QString& auth,
+                        const QVariantMap& headers)
 {
     return sendRequest(QNetworkAccessManager::PostOperation,
                        url,
                        auth,
+                       headers,
                        json.toUtf8(),
                        "application/json");
 }
@@ -89,24 +94,52 @@ void ClayWebAccess::handleNetworkError(QNetworkReply* reply, const QString& erro
 
 void ClayWebAccess::handleAuthorization(QNetworkRequest &req, const QString &authString)
 {
-    auto authParts = authString.split(" ", Qt::SkipEmptyParts);
-    if (authParts.size() == 2) {
-        auto authType = authParts[0];
-        auto authStr = authParts[1];
-        if (authType == "Bearer") {
-            auto resAuth = resolveAuthString(authStr);
-            req.setRawHeader("Authorization",
-                             QString("Bearer %1").arg(resAuth).toUtf8());
-        }
-        else {
-            qWarning() << "Skipping unsupported auth type: " << authString;
-        }
+    // The scheme is the first word, the credential is everything after it.
+    // Splitting by hand instead of by QString::split keeps a Basic password
+    // that contains spaces intact - it is the last field and never a
+    // delimiter.
+    auto schemeEnd = authString.indexOf(' ');
+    if (schemeEnd < 0) return;
+    auto authType = authString.left(schemeEnd);
+    auto credential = authString.mid(schemeEnd + 1).trimmed();
+    if (credential.isEmpty()) return;
+
+    if (authType == "Bearer") {
+        auto resAuth = resolveAuthString(credential);
+        req.setRawHeader("Authorization",
+                         QString("Bearer %1").arg(resAuth).toUtf8());
+    }
+    else if (authType == "Basic") {
+        // "<user> <password>", space separated rather than the ":" of the
+        // header itself: a "file://" reference contains a colon and would
+        // otherwise be split in the middle. Each field is resolved on its
+        // own, so a password can come from a file while the user stays inline.
+        auto userEnd = credential.indexOf(' ');
+        auto user = userEnd < 0 ? credential : credential.left(userEnd);
+        auto password = userEnd < 0 ? QString() : credential.mid(userEnd + 1);
+        auto pair = QString("%1:%2").arg(resolveAuthString(user),
+                                         resolveAuthString(password));
+        req.setRawHeader("Authorization", "Basic " + pair.toUtf8().toBase64());
+    }
+    else {
+        qWarning() << "Skipping unsupported auth type: " << authString;
+    }
+}
+
+void ClayWebAccess::applyHeaders(QNetworkRequest &req, const QVariantMap &headers)
+{
+    for (auto it = headers.cbegin(); it != headers.cend(); ++it)
+    {
+        auto value = resolveAuthString(it.value().toString());
+        if (it.key().isEmpty() || value.isEmpty()) continue;
+        req.setRawHeader(it.key().toUtf8(), value.toUtf8());
     }
 }
 
 int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
                                const QString &url,
                                const QString &authString,
+                               const QVariantMap &headers,
                                const QByteArray &data,
                                const QString &contentType)
 {
@@ -116,6 +149,7 @@ int ClayWebAccess::sendRequest(QNetworkAccessManager::Operation operation,
         req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
 
     handleAuthorization(req, authString);
+    applyHeaders(req, headers);
 
     QNetworkReply *reply = nullptr;
     switch (operation) {

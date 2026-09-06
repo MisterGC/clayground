@@ -146,8 +146,9 @@
     \brief Configurable HTTP client with automatic API method generation.
 
     ClayHttpClient provides a declarative way to define REST API endpoints
-    and generates callable methods automatically. It supports Bearer token
-    authentication and handles both GET and POST requests.
+    and generates callable methods automatically. It supports Bearer token,
+    HTTP basic and API key authentication and handles both GET and POST
+    requests.
 
     Example usage:
     \qml
@@ -190,7 +191,22 @@
     Generated API methods object.
 
     \qmlproperty string ClayHttpClient::bearerToken
-    Bearer token for authentication.
+    Bearer token for authentication. Takes precedence over basicAuthUser.
+
+    \qmlproperty string ClayHttpClient::basicAuthUser
+    User name for HTTP basic authentication.
+
+    \qmlproperty string ClayHttpClient::basicAuthPassword
+    Password for HTTP basic authentication.
+
+    \qmlproperty string ClayHttpClient::apiKey
+    API key, sent in its own header and combinable with the other schemes.
+
+    \qmlproperty string ClayHttpClient::apiKeyHeader
+    Name of the header carrying apiKey, "X-API-Key" by default.
+
+    Every credential value can be given literally, as "env.<VARIABLE>" or
+    as "file://<path>".
 
     \section1 Signals
 
