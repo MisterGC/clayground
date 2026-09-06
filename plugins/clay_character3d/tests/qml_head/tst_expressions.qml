@@ -140,8 +140,15 @@ Item {
             const joy = tc.signature()
             wear(Head.Activity.ShowSadness)
             const sad = tc.signature()
-            verify(joy.browAngle > 0.1,
-                   "joy's brows are not tilted outward: " + joy.browAngle)
+            // Stated as the difference, not as two absolute signs: joy's brows
+            // are LEVEL, and asserting that they tilt outward was asserting a
+            // smirk. What has to hold is that they do not hinge the way
+            // sadness's do - inner ends up is a wince on a smiling mouth.
+            verify(joy.browAngle - sad.browAngle > 0.5,
+                   "joy and sadness hinge their brows alike: "
+                   + joy.browAngle + " vs " + sad.browAngle)
+            verify(joy.browAngle > -0.15,
+                   "joy wears the sad brow: " + joy.browAngle)
             verify(sad.browAngle < -0.5,
                    "sadness's brows are not tilted inward: " + sad.browAngle)
             // And at the lids, which is the other half of it: a smile closes

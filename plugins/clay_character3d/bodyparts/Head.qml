@@ -1142,14 +1142,22 @@ BodyPartsGroup {
     // Joy. An open grin rather than a closed curve - a cartoon smile shows the
     // mouth - and the cheeks pushing the lower lids up. The squint is the one
     // that carries a smile when the mouth is hidden: behind a moustache, at a
-    // distance, or turned away. The brows go up and stay nearly level, which
-    // is what keeps this from reading as the sad face below.
+    // distance, or turned away.
+    //
+    // The brows are the whole difference between a warm smile and a smug one,
+    // and both of their numbers are held down for it. They rise a little, to
+    // clear the eye and open the face - but 0.34 with the outer ends lifted 4
+    // degrees is a raised eyebrow over a grin, which is not pleasure, it is
+    // "I have got the better of you". Level and barely up reads as pleased;
+    // level and at rest (0) drops the bar back onto the eye and reads sleepy.
+    // The angle stays at 0 rather than going negative: the inner ends coming
+    // up is the sad brow, and a smile wearing it is a wince.
     Expression {
         id: _joyAnimation
         running: _head.activity === Head.Activity.ShowJoy
         cornerLift: 1.0; open: 0.30; wide: 0.75
-        squint: 0.60
-        browAngle: 4; browRise: 0.34
+        squint: 0.72
+        browAngle: 0; browRise: 0.16
     }
 
     // Sadness. The mouth shuts, narrows and turns fully down; no energy goes

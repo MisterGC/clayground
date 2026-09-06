@@ -122,7 +122,20 @@ vec4 drawEye(vec4 dst, vec2 p, float side) {
     // mistake, one step milder, as deleting the face outright used to be.
     float irisR = eyeHalf * 0.46;
     vec2 free = vec2(eyeHalf - irisR, eyeHalf - irisR) * 0.75;
-    vec2 ic = q - vec2(gaze.x, gaze.y) * free;
+    // The pupil sits in the middle of what the lids have LEFT OPEN, not in the
+    // middle of the eye box. Only one lid moves per expression here, so the
+    // aperture slides off the pupil as soon as anything squints: a smile
+    // closes the eye from below and leaves the iris sitting low in the slot,
+    // which is a look down the nose at somebody. It is the difference between
+    // a warm smile and a smug one, and it is why a squint used to have to be
+    // kept small to stay likeable.
+    //
+    // The eyeball does not really move when you smile - but both lids close on
+    // a real face, and this single term is what stands in for the one that is
+    // missing. Zero whenever the lids are symmetric, so a neutral face is
+    // exactly where it was.
+    float apertureC = (lo + hi) * 0.5;
+    vec2 ic = q - vec2(0.0, apertureC) - vec2(gaze.x, gaze.y) * free;
     float di = max(length(ic) - irisR, lidded);
     dst = over(dst, eyeColor, clayFill(di));
 
