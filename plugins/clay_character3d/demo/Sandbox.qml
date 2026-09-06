@@ -107,6 +107,11 @@ Item {
     View3D {
         id: view3d
         anchors.fill: parent
+        // Explicit, not the implicit first-camera-in-the-scene fallback:
+        // mapFrom3DScene() needs a camera set here or it returns a zero
+        // vector, and Character.Detail.Auto then reads every character as
+        // being behind the lens and draws them all at Minimal.
+        camera: charCamera
         
         environment: SceneEnvironment {
             clearColor: "#f2eee7"
@@ -232,6 +237,7 @@ Item {
         // Main controllable character using ParametricCharacter
         ParametricCharacter {
             id: character
+            view: view3d
             name: "Player"
             roundness: 0.15
             position: Qt.vector3d(0, 0, 0)
@@ -262,6 +268,7 @@ Item {
         // Thin Thinker
         ParametricCharacter {
             id: npcThinker
+            view: view3d
             position: Qt.vector3d(-25, 0, -30)
             name: "Thinker"
             roundness: 0.15
@@ -291,6 +298,7 @@ Item {
         // Big Eater
         ParametricCharacter {
             id: npcEater
+            view: view3d
             position: Qt.vector3d(-12, 0, -30)
             name: "Eater"
             roundness: 0.15
@@ -319,6 +327,7 @@ Item {
         // Athletic Hero
         ParametricCharacter {
             id: npcHero
+            view: view3d
             position: Qt.vector3d(0, 0, -30)
             name: "Hero"
             roundness: 0.15
@@ -349,6 +358,7 @@ Item {
         // Cartoon Child
         ParametricCharacter {
             id: npcChild
+            view: view3d
             position: Qt.vector3d(12, 0, -30)
             name: "Child"
             roundness: 0.15
@@ -376,6 +386,7 @@ Item {
         // Stylized Woman
         ParametricCharacter {
             id: npcStylized
+            view: view3d
             position: Qt.vector3d(25, 0, -30)
             name: "Stylized"
             roundness: 0.15
