@@ -19,6 +19,11 @@
 //   * The numbers in the corner exist so "still readable at 90 px" is a claim
 //     that can be checked rather than an impression.
 //
+// Whether the six expressions are distinguishable FROM EACH OTHER is a
+// different question, and the sheet next door answers it: this bench shows one
+// head at a time, and one face is always judged against a memory of the last.
+// See bench/FaceSheetSandbox.qml.
+//
 //   ./build/bin/claydojo --sbx plugins/clay_character3d/bench/HeadSandbox.qml
 //   ./build/bin/clayrender plugins/clay_character3d/bench/HeadSandbox.qml \
 //       --eval 'look("work"); play("talk")' --frames 90 --out head.png
@@ -78,6 +83,8 @@ Item {
         else if (what === "joy")   root.activity = Head.Activity.ShowJoy
         else if (what === "anger") root.activity = Head.Activity.ShowAnger
         else if (what === "sad")   root.activity = Head.Activity.ShowSadness
+        else if (what === "disgust")   root.activity = Head.Activity.ShowDisgust
+        else if (what === "surprised") root.activity = Head.Activity.ShowSurprise
         else root.activity = Head.Activity.Idle
     }
 
@@ -217,7 +224,8 @@ Item {
         font.family: "monospace"
         font.pixelSize: 12
         text: "1/2/3 subject   R row   F face  Q quarter  W work  E far  P profile\n"
-            + "T talk  J joy  A anger  S sad  I idle   B blink   arrows gaze   H silhouette"
+            + "T talk  J joy  A anger  S sad  D disgust  U surprised  I idle\n"
+            + "B blink   arrows gaze   H silhouette"
     }
 
     Keys.onPressed: (e) => {
@@ -235,6 +243,8 @@ Item {
         case Qt.Key_J: root.play("joy"); break
         case Qt.Key_A: root.play("anger"); break
         case Qt.Key_S: root.play("sad"); break
+        case Qt.Key_D: root.play("disgust"); break
+        case Qt.Key_U: root.play("surprised"); break
         case Qt.Key_I: root.play("idle"); break
         case Qt.Key_B: root.blinking = !root.blinking; break
         case Qt.Key_H: root.silhouette = !root.silhouette; break

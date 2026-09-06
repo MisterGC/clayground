@@ -105,6 +105,13 @@ Model {
     property vector2d browHalf: Qt.vector2d(0, 0)
     /*! Brow angle in degrees; positive lifts the outer end. */
     property real browAngle: 0
+    /*!
+        How far one brow rises while the other drops, as a length in the same
+        units as \l browOffset. The only term on this face that tells the two
+        sides apart - and the reason a raised eyebrow and a sneer are possible
+        at all, since everything else here is mirrored.
+    */
+    property real browSkew: 0
 
     // --- the mouth -----------------------------------------------------------
 
@@ -118,6 +125,12 @@ Model {
     property real mouthRound: 0
     /*! -1 frown, 0 neutral, 1 smile. */
     property real mouthCornerLift: 0
+    /*!
+        A one-sided lip curl, -1 to 1: the mouth tilts and one corner climbs
+        clear of the other. A sneer, which is a different thing from a frown
+        and the thing disgust is made of.
+    */
+    property real mouthSkew: 0
     property color lipColor: "black"
     property color cavityColor: "#20100c"
 
@@ -167,12 +180,14 @@ Model {
             property vector2d browOffset: root.browOffset
             property vector2d browHalf: root.browHalf
             property real browAngle: root.browAngle
+            property real browSkew: root.browSkew
 
             property vector2d mouthCentre: root.mouthCentre
             property vector2d mouthHalf: root.mouthHalf
             property real mouthGap: root.mouthGap
             property real mouthRound: root.mouthRound
             property real mouthCornerLift: root.mouthCornerLift
+            property real mouthSkew: root.mouthSkew
             property color lipColor: root.lipColor
             property color cavityColor: root.cavityColor
         }

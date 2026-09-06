@@ -540,7 +540,8 @@ Item {
                     Layout.fillWidth: true
                     spacing: 4
                     Repeater {
-                        model: ["neutral", "happy", "sad", "angry"]
+                        model: ["neutral", "happy", "sad", "angry",
+                                "disgust", "surprised"]
                         Chip {
                             required property string modelData
                             label: modelData
