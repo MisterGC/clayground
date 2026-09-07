@@ -309,9 +309,15 @@ Node {
     // in front of the chest the hand sits ON the torso, and a thumb that does
     // not break the silhouette is a thumb nobody sees from more than a few
     // steps away. Out to the side it reads against the background.
-    readonly property real _thumbUpperPitch: -30   // just forward of hanging
-    readonly property real _thumbElbow: 60         // -30 - 60 = level
-    readonly property real _thumbSwing: 30         // and out, clear of the body
+    //
+    // The pair was -30 and 60, which is level but LOW: the fist sat by the
+    // ribs at belly height, and a thumb there is a thumb against the trunk -
+    // two skin-coloured boxes on a skin-coloured background, invisible from
+    // more than a few steps. Raised to shoulder height and carried further
+    // out, the same thumb has the sky behind it.
+    readonly property real _thumbUpperPitch: -55   // forward and up, above the shoulder
+    readonly property real _thumbElbow: 35         // -55 - 35 = level
+    readonly property real _thumbSwing: 40         // and out, clear of the body
     readonly property real _thumbRoll: 90          // palm turned to face the body
     readonly property real _thumbHeadPitch: -6     // chin up a fraction; a pleased pose
 
@@ -329,13 +335,19 @@ Node {
     // that is what pointing is for. The lift shares the elevation with the
     // elbow so a low present drops the whole arm slightly rather than
     // straightening it.
-    readonly property real _presentLift: 25        // upper arm forward of hanging, at level
-    readonly property real _presentLiftMin: 8
-    readonly property real _presentLiftMax: 30
+    //
+    // The lift is what decides the HEIGHT of the offered hand, and 25 put it
+    // at the belly - which reads as carrying a tray, not as offering
+    // anything. The doc for this gesture has always said "chest height"; at
+    // 38 it finally is one, and the elbow stays every bit as bent because the
+    // bend is derived from the lift rather than set beside it.
+    readonly property real _presentLift: 38        // upper arm forward of hanging, at level
+    readonly property real _presentLiftMin: 20
+    readonly property real _presentLiftMax: 45
     readonly property real _presentElbowMin: 45    // "clearly bent"
     readonly property real _presentElbowMax: 95
     readonly property real _presentDropMax: -18    // forearm below level, degrees
-    readonly property real _presentRiseMax: 10     // and above it
+    readonly property real _presentRiseMax: 12     // and above it
     // The forearm turns toward the target about the shoulder's vertical axis,
     // which yaws the whole arm; capped so a hand never crosses the chest.
     readonly property real _presentYawMax: 45

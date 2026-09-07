@@ -128,10 +128,15 @@ Node {
     // (negative stands it off the back), tz swings it out from the hand's
     // side, tc curls the thumb itself.
 
+    // tl scales the thumb's own LENGTH. One number in the table rather than a
+    // fixed thumb, because the thumbs-up is the one gesture that is nothing
+    // but the thumb: everywhere else it is a detail of the hand, and there it
+    // has to carry the whole meaning from across a room. Same argument as the
+    // index being the longest and fattest finger here, which no hand is.
     readonly property var _p: {
         if (root.pose === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 48, tz: 56, tc: 0.20 }
+                     tx: 48, tz: 56, tc: 0.20, tl: 1.00 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
@@ -139,10 +144,10 @@ Node {
         // see the thumbsUp pose in GestureAnim, which is where that lives.
         if (root.pose === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: -12, tz: 84, tc: 0.00 }
+                     tx: -12, tz: 88, tc: 0.00, tl: 1.45 }
         if (root.pose === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
-                     tx: -6, tz: 34, tc: 0.00 }
+                     tx: -6, tz: 34, tc: 0.00, tl: 1.00 }
         // A fist closes OVER its own thumb: the four fingers curl first and
         // the thumb comes across the front of them. It used to sit at tz 70,
         // fourteen degrees off the thumbs-up above and barely curled, so a
@@ -152,12 +157,12 @@ Node {
         // the block instead of a spike leaving it.
         if (root.pose === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 62, tz: 30, tc: 0.70 }
+                     tx: 62, tz: 30, tc: 0.70, tl: 1.00 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
-                 tx: 20, tz: 26, tc: 0.28 }
+                 tx: 20, tz: 26, tc: 0.28, tl: 1.00 }
     }
 
     // Held as animatable reals rather than read straight out of _p: a pose is
@@ -170,6 +175,7 @@ Node {
     property real _tx: root._p.tx
     property real _tz: root._p.tz
     property real _tc: root._p.tc
+    property real _tl: root._p.tl
 
     Behavior on _ci { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _cm { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
@@ -179,6 +185,7 @@ Node {
     Behavior on _tx { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tz { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tc { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _tl { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
 
     // --- how the four are packed ---------------------------------------------
 
@@ -292,12 +299,35 @@ Node {
         /*! Degrees away from the hand's centre line. */
         property real splay: 0
         /*!
-            How far each of the two joints bends at full curl. Measured against
-            the fist: it is what lands the tip on the front of the palm. Less
-            and the fist is a claw with the tips still out in the outline, more
-            and they drive back through the knuckles.
+            How far the KNUCKLE bends at full curl. Just past square, so the
+            near segment lies across the front of the palm.
         */
-        property real foldDeg: 96
+        property real foldNear: 92
+
+        /*!
+            And how far the second joint bends on top of it. The two together
+            are what land the tip ON the palm, and getting their sum wrong is
+            the whole difference between a fist and a jumble: at 96 and 96 -
+            which is what this was - the finger folds through 192 degrees and
+            comes back up PAST its own knuckle, so the tips ended up level with
+            the wrist and a palm's thickness clear of the hand in front of it.
+            Measured: 92 and 78 put the fingertip a little over half way down
+            the palm and the whole folded finger inside a block about two palm
+            thicknesses deep - which is what \l Hand's single-box fist is, so
+            the two levels of detail agree about how big a fist is.
+        */
+        property real foldFar: 78
+
+        /*!
+            How much of its length each segment gives up at full curl, near and
+            far. A cheat, and the same kind as everything else here: a fist
+            hides its own fingertips, so nothing is lost by drawing them short,
+            and what is bought is a folded finger that ends on the palm instead
+            of reaching back off the far side of it. The far segment gives up
+            more because it is the one doing the reaching.
+        */
+        property real tuckNear: 0.10
+        property real tuckFar: 0.35
         /*!
             Where the second hinge sits across the segment's depth: 0.5 on the
             palm-side face, 0 on the centre line. Half is right for a finger,
@@ -308,10 +338,10 @@ Node {
         */
         property real hinge: 0.5
 
-        readonly property real _seg1: _f.len * 0.45
-        readonly property real _seg2: _f.len - _f._seg1
+        readonly property real _seg1: _f.len * 0.45 * (1 - _f.tuckNear * _f.curl)
+        readonly property real _seg2: _f.len * 0.55 * (1 - _f.tuckFar * _f.curl)
 
-        eulerRotation: Qt.vector3d(_f.curl * _f.foldDeg, 0, _f.splay)
+        eulerRotation: Qt.vector3d(_f.curl * _f.foldNear, 0, _f.splay)
 
         BodyPart {
             width: _f.thick
@@ -334,7 +364,7 @@ Node {
         Node {
             y: -_f._seg1
             z: -_f.deep * _f.hinge
-            eulerRotation.x: _f.curl * _f.foldDeg
+            eulerRotation.x: _f.curl * _f.foldFar
 
             BodyPart {
                 width: _f.thick * _f.taper
@@ -395,7 +425,7 @@ Node {
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
         Finger {
-            len: root.palmHeight * 0.85
+            len: root.palmHeight * 0.85 * root._tl
             // One width all the way up. A thumb tapering to a point reads as
             // a spike and a thumb widening toward the pad reads as a club;
             // at two boxes there is not enough of it for either shape to look
