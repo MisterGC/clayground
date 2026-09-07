@@ -150,6 +150,37 @@ BodyPartsGroup {
                units - the bounce. Zero unless a cycle is running or a pose is
                held by \l applyGaitPose().
     */
+    /*!
+        \qmlproperty string Character::gaitHandPose
+        \brief What the gait wants the hands to be doing, "" when none does.
+
+        A layer, not a setting: \l handPose is the author's and is never
+        written to. It sits between a gesture and \l handPose: anger closes
+        the hands whether the character is walking or standing still, because
+        a furious figure does not stand with its hands open; any other gait
+        opens them while it runs and gives \l handPose straight back on stop.
+
+        \sa handPose, gaitFactors
+    */
+    /*!
+        \qmlproperty real Character::handRestRoll
+        \brief The wrist's resting roll in degrees, signed per side by whoever
+               applies it: 90 turns the palms in to face the body.
+
+        Where a hand sits when nothing is posing it - standing as much as
+        walking, because a palm facing backwards off a hanging arm is a
+        mannequin either way. The same quarter turn about the same axis (the
+        hand's own Y, which is the forearm) that GestureAnim's thumbs-up uses.
+        A gait scales it through the \c handRoll factor; a gesture, a use or a
+        fight owns the wrist outright while it runs.
+    */
+    property real handRestRoll: 90
+
+    readonly property string gaitHandPose:
+        _character.gaitFactors.fist > 0.5 ? "fist"
+      : (_walkAnim.running || _runAnim.running) ? "open"
+      : ""
+
     readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
                                    : _runAnim.running ? _runAnim.lift
                                    : _character._heldLift
@@ -187,15 +218,20 @@ BodyPartsGroup {
             l.lowerLeg.eulerRotation = Qt.vector3d(a.lower, 0, 0)
             l.foot.eulerRotation = Qt.vector3d(a.foot, 0, 0)
         }
-        function arm(m, a) {
+        // side is +1 right, -1 left: the wrist roll is the one arm angle that
+        // mirrors, so the sheet has to be told which arm it is drawing.
+        function arm(m, a, side) {
             m.upperArm.eulerRotation = Qt.vector3d(a.upper, 0, a.out)
             m.lowerArm.eulerRotation = Qt.vector3d(a.lower, 0, 0)
-            m.hand.eulerRotation = Qt.vector3d(0, 0, 0)
+            // The same roll the running cycle applies. Zero here made the
+            // sheet disagree with the walk it is drawn to check.
+            m.hand.eulerRotation = Qt.vector3d(
+                0, side * _character.handRestRoll * _character.gaitFactors.handRoll, 0)
         }
         leg(_rightLeg, p.rightLeg)
         leg(_leftLeg, p.leftLeg)
-        arm(_rightArm, p.rightArm)
-        arm(_leftArm, p.leftArm)
+        arm(_rightArm, p.rightArm, 1)
+        arm(_leftArm, p.leftArm, -1)
         _hip.eulerRotation = Qt.vector3d(p.hip[0], p.hip[1], p.hip[2])
         _torso.eulerRotation = Qt.vector3d(p.torso[0], p.torso[1], p.torso[2])
         _belly.eulerRotation = Qt.vector3d(p.belly[0], p.belly[1], p.belly[2])
@@ -1440,7 +1476,8 @@ BodyPartsGroup {
 
             articulated: _character.detailedHands
             handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
-                                                        : _character.handPose
+                    : _character.gaitHandPose !== "" ? _character.gaitHandPose
+                    : _character.handPose
         }
 
         Arm {
@@ -1450,7 +1487,8 @@ BodyPartsGroup {
             mirrored: true
             articulated: _character.detailedHands
             handPose: _gestureAnim.leftHandPose !== "" ? _gestureAnim.leftHandPose
-                                                       : _character.handPose
+                    : _character.gaitHandPose !== "" ? _character.gaitHandPose
+                    : _character.handPose
 
             // Mirror right arm dimensions
             width: _rightArm.width

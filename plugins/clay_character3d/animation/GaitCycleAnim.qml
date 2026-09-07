@@ -150,16 +150,22 @@ ProceduralAnim {
             duration: _cycle.duration
             to: Qt.vector3d(_cycle.table.headPitch, 0, 0)
         }
-        // Hands back to rest (e.g. tilted by UseAnim/FightAnim)
+        // The wrists. This clears whatever tilted them (UseAnim, FightAnim)
+        // and rolls the palms in to face the body: an arm swinging past a hip
+        // with its palm facing backwards is the one part of a walk that reads
+        // as a mannequin. The roll is about the hand's own Y, which is the
+        // forearm - the axis and the quarter turn GestureAnim's thumbs-up
+        // uses - and it is signed per side, +1 right and -1 left, so both
+        // palms turn inward rather than both turning the same way.
         EulerAnim {
             target: entity.rightArm.hand
             duration: _cycle.duration
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, entity.handRestRoll * _cycle.table.handRoll, 0)
         }
         EulerAnim {
             target: entity.leftArm.hand
             duration: _cycle.duration
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, -entity.handRestRoll * _cycle.table.handRoll, 0)
         }
 
         // The leg swinging forward. The hips move LINEARLY, both legs: the

@@ -56,7 +56,20 @@ var FACTORS = {
     elbow:     { kind: "add", neutral: 0, min: -10, max: 80 },
     kneeLift:  { kind: "mul", neutral: 1, min: 0.3, max: 2 },
     sway:      { kind: "add", neutral: 0, min: 0,   max: 20 },
-    rock:      { kind: "add", neutral: 0, min: 0,   max: 15 }
+    rock:      { kind: "add", neutral: 0, min: 0,   max: 15 },
+    // The hands, as gait data rather than a rule in the cycle, so a
+    // preset tweaks them the way it tweaks a knee.
+    // handRoll SCALES the quarter turn that brings a palm in to face the
+    // body - 1 the full 90 degrees, 0 a palm left where the arm put it. The
+    // degrees live in derive(), not here, because an "add" factor whose
+    // neutral is not 0 is added twice: buildFactors() composes a FULL vector
+    // and compose() folds it onto neutral again, so a 90 here came out 180.
+    handRoll:  { kind: "mul", neutral: 1, min: 0, max: 2 },
+    // 0 an open hand, 1 a fist. Carried by the rows that SHAPE a walk,
+    // so the hands close only when the thing closing them is the thing
+    // driving the gait - an emotion nobody let near the walk leaves them
+    // open.
+    fist:      { kind: "add", neutral: 0, min: 0,   max: 1 }
 }
 
 var FACTOR_NAMES = Object.keys(FACTORS)
@@ -174,7 +187,7 @@ var EMOTIONS = {
     // rock went back down to 2 at the same time - a trunk rolling four
     // degrees each way at this tempo reads as a waddle, and side-to-side
     // weight is the HEAVY cue anyway, not the angry one.
-    angry: { tempo: 1.22, stride: 0.92, lean: 11, spineCurve: 6, armSwing: 1.0, elbow: 55,
+    angry: { fist: 1, tempo: 1.22, stride: 0.92, lean: 11, spineCurve: 6, armSwing: 1.0, elbow: 55,
              armForward: 8, armOut: 13, kneeLift: 1.25, headPitch: 7, rock: 2, bounce: 0.015 }
 }
 
@@ -348,6 +361,13 @@ function derive(baseName, factors) {
         armFwd: clamp(b.armFwd * get("armSwing") + get("armForward"), 0, 110),
         armBack: clamp(b.armBack * get("armSwing") - get("armForward"), -60, 90),
         armOut: clamp(get("armOut"), 0, 45),
+        // Passed through, not derived: these are not a base amplitude
+        // scaled by a factor, they ARE the factor.
+        // A SCALE on the character's own rest roll, not degrees: the
+        // quarter turn is one number and it lives on Character, so idle and
+        // walking cannot drift apart. Signed per side by the consumer.
+        handRoll: get("handRoll"),
+        fist: get("fist"),
         elbow: clamp(b.elbow + get("elbow"), 0, 140),
         lean: lean,
         // The factor's share of the lean pivots at the WAIST: the hip counters

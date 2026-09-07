@@ -47,10 +47,13 @@ ProceduralAnim {
             target: entity.rightArm.lowerArm
             to: Qt.vector3d(0, 0, 0)
         }
+        // Not zero: a hanging arm rests with its palm turned in to the
+        // body, standing exactly as much as walking. Zero here left a
+        // character standing with both palms facing backwards.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.rightArm.hand
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, entity.handRestRoll, 0)
         }
         
         // Reset left arm joints
@@ -64,10 +67,13 @@ ProceduralAnim {
             target: entity.leftArm.lowerArm
             to: Qt.vector3d(0, 0, 0)
         }
+        // Not zero: a hanging arm rests with its palm turned in to the
+        // body, standing exactly as much as walking. Zero here left a
+        // character standing with both palms facing backwards.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.leftArm.hand
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(0, -entity.handRestRoll, 0)
         }
         
         // Reset right leg joints

@@ -143,9 +143,16 @@ Node {
         if (root.pose === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
                      tx: -6, tz: 34, tc: 0.00 }
+        // A fist closes OVER its own thumb: the four fingers curl first and
+        // the thumb comes across the front of them. It used to sit at tz 70,
+        // fourteen degrees off the thumbs-up above and barely curled, so a
+        // fist stood its thumb out along the side and read as a thumbs-up
+        // that had lost its wrist roll. Swung back in (tz), laid further
+        // across the front (tx) and actually curled (tc), it becomes part of
+        // the block instead of a spike leaving it.
         if (root.pose === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 55, tz: 70, tc: 0.25 }
+                     tx: 62, tz: 30, tc: 0.70 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
