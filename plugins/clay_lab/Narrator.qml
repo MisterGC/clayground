@@ -1,11 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// SPIKE (lab-flows groundwork, awaiting review): shape may still change.
 
 import QtQuick
 
 /*!
     \qmltype Narrator
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief The learner-facing surface of a \l Flow: what is being said and where we are.
 
     A strip sized for a classroom projector: title, the step's narration,

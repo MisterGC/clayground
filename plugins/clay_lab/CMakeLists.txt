@@ -77,8 +77,6 @@ clay_plugin( Lab
         TapeMeasure.qml
         Stopwatch.qml
         InstrumentBelt.qml
-        Tour.qml
-        TourStep.qml
         board.js
         Board.qml
         BoardInput.qml

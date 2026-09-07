@@ -1,11 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// SPIKE (lab-flows groundwork, awaiting review): shape may still change.
 
 import QtQuick
 
 /*!
     \qmltype FlowStep
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief One stop of a lab Flow: what is said, what the lab does, what the learner does.
 
     A step is either a demonstration (\l demo runs, the learner watches), a

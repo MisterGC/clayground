@@ -1093,7 +1093,7 @@ Item {
         return r
     }
 
-    // --- flow actions (SPIKE, see mgc/groundwork/lab-flows-2026-07-25.md) ---
+    // --- flow actions ------------------------------------------------------
     // One mutation API, three drivers: the UI below calls these same
     // functions, a Flow calls them by name, and an agent can call them
     // through the inspector's eval. Nothing here is flow-only.
@@ -1929,7 +1929,7 @@ Item {
         icon: Component { SymbolIcon {} }
     }
 
-    // --- flow (SPIKE) ------------------------------------------------------
+    // --- flow --------------------------------------------------------------
     // "Why does the LED light?" - a demo that builds the circuit, hands the
     // switch to the learner, then explains the number it produced.
     Flow {

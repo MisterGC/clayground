@@ -1,11 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// SPIKE (lab-flows groundwork, awaiting review): shape may still change.
 
 import QtQuick
 
 /*!
     \qmltype Flow
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief A narrated walkthrough that drives the lab through its own mutation API.
 
     A flow is an ordered list of \l FlowStep. Demonstration steps run the
