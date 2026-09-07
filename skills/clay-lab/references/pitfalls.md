@@ -108,6 +108,13 @@ writing lab code; skim again when something "impossible" happens.
 
 ## Camera
 
+- **Qt Quick 3D's default near plane is 10 units, and nothing in the rig
+  changes it.** A metre-scale lab whose camera comes within 10 of its
+  subject loses it to the near plane: the bob and rod vanish, a post tapers
+  into a spike, and `--project` reports a depth of `distance - 10`. Set
+  `camera.clipNear` on the rig (0.3 in the pendulum evidence lab). The
+  generated templates sit at distance 22, so the trap hides until someone
+  zooms in.
 - The anti-clip rule for an orbit rig is a **minimum camera height above
   the work plane**, not a minimum distance — a distance sphere wrongly
   blocks zooming onto a focused object; a height floor pushes the rig

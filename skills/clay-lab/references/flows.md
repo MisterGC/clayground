@@ -122,6 +122,11 @@ A step with none of the three just narrates.
   Dwell is measured in **sim seconds**, so `timeScale` scales a flow and
   headless runs traverse identical states.
 - **One idea per step**; keep narration under ~240 characters.
+- **Timing, as measured.** A demo may apply a scenario in any step, not only
+  the first; the step's dwell survives the clock rewind. `expect` is
+  asserted on the first sample tick after the dwell elapses, so `dwell: 6`
+  asserts at t = 6.05 s with the default sample interval — measure the
+  expected value at that tick, not at 6.0.
 - **Checkpoints make scrubbing cheap**: before each step the runner
   stores `viewState()` + the name table; `goTo(k)` restores checkpoint k
   and replays only step k's demo. Progress dots are clickable. In Box2D

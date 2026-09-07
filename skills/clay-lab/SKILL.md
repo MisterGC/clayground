@@ -80,7 +80,9 @@ labs/<lab>/                  one lab = one situation; records/, figures/, studie
 - **Kit model code is pure JS** (`.pragma library`, no Qt types, no clock,
   no randomness of its own) with a node unit suite beside it
   (`labs/kits/traffic/traffic.test.js` is the shape), registered in
-  `labs/CMakeLists.txt` with `clay_add_node_test`.
+  `labs/CMakeLists.txt` with `clay_add_node_test`. A lab whose model has no
+  kit yet keeps `<name>.js` + `<name>.test.js` beside `Sandbox.qml` and
+  registers the suite the same way.
 - Reference labs, in reading order: `labs/sensor-fusion-101/` (continuous
   3D), `labs/electronics-101/` (build lab, richest conventions),
   `labs/street-network-101/` (draw → derive → simulate, research study).
@@ -183,8 +185,8 @@ keys, never reassign these. Letters stay physical across languages.
 |---|---|---|
 | `1..9` | scenarios | lab |
 | `C` / `E` / `R` / `Del` | clear / eraser / rotate / delete | lab |
-| `V` | cycle the scene-wide value attribute (off → each quantity → off) | lab |
-| `M` | abstract view | lab |
+| `V` | show values — the scene-wide value attribute in a build lab (off → each quantity → off), the readout panel in a continuous one | lab |
+| `M` | abstract view — schematic or lane graph in a build/draw lab, the plot in a continuous one | lab |
 | `Q` | watch / plot the selection | lab |
 | `f` / `⇧F` | jump labels — type one to select in place / frame selection (plain `F` frames in a lab without `jump:`) | lab |
 | `j` `k` / `h` `l` / `⏎` | walk the card's rows / adjust the focused one / operate the actuator — while something is selected | card |
