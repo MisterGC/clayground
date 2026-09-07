@@ -184,6 +184,20 @@ Item {
 
     // Bumped whenever the view changes size, so the labels re-map.
     property int _layout: 0
+
+    // How many screen pixels one column is wide. The camera is orthographic
+    // and fits the whole row across the viewport, so this shrinks as columns
+    // are added and as the window gets TALLER - vertical magnification follows
+    // horizontal, so a tall window squeezes the row sideways. The labels are
+    // sized off it: written at a fixed pixel size they collide the moment the
+    // sheet is opened in anything but the wide frame it is rendered at, and a
+    // sheet whose captions overlap is a sheet that cannot be read.
+    readonly property real _pitchPx: {
+        root._layout
+        const a = v3d.mapFrom3DScene(Qt.vector3d(0, 0, 0))
+        const b = v3d.mapFrom3DScene(Qt.vector3d(root._spacing, 0, 0))
+        return Math.abs(b.x - a.x)
+    }
     onWidthChanged: root._layout++
     onHeightChanged: root._layout++
 
@@ -452,8 +466,11 @@ Item {
             }
             x: at.x - width / 2
             y: at.y + 4
+            width: Math.max(40, root._pitchPx - 6)
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
             font.family: _header.font.family
-            font.pixelSize: 13
+            font.pixelSize: Math.max(8, Math.min(13, root._pitchPx / 11))
             color: "#4a4a50"
             readonly property real t: index / Math.max(1, root.frames)
             text: root.strip ? "t=" + _label.t.toFixed(3)
