@@ -40,7 +40,9 @@ the lifecycle/failure artifacts, and the human collaboration channel.
   x,y,w,h` (what a framed region is *about*: item or 3D node, with name,
   type, source file and world position). Exit 1 =
   never loaded, 2 = rendered but the scene logged errors, 3 = the
-  `--wait-for` state never arrived. See the manual page for the rest.
+  `--wait-for` state never arrived. The whole option set, `--prefs` and
+  `--result` included, is `docs/docs/manual/clayrender.md` - the one
+  cheat-sheet; neither skill carries another.
 - **The dojo** (the rest of this skill) — interaction, hot-reload
   iteration, and anything genuinely stateful: driving input, stepping
   simulation time, tracing, or working in a shared session with the user.
