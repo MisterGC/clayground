@@ -11,6 +11,7 @@ import Clayground.Canvas3D
 import "bodyparts"
 import "animation"
 import "animation/gait.js" as GaitLib
+import "animation/action.js" as ActionLib
 
 pragma ComponentBehavior: Bound
 
@@ -181,6 +182,23 @@ BodyPartsGroup {
       : (_walkAnim.running || _runAnim.running) ? "open"
       : ""
 
+    /*!
+        \qmlproperty string Character::actionHandPose
+        \readonly
+        \brief What the running activity wants the hands to be doing, "" when
+               none does.
+
+        The same kind of layer as \l gaitHandPose and it sits beside it: a
+        \c Fighting character's hands are fists and a \c Using character's are
+        loose, whatever \l handPose says. Before it existed nothing on the
+        \c Fighting path could close a hand, so a punch was thrown with the
+        fingers open and the whole cycle read as clawing rather than boxing.
+
+        \sa handPose, gaitHandPose, ActionCycleAnim::handPose
+    */
+    readonly property string actionHandPose: _fightAnim.handPose !== "" ? _fightAnim.handPose
+                                           : _useAnim.handPose
+
     readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
                                    : _runAnim.running ? _runAnim.lift
                                    : _character._heldLift
@@ -238,6 +256,65 @@ BodyPartsGroup {
         _chest.eulerRotation = Qt.vector3d(p.chest[0], p.chest[1], p.chest[2])
         _head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
         _character._heldLift = p.lift * _character.legHeight
+    }
+
+    /*!
+        \qmlproperty real Character::actionIntensity
+        \brief How hard at it a \c Using or \c Fighting character is, 0..1.
+
+        Speed and amplitude, never a different pose: a harder fight is a faster
+        one with a tighter guard, and harder work is a bigger stroke.
+
+        \sa activity, workHeight
+    */
+    property real actionIntensity: 0.5
+
+    /*!
+        \qmlproperty real Character::workHeight
+        \brief Where the work is while \l activity is \c Using: 0 at waist
+               height, 1 at shoulder height.
+
+        Lifts the whole arm and closes the elbow rather than only tilting the
+        forearm, and stands the body up as it rises - reaching high is not
+        something anyone does bent over.
+
+        \sa activity, actionIntensity
+    */
+    property real workHeight: 0.35
+
+    /*!
+        \qmlmethod var Character::actionPoseAt(string action, real t)
+        \brief The joint angles the \a action cycle ("use" or "fight") holds at
+               phase \a t, 0..1, with nothing running.
+
+        Pure, and the same answer the running cycle gives at that moment -
+        \l ActionCycleAnim plays this very function. Returns \c {{rightArm,
+        leftArm, rightLeg, leftLeg, hip, torso, belly, chest, head, hand}} in
+        the joints' own conventions, with the wrist roll as a fraction of a
+        quarter turn. The gesture sheet is drawn from it.
+
+        \sa applyActionPose(), gaitPoseAt()
+    */
+    function actionPoseAt(action, t) {
+        return ActionLib.poseAt(action === "fight" ? _fightAnim.table : _useAnim.table, t)
+    }
+
+    /*!
+        \qmlmethod void Character::applyActionPose(string action, real t)
+        \brief Freezes the joints at phase \a t of the \a action cycle.
+
+        For looking, not for playing, exactly as \l applyGaitPose() is: it only
+        makes sense while \l activity is Idle and no gesture holds the joints,
+        since a running cycle would animate over it within a frame. A row of
+        characters frozen at successive phases is the action on one sheet; see
+        \c bench/GestureSheetSandbox.qml.
+
+        The hands are NOT written here - they are \l handPose's, and a sheet
+        sets that itself.
+    */
+    function applyActionPose(action, t) {
+        const a = action === "fight" ? _fightAnim : _useAnim
+        a.apply(t)
     }
 
     // Bounding box dimensions (derived from body parts)
@@ -1476,6 +1553,7 @@ BodyPartsGroup {
 
             articulated: _character.detailedHands
             handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
                     : _character.gaitHandPose !== "" ? _character.gaitHandPose
                     : _character.handPose
         }
@@ -1487,6 +1565,7 @@ BodyPartsGroup {
             mirrored: true
             articulated: _character.detailedHands
             handPose: _gestureAnim.leftHandPose !== "" ? _gestureAnim.leftHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
                     : _character.gaitHandPose !== "" ? _character.gaitHandPose
                     : _character.handPose
 
@@ -1621,8 +1700,12 @@ BodyPartsGroup {
         // pointing at something from across the map still does not need a
         // finger, and the plain hand has a pose for pointing precisely so it
         // does not have to.
+        // An activity that shapes the hands counts too: boxing is fists, and
+        // a fist is exactly the shape that stops reading the moment the
+        // fingers go.
         const claimed = _gestureAnim.rightHandPose !== ""
                      || _gestureAnim.leftHandPose !== ""
+                     || _character.actionHandPose !== ""
         // Divided by handScale: the threshold is really asking whether a
         // FINGER is big enough to be worth ten boxes, and figure height is
         // only a proxy for that. A character drawn with cartoon hands has
@@ -1728,6 +1811,8 @@ BodyPartsGroup {
     UseAnim {
         id: _useAnim
         entity: _character
+        intensity: _character.actionIntensity
+        workHeight: _character.workHeight
         running: _character.activity === Character.Activity.Using
         loops: Animation.Infinite
     }
@@ -1735,6 +1820,7 @@ BodyPartsGroup {
     FightAnim {
         id: _fightAnim
         entity: _character
+        intensity: _character.actionIntensity
         running: _character.activity === Character.Activity.Fighting
         loops: Animation.Infinite
     }

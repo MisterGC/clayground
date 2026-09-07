@@ -25,6 +25,7 @@
 
 import QtQuick
 import QtQuick3D
+import "action.js" as ActionLib
 
 /*!
     \qmltype GestureAnim
@@ -979,6 +980,27 @@ Node {
 
         readonly property vector3d zero: Qt.vector3d(0, 0, 0)
 
+        // What an arm this layer is NOT using is holding. Standing still is a
+        // pose like any other and it belongs to action.js's REST, not to a
+        // vector of zeros here: a gesture that zeroed the free arm handed
+        // IdleAnim a straight arm to bend again the moment it was released,
+        // which is a twitch on every stopGesture().
+        readonly property var _rest: ActionLib.restPose()
+        readonly property real _rollDeg: (root.entity && root.entity.handRestRoll !== undefined)
+                                         ? root.entity.handRestRoll : 90
+        function _v(a) { return Qt.vector3d(a[0], a[1], a[2]) }
+        readonly property vector3d rUpperRest: _pose._v(_pose._rest.rightArm.upper)
+        readonly property vector3d lUpperRest: _pose._v(_pose._rest.leftArm.upper)
+        readonly property vector3d lowerRest: _pose._v(_pose._rest.rightArm.lower)
+        readonly property vector3d rHandRest: Qt.vector3d(
+            _pose._rest.rightArm.hand[0],
+            _pose._rest.rightArm.hand[1] / 90 * _pose._rollDeg,
+            _pose._rest.rightArm.hand[2])
+        readonly property vector3d lHandRest: Qt.vector3d(
+            _pose._rest.leftArm.hand[0],
+            _pose._rest.leftArm.hand[1] / 90 * _pose._rollDeg,
+            _pose._rest.leftArm.hand[2])
+
         // lean is the total forward pitch of the trunk, curve how much of it
         // is a bend rather than a tilt.
         function spine(lean, curve) {
@@ -992,12 +1014,12 @@ Node {
             head = look
             belly = zero; chest = zero
             rPose = ""; lPose = ""
-            rUpper = which > 0 ? upper : zero
-            rLower = which > 0 ? lower : zero
-            rHand = which > 0 ? wrist : zero
-            lUpper = which < 0 ? upper : zero
-            lLower = which < 0 ? lower : zero
-            lHand = which < 0 ? wrist : zero
+            rUpper = which > 0 ? upper : rUpperRest
+            rLower = which > 0 ? lower : lowerRest
+            rHand = which > 0 ? wrist : rHandRest
+            lUpper = which < 0 ? upper : lUpperRest
+            lLower = which < 0 ? lower : lowerRest
+            lHand = which < 0 ? wrist : lHandRest
         }
 
         // Both arms at once, wrists and hand shapes included - which is what
@@ -1021,8 +1043,8 @@ Node {
             head = look
             belly = zero; chest = zero
             rPose = ""; lPose = ""
-            rUpper = zero; rLower = zero; rHand = zero
-            lUpper = zero; lLower = zero; lHand = zero
+            rUpper = rUpperRest; rLower = lowerRest; rHand = rHandRest
+            lUpper = lUpperRest; lLower = lowerRest; lHand = lHandRest
         }
 
         function release(rest) {
