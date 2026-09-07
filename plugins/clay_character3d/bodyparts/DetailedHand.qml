@@ -144,7 +144,7 @@ Node {
         // see the thumbsUp pose in GestureAnim, which is where that lives.
         if (root.pose === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: -12, tz: 88, tc: 0.00, tl: 1.45 }
+                     tx: -12, tz: 88, tc: 0.00, tl: 1.15 }
         if (root.pose === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
                      tx: -6, tz: 34, tc: 0.00, tl: 1.00 }
@@ -195,10 +195,14 @@ Node {
     readonly property real _w2: root.palmWidth * 0.19
     readonly property real _w3: root.palmWidth * 0.165  // little
 
-    // The thumb is the thickest thing on the hand, which is true of a real one
-    // and doubly worth having here: in a thumbs-up it is the entire gesture,
-    // and a thumb no fatter than a finger reads as a fifth finger standing up.
-    readonly property real _wt: root.palmWidth * 0.44
+    // The thumb is the thickest digit on the hand, which is true of a real one -
+    // but only just. It was 0.44, better than twice the middle finger's width
+    // and a sixth more than the index's, and against four fingers this thin
+    // that stops reading as a thumb and starts reading as a thumb belonging to
+    // a bigger hand. A hair over the index is enough: the index is already the
+    // fat one here, and what separates a thumb from a finger is where it grows
+    // and which way it points, not how much of it there is.
+    readonly property real _wt: root.palmWidth * 0.40
 
     // Packed side by side and centred on the palm, and the four together come
     // to just about the palm's own width. They used to overhang it by a fifth,
@@ -247,10 +251,12 @@ Node {
     // the outline drawn around them.
     readonly property real _deep: root.palmDepth * 0.82
 
-    // The thumb is the one thing on the hand that fills the palm's whole
-    // thickness - it is the only part with a joint that can turn to face the
-    // fingers, and a flat one reads as a fifth finger lying on its side.
-    readonly property real _deepT: root.palmDepth * 0.96
+    // Through the hand the thumb is deeper than a finger - it is the only part
+    // with a joint that can turn to face the others, and a flat one reads as a
+    // fifth finger lying on its side - but it does not fill the palm's whole
+    // thickness. At 0.96 against the fingers' 0.82 it stood a sixth proud of
+    // the back of the hand from every angle.
+    readonly property real _deepT: root.palmDepth * 0.88
 
     // The knuckle line sits on the BACK of the palm rather than down the middle
     // of it. Fingers fold to the palm side, so a knuckle on the centre line
@@ -425,7 +431,12 @@ Node {
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
         Finger {
-            len: root.palmHeight * 0.85 * root._tl
+            // A thumb is about two thirds of an index finger, and the index
+            // here is 1.15 palms - so 0.72. It was 0.85, which put it level
+            // with the middle finger and, with the thumbs-up stretch on top,
+            // LONGER than the index: a hand whose biggest digit is its thumb
+            // reads as a mitten with a spur.
+            len: root.palmHeight * 0.72 * root._tl
             // One width all the way up. A thumb tapering to a point reads as
             // a spike and a thumb widening toward the pad reads as a club;
             // at two boxes there is not enough of it for either shape to look
