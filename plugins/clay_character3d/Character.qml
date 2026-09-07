@@ -158,8 +158,9 @@ BodyPartsGroup {
         A layer, not a setting: \l handPose is the author's and is never
         written to. It sits between a gesture and \l handPose: anger closes
         the hands whether the character is walking or standing still, because
-        a furious figure does not stand with its hands open; any other gait
-        opens them while it runs and gives \l handPose straight back on stop.
+        a furious figure does not stand with its hands open. Otherwise it is
+        the SPEED that decides - a walk carries loose hands, a run carries
+        straight ones - and \l handPose comes straight back on stop.
 
         \sa handPose, gaitFactors
     */
@@ -177,9 +178,18 @@ BodyPartsGroup {
     */
     property real handRestRoll: 90
 
+    // A walk carries LOOSE hands and a run carries straight ones. Both used to
+    // be "open", which is the hand held flat with the fingers fanned - and
+    // that is a hand doing something, not a hand being carried. At walking
+    // pace it read as a figure wading; at a run it reads as a sprinter's
+    // flat hand, which is what runners actually do and why the run keeps it.
+    // Idle already falls through to handPose, whose default is "relax", so
+    // this also makes standing and walking agree about the hands rather than
+    // changing their shape at the first step.
     readonly property string gaitHandPose:
         _character.gaitFactors.fist > 0.5 ? "fist"
-      : (_walkAnim.running || _runAnim.running) ? "open"
+      : _runAnim.running ? "open"
+      : _walkAnim.running ? "relax"
       : ""
 
     /*!
