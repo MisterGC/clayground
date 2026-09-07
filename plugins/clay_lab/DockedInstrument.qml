@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype DockedInstrument
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief One instrument in an \l InstrumentDock - a titled panel the reader can put away.
 
     A \l LabPanel with a dismiss affordance in its corner. Put a face

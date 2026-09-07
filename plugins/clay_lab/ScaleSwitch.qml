@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ScaleSwitch
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief Makes the whole lab larger or smaller: A-, the current percentage, A+.
 
     The third member of the corner family, beside \l LangSwitch and

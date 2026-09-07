@@ -6,6 +6,7 @@ import Clayground.Lab
 /*!
     \qmltype HandheldInstrument
     \inqmlmodule Clayground.Lab
+    \ingroup lab-handheld
     \brief An instrument the viewer picks up, applies to the scene, and puts down.
 
     The other kind of instrument. A \l Gauge or a \l DockedInstrument is

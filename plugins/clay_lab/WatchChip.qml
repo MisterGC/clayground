@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype WatchChip
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Put this thing on the plot - the watch toggle, in three states.
 
     Belongs on a selection card, beside the per-object controls: monitoring is

@@ -6,6 +6,7 @@ import Clayground.Lab
 /*!
     \qmltype PartPlacer
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The palette's parts as ONE handheld tool that carries which part it is about to place.
 
     A build tool is an instrument whose reading is an act: it takes a place,

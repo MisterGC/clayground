@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype WatchMonitor
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Watch a thing, get a probe, a colour and a curve.
 
     The plotted set is the WATCHED set: point at a part (a road, a resistor,

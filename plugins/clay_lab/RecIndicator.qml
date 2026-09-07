@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype RecIndicator
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief The recording dot: this run is being written to a file.
 
     \c Shift+R starts a \l DataRecorder and nothing on screen said so, which is

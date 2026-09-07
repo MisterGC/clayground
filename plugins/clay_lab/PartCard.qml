@@ -8,6 +8,7 @@ import Clayground.Lab
 /*!
     \qmltype PartCard
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The selection card: what is selected, what it reads, what you can do to it.
 
     Follows the selected part on screen (kept inside the window - zoomed in,

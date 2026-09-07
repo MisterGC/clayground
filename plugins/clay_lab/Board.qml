@@ -6,6 +6,7 @@ import "board.js" as B
 /*!
     \qmltype Board
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The store behind a build-type lab: typed parts on a grid, wires between their pads.
 
     Everything a lab that places parts does with them that has no domain in

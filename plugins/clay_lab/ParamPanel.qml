@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ParamPanel
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Auto-generated slider panel for all registered parameters.
 
     Drop one into any lab; it builds a slider row per Parameter with

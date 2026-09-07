@@ -7,6 +7,7 @@ import "format.js" as Format
 /*!
     \qmltype LabLang
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief Runtime language switch for labs: dictionaries, lookup and number format.
 
     A lab that is meant to be published to a classroom needs its wording in

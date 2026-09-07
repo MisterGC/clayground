@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LabBanner
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief The centred status pill: something is wrong, or something just happened.
 
     Top centre, above everything, and normally invisible. Two labs had one -

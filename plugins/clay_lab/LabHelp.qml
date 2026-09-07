@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LabHelp
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The key map, on screen, generated from a LabKeys.
 
     Toggled by \c ? (LabKeys owns the key). Because it reads

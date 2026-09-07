@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype WorldLabel
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief A 2D chip pinned to a point in a 3D scene.
 
     The overlay every 3D lab grows by hand: project a world point to the

@@ -6,6 +6,7 @@ import QtQuick as Q
 /*!
     \qmltype CardFocusRing
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The ring a card's control wears while the keyboard is on it.
 
     Declare one inside any control row of a selection card and bind \l on

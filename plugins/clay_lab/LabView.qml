@@ -6,6 +6,7 @@ import QtQuick
 /*!
     \qmltype LabView
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Session-wide view state - currently, whether the HUD is out of the way.
 
     A singleton because \e all of the HUD has to agree at once, and the pieces

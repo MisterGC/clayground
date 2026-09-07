@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Plot2D
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Live time-series plot of probe samples: lines, scatter, uncertainty bands.
 
     Autoscaled strip chart over a sliding sim-time window, one colored

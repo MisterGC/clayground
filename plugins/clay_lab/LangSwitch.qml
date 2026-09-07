@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LangSwitch
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief A row of language chips driving \l {LabLang}::lang.
 
     Drop it into a corner of a lab that ships more than one language; it

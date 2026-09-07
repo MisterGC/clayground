@@ -6,6 +6,7 @@ import QtQuick
 /*!
     \qmltype Lab
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Global registry connecting parameters, probes and the sim clock.
 
     Every Parameter and Probe registers itself here on creation. UI

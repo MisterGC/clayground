@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LabKeys
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The canonical lab key map, and the help text that describes it.
 
     Every lab reserves the same keys for the same things - scenarios on

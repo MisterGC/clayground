@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ColumnFace
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief A thermometer column on an \l InstrumentScale - every gradation labelled.
 
     The face for a quantity that has a natural bottom and is read \e off the

@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype TransportChip
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief Sim time, pause and speed - the clock, on screen.
 
     No lab showed its clock, which is a strange gap in a framework whose whole
