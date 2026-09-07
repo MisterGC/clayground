@@ -391,7 +391,7 @@ one recording side by side.
 
 ### Gestures
 
-Walk, run, idle and fight are cycles. A gesture is the other kind of
+Walk, run, idle, working and boxing are cycles. A gesture is the other kind of
 animation: a pose that eases in, is **held** for as long as it is wanted,
 and eases back. Both are driven from `Character`:
 
@@ -465,6 +465,99 @@ notification is still being delivered. Calling a mutating verb
 from such a handler therefore logs a QML binding loop - harmless but noisy.
 Defer the reaction with `Qt.callLater(...)`, or react from a `Timer`, as
 the professor kit's `FlowGuide` does.
+
+### Standing, working and boxing
+
+Everything the arms do that is neither a walk nor a held gesture lives in one
+Qt-free model, `animation/action.js`, the way the walk and the run live in
+`animation/gait.js`:
+
+| what | where it is | who plays it |
+|---|---|---|
+| standing still | `REST` | `IdleAnim`, and `GestureAnim` when it releases |
+| working at something | base `use` | `UseAnim` |
+| boxing | base `fight` | `FightAnim` |
+
+`UseAnim` and `FightAnim` are `ActionCycleAnim` with one property set. Unlike
+the gait cycle, which spells its poses out as animations and keeps a matching
+`poseAt()` beside them, an action cycle animates ONE number — the phase — and
+writes what `actionPoseAt()` answers for it. There is no second copy to keep in
+step: the strip of stills in `bench/GestureSheetSandbox.qml` is the same
+function the shipped cycle plays.
+
+```qml
+Character {
+    activity: Character.Activity.Using
+    workHeight: 0.2          // 0 waist, 1 shoulder - lifts the arms and stands the body up
+    actionIntensity: 0.7     // speed and stroke size; never a different pose
+}
+```
+
+| property / method | meaning |
+|---|---|
+| `actionIntensity` | 0..1. A harder fight is a faster one with a tighter guard; harder work is a bigger stroke. |
+| `workHeight` | 0..1, `Using` only. Where the surface is. |
+| `actionHandPose` | What the running activity wants the hands to be doing, `""` when none does. A fist while boxing. |
+| `actionPoseAt(action, t)` | The joint angles at phase `t`, with nothing running. Pure. |
+| `applyActionPose(action, t)` | Freezes an idle character at that phase — what the sheet draws. |
+
+`actionHandPose` sits between a gesture and `gaitHandPose` in the chain that
+decides a hand's shape, and it is why a punch is now thrown with a closed hand:
+nothing on the `Fighting` path could reach `handPose` before it, so the boxing
+cycle ran with the fingers open and read as clawing.
+
+`node plugins/clay_character3d/animation/action.test.js` checks the model — that
+a guard keeps both fists above the elbows and both elbows below the shoulders,
+that a punch reaches and comes back, that a working hand travels a third of a
+forearm, that the two hands are never in step. It runs under `ctest` as
+`node_character3d_action`.
+
+### The gesture sheet
+
+The bench for everything above and for the held gestures with it:
+`bench/GestureSheetSandbox.qml` puts them side by side, one frozen figure each,
+same light, same angle, labelled — the gait cycle sheet's trick applied to
+poses rather than to phases.
+
+```bash
+clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
+    --size 2200x700 --wait-for 'ready' --out /tmp/gestures.png
+
+# one cycle as a strip of phases instead
+clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
+    --size 1900x620 --set 'action="fight"' --set 'frames=8' --set 'yaw=90' \
+    --wait-for 'ready' --out /tmp/boxing.png
+```
+
+The set is the thing being judged, not any one pose. A gesture looked at on its
+own is looked at against a memory of the last one, and a memory grades
+generously — which is how a fist that folded back past its own knuckles
+survived for as long as it was only ever seen one at a time.
+
+`silhouette=true` takes the lighting and the colour away and leaves the
+outline, which is all a gesture has at any distance; `scale` shrinks the
+figures in place for the small-on-screen read. Every pose on it is frozen and
+deterministic — the cycles from `applyActionPose()`, the aimed gestures through
+the real solver with its settle cut to a frame — so `ready` is the property to
+wait for and two renders across a change are comparable.
+
+For one hand very close up, `bench/HandSandbox.qml` is still the bench: the
+sheet answers "is this recognisable", the hand bench answers "is this a hand".
+`CharacterEditor` carries the same set as chips, for turning a knob and looking.
+
+**Where this workflow lives.** In `bench/`, next to the code it checks, and not
+as a lab under `labs/`. A lab is a teaching artifact with an authoring contract
+to match — a paper, a `.grafli` overview, EN and DE strings from the first
+commit, committed `.labrec` records — and it is aimed at a reader learning a
+domain. A character-tuning rig has no teaching content and exactly one
+audience: whoever is editing this plugin. It also needs to sit beside the
+component it is judging, because the two are edited in the same breath. The
+benches build nothing, cost nothing and are already how the gait, the face and
+the hand are judged; a fourth of them is the cheap, consistent answer. If a
+character-tuning LAB is ever wanted — expressions, sprites and animation review
+for a reader rather than for a maintainer — it is a different artifact with a
+different audience, and it can be built on top of these benches rather than
+instead of them.
 
 ### Hands and faces, and how much of each to draw
 
