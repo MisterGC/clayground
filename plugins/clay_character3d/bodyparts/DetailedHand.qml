@@ -128,6 +128,22 @@ Node {
     // (negative stands it off the back), tz swings it out from the hand's
     // side, tc curls the thumb itself.
 
+    // toff slides the thumb's ROOT forward, in palm depths, and only the fist
+    // uses it. The four fingers fold to about 1.6 palm depths in front of the
+    // knuckle line, and the thumb's proximal segment is 1.0 long from a root
+    // 0.35 in front of centre - so from where a thumb actually grows it CANNOT
+    // reach the outside of the block its own hand has made, whatever angle it
+    // leaves at. Every setting buries it, which is what "the thumb is messed
+    // up" looked like: a red-tinted test render showed it swallowed whole.
+    //
+    // Two boxes have one joint between them, so the node they hang off is the
+    // thumb's MCP rather than its CMC - the knuckle, not the root of the
+    // metacarpal - and on a real hand that knuckle IS well forward on the palm
+    // when the hand closes, carried there by a joint this model does not have.
+    // Sliding it is therefore closer to the anatomy than leaving it, and it is
+    // the same trade the rest of this file makes: legibility beats anatomy
+    // where the two disagree, and here they do not even disagree.
+    //
     // tl scales the thumb's own LENGTH. One number in the table rather than a
     // fixed thumb, because the thumbs-up is the one gesture that is nothing
     // but the thumb: everywhere else it is a detail of the hand, and there it
@@ -136,7 +152,7 @@ Node {
     readonly property var _p: {
         if (root.pose === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 48, tz: 56, tc: 0.20, tl: 1.00 }
+                     tx: 48, tz: 56, tc: 0.20, tl: 1.00, toff: 0.00 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
@@ -144,25 +160,31 @@ Node {
         // see the thumbsUp pose in GestureAnim, which is where that lives.
         if (root.pose === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: -12, tz: 88, tc: 0.00, tl: 1.15 }
+                     tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00 }
         if (root.pose === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
-                     tx: -6, tz: 34, tc: 0.00, tl: 1.00 }
+                     tx: -6, tz: 34, tc: 0.00, tl: 1.00, toff: 0.00 }
         // A fist closes OVER its own thumb: the four fingers curl first and
-        // the thumb comes across the front of them. It used to sit at tz 70,
-        // fourteen degrees off the thumbs-up above and barely curled, so a
-        // fist stood its thumb out along the side and read as a thumbs-up
-        // that had lost its wrist roll. Swung back in (tz), laid further
-        // across the front (tx) and actually curled (tc), it becomes part of
-        // the block instead of a spike leaving it.
+        // the thumb comes ACROSS THE FRONT of them, its tip tucked into the
+        // hollow they curl around.
+        //
+        // tz IS NEGATIVE HERE and that is the whole fix. Positive swings the
+        // thumb out along its own edge of the hand, which is what a thumbs-up
+        // wants and what this pose asked for for a long time - it was 70, then
+        // 30, and 30 is still outboard: the thumb left the fist at the front
+        // corner and stood there as a loose spike with a gap behind it.
+        // Negative takes it the other way, in over the folded fingers, so the
+        // proximal segment lies along them and the curl below can drop the tip
+        // into the hole. Measured off the direction the segment ends up
+        // pointing: +0.71 inboard where it used to be -0.50 outboard.
         if (root.pose === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 62, tz: 30, tc: 0.70, tl: 1.00 }
+                     tx: 175, tz: -45, tc: 0.45, tl: 1.15, toff: 0.55 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
-                 tx: 20, tz: 26, tc: 0.28, tl: 1.00 }
+                 tx: 20, tz: 26, tc: 0.28, tl: 1.00, toff: 0.00 }
     }
 
     // Held as animatable reals rather than read straight out of _p: a pose is
@@ -176,6 +198,7 @@ Node {
     property real _tz: root._p.tz
     property real _tc: root._p.tc
     property real _tl: root._p.tl
+    property real _to: root._p.toff
 
     Behavior on _ci { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _cm { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
@@ -186,6 +209,7 @@ Node {
     Behavior on _tz { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tc { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tl { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _to { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
 
     // --- how the four are packed ---------------------------------------------
 
@@ -426,7 +450,7 @@ Node {
     Node {
         x: root._side * root.palmWidth * 0.44
         y: -root.palmHeight * 0.38
-        z: -root.palmDepth * 0.35
+        z: -root.palmDepth * (0.35 + root._to)
 
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
