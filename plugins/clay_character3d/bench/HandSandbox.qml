@@ -83,6 +83,29 @@ Item {
 
     function setBuild(m, u) { root.mass = m; root.muscle = u }
 
+    /*! The three builds worth stepping between, thin to heavy. */
+    readonly property var builds: [
+        { label: "thin",    mass: 0.0,  muscle: 0.0 },
+        { label: "neutral", mass: 0.5,  muscle: 0.5 },
+        { label: "heavy",   mass: 1.0,  muscle: 1.0 },
+        { label: "bench",   mass: 0.55, muscle: 0.3 }
+    ]
+    property int buildIndex: 3
+
+    function nextBuild() {
+        root.buildIndex = (root.buildIndex + 1) % root.builds.length
+        root.mass = root.builds[root.buildIndex].mass
+        root.muscle = root.builds[root.buildIndex].muscle
+    }
+
+    /*!
+        The A/B this bench exists to make watchable: 1 is the hand glued to the
+        arm, which is what the build used to do to it, and the default is the
+        damped one. Flipped on ONE figure without moving anything else, so the
+        two frames differ in nothing but the thing being judged.
+    */
+    function toggleHandBuild() { root.handBuild = root.handBuild < 0.99 ? 1.0 : 0.5 }
+
     /*!
         Cartoon hands: gloved, and bigger than the proportion tables give. The
         two go together - big enough to see, light enough to find - and this is
@@ -152,6 +175,11 @@ Item {
         else if (preset === "handTop")  { root.camYaw = 20;  root.camPitch = 55; root.camDist = 2.0 }
         else if (preset === "handBack") { root.camYaw = 200; root.camPitch = 8;  root.camDist = 2.0 }
         else if (preset === "handPalm") { root.camYaw = 350; root.camPitch = -8; root.camDist = 2.0 }
+        // Far enough back to have the FOREARM in frame with the hand, which
+        // is the only way to judge a hand against the arm it is on - and that
+        // is the whole of the build question: a hand is not too small or too
+        // big on its own, it is too small or too big for that limb.
+        else if (preset === "arm")      { root.camYaw = 60;  root.camPitch = 20; root.camDist = 7.0 }
         else if (preset === "body")     { root.camYaw = 32;  root.camPitch = 8;  root.camDist = 22 }
         else if (preset === "bodySide") { root.camYaw = 92;  root.camPitch = 6;  root.camDist = 22 }
         // The working distance the component has to survive: the figure lands
@@ -161,7 +189,7 @@ Item {
         else return
 
         root.viewpoint = preset
-        root.camOnHand = preset.indexOf("hand") === 0
+        root.camOnHand = preset.indexOf("hand") === 0 || preset === "arm"
         root._trackPivot()
     }
 
@@ -356,8 +384,9 @@ Item {
                    ? "auto/" + (high.detailedHands ? "fingers" : "box")
                    : (high.detailedHands ? "fingers" : "box")
         const arm = root.subject.rightArm
-        return "build m" + root.mass.toFixed(2) + " u" + root.muscle.toFixed(2)
-             + " r" + root.handBuild.toFixed(2)
+        return "build " + root.builds[root.buildIndex].label
+             + " m" + root.mass.toFixed(2) + " u" + root.muscle.toFixed(2)
+             + (root.handBuild < 0.99 ? "  hand takes half" : "  HAND GLUED TO ARM")
              // The one number the build question is actually about: how wide
              // the palm is against the arm it hangs off.
              + " palm/arm " + (arm.handWidth / Math.max(1e-6, arm.width)).toFixed(2)
@@ -394,6 +423,7 @@ Item {
         else if (e.key === Qt.Key_6) root.look("body")
         else if (e.key === Qt.Key_7) root.look("work")
         else if (e.key === Qt.Key_8) root.look("far")
+        else if (e.key === Qt.Key_9) root.look("arm")
         else if (e.key === Qt.Key_P) root.play("point")
         else if (e.key === Qt.Key_O) root.play("thumbsUp")
         else if (e.key === Qt.Key_I) root.play("talk")
@@ -404,6 +434,8 @@ Item {
         else if (e.key === Qt.Key_U) root.setAuto()
         else if (e.key === Qt.Key_L) root.cartoon(!root.gloves)
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
+        else if (e.key === Qt.Key_B) root.nextBuild()
+        else if (e.key === Qt.Key_V) root.toggleHandBuild()
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
             root.raise(all[(all.indexOf(root.armPose) + 1) % all.length])
@@ -592,7 +624,8 @@ Item {
         font.pixelSize: 11
         visible: !root.silhouette
         text: "space pose   a arm   p/o/i point,thumbsUp,talk   x stop   "
-            + "1-5 hand views   6-8 body/work/far   c compare   "
+            + "1-5 hand views   6-8 body/work/far   9 arm+hand   c compare   "
+            + "b build   v hand takes half/all of it   "
             + "s silhouette   qerf/tg camera"
     }
 }
