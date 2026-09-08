@@ -152,7 +152,7 @@ Node {
     function poseFor(name) {
         if (name === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 48, tz: 56, tc: 0.20, tl: 1.00, toff: 0.00, tr: 0 }
+                     tx: 48, tz: 52, tc: 0.20, tl: 1.00, toff: 0.00, tr: 80 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
@@ -163,7 +163,7 @@ Node {
                      tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00, tr: 0 }
         if (name === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
-                     tx: -6, tz: 34, tc: 0.00, tl: 1.00, toff: 0.00, tr: 0 }
+                     tx: 6, tz: 48, tc: 0.00, tl: 1.00, toff: 0.00, tr: 80 }
         // A fist closes OVER its own thumb: the four fingers curl first and
         // the thumb comes ACROSS THE FRONT of them, its tip tucked into the
         // hollow they curl around.
@@ -179,12 +179,12 @@ Node {
         // pointing: +0.71 inboard where it used to be -0.50 outboard.
         if (name === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 200, tz: 90, tc: 0.52, tl: 1.15, toff: 0.26, tr: 95 }
+                     tx: 90, tz: -72, tc: 0.25, tl: 1.15, toff: 1.00, tr: 90 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
-                 tx: 20, tz: 26, tc: 0.28, tl: 1.00, toff: 0.00, tr: 0 }
+                 tx: 18, tz: 38, tc: 0.28, tl: 1.00, toff: 0.00, tr: 80 }
     }
 
     /*!
@@ -235,6 +235,28 @@ Node {
     /*! \qmlproperty real DetailedHand::tuckFar
         \brief The same for the far segment, which does the reaching. */
     property real tuckFar: 0.35
+
+    /*!
+        \qmlproperty real DetailedHand::thumbDown
+        \brief Where the thumb leaves the palm, as a fraction of the palm's
+               length measured down from the wrist.
+
+        Off a photograph of an articulated hand rather than off a guess: a
+        thumb comes away from the palm LOW, past halfway to the wrist, which is
+        what leaves the long open web between it and the index. It was 0.38 -
+        barely a third down - and a thumb rooted that high is a fifth finger
+        set slightly apart, which is what it read as.
+    */
+    property real thumbDown: 0.55
+
+    /*!
+        \qmlproperty real DetailedHand::thumbOut
+        \brief And how far out to the side, as a fraction of the palm's width.
+    */
+    property real thumbOut: 0.46
+
+    readonly property real _td: root._p.tdown === undefined ? root.thumbDown : root._p.tdown
+    readonly property real _tw: root._p.tout === undefined ? root.thumbOut : root._p.tout
 
     // A pose may carry its own fold shape; almost none does, and the four
     // properties above are what it falls back to.
@@ -506,8 +528,8 @@ Node {
     // thumb can do - the extended poses swing it out (Z) and only tilt it a
     // few degrees off the palm's plane (X).
     Node {
-        x: root._side * root.palmWidth * 0.44
-        y: -root.palmHeight * 0.38
+        x: root._side * root.palmWidth * root._tw
+        y: -root.palmHeight * root._td
         z: -root.palmDepth * (0.35 + root._to)
 
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)

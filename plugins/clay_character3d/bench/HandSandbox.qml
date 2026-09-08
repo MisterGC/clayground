@@ -360,6 +360,22 @@ Item {
     property bool tuning: false
 
     /*!
+        Which pose the panel is actually editing: the one the SUBJECT'S HAND is
+        holding, not \l pose.
+
+        The two are the same in the vice and different the moment a gesture is
+        played - a gesture picks the hand's shape itself, and \l pose is only
+        what the vice asked for. Tuning \l pose while a gesture holds another
+        one writes the wrong row onto the hand, which looks exactly like the
+        gesture being broken. It cost a wrong diagnosis before this followed
+        the hand.
+    */
+    readonly property string tunedPose: {
+        const a = root.subject.rightArm
+        return a && a.handPose ? a.handPose : root.pose
+    }
+
+    /*!
         The fields of a pose row, with the range each is worth sweeping.
         `tx` runs past 90 because a thumb folding across a closed fist has to:
         under 90 it is still heading away from the wrist.
@@ -379,6 +395,12 @@ Item {
         // a quarter turn off a finger's, and at zero it is a finger that
         // happens to grow lower down the hand.
         { key: "tr",       label: "thumb twist",  from: -180, to: 180, dp: 0 },
+        // Where the thumb leaves the palm. Hardcoded until the reference
+        // photographs showed it was the thing that was wrong: a thumb comes
+        // away LOW, past halfway to the wrist, and one rooted high is a fifth
+        // finger set slightly apart.
+        { key: "tdown",    label: "thumb root down", from: 0.15, to: 0.85, dp: 2 },
+        { key: "tout",     label: "thumb root out",  from: 0.20, to: 0.75, dp: 2 },
         // Not a pose, but the other half of what a folded finger looks like.
         { key: "foldNear", label: "knuckle fold", from: 40,   to: 150, dp: 0 },
         { key: "foldFar",  label: "second fold",  from: 20,   to: 150, dp: 0 },
@@ -398,14 +420,16 @@ Item {
         const h = root._hand()
         if (!h)
             return
-        const row = h.poseFor(root.pose)
+        const row = h.poseFor(root.tunedPose)
         let v = {}
         for (const t of root.tunables) {
             v[t.key] = row[t.key] !== undefined ? row[t.key]
                      : t.key === "foldNear" ? h.foldNear
                      : t.key === "foldFar"  ? h.foldFar
                      : t.key === "tuckNear" ? h.tuckNear
-                     : t.key === "tuckFar"  ? h.tuckFar : 0
+                     : t.key === "tuckFar"  ? h.tuckFar
+                     : t.key === "tdown"    ? h.thumbDown
+                     : t.key === "tout"     ? h.thumbOut : 0
         }
         root.tuned = v
         root.apply()
@@ -451,7 +475,7 @@ Item {
     */
     function dump() {
         const t = root.tuned
-        const row = "        if (name === \"" + root.pose + "\")\n"
+        const row = "        if (name === \"" + root.tunedPose + "\")\n"
                   + "            return { i: " + root._num(t.i, 2)
                   + ", m: " + root._num(t.m, 2) + ", r: " + root._num(t.r, 2)
                   + ", l: " + root._num(t.l, 2) + ", sp: " + root._num(t.sp, 2) + ",\n"
@@ -463,12 +487,14 @@ Item {
                     + "\n    property real foldFar: " + root._num(t.foldFar, 0)
                     + "\n    property real tuckNear: " + root._num(t.tuckNear, 2)
                     + "\n    property real tuckFar: " + root._num(t.tuckFar, 2)
+                    + "\n    property real thumbDown: " + root._num(t.tdown, 2)
+                    + "\n    property real thumbOut: " + root._num(t.tout, 2)
         const out = row + "\n\n" + shape
         console.log(out)
         return out
     }
 
-    onPoseChanged: root.reseed()
+    onTunedPoseChanged: root.reseed()
 
     // --- measurements ----------------------------------------------------------
 
@@ -790,7 +816,7 @@ Item {
             spacing: 3
 
             Text {
-                text: "tuning  " + root.pose
+                text: "tuning  " + root.tunedPose
                 font.family: root.monoFont
                 font.pixelSize: 13
                 font.bold: true
