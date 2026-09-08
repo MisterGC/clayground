@@ -24,7 +24,13 @@ interactive, deterministic, agent-verifiable experimentation space.
   named. `style: "scatter"` leaves discrete measurements unjoined,
   `sigmaProbe` fills a translucent ±σ band behind a curve, and hovering the
   chart reads every visible series back at the nearest sample.
-- **DataRecorder** — probe samples to CSV (via `Clayground.Text`).
+- **DataRecorder** — probes to a **run record** (`record.js`): lab, scenario,
+  seed, every parameter, the per-probe series with their summaries and the
+  command that regenerates it, no wall clock anywhere - so two runs of one
+  seed are byte-identical and a paper can cite the file by id. A `.csv`
+  destination still writes the flat table, but a CSV carries no provenance
+  and so cannot be cited. Always set an explicit destination (a relative
+  default once littered the repo root).
 - **LabTheme / ThemeSwitch / ScaleSwitch** — every colour, shape, type and
   spacing token, in a light and a dark palette that swap at runtime, all
   multiplied by one `uiScale` factor. The two palettes are counterparts
@@ -36,7 +42,16 @@ interactive, deterministic, agent-verifiable experimentation space.
   `tokens.js`: seven type roles (`fontMicro` … `fontTitle`), six spacing
   steps (`spaceXs` … `spaceXxl`) and `LabTheme.px(n)` for one-off geometry.
   `node palette.test.js` and `node tokens.test.js` check the relationships,
-  not the values.
+  not the values. Two roles are easy to miss: the *board* has its own (`board`
+  for the sky, `table`, `sheet`, `inkSolid` for a rim or wall - ink as a lit
+  surface cannot simply invert or it becomes a light source), because a
+  recessed 2D `paperDeep` well still sinks in the dark while the board's
+  ordering inverts; and *data* tokens keep their identity across themes - the
+  paper says "the rose track is GPS" and the legend has to agree in both, so a
+  colour is measured on the dark ground and lifted along its own hue only if
+  it fails to read there. The scale exists because a lab shown on a large
+  external screen had HUD controls nobody could read and nothing to turn:
+  every size in the chrome was a bare pixel literal.
 - **LabPrefs** — the three settings that belong to the person rather than to
   the run: `ui.theme`, `ui.scale`, `ui.lang`. Backed by `Clayground.Storage`
   when it is present and by memory when it is not, so a lab that never links
@@ -70,6 +85,21 @@ interactive, deterministic, agent-verifiable experimentation space.
   something outside the picture. The professor kit's `FlowGuide` takes one
   as `director:`.
 
+### Focus mode
+
+`Tab` clears the HUD: `LabView.focus` goes true and the instruments, panels,
+plot, compass, clock and switches step out of the way, leaving the scene and -
+while a flow runs - the Narrator. It is for studying a scene when nothing is
+being changed or measured. Most of it is automatic: anything built on
+`LabPanel` fades on its own, as do the kernel's own pieces. A lab only wires
+what it built itself (a scrim, a button declared beside a panel rather than
+inside it) with `visible: !LabView.focus`, and a panel that must survive
+focus mode sets `hideOnFocus: false`. `LabPanel` uses opacity and `enabled`
+rather than `visible`, because labs bind `visible` on their own panels
+constantly and a component assigning it would be silently overwritten by
+exactly the labs that use it most. The alarm banner deliberately does not
+hide - a short circuit outranks whatever you were looking at.
+
 ### The board — what a build lab is made of
 
 A lab that places typed parts on a grid, wires their pads and solves the
@@ -84,7 +114,19 @@ drives the store and the gesture with no GPU.
   is where the domain re-solves.
 - **BoardInput** — the mouse: wire pads, select and drag, tap a wire, the
   two-step actuator (`operate`), eraser, the right-click cancel chain; the
-  camera and the instrument belt are asked first, always.
+  camera and the instrument belt are asked first, always. A part's state
+  belongs on its selection card (a resistor's ohms, a gate's function, a
+  switch's on/off), which is also the only channel that survives having no
+  pointer on a touch screen; operating a part in the scene is a shortcut
+  gated on selection - the part you picked is the part that responds - so a
+  click during building flips nothing and no mode has to be remembered. An
+  actuator region comes first in the hit test (`actuatorHalf(type)`), has its
+  own gesture (no selection, no drag, fires on release) and three signals
+  that agree on one predicate: a pointing-hand cursor, the lever lightening
+  (never recolouring what already carries state), and a hint-bar line naming
+  what the click will do. electronics-101's switch was the cautionary tale: its
+  pads reached inward and left a few pixels in the middle as the only place a
+  click flipped it, which read as a bug in wiring rather than in the switch.
 - **BoardWires3D** — every wire as one flat batch plus the dangling preview;
   the lab's `lineOf` styles them.
 - **PartPlacer** — the palette's parts as one handheld: take, ghost, place.
@@ -103,7 +145,12 @@ Everything below was hand-rolled in two labs before it moved here.
   `f` jump labels / `⇧F` frame (plain `F` in a jump-less lab), `0` reset,
   `H` takes the next instrument, `P` keeps its reading,
   `Shift+R` record, `?` help, arrows and `WASD` travel, `Shift`+arrows
-  turn) plus the lab's own keys as data.
+  turn) plus the lab's own keys as data. The arrows used to turn, which a
+  drag already did well; crossing the scene had no key at all, so turning
+  moved onto `Shift` and watching moved off `W` to `Q`. `f`/`⇧F` are the
+  map's first Shift-differentiated pair - f *acquires* a target, ⇧F *frames*
+  it. While a flow runs `→`/`←` and `Space` are the flow's, so the arrows are
+  the camera's only when nothing narrates.
 - **HintJump** — keyboard selection: `f` labels every target the lab
   names (1–2 home-row letters), typing one selects it in place; off-screen
   targets become a grouped badge strip and *do* fly on pick. The lab
@@ -148,7 +195,15 @@ Everything below was hand-rolled in two labs before it moved here.
   the intersections, answers `worldAt(view, mx, my)` for mouse editing, and
   publishes the height/`depthBias` budget flat overlays have to stay
   inside. Three labs built a table, a sheet, a rim, a light rig and 585 peg
-  `Model`s between them before this existed.
+  `Model`s between them before this existed. Three things to know: `GridMode`
+  draws nothing - hand it over with `gridMode:` and set `cueSize: 0` in a lab
+  that places nothing, because a snap cue on a surface nobody snaps to is a
+  lie; `worldAt(view, mx, my)` is the pick, the plane being the only pickable
+  thing the stage adds (a raster not centred on the origin says so with
+  `rasterOrigin`); and flat markings sit between `overlayMinY` and
+  `overlayMaxY` (`overlayY(layer)` stacks them) with a `depthBias` in
+  `overlayMinBias..overlayMaxBias` - `depthBias` only settles sort order, so
+  the lift is what actually does the work.
 
 ### Instruments — the shelf
 
@@ -158,7 +213,20 @@ Promoted from the labs, which had proved each of them (some three times over):
   value or probe, unit, fixed limits or a self-ranging set of `ranges`,
   linear or log positioning, severity bands, nice-number gradations, and the
   lag and peak-hold of a real movement. One of these feeds as many faces as
-  the page shows, so they cannot disagree.
+  the page shows, so they cannot disagree; adaptability lives in the model x
+  face matrix, so a music VU meter is a `BarFace` on a log scale with
+  peak-hold, not a new component. Bands (`okUntil`/`warnUntil`, or `zones`)
+  are the scale's, not the face's: declared once they colour the needle, the
+  fill, the digits and the tint behind them from `LabTheme`'s severity
+  tokens, and a reading past the end of the scale takes the band at that end
+  - a pinned needle on a red-topped dial must not read back "ok".
+  `settleTime` is a swing for a value that changes on an *action*; `damping`
+  is the lag of a real movement, for a continuously noisy one. Never both.
+  Which face: `Gauge` for *what is this relative to what the instrument can
+  take*, `BarFace` for *how far along*, `ColumnFace` for *how much* read off
+  the scale, `DigitFace` for *what is the number* - paired with a needle or a
+  column, because alone it says nothing about what the number is worth.
+  `demo/Instruments.qml` is the reference page: one scale under four faces.
 - **Gauge** — the needle face. Given `ranges` it selects its own, and prints
   the one it settled on. Laid out in fractions of its own size, so the same
   component serves a HUD dial and a `Texture` baked onto a 3D part.

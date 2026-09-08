@@ -1,11 +1,14 @@
 # clay-lab — agent skill for composing Clayground labs
 
-`SKILL.md` teaches an AI coding agent how to *compose* a Clayground lab:
-which blocks exist and when to reach for which, the conventions that make
-a lab operable by the inspector and by flows, the paper-and-ink design
-language, the determinism contract, and the lab–paper–board triad that
-defines "done". The `references/` files carry the depth: the hard-won
-pitfall list, the flow-authoring recipe, and the triad conventions.
+`SKILL.md` is the contract an AI coding agent authors a Clayground lab
+against: the definition of done by purpose, the conventions that make a lab
+operable by the inspector and by flows, the design rules, the key map, the
+verification commands — rules only, under 300 lines. The `references/`
+files carry the depth: `catalog.md` (every kernel block, **generated** from
+the qdoc briefs by `docs/scripts/lab_catalog.py`; ctest `lab_catalog` fails
+when it is stale), `pitfalls.md` (the one list of traps), `flows.md` (the
+flow-authoring recipe) and `triad.md` (paper, board, records, figures,
+studies). The *why* behind the rules is `plugins/clay_lab/README.md`.
 
 Sibling of `skills/clay-crew`, which owns *verification* through the
 Dojo's inspector protocol — clay-lab composes, clay-crew proves. Both are

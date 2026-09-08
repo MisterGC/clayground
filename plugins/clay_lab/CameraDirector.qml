@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype CameraDirector
     \inqmlmodule Clayground.Lab
+    \ingroup lab-camera
     \brief Which shot when, for a lab with a presenter in it.
 
     The rig knows how to compose a picture (\c {OrbitCamera3D.fit}); a flow

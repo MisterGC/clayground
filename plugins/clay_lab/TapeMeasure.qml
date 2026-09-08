@@ -7,6 +7,7 @@ import "measure.js" as Measure
 /*!
     \qmltype TapeMeasure
     \inqmlmodule Clayground.Lab
+    \ingroup lab-handheld
     \inherits HandheldInstrument
     \brief Clicked points chained into a run, with the length of every leg, the
     angle at every corner and the total on screen.

@@ -77,8 +77,6 @@ clay_plugin( Lab
         TapeMeasure.qml
         Stopwatch.qml
         InstrumentBelt.qml
-        Tour.qml
-        TourStep.qml
         board.js
         Board.qml
         BoardInput.qml
@@ -121,3 +119,17 @@ clay_add_node_test(lab_measure SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/measure.test.j
 # The board's rules - cell arithmetic, pad rotation, the hit test order, keep-out,
 # serialization - used to live inline in every build lab (#211).
 clay_add_node_test(lab_board   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board.test.js)
+# The skill's block catalog is generated from the briefs above
+# (docs/scripts/lab_catalog.py -> skills/clay-lab/references/catalog.md). This
+# check fails when a type was added or its brief edited without regenerating,
+# so the catalog an agent reads cannot describe a kernel that no longer exists
+# (#210).
+if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME lab_catalog
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/docs/scripts/lab_catalog.py --check)
+        set_tests_properties(lab_catalog PROPERTIES LABELS "tools" TIMEOUT 30)
+    endif()
+endif()

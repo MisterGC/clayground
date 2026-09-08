@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LabPanel
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief A titled paper panel - the surface every lab HUD is made of.
 
     Panel fill, quiet border, the theme's radius, a small-caps mono title and

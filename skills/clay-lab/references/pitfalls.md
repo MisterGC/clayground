@@ -22,6 +22,10 @@ writing lab code; skim again when something "impossible" happens.
   `mapFrom3DScene` silently returns zeros.
 - **`Label3D.showLeader` defaults to false** — callouts with leaders
   must opt in.
+- **A `WorldLabel` takes its camera from the view** (`camera: view3d.camera`),
+  never from the rig. Naming the rig's camera gets the label past its own
+  null-guard while the view still has none, and the first projection goes
+  through a *Cannot resolve view position* warning.
 
 ## Canvas3D edges
 
@@ -104,6 +108,13 @@ writing lab code; skim again when something "impossible" happens.
 
 ## Camera
 
+- **Qt Quick 3D's default near plane is 10 units, and nothing in the rig
+  changes it.** A metre-scale lab whose camera comes within 10 of its
+  subject loses it to the near plane: the bob and rod vanish, a post tapers
+  into a spike, and `--project` reports a depth of `distance - 10`. Set
+  `camera.clipNear` on the rig (0.3 in the pendulum evidence lab). The
+  generated templates sit at distance 22, so the trap hides until someone
+  zooms in.
 - The anti-clip rule for an orbit rig is a **minimum camera height above
   the work plane**, not a minimum distance — a distance sphere wrongly
   blocks zooming onto a focused object; a height floor pushes the rig
@@ -230,6 +241,35 @@ until you publish.
   monotonically increasing part id (`part12`) names a different part in a
   session that built something earlier. Two runs of one scenario belong in
   two processes, which is what `records/make.sh` and `lab-check` both do.
+
+## Studies and records
+
+- **Scenarios are not comparable at one seed.** A sensor that produces no
+  fix draws no random numbers, so disabling one shifts the shared stream for
+  everything downstream. Two scenarios at one seed are two noise
+  realisations. Say so, or sweep seeds.
+- **A spread is not comparable across cells of different scale.** Ranking
+  four networks by raw `stddev(arrivals)` ranked them by their means, because
+  the means differed fourfold. `"normalize": "mean"` (a coefficient of
+  variation) asks the question that was intended. Check your objective
+  against the levels' *magnitudes* before you trust a ranking.
+- **Record the warm-up and every cell looks alike.** From cold, a rate climbs
+  from zero; that ramp is identical in every configuration and swamps the
+  difference you are measuring. Warm up unrecorded, then record.
+- **Pin the fleet, not the density.** If demand scales with the size of the
+  thing being varied, a comparison of shapes secretly measures size. Find the
+  quantity that has to be held constant for the comparison to mean anything,
+  and check it in the results (the topology study quotes `mean(cars)` per
+  network for exactly this).
+- **Crop, never shrink the window.** A lab's HUD is responsive: rendering
+  into a small viewport to keep a panel out of a figure reflows the layout
+  into something no user has ever seen and elides panel text into "the
+  current…". Capture at the size the lab is really used at and
+  `--crop <objectName>` the region you want, or hide the panels you do not.
+- **Never downscale a figure.** textli scales an over-wide picture to the
+  column itself and Enter on one fills the window from the *file*; a
+  pre-shrunk screenshot has thrown away the only detail that view exists to
+  show. Tune the framing, leave the pixel count alone.
 
 ## Numbers and UI copy
 

@@ -8,6 +8,7 @@ import Clayground.Lab
 /*!
     \qmltype BoardPalette
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The build lab's top-left panel: presets, the parts to take, the tools - in foldable sections.
 
     Eleven parts, eleven presets and four tools stopped fitting a laptop

@@ -6,6 +6,7 @@ import Clayground.Lab
 /*!
     \qmltype BoardInput
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The mouse on a \l Board: wire pads, select and drag parts, operate, erase, tap a wire.
 
     The whole left-button gesture of a build lab, and the rule it lives by:

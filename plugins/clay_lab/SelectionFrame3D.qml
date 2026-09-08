@@ -6,6 +6,7 @@ import QtQuick3D
 /*!
     \qmltype SelectionFrame3D
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The shared hover/select language: a flat frame on the work surface.
 
     One shape, two strengths - hovering draws a thin quiet outline, selecting

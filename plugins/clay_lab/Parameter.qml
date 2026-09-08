@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Parameter
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief A named, ranged lab parameter, auto-registered with Lab.
 
     Declare one per tunable quantity and bind your system to \c value.

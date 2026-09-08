@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype SceneTitle
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief A title card over the whole picture: fades in, holds, fades out.
 
     What an establishing shot is captioned with - "AND gate" over the new

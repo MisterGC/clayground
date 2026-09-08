@@ -6,6 +6,7 @@ import QtQuick3D
 /*!
     \qmltype LabStage3D
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The ground every 3D lab stands on: an endless sheet of squared
     paper, plus the light rig and the environment that go with it.
 

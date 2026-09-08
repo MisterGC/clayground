@@ -6,6 +6,7 @@ import Clayground.Lab
 /*!
     \qmltype Stopwatch
     \inqmlmodule Clayground.Lab
+    \ingroup lab-handheld
     \inherits HandheldInstrument
     \brief How long something took, in \e simulated seconds: click to start,
     click to stop.

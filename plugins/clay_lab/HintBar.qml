@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype HintBar
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The bottom-centre line that says what you can do right now.
 
     Owns the slot rules that every lab got right by hand and would eventually

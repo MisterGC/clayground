@@ -7,6 +7,7 @@ import QtQuick
 /*!
     \qmltype HintJump
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Keyboard selection: label every target, type the label.
 
     Press \c f (LabKeys routes it here) and every target the lab names grows

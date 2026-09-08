@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Compass
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Which way the work surface faces while you circle it.
 
     You stay at the bottom and the board turns, which is what actually

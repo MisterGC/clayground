@@ -16,6 +16,10 @@ no long-lived process, several variants render in parallel, nothing can hand
 back a stale or dead instance's picture, and a full 3D sandbox takes well under
 a second.
 
+The sandbox is positional or `--sbx <file>`, whichever the surrounding script
+already speaks - the Dojo's spelling works here too. Giving both is an error
+rather than a guess.
+
 Use the [Dojo]({{ site.baseurl }}/docs/manual/dojo/) instead when you need
 interaction, hot reload, or anything genuinely stateful.
 
@@ -278,6 +282,21 @@ Exit 2 exists because a runtime `ReferenceError` does not stop a component from
 instantiating: a broken scene can produce a perfectly plausible picture. The
 image is written so you can look at it, and the exit code stops a script from
 treating it as success.
+
+## Settings never leak
+
+Whatever a render persists through `LabPrefs` - theme, language, UI scale -
+goes to a throwaway store that dies with the process (`--prefs isolated`, the
+default). So `--eval 'LabTheme.mode = "dark"'` stays inside that one render
+and the next one is light at 100 % again, whatever the Dojo currently looks
+like; a figure of a German lab needs `--eval 'LabLang.lang = "de"'` rather
+than your session. No reset ritual at the end of a series.
+
+Two escapes: `--prefs user` writes the real store the Dojo reads, so a flip
+there *does* stick - end such a series at `LabTheme.mode = "light"` and
+`LabTheme.resetScale()`; `--prefs <dir>` keeps one throwaway store across a
+series. The carrier is `CLAY_STORAGE_DIR`, honoured by any host that sets it
+before building its engine.
 
 ## What it needs
 

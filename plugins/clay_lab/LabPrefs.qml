@@ -6,6 +6,7 @@ import QtQuick
 /*!
     \qmltype LabPrefs
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief The handful of settings that must outlive a reload, and where they go.
 
     Theme, language and UI scale are not lab state - they are facts about the

@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype MiniMap
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \inherits LabPanel
     \brief The abstract view: a fitted 2D projection of the scene, drawn by the lab.
 

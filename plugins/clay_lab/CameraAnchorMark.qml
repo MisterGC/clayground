@@ -6,6 +6,7 @@ import Clayground.Lab
 /*!
     \qmltype CameraAnchorMark
     \inqmlmodule Clayground.Lab
+    \ingroup lab-handheld
     \brief Shows where the camera turns and zooms: a dotted ring on the anchor.
 
     The anchored orbit and the cursor zoom both act on a point the viewer

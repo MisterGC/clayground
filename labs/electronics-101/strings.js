@@ -103,7 +103,7 @@ var dict = {
         "hint.selected.frame": " · F frames it",
         "hint.idle": "click two gold pads to wire · click a wire to branch off it · select a resistor for its Ω · V shows values · right-drag turns the view",
 
-        // --- flow: led-basics (SPIKE) ---
+        // --- flow: led-basics ---
         "flow.led-basics.title": "Why does the LED light?",
         "flow.next": "next ›",
         "flow.back": "‹ back",
@@ -240,7 +240,7 @@ var dict = {
         "hint.selected.frame": " · F rückt es ins Bild",
         "hint.idle": "zwei goldene Kontaktfelder verbinden · Draht anklicken zweigt ab · V zeigt alle Werte · rechte Taste dreht die Ansicht",
 
-        // --- flow: led-basics (SPIKE) ---
+        // --- flow: led-basics ---
         "flow.led-basics.title": "Warum leuchtet die LED?",
         "flow.next": "weiter ›",
         "flow.back": "‹ zurück",

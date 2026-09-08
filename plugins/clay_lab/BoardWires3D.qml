@@ -8,6 +8,7 @@ import Clayground.Lab
 /*!
     \qmltype BoardWires3D
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief Every wire on a \l Board as one flat instanced line batch, plus the dangling preview.
 
     Wires lie flat on the board as one \c LineBatch3D: that is what buys a

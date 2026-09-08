@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype InstrumentDock
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief A column of HUD instruments the reader can put away one at a time.
 
     A lab decides per instrument whether it belongs \e in the world - a dial

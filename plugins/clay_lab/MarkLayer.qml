@@ -8,6 +8,7 @@ import Clayground.Lab
 /*!
     \qmltype MarkLayer
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief Rings on the world points something is naming right now.
 
     A presenter saying "collector on the left, emitter on the right, base

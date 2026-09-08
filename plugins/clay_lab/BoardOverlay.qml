@@ -8,6 +8,7 @@ import Clayground.Lab
 /*!
     \qmltype BoardOverlay
     \inqmlmodule Clayground.Lab
+    \ingroup lab-board
     \brief The 2D readings over a \l Board: value labels, wire readings, watch marks and pinned tags.
 
     Four kinds of chip, all screen-space over the 3D board, all projected
