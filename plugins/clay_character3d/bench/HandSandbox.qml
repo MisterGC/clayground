@@ -66,6 +66,24 @@ Item {
     property real figureScale: 1.0
 
     /*!
+        The build, as ParametricCharacter's two width sliders. A hand is judged
+        against the arm it is on as much as on its own, and those two are what
+        move the arm: at 0/0 the figure is thin and unmuscled, at 1/1 heavy and
+        muscular. Sweeping them is how \l ParametricCharacter::handBuildResponse
+        was set - a hand that takes the whole of that spread is a claw at one
+        end and a mitten at the other.
+
+        clayrender ... --set 'mass=0' --set 'muscle=0' --eval 'look("body")'
+    */
+    property real mass: 0.55
+    property real muscle: 0.3
+
+    /*! How much of the build the hands take, 0 none and 1 all of it. */
+    property real handBuild: 0.5
+
+    function setBuild(m, u) { root.mass = m; root.muscle = u }
+
+    /*!
         Cartoon hands: gloved, and bigger than the proportion tables give. The
         two go together - big enough to see, light enough to find - and this is
         the bench for deciding how far to push either.
@@ -337,7 +355,14 @@ Item {
         const mode = high.detail === Character.Detail.Auto
                    ? "auto/" + (high.detailedHands ? "fingers" : "box")
                    : (high.detailedHands ? "fingers" : "box")
-        return (root.gloves ? "gloved x" + root.handScale.toFixed(2) + "  " : "")
+        const arm = root.subject.rightArm
+        return "build m" + root.mass.toFixed(2) + " u" + root.muscle.toFixed(2)
+             + " r" + root.handBuild.toFixed(2)
+             // The one number the build question is actually about: how wide
+             // the palm is against the arm it hangs off.
+             + " palm/arm " + (arm.handWidth / Math.max(1e-6, arm.width)).toFixed(2)
+             + "  "
+             + (root.gloves ? "gloved x" + root.handScale.toFixed(2) + "  " : "")
              + (root.subject === low ? "plain  " : mode + "  ")
              + (root.gesture !== "" ? "gesture " + root.gesture
                                     : root.armPose + "/" + root.pose)
@@ -399,8 +424,9 @@ Item {
         bodyHeight: 10
         realism: 0.0
         maturity: 0.15
-        mass: 0.55
-        muscle: 0.3
+        mass: root.mass
+        muscle: root.muscle
+        handBuildResponse: root.handBuild
         femininity: 0.2
         scale: Qt.vector3d(root.figureScale, root.figureScale, root.figureScale)
         handPose: root.pose
