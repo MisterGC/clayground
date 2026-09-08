@@ -24,6 +24,33 @@ Item {
     property bool isDragging: false
     property point lastMousePos: Qt.point(0, 0)
 
+    // The three knobs of the light rig that decide how hard the figures read:
+    // whether the frame is tonemapped at all, how much light travels with the
+    // camera onto the planes that face it, and the ambient the key adds.
+    //
+    // The rig used to run with tonemapping OFF ("toon shading") and a 0.45
+    // fill along the view line. Off means the lit values go out raw: a face
+    // is one flat pink at any fill level, and everything the camera looks at
+    // sums key + fill + ambient past 1.0 and clips. Linear tonemapping gets
+    // the gradient back; the fill drops to 0.2 and the ambient a little, so
+    // the gamma lift does not wash the saturated palette out. `m` flips
+    // between the two rigs to see the difference on the spot.
+    property int tonemap: SceneEnvironment.TonemapModeLinear
+    property real cameraFill: 0.2
+    property color keyAmbient: "#5a5a63"
+    readonly property bool harshRig: root.tonemap === SceneEnvironment.TonemapModeNone
+    function toggleRig() {
+        if (root.harshRig) {
+            root.tonemap = SceneEnvironment.TonemapModeLinear
+            root.cameraFill = 0.2
+            root.keyAmbient = "#5a5a63"
+        } else {
+            root.tonemap = SceneEnvironment.TonemapModeNone
+            root.cameraFill = 0.45
+            root.keyAmbient = "#737380"
+        }
+    }
+
     // All characters for editor
     readonly property var allCharacters: [character, npcThinker, npcEater, npcHero, npcChild, npcStylized]
 
@@ -37,6 +64,11 @@ Item {
             event.accepted = true
         } else if (event.key === Qt.Key_E) {
             cameraYaw += 5
+            event.accepted = true
+        }
+        // The light rig, soft or harsh
+        else if (event.key === Qt.Key_M) {
+            root.toggleRig()
             event.accepted = true
         }
         // Camera pitch with R/F
@@ -119,8 +151,7 @@ Item {
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
             
-            // Enable toon shading
-            tonemapMode: SceneEnvironment.TonemapModeNone
+            tonemapMode: root.tonemap
         }
 
         // The lab stage's rig (plugins/clay_lab/LabStage3D.qml): a key that
@@ -132,7 +163,7 @@ Item {
             eulerRotation.x: -36
             eulerRotation.y: -26
             brightness: 0.9
-            ambientColor: "#737380"
+            ambientColor: root.keyAmbient
             castsShadow: true
             shadowFactor: 58
             shadowMapQuality: Light.ShadowMapQualityVeryHigh
@@ -168,7 +199,7 @@ Item {
             // read from above still has its lit and its shaded planes.
             DirectionalLight {
                 eulerRotation.x: -12
-                brightness: 0.45
+                brightness: root.cameraFill
                 castsShadow: false
             }
         }
