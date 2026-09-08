@@ -1693,9 +1693,9 @@ BodyPartsGroup {
             return Character.Detail.Low
 
         const base = _character.scenePosition
+        const tall = _character.height * _character.scale.y
         const foot = v.mapFrom3DScene(base)
-        const head = v.mapFrom3DScene(
-                         base.plus(Qt.vector3d(0, _character.height * _character.scale.y, 0)))
+        const head = v.mapFrom3DScene(base.plus(Qt.vector3d(0, tall, 0)))
         // Behind the lens mapFrom3DScene reports a negative z, and a character
         // straddling the near plane gives a screen height of thousands. Ten
         // boxes a hand for something nobody can see is the cheapest bug here to
@@ -1703,7 +1703,12 @@ BodyPartsGroup {
         if (foot.z <= 0 || head.z <= 0)
             return Character.Detail.Minimal
 
-        const px = Math.abs(head.y - foot.y)
+        // How long the body axis is on screen. The full 2D distance rather
+        // than the vertical drop alone: a character off to the side of a wide
+        // frame, or seen through a rolled camera, stands at an angle on screen
+        // and the vertical component of that is short by however much it is
+        // tilted.
+        let px = Math.hypot(head.x - foot.x, head.y - foot.y)
 
         // A gesture that shapes the hands is the whole reason fingers exist, so
         // it gets them at twice the distance. Not an override: a character
@@ -1722,6 +1727,39 @@ BodyPartsGroup {
         // readable fingers at half the figure height of one without.
         const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
                    / Math.max(0.01, _character.handScale)
+
+        // THE BODY AXIS IS NOT ENOUGH ON ITS OWN, and this is not a refinement.
+        //
+        // A camera looking along a character's own length - up at it from the
+        // floor, or down at it from above - projects a ten-unit body to a few
+        // pixels. The measurement above then says "tiny" about a figure filling
+        // the screen, and the character drops to Minimal because of where the
+        // camera is standing rather than how far away it is. Measured: at a
+        // fixed sixteen units a figure that is High at eye level fell to Low by
+        // 70 degrees of camera pitch and to Minimal by 85, up and down alike.
+        //
+        // So when the body axis has gone short, the two HORIZONTAL axes are
+        // measured too, each turned into the height it would imply, and the
+        // longest wins. The view direction cannot be near-parallel to all three
+        // at once: down the worst diagonal it is about 55 degrees off each,
+        // which reads them all a fifth short - and a threshold with a
+        // hysteresis band around it does not care about a fifth.
+        //
+        // Only when it matters. Two extra projections per poll is not much, but
+        // a crowd pays it per character, and a character that is already big
+        // enough for fingers cannot be made bigger by measuring it again.
+        if (px <= want) {
+            const wide = Math.max(0.01, _character.width * _character.scale.x)
+            const deep = Math.max(0.01, _character.depth * _character.scale.z)
+            const across = v.mapFrom3DScene(base.plus(Qt.vector3d(wide, 0, 0)))
+            const through = v.mapFrom3DScene(base.plus(Qt.vector3d(0, 0, deep)))
+            if (across.z > 0)
+                px = Math.max(px, Math.hypot(across.x - foot.x, across.y - foot.y)
+                                  / wide * tall)
+            if (through.z > 0)
+                px = Math.max(px, Math.hypot(through.x - foot.x, through.y - foot.y)
+                                  / deep * tall)
+        }
 
         // Asymmetric on purpose at both boundaries: harder to gain detail than
         // to keep it. A character sitting exactly on a threshold would
