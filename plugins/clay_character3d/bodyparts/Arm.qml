@@ -148,6 +148,32 @@ BodyPartsGroup {
     property real handScale: 1.0
 
     /*!
+        \qmlproperty var Arm::fingers
+        \readonly
+        \brief The \l DetailedHand on this arm, or null when it has none.
+
+        For a bench that has to ask the hand what a pose ships with before it
+        offers to change it. Null whenever \l articulated is off - the fingers
+        are loaded on demand and a character that never shapes a hand does not
+        pay for them.
+    */
+    readonly property var fingers: _fingers.item
+
+    /*!
+        \qmlproperty var Arm::poseOverride
+        \brief Fields to replace in the articulated hand's pose row, or null.
+
+        Straight through to \l {DetailedHand::poseOverride}{DetailedHand}, and
+        the reason it is plumbed this far up is that \l Character publishes its
+        two arms - so a bench can tune ONE hand and leave the other holding the
+        shipped pose beside it, which is the only honest way to look at a
+        change to a shape this small.
+
+        \sa DetailedHand::poseOverride
+    */
+    property var poseOverride: null
+
+    /*!
         \qmlproperty bool Arm::articulated
         \brief Whether the hand has fingers.
 
@@ -322,6 +348,7 @@ BodyPartsGroup {
                     sourceComponent: Component {
                         DetailedHand {
                             pose: _arm.handPose
+                            poseOverride: _arm.poseOverride
                             mirrored: _arm.mirrored
                             palmWidth: _hand.width
                             palmHeight: _hand.height

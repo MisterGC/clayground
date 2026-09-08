@@ -149,8 +149,8 @@ Node {
     // but the thumb: everywhere else it is a detail of the hand, and there it
     // has to carry the whole meaning from across a room. Same argument as the
     // index being the longest and fattest finger here, which no hand is.
-    readonly property var _p: {
-        if (root.pose === "point")
+    function poseFor(name) {
+        if (name === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
                      tx: 48, tz: 56, tc: 0.20, tl: 1.00, toff: 0.00 }
         // The thumb goes OUT along the side of the fist, not up off the back
@@ -158,10 +158,10 @@ Node {
         // the back of the hand is a joint nobody has, and it looks like one.
         // What makes it point at the sky is the wrist rolling a quarter turn -
         // see the thumbsUp pose in GestureAnim, which is where that lives.
-        if (root.pose === "thumbsUp")
+        if (name === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
                      tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00 }
-        if (root.pose === "open")
+        if (name === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
                      tx: -6, tz: 34, tc: 0.00, tl: 1.00, toff: 0.00 }
         // A fist closes OVER its own thumb: the four fingers curl first and
@@ -177,7 +177,7 @@ Node {
         // proximal segment lies along them and the curl below can drop the tip
         // into the hole. Measured off the direction the segment ends up
         // pointing: +0.71 inboard where it used to be -0.50 outboard.
-        if (root.pose === "fist")
+        if (name === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
                      tx: 175, tz: -45, tc: 0.45, tl: 1.15, toff: 0.55 }
         // The index is curled hardest of the four at rest, against the way a
@@ -186,6 +186,62 @@ Node {
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
                  tx: 20, tz: 26, tc: 0.28, tl: 1.00, toff: 0.00 }
     }
+
+    /*!
+        \qmlproperty var DetailedHand::poseOverride
+        \brief Fields to replace in the current pose's row, or null.
+
+        The tuning channel, and the reason it exists: every number in the table
+        above was arrived at by looking, and looking is done at a bench with a
+        hand in front of you, not in a text editor with a rebuild between each
+        guess. \c bench/HandSandbox.qml puts sliders on these and prints the row
+        back out in the form it is written here, so a shape somebody dialled in
+        is pasted into the table rather than re-derived from a screenshot.
+
+        Partial: only the keys it carries are replaced. It may also carry
+        \c foldNear, \c foldFar, \c tuckNear and \c tuckFar, which are not part
+        of a pose but are the other half of what a folded finger looks like.
+    */
+    property var poseOverride: null
+
+    readonly property var _p: {
+        const base = root.poseFor(root.pose)
+        if (!root.poseOverride)
+            return base
+        let out = {}
+        for (const k in base)
+            out[k] = base[k]
+        for (const k2 in root.poseOverride)
+            out[k2] = root.poseOverride[k2]
+        return out
+    }
+
+    /*!
+        \qmlproperty real DetailedHand::foldNear
+        \brief How far the knuckle bends at full curl, in degrees.
+    */
+    property real foldNear: 92
+
+    /*!
+        \qmlproperty real DetailedHand::foldFar
+        \brief And how far the second joint bends on top of it.
+    */
+    property real foldFar: 78
+
+    /*! \qmlproperty real DetailedHand::tuckNear
+        \brief How much of its length the near segment gives up at full curl. */
+    property real tuckNear: 0.10
+
+    /*! \qmlproperty real DetailedHand::tuckFar
+        \brief The same for the far segment, which does the reaching. */
+    property real tuckFar: 0.35
+
+    // A pose may carry its own fold shape; almost none does, and the four
+    // properties above are what it falls back to.
+    readonly property real _fn: root._p.foldNear === undefined ? root.foldNear : root._p.foldNear
+    readonly property real _ff: root._p.foldFar === undefined ? root.foldFar : root._p.foldFar
+    readonly property real _tn: root._p.tuckNear === undefined ? root.tuckNear : root._p.tuckNear
+    readonly property real _tf: root._p.tuckFar === undefined ? root.tuckFar : root._p.tuckFar
 
     // Held as animatable reals rather than read straight out of _p: a pose is
     // a destination, and the hand has to be caught mid-fold as well as at rest.
@@ -332,7 +388,7 @@ Node {
             How far the KNUCKLE bends at full curl. Just past square, so the
             near segment lies across the front of the palm.
         */
-        property real foldNear: 92
+        property real foldNear: root._fn
 
         /*!
             And how far the second joint bends on top of it. The two together
@@ -346,7 +402,7 @@ Node {
             thicknesses deep - which is what \l Hand's single-box fist is, so
             the two levels of detail agree about how big a fist is.
         */
-        property real foldFar: 78
+        property real foldFar: root._ff
 
         /*!
             How much of its length each segment gives up at full curl, near and
@@ -356,8 +412,8 @@ Node {
             of reaching back off the far side of it. The far segment gives up
             more because it is the one doing the reaching.
         */
-        property real tuckNear: 0.10
-        property real tuckFar: 0.35
+        property real tuckNear: root._tn
+        property real tuckFar: root._tf
         /*!
             Where the second hinge sits across the segment's depth: 0.5 on the
             palm-side face, 0 on the centre line. Half is right for a finger,

@@ -34,6 +34,10 @@
 // far the finger misses the marker by.
 
 import QtQuick
+// Basic, never bare QtQuick.Controls: the native macOS style refuses the
+// customisation these sliders need and warns once, which is enough to make
+// clayrender exit 2 on a bench that rendered perfectly.
+import QtQuick.Controls.Basic
 import QtQuick3D
 import Clayground.Character3D
 
@@ -334,6 +338,133 @@ Item {
 
     function setCompare(on) { root.compare = on; root._trackPivot() }
 
+    // --- the tuner ---------------------------------------------------------------
+    //
+    // Every number in DetailedHand's pose table was arrived at by looking, and
+    // looking is done with the hand in front of you - not in a text editor with
+    // a rebuild between each guess. The panel puts a slider on each field of
+    // the row the current pose resolves to, writes them onto the RIGHT hand
+    // only, and prints the result back in the form the table is written in, so
+    // a shape somebody dialled in is pasted rather than re-derived.
+    //
+    // The left hand deliberately keeps the shipped pose. A change to a shape
+    // this small is not judged against a memory of the last render.
+
+    // "monospace" resolves to nothing on macOS and Qt warns about it once,
+    // which is enough to make clayrender exit 2 on a bench that is fine.
+    readonly property string monoFont: Qt.platform.os === "osx" ? "Menlo"
+                                     : Qt.platform.os === "windows" ? "Consolas"
+                                                                    : "monospace"
+
+    /*! Whether the slider panel is up. */
+    property bool tuning: false
+
+    /*!
+        The fields of a pose row, with the range each is worth sweeping.
+        `tx` runs past 90 because a thumb folding across a closed fist has to:
+        under 90 it is still heading away from the wrist.
+    */
+    readonly property var tunables: [
+        { key: "i",        label: "index curl",   from: 0,    to: 1,   dp: 2 },
+        { key: "m",        label: "middle curl",  from: 0,    to: 1,   dp: 2 },
+        { key: "r",        label: "ring curl",    from: 0,    to: 1,   dp: 2 },
+        { key: "l",        label: "little curl",  from: 0,    to: 1,   dp: 2 },
+        { key: "sp",       label: "fan",          from: 0,    to: 1,   dp: 2 },
+        { key: "tx",       label: "thumb fold",   from: -60,  to: 200, dp: 0 },
+        { key: "tz",       label: "thumb swing",  from: -110, to: 110, dp: 0 },
+        { key: "tc",       label: "thumb curl",   from: 0,    to: 1,   dp: 2 },
+        { key: "tl",       label: "thumb length", from: 0.5,  to: 1.8, dp: 2 },
+        { key: "toff",     label: "thumb root fwd", from: -0.5, to: 1.8, dp: 2 },
+        // Not a pose, but the other half of what a folded finger looks like.
+        { key: "foldNear", label: "knuckle fold", from: 40,   to: 150, dp: 0 },
+        { key: "foldFar",  label: "second fold",  from: 20,   to: 150, dp: 0 },
+        { key: "tuckNear", label: "near tuck",    from: 0,    to: 0.6, dp: 2 },
+        { key: "tuckFar",  label: "far tuck",     from: 0,    to: 0.8, dp: 2 }
+    ]
+
+    /*! The live values, keyed as the table is. */
+    property var tuned: ({})
+
+    /*!
+        Reload the sliders from what the current pose actually ships with. Also
+        what \l pose changes do, so stepping through the poses always starts
+        from the real thing rather than from the last one that was fiddled.
+    */
+    function reseed() {
+        const h = root._hand()
+        if (!h)
+            return
+        const row = h.poseFor(root.pose)
+        let v = {}
+        for (const t of root.tunables) {
+            v[t.key] = row[t.key] !== undefined ? row[t.key]
+                     : t.key === "foldNear" ? h.foldNear
+                     : t.key === "foldFar"  ? h.foldFar
+                     : t.key === "tuckNear" ? h.tuckNear
+                     : t.key === "tuckFar"  ? h.tuckFar : 0
+        }
+        root.tuned = v
+        root.apply()
+    }
+
+    /*! Push the sliders onto the tuned hand. */
+    function apply() {
+        let o = {}
+        for (const k in root.tuned)
+            o[k] = root.tuned[k]
+        high.rightArm.poseOverride = o
+        low.rightArm.poseOverride = o
+    }
+
+    function set(key, value) {
+        let v = {}
+        for (const k in root.tuned)
+            v[k] = root.tuned[k]
+        v[key] = value
+        root.tuned = v
+        root.apply()
+    }
+
+    /*! Back to what ships, both hands. */
+    function revert() {
+        high.rightArm.poseOverride = null
+        low.rightArm.poseOverride = null
+        root.reseed()
+    }
+
+    // The DetailedHand under the subject, for poseFor() and the fold defaults.
+    function _hand() {
+        const a = root.subject.rightArm
+        return a && a.fingers ? a.fingers : null
+    }
+
+    function _num(v, dp) { return dp === 0 ? String(Math.round(v)) : v.toFixed(dp) }
+
+    /*!
+        The tuned row, in the form DetailedHand's table is written in - paste it
+        over the pose it belongs to. The fold fields come out on their own line
+        because they are the hand's, not the pose's.
+    */
+    function dump() {
+        const t = root.tuned
+        const row = "        if (name === \"" + root.pose + "\")\n"
+                  + "            return { i: " + root._num(t.i, 2)
+                  + ", m: " + root._num(t.m, 2) + ", r: " + root._num(t.r, 2)
+                  + ", l: " + root._num(t.l, 2) + ", sp: " + root._num(t.sp, 2) + ",\n"
+                  + "                     tx: " + root._num(t.tx, 0)
+                  + ", tz: " + root._num(t.tz, 0) + ", tc: " + root._num(t.tc, 2)
+                  + ", tl: " + root._num(t.tl, 2) + ", toff: " + root._num(t.toff, 2) + " }"
+        const shape = "    property real foldNear: " + root._num(t.foldNear, 0)
+                    + "\n    property real foldFar: " + root._num(t.foldFar, 0)
+                    + "\n    property real tuckNear: " + root._num(t.tuckNear, 2)
+                    + "\n    property real tuckFar: " + root._num(t.tuckFar, 2)
+        const out = row + "\n\n" + shape
+        console.log(out)
+        return out
+    }
+
+    onPoseChanged: root.reseed()
+
     // --- measurements ----------------------------------------------------------
 
     readonly property real _spread: 8
@@ -409,6 +540,15 @@ Item {
     Component.onCompleted: {
         root._applyArm()
         root.look("hand")
+        // After the Loader3D has had a turn: fingers are loaded on demand and
+        // reseed() needs the hand to ask what the pose ships with.
+        _seed.start()
+    }
+
+    Timer {
+        id: _seed
+        interval: 60
+        onTriggered: root.reseed()
     }
 
     // --- keys -------------------------------------------------------------------
@@ -434,6 +574,9 @@ Item {
         else if (e.key === Qt.Key_U) root.setAuto()
         else if (e.key === Qt.Key_L) root.cartoon(!root.gloves)
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
+        else if (e.key === Qt.Key_N) { root.tuning = !root.tuning; if (root.tuning) root.reseed() }
+        else if (e.key === Qt.Key_0) root.revert()
+        else if (e.key === Qt.Key_K) root.dump()
         else if (e.key === Qt.Key_B) root.nextBuild()
         else if (e.key === Qt.Key_V) root.toggleHandBuild()
         else if (e.key === Qt.Key_A) {
@@ -621,6 +764,92 @@ Item {
         visible: !root.silhouette
     }
 
+    // The panel. One row per field, seeded from the pose and written straight
+    // back onto the tuned hand - no apply button, because the whole point is to
+    // watch the shape while the number moves.
+    Rectangle {
+        id: _panel
+        visible: root.tuning && !root.silhouette
+        // Sized to its rows rather than stretched to the frame: anchored to the
+        // bottom it ran over the bench's own key legend.
+        anchors { right: parent.right; top: parent.top; margins: 8 }
+        width: 300
+        height: _panelRows.implicitHeight + 20
+        radius: 6
+        color: Qt.rgba(1, 1, 1, 0.93)
+        border.color: "#c9c6c0"
+
+        Column {
+            id: _panelRows
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+            spacing: 3
+
+            Text {
+                text: "tuning  " + root.pose
+                font.family: root.monoFont
+                font.pixelSize: 13
+                font.bold: true
+                color: "#1b1b1f"
+            }
+            Text {
+                width: _panel.width - 20
+                wrapMode: Text.WordWrap
+                text: "right hand only - the left keeps what ships"
+                font.family: root.monoFont
+                font.pixelSize: 10
+                color: "#6b6b72"
+            }
+            Item { width: 1; height: 4 }
+
+            Repeater {
+                model: root.tunables
+                Row {
+                    id: _row
+                    required property var modelData
+                    spacing: 6
+                    Text {
+                        width: 84
+                        text: _row.modelData.label
+                        font.family: root.monoFont
+                        font.pixelSize: 10
+                        color: "#3a3a40"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Slider {
+                        width: 140
+                        from: _row.modelData.from
+                        to: _row.modelData.to
+                        value: root.tuned[_row.modelData.key] === undefined
+                               ? 0 : root.tuned[_row.modelData.key]
+                        onMoved: root.set(_row.modelData.key, value)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        width: 42
+                        horizontalAlignment: Text.AlignRight
+                        text: root.tuned[_row.modelData.key] === undefined ? "-"
+                              : root._num(root.tuned[_row.modelData.key], _row.modelData.dp)
+                        font.family: root.monoFont
+                        font.pixelSize: 10
+                        color: "#1b1b1f"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            Item { width: 1; height: 6 }
+            Text {
+                width: _panel.width - 20
+                wrapMode: Text.WordWrap
+                font.family: root.monoFont
+                font.pixelSize: 9
+                color: "#6b6b72"
+                text: "space next pose   0 revert   k print the row to the console   "
+                    + "n close"
+            }
+        }
+    }
+
     Text {
         anchors { left: parent.left; bottom: parent.bottom; margins: 12 }
         color: "#6b6b72"
@@ -631,6 +860,7 @@ Item {
         text: "space pose   a arm   p/o/i point,thumbsUp,talk   x stop   "
             + "1-5 hand views   6-8 body/work/far   9 arm+hand   c compare   "
             + "b build   v hand takes half/all of it   "
+            + "n tune the pose   0 revert   k print the row   "
             + "s silhouette   qerf/tg camera"
     }
 }

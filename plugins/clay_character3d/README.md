@@ -654,6 +654,24 @@ unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
 checked, and `h` flips the fingers on one character without moving anything
 else.
 
+**Tuning a hand pose.** `n` on that bench opens a slider per field of the row
+the current pose resolves to — the four curls, the fan, the five thumb numbers,
+and the fold shape shared by every finger. They are written onto the right hand
+as you drag, `0` puts back what ships, and `k` prints the row in exactly the
+form `DetailedHand`'s table is written in, ready to paste:
+
+```
+        if (name === "fist")
+            return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
+                     tx: 120, tz: 10, tc: 0.45, tl: 1.15, toff: 0.55 }
+```
+
+Every number in that table was arrived at by looking, and looking is done with
+the hand in front of you rather than in an editor with a rebuild between each
+guess. The channel is `Arm.poseOverride` → `DetailedHand.poseOverride`, a
+partial replacement of the pose row; it is a debug channel and nothing ships
+with it set.
+
 ### How much character to draw
 
 `detail` is `Character.Detail.Auto`, `High`, `Low` or `Minimal`. Auto measures
