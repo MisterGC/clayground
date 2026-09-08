@@ -101,10 +101,13 @@ var BASES = {
         leadIn: 22,
         leadElbow: 132,
         leadRoll: 0.8,
-        rearUpper: 26,
-        rearOut: -3,
-        rearIn: 58,
-        rearElbow: 156,
+        // The rear upper arm comes well forward before it is turned in:
+        // turned in from nearly hanging, the elbow swings across INSIDE the
+        // chest. Forward first, the elbow crosses in front of it.
+        rearUpper: 46,
+        rearOut: 3,
+        rearIn: 40,
+        rearElbow: 136,
         rearRoll: 0.95,
         // Wrists straight: a broken wrist is a slap waiting to happen, and
         // the brief has it at zero either way.
@@ -224,8 +227,13 @@ var BASES = {
         curve: [6, 3, -5],
         headPitch: [28, 14, -12],
         knee: [7, 5, 10],
-        // The hands come in toward the centre line, a hand's width apart.
+        // The hands come in toward the centre line. This is the yaw for a
+        // figure whose body was never given (see derive); given a body, the
+        // yaw is solved so the two hands end up handGap hand-widths apart
+        // whatever the shoulders measure - a fixed angle crossed a thin
+        // figure's hands and left a broad one's a forearm apart.
         yawIn: 36,
+        handGap: 0.6,
         // The lead (right) hand sits ahead of and above the off hand, always.
         leadAhead: 5,
         leadUp: 6,
@@ -285,8 +293,10 @@ function known(name) { return BASES[name] !== undefined }
 // --- deriving a table ---------------------------------------------------------
 
 // \a opts is what the animator was configured with: {intensity} for the
-// fight, {intensity, workHeight} for the use. Everything is folded in here,
-// so poseAt() only ever reads finished numbers.
+// fight, {intensity, workHeight} for the use, and - when the caller has a
+// body - {shoulderWidth, armLength, handWidth} in the body's own units, so
+// the hands can be placed against the body rather than at an angle. All of
+// it is folded in here, so poseAt() only ever reads finished numbers.
 function derive(name, opts) {
     var b = BASES[name]
     if (b === undefined)
@@ -355,6 +365,28 @@ function derive(name, opts) {
     // between them.
     var h = opts.workHeight === undefined ? 0.35 : clamp(opts.workHeight, 0, 1)
     function at(k) { return h < 0.5 ? k[0] + (k[1] - k[0]) * h * 2 : k[1] + (k[2] - k[1]) * (h - 0.5) * 2 }
+    var upper = at(b.upper), out = at(b.out), elbow = at(b.elbow)
+    // The inward yaw, solved for THIS body when it is given one. Turning
+    // the arm in by yaw carries the hand inward by a lever times sin(yaw),
+    // and the abduction carries it back out by about the upper arm times
+    // sin(out). The lever is NOT the hand's forward reach: the yaw is the
+    // outermost of the three shoulder rotations and the fold is about an
+    // axis the abduction has already tilted, so the hand swings on a longer
+    // arm than its reach - measured at bench/ActionSandbox.qml as 1.5 times
+    // the reach, at the default height, and scaled with the reach from
+    // there. The two hands should end up handGap hand-widths apart, so each
+    // has to come in from half the shoulder width to half a hand plus half
+    // the gap.
+    var yawIn = b.yawIn
+    if (opts.shoulderWidth > 0 && opts.armLength > 0 && opts.handWidth > 0) {
+        var rad = Math.PI / 180
+        var U = opts.armLength * 0.5
+        var forward = U * (Math.sin(upper * rad) + Math.sin((upper + elbow) * rad))
+        var lever = 1.5 * forward
+        var want = opts.shoulderWidth * 0.5 - opts.handWidth * (0.5 + b.handGap * 0.5)
+        var travel = want + U * Math.sin(out * rad) * 1.1
+        yawIn = Math.asin(clamp(travel / Math.max(0.01, lever), 0, 0.9)) / rad
+    }
     // Effort: the amplitude of everything, the tempo, and how much of the
     // body joins in. Past about six tenths the off hand stops working and
     // HOLDS - it clamps the thing the lead hand is hitting - which is what
@@ -364,16 +396,16 @@ function derive(name, opts) {
     var heavy = clamp((intensity - 0.5) * 2, 0, 1)
     return {
         name: "use",
-        upper: at(b.upper),
-        out: at(b.out),
-        elbow: at(b.elbow),
+        upper: upper,
+        out: out,
+        elbow: elbow,
         roll: at(b.roll),
         wrist: at(b.wrist),
         lean: at(b.lean) + 10 * heavy,
         curve: at(b.curve),
         headPitch: at(b.headPitch) + 6 * heavy,
         knee: at(b.knee) + 8 * heavy,
-        yawIn: b.yawIn,
+        yawIn: yawIn,
         leadAhead: b.leadAhead,
         leadUp: b.leadUp,
         reach: b.reach,

@@ -138,7 +138,10 @@ section('the guard is a guard: fists up, elbows down and in')
         // THE failure the first cycle had: the upper arm 50-60 degrees
         // forward puts the elbow at chest height and out in front - and an
         // elbow that has left the ribs is a shrug.
-        ok(name + ' elbow stays below the shoulder', elbow.y < -0.8)
+        ok(name + ' elbow stays well below the shoulder', elbow.y < -0.65)
+        // And in FRONT of the chest, not beside it: an elbow beside the
+        // chest that is then turned in crosses through it.
+        ok(name + ' elbow is forward of the shoulder', elbow.z > 0.5)
         ok(name + ' fist is above its own elbow', hand.y > elbow.y)
         ok(name + ' fist is up around the shoulder', hand.y > -0.2)
         ok(name + ' fist is in front of the body', hand.z > 0.3)
@@ -402,6 +405,25 @@ section('workHeight is a posture, not a hand height')
     ok('and leans over the one and not the other', low.lean > 8 && high.lean < 0)
     ok('the head is down at a table and up at a shelf', low.headPitch > 20 && high.headPitch < 0)
     ok('the palms turn down over a table and in at a shelf', low.roll < 0.35 && high.roll > 0.55)
+}
+
+section('given a body, the hands are placed against it')
+{
+    const wide = A.derive('use', { shoulderWidth: 4.5, armLength: 4.4, handWidth: 0.9 })
+    const thin = A.derive('use', { shoulderWidth: 2.6, armLength: 4.4, handWidth: 0.7 })
+    const none = A.derive('use', {})
+    ok('a broad figure turns its hands in further than a thin one', wide.yawIn > thin.yawIn + 5)
+    ok('and a thin one still turns them in', thin.yawIn > 0)
+    eq('without a body the authored angle stands', none.yawIn, A.BASES.use.yawIn)
+    // The travel each hand makes inward, in the model's own estimate, lands
+    // it half a gap from the centre line.
+    const rad = Math.PI / 180
+    for (const [name, t, sw, hw] of [['wide', wide, 4.5, 0.9], ['thin', thin, 2.6, 0.7]]) {
+        const U = 2.2
+        const fwd = U * (Math.sin(t.upper * rad) + Math.sin((t.upper + t.elbow) * rad))
+        const x = sw / 2 + U * Math.sin(t.out * rad) * 1.1 - 1.5 * fwd * Math.sin(t.yawIn * rad)
+        near(name + ' hand ends a third of a hand off the centre line', x, hw * 0.8, 0.02)
+    }
 }
 
 section('effort is amplitude, tempo and how much of the body joins in')

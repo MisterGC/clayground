@@ -67,7 +67,14 @@ SequentialAnimation {
     */
     readonly property var table: ActionLib.derive(_cycle.action,
                                                   { intensity: _cycle.intensity,
-                                                    workHeight: _cycle.workHeight })
+                                                    workHeight: _cycle.workHeight,
+                                                    // The body, so the hands can be
+                                                    // placed against it: a fixed angle
+                                                    // crossed a thin figure's hands.
+                                                    shoulderWidth: _cycle.entity ? _cycle.entity.shoulderWidth : 0,
+                                                    armLength: _cycle.entity ? _cycle.entity.armHeight : 0,
+                                                    handWidth: _cycle.entity && _cycle.entity.rightArm
+                                                               ? _cycle.entity.rightArm.handWidth : 0 })
 
     /*! \qmlproperty real ActionCycleAnim::cycleMs
         \readonly

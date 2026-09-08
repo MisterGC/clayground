@@ -182,7 +182,9 @@ Item {
             return label + " fist dx" + ((h.x - s.x) / head * side).toFixed(2)
                  + " dy" + ((h.y - s.y) / head).toFixed(2)
                  + " dz" + ((h.z - s.z) / head).toFixed(2)
-                 + " elbow dy" + ((e.y - s.y) / head).toFixed(2)
+                 + " elbow dx" + ((e.x - s.x) / head * side).toFixed(2)
+                 + " dy" + ((e.y - s.y) / head).toFixed(2)
+                 + " dz" + ((e.z - s.z) / head).toFixed(2)
                  + " chin" + (Math.hypot(h.x - chin.x, h.y - chin.y, h.z - chin.z) / head).toFixed(2)
                  + " x" + (h.x / head).toFixed(2)
         }
