@@ -52,6 +52,16 @@ ProceduralAnim {
             to: Qt.vector3d(0, 0, 0)
         }
 
+        // The figure comes back up to its standing height: a stance that
+        // sat on bent knees, or a frozen frame of a gait, left it lower.
+        NumberAnimation {
+            duration: _idleAnim.duration
+            target: entity
+            property: "_heldLift"
+            to: 0
+            easing.type: Easing.InOutQuad
+        }
+
         // Reset head and hip (e.g. tilted by UseAnim)
         HeadEulerAnim {
             duration: _idleAnim.duration

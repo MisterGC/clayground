@@ -480,7 +480,7 @@ Qt-free model, `animation/action.js`, the way the walk and the run live in
 
 `UseAnim` and `FightAnim` are `ActionCycleAnim` with one property set. Unlike
 the gait cycle, which spells its poses out as animations and keeps a matching
-`poseAt()` beside them, an action cycle animates ONE number — the phase — and
+`poseAt()` beside them, an action cycle animates ONE number - the phase - and
 writes what `actionPoseAt()` answers for it. There is no second copy to keep in
 step: the strip of stills in `bench/GestureSheetSandbox.qml` is the same
 function the shipped cycle plays.
@@ -488,29 +488,74 @@ function the shipped cycle plays.
 ```qml
 Character {
     activity: Character.Activity.Using
-    workHeight: 0.2          // 0 waist, 1 shoulder - lifts the arms and stands the body up
-    actionIntensity: 0.7     // speed and stroke size; never a different pose
+    workHeight: 0.2          // 0 a table at the waist, 0.5 a counter, 1 a shelf at head height
+    actionIntensity: 0.7     // amplitude, tempo and how much of the body joins in
 }
 ```
 
 | property / method | meaning |
 |---|---|
-| `actionIntensity` | 0..1. A harder fight is a faster one with a tighter guard; harder work is a bigger stroke. |
-| `workHeight` | 0..1, `Using` only. Where the surface is. |
+| `actionIntensity` | 0..1. A harder fight is a faster one with a tighter guard and a bigger bounce; harder work is bigger, quicker, and past six tenths one hand holds while the other hits. |
+| `workHeight` | 0..1, `Using` only. A posture, not a hand height: the back rounds over a table, the forearms angle up to a counter, the back arches and the head comes up at a shelf. |
 | `actionHandPose` | What the running activity wants the hands to be doing, `""` when none does. A fist while boxing. |
 | `actionPoseAt(action, t)` | The joint angles at phase `t`, with nothing running. Pure. |
-| `applyActionPose(action, t)` | Freezes an idle character at that phase — what the sheet draws. |
+| `actionTable(action)` | The derived numbers the cycle is replayed from, `cycleMs` among them. |
+| `applyActionPose(action, t)` | Freezes an idle character at that phase - what the sheets draw. |
+
+**Boxing** is an amateur's, on purpose, and orthodox: the left leads. One cycle
+is jab, jab, cross - short, short, LONG - and then the guard, which bounces on
+the knees and rolls a little around its blade until the next. The guard is
+what the whole thing is judged on, and the five things that make it read as a
+guard are kept whatever else moves: both fists above both elbows, both elbows
+below the shoulders and inside the ribs, the fists at the cheeks in front of
+the face, a bladed and staggered stance on bent knees with the rear heel up,
+and the hand that is not punching welded to the cheek. The jab barely winds
+up; the cross draws back, turns the hips a third of a turn and the shoulders
+further, leans in past what a professional would, and the trunk comes home
+before the arm does. The head turns back part of the blade to look at the
+opponent, and drops behind the shoulder on the cross.
+
+**Working** is generic on purpose - it has to pass for cooking, tinkering,
+sorting and typing alike - so it is built from what those share, which is a
+rhythm rather than a stroke. A cycle is four beats: the lead hand reaches for
+something, both hands work at it in short strokes, the lead hand presses or
+places it, and the body settles and glances up. The two hands are never level
+and never mirrored (the lead sits ahead and above; the off hand does two thirds
+as much and lags by four tenths of a stroke); the head leads the reach and
+lags the press; and every fourth cycle the glance is a proper look up, off
+`ActionCycleAnim.cycle`, so the loop is not noticed as one.
 
 `actionHandPose` sits between a gesture and `gaitHandPose` in the chain that
-decides a hand's shape, and it is why a punch is now thrown with a closed hand:
+decides a hand's shape, and it is why a punch is thrown with a closed hand:
 nothing on the `Fighting` path could reach `handPose` before it, so the boxing
 cycle ran with the fingers open and read as clawing.
 
-`node plugins/clay_character3d/animation/action.test.js` checks the model — that
-a guard keeps both fists above the elbows and both elbows below the shoulders,
-that a punch reaches and comes back, that a working hand travels a third of a
-forearm, that the two hands are never in step. It runs under `ctest` as
+`node plugins/clay_character3d/animation/action.test.js` checks the model -
+that a guard keeps both fists above the elbows and both elbows below the
+shoulders, that the rear hand does not move for a jab, that a cross winds up
+further and turns the trunk more than a jab, that the working loop has beats
+and its two hands are never in step. It runs under `ctest` as
 `node_character3d_action`.
+
+**Where to look at it.** `bench/ActionSandbox.qml` plays either cycle on one
+figure with the shipped animator - the figure's activity really is `Fighting` -
+with a see-through bag at a straight's reach or a table under the hands,
+right-drag to orbit, wheel to zoom, `space` to freeze and a `phase` slider to
+scrub the frozen cycle. Its `report()` measures each fist against its own
+shoulder and against the chin in head heights, which is what a guard is a
+claim about:
+
+```bash
+clayrender plugins/clay_character3d/bench/ActionSandbox.qml --size 800x700 \
+    --set 'action="fight"' --set 'playing=false' --set 'phase=0.605' \
+    --wait-for 'posed' --trace 'report()' --trace-out - --out /tmp/cross.png
+```
+
+One sign in the model was measured there rather than reasoned: a positive Y
+rotation on an upper arm carries a forward-pointing forearm OUTWARD on the
+right side, so `arm()` negates the yaw against the side. Written the other way
+round, the rear fist of the guard sat a head and a half outside the face and
+looked right in every sheet that had no reference to measure it against.
 
 ### The gesture sheet
 

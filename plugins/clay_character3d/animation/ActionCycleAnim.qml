@@ -55,8 +55,8 @@ SequentialAnimation {
 
     /*!
         \qmlproperty real ActionCycleAnim::workHeight
-        \brief Where the work is: 0 at waist height, 1 at shoulder height.
-               Ignored by the fight.
+        \brief Where the work is: 0 a table at the waist, 0.5 a counter at
+               the chest, 1 a shelf at head height. Ignored by the fight.
     */
     property real workHeight: 0.35
 
@@ -91,8 +91,30 @@ SequentialAnimation {
                stopped to hold one frame of the action. */
     property real phase: 0
 
-    onPhaseChanged: _cycle._write()
+    /*!
+        \qmlproperty int ActionCycleAnim::cycle
+        \readonly
+        \brief How many whole cycles have played since this started.
+
+        The model reads it: a working loop that is the same every time is
+        noticed as a loop within a minute and a half, so \c action.js makes
+        every fourth cycle's settle a proper look up. Deterministic - the
+        variation is a function of the count, never of a random draw - so a
+        recording of the loop is the same recording twice.
+    */
+    readonly property int cycle: _cycle._cycle
+    property int _cycle: 0
+    property real _lastPhase: 0
+
+    onPhaseChanged: {
+        // The phase runs 0 to 1 and jumps back: that jump is one cycle.
+        if (_cycle.phase < _cycle._lastPhase - 0.5)
+            _cycle._cycle++
+        _cycle._lastPhase = _cycle.phase
+        _cycle._write()
+    }
     onTableChanged: if (_cycle.running) _cycle._write()
+    onRunningChanged: if (_cycle.running) { _cycle._cycle = 0; _cycle._lastPhase = 0 }
 
     // Writing stops the moment the cycle does: the joints stay where the last
     // frame left them, and IdleAnim - or whatever activity comes next - takes
@@ -113,7 +135,7 @@ SequentialAnimation {
         const c = _cycle.entity
         if (!c || !c.rightArm || !c.head)
             return
-        const p = ActionLib.poseAt(_cycle.table, t)
+        const p = ActionLib.poseAt(_cycle.table, t, _cycle._cycle)
         const roll = c.handRestRoll === undefined ? 90 : c.handRestRoll
 
         function limb(m, a) {
@@ -137,6 +159,11 @@ SequentialAnimation {
         c.belly.eulerRotation = Qt.vector3d(p.belly[0], p.belly[1], p.belly[2])
         c.chest.eulerRotation = Qt.vector3d(p.chest[0], p.chest[1], p.chest[2])
         c.head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
+        // The bounce, in leg heights, through the same slot the gait uses -
+        // a stance with bent knees sits lower than a standing figure, and a
+        // boxer's guard dips. IdleAnim eases it back to zero afterwards.
+        if (p.lift !== undefined && c._heldLift !== undefined)
+            c._heldLift = p.lift * c.legHeight
     }
 
     // The phase is driven linearly and the SHAPE of the motion lives in

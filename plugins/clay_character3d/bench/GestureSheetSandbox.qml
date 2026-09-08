@@ -90,11 +90,17 @@ Item {
         // a sheet that will not notice the day the hard one breaks.
         { name: "pointHigh", kind: "gesture", label: "point (overhead)" },
         { name: "present",  kind: "gesture", label: "present" },
-        // The two phases of the boxing loop worth judging: the shape it holds
-        // most of the time, and the shape it is named for.
-        { name: "fight",    kind: "action",  at: 0.00,  label: "boxing: guard" },
-        { name: "fight",    kind: "action",  at: 0.185, label: "boxing: straight" },
-        { name: "use",      kind: "action",  at: 0.50,  label: "working" }
+        // The three phases of the boxing loop worth judging: the guard it
+        // holds most of the time (settled, late in the cycle), the jab, and
+        // the cross it is named for. The phases are the peaks of action.js's
+        // jab1 and cross slots.
+        { name: "fight",    kind: "action",  at: 0.95,  label: "boxing: guard" },
+        { name: "fight",    kind: "action",  at: 0.084, label: "boxing: jab" },
+        { name: "fight",    kind: "action",  at: 0.605, label: "boxing: cross" },
+        // Two beats of the working loop: the hands at the work, and the
+        // reach that says the work is a thing rather than a spot.
+        { name: "use",      kind: "action",  at: 0.45,  label: "working" },
+        { name: "use",      kind: "action",  at: 0.10,  label: "working: reach" }
     ]
 
     /*!

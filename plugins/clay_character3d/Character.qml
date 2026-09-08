@@ -281,12 +281,13 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty real Character::workHeight
-        \brief Where the work is while \l activity is \c Using: 0 at waist
-               height, 1 at shoulder height.
+        \brief Where the work is while \l activity is \c Using: 0 a table at
+               the waist, 0.5 a counter at the chest, 1 a shelf at head height.
 
-        Lifts the whole arm and closes the elbow rather than only tilting the
-        forearm, and stands the body up as it rises - reaching high is not
-        something anyone does bent over.
+        Moves the whole posture, not only the hands: over a table the back
+        rounds and the head is down at the work, at a counter the forearms
+        angle up, and at a shelf the back arches and the head comes up -
+        reaching high is not something anyone does bent over.
 
         \sa activity, actionIntensity
     */
@@ -307,6 +308,18 @@ BodyPartsGroup {
     */
     function actionPoseAt(action, t) {
         return ActionLib.poseAt(action === "fight" ? _fightAnim.table : _useAnim.table, t)
+    }
+
+    /*!
+        \qmlmethod var Character::actionTable(string action)
+        \brief The derived numbers the \a action cycle ("use" or "fight") is
+               replayed from at this character's \l actionIntensity and
+               \l workHeight - its \c cycleMs among them.
+
+        \sa actionPoseAt(), ActionCycleAnim::table
+    */
+    function actionTable(action) {
+        return action === "fight" ? _fightAnim.table : _useAnim.table
     }
 
     /*!
