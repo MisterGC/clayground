@@ -566,6 +566,55 @@ Item {
                     }
                 }
 
+                // How much character to draw, and the one row that has to say
+                // what it is CURRENTLY drawing as well as what it was asked
+                // for: Auto is a policy, and a policy you cannot watch is a
+                // policy you argue with. Pinning it is the point of the other
+                // four chips - a character the camera lives on, a player
+                // above all, is better off at a fixed level than switching
+                // under its own close-up.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Detail"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: [
+                            { label: "auto", value: Character.Detail.Auto },
+                            { label: "high", value: Character.Detail.High },
+                            { label: "low", value: Character.Detail.Low },
+                            { label: "minimal", value: Character.Detail.Minimal }
+                        ]
+                        Chip {
+                            required property var modelData
+                            label: modelData.label
+                            active: root.editTarget !== null
+                                    && root.editTarget.detail === modelData.value
+                            onPicked: {
+                                if (!root.editTarget) return
+                                root.editTarget.detail = modelData.value
+                                root.scheduleAutoSave()
+                            }
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const names = ["minimal", "low", "high"]
+                        const now = names[c.effectiveDetail] || "?"
+                        return c.detail === Character.Detail.Auto
+                             ? "auto -> " + now
+                               + (c.view ? "" : "   (no view set: auto cannot measure, stays low)")
+                             : "pinned to " + now
+                    }
+                }
+
                 // How the two whole-body actions are performed. Both go
                 // through action.js, and both are shape-preserving: the
                 // sliders change the speed and the size of what the character

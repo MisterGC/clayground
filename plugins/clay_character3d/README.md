@@ -627,10 +627,56 @@ legible is what produces a spike where an index finger should be.
 `detail` accounts for it: bigger hands mean the fingers are worth drawing from
 further away, so the Auto threshold divides by `handScale`.
 
+A third knob, and this one is about not being noticed. `ParametricCharacter`'s
+two width sliders scale the arm over a spread of two and a half from thin and
+unmuscled to heavy and muscular, and the palm is a fixed fraction of the arm —
+so the hand used to take all of it, which came out as claws on one figure and
+mittens on the other. `handBuildResponse` (0.5 by default) is how much of the
+build the hand takes: at 1 it is glued to the arm as before, at 0 it is the
+same hand on every body. Only the cross-section — hand *length* follows the
+arm's length, which is a matter of `maturity`. `tests/qml_head/tst_build.qml`
+pins it, and `bench/HandSandbox.qml` takes `mass`, `muscle` and `handBuild` so
+the sweep can be looked at:
+
+```bash
+clayrender plugins/clay_character3d/bench/HandSandbox.qml --size 520x440 \
+    --set 'mass=0' --set 'muscle=0' \
+    --eval 'setCompare(false); raise("level"); setPose("open"); look("hand"); camDist = 7' \
+    --settle --out /tmp/thin.png
+```
+
+The header line reports `palm/arm`, which is the number the question is
+actually about: 1.05 at every build with the response at 1, and 1.41 / 1.05 /
+0.88 across thin / neutral / heavy at the default.
+
 The two levels are built to match in outline, so the switch is meant to go
 unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
 checked, and `h` flips the fingers on one character without moving anything
 else.
+
+### How much character to draw
+
+`detail` is `Character.Detail.Auto`, `High`, `Low` or `Minimal`. Auto measures
+how big the character lands on screen and picks between the other three; it
+needs `view` set, and stays `Low` without one.
+
+Pin it for a character the camera lives on — a player above all. Auto is a
+policy about distance, and a character that is always in close-up has no
+distance to decide anything about; `CharacterEditor`'s **Detail** row does it
+by hand, and shows what Auto currently resolves to next to what it was asked
+for.
+
+Auto measures the character's apparent size off whichever of its three axes is
+least foreshortened, not off its height alone. That is not a refinement: a
+camera looking along a character's own length — up at it from the floor, down
+at it from above — projects a ten-unit body to a few pixels, and measuring the
+body axis alone said *tiny* about a figure filling the screen. Measured at a
+fixed sixteen units, a figure that was `High` at eye level fell to `Low` by 70
+degrees of camera pitch and to `Minimal` by 85, up and down alike. The two
+horizontal axes are only projected when the body axis has already gone short,
+so a character that is plainly close enough costs nothing extra, and at eye
+level the horizontal estimate never wins — the distance thresholds are exactly
+what they were.
 
 ### The face, and how it is drawn
 
