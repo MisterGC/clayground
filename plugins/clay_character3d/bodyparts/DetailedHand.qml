@@ -152,7 +152,7 @@ Node {
     function poseFor(name) {
         if (name === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 48, tz: 56, tc: 0.20, tl: 1.00, toff: 0.00 }
+                     tx: 48, tz: 56, tc: 0.20, tl: 1.00, toff: 0.00, tr: 0 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
@@ -160,10 +160,10 @@ Node {
         // see the thumbsUp pose in GestureAnim, which is where that lives.
         if (name === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00 }
+                     tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00, tr: 0 }
         if (name === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
-                     tx: -6, tz: 34, tc: 0.00, tl: 1.00, toff: 0.00 }
+                     tx: -6, tz: 34, tc: 0.00, tl: 1.00, toff: 0.00, tr: 0 }
         // A fist closes OVER its own thumb: the four fingers curl first and
         // the thumb comes ACROSS THE FRONT of them, its tip tucked into the
         // hollow they curl around.
@@ -179,12 +179,12 @@ Node {
         // pointing: +0.71 inboard where it used to be -0.50 outboard.
         if (name === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 175, tz: -45, tc: 0.45, tl: 1.15, toff: 0.55 }
+                     tx: 200, tz: 90, tc: 0.52, tl: 1.15, toff: 0.26, tr: 95 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
-                 tx: 20, tz: 26, tc: 0.28, tl: 1.00, toff: 0.00 }
+                 tx: 20, tz: 26, tc: 0.28, tl: 1.00, toff: 0.00, tr: 0 }
     }
 
     /*!
@@ -220,13 +220,13 @@ Node {
         \qmlproperty real DetailedHand::foldNear
         \brief How far the knuckle bends at full curl, in degrees.
     */
-    property real foldNear: 92
+    property real foldNear: 86
 
     /*!
         \qmlproperty real DetailedHand::foldFar
         \brief And how far the second joint bends on top of it.
     */
-    property real foldFar: 78
+    property real foldFar: 122
 
     /*! \qmlproperty real DetailedHand::tuckNear
         \brief How much of its length the near segment gives up at full curl. */
@@ -255,6 +255,7 @@ Node {
     property real _tc: root._p.tc
     property real _tl: root._p.tl
     property real _to: root._p.toff
+    property real _tr: root._p.tr
 
     Behavior on _ci { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _cm { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
@@ -266,6 +267,7 @@ Node {
     Behavior on _tc { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tl { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _to { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _tr { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
 
     // --- how the four are packed ---------------------------------------------
 
@@ -510,22 +512,38 @@ Node {
 
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
-        Finger {
-            // A thumb is about two thirds of an index finger, and the index
-            // here is 1.15 palms - so 0.72. It was 0.85, which put it level
-            // with the middle finger and, with the thumbs-up stretch on top,
-            // LONGER than the index: a hand whose biggest digit is its thumb
-            // reads as a mitten with a spur.
-            len: root.palmHeight * 0.72 * root._tl
-            // One width all the way up. A thumb tapering to a point reads as
-            // a spike and a thumb widening toward the pad reads as a club;
-            // at two boxes there is not enough of it for either shape to look
-            // like anything but a mistake, and a plain stub reads as a thumb.
-            thick: root._wt
-            deep: root._deepT
-            taper: 1.0
-            curl: root._tc
-            hinge: 0.18
+        // The thumb TWISTED about its own length, and it needs a node of its
+        // own: a QML euler composes as Ry*Rx*Rz, so the Y slot above is applied
+        // outermost and turns the thumb about the HAND's axis, not its own.
+        // Nested inside the orienting node it is a roll of the thumb itself.
+        //
+        // Which is a thing a thumb is: its flat faces are turned about a
+        // quarter turn from a finger's, pad toward the other fingers and nail
+        // outward, and it is the one joint in a hand that does that. Left at
+        // zero the thumb is a finger that happens to grow lower down, and on a
+        // closed fist - where the broad face lands square to the eye - that
+        // reads as a slab lying on the knuckles rather than as a thumb.
+        Node {
+            eulerRotation.y: root._side * root._tr
+
+            Finger {
+                // A thumb is about two thirds of an index finger, and the
+                // index here is 1.15 palms - so 0.72. It was 0.85, which put
+                // it level with the middle finger and, with the thumbs-up
+                // stretch on top, LONGER than the index: a hand whose biggest
+                // digit is its thumb reads as a mitten with a spur.
+                len: root.palmHeight * 0.72 * root._tl
+                // One width all the way up. A thumb tapering to a point reads
+                // as a spike and one widening toward the pad reads as a club;
+                // at two boxes there is not enough of it for either shape to
+                // look like anything but a mistake, and a plain stub reads as
+                // a thumb.
+                thick: root._wt
+                deep: root._deepT
+                taper: 1.0
+                curl: root._tc
+                hinge: 0.18
+            }
         }
     }
 }

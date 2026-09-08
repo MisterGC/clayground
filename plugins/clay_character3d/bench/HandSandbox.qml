@@ -375,6 +375,10 @@ Item {
         { key: "tc",       label: "thumb curl",   from: 0,    to: 1,   dp: 2 },
         { key: "tl",       label: "thumb length", from: 0.5,  to: 1.8, dp: 2 },
         { key: "toff",     label: "thumb root fwd", from: -0.5, to: 1.8, dp: 2 },
+        // A roll about the thumb's own length. A thumb's flat faces sit about
+        // a quarter turn off a finger's, and at zero it is a finger that
+        // happens to grow lower down the hand.
+        { key: "tr",       label: "thumb twist",  from: -180, to: 180, dp: 0 },
         // Not a pose, but the other half of what a folded finger looks like.
         { key: "foldNear", label: "knuckle fold", from: 40,   to: 150, dp: 0 },
         { key: "foldFar",  label: "second fold",  from: 20,   to: 150, dp: 0 },
@@ -453,7 +457,8 @@ Item {
                   + ", l: " + root._num(t.l, 2) + ", sp: " + root._num(t.sp, 2) + ",\n"
                   + "                     tx: " + root._num(t.tx, 0)
                   + ", tz: " + root._num(t.tz, 0) + ", tc: " + root._num(t.tc, 2)
-                  + ", tl: " + root._num(t.tl, 2) + ", toff: " + root._num(t.toff, 2) + " }"
+                  + ", tl: " + root._num(t.tl, 2) + ", toff: " + root._num(t.toff, 2)
+                  + ", tr: " + root._num(t.tr, 0) + " }"
         const shape = "    property real foldNear: " + root._num(t.foldNear, 0)
                     + "\n    property real foldFar: " + root._num(t.foldFar, 0)
                     + "\n    property real tuckNear: " + root._num(t.tuckNear, 2)
