@@ -584,6 +584,59 @@ Item {
 
     // --- keys -------------------------------------------------------------------
 
+    // --- orbiting by hand ---------------------------------------------------
+    //
+    // The presets answer "show me the shape from the angle it is judged at";
+    // this answers "let me look at it". A hand is a solid and the thing wrong
+    // with one is often on a face no preset points at - the fist's thumb hid
+    // from four of them in a row - so dragging around it is not a convenience,
+    // it is how you find out what is there.
+    //
+    // RIGHT button only, and that is deliberate: the tuning panel is full of
+    // sliders, and a full-frame MouseArea that took the left button would eat
+    // every one of them. The wheel arrives here whatever the accepted buttons
+    // are, so zoom works over the panel too.
+    MouseArea {
+        id: _orbit
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        // Under the panel in z order: declared first, so the sliders are still
+        // on top of it and still get their own events.
+        z: -1
+
+        property real lastX: 0
+        property real lastY: 0
+
+        /*! Degrees per pixel dragged. */
+        property real rate: 0.35
+
+        onPressed: (e) => {
+            _orbit.lastX = e.x
+            _orbit.lastY = e.y
+            root.forceActiveFocus()
+        }
+
+        onPositionChanged: (e) => {
+            root.camYaw += (e.x - _orbit.lastX) * _orbit.rate
+            // Stopped short of straight up and straight down, where the yaw
+            // stops meaning anything and the view flips as it crosses.
+            root.camPitch = Math.max(-88, Math.min(88,
+                                root.camPitch + (e.y - _orbit.lastY) * _orbit.rate))
+            _orbit.lastX = e.x
+            _orbit.lastY = e.y
+            root.viewpoint = "free"
+        }
+
+        // Multiplicative, not additive: the presets run from 2 units at the
+        // fingertips to 70 across the room, and a fixed step is either useless
+        // close up or takes a minute to cross the far end.
+        onWheel: (w) => {
+            const k = w.angleDelta.y > 0 ? 0.88 : 1 / 0.88
+            root.camDist = Math.max(0.3, Math.min(300, root.camDist * k))
+            root.viewpoint = "free"
+        }
+    }
+
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_Space) root.nextPose()
         else if (e.key === Qt.Key_1) root.look("hand")
@@ -892,6 +945,7 @@ Item {
             + "1-5 hand views   6-8 body/work/far   9 arm+hand   c compare   "
             + "b build   v hand takes half/all of it   "
             + "n tune the pose   0 revert   k print the row   "
+            + "right-drag orbit   wheel zoom   "
             + "s silhouette   qerf/tg camera"
     }
 }
