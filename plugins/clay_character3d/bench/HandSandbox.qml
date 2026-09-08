@@ -474,7 +474,12 @@ Item {
         skinColor: root.silhouette ? "#1b1b1f" : "#d38d5f"
         handColor: root.silhouette ? "#1b1b1f" : "#d38d5f"
         footColor: root.silhouette ? "#1b1b1f" : "#b5764a"
-        eyeColor: root.silhouette ? "#1b1b1f" : "#ffffff"
+        // The IRIS colour, not the white of the eye - the white is drawn by
+        // the face shader and is not a property at all. At #ffffff the irises
+        // were painted white on a white eye and the figure came out with no
+        // pupils, which reads as a doll from any distance close enough to see
+        // a hand. Every other bench uses this brown.
+        eyeColor: root.silhouette ? "#1b1b1f" : "#4a3728"
         hairColor: root.silhouette ? "#1b1b1f" : "#5c3a21"
         torsoColor: root.silhouette ? "#1b1b1f" : "#3663c8"
         armColor: root.silhouette ? "#1b1b1f" : "#3663c8"
