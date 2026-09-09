@@ -54,6 +54,23 @@ Item {
     // All characters for editor
     readonly property var allCharacters: [character, npcThinker, npcEater, npcHero, npcChild, npcStylized]
 
+    // The player character's loadable move set, driven from the keyboard so a
+    // set can be loaded and every move it offers triggered without opening the
+    // editor panel. Nothing loads a set at startup: a set is what a character
+    // KNOWS rather than what it is, and loading one should be something a
+    // person does and watches happen.
+    property int moveIndex: 0
+    readonly property var selectedMove:
+        character.moves.length > 0
+      ? character.moves[Math.min(root.moveIndex, character.moves.length - 1)]
+      : null
+    function stepMove(dir) {
+        const n = character.moves.length
+        if (n === 0)
+            return
+        root.moveIndex = (root.moveIndex + dir + n) % n
+    }
+
     // Forward keys to game controller for WASD movement
     Keys.forwardTo: [gameController]
 
@@ -131,6 +148,32 @@ Item {
             event.accepted = true
         } else if (event.key === Qt.Key_0) {
             gesturer.setEmotion("")
+            event.accepted = true
+        }
+        // The loadable move set on the player character. Loading it is a
+        // toggle, because unloading is the other half of what "on demand"
+        // means and there is nothing else to see it with.
+        else if (event.key === Qt.Key_J) {
+            character.moveSet = character.moveSet === "" ? "martial arts" : ""
+            root.moveIndex = 0
+            event.accepted = true
+        }
+        // The set names its own moves, so the keyboard walks the list the set
+        // offers rather than binding a key per move.
+        else if (event.key === Qt.Key_Comma) {
+            root.stepMove(-1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_Period) {
+            root.stepMove(1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_V) {
+            if (root.selectedMove !== null)
+                character.playMove(root.selectedMove.name)
+            event.accepted = true
+        } else if (event.key === Qt.Key_B) {
+            // A move that holds its last frame - the knockdown lying on the
+            // floor - stays there until something lets go of the joints.
+            character.stopMove()
             event.accepted = true
         }
         // Let other keys pass through to forwardTo targets
@@ -532,6 +575,7 @@ Item {
     // Gesture keys, and what the layer says it is doing - the state a test
     // asserts on rather than watching the arm.
     Rectangle {
+        id: gestureHelpPanel
         anchors.bottom: gameController.top
         anchors.left: parent.left
         anchors.margins: 10
@@ -566,6 +610,52 @@ Item {
                       + "  settled " + gesturer.gestureSettled + "  emotion \"" + gesturer.emotion + "\""
                 font.pixelSize: 11
                 color: _gesturePal.windowText
+            }
+        }
+    }
+
+    // The move set on the player character, above the gesture panel because it
+    // is the same kind of thing on the other figure. The status line is there
+    // because a move that holds its last frame - the knockdown on the floor -
+    // is indistinguishable from a stalled animation without it.
+    Rectangle {
+        anchors.bottom: gestureHelpPanel.top
+        anchors.left: parent.left
+        anchors.margins: 10
+        width: moveHelp.width + 20
+        height: moveHelp.height + 16
+        color: _movePal.window
+        opacity: 0.9
+        radius: 8
+        border.color: Qt.alpha(_movePal.windowText, 0.2)
+
+        SystemPalette { id: _movePal }
+
+        Column {
+            id: moveHelp
+            anchors.centerIn: parent
+            spacing: 2
+
+            Text {
+                text: "Move set (Player, parametric Character)"
+                font.bold: true
+                font.pixelSize: 11
+                color: _movePal.windowText
+            }
+            Text {
+                text: "J load / unload martial arts  , . previous / next move\n"
+                      + "V play the selected move  B stop (releases a held one)"
+                font.pixelSize: 11
+                color: _movePal.windowText
+            }
+            Text {
+                text: "set \"" + (character.moveSet === "" ? "no set" : character.moveSetName) + "\""
+                      + "  selected \"" + (root.selectedMove ? root.selectedMove.name : "-") + "\""
+                      + "  active \"" + character.activeMove + "\""
+                      + (character.movePlaying ? " playing"
+                         : character.moveHolding ? " holding" : "")
+                font.pixelSize: 11
+                color: _movePal.windowText
             }
         }
     }

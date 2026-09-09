@@ -702,6 +702,89 @@ Item {
                     }
                 }
 
+                // Moves. A loadable set is what a character KNOWS rather than
+                // what it IS: it is loaded on demand, replaces whatever was
+                // loaded before it, and owns the whole body while it runs. That
+                // makes it the same kind of thing as a gesture and it sits here
+                // beside one, not beside the activity chips.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Moves"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        // Taken from the character's own map of shipped sets
+                        // rather than written out here, so a second set that
+                        // ships needs no edit in the editor.
+                        model: root.editTarget
+                             ? ["none"].concat(Object.keys(root.editTarget.shippedMoveSets))
+                             : ["none"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.moveSet === modelData
+                                        || (modelData === "none"
+                                            && root.editTarget.moveSet === ""))
+                            onPicked: if (root.editTarget)
+                                          root.editTarget.moveSet =
+                                              modelData === "none" ? "" : modelData
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: "A set is loaded on demand and is not part of every character. "
+                        + "Its moves run only while the activity is idle, so picking one "
+                        + "puts the activity back to idle."
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: root.editTarget ? root.editTarget.moves : []
+                        Chip {
+                            required property var modelData
+                            label: modelData.name
+                            active: root.editTarget !== null
+                                    && root.editTarget.activeMove === modelData.name
+                            onPicked: root.editTarget.playMove(modelData.name)
+                        }
+                    }
+                    // In the row rather than under it: a knockdown holds its
+                    // last frame on the floor on purpose, and letting go of it
+                    // belongs next to whatever started it.
+                    Chip {
+                        label: "stop"
+                        visible: root.editTarget !== null
+                                 && root.editTarget.moves.length > 0
+                        onPicked: if (root.editTarget) root.editTarget.stopMove()
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    // Which set is loaded, what it is doing with the body, and
+                    // whether that is still moving. The line that answers "I
+                    // clicked a move and it looks stuck": a knockdown holds its
+                    // last frame until something releases it.
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        if (c.moveSet === "") return "no move set loaded"
+                        const set = c.moveSetName !== "" ? c.moveSetName : c.moveSet
+                        const move = c.activeMove !== "" ? c.activeMove : "idle"
+                        const how = c.movePlaying ? " (playing)"
+                                  : c.moveHolding ? " (holding)" : ""
+                        return set + " / " + move + how
+                    }
+                }
+
                 // Emotion: face AND walk, and it persists. This used to set the
                 // face alone (faceActivity), which left the walk unmoved and
                 // needed a second row for the gait's mood; one channel now.

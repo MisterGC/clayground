@@ -62,6 +62,18 @@ ProceduralAnim {
             easing.type: Easing.InOutQuad
         }
 
+        // And back over its own feet: a move set's step, jump or stagger
+        // carries the body forward or back of the character's position, and
+        // a figure left standing off its own mark drifts a little further
+        // with every move played.
+        NumberAnimation {
+            duration: _idleAnim.duration
+            target: entity
+            property: "_heldDrift"
+            to: 0
+            easing.type: Easing.InOutQuad
+        }
+
         // Reset head and hip (e.g. tilted by UseAnim)
         HeadEulerAnim {
             duration: _idleAnim.duration
