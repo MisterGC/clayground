@@ -34,6 +34,10 @@
 // far the finger misses the marker by.
 
 import QtQuick
+// Basic, never bare QtQuick.Controls: the native macOS style refuses the
+// customisation these sliders need and warns once, which is enough to make
+// clayrender exit 2 on a bench that rendered perfectly.
+import QtQuick.Controls.Basic
 import QtQuick3D
 import Clayground.Character3D
 
@@ -64,6 +68,47 @@ Item {
 
     /*! Uniform scale on both characters, for the small-on-screen tests. */
     property real figureScale: 1.0
+
+    /*!
+        The build, as ParametricCharacter's two width sliders. A hand is judged
+        against the arm it is on as much as on its own, and those two are what
+        move the arm: at 0/0 the figure is thin and unmuscled, at 1/1 heavy and
+        muscular. Sweeping them is how \l ParametricCharacter::handBuildResponse
+        was set - a hand that takes the whole of that spread is a claw at one
+        end and a mitten at the other.
+
+        clayrender ... --set 'mass=0' --set 'muscle=0' --eval 'look("body")'
+    */
+    property real mass: 0.55
+    property real muscle: 0.3
+
+    /*! How much of the build the hands take, 0 none and 1 all of it. */
+    property real handBuild: 0.5
+
+    function setBuild(m, u) { root.mass = m; root.muscle = u }
+
+    /*! The three builds worth stepping between, thin to heavy. */
+    readonly property var builds: [
+        { label: "thin",    mass: 0.0,  muscle: 0.0 },
+        { label: "neutral", mass: 0.5,  muscle: 0.5 },
+        { label: "heavy",   mass: 1.0,  muscle: 1.0 },
+        { label: "bench",   mass: 0.55, muscle: 0.3 }
+    ]
+    property int buildIndex: 3
+
+    function nextBuild() {
+        root.buildIndex = (root.buildIndex + 1) % root.builds.length
+        root.mass = root.builds[root.buildIndex].mass
+        root.muscle = root.builds[root.buildIndex].muscle
+    }
+
+    /*!
+        The A/B this bench exists to make watchable: 1 is the hand glued to the
+        arm, which is what the build used to do to it, and the default is the
+        damped one. Flipped on ONE figure without moving anything else, so the
+        two frames differ in nothing but the thing being judged.
+    */
+    function toggleHandBuild() { root.handBuild = root.handBuild < 0.99 ? 1.0 : 0.5 }
 
     /*!
         Cartoon hands: gloved, and bigger than the proportion tables give. The
@@ -134,6 +179,11 @@ Item {
         else if (preset === "handTop")  { root.camYaw = 20;  root.camPitch = 55; root.camDist = 2.0 }
         else if (preset === "handBack") { root.camYaw = 200; root.camPitch = 8;  root.camDist = 2.0 }
         else if (preset === "handPalm") { root.camYaw = 350; root.camPitch = -8; root.camDist = 2.0 }
+        // Far enough back to have the FOREARM in frame with the hand, which
+        // is the only way to judge a hand against the arm it is on - and that
+        // is the whole of the build question: a hand is not too small or too
+        // big on its own, it is too small or too big for that limb.
+        else if (preset === "arm")      { root.camYaw = 60;  root.camPitch = 20; root.camDist = 7.0 }
         else if (preset === "body")     { root.camYaw = 32;  root.camPitch = 8;  root.camDist = 22 }
         else if (preset === "bodySide") { root.camYaw = 92;  root.camPitch = 6;  root.camDist = 22 }
         // The working distance the component has to survive: the figure lands
@@ -143,7 +193,7 @@ Item {
         else return
 
         root.viewpoint = preset
-        root.camOnHand = preset.indexOf("hand") === 0
+        root.camOnHand = preset.indexOf("hand") === 0 || preset === "arm"
         root._trackPivot()
     }
 
@@ -288,6 +338,164 @@ Item {
 
     function setCompare(on) { root.compare = on; root._trackPivot() }
 
+    // --- the tuner ---------------------------------------------------------------
+    //
+    // Every number in DetailedHand's pose table was arrived at by looking, and
+    // looking is done with the hand in front of you - not in a text editor with
+    // a rebuild between each guess. The panel puts a slider on each field of
+    // the row the current pose resolves to, writes them onto the RIGHT hand
+    // only, and prints the result back in the form the table is written in, so
+    // a shape somebody dialled in is pasted rather than re-derived.
+    //
+    // The left hand deliberately keeps the shipped pose. A change to a shape
+    // this small is not judged against a memory of the last render.
+
+    // "monospace" resolves to nothing on macOS and Qt warns about it once,
+    // which is enough to make clayrender exit 2 on a bench that is fine.
+    readonly property string monoFont: Qt.platform.os === "osx" ? "Menlo"
+                                     : Qt.platform.os === "windows" ? "Consolas"
+                                                                    : "monospace"
+
+    /*! Whether the slider panel is up. */
+    property bool tuning: false
+
+    /*!
+        Which pose the panel is actually editing: the one the SUBJECT'S HAND is
+        holding, not \l pose.
+
+        The two are the same in the vice and different the moment a gesture is
+        played - a gesture picks the hand's shape itself, and \l pose is only
+        what the vice asked for. Tuning \l pose while a gesture holds another
+        one writes the wrong row onto the hand, which looks exactly like the
+        gesture being broken. It cost a wrong diagnosis before this followed
+        the hand.
+    */
+    readonly property string tunedPose: {
+        const a = root.subject.rightArm
+        return a && a.handPose ? a.handPose : root.pose
+    }
+
+    /*!
+        The fields of a pose row, with the range each is worth sweeping.
+        `tx` runs past 90 because a thumb folding across a closed fist has to:
+        under 90 it is still heading away from the wrist.
+    */
+    readonly property var tunables: [
+        { key: "i",        label: "index curl",   from: 0,    to: 1,   dp: 2 },
+        { key: "m",        label: "middle curl",  from: 0,    to: 1,   dp: 2 },
+        { key: "r",        label: "ring curl",    from: 0,    to: 1,   dp: 2 },
+        { key: "l",        label: "little curl",  from: 0,    to: 1,   dp: 2 },
+        { key: "sp",       label: "fan",          from: 0,    to: 1,   dp: 2 },
+        { key: "tx",       label: "thumb fold",   from: -60,  to: 200, dp: 0 },
+        { key: "tz",       label: "thumb swing",  from: -110, to: 110, dp: 0 },
+        { key: "tc",       label: "thumb curl",   from: 0,    to: 1,   dp: 2 },
+        { key: "tl",       label: "thumb length", from: 0.5,  to: 1.8, dp: 2 },
+        { key: "toff",     label: "thumb root fwd", from: -0.5, to: 1.8, dp: 2 },
+        // A roll about the thumb's own length. A thumb's flat faces sit about
+        // a quarter turn off a finger's, and at zero it is a finger that
+        // happens to grow lower down the hand.
+        { key: "tr",       label: "thumb twist",  from: -180, to: 180, dp: 0 },
+        // Where the thumb leaves the palm. Hardcoded until the reference
+        // photographs showed it was the thing that was wrong: a thumb comes
+        // away LOW, past halfway to the wrist, and one rooted high is a fifth
+        // finger set slightly apart.
+        { key: "tdown",    label: "thumb root down", from: 0.15, to: 0.85, dp: 2 },
+        { key: "tout",     label: "thumb root out",  from: 0.20, to: 0.75, dp: 2 },
+        // Not a pose, but the other half of what a folded finger looks like.
+        { key: "foldNear", label: "knuckle fold", from: 40,   to: 150, dp: 0 },
+        { key: "foldFar",  label: "second fold",  from: 20,   to: 150, dp: 0 },
+        { key: "tuckNear", label: "near tuck",    from: 0,    to: 0.6, dp: 2 },
+        { key: "tuckFar",  label: "far tuck",     from: 0,    to: 0.8, dp: 2 }
+    ]
+
+    /*! The live values, keyed as the table is. */
+    property var tuned: ({})
+
+    /*!
+        Reload the sliders from what the current pose actually ships with. Also
+        what \l pose changes do, so stepping through the poses always starts
+        from the real thing rather than from the last one that was fiddled.
+    */
+    function reseed() {
+        const h = root._hand()
+        if (!h)
+            return
+        const row = h.poseFor(root.tunedPose)
+        let v = {}
+        for (const t of root.tunables) {
+            v[t.key] = row[t.key] !== undefined ? row[t.key]
+                     : t.key === "foldNear" ? h.foldNear
+                     : t.key === "foldFar"  ? h.foldFar
+                     : t.key === "tuckNear" ? h.tuckNear
+                     : t.key === "tuckFar"  ? h.tuckFar
+                     : t.key === "tdown"    ? h.thumbDown
+                     : t.key === "tout"     ? h.thumbOut : 0
+        }
+        root.tuned = v
+        root.apply()
+    }
+
+    /*! Push the sliders onto the tuned hand. */
+    function apply() {
+        let o = {}
+        for (const k in root.tuned)
+            o[k] = root.tuned[k]
+        high.rightArm.poseOverride = o
+        low.rightArm.poseOverride = o
+    }
+
+    function set(key, value) {
+        let v = {}
+        for (const k in root.tuned)
+            v[k] = root.tuned[k]
+        v[key] = value
+        root.tuned = v
+        root.apply()
+    }
+
+    /*! Back to what ships, both hands. */
+    function revert() {
+        high.rightArm.poseOverride = null
+        low.rightArm.poseOverride = null
+        root.reseed()
+    }
+
+    // The DetailedHand under the subject, for poseFor() and the fold defaults.
+    function _hand() {
+        const a = root.subject.rightArm
+        return a && a.fingers ? a.fingers : null
+    }
+
+    function _num(v, dp) { return dp === 0 ? String(Math.round(v)) : v.toFixed(dp) }
+
+    /*!
+        The tuned row, in the form DetailedHand's table is written in - paste it
+        over the pose it belongs to. The fold fields come out on their own line
+        because they are the hand's, not the pose's.
+    */
+    function dump() {
+        const t = root.tuned
+        const row = "        if (name === \"" + root.tunedPose + "\")\n"
+                  + "            return { i: " + root._num(t.i, 2)
+                  + ", m: " + root._num(t.m, 2) + ", r: " + root._num(t.r, 2)
+                  + ", l: " + root._num(t.l, 2) + ", sp: " + root._num(t.sp, 2) + ",\n"
+                  + "                     tx: " + root._num(t.tx, 0)
+                  + ", tz: " + root._num(t.tz, 0) + ", tc: " + root._num(t.tc, 2)
+                  + ", tl: " + root._num(t.tl, 2) + ", toff: " + root._num(t.toff, 2)
+                  + ", tr: " + root._num(t.tr, 0) + " }"
+        const shape = "    property real foldNear: " + root._num(t.foldNear, 0)
+                    + "\n    property real foldFar: " + root._num(t.foldFar, 0)
+                    + "\n    property real tuckNear: " + root._num(t.tuckNear, 2)
+                    + "\n    property real tuckFar: " + root._num(t.tuckFar, 2)
+                    + "\n    property real thumbDown: " + root._num(t.tdown, 2)
+                    + "\n    property real thumbOut: " + root._num(t.tout, 2)
+        const out = row + "\n\n" + shape
+        console.log(out)
+        return out
+    }
+
+    onTunedPoseChanged: root.reseed()
+
     // --- measurements ----------------------------------------------------------
 
     readonly property real _spread: 8
@@ -337,7 +545,15 @@ Item {
         const mode = high.detail === Character.Detail.Auto
                    ? "auto/" + (high.detailedHands ? "fingers" : "box")
                    : (high.detailedHands ? "fingers" : "box")
-        return (root.gloves ? "gloved x" + root.handScale.toFixed(2) + "  " : "")
+        const arm = root.subject.rightArm
+        return "build " + root.builds[root.buildIndex].label
+             + " m" + root.mass.toFixed(2) + " u" + root.muscle.toFixed(2)
+             + (root.handBuild < 0.99 ? "  hand takes half" : "  HAND GLUED TO ARM")
+             // The one number the build question is actually about: how wide
+             // the palm is against the arm it hangs off.
+             + " palm/arm " + (arm.handWidth / Math.max(1e-6, arm.width)).toFixed(2)
+             + "  "
+             + (root.gloves ? "gloved x" + root.handScale.toFixed(2) + "  " : "")
              + (root.subject === low ? "plain  " : mode + "  ")
              + (root.gesture !== "" ? "gesture " + root.gesture
                                     : root.armPose + "/" + root.pose)
@@ -355,9 +571,71 @@ Item {
     Component.onCompleted: {
         root._applyArm()
         root.look("hand")
+        // After the Loader3D has had a turn: fingers are loaded on demand and
+        // reseed() needs the hand to ask what the pose ships with.
+        _seed.start()
+    }
+
+    Timer {
+        id: _seed
+        interval: 60
+        onTriggered: root.reseed()
     }
 
     // --- keys -------------------------------------------------------------------
+
+    // --- orbiting by hand ---------------------------------------------------
+    //
+    // The presets answer "show me the shape from the angle it is judged at";
+    // this answers "let me look at it". A hand is a solid and the thing wrong
+    // with one is often on a face no preset points at - the fist's thumb hid
+    // from four of them in a row - so dragging around it is not a convenience,
+    // it is how you find out what is there.
+    //
+    // RIGHT button only, and that is deliberate: the tuning panel is full of
+    // sliders, and a full-frame MouseArea that took the left button would eat
+    // every one of them. The wheel arrives here whatever the accepted buttons
+    // are, so zoom works over the panel too.
+    MouseArea {
+        id: _orbit
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        // Under the panel in z order: declared first, so the sliders are still
+        // on top of it and still get their own events.
+        z: -1
+
+        property real lastX: 0
+        property real lastY: 0
+
+        /*! Degrees per pixel dragged. */
+        property real rate: 0.35
+
+        onPressed: (e) => {
+            _orbit.lastX = e.x
+            _orbit.lastY = e.y
+            root.forceActiveFocus()
+        }
+
+        onPositionChanged: (e) => {
+            root.camYaw += (e.x - _orbit.lastX) * _orbit.rate
+            // Stopped short of straight up and straight down, where the yaw
+            // stops meaning anything and the view flips as it crosses.
+            root.camPitch = Math.max(-88, Math.min(88,
+                                root.camPitch + (e.y - _orbit.lastY) * _orbit.rate))
+            _orbit.lastX = e.x
+            _orbit.lastY = e.y
+            root.viewpoint = "free"
+        }
+
+        // Multiplicative, not additive: the presets run from 2 units at the
+        // fingertips to 70 across the room, and a fixed step is either useless
+        // close up or takes a minute to cross the far end.
+        onWheel: (w) => {
+            const k = w.angleDelta.y > 0 ? 0.88 : 1 / 0.88
+            root.camDist = Math.max(0.3, Math.min(300, root.camDist * k))
+            root.viewpoint = "free"
+        }
+    }
 
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_Space) root.nextPose()
@@ -369,6 +647,7 @@ Item {
         else if (e.key === Qt.Key_6) root.look("body")
         else if (e.key === Qt.Key_7) root.look("work")
         else if (e.key === Qt.Key_8) root.look("far")
+        else if (e.key === Qt.Key_9) root.look("arm")
         else if (e.key === Qt.Key_P) root.play("point")
         else if (e.key === Qt.Key_O) root.play("thumbsUp")
         else if (e.key === Qt.Key_I) root.play("talk")
@@ -379,6 +658,11 @@ Item {
         else if (e.key === Qt.Key_U) root.setAuto()
         else if (e.key === Qt.Key_L) root.cartoon(!root.gloves)
         else if (e.key === Qt.Key_S) root.setSilhouette(!root.silhouette)
+        else if (e.key === Qt.Key_N) { root.tuning = !root.tuning; if (root.tuning) root.reseed() }
+        else if (e.key === Qt.Key_0) root.revert()
+        else if (e.key === Qt.Key_K) root.dump()
+        else if (e.key === Qt.Key_B) root.nextBuild()
+        else if (e.key === Qt.Key_V) root.toggleHandBuild()
         else if (e.key === Qt.Key_A) {
             const all = ["clear", "point", "high", "level", "down"]
             root.raise(all[(all.indexOf(root.armPose) + 1) % all.length])
@@ -399,8 +683,9 @@ Item {
         bodyHeight: 10
         realism: 0.0
         maturity: 0.15
-        mass: 0.55
-        muscle: 0.3
+        mass: root.mass
+        muscle: root.muscle
+        handBuildResponse: root.handBuild
         femininity: 0.2
         scale: Qt.vector3d(root.figureScale, root.figureScale, root.figureScale)
         handPose: root.pose
@@ -416,7 +701,12 @@ Item {
         skinColor: root.silhouette ? "#1b1b1f" : "#d38d5f"
         handColor: root.silhouette ? "#1b1b1f" : "#d38d5f"
         footColor: root.silhouette ? "#1b1b1f" : "#b5764a"
-        eyeColor: root.silhouette ? "#1b1b1f" : "#ffffff"
+        // The IRIS colour, not the white of the eye - the white is drawn by
+        // the face shader and is not a property at all. At #ffffff the irises
+        // were painted white on a white eye and the figure came out with no
+        // pupils, which reads as a doll from any distance close enough to see
+        // a hand. Every other bench uses this brown.
+        eyeColor: root.silhouette ? "#1b1b1f" : "#4a3728"
         hairColor: root.silhouette ? "#1b1b1f" : "#5c3a21"
         torsoColor: root.silhouette ? "#1b1b1f" : "#3663c8"
         armColor: root.silhouette ? "#1b1b1f" : "#3663c8"
@@ -558,6 +848,92 @@ Item {
         visible: !root.silhouette
     }
 
+    // The panel. One row per field, seeded from the pose and written straight
+    // back onto the tuned hand - no apply button, because the whole point is to
+    // watch the shape while the number moves.
+    Rectangle {
+        id: _panel
+        visible: root.tuning && !root.silhouette
+        // Sized to its rows rather than stretched to the frame: anchored to the
+        // bottom it ran over the bench's own key legend.
+        anchors { right: parent.right; top: parent.top; margins: 8 }
+        width: 300
+        height: _panelRows.implicitHeight + 20
+        radius: 6
+        color: Qt.rgba(1, 1, 1, 0.93)
+        border.color: "#c9c6c0"
+
+        Column {
+            id: _panelRows
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+            spacing: 3
+
+            Text {
+                text: "tuning  " + root.tunedPose
+                font.family: root.monoFont
+                font.pixelSize: 13
+                font.bold: true
+                color: "#1b1b1f"
+            }
+            Text {
+                width: _panel.width - 20
+                wrapMode: Text.WordWrap
+                text: "right hand only - the left keeps what ships"
+                font.family: root.monoFont
+                font.pixelSize: 10
+                color: "#6b6b72"
+            }
+            Item { width: 1; height: 4 }
+
+            Repeater {
+                model: root.tunables
+                Row {
+                    id: _row
+                    required property var modelData
+                    spacing: 6
+                    Text {
+                        width: 84
+                        text: _row.modelData.label
+                        font.family: root.monoFont
+                        font.pixelSize: 10
+                        color: "#3a3a40"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Slider {
+                        width: 140
+                        from: _row.modelData.from
+                        to: _row.modelData.to
+                        value: root.tuned[_row.modelData.key] === undefined
+                               ? 0 : root.tuned[_row.modelData.key]
+                        onMoved: root.set(_row.modelData.key, value)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        width: 42
+                        horizontalAlignment: Text.AlignRight
+                        text: root.tuned[_row.modelData.key] === undefined ? "-"
+                              : root._num(root.tuned[_row.modelData.key], _row.modelData.dp)
+                        font.family: root.monoFont
+                        font.pixelSize: 10
+                        color: "#1b1b1f"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            Item { width: 1; height: 6 }
+            Text {
+                width: _panel.width - 20
+                wrapMode: Text.WordWrap
+                font.family: root.monoFont
+                font.pixelSize: 9
+                color: "#6b6b72"
+                text: "space next pose   0 revert   k print the row to the console   "
+                    + "n close"
+            }
+        }
+    }
+
     Text {
         anchors { left: parent.left; bottom: parent.bottom; margins: 12 }
         color: "#6b6b72"
@@ -566,7 +942,10 @@ Item {
         font.pixelSize: 11
         visible: !root.silhouette
         text: "space pose   a arm   p/o/i point,thumbsUp,talk   x stop   "
-            + "1-5 hand views   6-8 body/work/far   c compare   "
+            + "1-5 hand views   6-8 body/work/far   9 arm+hand   c compare   "
+            + "b build   v hand takes half/all of it   "
+            + "n tune the pose   0 revert   k print the row   "
+            + "right-drag orbit   wheel zoom   "
             + "s silhouette   qerf/tg camera"
     }
 }

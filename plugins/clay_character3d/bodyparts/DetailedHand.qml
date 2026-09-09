@@ -128,37 +128,142 @@ Node {
     // (negative stands it off the back), tz swings it out from the hand's
     // side, tc curls the thumb itself.
 
-    readonly property var _p: {
-        if (root.pose === "point")
+    // toff slides the thumb's ROOT forward, in palm depths, and only the fist
+    // uses it. The four fingers fold to about 1.6 palm depths in front of the
+    // knuckle line, and the thumb's proximal segment is 1.0 long from a root
+    // 0.35 in front of centre - so from where a thumb actually grows it CANNOT
+    // reach the outside of the block its own hand has made, whatever angle it
+    // leaves at. Every setting buries it, which is what "the thumb is messed
+    // up" looked like: a red-tinted test render showed it swallowed whole.
+    //
+    // Two boxes have one joint between them, so the node they hang off is the
+    // thumb's MCP rather than its CMC - the knuckle, not the root of the
+    // metacarpal - and on a real hand that knuckle IS well forward on the palm
+    // when the hand closes, carried there by a joint this model does not have.
+    // Sliding it is therefore closer to the anatomy than leaving it, and it is
+    // the same trade the rest of this file makes: legibility beats anatomy
+    // where the two disagree, and here they do not even disagree.
+    //
+    // tl scales the thumb's own LENGTH. One number in the table rather than a
+    // fixed thumb, because the thumbs-up is the one gesture that is nothing
+    // but the thumb: everywhere else it is a detail of the hand, and there it
+    // has to carry the whole meaning from across a room. Same argument as the
+    // index being the longest and fattest finger here, which no hand is.
+    function poseFor(name) {
+        if (name === "point")
             return { i: 0.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 48, tz: 56, tc: 0.20 }
+                     tx: 48, tz: 52, tc: 0.20, tl: 1.00, toff: 0.00, tr: 80 }
         // The thumb goes OUT along the side of the fist, not up off the back
         // of it. A thumb swings in the plane of its own palm; standing one on
         // the back of the hand is a joint nobody has, and it looks like one.
         // What makes it point at the sky is the wrist rolling a quarter turn -
         // see the thumbsUp pose in GestureAnim, which is where that lives.
-        if (root.pose === "thumbsUp")
+        if (name === "thumbsUp")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: -12, tz: 84, tc: 0.00 }
-        if (root.pose === "open")
+                     tx: -12, tz: 88, tc: 0.00, tl: 1.15, toff: 0.00, tr: 0 }
+        if (name === "open")
             return { i: 0.00, m: 0.00, r: 0.00, l: 0.00, sp: 1.00,
-                     tx: -6, tz: 34, tc: 0.00 }
+                     tx: 6, tz: 48, tc: 0.00, tl: 1.00, toff: 0.00, tr: 80 }
         // A fist closes OVER its own thumb: the four fingers curl first and
-        // the thumb comes across the front of them. It used to sit at tz 70,
-        // fourteen degrees off the thumbs-up above and barely curled, so a
-        // fist stood its thumb out along the side and read as a thumbs-up
-        // that had lost its wrist roll. Swung back in (tz), laid further
-        // across the front (tx) and actually curled (tc), it becomes part of
-        // the block instead of a spike leaving it.
-        if (root.pose === "fist")
+        // the thumb comes ACROSS THE FRONT of them, its tip tucked into the
+        // hollow they curl around.
+        //
+        // tz IS NEGATIVE HERE and that is the whole fix. Positive swings the
+        // thumb out along its own edge of the hand, which is what a thumbs-up
+        // wants and what this pose asked for for a long time - it was 70, then
+        // 30, and 30 is still outboard: the thumb left the fist at the front
+        // corner and stood there as a loose spike with a gap behind it.
+        // Negative takes it the other way, in over the folded fingers, so the
+        // proximal segment lies along them and the curl below can drop the tip
+        // into the hole. Measured off the direction the segment ends up
+        // pointing: +0.71 inboard where it used to be -0.50 outboard.
+        if (name === "fist")
             return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
-                     tx: 62, tz: 30, tc: 0.70 }
+                     tx: 90, tz: -72, tc: 0.25, tl: 1.15, toff: 1.00, tr: 90 }
         // The index is curled hardest of the four at rest, against the way a
         // hand actually relaxes: it is the long one, and left barely bent it
         // reads as a limp point rather than as a hand doing nothing.
         return { i: 0.40, m: 0.44, r: 0.50, l: 0.56, sp: 0.25,
-                 tx: 20, tz: 26, tc: 0.28 }
+                 tx: 18, tz: 38, tc: 0.28, tl: 1.00, toff: 0.00, tr: 80 }
     }
+
+    /*!
+        \qmlproperty var DetailedHand::poseOverride
+        \brief Fields to replace in the current pose's row, or null.
+
+        The tuning channel, and the reason it exists: every number in the table
+        above was arrived at by looking, and looking is done at a bench with a
+        hand in front of you, not in a text editor with a rebuild between each
+        guess. \c bench/HandSandbox.qml puts sliders on these and prints the row
+        back out in the form it is written here, so a shape somebody dialled in
+        is pasted into the table rather than re-derived from a screenshot.
+
+        Partial: only the keys it carries are replaced. It may also carry
+        \c foldNear, \c foldFar, \c tuckNear and \c tuckFar, which are not part
+        of a pose but are the other half of what a folded finger looks like.
+    */
+    property var poseOverride: null
+
+    readonly property var _p: {
+        const base = root.poseFor(root.pose)
+        if (!root.poseOverride)
+            return base
+        let out = {}
+        for (const k in base)
+            out[k] = base[k]
+        for (const k2 in root.poseOverride)
+            out[k2] = root.poseOverride[k2]
+        return out
+    }
+
+    /*!
+        \qmlproperty real DetailedHand::foldNear
+        \brief How far the knuckle bends at full curl, in degrees.
+    */
+    property real foldNear: 86
+
+    /*!
+        \qmlproperty real DetailedHand::foldFar
+        \brief And how far the second joint bends on top of it.
+    */
+    property real foldFar: 122
+
+    /*! \qmlproperty real DetailedHand::tuckNear
+        \brief How much of its length the near segment gives up at full curl. */
+    property real tuckNear: 0.10
+
+    /*! \qmlproperty real DetailedHand::tuckFar
+        \brief The same for the far segment, which does the reaching. */
+    property real tuckFar: 0.35
+
+    /*!
+        \qmlproperty real DetailedHand::thumbDown
+        \brief Where the thumb leaves the palm, as a fraction of the palm's
+               length measured down from the wrist.
+
+        Off a photograph of an articulated hand rather than off a guess: a
+        thumb comes away from the palm LOW, past halfway to the wrist, which is
+        what leaves the long open web between it and the index. It was 0.38 -
+        barely a third down - and a thumb rooted that high is a fifth finger
+        set slightly apart, which is what it read as.
+    */
+    property real thumbDown: 0.55
+
+    /*!
+        \qmlproperty real DetailedHand::thumbOut
+        \brief And how far out to the side, as a fraction of the palm's width.
+    */
+    property real thumbOut: 0.46
+
+    readonly property real _td: root._p.tdown === undefined ? root.thumbDown : root._p.tdown
+    readonly property real _tw: root._p.tout === undefined ? root.thumbOut : root._p.tout
+
+    // A pose may carry its own fold shape; almost none does, and the four
+    // properties above are what it falls back to.
+    readonly property real _fn: root._p.foldNear === undefined ? root.foldNear : root._p.foldNear
+    readonly property real _ff: root._p.foldFar === undefined ? root.foldFar : root._p.foldFar
+    readonly property real _tn: root._p.tuckNear === undefined ? root.tuckNear : root._p.tuckNear
+    readonly property real _tf: root._p.tuckFar === undefined ? root.tuckFar : root._p.tuckFar
 
     // Held as animatable reals rather than read straight out of _p: a pose is
     // a destination, and the hand has to be caught mid-fold as well as at rest.
@@ -170,6 +275,9 @@ Node {
     property real _tx: root._p.tx
     property real _tz: root._p.tz
     property real _tc: root._p.tc
+    property real _tl: root._p.tl
+    property real _to: root._p.toff
+    property real _tr: root._p.tr
 
     Behavior on _ci { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _cm { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
@@ -179,6 +287,9 @@ Node {
     Behavior on _tx { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tz { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
     Behavior on _tc { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _tl { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _to { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
+    Behavior on _tr { NumberAnimation { duration: root.settleMs; easing.type: Easing.OutCubic } }
 
     // --- how the four are packed ---------------------------------------------
 
@@ -188,10 +299,14 @@ Node {
     readonly property real _w2: root.palmWidth * 0.19
     readonly property real _w3: root.palmWidth * 0.165  // little
 
-    // The thumb is the thickest thing on the hand, which is true of a real one
-    // and doubly worth having here: in a thumbs-up it is the entire gesture,
-    // and a thumb no fatter than a finger reads as a fifth finger standing up.
-    readonly property real _wt: root.palmWidth * 0.44
+    // The thumb is the thickest digit on the hand, which is true of a real one -
+    // but only just. It was 0.44, better than twice the middle finger's width
+    // and a sixth more than the index's, and against four fingers this thin
+    // that stops reading as a thumb and starts reading as a thumb belonging to
+    // a bigger hand. A hair over the index is enough: the index is already the
+    // fat one here, and what separates a thumb from a finger is where it grows
+    // and which way it points, not how much of it there is.
+    readonly property real _wt: root.palmWidth * 0.40
 
     // Packed side by side and centred on the palm, and the four together come
     // to just about the palm's own width. They used to overhang it by a fifth,
@@ -240,10 +355,12 @@ Node {
     // the outline drawn around them.
     readonly property real _deep: root.palmDepth * 0.82
 
-    // The thumb is the one thing on the hand that fills the palm's whole
-    // thickness - it is the only part with a joint that can turn to face the
-    // fingers, and a flat one reads as a fifth finger lying on its side.
-    readonly property real _deepT: root.palmDepth * 0.96
+    // Through the hand the thumb is deeper than a finger - it is the only part
+    // with a joint that can turn to face the others, and a flat one reads as a
+    // fifth finger lying on its side - but it does not fill the palm's whole
+    // thickness. At 0.96 against the fingers' 0.82 it stood a sixth proud of
+    // the back of the hand from every angle.
+    readonly property real _deepT: root.palmDepth * 0.88
 
     // The knuckle line sits on the BACK of the palm rather than down the middle
     // of it. Fingers fold to the palm side, so a knuckle on the centre line
@@ -292,12 +409,35 @@ Node {
         /*! Degrees away from the hand's centre line. */
         property real splay: 0
         /*!
-            How far each of the two joints bends at full curl. Measured against
-            the fist: it is what lands the tip on the front of the palm. Less
-            and the fist is a claw with the tips still out in the outline, more
-            and they drive back through the knuckles.
+            How far the KNUCKLE bends at full curl. Just past square, so the
+            near segment lies across the front of the palm.
         */
-        property real foldDeg: 96
+        property real foldNear: root._fn
+
+        /*!
+            And how far the second joint bends on top of it. The two together
+            are what land the tip ON the palm, and getting their sum wrong is
+            the whole difference between a fist and a jumble: at 96 and 96 -
+            which is what this was - the finger folds through 192 degrees and
+            comes back up PAST its own knuckle, so the tips ended up level with
+            the wrist and a palm's thickness clear of the hand in front of it.
+            Measured: 92 and 78 put the fingertip a little over half way down
+            the palm and the whole folded finger inside a block about two palm
+            thicknesses deep - which is what \l Hand's single-box fist is, so
+            the two levels of detail agree about how big a fist is.
+        */
+        property real foldFar: root._ff
+
+        /*!
+            How much of its length each segment gives up at full curl, near and
+            far. A cheat, and the same kind as everything else here: a fist
+            hides its own fingertips, so nothing is lost by drawing them short,
+            and what is bought is a folded finger that ends on the palm instead
+            of reaching back off the far side of it. The far segment gives up
+            more because it is the one doing the reaching.
+        */
+        property real tuckNear: root._tn
+        property real tuckFar: root._tf
         /*!
             Where the second hinge sits across the segment's depth: 0.5 on the
             palm-side face, 0 on the centre line. Half is right for a finger,
@@ -308,10 +448,10 @@ Node {
         */
         property real hinge: 0.5
 
-        readonly property real _seg1: _f.len * 0.45
-        readonly property real _seg2: _f.len - _f._seg1
+        readonly property real _seg1: _f.len * 0.45 * (1 - _f.tuckNear * _f.curl)
+        readonly property real _seg2: _f.len * 0.55 * (1 - _f.tuckFar * _f.curl)
 
-        eulerRotation: Qt.vector3d(_f.curl * _f.foldDeg, 0, _f.splay)
+        eulerRotation: Qt.vector3d(_f.curl * _f.foldNear, 0, _f.splay)
 
         BodyPart {
             width: _f.thick
@@ -334,7 +474,7 @@ Node {
         Node {
             y: -_f._seg1
             z: -_f.deep * _f.hinge
-            eulerRotation.x: _f.curl * _f.foldDeg
+            eulerRotation.x: _f.curl * _f.foldFar
 
             BodyPart {
                 width: _f.thick * _f.taper
@@ -388,23 +528,44 @@ Node {
     // thumb can do - the extended poses swing it out (Z) and only tilt it a
     // few degrees off the palm's plane (X).
     Node {
-        x: root._side * root.palmWidth * 0.44
-        y: -root.palmHeight * 0.38
-        z: -root.palmDepth * 0.35
+        x: root._side * root.palmWidth * root._tw
+        y: -root.palmHeight * root._td
+        z: -root.palmDepth * (0.35 + root._to)
 
         eulerRotation: Qt.vector3d(root._tx, 0, root._side * root._tz)
 
-        Finger {
-            len: root.palmHeight * 0.85
-            // One width all the way up. A thumb tapering to a point reads as
-            // a spike and a thumb widening toward the pad reads as a club;
-            // at two boxes there is not enough of it for either shape to look
-            // like anything but a mistake, and a plain stub reads as a thumb.
-            thick: root._wt
-            deep: root._deepT
-            taper: 1.0
-            curl: root._tc
-            hinge: 0.18
+        // The thumb TWISTED about its own length, and it needs a node of its
+        // own: a QML euler composes as Ry*Rx*Rz, so the Y slot above is applied
+        // outermost and turns the thumb about the HAND's axis, not its own.
+        // Nested inside the orienting node it is a roll of the thumb itself.
+        //
+        // Which is a thing a thumb is: its flat faces are turned about a
+        // quarter turn from a finger's, pad toward the other fingers and nail
+        // outward, and it is the one joint in a hand that does that. Left at
+        // zero the thumb is a finger that happens to grow lower down, and on a
+        // closed fist - where the broad face lands square to the eye - that
+        // reads as a slab lying on the knuckles rather than as a thumb.
+        Node {
+            eulerRotation.y: root._side * root._tr
+
+            Finger {
+                // A thumb is about two thirds of an index finger, and the
+                // index here is 1.15 palms - so 0.72. It was 0.85, which put
+                // it level with the middle finger and, with the thumbs-up
+                // stretch on top, LONGER than the index: a hand whose biggest
+                // digit is its thumb reads as a mitten with a spur.
+                len: root.palmHeight * 0.72 * root._tl
+                // One width all the way up. A thumb tapering to a point reads
+                // as a spike and one widening toward the pad reads as a club;
+                // at two boxes there is not enough of it for either shape to
+                // look like anything but a mistake, and a plain stub reads as
+                // a thumb.
+                thick: root._wt
+                deep: root._deepT
+                taper: 1.0
+                curl: root._tc
+                hinge: 0.18
+            }
         }
     }
 }

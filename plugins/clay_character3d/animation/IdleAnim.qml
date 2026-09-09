@@ -1,7 +1,35 @@
-import QtQuick
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+//
+// IdleAnim - back to standing, from wherever the last activity left the body.
+//
+// It used to write sixteen zeros, and sixteen zeros is a shop dummy: arms dead
+// straight, glued to the ribs, dead-parallel with the trunk. The arms now go
+// to action.js's REST instead - a few degrees out, a few forward, a bent
+// elbow - and everything else still goes to zero, because everything else IS
+// upright when a body stands still. REST is shared with GestureAnim, which
+// releases to the same pose, so a gesture that ends does not hand the joints
+// over to a second, different idea of standing.
 
+import QtQuick
+import "action.js" as ActionLib
+
+/*!
+    \qmltype IdleAnim
+    \inqmlmodule Clayground.Character3D
+    \inherits ProceduralAnim
+    \brief The resting pose: what a body holds when no activity and no gesture
+           is driving it.
+
+    \l Character runs it once whenever \l {Character::activity}{activity} is
+    Idle and no gesture holds the joints. The arm angles are \c {action.js}'s
+    REST; the trunk, the legs and the head go upright.
+
+    \sa GestureAnim, ActionCycleAnim
+*/
 ProceduralAnim {
     id: _idleAnim
+
+    readonly property var _rest: ActionLib.restPose()
 
     ParallelAnimation {
         // Reset the trunk to upright - the group, and the two spine segments
@@ -24,6 +52,16 @@ ProceduralAnim {
             to: Qt.vector3d(0, 0, 0)
         }
 
+        // The figure comes back up to its standing height: a stance that
+        // sat on bent knees, or a frozen frame of a gait, left it lower.
+        NumberAnimation {
+            duration: _idleAnim.duration
+            target: entity
+            property: "_heldLift"
+            to: 0
+            easing.type: Easing.InOutQuad
+        }
+
         // Reset head and hip (e.g. tilted by UseAnim)
         HeadEulerAnim {
             duration: _idleAnim.duration
@@ -36,46 +74,56 @@ ProceduralAnim {
             to: Qt.vector3d(0, 0, 0)
         }
 
-        // Reset right arm joints
+        // The arms. Not zero: see REST in action.js - the few degrees of
+        // clearance, forward carry and elbow bend that separate a person
+        // standing there from a mannequin.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.rightArm.upperArm
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(_idleAnim._rest.rightArm.upper[0],
+                            _idleAnim._rest.rightArm.upper[1],
+                            _idleAnim._rest.rightArm.upper[2])
         }
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.rightArm.lowerArm
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(_idleAnim._rest.rightArm.lower[0],
+                            _idleAnim._rest.rightArm.lower[1],
+                            _idleAnim._rest.rightArm.lower[2])
         }
-        // Not zero: a hanging arm rests with its palm turned in to the
-        // body, standing exactly as much as walking. Zero here left a
-        // character standing with both palms facing backwards.
+        // A hanging arm rests with its palm turned in to the body, standing
+        // exactly as much as walking. Zero here left a character standing with
+        // both palms facing backwards.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.rightArm.hand
-            to: Qt.vector3d(0, entity.handRestRoll, 0)
+            to: Qt.vector3d(_idleAnim._rest.rightArm.hand[0],
+                            _idleAnim._rest.rightArm.hand[1] / 90 * entity.handRestRoll,
+                            _idleAnim._rest.rightArm.hand[2])
         }
-        
-        // Reset left arm joints
+
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.leftArm.upperArm
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(_idleAnim._rest.leftArm.upper[0],
+                            _idleAnim._rest.leftArm.upper[1],
+                            _idleAnim._rest.leftArm.upper[2])
         }
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.leftArm.lowerArm
-            to: Qt.vector3d(0, 0, 0)
+            to: Qt.vector3d(_idleAnim._rest.leftArm.lower[0],
+                            _idleAnim._rest.leftArm.lower[1],
+                            _idleAnim._rest.leftArm.lower[2])
         }
-        // Not zero: a hanging arm rests with its palm turned in to the
-        // body, standing exactly as much as walking. Zero here left a
-        // character standing with both palms facing backwards.
         EulerAnim {
             duration: _idleAnim.duration
             target: entity.leftArm.hand
-            to: Qt.vector3d(0, -entity.handRestRoll, 0)
+            to: Qt.vector3d(_idleAnim._rest.leftArm.hand[0],
+                            _idleAnim._rest.leftArm.hand[1] / 90 * entity.handRestRoll,
+                            _idleAnim._rest.leftArm.hand[2])
         }
-        
+
         // Reset right leg joints
         EulerAnim {
             duration: _idleAnim.duration
@@ -92,7 +140,7 @@ ProceduralAnim {
             target: entity.rightLeg.foot
             to: Qt.vector3d(0, 0, 0)
         }
-        
+
         // Reset left leg joints
         EulerAnim {
             duration: _idleAnim.duration

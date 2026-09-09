@@ -243,6 +243,41 @@ Item {
             editTarget.say(speechInput.text, speechEmotion)
     }
 
+    /*!
+        Where the editor's point and present aim, in the CHARACTER's own frame:
+        up, forward and off to its left. Its own frame rather than the scene's,
+        so the same chip produces the same pose wherever the figure stands and
+        whichever way it is facing - which is what makes two clicks comparable.
+    */
+    property vector3d gestureTarget: Qt.vector3d(-0.5, 0.75, 0.9)
+
+    /*!
+        Plays one held gesture on the edited character. The gesture layer only
+        runs while the activity is idle, so this puts the activity back rather
+        than silently doing nothing - a chip that does nothing when a walk is
+        running is a chip nobody can tell from a broken gesture.
+    */
+    function playGesture(what) {
+        const c = editTarget
+        if (!c)
+            return
+        c.activity = Character.Activity.Idle
+        if (what === "" || what === "none") {
+            c.stopGesture()
+            return
+        }
+        // Scaled by the figure's own height, so the aim means the same thing
+        // on a child and on a giant.
+        const h = c.height * c.scale.y
+        const at = c.mapPositionToScene(Qt.vector3d(gestureTarget.x * h,
+                                                    gestureTarget.y * h,
+                                                    gestureTarget.z * h))
+        if (what === "point") c.pointAt(at)
+        else if (what === "present") c.presentAt(at)
+        else if (what === "thumbsUp") c.thumbsUp()
+        else if (what === "talk") c.gesticulate()
+    }
+
     // Parameter slider component
     // A choice in a row, drawn by hand: under the native macOS style a
     // Button's highlighted and checked looks do not repaint when the state
@@ -528,6 +563,142 @@ Item {
                             active: root.editTarget !== null && root.editTarget.activity === modelData.value
                             onPicked: if (root.editTarget) root.editTarget.activity = modelData.value
                         }
+                    }
+                }
+
+                // How much character to draw, and the one row that has to say
+                // what it is CURRENTLY drawing as well as what it was asked
+                // for: Auto is a policy, and a policy you cannot watch is a
+                // policy you argue with. Pinning it is the point of the other
+                // four chips - a character the camera lives on, a player
+                // above all, is better off at a fixed level than switching
+                // under its own close-up.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Detail"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: [
+                            { label: "auto", value: Character.Detail.Auto },
+                            { label: "high", value: Character.Detail.High },
+                            { label: "low", value: Character.Detail.Low },
+                            { label: "minimal", value: Character.Detail.Minimal }
+                        ]
+                        Chip {
+                            required property var modelData
+                            label: modelData.label
+                            active: root.editTarget !== null
+                                    && root.editTarget.detail === modelData.value
+                            onPicked: {
+                                if (!root.editTarget) return
+                                root.editTarget.detail = modelData.value
+                                root.scheduleAutoSave()
+                            }
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const names = ["minimal", "low", "high"]
+                        const now = names[c.effectiveDetail] || "?"
+                        return c.detail === Character.Detail.Auto
+                             ? "auto -> " + now
+                               + (c.view ? "" : "   (no view set: auto cannot measure, stays low)")
+                             : "pinned to " + now
+                    }
+                }
+
+                // How the two whole-body actions are performed. Both go
+                // through action.js, and both are shape-preserving: the
+                // sliders change the speed and the size of what the character
+                // is doing, never which pose it is in.
+                ParamSlider {
+                    label: "Effort"
+                    value: root.editTarget ? root.editTarget.actionIntensity : 0.5
+                    from: 0.0; to: 1.0
+                    onValueChanged: if (root.editTarget) root.editTarget.actionIntensity = value
+                }
+                ParamSlider {
+                    label: "Work height"
+                    value: root.editTarget ? root.editTarget.workHeight : 0.35
+                    from: 0.0; to: 1.0
+                    onValueChanged: if (root.editTarget) root.editTarget.workHeight = value
+                }
+
+                // Gestures. The held poses, which live on a layer of their own
+                // and only run while the activity is idle - so picking one here
+                // sets the activity back to idle rather than quietly doing
+                // nothing, which is what the plain verb does.
+                //
+                // Point and present need somewhere to aim, and the editor has
+                // no scene to ask. The target is taken from the CHARACTER's own
+                // frame instead - up, forward and off to its left - so the
+                // gesture is the same wherever the figure is standing and
+                // whichever way it is facing.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Gesture"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["none", "point", "present", "thumbsUp", "talk"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.gesture === modelData
+                                        || (modelData === "none" && root.editTarget.gesture === ""))
+                            onPicked: root.playGesture(modelData)
+                        }
+                    }
+                }
+
+                // What the fingers do when nothing else is shaping them. A
+                // layer below the gesture and below the activity, which is why
+                // picking a pose here can look like it did nothing: whichever
+                // of those is running owns the hands while it runs.
+                Text { text: "Hand pose"; font.pixelSize: 10; color: root._panelFgDim }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["relax", "open", "point", "thumbsUp", "fist"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && root.editTarget.handPose === modelData
+                            onPicked: if (root.editTarget) root.editTarget.handPose = modelData
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    // Which layer actually owns the hands right now, and what
+                    // the arms are holding. The one line that answers "I picked
+                    // a hand pose and nothing happened".
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const who = c.gesture !== "" ? "gesture " + c.gesture
+                                  : c.actionHandPose !== "" ? "activity"
+                                  : c.gaitHandPose !== "" ? "gait"
+                                  : "handPose"
+                        return "hands: " + c.rightArm.handPose + " (from " + who + ")"
+                             + (c.gesture !== ""
+                                ? "   " + (c.gestureSettled ? "settled" : "moving")
+                                  + (c.gestureHand !== "" ? " / " + c.gestureHand : "")
+                                : "")
                     }
                 }
 

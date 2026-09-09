@@ -11,6 +11,7 @@ import Clayground.Canvas3D
 import "bodyparts"
 import "animation"
 import "animation/gait.js" as GaitLib
+import "animation/action.js" as ActionLib
 
 pragma ComponentBehavior: Bound
 
@@ -157,8 +158,9 @@ BodyPartsGroup {
         A layer, not a setting: \l handPose is the author's and is never
         written to. It sits between a gesture and \l handPose: anger closes
         the hands whether the character is walking or standing still, because
-        a furious figure does not stand with its hands open; any other gait
-        opens them while it runs and gives \l handPose straight back on stop.
+        a furious figure does not stand with its hands open. Otherwise it is
+        the SPEED that decides - a walk carries loose hands, a run carries
+        straight ones - and \l handPose comes straight back on stop.
 
         \sa handPose, gaitFactors
     */
@@ -176,10 +178,36 @@ BodyPartsGroup {
     */
     property real handRestRoll: 90
 
+    // A walk carries LOOSE hands and a run carries straight ones. Both used to
+    // be "open", which is the hand held flat with the fingers fanned - and
+    // that is a hand doing something, not a hand being carried. At walking
+    // pace it read as a figure wading; at a run it reads as a sprinter's
+    // flat hand, which is what runners actually do and why the run keeps it.
+    // Idle already falls through to handPose, whose default is "relax", so
+    // this also makes standing and walking agree about the hands rather than
+    // changing their shape at the first step.
     readonly property string gaitHandPose:
         _character.gaitFactors.fist > 0.5 ? "fist"
-      : (_walkAnim.running || _runAnim.running) ? "open"
+      : _runAnim.running ? "open"
+      : _walkAnim.running ? "relax"
       : ""
+
+    /*!
+        \qmlproperty string Character::actionHandPose
+        \readonly
+        \brief What the running activity wants the hands to be doing, "" when
+               none does.
+
+        The same kind of layer as \l gaitHandPose and it sits beside it: a
+        \c Fighting character's hands are fists and a \c Using character's are
+        loose, whatever \l handPose says. Before it existed nothing on the
+        \c Fighting path could close a hand, so a punch was thrown with the
+        fingers open and the whole cycle read as clawing rather than boxing.
+
+        \sa handPose, gaitHandPose, ActionCycleAnim::handPose
+    */
+    readonly property string actionHandPose: _fightAnim.handPose !== "" ? _fightAnim.handPose
+                                           : _useAnim.handPose
 
     readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
                                    : _runAnim.running ? _runAnim.lift
@@ -238,6 +266,78 @@ BodyPartsGroup {
         _chest.eulerRotation = Qt.vector3d(p.chest[0], p.chest[1], p.chest[2])
         _head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
         _character._heldLift = p.lift * _character.legHeight
+    }
+
+    /*!
+        \qmlproperty real Character::actionIntensity
+        \brief How hard at it a \c Using or \c Fighting character is, 0..1.
+
+        Speed and amplitude, never a different pose: a harder fight is a faster
+        one with a tighter guard, and harder work is a bigger stroke.
+
+        \sa activity, workHeight
+    */
+    property real actionIntensity: 0.5
+
+    /*!
+        \qmlproperty real Character::workHeight
+        \brief Where the work is while \l activity is \c Using: 0 a table at
+               the waist, 0.5 a counter at the chest, 1 a shelf at head height.
+
+        Moves the whole posture, not only the hands: over a table the back
+        rounds and the head is down at the work, at a counter the forearms
+        angle up, and at a shelf the back arches and the head comes up -
+        reaching high is not something anyone does bent over.
+
+        \sa activity, actionIntensity
+    */
+    property real workHeight: 0.35
+
+    /*!
+        \qmlmethod var Character::actionPoseAt(string action, real t)
+        \brief The joint angles the \a action cycle ("use" or "fight") holds at
+               phase \a t, 0..1, with nothing running.
+
+        Pure, and the same answer the running cycle gives at that moment -
+        \l ActionCycleAnim plays this very function. Returns \c {{rightArm,
+        leftArm, rightLeg, leftLeg, hip, torso, belly, chest, head, hand}} in
+        the joints' own conventions, with the wrist roll as a fraction of a
+        quarter turn. The gesture sheet is drawn from it.
+
+        \sa applyActionPose(), gaitPoseAt()
+    */
+    function actionPoseAt(action, t) {
+        return ActionLib.poseAt(action === "fight" ? _fightAnim.table : _useAnim.table, t)
+    }
+
+    /*!
+        \qmlmethod var Character::actionTable(string action)
+        \brief The derived numbers the \a action cycle ("use" or "fight") is
+               replayed from at this character's \l actionIntensity and
+               \l workHeight - its \c cycleMs among them.
+
+        \sa actionPoseAt(), ActionCycleAnim::table
+    */
+    function actionTable(action) {
+        return action === "fight" ? _fightAnim.table : _useAnim.table
+    }
+
+    /*!
+        \qmlmethod void Character::applyActionPose(string action, real t)
+        \brief Freezes the joints at phase \a t of the \a action cycle.
+
+        For looking, not for playing, exactly as \l applyGaitPose() is: it only
+        makes sense while \l activity is Idle and no gesture holds the joints,
+        since a running cycle would animate over it within a frame. A row of
+        characters frozen at successive phases is the action on one sheet; see
+        \c bench/GestureSheetSandbox.qml.
+
+        The hands are NOT written here - they are \l handPose's, and a sheet
+        sets that itself.
+    */
+    function applyActionPose(action, t) {
+        const a = action === "fight" ? _fightAnim : _useAnim
+        a.apply(t)
     }
 
     // Bounding box dimensions (derived from body parts)
@@ -1476,6 +1576,7 @@ BodyPartsGroup {
 
             articulated: _character.detailedHands
             handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
                     : _character.gaitHandPose !== "" ? _character.gaitHandPose
                     : _character.handPose
         }
@@ -1487,6 +1588,7 @@ BodyPartsGroup {
             mirrored: true
             articulated: _character.detailedHands
             handPose: _gestureAnim.leftHandPose !== "" ? _gestureAnim.leftHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
                     : _character.gaitHandPose !== "" ? _character.gaitHandPose
                     : _character.handPose
 
@@ -1604,9 +1706,9 @@ BodyPartsGroup {
             return Character.Detail.Low
 
         const base = _character.scenePosition
+        const tall = _character.height * _character.scale.y
         const foot = v.mapFrom3DScene(base)
-        const head = v.mapFrom3DScene(
-                         base.plus(Qt.vector3d(0, _character.height * _character.scale.y, 0)))
+        const head = v.mapFrom3DScene(base.plus(Qt.vector3d(0, tall, 0)))
         // Behind the lens mapFrom3DScene reports a negative z, and a character
         // straddling the near plane gives a screen height of thousands. Ten
         // boxes a hand for something nobody can see is the cheapest bug here to
@@ -1614,21 +1716,63 @@ BodyPartsGroup {
         if (foot.z <= 0 || head.z <= 0)
             return Character.Detail.Minimal
 
-        const px = Math.abs(head.y - foot.y)
+        // How long the body axis is on screen. The full 2D distance rather
+        // than the vertical drop alone: a character off to the side of a wide
+        // frame, or seen through a rolled camera, stands at an angle on screen
+        // and the vertical component of that is short by however much it is
+        // tilted.
+        let px = Math.hypot(head.x - foot.x, head.y - foot.y)
 
         // A gesture that shapes the hands is the whole reason fingers exist, so
         // it gets them at twice the distance. Not an override: a character
         // pointing at something from across the map still does not need a
         // finger, and the plain hand has a pose for pointing precisely so it
         // does not have to.
+        // An activity that shapes the hands counts too: boxing is fists, and
+        // a fist is exactly the shape that stops reading the moment the
+        // fingers go.
         const claimed = _gestureAnim.rightHandPose !== ""
                      || _gestureAnim.leftHandPose !== ""
+                     || _character.actionHandPose !== ""
         // Divided by handScale: the threshold is really asking whether a
         // FINGER is big enough to be worth ten boxes, and figure height is
         // only a proxy for that. A character drawn with cartoon hands has
         // readable fingers at half the figure height of one without.
         const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
                    / Math.max(0.01, _character.handScale)
+
+        // THE BODY AXIS IS NOT ENOUGH ON ITS OWN, and this is not a refinement.
+        //
+        // A camera looking along a character's own length - up at it from the
+        // floor, or down at it from above - projects a ten-unit body to a few
+        // pixels. The measurement above then says "tiny" about a figure filling
+        // the screen, and the character drops to Minimal because of where the
+        // camera is standing rather than how far away it is. Measured: at a
+        // fixed sixteen units a figure that is High at eye level fell to Low by
+        // 70 degrees of camera pitch and to Minimal by 85, up and down alike.
+        //
+        // So when the body axis has gone short, the two HORIZONTAL axes are
+        // measured too, each turned into the height it would imply, and the
+        // longest wins. The view direction cannot be near-parallel to all three
+        // at once: down the worst diagonal it is about 55 degrees off each,
+        // which reads them all a fifth short - and a threshold with a
+        // hysteresis band around it does not care about a fifth.
+        //
+        // Only when it matters. Two extra projections per poll is not much, but
+        // a crowd pays it per character, and a character that is already big
+        // enough for fingers cannot be made bigger by measuring it again.
+        if (px <= want) {
+            const wide = Math.max(0.01, _character.width * _character.scale.x)
+            const deep = Math.max(0.01, _character.depth * _character.scale.z)
+            const across = v.mapFrom3DScene(base.plus(Qt.vector3d(wide, 0, 0)))
+            const through = v.mapFrom3DScene(base.plus(Qt.vector3d(0, 0, deep)))
+            if (across.z > 0)
+                px = Math.max(px, Math.hypot(across.x - foot.x, across.y - foot.y)
+                                  / wide * tall)
+            if (through.z > 0)
+                px = Math.max(px, Math.hypot(through.x - foot.x, through.y - foot.y)
+                                  / deep * tall)
+        }
 
         // Asymmetric on purpose at both boundaries: harder to gain detail than
         // to keep it. A character sitting exactly on a threshold would
@@ -1728,6 +1872,8 @@ BodyPartsGroup {
     UseAnim {
         id: _useAnim
         entity: _character
+        intensity: _character.actionIntensity
+        workHeight: _character.workHeight
         running: _character.activity === Character.Activity.Using
         loops: Animation.Infinite
     }
@@ -1735,6 +1881,7 @@ BodyPartsGroup {
     FightAnim {
         id: _fightAnim
         entity: _character
+        intensity: _character.actionIntensity
         running: _character.activity === Character.Activity.Fighting
         loops: Animation.Infinite
     }

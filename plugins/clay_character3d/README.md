@@ -391,7 +391,7 @@ one recording side by side.
 
 ### Gestures
 
-Walk, run, idle and fight are cycles. A gesture is the other kind of
+Walk, run, idle, working and boxing are cycles. A gesture is the other kind of
 animation: a pose that eases in, is **held** for as long as it is wanted,
 and eases back. Both are driven from `Character`:
 
@@ -466,6 +466,144 @@ from such a handler therefore logs a QML binding loop - harmless but noisy.
 Defer the reaction with `Qt.callLater(...)`, or react from a `Timer`, as
 the professor kit's `FlowGuide` does.
 
+### Standing, working and boxing
+
+Everything the arms do that is neither a walk nor a held gesture lives in one
+Qt-free model, `animation/action.js`, the way the walk and the run live in
+`animation/gait.js`:
+
+| what | where it is | who plays it |
+|---|---|---|
+| standing still | `REST` | `IdleAnim`, and `GestureAnim` when it releases |
+| working at something | base `use` | `UseAnim` |
+| boxing | base `fight` | `FightAnim` |
+
+`UseAnim` and `FightAnim` are `ActionCycleAnim` with one property set. Unlike
+the gait cycle, which spells its poses out as animations and keeps a matching
+`poseAt()` beside them, an action cycle animates ONE number - the phase - and
+writes what `actionPoseAt()` answers for it. There is no second copy to keep in
+step: the strip of stills in `bench/GestureSheetSandbox.qml` is the same
+function the shipped cycle plays.
+
+```qml
+Character {
+    activity: Character.Activity.Using
+    workHeight: 0.2          // 0 a table at the waist, 0.5 a counter, 1 a shelf at head height
+    actionIntensity: 0.7     // amplitude, tempo and how much of the body joins in
+}
+```
+
+| property / method | meaning |
+|---|---|
+| `actionIntensity` | 0..1. A harder fight is a faster one with a tighter guard and a bigger bounce; harder work is bigger, quicker, and past six tenths one hand holds while the other hits. |
+| `workHeight` | 0..1, `Using` only. A posture, not a hand height: the back rounds over a table, the forearms angle up to a counter, the back arches and the head comes up at a shelf. |
+| `actionHandPose` | What the running activity wants the hands to be doing, `""` when none does. A fist while boxing. |
+| `actionPoseAt(action, t)` | The joint angles at phase `t`, with nothing running. Pure. |
+| `actionTable(action)` | The derived numbers the cycle is replayed from, `cycleMs` among them. |
+| `applyActionPose(action, t)` | Freezes an idle character at that phase - what the sheets draw. |
+
+**Boxing** is an amateur's, on purpose, and orthodox: the left leads. One cycle
+is jab, jab, cross - short, short, LONG - and then the guard, which bounces on
+the knees and rolls a little around its blade until the next. The guard is
+what the whole thing is judged on, and the five things that make it read as a
+guard are kept whatever else moves: both fists above both elbows, both elbows
+below the shoulders and inside the ribs, the fists at the cheeks in front of
+the face, a bladed and staggered stance on bent knees with the rear heel up,
+and the hand that is not punching welded to the cheek. The jab barely winds
+up; the cross draws back, turns the hips a third of a turn and the shoulders
+further, leans in past what a professional would, and the trunk comes home
+before the arm does. The head turns back part of the blade to look at the
+opponent, and drops behind the shoulder on the cross.
+
+**Working** is generic on purpose - it has to pass for cooking, tinkering,
+sorting and typing alike - so it is built from what those share, which is a
+rhythm rather than a stroke. A cycle is four beats: the lead hand reaches for
+something, both hands work at it in short strokes, the lead hand presses or
+places it, and the body settles and glances up. The two hands are never level
+and never mirrored (the lead sits ahead and above; the off hand does two thirds
+as much and lags by four tenths of a stroke); the head leads the reach and
+lags the press; and every fourth cycle the glance is a proper look up, off
+`ActionCycleAnim.cycle`, so the loop is not noticed as one.
+
+`actionHandPose` sits between a gesture and `gaitHandPose` in the chain that
+decides a hand's shape, and it is why a punch is thrown with a closed hand:
+nothing on the `Fighting` path could reach `handPose` before it, so the boxing
+cycle ran with the fingers open and read as clawing.
+
+`node plugins/clay_character3d/animation/action.test.js` checks the model -
+that a guard keeps both fists above the elbows and both elbows below the
+shoulders, that the rear hand does not move for a jab, that a cross winds up
+further and turns the trunk more than a jab, that the working loop has beats
+and its two hands are never in step. It runs under `ctest` as
+`node_character3d_action`.
+
+**Where to look at it.** `bench/ActionSandbox.qml` plays either cycle on one
+figure with the shipped animator - the figure's activity really is `Fighting` -
+with a see-through bag at a straight's reach or a table under the hands,
+right-drag to orbit, wheel to zoom, `space` to freeze and a `phase` slider to
+scrub the frozen cycle. Its `report()` measures each fist against its own
+shoulder and against the chin in head heights, which is what a guard is a
+claim about:
+
+```bash
+clayrender plugins/clay_character3d/bench/ActionSandbox.qml --size 800x700 \
+    --set 'action="fight"' --set 'playing=false' --set 'phase=0.605' \
+    --wait-for 'posed' --trace 'report()' --trace-out - --out /tmp/cross.png
+```
+
+One sign in the model was measured there rather than reasoned: a positive Y
+rotation on an upper arm carries a forward-pointing forearm OUTWARD on the
+right side, so `arm()` negates the yaw against the side. Written the other way
+round, the rear fist of the guard sat a head and a half outside the face and
+looked right in every sheet that had no reference to measure it against.
+
+### The gesture sheet
+
+The bench for everything above and for the held gestures with it:
+`bench/GestureSheetSandbox.qml` puts them side by side, one frozen figure each,
+same light, same angle, labelled — the gait cycle sheet's trick applied to
+poses rather than to phases.
+
+```bash
+clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
+    --size 2200x700 --wait-for 'ready' --out /tmp/gestures.png
+
+# one cycle as a strip of phases instead
+clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
+    --size 1900x620 --set 'action="fight"' --set 'frames=8' --set 'yaw=90' \
+    --wait-for 'ready' --out /tmp/boxing.png
+```
+
+The set is the thing being judged, not any one pose. A gesture looked at on its
+own is looked at against a memory of the last one, and a memory grades
+generously — which is how a fist that folded back past its own knuckles
+survived for as long as it was only ever seen one at a time.
+
+`silhouette=true` takes the lighting and the colour away and leaves the
+outline, which is all a gesture has at any distance; `scale` shrinks the
+figures in place for the small-on-screen read. Every pose on it is frozen and
+deterministic — the cycles from `applyActionPose()`, the aimed gestures through
+the real solver with its settle cut to a frame — so `ready` is the property to
+wait for and two renders across a change are comparable.
+
+For one hand very close up, `bench/HandSandbox.qml` is still the bench: the
+sheet answers "is this recognisable", the hand bench answers "is this a hand".
+`CharacterEditor` carries the same set as chips, for turning a knob and looking.
+
+**Where this workflow lives.** In `bench/`, next to the code it checks, and not
+as a lab under `labs/`. A lab is a teaching artifact with an authoring contract
+to match — a paper, a `.grafli` overview, EN and DE strings from the first
+commit, committed `.labrec` records — and it is aimed at a reader learning a
+domain. A character-tuning rig has no teaching content and exactly one
+audience: whoever is editing this plugin. It also needs to sit beside the
+component it is judging, because the two are edited in the same breath. The
+benches build nothing, cost nothing and are already how the gait, the face and
+the hand are judged; a fourth of them is the cheap, consistent answer. If a
+character-tuning LAB is ever wanted — expressions, sprites and animation review
+for a reader rather than for a maintainer — it is a different artifact with a
+different audience, and it can be built on top of these benches rather than
+instead of them.
+
 ### Hands and faces, and how much of each to draw
 
 `handPose` says what the hands are doing - `relax`, `open`, `point`,
@@ -534,10 +672,74 @@ legible is what produces a spike where an index finger should be.
 `detail` accounts for it: bigger hands mean the fingers are worth drawing from
 further away, so the Auto threshold divides by `handScale`.
 
+A third knob, and this one is about not being noticed. `ParametricCharacter`'s
+two width sliders scale the arm over a spread of two and a half from thin and
+unmuscled to heavy and muscular, and the palm is a fixed fraction of the arm —
+so the hand used to take all of it, which came out as claws on one figure and
+mittens on the other. `handBuildResponse` (0.5 by default) is how much of the
+build the hand takes: at 1 it is glued to the arm as before, at 0 it is the
+same hand on every body. Only the cross-section — hand *length* follows the
+arm's length, which is a matter of `maturity`. `tests/qml_head/tst_build.qml`
+pins it, and `bench/HandSandbox.qml` takes `mass`, `muscle` and `handBuild` so
+the sweep can be looked at:
+
+```bash
+clayrender plugins/clay_character3d/bench/HandSandbox.qml --size 520x440 \
+    --set 'mass=0' --set 'muscle=0' \
+    --eval 'setCompare(false); raise("level"); setPose("open"); look("hand"); camDist = 7' \
+    --settle --out /tmp/thin.png
+```
+
+The header line reports `palm/arm`, which is the number the question is
+actually about: 1.05 at every build with the response at 1, and 1.41 / 1.05 /
+0.88 across thin / neutral / heavy at the default.
+
 The two levels are built to match in outline, so the switch is meant to go
 unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
 checked, and `h` flips the fingers on one character without moving anything
 else.
+
+**Tuning a hand pose.** `n` on that bench opens a slider per field of the row
+the current pose resolves to — the four curls, the fan, the five thumb numbers,
+and the fold shape shared by every finger. They are written onto the right hand
+as you drag, `0` puts back what ships, and `k` prints the row in exactly the
+form `DetailedHand`'s table is written in, ready to paste:
+
+```
+        if (name === "fist")
+            return { i: 1.00, m: 1.00, r: 1.00, l: 1.00, sp: 0.00,
+                     tx: 120, tz: 10, tc: 0.45, tl: 1.15, toff: 0.55 }
+```
+
+Every number in that table was arrived at by looking, and looking is done with
+the hand in front of you rather than in an editor with a rebuild between each
+guess. The channel is `Arm.poseOverride` → `DetailedHand.poseOverride`, a
+partial replacement of the pose row; it is a debug channel and nothing ships
+with it set.
+
+### How much character to draw
+
+`detail` is `Character.Detail.Auto`, `High`, `Low` or `Minimal`. Auto measures
+how big the character lands on screen and picks between the other three; it
+needs `view` set, and stays `Low` without one.
+
+Pin it for a character the camera lives on — a player above all. Auto is a
+policy about distance, and a character that is always in close-up has no
+distance to decide anything about; `CharacterEditor`'s **Detail** row does it
+by hand, and shows what Auto currently resolves to next to what it was asked
+for.
+
+Auto measures the character's apparent size off whichever of its three axes is
+least foreshortened, not off its height alone. That is not a refinement: a
+camera looking along a character's own length — up at it from the floor, down
+at it from above — projects a ten-unit body to a few pixels, and measuring the
+body axis alone said *tiny* about a figure filling the screen. Measured at a
+fixed sixteen units, a figure that was `High` at eye level fell to `Low` by 70
+degrees of camera pitch and to `Minimal` by 85, up and down alike. The two
+horizontal axes are only projected when the body axis has already gone short,
+so a character that is plainly close enough costs nothing extra, and at eye
+level the horizontal estimate never wins — the distance thresholds are exactly
+what they were.
 
 ### The face, and how it is drawn
 

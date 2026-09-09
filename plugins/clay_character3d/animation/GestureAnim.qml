@@ -25,6 +25,7 @@
 
 import QtQuick
 import QtQuick3D
+import "action.js" as ActionLib
 
 /*!
     \qmltype GestureAnim
@@ -308,9 +309,15 @@ Node {
     // in front of the chest the hand sits ON the torso, and a thumb that does
     // not break the silhouette is a thumb nobody sees from more than a few
     // steps away. Out to the side it reads against the background.
-    readonly property real _thumbUpperPitch: -30   // just forward of hanging
-    readonly property real _thumbElbow: 60         // -30 - 60 = level
-    readonly property real _thumbSwing: 30         // and out, clear of the body
+    //
+    // The pair was -30 and 60, which is level but LOW: the fist sat by the
+    // ribs at belly height, and a thumb there is a thumb against the trunk -
+    // two skin-coloured boxes on a skin-coloured background, invisible from
+    // more than a few steps. Raised to shoulder height and carried further
+    // out, the same thumb has the sky behind it.
+    readonly property real _thumbUpperPitch: -55   // forward and up, above the shoulder
+    readonly property real _thumbElbow: 35         // -55 - 35 = level
+    readonly property real _thumbSwing: 40         // and out, clear of the body
     readonly property real _thumbRoll: 90          // palm turned to face the body
     readonly property real _thumbHeadPitch: -6     // chin up a fraction; a pleased pose
 
@@ -328,13 +335,19 @@ Node {
     // that is what pointing is for. The lift shares the elevation with the
     // elbow so a low present drops the whole arm slightly rather than
     // straightening it.
-    readonly property real _presentLift: 25        // upper arm forward of hanging, at level
-    readonly property real _presentLiftMin: 8
-    readonly property real _presentLiftMax: 30
+    //
+    // The lift is what decides the HEIGHT of the offered hand, and 25 put it
+    // at the belly - which reads as carrying a tray, not as offering
+    // anything. The doc for this gesture has always said "chest height"; at
+    // 38 it finally is one, and the elbow stays every bit as bent because the
+    // bend is derived from the lift rather than set beside it.
+    readonly property real _presentLift: 38        // upper arm forward of hanging, at level
+    readonly property real _presentLiftMin: 20
+    readonly property real _presentLiftMax: 45
     readonly property real _presentElbowMin: 45    // "clearly bent"
     readonly property real _presentElbowMax: 95
     readonly property real _presentDropMax: -18    // forearm below level, degrees
-    readonly property real _presentRiseMax: 10     // and above it
+    readonly property real _presentRiseMax: 12     // and above it
     // The forearm turns toward the target about the shoulder's vertical axis,
     // which yaws the whole arm; capped so a hand never crosses the chest.
     readonly property real _presentYawMax: 45
@@ -979,6 +992,27 @@ Node {
 
         readonly property vector3d zero: Qt.vector3d(0, 0, 0)
 
+        // What an arm this layer is NOT using is holding. Standing still is a
+        // pose like any other and it belongs to action.js's REST, not to a
+        // vector of zeros here: a gesture that zeroed the free arm handed
+        // IdleAnim a straight arm to bend again the moment it was released,
+        // which is a twitch on every stopGesture().
+        readonly property var _rest: ActionLib.restPose()
+        readonly property real _rollDeg: (root.entity && root.entity.handRestRoll !== undefined)
+                                         ? root.entity.handRestRoll : 90
+        function _v(a) { return Qt.vector3d(a[0], a[1], a[2]) }
+        readonly property vector3d rUpperRest: _pose._v(_pose._rest.rightArm.upper)
+        readonly property vector3d lUpperRest: _pose._v(_pose._rest.leftArm.upper)
+        readonly property vector3d lowerRest: _pose._v(_pose._rest.rightArm.lower)
+        readonly property vector3d rHandRest: Qt.vector3d(
+            _pose._rest.rightArm.hand[0],
+            _pose._rest.rightArm.hand[1] / 90 * _pose._rollDeg,
+            _pose._rest.rightArm.hand[2])
+        readonly property vector3d lHandRest: Qt.vector3d(
+            _pose._rest.leftArm.hand[0],
+            _pose._rest.leftArm.hand[1] / 90 * _pose._rollDeg,
+            _pose._rest.leftArm.hand[2])
+
         // lean is the total forward pitch of the trunk, curve how much of it
         // is a bend rather than a tilt.
         function spine(lean, curve) {
@@ -992,12 +1026,12 @@ Node {
             head = look
             belly = zero; chest = zero
             rPose = ""; lPose = ""
-            rUpper = which > 0 ? upper : zero
-            rLower = which > 0 ? lower : zero
-            rHand = which > 0 ? wrist : zero
-            lUpper = which < 0 ? upper : zero
-            lLower = which < 0 ? lower : zero
-            lHand = which < 0 ? wrist : zero
+            rUpper = which > 0 ? upper : rUpperRest
+            rLower = which > 0 ? lower : lowerRest
+            rHand = which > 0 ? wrist : rHandRest
+            lUpper = which < 0 ? upper : lUpperRest
+            lLower = which < 0 ? lower : lowerRest
+            lHand = which < 0 ? wrist : lHandRest
         }
 
         // Both arms at once, wrists and hand shapes included - which is what
@@ -1021,8 +1055,8 @@ Node {
             head = look
             belly = zero; chest = zero
             rPose = ""; lPose = ""
-            rUpper = zero; rLower = zero; rHand = zero
-            lUpper = zero; lLower = zero; lHand = zero
+            rUpper = rUpperRest; rLower = lowerRest; rHand = rHandRest
+            lUpper = lUpperRest; lLower = lowerRest; lHand = lHandRest
         }
 
         function release(rest) {

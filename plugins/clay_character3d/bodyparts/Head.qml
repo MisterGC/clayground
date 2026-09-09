@@ -53,7 +53,11 @@ BodyPartsGroup {
 
     /*!
         \qmlproperty color Head::eyeColor
-        \brief Color of the irises.
+        \brief Colour of the IRISES - not of the eye as a whole.
+
+        The white around them is drawn by the face shader and is not a
+        property: there is nothing to set it to. Setting this one white
+        therefore does not make a pale eye, it makes a figure with no pupils.
     */
     property color eyeColor: "#4a3728"
 

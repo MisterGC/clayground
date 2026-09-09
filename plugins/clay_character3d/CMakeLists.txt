@@ -61,6 +61,8 @@ clay_plugin( Character3D
         # Animation System
         animation/ProceduralAnim.qml
         animation/gait.js
+        animation/action.js
+        animation/ActionCycleAnim.qml
         animation/GaitCycleAnim.qml
         animation/WalkAnim.qml
         animation/RunAnim.qml
@@ -99,6 +101,12 @@ endif()
 # all-neutral gait is the legacy walk and run to the digit - the one claim a
 # screenshot cannot make.
 clay_add_node_test(character3d_gait SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/gait.test.js)
+
+# The action model - what the arms do when the character is neither walking nor
+# holding a gesture - is Qt-free for the same reason, and the claims it makes
+# (a guard keeps both fists above the elbows, a punch closes the hand, a
+# working stroke actually moves) are numbers rather than screenshots.
+clay_add_node_test(character3d_action SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/action.test.js)
 
 # Behaviour suites. GazeAnim and ListenAnim ask their head and speaker for a
 # handful of properties and nothing else, so they are tested against stubs -
