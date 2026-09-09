@@ -206,13 +206,32 @@ BodyPartsGroup {
 
         \sa handPose, gaitHandPose, ActionCycleAnim::handPose
     */
-    readonly property string actionHandPose: _fightAnim.handPose !== "" ? _fightAnim.handPose
+    readonly property string actionHandPose: _character.moveHandPose !== "" ? _character.moveHandPose
+                                           : _fightAnim.handPose !== "" ? _fightAnim.handPose
                                            : _useAnim.handPose
 
     readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
                                    : _runAnim.running ? _runAnim.lift
                                    : _character._heldLift
     property real _heldLift: 0
+
+    /*!
+        \qmlproperty real Character::bodyDrift
+        \readonly
+        \brief How far the body has travelled forward over its own feet, in
+               the character's own units.
+
+        The companion of \l gaitLift on the other axis, and written by the
+        same animators: a step, a jump or a stagger moves the whole figure -
+        feet included - relative to the character's position, and comes back
+        to zero by the end of the move. Carrying the character itself across
+        the floor is the caller's business; nothing here ever writes
+        \c position.
+
+        \sa gaitLift, moveSet
+    */
+    readonly property real bodyDrift: _character._heldDrift
+    property real _heldDrift: 0
 
     /*!
         \qmlmethod var Character::gaitPoseAt(string base, real t)
@@ -338,6 +357,217 @@ BodyPartsGroup {
     function applyActionPose(action, t) {
         const a = action === "fight" ? _fightAnim : _useAnim
         a.apply(t)
+    }
+
+    // ============================================================================
+    // LOADABLE MOVE SETS
+    // ============================================================================
+    //
+    // Everything above this line is the BASIC SET: walking, running, standing,
+    // gazing, listening, gesturing, talking, working and boxing are what a
+    // character IS, every game wants them, and they are always-resident
+    // children of this file. A MOVE SET is what a character KNOWS - a martial
+    // art, a dance, a trade's hand-work. One game wants it and the next does
+    // not, so it is loaded onto a character on demand, replaces whatever was
+    // loaded before it, and can be unloaded again by clearing moveSet.
+
+    /*!
+        \qmlproperty string Character::moveSet
+        \brief The loadable move set on this character, "" for none.
+
+        Either the name of a set that ships with the plugin - see
+        \l shippedMoveSets, currently \c {"martial arts"} - or the URL of a
+        \l MoveSet QML file of your own. Setting it loads the set and drops
+        whatever was loaded before; setting it to "" unloads.
+
+        Loading does not itself move the character. Play something with
+        \l playMove():
+
+        \qml
+        Character {
+            id: fighter
+            moveSet: "martial arts"
+            Component.onCompleted: fighter.playMove("stance")
+        }
+        \endqml
+
+        A set only runs while \l activity is Idle, exactly as a gesture does:
+        \l playMove() puts the activity back to Idle rather than quietly doing
+        nothing, and starting any other activity drops the move.
+
+        \sa playMove(), moves, MoveSet, MartialArts
+    */
+    property string moveSet: ""
+
+    /*!
+        \qmlproperty var Character::shippedMoveSets
+        \readonly
+        \brief The sets that ship with the plugin, as a map of name to the URL
+               \l moveSet resolves it to.
+    */
+    readonly property var shippedMoveSets: ({
+        "martial arts": Qt.resolvedUrl("movesets/MartialArts.qml")
+    })
+
+    /*!
+        \qmlproperty var Character::moves
+        \readonly
+        \brief What the loaded set offers: a list of
+               \c {{name, label, group, loop, holds}}, empty when no set is
+               loaded.
+
+        Enough for a UI to build a row of buttons without knowing what the set
+        is about.
+    */
+    readonly property var moves: _character._moveSetItem
+                               ? _character._moveSetItem.moves : []
+
+    /*!
+        \qmlproperty string Character::moveSetName
+        \brief What the loaded set calls itself, "" when none is loaded.
+    */
+    readonly property string moveSetName: _character._moveSetItem
+                                        ? _character._moveSetItem.name : ""
+
+    /*!
+        \qmlproperty string Character::activeMove
+        \readonly
+        \brief The move being played, or the one whose last frame is being
+               held; "" when nothing is.
+    */
+    readonly property string activeMove: _character._moveSetItem
+                                       ? _character._moveSetItem.move : ""
+
+    /*!
+        \qmlproperty bool Character::movePlaying
+        \readonly
+        \brief True while a move is actually animating - false while a
+               knockdown lies on the floor, which \l moveHolding is for.
+    */
+    readonly property bool movePlaying: _character._moveSetItem
+                                      ? _character._moveSetItem.playing : false
+
+    /*!
+        \qmlproperty bool Character::moveHolding
+        \readonly
+        \brief True while the loaded set owns the joints - playing, or sitting
+               on the last frame of a move that holds.
+    */
+    readonly property bool moveHolding: _character._moveSetItem
+                                      ? _character._moveSetItem.holding : false
+
+    /*!
+        \qmlproperty string Character::moveHandPose
+        \readonly
+        \brief What the running move wants the hands to be doing, "" when no
+               move is running. Folded into \l actionHandPose.
+    */
+    readonly property string moveHandPose: _character._moveSetItem
+                                         ? _character._moveSetItem.handPose : ""
+
+    /*!
+        \qmlsignal Character::moveFinished(string move)
+        \brief Emitted when a one-shot move of the loaded set reaches its end.
+    */
+    signal moveFinished(string move)
+
+    /*!
+        \qmlmethod bool Character::playMove(string move)
+        \brief Plays \a move of the loaded set. Returns false, and does
+               nothing, when no set is loaded or the set has no such move.
+
+        A move owns the whole body, so this drops any held gesture and puts
+        \l activity back to Idle first - a call that quietly did nothing while
+        a walk was running is one nobody can tell from a broken move.
+    */
+    function playMove(move) {
+        if (!_character._moveSetItem)
+            return false
+        _character.activity = Character.Activity.Idle
+        _gestureAnim.drop()
+        return _character._moveSetItem.play(move)
+    }
+
+    /*!
+        \qmlmethod void Character::stopMove()
+        \brief Stops the running move and lets go of the joints, which the
+               idle pose then takes back to standing.
+    */
+    function stopMove() {
+        if (_character._moveSetItem)
+            _character._moveSetItem.stop()
+    }
+
+    /*!
+        \qmlmethod var Character::movePoseAt(string move, real t)
+        \brief The joint angles \a move of the loaded set holds at phase
+               \a t, 0..1, with nothing running. Null when there is no such
+               move.
+
+        Pure, and the same answer the running move gives at that moment - the
+        set plays this very function.
+
+        \sa applyMovePose(), actionPoseAt()
+    */
+    function movePoseAt(move, t) {
+        return _character._moveSetItem
+             ? _character._moveSetItem.poseAt(move, t) : null
+    }
+
+    /*!
+        \qmlmethod void Character::applyMovePose(string move, real t)
+        \brief Freezes the joints at phase \a t of \a move.
+
+        For looking, not for playing, exactly as \l applyActionPose() is: a
+        row of characters frozen at successive phases is the move on one
+        sheet.
+    */
+    function applyMovePose(move, t) {
+        if (_character._moveSetItem)
+            _character._moveSetItem.apply(move, t)
+    }
+
+    // The loaded set, and the one place it is built. Created in JS rather than
+    // through a Loader: a Loader is an Item and this file is a 3D Node, and a
+    // set is a plain QtObject that needs no place in either scene - only an
+    // owner to be destroyed with.
+    property var _moveSetItem: null
+
+    onMoveSetChanged: _character._loadMoveSet()
+
+    function _loadMoveSet() {
+        if (_character._moveSetItem) {
+            _character._moveSetItem.stop()
+            _character._moveSetItem.destroy()
+            _character._moveSetItem = null
+        }
+        const want = _character.moveSet
+        if (want === "")
+            return
+        const shipped = _character.shippedMoveSets[want]
+        const src = shipped === undefined ? want : shipped
+        const comp = Qt.createComponent(src, Component.PreferSynchronous)
+        if (comp.status !== Component.Ready) {
+            console.warn("Character: cannot load move set '" + want + "': "
+                         + comp.errorString())
+            return
+        }
+        _character._moveSetItem = comp.createObject(_character, { entity: _character })
+        if (!_character._moveSetItem) {
+            console.warn("Character: move set '" + want + "' did not instantiate")
+            return
+        }
+        _character._moveSetItem.intensity = Qt.binding(function () {
+            return _character.actionIntensity
+        })
+        _character._moveSetItem.finished.connect(_character.moveFinished)
+        // The idle pose has to be told to let go and to take over again; the
+        // gesture layer is handed over the same way.
+        _character._moveSetItem.holdingChanged.connect(function () {
+            if (!_character._moveSetItem.holding
+                && _character.activity === Character.Activity.Idle)
+                _idleAnim.restart()
+        })
     }
 
     // Bounding box dimensions (derived from body parts)
@@ -1484,8 +1714,12 @@ BodyPartsGroup {
         // Position torso above legs, feet, and hip - plus whatever the gait
         // is lifting the whole figure by this instant. Everything hangs off
         // the torso, so this is the figure's bounce, feet included.
+        // Position torso above legs, feet and hip - plus whatever the gait or
+        // a move is lifting the whole figure by this instant, and however far
+        // forward a step or a jump has carried it. Everything hangs off the
+        // torso, so this is the figure's bounce and its travel, feet included.
         basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height
-                                + _character.gaitLift, 0)
+                                + _character.gaitLift, _character.bodyDrift)
 
       BodyPart {
         id: _belly
@@ -1811,8 +2045,12 @@ BodyPartsGroup {
         // pose is not allowed to have happen to it while it is being held -
         // or while it is easing back to rest, which the gesture layer does
         // itself. holding covers both.
+        // A loaded move set owns the joints exactly as a held gesture does,
+        // and for longer: a knockdown handed to the idle pose stands back up
+        // within a fifth of a second.
         running: _character.activity == Character.Activity.Idle
                  && !_gestureAnim.holding
+                 && !_character.moveHolding
         loops: 1
     }
 
@@ -1865,8 +2103,10 @@ BodyPartsGroup {
     // first - immediately and without easing, since the cycle that is starting
     // animates from wherever it finds the joints anyway.
     onActivityChanged: {
-        if (_character.activity !== Character.Activity.Idle)
+        if (_character.activity !== Character.Activity.Idle) {
             _gestureAnim.drop()
+            _character.stopMove()
+        }
     }
 
     UseAnim {

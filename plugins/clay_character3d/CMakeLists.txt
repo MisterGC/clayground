@@ -69,6 +69,7 @@ clay_plugin( Character3D
         animation/IdleAnim.qml
         animation/UseAnim.qml
         animation/FightAnim.qml
+        animation/MoveSet.qml
         animation/TalkGestureAnim.qml
         animation/GestureAnim.qml
         animation/GazeAnim.qml
@@ -77,6 +78,12 @@ clay_plugin( Character3D
         animation/EulerAnim.qml
         animation/HeadEulerAnim.qml
         animation/PosAndEulerAnim.qml
+
+        # Loadable Move Sets
+        # Optional, on top of the basic set above: loaded onto a character by
+        # Character::moveSet rather than instantiated with every one of them.
+        movesets/MartialArts.qml
+        movesets/martialarts.js
 
         # Control System
         control/CharacterCamera.qml
@@ -107,6 +114,14 @@ clay_add_node_test(character3d_gait SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation
 # (a guard keeps both fists above the elbows, a punch closes the hand, a
 # working stroke actually moves) are numbers rather than screenshots.
 clay_add_node_test(character3d_action SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/action.test.js)
+
+# The martial-arts move set is Qt-free for the same reason again, and it is
+# the reason the set is worth having as a model at all: "a front kick puts the
+# foot above the hip", "no crouch leaves a foot under the floor" and "the
+# get-up starts exactly where the knockdown ended" are numbers, and all three
+# were wrong at some point while the set was being written.
+clay_add_node_test(character3d_martialarts
+                   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/movesets/martialarts.test.js)
 
 # Behaviour suites. GazeAnim and ListenAnim ask their head and speaker for a
 # handful of properties and nothing else, so they are tested against stubs -
