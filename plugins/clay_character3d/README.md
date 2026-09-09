@@ -19,6 +19,8 @@ import Clayground.Character3D
 - **ParametricCharacter** - High-level parameters (bodyHeight, realism, maturity, femininity, mass) that auto-calculate dimensions
 - **RatioBasedCharacter** - Dimension ratios for fine-tuned proportion control
 - **CharacterEditor** - Visual editor overlay for character customization with persistence
+- **MoveSet** - A loadable set of named moves played onto one character, loaded on demand instead of carried by every character
+- **MartialArts** - The move set that ships with the plugin: fourteen moves from a stance to a knockdown and a get-up
 - **Speech** - Voice output (text-to-speech or wav/mp3) with approximate lip-sync
 - **ThoughtBubble** - Simple text bubble for speech/thought display
 
@@ -556,6 +558,39 @@ rotation on an upper arm carries a forward-pointing forearm OUTWARD on the
 right side, so `arm()` negates the yaw against the side. Written the other way
 round, the rear fist of the guard sat a head and a half outside the face and
 looked right in every sheet that had no reference to measure it against.
+
+### Loadable move sets
+
+Everything above is the basic set - what a character IS. Walking, running,
+standing, gazing, listening, gesturing, talking, working and boxing are wanted
+by every game, so they are always resident on every character. A move set is
+what a character KNOWS: a martial art, a dance, a trade's hand-work, wanted by
+one game and not the next, so it is loaded onto a character on demand, replaces
+whatever set was loaded before it, and is unloaded again by clearing
+`moveSet`. A set runs only while the activity is idle, exactly as a gesture
+does.
+
+```qml
+ParametricCharacter {
+    id: fighter
+    moveSet: "martial arts"          // or the URL of a MoveSet of your own
+    Component.onCompleted: fighter.playMove("stance")
+}
+```
+
+The shipped set offers fourteen moves: `stance`, `step`, `guard`, `jab`,
+`cross`, `uppercut` (standing), `lowGuard`, `sweep` (crouched), `frontKick`,
+`roundhouse` (kicks), `jumpPunch`, `jumpKick` (airborne), `knockdown`, `getUp`
+(ground). `knockdown` holds its last frame on the floor until `stopMove()` or
+another move releases it - which is what `getUp` starts from.
+
+What a set offers and what it is doing is readable from the character
+(`moves`, `moveSetName`, `activeMove`, `movePlaying`, `moveHolding`,
+`moveFinished`); see `Character`'s `moveSet` documentation for the whole API.
+`CharacterEditor` has a "Moves" section that loads a set and plays any of its
+moves, and `demo/Sandbox.qml` binds the same to the keyboard: `J` loads and
+unloads the set, `,` and `.` step through the moves, `V` plays the selected
+one and `B` stops.
 
 ### The gesture sheet
 
