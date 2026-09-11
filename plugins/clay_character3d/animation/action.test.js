@@ -153,7 +153,7 @@ section('the guard is a guard: fists up, elbows down and in')
     // A positive Y rotation carries a forward-pointing forearm toward +X,
     // so "in" is a negative yaw on the right arm and a positive one on the
     // left - the one sign in this model that was measured rather than
-    // reasoned, at bench/ActionSandbox.qml.
+    // reasoned, on the character lab's action scene.
     ok('both fists are brought in across the chest',
        p.rightArm.upper[1] < 0 && p.leftArm.upper[1] > 0)
     // The two hands are not a mirror pair: the rear is tucked tighter and

@@ -85,7 +85,18 @@ labs/<lab>/                  one lab = one situation; records/, figures/, studie
   registers the suite the same way.
 - Reference labs, in reading order: `labs/sensor-fusion-101/` (continuous
   3D), `labs/electronics-101/` (build lab, richest conventions),
-  `labs/street-network-101/` (draw → derive → simulate, research study).
+  `labs/street-network-101/` (draw → derive → simulate, research study),
+  `labs/character-101/` (one entry point, one kit scene per aspect).
+- **A lab with many aspects loads one kit scene per scenario.** The lab
+  keeps the clock, the camera, the panels, the plot, the record and the
+  keys; each aspect is a `Node` in the kit that answers one contract - its
+  knobs as `Parameter` children, its readings as `Probe` children (both
+  registered only while loaded, so the panel, the plot and the record
+  follow the scene), its choices as verbs, `bounds()` + `shots` for the
+  rig, `labels`, `report()`. The lab swaps them with a `Loader3D` and
+  dispatches scene verbs by name so a flow step can switch the scenario and
+  set a choice in one breath. `labs/kits/character/README.md` is the
+  contract; `GaitSheet.qml` the reference scene.
 
 ## Composition recipe
 

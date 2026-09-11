@@ -343,8 +343,9 @@ The hands have now gone back the other way. The kit's `DetailedHand` and its
 `HandBench` are deleted: the plugin's version overtook the original (knuckles
 on the back of the palm, a hinge on the palm-side edge, a palm with a hand's
 proportions) and the professor draws the plugin's hands, fed from this kit's
-gesture layer through a `Binding` on `Arm.handPose`. `plugins/clay_character3d/bench/HandSandbox.qml`
-is where a hand is worked on now.
+gesture layer through a `Binding` on `Arm.handPose`. The `hands` scenario of
+`labs/character-101` (`labs/kits/character/HandBench.qml`) is where a hand is
+worked on now.
 
 The gestures have gone back the same way. The kit's `PointAnim` is deleted:
 `GestureAnim` carries its beat table and its silhouette policy unchanged, the
@@ -370,7 +371,7 @@ judged by looking. What there is:
   and a scripted scene on `P` that exercises the whole directive vocabulary
 - `PointBench.qml`, `LookBench.qml`, `HairBench.qml` — isolated scenes, one
   per hard problem, kept because each was needed twice. The hand's bench lives
-  with the hand now, in `plugins/clay_character3d/bench/HandSandbox.qml`.
+  with the character lab now, as the `hands` scenario of `labs/character-101`.
   `PointBench` prints aim error and elbow bend for a point (`report()`) and
   hand height against waist and chest for a present (`presentReport()`):
   `clayrender labs/kits/professor/PointBench.qml --eval 'presentAt("board")'

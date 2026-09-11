@@ -1136,6 +1136,32 @@ BodyPartsGroup {
         FaceParamAnim { property: "_browSkew"; to: _expr.browSkew * _head.eyeWidth }
     }
 
+    /*!
+        \qmlmethod var Head::expressionTargets(int activity)
+        \brief The ten numbers the face settles on for \a activity, with
+               nothing running: \c {{cornerLift, skew, open, wide, round,
+               hood, squint, browAngle, browRise, browSkew}}, in the units the
+               readback properties report (the brow heights already scaled by
+               \l eyeWidth).
+
+        Pure - the table the expression animations ease toward - so a lab can
+        say how far apart two faces are before a frame has been drawn, and a
+        stepped record of a face sheet does not depend on how far an animation
+        happened to have got. An activity that is not an expression (Talk)
+        answers the neutral face.
+    */
+    function expressionTargets(activity) {
+        const e = activity === Head.Activity.ShowJoy ? _joyAnimation
+                : activity === Head.Activity.ShowSadness ? _sadnessAnimation
+                : activity === Head.Activity.ShowAnger ? _angerAnimation
+                : activity === Head.Activity.ShowDisgust ? _disgustAnimation
+                : activity === Head.Activity.ShowSurprise ? _surpriseAnimation
+                : _idleAnimation
+        return { cornerLift: e.cornerLift, skew: e.skew, open: e.open, wide: e.wide,
+                 round: e.round, hood: e.hood, squint: e.squint, browAngle: e.browAngle,
+                 browRise: e.browRise * _head.eyeWidth, browSkew: e.browSkew * _head.eyeWidth }
+    }
+
     // Neutral. Every channel at rest, which is also what every other
     // expression is measured against.
     Expression {

@@ -194,9 +194,11 @@ Node {
         The tuning channel, and the reason it exists: every number in the table
         above was arrived at by looking, and looking is done at a bench with a
         hand in front of you, not in a text editor with a rebuild between each
-        guess. \c bench/HandSandbox.qml puts sliders on these and prints the row
-        back out in the form it is written here, so a shape somebody dialled in
-        is pasted into the table rather than re-derived from a screenshot.
+        guess. The hand scene of the character lab
+        (\c labs/kits/character/HandBench.qml, scenario \c hands) is where a
+        hand is looked at now; edit a row here, rebuild the plugin and reload
+        the lab. (The slider tuner the old bench carried for these fields was
+        not carried over, #240.)
 
         Partial: only the keys it carries are replaced. It may also carry
         \c foldNear, \c foldFar, \c tuckNear and \c tuckFar, which are not part

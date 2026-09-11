@@ -137,7 +137,8 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     clay_website_register_webdojo_example(plugins/clay_gamecontroller/demo gamecontroller "GameController")
     clay_website_register_webdojo_example(plugins/clay_network/demo network "Network")
     clay_website_register_webdojo_example(plugins/clay_ai/demo ai "Ai")
-    clay_website_register_webdojo_example(plugins/clay_character3d/demo character3d "Character3D")
+    # Character3D has no gallery demo: its entry point is the character-101
+    # lab, published with the labs below (#240).
 
     # Full examples (entire directories copied for relative imports)
     clay_website_register_webdojo_example(examples/voxelworld voxelworld "Voxel World")

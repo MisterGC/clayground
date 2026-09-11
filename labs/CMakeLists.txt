@@ -13,6 +13,8 @@ clay_add_node_test(kit_sensor
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/sensor/sensor.test.js)
 clay_add_node_test(kit_hydro
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/hydro/hydro.test.js)
+clay_add_node_test(kit_character
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/character/sheet.test.js)
 
 # lab_check_<lab> - the lab contract, as a test that can go red (#208).
 #

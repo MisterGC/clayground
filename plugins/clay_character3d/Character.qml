@@ -248,6 +248,22 @@ BodyPartsGroup {
     }
 
     /*!
+        \qmlmethod var Character::gaitTable(string base)
+        \brief The derived numbers the \a base cycle ("walk" or "run") is
+               replayed from at this character's \l gaitFactors - its
+               \c cycleMs among them.
+
+        The gait counterpart of \l actionTable(): what \l gaitPoseAt() poses
+        from, handed out so a lab can quote a cycle's length without an
+        animation running.
+
+        \sa gaitPoseAt(), actionTable()
+    */
+    function gaitTable(base) {
+        return GaitLib.derive(base, _character.gaitFactors)
+    }
+
+    /*!
         \qmlmethod void Character::applyGaitPose(string base, real t)
         \brief Freezes the joints at phase \a t of the \a base cycle.
 
@@ -255,8 +271,8 @@ BodyPartsGroup {
         straight onto the joints, which only makes sense while \l activity is
         Idle and no gesture holds them - a running cycle would animate over it
         within a frame. A row of characters frozen at successive phases is a
-        walk cycle on one sheet, the way animators check one; see
-        \c bench/GaitSheetSandbox.qml.
+        walk cycle on one sheet, the way animators check one; see the gait
+        sheet of the character lab, \c labs/kits/character/GaitSheet.qml.
     */
     function applyGaitPose(base, t) {
         const p = _character.gaitPoseAt(base, t)
@@ -349,7 +365,7 @@ BodyPartsGroup {
         makes sense while \l activity is Idle and no gesture holds the joints,
         since a running cycle would animate over it within a frame. A row of
         characters frozen at successive phases is the action on one sheet; see
-        \c bench/GestureSheetSandbox.qml.
+        the gesture sheet of the character lab, \c labs/kits/character/GestureSheet.qml.
 
         The hands are NOT written here - they are \l handPose's, and a sheet
         sets that itself.
@@ -1042,8 +1058,8 @@ BodyPartsGroup {
         It costs draw calls: none. A box goes from 12 triangles to 44 and stays
         one draw call, and a character's cost was measured at 17.8 microseconds
         per draw call and next to nothing per vertex - so this is close to free
-        and having more characters is not. See
-        \c bench/CrowdSandbox.qml.
+        and having more characters is not. See the crowd scene of the
+        character lab, \c labs/kits/character/CrowdField.qml.
 
         \sa Box3D::bevel
     */
