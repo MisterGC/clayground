@@ -132,12 +132,17 @@ Node {
                                + LabLang.num(scene.speedOf(i), 1) + " u/s" })
         return rows
     }
+    // Pinned over each figure's REAL height - the hair adds to bodyHeight,
+    // and a chip anchored on the nominal height sat on the face.
     readonly property var labels: {
         LabLang.lang
         const out = []
-        for (let i = 0; i < scene.builds.length; ++i)
-            out.push({ at: Qt.vector3d(scene.row.xs[i], scene.builds[i].bodyHeight * 1.06, 0),
+        for (let i = 0; i < scene.builds.length; ++i) {
+            const f = scene.figures[i]
+            const top = (f ? f.height : scene.builds[i].bodyHeight) + 0.8
+            out.push({ at: Qt.vector3d(scene.row.xs[i], top, 0),
                        text: LabLang.t("build." + scene.builds[i].name), above: true })
+        }
         return out
     }
 
