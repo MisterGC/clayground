@@ -298,14 +298,16 @@ Node {
         detail: Character.Detail.High
         blinkSeed: 11
         listeningTo: (scene.listening && scene.speakerIndex === 0) ? _a : null
+        // Dressed differently on purpose: two identical figures swapping
+        // roles cannot be told apart from one shot to the reverse.
         skinColor: scene.silhouette ? LabTheme.ink : "#c98a63"
-        hairColor: scene.silhouette ? LabTheme.ink : "#734120"
+        hairColor: scene.silhouette ? LabTheme.ink : "#2b1d14"
         eyeColor: scene.silhouette ? LabTheme.ink : "#4a3728"
-        torsoColor: scene.silhouette ? LabTheme.ink : "red"
-        hipColor: scene.silhouette ? LabTheme.ink : "darkblue"
-        armColor: scene.silhouette ? LabTheme.ink : "#4169e1"
-        legColor: scene.silhouette ? LabTheme.ink : "#708090"
-        handColor: scene.silhouette ? LabTheme.ink : "#d38d5f"
-        footColor: scene.silhouette ? LabTheme.ink : "#d38d5f"
+        torsoColor: scene.silhouette ? LabTheme.ink : "#2e9e6b"
+        hipColor: scene.silhouette ? LabTheme.ink : "#4a3b2a"
+        armColor: scene.silhouette ? LabTheme.ink : "#f0c94a"
+        legColor: scene.silhouette ? LabTheme.ink : "#8a6a4a"
+        handColor: scene.silhouette ? LabTheme.ink : "#c98a63"
+        footColor: scene.silhouette ? LabTheme.ink : "#c98a63"
     }
 }
