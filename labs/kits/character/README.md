@@ -36,6 +36,8 @@ Node {
     property real time: 0          // sim seconds, bound to the lab clock on load
     property var view: null        // the View3D, for LOD and screen measurements
     property bool silhouette: false // one ink, no lights: the outline test
+    property bool live: false      // optional: true while the lab clock runs on its own
+    signal reframe()               // optional: the subject moved, frame again (the lab connects it)
 
     // --- knobs: numbers as kernel Parameters, alive only while loaded ---
     Parameter { name: "frames"; value: 8; from: 2; to: 16; stepSize: 1 }
@@ -79,6 +81,11 @@ Rules that make the contract hold:
   by the plugin's own animators - a gesture solver settling, a blink, a
   recording playing - may be reported by `report()` and `readout()`, never
   by a probe, and a scene cold-opens with nothing of that kind running.
+- **`live` gates what the plugin's animators may start.** A scene that
+  declares `live` gets it bound to "the lab's clock runs on its own"; a
+  dialogue, a recording, a demo loop may start only while it is true, so a
+  stepped run (a record, the gate, `--paused`) stays a run of nothing
+  moving. Verbs still work either way.
 - **Choices are verbs.** Every string-valued state has a verb in `verbs()`
   and a row in `choices`; the lab's card, a flow and an agent all change it
   through the verb. Verb names are shared across scenes on purpose (`base`,

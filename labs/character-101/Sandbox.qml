@@ -64,6 +64,11 @@ Item {
     property string aspect: ""
     readonly property var scene: sceneLoader.item
     readonly property bool sceneReady: scene !== null && scene.ready === true
+    // Whether the clock runs on its own (the dojo, a live render) or is being
+    // stepped by hand (a record, the gate, --paused). A scene whose motion
+    // belongs to the plugin's own animators may only start it while live, so
+    // a stepped run stays a run of nothing moving.
+    readonly property bool live: clock._frameTicker.running
 
     // view-only toggles - LabKeys drives them, viewState carries them, and
     // nothing a probe reads may depend on them
@@ -87,7 +92,7 @@ Item {
         "base", "preset", "emotion", "gesture", "action", "move", "pose", "arm",
         "expression", "subject", "activity", "detail", "recording", "speaker",
         "listening", "build", "play", "say", "stop", "fingers", "gloves", "props",
-        "solo", "gaze"
+        "solo", "gaze", "dialogue"
     ]
     property var _pending: []
     function act(verb, args) {
@@ -313,6 +318,13 @@ Item {
                 s.view = view3d
                 s.time = Qt.binding(() => clock.time)
                 s.silhouette = Qt.binding(() => root.silhouette)
+                if ("live" in s) s.live = Qt.binding(() => root.live)
+                // a scene that moves its own subject (a conversation cutting
+                // to the reverse angle) asks for a re-frame through a signal
+                // deferred: the signal fires inside the property write that
+                // moved the subject, before the scene's own bindings on it
+                // (which shot, which box) have settled
+                if (s.reframe !== undefined) s.reframe.connect(() => Qt.callLater(root.frameAll))
                 if (s.nearest !== undefined) rig.minDistance = s.nearest
                 root._flushPending()
                 root.frameAll()
