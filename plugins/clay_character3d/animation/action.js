@@ -13,8 +13,9 @@
 // poseAt(table, t) replays the cycle at any phase with nothing running. The
 // difference is that here poseAt is not a second copy of the animation -
 // ActionCycleAnim animates one number, the phase, and writes what poseAt
-// answers. So the strip of stills in bench/GestureSheetSandbox.qml is drawn
-// from the same function the shipped cycle plays, and cannot drift from it.
+// answers. So the frozen columns of the character lab's gesture sheet
+// (labs/kits/character/GestureSheet.qml) are drawn from the same function the
+// shipped cycle plays, and cannot drift from it.
 //
 // SIGNS, throughout, are the joints' own conventions:
 //   * upper/lower arm and leg x: negative pitches the limb FORWARD.
@@ -88,8 +89,8 @@ var BASES = {
     // than as two arms taking turns.
     //
     // Numbers marked "off the brief" come from a coaching-and-animation
-    // survey of the orthodox stance; the rest were dialled in at
-    // bench/ActionSandbox.qml.
+    // survey of the orthodox stance; the rest were dialled in at the action
+    // scene of the character lab (labs/kits/character/ActionStage.qml).
     fight: {
         // The guard, per arm. The lead hand sits further out and a little
         // lower than the rear, which is tucked against the jaw - a guard
@@ -372,7 +373,7 @@ function derive(name, opts) {
     // sin(out). The lever is NOT the hand's forward reach: the yaw is the
     // outermost of the three shoulder rotations and the fold is about an
     // axis the abduction has already tilted, so the hand swings on a longer
-    // arm than its reach - measured at bench/ActionSandbox.qml as 1.5 times
+    // arm than its reach - measured on the action scene as 1.5 times
     // the reach, at the default height, and scaled with the reach from
     // there. The two hands should end up handGap hand-widths apart, so each
     // has to come in from half the shoulder width to half a hand plus half
@@ -541,9 +542,9 @@ function beatAt(u) {
 // arm IN across the chest, so all three are mirrored here and nowhere else.
 //
 // The yaw is negated against the side: a positive Y rotation turns a forward
-// pointing forearm toward +X, which on the right arm is outward. Measured at
-// bench/ActionSandbox.qml - written the other way round, the rear fist of the
-// guard sat a head and a half outside the face.
+// pointing forearm toward +X, which on the right arm is outward. Measured on
+// the action scene - written the other way round, the rear fist of the guard
+// sat a head and a half outside the face.
 function arm(pitch, yaw, out, elbow, wrist, roll, side) {
     return {
         upper: [pitch, -side * yaw, side * out],

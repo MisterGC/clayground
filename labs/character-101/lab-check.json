@@ -1,0 +1,8 @@
+{
+    "purpose": "teaching",
+    "steps": 600,
+    "flows": [
+        "character-tour"
+    ],
+    "scenarios": "all"
+}

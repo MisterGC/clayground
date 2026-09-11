@@ -8,9 +8,10 @@
 // keeps a pure poseAt() beside them for the sheets to draw from - which works,
 // and asks the two to be kept in step by hand (see the note in GaitCycleAnim's
 // StepLift). A cycle that is written once and read twice cannot get out of
-// step at all: the strip of stills in bench/GestureSheetSandbox.qml is the
-// same function this plays, so a pose that reads wrong on the sheet is wrong
-// on screen and a pose fixed on the sheet is fixed on screen.
+// step at all: the frozen columns of the character lab's gesture sheet
+// (labs/kits/character/GestureSheet.qml) are the same function this plays, so
+// a pose that reads wrong on the sheet is wrong on screen and a pose fixed on
+// the sheet is fixed on screen.
 //
 // The cost is a per-frame JS write of sixteen joints instead of a declarative
 // animation the scene graph can run on its own. That is affordable here and

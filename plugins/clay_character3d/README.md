@@ -5,6 +5,17 @@ in Clayground applications. It features a modular body part system, procedural
 animation capabilities, and integrates with the Canvas3D toon shading system
 for stylized cartoon characters.
 
+## Where to look at it
+
+Every aspect of a character has a scenario in the character lab,
+`labs/character-101` (`./build/bin/claydojo --sbx labs/character-101/Sandbox.qml`):
+the builds, the walk cycle sheet, the gesture set, the two whole-body actions,
+the loadable move set, the hands, the six faces, the head's detail tiers, the
+lip-sync tiers, a listener and a crowd. Each scenario says what it is for on
+its card, answers `scene.report()` headless, and records its numbers into a
+run record - `labs/kits/character/README.md` is the contract, and
+`labs/character-101/paper.md` the lesson.
+
 ## Getting Started
 
 To use Character3D components, import the module in your QML file:
@@ -388,8 +399,8 @@ recording. Against a music bed the formant bands read the instruments,
 and heavy reverb fills in the gaps that mark a closure. Both degrade to
 the envelope rather than to a guess, per-frame, via a confidence gate.
 
-`plugins/clay_character3d/bench/SpeechSandbox.qml` puts both tiers on
-one recording side by side.
+The `speech` scenario of `labs/character-101` puts the three tiers on one
+recording side by side (`labs/kits/character/SpeechRow.qml`).
 
 ### Gestures
 
@@ -484,8 +495,9 @@ Qt-free model, `animation/action.js`, the way the walk and the run live in
 the gait cycle, which spells its poses out as animations and keeps a matching
 `poseAt()` beside them, an action cycle animates ONE number - the phase - and
 writes what `actionPoseAt()` answers for it. There is no second copy to keep in
-step: the strip of stills in `bench/GestureSheetSandbox.qml` is the same
-function the shipped cycle plays.
+step: the frozen boxing and working columns of the character lab's gesture
+sheet (`labs/kits/character/GestureSheet.qml`) are the same function the
+shipped cycle plays.
 
 ```qml
 Character {
@@ -539,18 +551,19 @@ further and turns the trunk more than a jab, that the working loop has beats
 and its two hands are never in step. It runs under `ctest` as
 `node_character3d_action`.
 
-**Where to look at it.** `bench/ActionSandbox.qml` plays either cycle on one
-figure with the shipped animator - the figure's activity really is `Fighting` -
-with a see-through bag at a straight's reach or a table under the hands,
-right-drag to orbit, wheel to zoom, `space` to freeze and a `phase` slider to
-scrub the frozen cycle. Its `report()` measures each fist against its own
-shoulder and against the chin in head heights, which is what a guard is a
-claim about:
+**Where to look at it.** The `action` scenario of `labs/character-101`
+(`labs/kits/character/ActionStage.qml`) poses one figure from the lab's clock
+through the same pose model, with a see-through bag at a straight's reach or
+a table under the hands; the lab's transport pauses and steps the clock to
+freeze a frame, and the scene's `report()` measures each fist against its
+own shoulder and against the chin in head heights, which is what a guard is
+a claim about:
 
 ```bash
-clayrender plugins/clay_character3d/bench/ActionSandbox.qml --size 800x700 \
-    --set 'action="fight"' --set 'playing=false' --set 'phase=0.605' \
-    --wait-for 'posed' --trace 'report()' --trace-out - --out /tmp/cross.png
+clayrender labs/character-101/Sandbox.qml --size 1400x900 --paused \
+    --eval 'applyScenario("action"); act("action", ["fight"])' \
+    --wait-for 'sceneReady' --result - --eval 'JSON.stringify(scene.report())' \
+    --out /tmp/cross.png
 ```
 
 One sign in the model was measured there rather than reasoned: a positive Y
@@ -594,19 +607,16 @@ one and `B` stops.
 
 ### The gesture sheet
 
-The bench for everything above and for the held gestures with it:
-`bench/GestureSheetSandbox.qml` puts them side by side, one frozen figure each,
-same light, same angle, labelled — the gait cycle sheet's trick applied to
-poses rather than to phases.
+The sheet for everything above and for the held gestures with it: the
+`gestures` scenario of `labs/character-101` (`labs/kits/character/GestureSheet.qml`)
+puts them side by side, one frozen figure each, same light, same angle,
+labelled — the gait cycle sheet's trick applied to poses rather than to
+phases.
 
 ```bash
-clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
-    --size 2200x700 --wait-for 'ready' --out /tmp/gestures.png
-
-# one cycle as a strip of phases instead
-clayrender plugins/clay_character3d/bench/GestureSheetSandbox.qml \
-    --size 1900x620 --set 'action="fight"' --set 'frames=8' --set 'yaw=90' \
-    --wait-for 'ready' --out /tmp/boxing.png
+clayrender labs/character-101/Sandbox.qml --size 2200x900 --paused \
+    --eval 'applyScenario("gestures")' --wait-for 'sceneReady' \
+    --out /tmp/gestures.png
 ```
 
 The set is the thing being judged, not any one pose. A gesture looked at on its
@@ -621,11 +631,13 @@ deterministic — the cycles from `applyActionPose()`, the aimed gestures throug
 the real solver with its settle cut to a frame — so `ready` is the property to
 wait for and two renders across a change are comparable.
 
-For one hand very close up, `bench/HandSandbox.qml` is still the bench: the
-sheet answers "is this recognisable", the hand bench answers "is this a hand".
+For one hand very close up, the `hands` scenario (`labs/kits/character/HandBench.qml`)
+is still the bench: the sheet answers "is this recognisable", the hand bench
+answers "is this a hand".
 `CharacterEditor` carries the same set as chips, for turning a knob and looking.
 
-**Where this workflow lives.** In `bench/`, next to the code it checks, and not
+**Where this workflow lives.** In `labs/kits/character/`, as scenes of the
+character lab, and not
 as a lab under `labs/`. A lab is a teaching artifact with an authoring contract
 to match — a paper, a `.grafli` overview, EN and DE strings from the first
 commit, committed `.labrec` records — and it is aimed at a reader learning a
@@ -715,24 +727,24 @@ mittens on the other. `handBuildResponse` (0.5 by default) is how much of the
 build the hand takes: at 1 it is glued to the arm as before, at 0 it is the
 same hand on every body. Only the cross-section — hand *length* follows the
 arm's length, which is a matter of `maturity`. `tests/qml_head/tst_build.qml`
-pins it, and `bench/HandSandbox.qml` takes `mass`, `muscle` and `handBuild` so
-the sweep can be looked at:
+pins it, and the `hands` scenario of `labs/character-101` takes a build and
+the `handBuild` knob so the sweep can be looked at:
 
 ```bash
-clayrender plugins/clay_character3d/bench/HandSandbox.qml --size 520x440 \
-    --set 'mass=0' --set 'muscle=0' \
-    --eval 'setCompare(false); raise("level"); setPose("open"); look("hand"); camDist = 7' \
-    --settle --out /tmp/thin.png
+clayrender labs/character-101/Sandbox.qml --size 1400x900 --paused \
+    --eval 'applyScenario("hands"); act("build", ["thin"]); act("arm", ["level"]); act("pose", ["open"])' \
+    --wait-for 'sceneReady' --result - --eval 'JSON.stringify(scene.report())' \
+    --out /tmp/thin.png
 ```
 
-The header line reports `palm/arm`, which is the number the question is
-actually about: 1.05 at every build with the response at 1, and 1.41 / 1.05 /
-0.88 across thin / neutral / heavy at the default.
+`report()` carries `palmArm`, which is the number the question is actually
+about: 1.05 at every build with the response at 1, and 1.41 / 1.05 / 0.88
+across thin / neutral / heavy at the default.
 
 The two levels are built to match in outline, so the switch is meant to go
-unnoticed; `plugins/clay_character3d/bench/HandSandbox.qml` is where that is
-checked, and `h` flips the fingers on one character without moving anything
-else.
+unnoticed; the `hands` scenario of `labs/character-101` is where that is
+checked, and its `fingers` verb flips them on one character without moving
+anything else.
 
 **Tuning a hand pose.** `n` on that bench opens a slider per field of the row
 the current pose resolves to — the four curls, the fan, the five thumb numbers,
@@ -792,10 +804,11 @@ it would carry the iris off its own eyeball. And `Head.autoBlink` is one
 animated float rather than a pair of boxes resized every frame, which is why
 the eyes never blinked before.
 
-`plugins/clay_character3d/bench/HeadSandbox.qml` shows all three detail levels
-side by side with named viewpoints, a blink, a gaze and a talking mouth, and a
-readout giving the head and eye size in pixels - so "still readable at ninety
-pixels" is a claim that can be checked rather than an impression.
+The `heads` scenario of `labs/character-101` (`labs/kits/character/HeadRow.qml`)
+shows all three detail levels side by side with named shots, a blink, a gaze
+and a talking mouth, and a readout giving the head and eye size in pixels -
+so "still readable at ninety pixels" is a claim that can be checked rather
+than an impression.
 
 ### Face anchors
 
@@ -952,22 +965,22 @@ A factor change lands at the next half-cycle, when the phase that is starting
 reads its targets. There is no blend, which is how every other activity
 switch behaves.
 
-To look at a gait, draw it as a cycle sheet rather than watching it:
-`bench/GaitSheetSandbox.qml` freezes a row of figures at successive phases of
-one cycle, so the whole walk is on one sheet. Its header comment says how to
-read one; `ready` is the property to wait for, since a `--set` lands after
-the first pose pass.
+To look at a gait, draw it as a cycle sheet rather than watching it: the
+`gait` scenario of `labs/character-101` (`labs/kits/character/GaitSheet.qml`)
+freezes a row of figures at successive phases of one cycle, so the whole
+walk is on one sheet. Its header comment says how to read one; `sceneReady`
+is the property to wait for, since a verb lands after the first pose pass.
 
 ```bash
-clayrender plugins/clay_character3d/bench/GaitSheetSandbox.qml --size 1800x500 \
-    --set 'preset="elderly"' --set 'emotion="sad"' --set 'maturity=0.9' \
-    --set 'frames=8' --set 'yaw=90' --wait-for 'ready' --out /tmp/elderly.png
+clayrender labs/character-101/Sandbox.qml --size 1800x900 --paused \
+    --eval 'applyScenario("gait"); act("preset", ["elderly"]); act("emotion", ["sad"]); Lab.set("maturity", 0.9)' \
+    --wait-for 'sceneReady' --out /tmp/elderly.png
 ```
 
-`yaw` turns the figures - 90 side-on, 0 head-on, 180 from behind - and `pitch`
-lifts the camera instead, 90 being straight down. Check a change against all
-four: a silhouette that reads as walking from the side and from nowhere else
-is a side view, and the overhead is the only one that shows sway and shoulder
+The scene's shots - `side`, `front`, `back`, `top` (`goShot("top")`, or `N`
+in the lab) - are the four angles to check a change against: a silhouette
+that reads as walking from the side and from nowhere else is a side view,
+and the overhead is the only one that shows sway and shoulder
 counter-rotation honestly.
 
 To assert on a gait, read `gaitFactors`: it says what the character was asked

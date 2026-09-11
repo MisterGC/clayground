@@ -89,6 +89,20 @@ writing lab code; skim again when something "impossible" happens.
 - **Duplicate property bindings are an error**, so when you re-base a
   Rectangle onto `LabPanel`, delete the `radius`/`color`/`border.*` lines
   the panel already provides.
+- **`Flow` is the kernel's narrated walkthrough, and it shadows QtQuick's
+  `Flow` layout** the moment a file imports `Clayground.Lab`. A row of chips
+  written as `Flow { }` silently becomes a Flow with no steps; qmllint
+  reports it only as "Could not find property spacing". Import the layout
+  by name - `import QtQuick as Quick` and `Quick.Flow { }`.
+- **A `Node` already has a `state` property.** A kit scene that declares
+  `function state()` gets a property-override warning and a lab that calls
+  it gets the string. The character kit's contract calls its pair
+  `choiceState()` / `loadChoices()`.
+- **`Parameter`s and `Probe`s may live inside a loaded scene.** They register
+  with `Lab` on creation and unregister on destruction, so a `Loader3D`
+  swapping scenes swaps the panel, the plot and the record with them; give
+  them scene-prefixed names (`gait.cycle`) so two scenes never fight over
+  one.
 
 ## Lighting and shadows
 
