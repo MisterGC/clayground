@@ -25,7 +25,8 @@ const G = load('roadgraph.js', ['empty', 'clone', 'addNode', 'insertRoad', 'remo
 const L = load('lanemodel.js', ['derive', 'poseOn', 'surfaceRuns', 'laneRuns',
     'markingRuns', 'LANE_W', 'elementLength'])
 const T = load('traffic.js', ['createState', 'step', 'defaultParams', 'targetCount',
-    'summary', 'meanSpeed', 'rehome', 'stoppedShare', 'originLanes', 'arrivalRate'])
+    'summary', 'meanSpeed', 'rehome', 'stoppedShare', 'originLanes', 'arrivalRate',
+    'lossRate', 'meanLifetime'])
 
 // the harness owns the assertions and the tally now
 const ok = K.ok, eq = K.eq, near = K.near, section = K.section, rngFrom = K.rngFrom
@@ -443,6 +444,44 @@ function run(seed, steps, par, netIn) {
     for (let i = 0; i < 3600; ++i) T.step(net, st, 1 / 60, rng, p)
     eq('...and they all drive off the end', st.cars.length, 0)
     eq('...counted as gone', st.gone, seeded)
+    // the loss rate is the arrival rate's mirror (#209): it climbs while cars
+    // drive off the end and decays over the same window once they are gone
+    ok('every car that left has a lifetime', st.lifeN === seeded, 'lifeN=' + st.lifeN)
+    ok('the mean lifetime is positive and shorter than the run',
+       T.meanLifetime(st) > 0 && T.meanLifetime(st) < 62,
+       'lifetime=' + T.meanLifetime(st).toFixed(2))
+    ok('the loss rate has decayed once nothing is left', T.lossRate(st) < 1,
+       'lossRate=' + T.lossRate(st).toFixed(3))
+}
+{
+    // a plan that leaks reads a loss rate; one that keeps its traffic reads
+    // none, and the terminal-turn share says which is which before any car
+    // has moved
+    const leaky = L.derive((() => { const g = G.empty()
+        G.insertRoad(g, -90, 0, 90, 0, {}); G.insertRoad(g, 0, -60, 0, 60, {}); return g })())
+    const closed = L.derive((() => { const g = G.empty()
+        G.insertRoad(g, -70, -50, 70, -50, {}); G.insertRoad(g, 70, -50, 70, 50, {})
+        G.insertRoad(g, 70, 50, -70, 50, {}); G.insertRoad(g, -70, 50, -70, -50, {}); return g })())
+    eq('a crossroads: every turn ends in a stub', leaky.stats.terminalTurns, leaky.stats.connectors)
+    eq('a closed ring: no turn is terminal', closed.stats.terminalTurns, 0)
+    ok('terminal length is the whole crossroads', leaky.stats.terminalLength > 0
+       && Math.abs(leaky.stats.terminalLength - leaky.stats.laneLength / 2) < 1e-6,
+       'terminal=' + leaky.stats.terminalLength.toFixed(1) + ' of ' + leaky.stats.laneLength.toFixed(1))
+    eq('a closed ring has no terminal lane length', closed.stats.terminalLength, 0)
+    const run2 = (net, seed) => {
+        const st = T.createState(), rng = rngFrom(seed)
+        const p = Object.assign(T.defaultParams(), { demand: 0.4 })
+        for (let i = 0; i < 3600; ++i) T.step(net, st, 1 / 60, rng, p)
+        return st
+    }
+    const a = run2(leaky, 5), b = run2(closed, 5)
+    ok('the crossroads loses cars per minute', T.lossRate(a) > 0, 'lost=' + T.lossRate(a).toFixed(1))
+    eq('the ring loses none', T.lossRate(b), 0)
+    ok('a car lives longer on the ring than at the crossroads',
+       T.meanLifetime(b) === 0 || T.meanLifetime(b) > T.meanLifetime(a),
+       'ring=' + T.meanLifetime(b).toFixed(1) + ' cross=' + T.meanLifetime(a).toFixed(1))
+    const s = T.summary(leaky, a, T.defaultParams())
+    ok('summary carries both', typeof s.lossRate === 'number' && typeof s.meanLifetime === 'number')
 }
 {
     // rehome: edit the network under running traffic
