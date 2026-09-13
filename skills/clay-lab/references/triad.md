@@ -77,9 +77,12 @@ parameter range — the reader is on rails on purpose.
 5. **Limitations** — where the answer stops being trustworthy.
 
 The board is a model diagram: what feeds what, where each assumption
-sits, which quantities are measured and which derived. Determinism and
-run records are load-bearing rather than nice to have, and the staleness
-contract below bites hardest here. A research paper also states, before
+sits, which quantities are measured and which derived — owed by nobody:
+a research lab may ship one, `lab-check` does not ask for it, nor for a
+flow or for German. What it does ask for is the study: `study.md` with a
+manifest that parses, committed records, and an *Answerability* section
+(below). Determinism and run records are load-bearing rather than nice to
+have, and the staleness contract below bites hardest here. A research paper also states, before
 the method, **which question the lab can hold** — see *Answerability*
 below; a reduced question stated up front is a result, a silently reduced
 one is a lie.
@@ -174,6 +177,16 @@ this still true?" from an argument into a `diff`. Records live in
 - **Every number in the results table names its record**, and the
   regeneration command appears once in the section. If you cannot point
   at the record a number came out of, the number does not go in.
+- **A results table is rendered, never typed** (#209). It is declared
+  under `tables` in a study manifest — rows are a varied parameter's
+  levels, columns are expressions over record statistics, seeds are
+  averaged — and written between `<!-- table: <study>/<name> -->` and
+  `<!-- /table -->` by `tools/lab-sweep/lab-table`; every rendered row
+  names its records. `lab-check` fails while a block differs from the
+  records, so a number that was typed, or that a re-run moved, is red in
+  a build. The grammar and the marker rules: `tools/lab-sweep/README.md`.
+  A table only a lab-level `records/` could feed stays hand-cited, with
+  its record column, until that is worth a manifest of its own.
 - A number you cannot get out of a record is a **missing probe**, not a
   licence to quote from the panel. Add the probe, re-record, then quote.
   (sensor-fusion probes the Kalman gain and each sensor's reported σ for
