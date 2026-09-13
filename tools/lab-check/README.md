@@ -1,7 +1,10 @@
 # lab-check — the lab contract as a failing test
 
 A lab signs a contract: it loads clean, its runs are deterministic, its flows
-pass, its records regenerate, and it says the same things in both languages.
+pass, its records regenerate, its tables are rendered from those records, and
+it says the same things in both languages. What the contract *demands* depends
+on what the lab is for — its `purpose` — and what a lab *has* is checked
+whatever the purpose.
 Until this existed the contract was discipline and nothing else — nothing in
 `ctest` so much as loaded a lab — and discipline decays quietly. A record whose
 committed bytes no longer regenerate is still a file. A lab with no flow still
@@ -33,6 +36,9 @@ Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
 | `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
 | `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes |
+| `tables` | every `<!-- table: … -->` block in `paper.md` and `studies/*/study.md` renders to the committed bytes (`tools/lab-sweep/lab-table --check`); pure, never NOT RUN |
+| `study` | a research lab has at least one `studies/<slug>/study.md` whose manifest parses, with committed `records/` and an `## Answerability` section |
+| `triad` | `paper.md` exists; `overview.grafli` exists where the purpose owes a board |
 | `remarks` | open CriticMarkup marks in `paper.md` and `studies/*/study.md` — counted, reported, never failed |
 
 Exit codes: `0` everything passed, `1` something failed, `77` (CTest's
@@ -41,8 +47,9 @@ is not built.
 
 ## `lab-check.json`
 
-Beside `Sandbox.qml`, written by `tools/lab-new` for every new lab. Absent is
-not an error; the defaults below apply.
+Beside `Sandbox.qml`, written by `tools/lab-new` for every new lab. `purpose`
+is required (#209): it decides which checks are demands, so a lab without one
+cannot be judged. Everything else has a default.
 
 ```json
 {
@@ -55,12 +62,31 @@ not an error; the defaults below apply.
 
 | Key | Meaning |
 |---|---|
-| `purpose` | `learning`, `teaching` or `research`. Documentation, not behaviour. |
+| `purpose` | `learning`, `teaching` or `research`. **Required.** What the lab is for, and therefore what the gate demands — the table below. |
 | `steps` | Length of a stepped determinism run, in 1/60 s steps. Default 600 (ten simulated seconds). |
-| `flows` | The flow ids to run, or `"all"`-by-omission (whatever `flows()` answers). An empty `flows()` is a FAIL unless this says `"none"` **and** `flowsReason` says why. |
-| `flowsReason` | Required with `"flows": "none"`. A sentence, in the file, arguing that this lab does not want a flow — so "it has no flow" is a decision somebody made rather than something nobody got round to. |
+| `flows` | The flow ids to run: an explicit list, `"all"` (the default — whatever `flows()` answers), or `"none"`. Whether *none* is allowed is the purpose's call, not this file's. |
 | `scenarios` | `"all"` (default) or an explicit list, when a lab has scenarios the gate should not run. |
 | `maxFlowSteps` | Upper bound on sim frames per flow. Default 20000 (≈ 5½ simulated minutes); hitting it is a FAIL, never a hang. |
+
+`flowsReason` (#208) is no longer read: the purpose is the reason.
+
+### What the purpose decides
+
+A lab is checked for what it *has* whatever its purpose — a research lab that
+ships a flow has it run, one that ships German has the parity checked — and
+for what its purpose *owes* on top:
+
+| check | every purpose | teaching | research | learning |
+|---|---|---|---|---|
+| `load`, `determinism`, `records`, `tables`, `remarks` | as above | — | — | — |
+| `flows` | every published flow finishes with its expects holding | at least one flow, and each declared flow carries at least one `expect` | — | — |
+| `strings` | EN registered; if DE is registered, the key sets match and every flow key exists in both | DE registered | — | — |
+| `study` | — | — | a study with a parsing manifest, committed records and an answerability section | — |
+| `triad` | `paper.md` exists | `overview.grafli` exists | — | `overview.grafli` exists |
+
+The tiers themselves — what a research paper, a lesson plan and a study path
+look like — are in `skills/clay-lab/references/triad.md`; this tool checks
+what is mechanical about them and nothing more.
 
 ## How it drives the lab, and why that way
 
@@ -121,4 +147,5 @@ and probes registered with the kernel.
 `.clay/` is created next to the sandbox while a gate runs and removed
 afterwards; nothing else in the tree is written. Records regenerate into a
 temporary directory (`records/make.sh --out-dir`, `lab-sweep --records-dir`) and
-are compared from there.
+are compared from there; tables render in memory (`lab-table --check`) and are
+compared against the committed prose.

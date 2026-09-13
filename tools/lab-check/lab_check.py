@@ -19,7 +19,20 @@ WHAT IS CHECKED, IN ORDER
   flows         every flow runs to its end, with its expects holding
   strings       EN and DE say the same set of things, flows included
   records       records/make.sh and studies/* regenerate the committed bytes
+  tables        every <!-- table: --> block renders to the committed bytes
+  study         a research lab has a study with records and answerability
+  triad         paper.md, and the board the purpose owes
   remarks       open CriticMarkup marks in the prose (reported, never failed)
+
+WHAT THE PURPOSE DECIDES (#209). lab-check.json declares what the lab is FOR,
+and the gate asks for what that purpose owes and nothing more: a teaching lab
+owes a flow with expects, German, and a storyboard; a research lab owes a
+study with committed records and an answerability table; a learning lab owes
+its paper and a concept board. Everything a lab HAS is still checked whatever
+the tier - a research lab that ships a flow has it run, one that ships German
+has the parity checked - because a half-translated dictionary or a flow that
+no longer finishes is a defect however the lab is labelled. Only the
+"at least one" demands are tiered.
 
 Exit 0 when everything passed, 1 on any FAIL, 77 (the ctest SKIP_RETURN_CODE)
 when the machine cannot run the check at all - no clayliveloader built.
@@ -61,9 +74,18 @@ import time
 import uuid
 
 SKIP = 77
-CHECK_ORDER = ["load", "determinism", "flows", "strings", "records", "remarks"]
+CHECK_ORDER = ["load", "determinism", "flows", "strings", "records", "tables",
+               "study", "triad", "remarks"]
+PURPOSES = ("learning", "teaching", "research")
 DEFAULT_STEPS = 600
 DEFAULT_MAX_FLOW_STEPS = 20000
+
+# lab-sweep owns the study manifest, the record reader and the table renderer;
+# the study and tables checks are those modules asked about committed files.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "lab-sweep"))
+import lab_table as LT         # noqa: E402
+import manifest as M           # noqa: E402
 
 
 # --------------------------------------------------------------------------
@@ -293,16 +315,22 @@ PROBE_JS = """
     // (#207), so this reads a registry rather than walking the object graph.
     try {
         var found = [];
+        out.expects = {};
         for (var fi = 0; fi < Lab.flowIds.length; ++fi) {
             var id = Lab.flowIds[fi];
             var f = Lab._flows[id];
             if (!f) continue;
+            var nExpect = 0;
             for (var i = 0; i < f.steps.length; ++i) {
                 var st = f.steps[i];
                 if (st.key) found.push("flow." + id + "." + st.key);
                 try { if (st.task && st.task.hint) found.push(String(st.task.hint)) }
                 catch (e) {}
+                // a teaching flow owes at least one expect (#209): a lesson
+                // with no asserted number cannot break when the lab drifts
+                try { if (st.expect) ++nExpect } catch (e) {}
             }
+            out.expects[id] = nExpect;
             if (f.titleKey) found.push(String(f.titleKey));
         }
         out.flowKeys = found;
@@ -447,15 +475,21 @@ def first_difference(a, b):
     return f"{len(la)} vs {len(lb)} lines"
 
 
-def check_flows(rep, spawn, flows, flows_none_reason, max_steps):
-    if flows_none_reason is not None:
-        return rep.check("flows: none, and lab-check.json says why", True,
-                         flows_none_reason[:80])
+def check_flows(rep, spawn, flows, require, expects, max_steps):
+    """Run every published flow; a teaching lab must also HAVE one, with an
+    expect in it.
+
+    `require` is whether the purpose owes a flow (teaching). `expects` maps a
+    flow id to how many of its steps carry an `expect`, read from the kernel's
+    registry - a teaching flow with none asserts nothing and cannot go red
+    when the lab drifts, which is the one property that makes a flow a test.
+    """
     if not flows:
-        return rep.check(
-            "flows: the lab has at least one", False,
-            'flows() is empty - add a flow, or say "flows": "none" with a '
-            '"flowsReason" in lab-check.json')
+        if require:
+            return rep.check(
+                "flows: the lab has at least one", False,
+                'flows() is empty and a teaching lab owes a flow with expects')
+        return rep.check("flows: none published, none owed by this purpose", True)
     all_ok = True
     for flow_id in flows:
         # A flow builds a board and leaves it there; the next flow has to
@@ -484,8 +518,12 @@ def check_flows(rep, spawn, flows, flows_none_reason, max_steps):
             problems.append("expect failed: " + step_of(entry))
         if not res.get("finished"):
             problems.append("finished: false")
+        n_expect = (expects or {}).get(flow_id, 0)
+        if require and not n_expect:
+            problems.append("no step carries an expect - a teaching flow "
+                            "asserts at least one measured value")
         detail = "; ".join(problems) if problems else \
-            f"{res.get('steps')} sim frames"
+            f"{res.get('steps')} sim frames, {n_expect} expect(s)"
         all_ok = rep.check(f"flows: {flow_id}", not problems, detail) and all_ok
     return all_ok
 
@@ -503,14 +541,20 @@ def step_of(entry):
     return f"{name} ({entry['error']})" if entry.get("error") else name
 
 
-def check_strings(rep, probe):
+def check_strings(rep, probe, require_de=True):
+    """EN is owed by every lab; DE by a teaching lab (#209). A DE dictionary
+    that exists is checked whatever the purpose - saying different things in
+    two languages is a bug, not a tier."""
     langs = probe.get("langs", [])
     keys = probe.get("keys", {})
     kernel = probe.get("kernelKeys", {})
-    ok = rep.check("strings: the lab registers EN and DE",
-                   "en" in langs and "de" in langs, "languages=" + ",".join(sorted(langs)))
-    if not ok:
+    if not rep.check("strings: the lab registers EN", "en" in langs,
+                     "languages=" + ",".join(sorted(langs))):
         return False
+    if "de" not in langs:
+        return rep.check("strings: the lab registers DE", not require_de,
+                         "owed by a teaching lab" if require_de
+                         else "not owed by this purpose; EN only")
     en, de = set(keys.get("en", [])), set(keys.get("de", []))
     only_en, only_de = sorted(en - de), sorted(de - en)
     parity = rep.check(
@@ -604,6 +648,78 @@ def check_records(rep, lab_dir, workdir, render):
     return all_ok
 
 
+def check_tables(rep, lab_dir):
+    """Every <!-- table: --> block in the lab's prose renders to what is
+    committed. Pure: the records are files, the renderer is lab-table's."""
+    results = LT.process(lab_dir, check=True, quiet=True)
+    if not results:
+        return rep.check("tables: no marked table blocks", True,
+                         "nothing rendered from records yet")
+    all_ok = True
+    for rel, ref, ok, detail in results:
+        name = f"tables: {rel}" + (f" {ref}" if ref else "")
+        if not ok and detail == "stale":
+            detail = "differs from the records - run tools/lab-sweep/lab-table " \
+                     + os.path.relpath(lab_dir)
+        all_ok = rep.check(name, ok, detail) and all_ok
+    return all_ok
+
+
+ANSWERABILITY = re.compile(r"^#{2,4}\s+Answerability\b", re.M)
+
+
+def check_study(rep, lab_dir, purpose):
+    """A research lab owes a study: a study.md whose manifest parses, committed
+    records, and an answerability section - the argument that the model holds
+    for the question, which no tool can make for it (#209)."""
+    studies = os.path.join(lab_dir, "studies")
+    found = []
+    if os.path.isdir(studies):
+        for name in sorted(os.listdir(studies)):
+            if os.path.isfile(os.path.join(studies, name, "study.md")):
+                found.append(name)
+    if purpose != "research":
+        return rep.check("study: none owed by this purpose", True,
+                         f"{len(found)} present" if found else "")
+    if not rep.check("study: a research lab has at least one study",
+                     bool(found), ", ".join(found) if found else "no studies/<slug>/study.md"):
+        return False
+    all_ok = True
+    for name in found:
+        study = os.path.join(studies, name)
+        problems = []
+        try:
+            with open(os.path.join(study, "study.md"), encoding="utf-8") as f:
+                text = f.read()
+            M.parse(text)
+        except (OSError, M.ManifestError) as e:
+            problems.append(str(e).splitlines()[0])
+            text = ""
+        rdir = os.path.join(study, "records")
+        n = len([x for x in os.listdir(rdir) if x.endswith(".labrec")]) \
+            if os.path.isdir(rdir) else 0
+        if not n:
+            problems.append("no committed records/*.labrec")
+        if text and not ANSWERABILITY.search(text):
+            problems.append("no '## Answerability' section")
+        all_ok = rep.check(f"study: {name}", not problems,
+                           "; ".join(problems) if problems else f"{n} records") and all_ok
+    return all_ok
+
+
+def check_triad(rep, lab_dir, purpose):
+    """paper.md for every lab; overview.grafli where the purpose owes a board
+    (teaching: the storyboard, learning: the concept map)."""
+    ok = rep.check("triad: paper.md exists",
+                   os.path.isfile(os.path.join(lab_dir, "paper.md")))
+    board = os.path.isfile(os.path.join(lab_dir, "overview.grafli"))
+    if purpose == "research":
+        return rep.check("triad: board not owed by a research lab", True,
+                         "overview.grafli present" if board else "") and ok
+    return rep.check("triad: overview.grafli exists", board,
+                     "" if board else f"a {purpose} lab owes a board") and ok
+
+
 # {>>comment<<}, {++insertion++}, {--deletion--}, {~~old~>new~~}, {==highlight==}
 CRITIC = re.compile(r"\{(>>.*?<<|\+\+.*?\+\+|--.*?--|~~.*?~~|==.*?==)\}", re.S)
 
@@ -656,8 +772,8 @@ def repo_root(start):
 def read_config(lab_dir, rep):
     """lab-check.json beside Sandbox.qml: what this lab's gate checks.
 
-    Absent is not an error - a lab that never wrote one still gets the
-    defaults - but "flows": "none" is, unless it comes with a reason.
+    Parsing only; purpose_of() says whether what it read is a lab this gate
+    can judge.
     """
     path = os.path.join(lab_dir, "lab-check.json")
     cfg = {}
@@ -668,6 +784,23 @@ def read_config(lab_dir, rep):
             rep.check("config: lab-check.json parses", False, str(e))
             return None
     return cfg
+
+
+def purpose_of(cfg, rep):
+    """The tier this lab declares, or None after a FAIL line.
+
+    Required since #209: the purpose decides which checks are demands, so a
+    lab without one cannot be judged - defaulting to the strictest tier would
+    fail a research lab for the flow it never owed, and defaulting to the
+    loosest would pass a lesson with no lesson in it.
+    """
+    p = cfg.get("purpose")
+    if p in PURPOSES:
+        return p
+    rep.check("config: lab-check.json declares a purpose", False,
+              (f"{p!r} is not one of " if p is not None else "missing; one of ")
+              + ", ".join(PURPOSES))
+    return None
 
 
 def main():
@@ -709,10 +842,13 @@ def main():
     cfg = read_config(lab_dir, rep)
     if cfg is None:
         return 1
+    purpose = purpose_of(cfg, rep)
+    if purpose is None:
+        return 1
     steps = args.steps or int(cfg.get("steps", DEFAULT_STEPS))
     max_flow_steps = int(cfg.get("maxFlowSteps", DEFAULT_MAX_FLOW_STEPS))
 
-    print(f"lab-check {lab_id}  (steps={steps}, checks={','.join(wanted)})")
+    print(f"lab-check {lab_id}  ({purpose}, steps={steps}, checks={','.join(wanted)})")
 
     needs_scene = any(c in wanted for c in ("load", "determinism", "flows", "strings"))
     if needs_scene and not (os.path.isfile(loader) and os.access(loader, os.X_OK)):
@@ -725,10 +861,16 @@ def main():
         if needs_scene:
             def spawn():
                 return Loader(loader, sandbox, quiet=not args.verbose)
-            run_scene_checks(rep, spawn, cfg, wanted, lab_dir, lab_id,
+            run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id,
                              steps, max_flow_steps, workdir)
         if "records" in wanted:
             check_records(rep, lab_dir, workdir, render)
+        if "tables" in wanted:
+            check_tables(rep, lab_dir)
+        if "study" in wanted:
+            check_study(rep, lab_dir, purpose)
+        if "triad" in wanted:
+            check_triad(rep, lab_dir, purpose)
         if "remarks" in wanted:
             check_remarks(rep, lab_dir)
     except TimeoutError as e:
@@ -748,7 +890,7 @@ def main():
     return 1 if failed else 0
 
 
-def run_scene_checks(rep, spawn, cfg, wanted, lab_dir, lab_id, steps,
+def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
                      max_flow_steps, workdir):
     # One session answers everything that is a QUESTION about the lab - does
     # it load, what does it call its scenarios, what does it say in German.
@@ -779,23 +921,18 @@ def run_scene_checks(rep, spawn, cfg, wanted, lab_dir, lab_id, steps,
         check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir)
 
     if "flows" in wanted:
+        # "flows": "none" means run none; whether none is ALLOWED is the
+        # purpose's call, so the flowsReason of #208 is no longer read.
         declared = cfg.get("flows")
-        reason = None
         if declared == "none":
-            reason = cfg.get("flowsReason", "")
-            if not reason:
-                rep.check('flows: "none" needs a "flowsReason"', False,
-                          "lab-check.json says the lab has no flow but not why")
-                reason = None
-                flows = probe.get("flows", [])
-            else:
-                flows = []
+            flows = []
         else:
             flows = declared if isinstance(declared, list) else probe.get("flows", [])
-        check_flows(rep, spawn, flows, reason, max_flow_steps)
+        check_flows(rep, spawn, flows, purpose == "teaching",
+                    probe.get("expects", {}), max_flow_steps)
 
     if "strings" in wanted:
-        check_strings(rep, probe)
+        check_strings(rep, probe, require_de=(purpose == "teaching"))
 
 
 if __name__ == "__main__":

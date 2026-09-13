@@ -243,13 +243,14 @@ class TestGeneratedSet(unittest.TestCase):
                 self.assertEqual(doc["purpose"], purpose)
                 self.assertEqual(doc["steps"], 600)
                 self.assertEqual(doc["scenarios"], "all")
+                # A research lab owes no flow (#209), but the template ships a
+                # tour and whatever a lab has is run - so the research file
+                # says "all" rather than naming the scaffold it expects to lose.
+                self.assertNotIn("flowsReason", doc)
                 if purpose == "research":
-                    self.assertEqual(doc["flows"], "none")
-                    self.assertTrue(doc.get("flowsReason", "").strip(),
-                                    "flows: none without a reason")
+                    self.assertEqual(doc["flows"], "all")
                 else:
                     self.assertEqual(doc["flows"], ["heat_101-intro"])
-                    self.assertNotIn("flowsReason", doc)
 
     def test_flow_id_agrees_with_the_check_file_and_the_dictionary(self):
         for kind, purpose in self.each():
