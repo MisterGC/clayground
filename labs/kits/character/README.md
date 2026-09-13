@@ -138,7 +138,11 @@ gesture columns, the six expressions and their distance, the lineup builds,
 and the boxes-per-character claim. `node labs/kits/character/sheet.test.js`
 checks it; ctest runs it as `node_kit_character`.
 
-## Model card
+<!-- Deliberately not "## Model card": docs/scripts/import_labs.py turns that
+     exact heading into a card on the public labs page. character-101 is the
+     webdojo demo for clay_character3d, not a user-facing lab (#242). The
+     professor kit avoids the heading the same way. -->
+## The kit's model
 
 ### What it models
 
