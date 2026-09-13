@@ -89,6 +89,44 @@ Item {
         }
     }
 
+    // The other half of vTerm: what the cells promise before their own drop.
+    // A paper that says "the parts get 86 % of the cell's volts" needs both
+    // numbers in the same record (#209) - the EMF is set per cell, so it is
+    // not a Parameter and would otherwise be in no record at all.
+    Probe {
+        name: "emf"; unit: "V"
+        expr: () => {
+            let sum = 0
+            const cells = root.sim.batteries || ({})
+            for (const el of root.elements)
+                if (el.type === "battery" && cells[el.id])
+                    sum += cells[el.id].emf
+            return sum
+        }
+    }
+
+    // A named probe on "the k-th part of that type" (#209). A study that
+    // wants the reading of one bulb cannot name it by id - ids depend on
+    // what was built before the preset - and the watch probes carry the
+    // monitor's one quantity at a time. This resolves the part on every
+    // sample, so it survives a preset rebuilding the board, and it reads the
+    // attribute it was given: "I" (mA), "V" or "P". Returns the probe's name,
+    // or "" when the attribute is unknown.
+    function probeOrdinal(name, type, index, attr) {
+        if (attr !== "I" && attr !== "V" && attr !== "P") return ""
+        const unit = attr === "I" ? "mA" : attr === "V" ? "V" : "W"
+        const p = ordinalProbe.createObject(root, {
+            name: name, unit: unit,
+            expr: () => {
+                const parts = root.elements.filter(e => e.type === type)
+                const el = parts[index]
+                return el ? root.watchValueOf(el.id, attr) : NaN
+            }
+        })
+        return p ? name : ""
+    }
+    Component { id: ordinalProbe; Probe {} }
+
     // Shift+R writes a scratch run record into the lab's own records/ dir. No
     // command: a frame-driven session cannot be regenerated, and the citable
     // records are the ones a committed driver steps out (see the clay-lab skill).
@@ -1105,6 +1143,8 @@ Item {
             "setVolts":   (id, v) => setBatteryVolts(id, v),
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
             "watch":      (id, on) => setWatched(id, on),
+            // a named probe on the k-th part of a type: "probe", "bulb1I", "bulb", 0, "I"
+            "probe":      (name, type, index, attr) => probeOrdinal(name, type, index, attr),
             "select":     (id) => { selectedId = id },
             "showValues": (on) => { valueAttr = on ? "I" : "" },
             "clear":      () => clearBoard(),

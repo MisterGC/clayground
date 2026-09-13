@@ -537,99 +537,118 @@ same picture that shows the fault.
 
 ## Measured results
 
-Default board, `batteryV = 4.5 V`, read live off the running lab
-(the solver also carries a 169-case node unit suite — Ohm's law, switch
-open/closed, LED forward and reversed-dark, series/parallel bulbs, short
-detection, meter readings, floating elements, parallel-LED current
-sharing, the transistor's three regions, the complete truth table of every
-gate below, and all six functions of the gate package):
+*Quote only what a record holds.* Every table in this section is rendered by
+`tools/lab-sweep/lab-table` from the committed run records of the study in
+`studies/series-vs-parallel/` — twelve stepped runs, one seed, driven
+headlessly by `tools/lab-sweep` — and every row names the record it was read
+from. Regenerate the records, then the tables, with
 
-| scenario | battery current | per-element reading | result |
-|---|---|---|---|
-| **led-basic** (470 Ω + LED), switch open | 0 mA | everything 0 mA | dark |
-| **led-basic**, switch closed | 5.15 mA | LED 5.15 mA · $V_\mathrm{LED}$ 2.08 V · ammeter 5.1 mA | LED lit |
-| **series** (two 6 Ω bulbs) | 360 mA | 360 mA through both · 0.78 W each | both dim |
-| **parallel** (two 6 Ω bulbs) | 1282 mA | 641 mA per bulb · 2.47 W each | both near-full |
-| **reversed LED** (anode to −) | 0 mA | pinned off | dark |
-| **dead short** (wire + to −) | 9 A | — | short flag · red battery · banner |
-| **transistor**, switch closed | 11.1 mA | $I_B$ 0.803 mA · $I_C$ 9.81 mA · $V_{CE}$ 0.189 V | LED lit, `sat` |
-| **logic-and** `1 1` | 11.5 mA | Q1 9.02 mA · Q2 9.78 mA | LED lit |
-| **logic-or** `1 1` | 12.4 mA | 4.94 mA per transistor | LED lit |
-| **logic-xor** `1 0` | 11.4 mA | Q5 9.78 mA, NAND node 2.45 V | LED lit |
-| **logic-xor** `1 1` | 3.4 mA | Q5 `off`, NAND node 0.154 V | LED dark |
-| **gates** (AND package) `1 1` | 9.71 mA | $V_Y$ 4.057 V · $I_Y$ 8.75 mA | LED lit |
-| **gates**, VCC unwired | — | supply 0.000 V, output high-Z | LED dark |
-| **half-adder** `1 1` | — | SUM dark, CARRY lit | 1 + 1 = 10 |
+```
+tools/lab-sweep/lab-sweep labs/electronics-101/studies/series-vs-parallel
+tools/lab-sweep/lab-table labs/electronics-101
+```
 
-Readings worth chasing to their equations. The lit LED draws
-
-$$
-I = \frac{V - V_F}{R + R_\mathrm{LED} + R_\mathrm{int} + 2R_\mathrm{shunt}}
-  = \frac{4.5 - 2.0}{470 + 15 + 0.5 + 0.02} = 5.15\,\mathrm{mA},
-$$
-
-and the voltmeter across it reads $V_F + I\,R_\mathrm{LED} =
-2.0 + 0.00515 \times 15 = 2.08\,\mathrm{V}$ — the knee plus the drop on
-the internal slope. The dead short is limited only by the battery's own
-$0.5\,\Omega$: $4.5 / 0.5 = 9\,\mathrm{A}$, which trips the
-$1.5\,\mathrm{A}$ short flag.
+and `lab-check` goes red when a table here no longer matches the records.
+The transistor, the gates, the package and the half adder are pinned by the
+solver's 169-case node unit suite, not by a record; the readings quoted in
+their sections above illustrate the argument, and this section makes no
+claim about them.
 
 The headline is the series-versus-parallel pair. **Same two bulbs, same
-battery, only the wiring differs**, yet the battery delivers 360 mA in
-series and 1282 mA in parallel — roughly $3.5\times$. Series stacks the
-resistances ($0.5 + 6 + 6$) so the shared current is small and both bulbs
-barely glow; parallel halves them ($0.5 + 3$) so each bulb gets nearly
-the full cell and blazes. That contrast, produced by rewiring alone, is
-the core physical lesson of the lab.
+cell, only the wiring differs**, and at 4.5 V:
+
+<!-- table: series-vs-parallel/bulbs -->
+| wiring | cell I (mA) | bulb 1 I (mA) | bulb 2 I (mA) | bulb 1 P (W) | bulb 2 P (W) | vTerm (V) | records |
+|---|---|---|---|---|---|---|---|
+| series | 359.7 | 359.7 | 359.7 | 0.78 | 0.78 | 4.32 | `series-4v5-42` |
+| parallel | 1282.0 | 641.0 | 641.0 | 2.47 | 2.47 | 3.86 | `parallel-4v5-42` |
+<!-- /table -->
+
+Series stacks the resistances ($0.5 + 6 + 6$) so the shared current is small
+— the same 359.7 mA through the cell and through each bulb, and both bulbs
+barely glow at 0.78 W; parallel halves them ($0.5 + 3$) so the cell delivers
+1282 mA, 641 mA per rung, and each bulb blazes at 2.47 W — roughly
+$3.5\times$ the current and $3.2\times$ the light. That contrast, produced by
+rewiring alone, is the core physical lesson of the lab.
 
 ![two bulbs in series](figures/series.png)
 
-***series*** *— one loop, so 359.7 mA appears on every wire and the cell's
-volts divide, 2.16 V to each bulb.*
+***series*** *— one loop, so 359.7 mA appears on every wire and each bulb
+gets 0.78 W.*
 
 ![two bulbs in parallel](figures/parallel.png)
 
-***parallel*** *— a ladder, so both bulbs sit across the same 3.85 V and the
-current splits, 641 mA each, rejoining at the rails.*
+***parallel*** *— a ladder, so the current splits, 641 mA and 2.47 W per
+bulb, rejoining at the rails.*
 
 Same two bulbs, same cell, same switch. The only difference is which wire goes
 where — and it is visible before you read a single number, in how brightly the
 two pairs glow.
 
-## The same contrast, run as a study
+### The same contrast, across the cell's whole range
 
-The two rows above are one voltage of a question that deserves a sweep, so
-the lab carries one: **`studies/series-vs-parallel/`** asks what the wiring
-decides across the cell's whole usable range, 1.5 V to 12 V, twelve runs
-driven headlessly by `tools/lab-sweep` and committed as twelve run records.
-The study document states the question, argues its own answerability against
-this kit's model card, and only then reports; everything below is quoted from
-`studies/series-vs-parallel/results.md`, which is generated from the records
-rather than typed.
+The rows above are one voltage of a question that deserves a sweep, so the
+study asks what the wiring decides from 1.5 V to 12 V. The study document
+states the question, argues its own answerability against this kit's model
+card, and only then reports.
 
-Three findings, and the third is the one this table could not have shown:
+<!-- table: series-vs-parallel/pair -->
+| cell | series I (mA) | parallel I (mA) | series P (W) | parallel P (W) | parallel ÷ series (I) | parallel ÷ series (P) | records |
+|---|---|---|---|---|---|---|---|
+| 1.5 V | 119.9 | 427.4 | 0.173 | 0.550 | 3.564 | 3.18 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 239.8 | 854.7 | 0.691 | 2.199 | 3.564 | 3.18 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 359.7 | 1282.0 | 1.554 | 4.947 | 3.564 | 3.18 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 479.6 | 1709.4 | 2.763 | 8.795 | 3.564 | 3.18 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 719.4 | 2564.1 | 6.216 | 19.790 | 3.564 | 3.18 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 959.2 | 3418.8 | 11.051 | 35.181 | 3.564 | 3.18 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
 
-1. **Parallel delivers 3.18× the power, at every voltage.** Not approximately
-   — the same figure at all six levels, because both wirings are linear in
-   the cell's EMF. Turning the cell up cannot turn a series board into a
-   parallel one; the choice of wiring is a property of the circuit.
-2. **It asks for 3.564× the current to do it.** The two ratios differ, and
-   the gap is what the cell keeps for itself: a series board gets **96 %** of
-   the cell's volts to its bulbs, a parallel board **86 %**. The honest form
-   of "parallel is brighter" is *parallel asks for 3.56× as much and gets
-   3.18× as much back, because a cell takes a bigger cut when you lean on it.*
-3. **Only one of them ever reaches the cell's rating.** Computed from each
-   record's own $R_\mathrm{ext} = V_\mathrm{term}/|I|$, the parallel board
-   crosses 1.5 A at **5.27 V** and is over it from 6 V up; the series board
-   would need **18.8 V**, which is past the cell's ceiling. Neither is ever a
-   short — 3.01 Ω is still six times the cell's own 0.5 Ω, however hard it is
-   pushed, which is the distinction argued above being checked rather than
-   asserted.
+Three findings, and the third is the one the 4.5 V rows could not have shown.
 
-`R_ext` is 12.01 Ω in series and 3.01 Ω in parallel, read off the records as
-$V_\mathrm{term}/|I|$ — the two bulbs stacked against the two bulbs halved.
-Every other number in the study follows from those two by Ohm's law, which is
-why none of the ratios move with voltage.
+**Parallel delivers 3.18× the power, at every voltage.** Not approximately
+— the same figure at all six levels, because both wirings are linear in
+the cell's EMF. Turning the cell up cannot turn a series board into a
+parallel one; the choice of wiring is a property of the circuit.
+
+**It asks for 3.564× the current to do it.** The two ratios differ, and the
+gap is what the cell keeps for itself:
+
+<!-- table: series-vs-parallel/budget -->
+| cell | EMF (V) | series vTerm (V) | series % of EMF | parallel vTerm (V) | parallel % of EMF | records |
+|---|---|---|---|---|---|---|
+| 1.5 V | 1.50 | 1.440 | 96.0 | 1.286 | 85.8 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 3.00 | 2.880 | 96.0 | 2.573 | 85.8 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 4.50 | 4.320 | 96.0 | 3.859 | 85.8 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 6.00 | 5.760 | 96.0 | 5.145 | 85.8 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 9.00 | 8.640 | 96.0 | 7.718 | 85.8 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 12.00 | 11.520 | 96.0 | 10.291 | 85.8 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
+
+A series board gets **96 %** of the cell's volts to its bulbs, a parallel
+board **86 %**. The honest form of "parallel is brighter" is *parallel asks
+for 3.56× as much and gets 3.18× as much back, because a cell takes a bigger
+cut when you lean on it.*
+
+**Only one of them ever reaches the cell's rating.** Computed from each
+record's own $R_\mathrm{ext} = V_\mathrm{term}/|I|$:
+
+<!-- table: series-vs-parallel/rating -->
+| wiring | R_ext (Ω) = vTerm / I | crosses 1.5 A at (V) = 1.5 × (R_ext + 0.5) | I at 12 V (mA) | I at 4.5 V (mA) | I at 6 V (mA) | records |
+|---|---|---|---|---|---|---|
+| series | 12.01 | 18.77 | 959 | 360 | 480 | `series-12v-42`, `series-4v5-42`, `series-6v-42` |
+| parallel | 3.01 | 5.27 | 3419 | 1282 | 1709 | `parallel-12v-42`, `parallel-4v5-42`, `parallel-6v-42` |
+<!-- /table -->
+
+The parallel board crosses 1.5 A at **5.27 V** and is over it from 6 V up;
+the series board would need **18.8 V**, which is past the cell's ceiling.
+Neither is ever a short — 3.01 Ω is still six times the cell's own 0.5 Ω,
+however hard it is pushed, which is the distinction argued above being
+checked rather than asserted.
+
+$R_\mathrm{ext}$ is 12.01 Ω in series and 3.01 Ω in parallel — the two
+bulbs stacked against the two bulbs halved. Every other number in the study
+follows from those two by Ohm's law, which is why none of the ratios move
+with voltage.
 
 ## Things to try
 
