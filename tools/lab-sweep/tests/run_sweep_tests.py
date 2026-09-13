@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import manifest as M           # noqa: E402
 import record as R             # noqa: E402
+import tables as T             # noqa: E402
 
 CHECKS = []
 
@@ -34,7 +35,7 @@ def check(name, ok, detail=""):
 def raises(name, fn, needle=""):
     try:
         fn()
-    except (M.ManifestError, R.RecordError) as e:
+    except (M.ManifestError, R.RecordError, T.TableError) as e:
         return check(name, needle in str(e), f"got: {e}")
     return check(name, False, "no error raised")
 
@@ -225,6 +226,141 @@ errors = M.check_against_lab(good(fixed={}, parameters=[
      "levels": [{"id": "a", "scenario": "spiral"}]}]), LABINFO)
 check("a scenario the lab does not have is caught",
       any("spiral" in e for e in errors), str(errors))
+
+print("\n== tables: the expression grammar ==")
+check("a statistic of a probe parses",
+      T.expr_refs("mean(arrivals)") == (["arrivals"], []))
+check("arithmetic and col() parse",
+      T.expr_refs("100 * mean(vTerm) / mean(emf) - col('x')")
+      == (["vTerm", "emf"], ["x"]))
+raises("an unknown function is refused", lambda: T.expr_refs("median(x)"), "unknown function")
+raises("a bare name is refused", lambda: T.expr_refs("arrivals"), "only numbers")
+raises("a call to anything but a probe is refused",
+       lambda: T.expr_refs("mean(__import__('os'))"), "takes a probe name")
+raises("an attribute is refused", lambda: T.expr_refs("mean(a).x"), "only numbers")
+raises("a string constant is refused", lambda: T.expr_refs("'a' + 'b'"), "only numbers")
+raises("a power operator is refused", lambda: T.expr_refs("2 ** 3"), "only numbers")
+raises("a comparison is refused", lambda: T.expr_refs("1 < 2"), "only numbers")
+raises("a keyword argument is refused", lambda: T.expr_refs("mean(x=1)"), "a call is")
+raises("a syntax error names itself", lambda: T.expr_refs("mean("), "not an expression")
+tree = T.parse_expr("1.5 * (1000 * mean(vTerm) / mean(iBattery) + 0.5)")[0]
+v = T.eval_expr(tree, lambda p, s: {"vTerm": 11.52, "iBattery": 959.2}[p], None)
+check("evaluation follows arithmetic", abs(v - 1.5 * (1000 * 11.52 / 959.2 + 0.5)) < 1e-9, str(v))
+raises("dividing by zero is an error, not inf",
+       lambda: T.eval_expr(T.parse_expr("1 / mean(x)")[0], lambda p, s: 0.0, None),
+       "division by zero")
+
+print("\n== tables: validation inside a manifest ==")
+
+
+def with_table(table, **over):
+    params = [
+        {"name": "wiring", "kind": "eval",
+         "levels": [{"id": "series", "eval": ["a()"]}, {"id": "parallel", "eval": ["b()"]}]},
+        {"name": "cell", "kind": "param",
+         "levels": [{"id": "1v5", "value": 1.5}, {"id": "3v", "value": 3}]},
+    ]
+    return good(parameters=params, fixed={},
+                run={"steps": 60, "stepHz": 60, "budget": 8},
+                tables={"t": table}, **over)
+
+
+PAIR = {"rows": "cell", "labels": {"1v5": "1.5 V"},
+        "columns": [
+            {"head": "series I", "fix": {"wiring": "series"}, "expr": "mean(arrivals)", "digits": 1},
+            {"head": "parallel I", "fix": {"wiring": "parallel"}, "expr": "mean(arrivals)"},
+            {"head": "ratio", "expr": "col('parallel I') / col('series I')", "digits": 2}]}
+check("a good table validates", M.validate(with_table(PAIR)) == [],
+      str(M.validate(with_table(PAIR))))
+
+
+def table_err(table, needle, name):
+    errors = M.validate(with_table(table))
+    check(name, any(needle in e for e in errors), f"got: {errors}")
+
+
+table_err({"rows": "voltage", "columns": [{"head": "x", "expr": "mean(a)"}]},
+          "not a varied parameter", "rows must name a varied parameter")
+table_err({"rows": "cell", "columns": [{"head": "x", "expr": "mean(a)"}]},
+          "leaves wiring unpinned", "a column that reads records must pin the other parameters")
+table_err({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"wiring": "spiral"}, "expr": "mean(a)"}]},
+          "no level 'spiral'", "a fix naming an unknown level is refused")
+table_err({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"cell": "1v5", "wiring": "series"}, "expr": "mean(a)"}]},
+          "is the row parameter", "fixing the row parameter is refused")
+table_err({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "col('y')"}]},
+          "EARLIER column", "col() must name an earlier column")
+table_err({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "mean(a)"},
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "mean(a)"}]},
+          "appears twice", "a repeated head is refused")
+table_err({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "mean(a)", "over": "median"}]},
+          "over: one of", "an unknown seed aggregation is refused")
+table_err({"rows": "cell", "columns": []}, "non-empty list", "a table needs columns")
+table_err({"rows": "cells", "columns": [
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "mean(a)"}]},
+          "nothing is left to fix", "rows=cells takes no fix")
+errors = M.validate(with_table({"rows": "cell", "columns": [
+    {"head": "x", "fix": {"wiring": "series"}, "expr": "median(a)"}]}))
+check("a bad expression is reported with its column",
+      any("columns[0]" in e and "unknown function" in e for e in errors), str(errors))
+check("probes a table reads are recorded even if nobody listed them",
+      "arrivals" in M.recorded_probes(with_table(PAIR, record={"probes": []})),
+      str(M.recorded_probes(with_table(PAIR, record={"probes": []}))))
+check("...and reach the mechanical answerability check",
+      any("emf" in e for e in M.check_against_lab(
+          with_table({"rows": "cell", "columns": [
+              {"head": "x", "fix": {"wiring": "series"}, "expr": "mean(emf)"}]}),
+          LABINFO)))
+
+print("\n== tables: rendering ==")
+
+
+def fake_record(rid, **stats):
+    probes = [{"name": k, "unit": "", "count": 3, "first": v, "last": v,
+               "min": v, "max": v, "mean": v, "stddev": 0} for k, v in stats.items()]
+    return R.Record({"format": R.FORMAT, "id": rid, "probes": probes}, ["t"], [])
+
+
+m = with_table(PAIR, seeds=[11, 42])
+runs = M.expand(m)
+recs = {}
+for r in runs:
+    base = {"series": 10.0, "parallel": 30.0}[r.levels["wiring"]["id"]]
+    scale = {"1v5": 1.0, "3v": 2.0}[r.levels["cell"]["id"]]
+    recs[r.id] = fake_record(r.id, arrivals=base * scale + (1.0 if r.seed == 42 else 0.0))
+lines = T.render(m, "t", runs, recs)
+check("the header carries every column and the records column",
+      lines[0] == "| cell | series I | parallel I | ratio | records |", lines[0])
+check("a row is labelled, averaged over seeds and names its records",
+      lines[2] == "| 1.5 V | 10.5 | 30.500 | 2.90 | `series-1v5-11`, `series-1v5-42`, "
+                  "`parallel-1v5-11`, `parallel-1v5-42` |", lines[2])
+check("an unlabelled level shows its id", lines[3].startswith("| 3v |"), lines[3])
+check("the ratio is a ratio of aggregated columns",
+      lines[3].split("|")[4].strip() == "2.95", lines[3])     # 60.5 / 20.5
+spread = dict(PAIR)
+spread["columns"] = [{"head": "s", "fix": {"wiring": "series"},
+                      "expr": "mean(arrivals)", "over": "spread", "digits": 1},
+                     {"head": "n", "fix": {"wiring": "series"},
+                      "expr": "mean(arrivals)", "over": "n", "digits": 0}]
+lines = T.render(with_table(spread, seeds=[11, 42]), "t", runs, recs)
+check("spread and n aggregate across seeds",
+      lines[2] == "| 1.5 V | 1.0 | 2 | `series-1v5-11`, `series-1v5-42` |", lines[2])
+no_rec = dict(recs)
+del no_rec["parallel-3v-42"]
+raises("a missing record is an error, not a blank",
+       lambda: T.render(m, "t", runs, no_rec), "parallel-3v-42.labrec is missing")
+raises("an unknown table is an error naming the known ones",
+       lambda: T.render(m, "nope", runs, recs), "it has: t")
+cells = {"rows": "cells", "records": False,
+         "columns": [{"head": "v", "expr": "mean(arrivals)", "digits": 0}]}
+lines = T.render(with_table(cells, seeds=[11, 42]), "t", runs, recs)
+check("rows=cells lists every configuration without a records column",
+      lines[0] == "| configuration | v |" and lines[2] == "| series-1v5 | 10 |"
+      and len(lines) == 6, str(lines))
 
 print("\n== reading a run record ==")
 root = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))

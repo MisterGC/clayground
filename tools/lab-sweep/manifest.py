@@ -43,6 +43,8 @@ import itertools
 import json
 import re
 
+import tables as T
+
 FORMAT = "clay-lab-study/1"
 
 # The fenced block, whatever the info string says after ```json.
@@ -252,6 +254,12 @@ def validate(m):
                     if isinstance(v, bool) or not isinstance(v, (int, float)):
                         errors.append(f"{lwhere}.value must be a number")
 
+    # Tables a paper renders from this study's records (#209). Validated
+    # against the varied parameters, so a column that pins a level the study
+    # does not have fails here and not in a paper an hour later.
+    if "tables" in m and not errors:
+        errors += T.validate(m["tables"], m["parameters"])
+
     if not errors:
         n = matrix_size(m)
         budget = m["run"]["budget"]
@@ -344,12 +352,13 @@ def expand(m, only=None, seeds=None):
 
 def recorded_probes(m):
     """Probes the records must carry: the objective's, everything the results
-    table reports, plus whatever else the study asked to keep. The first two
-    are added even when the author forgot to list them - a record that cannot
-    answer the study's own question, or fill its own table, is the one failure
-    mode worth making impossible."""
+    table reports, everything a rendered table reads, plus whatever else the
+    study asked to keep. The first three are added even when the author forgot
+    to list them - a record that cannot answer the study's own question, or
+    fill its own table, is the one failure mode worth making impossible."""
     names = list(m.get("record", {}).get("probes", []))
-    needed = [m["objective"]["probe"]] + [r["probe"] for r in m.get("report", [])]
+    needed = ([m["objective"]["probe"]] + [r["probe"] for r in m.get("report", [])]
+              + T.probes_of(m.get("tables")))
     for n in reversed(needed):
         if n not in names:
             names.insert(0, n)
