@@ -1,4 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// The Web Dojo gallery reads these three lines - they are what the
+// Character3D entry says about itself there (#242).
+// @brief Parametric 3D characters: builds, gait, gestures, actions, faces and speech
+// @tags 3D, Character, Animation
+// @category Plugin Demos
 
 import QtQuick
 // Flow is also the kernel's narrated walkthrough; the layout is asked for by name

@@ -137,8 +137,14 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     clay_website_register_webdojo_example(plugins/clay_gamecontroller/demo gamecontroller "GameController")
     clay_website_register_webdojo_example(plugins/clay_network/demo network "Network")
     clay_website_register_webdojo_example(plugins/clay_ai/demo ai "Ai")
-    # Character3D has no gallery demo: its entry point is the character-101
-    # lab, published with the labs below (#240).
+    # Character3D's demo IS the character-101 lab (#240), so the gallery entry
+    # carries two directories: the lab, and the kit it loads its scenes from by
+    # relative path. Copied under the entry in the shape "../kits/character"
+    # resolves in, so the same file runs from the checkout and from the dojo.
+    clay_website_register_webdojo_tree(character3d "Character3D"
+        "character-101/Sandbox.qml"
+        "labs/character-101|character-101"
+        "labs/kits/character|kits/character")
 
     # Full examples (entire directories copied for relative imports)
     clay_website_register_webdojo_example(examples/voxelworld voxelworld "Voxel World")
@@ -149,7 +155,10 @@ if(EMSCRIPTEN AND CLAY_BUILD_WEBSITE)
     # imports its kit by relative path; over HTTP that directory import needs
     # the qmldir in labs/kits/<kit>/, since a directory cannot be listed
     # remotely. The runtime still fetches only what the launched lab imports.
-    clay_website_register_lab(labs)
+    # character-101 and its kit are excluded: they are published as the dojo's
+    # Character3D demo above, not as a lab sample (#242).
+    clay_website_register_lab(labs
+        EXCLUDE character-101 kits/character)
 
     # Source files in webdojo-examples (not copied, just registered)
     clay_website_register_webdojo_example(docs/webdojo-examples/welcome welcome "welcome")
