@@ -176,40 +176,62 @@ This is a teaching model, and it is worth being explicit about what it is not:
 
 ## Measured results
 
-All figures from the lab itself, sim time only, averaged over 50 s after a
-20 s settling period. Seed 42.
+*Quote only what a record holds.* The tables in this section are rendered by
+`tools/lab-sweep/lab-table` from the committed run records of two studies,
+`studies/shape-lifetime/` and `studies/grid-capacity/`: three seeds each
+(11, 23, 42), 20 simulated seconds of warm-up unrecorded, then 50 s recorded
+at 1/60 s steps, driven headlessly by `tools/lab-sweep`. Every row names the
+records it was read from. Regenerate the records, then the tables, with
+
+```
+tools/lab-sweep/lab-sweep labs/street-network-101/studies/shape-lifetime
+tools/lab-sweep/lab-sweep labs/street-network-101/studies/grid-capacity
+tools/lab-sweep/lab-table labs/street-network-101
+```
+
+and `lab-check` goes red when a table here no longer matches the records.
+Each study document states its question, argues what this lab can and cannot
+hold for it, and only then reports.
 
 ### Shape decides how long a car survives
 
-At demand 0.4, where every scenario is still in free flow (≤5.4 % of cars
-waiting), so the comparison is about topology and not congestion:
+At demand 0.4, where every scenario is still in free flow (at most 4 % of
+cars waiting), so the comparison is about topology and not congestion:
 
-| scenario | dead-end share of lane | junctions | turns | cars | speed (u/s) | lost/min | mean lifetime |
-|---|---|---|---|---|---|---|---|
-| crossroads | 50.0 % | 1 | 12 | 5.9 | 12.60 | 54.0 | **6.6 s** |
-| cul-de-sac | 28.0 % | 4 | 28 | 8.8 | 13.49 | 81.6 | **6.5 s** |
-| grid | 17.8 % | 9 | 108 | 18.7 | 12.03 | 112.8 | **10.0 s** |
-| ring | 6.2 % | 4 | 32 | 12.0 | 13.23 | 25.2 | **28.5 s** |
+<!-- table: shape-lifetime/lifetime -->
+| shape | dead-end share of lane (%) | junctions | turns | cars | speed (u/s) | waiting (%) | lost (/min) | mean lifetime (s) | seed spread (s) | records |
+|---|---|---|---|---|---|---|---|---|---|---|
+| crossroads | 50.0 | 1 | 12 | 5.9 | 13.02 | 1.2 | 52.4 | 6.2 | 0.6 | `crossroads-11`, `crossroads-23`, `crossroads-42` |
+| cul-de-sac | 28.0 | 4 | 28 | 8.9 | 13.33 | 0.9 | 74.1 | 6.3 | 0.3 | `cul-de-sac-11`, `cul-de-sac-23`, `cul-de-sac-42` |
+| grid | 17.8 | 9 | 108 | 18.8 | 12.25 | 4.0 | 106.3 | 9.1 | 0.6 | `grid-11`, `grid-23`, `grid-42` |
+| ring | 6.2 | 4 | 32 | 12.0 | 13.69 | 1.1 | 22.1 | 20.0 | 3.4 | `ring-11`, `ring-23`, `ring-42` |
+<!-- /table -->
 
-A car on the ring lives **4.3× longer** than one at the lone crossroads, at
-essentially the same speed. The network is not slower — it is *leakier*.
+A car on the ring lives **3.2× longer** than one at the lone crossroads, at
+essentially the same speed. The network is not slower — it is *leakier*: the
+crossroads loses 52 cars a minute, the ring 22.
 
 The predictor is not the length of the dead ends but the chance of *choosing*
 one. Let *p* be the share of turns whose target lane is terminal; a car then
 survives about 1/*p* junctions, each costing roughly one mean lane length at
-free-flow speed:
+the speed it actually drives:
 
-| scenario | p | 1/p | mean lane | predicted lifetime | measured |
-|---|---|---|---|---|---|
-| crossroads | 1.000 | 1.0 | 71.5 | 5.5 s | 6.6 s |
-| cul-de-sac | 0.357 | 2.8 | 40.4 | 8.7 s | 6.5 s |
-| grid | 0.333 | 3.0 | 37.2 | 8.6 s | 10.0 s |
-| ring | 0.125 | 8.0 | 53.6 | 33.0 s | 28.5 s |
+<!-- table: shape-lifetime/walk -->
+| shape | p | 1/p | mean lane (u) | speed (u/s) | predicted (s) = lane / (p × speed) | measured (s) | records |
+|---|---|---|---|---|---|---|---|
+| crossroads | 1.000 | 1.0 | 71.5 | 13.02 | 5.5 | 6.2 | `crossroads-11`, `crossroads-23`, `crossroads-42` |
+| cul-de-sac | 0.357 | 2.8 | 40.4 | 13.33 | 8.5 | 6.3 | `cul-de-sac-11`, `cul-de-sac-23`, `cul-de-sac-42` |
+| grid | 0.333 | 3.0 | 37.2 | 12.25 | 9.1 | 9.1 | `grid-11`, `grid-23`, `grid-42` |
+| ring | 0.125 | 8.0 | 53.6 | 13.69 | 31.3 | 20.0 | `ring-11`, `ring-23`, `ring-42` |
+<!-- /table -->
 
 A one-line random-walk argument lands within about a third of the simulation
-across a fivefold spread. It is worst on the cul-de-sac, where the walk is
-least uniform — cars spawn on the dead-end branches too, so they start closer
-to absorption than the model assumes.
+on the crossroads, the cul-de-sac and the grid — on the grid it is exact —
+and overshoots the ring by half. The walk is least uniform where cars are
+born next to absorption: the cul-de-sac's cars spawn on its dead-end branches
+too, and the ring's on its two spurs, so both start closer to the exit than
+a uniform walk assumes, and the ring's long circulating journeys are diluted
+by short ones that never reached the loop.
 
 Note that the crossroads has *p = 1*: every exit from its single junction
 leads to a stub. It cannot recirculate a single car, which is why 50 % of its
@@ -217,23 +239,26 @@ lane length being terminal understates how leaky it is.
 
 ### A network has a capacity, and asking for more does not raise it
 
-Demand swept on the grid, three seeds averaged:
+Demand swept on the grid:
 
-| demand | cars asked | cars held | speed (u/s) | waiting | throughput (car·u/s) |
-|---|---|---|---|---|---|
-| 0.5 | 24 | 23.7 | 11.50 | 5.6 % | 273 |
-| 1.0 | 47 | 46.4 | 7.89 | 19.2 % | 366 |
-| 1.5 | 71 | 67.9 | 6.34 | 25.0 % | 431 |
-| 2.0 | 94 | 77.0 | 5.72 | 27.9 % | 441 |
-| 2.5 | 118 | 78.5 | 5.66 | 27.9 % | 444 |
-| 3.0 | 140 | 78.5 | 5.66 | 27.9 % | 444 |
+<!-- table: grid-capacity/capacity -->
+| demand | cars asked | cars held | speed (u/s) | waiting (%) | throughput (car·u/s) | seed spread | records |
+|---|---|---|---|---|---|---|---|
+| 0.5 | 24 | 23.7 | 11.44 | 5.7 | 272 | 15 | `0.5-11`, `0.5-23`, `0.5-42` |
+| 1.0 | 47 | 46.3 | 8.15 | 17.7 | 378 | 31 | `1.0-11`, `1.0-23`, `1.0-42` |
+| 1.5 | 71 | 68.0 | 6.17 | 26.4 | 418 | 50 | `1.5-11`, `1.5-23`, `1.5-42` |
+| 2.0 | 94 | 76.0 | 5.67 | 28.7 | 425 | 37 | `2.0-11`, `2.0-23`, `2.0-42` |
+| 2.5 | 118 | 76.0 | 5.67 | 28.7 | 425 | 37 | `2.5-11`, `2.5-23`, `2.5-42` |
+| 3.0 | 140 | 76.0 | 5.67 | 28.7 | 425 | 37 | `3.0-11`, `3.0-23`, `3.0-42` |
+<!-- /table -->
 
-Up to demand ~1.5 the network holds what it is asked to. Past that the two
-columns come apart and by 2.5 the network is **saturated at ~78 cars** and
-flatly refuses more — a spawn needs a clear gap, and there are none. Asking
-for three times the traffic yields the same cars at the same speed. The gap
-between "asked" and "held" is the network's capacity making itself visible,
-and the lab prints it.
+Up to demand 1.5 the network holds what it is asked to, within a few cars.
+Past that the two columns come apart and from 2.0 on the network is
+**saturated at 76 cars** and flatly refuses more — a spawn needs a clear gap,
+and there are none. Asking for three times the traffic yields the same cars
+at the same speed, to every digit the records carry, across all three seeds.
+The gap between "asked" and "held" is the network's capacity making itself
+visible, and the lab prints it.
 
 Honest caveat: this is a *saturation*, not the classic collapse of the
 fundamental diagram. Throughput plateaus rather than falling over, because
@@ -314,3 +339,6 @@ model · `V` flow numbers · `M` lane graph · `W` plot the selected road ·
 | `labs/kits/traffic/Streets3D.qml` | asphalt, paint, lane overlay, chevron flow |
 | `labs/kits/traffic/Cars3D.qml` | the instanced car population |
 | `labs/street-network-101/Sandbox.qml` | the lab: drawing, HUD, scenarios, lane graph view |
+| `labs/street-network-101/studies/shape-lifetime/` | the study behind the lifetime tables: question, answerability, manifest, 12 records |
+| `labs/street-network-101/studies/grid-capacity/` | the study behind the capacity table: 18 records |
+| `labs/street-network-101/studies/topology-four-houses/` | the houses study: which shape delivers between fixed points most steadily |

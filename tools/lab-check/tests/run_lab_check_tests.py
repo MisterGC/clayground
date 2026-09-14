@@ -3,9 +3,10 @@
 """lab-check's own checks (issue #208).
 
 Covers the half that decides what a gate REPORTS, without a lab, a build or a
-graphics session: the config it reads, the remark counter, the first-difference
-message a failed determinism run has to carry, and that the scene drivers are
-still complete JavaScript after being templated. The other half - driving an
+graphics session: the config it reads and the purpose it demands, what each tier
+owes (flows, DE, a study, a board), that a typed table is red, the remark
+counter, the first-difference message a failed determinism run has to carry,
+and that the scene drivers are still complete JavaScript after being templated. The other half - driving an
 actual lab - is exercised by the four lab_check_<lab> gates themselves.
 
     python3 tools/lab-check/tests/run_lab_check_tests.py
@@ -75,19 +76,148 @@ def test_config(tmp):
           L.read_config(lab, rep) is None and rep.failed(), str(rep.lines))
 
 
-# -- flows: "none" needs a reason -------------------------------------------
+# -- the purpose, and what it owes -------------------------------------------
+
+
+def test_purpose():
+    rep = Recorder()
+    check("purpose: a declared tier is read",
+          L.purpose_of({"purpose": "research"}, rep) == "research" and not rep.failed())
+    rep = Recorder()
+    check("purpose: a missing purpose is a failure naming the three tiers",
+          L.purpose_of({}, rep) is None and "teaching" in rep.detail("declares a purpose"),
+          rep.detail("declares a purpose"))
+    rep = Recorder()
+    check("purpose: an unknown purpose is a failure that quotes it",
+          L.purpose_of({"purpose": "demo"}, rep) is None
+          and "'demo'" in rep.detail("declares a purpose"), rep.detail("declares a purpose"))
 
 
 def test_flows_gate():
     rep = Recorder()
-    L.check_flows(rep, None, [], None, 100)
-    check("flows: an empty flows() with nothing said about it fails",
+    L.check_flows(rep, None, [], True, {}, 100)
+    check("flows: a teaching lab with an empty flows() fails",
           bool(rep.failed()), str(rep.failed()))
 
     rep = Recorder()
-    L.check_flows(rep, None, [], "the lab is an instrument, not a lesson", 100)
-    check("flows: an empty flows() with a reason in lab-check.json passes",
+    L.check_flows(rep, None, [], False, {}, 100)
+    check("flows: a research or learning lab with no flow passes",
           not rep.failed(), str(rep.failed()))
+
+
+def test_study(tmp):
+    lab = os.path.join(tmp, "study-101")
+    os.makedirs(lab)
+    rep = Recorder()
+    L.check_study(rep, lab, "teaching")
+    check("study: a teaching lab owes no study", not rep.failed())
+    rep = Recorder()
+    L.check_study(rep, lab, "research")
+    check("study: a research lab with no study fails", bool(rep.failed()))
+
+    study = os.path.join(lab, "studies", "q1")
+    os.makedirs(os.path.join(study, "records"))
+    manifest = {"manifest": "clay-lab-study/1", "study": "q1", "lab": "x/Sandbox.qml",
+                "objective": {"probe": "a", "statistic": "mean", "direction": "maximize"},
+                "run": {"steps": 6, "stepHz": 60, "budget": 1},
+                "parameters": [{"name": "p", "kind": "eval",
+                                "levels": [{"id": "l", "eval": ["x()"]}]}],
+                "seeds": [42]}
+    doc = "# Q\n\n## Answerability\n\n| a | b | c |\n\n```json\n" \
+          + json.dumps(manifest) + "\n```\n"
+    open(os.path.join(study, "study.md"), "w").write(doc)
+    rep = Recorder()
+    L.check_study(rep, lab, "research")
+    check("study: no committed records is a failure that says so",
+          bool(rep.failed()) and "no committed records" in rep.detail("study: q1"),
+          rep.detail("study: q1"))
+    open(os.path.join(study, "records", "l-42.labrec"), "w").write("x")
+    rep = Recorder()
+    L.check_study(rep, lab, "research")
+    check("study: manifest + records + answerability passes",
+          not rep.failed(), str(rep.lines))
+    open(os.path.join(study, "study.md"), "w").write(doc.replace("## Answerability", "## Method"))
+    rep = Recorder()
+    L.check_study(rep, lab, "research")
+    check("study: a study without an answerability section fails",
+          bool(rep.failed()) and "Answerability" in rep.detail("study: q1"),
+          rep.detail("study: q1"))
+    open(os.path.join(study, "study.md"), "w").write("# no manifest here\n")
+    rep = Recorder()
+    L.check_study(rep, lab, "research")
+    check("study: a study whose manifest does not parse fails",
+          bool(rep.failed()) and "fence" in rep.detail("study: q1"), rep.detail("study: q1"))
+
+
+def test_triad(tmp):
+    lab = os.path.join(tmp, "triad-101")
+    os.makedirs(lab)
+    for purpose in ("teaching", "learning", "research"):
+        rep = Recorder()
+        L.check_triad(rep, lab, purpose)
+        check(f"triad: {purpose} without paper.md fails",
+              "triad: paper.md exists" in rep.failed(), str(rep.failed()))
+    open(os.path.join(lab, "paper.md"), "w").write("# p\n")
+    rep = Recorder()
+    L.check_triad(rep, lab, "research")
+    check("triad: a research lab owes no board", not rep.failed(), str(rep.failed()))
+    for purpose in ("teaching", "learning"):
+        rep = Recorder()
+        L.check_triad(rep, lab, purpose)
+        check(f"triad: a {purpose} lab without a board fails",
+              bool(rep.failed()), str(rep.failed()))
+    open(os.path.join(lab, "overview.grafli"), "w").write("")
+    rep = Recorder()
+    L.check_triad(rep, lab, "teaching")
+    check("triad: paper + board passes", not rep.failed(), str(rep.failed()))
+
+
+def test_tables(tmp):
+    """The renderer is lab-table's; what is checked here is that a stale
+    block is a FAIL that names the command, and a current one a PASS."""
+    lab = os.path.join(tmp, "tables-101")
+    study = os.path.join(lab, "studies", "s", "records")
+    os.makedirs(study)
+    open(os.path.join(lab, "Sandbox.qml"), "w").write("")
+    manifest = {"manifest": "clay-lab-study/1", "study": "s", "lab": "x/Sandbox.qml",
+                "objective": {"probe": "a", "statistic": "mean", "direction": "maximize"},
+                "run": {"steps": 6, "stepHz": 60, "budget": 2},
+                "parameters": [{"name": "p", "kind": "eval",
+                                "levels": [{"id": "l", "eval": ["x()"]},
+                                           {"id": "r", "eval": ["y()"]}]}],
+                "seeds": [42],
+                "tables": {"t": {"columns": [{"head": "a", "expr": "mean(a)", "digits": 1}]}}}
+    for lid, v in (("l", 1.25), ("r", 2.5)):
+        open(os.path.join(study, f"{lid}-42.labrec"), "w").write(
+            "# rec\n" + json.dumps({"format": "clay-lab-record/1", "id": f"{lid}-42",
+                                    "probes": [{"name": "a", "mean": v}]})
+            + "\n# samples\nt\ta\n")
+    open(os.path.join(lab, "studies", "s", "study.md"), "w").write(
+        "# S\n```json\n" + json.dumps(manifest) + "\n```\n")
+    paper = os.path.join(lab, "paper.md")
+    open(paper, "w").write("intro\n<!-- table: s/t -->\n| typed |\n<!-- /table -->\n")
+    rep = Recorder()
+    L.check_tables(rep, lab)
+    check("tables: a typed block is a failure naming lab-table",
+          bool(rep.failed()) and "lab-table" in rep.detail("paper.md s/t"),
+          rep.detail("paper.md s/t"))
+    open(paper, "w").write(
+        "intro\n<!-- table: s/t -->\n| configuration | a | records |\n|---|---|---|\n"
+        "| l | 1.2 | `l-42` |\n| r | 2.5 | `r-42` |\n<!-- /table -->\n")
+    rep = Recorder()
+    L.check_tables(rep, lab)
+    check("tables: a block equal to the rendering passes",
+          not rep.failed(), str(rep.lines))
+    open(paper, "w").write("intro\n<!-- table: s/t -->\nnever closed\n")
+    rep = Recorder()
+    L.check_tables(rep, lab)
+    check("tables: an unclosed block is a failure",
+          bool(rep.failed()) and "closing" in rep.detail("tables: paper.md"),
+          rep.detail("tables: paper.md"))
+    open(paper, "w").write("no tables\n")
+    rep = Recorder()
+    L.check_tables(rep, lab)
+    check("tables: a lab with no marked block passes", not rep.failed())
 
 
 # -- the message a failed determinism run carries ---------------------------
@@ -167,8 +297,27 @@ def test_strings():
 
     rep = Recorder()
     L.check_strings(rep, {"langs": ["en"], "keys": {"en": ["a.one"]},
-                          "kernelKeys": {}, "flowKeys": []})
-    check("strings: a lab that ships only English fails",
+                          "kernelKeys": {}, "flowKeys": []}, require_de=True)
+    check("strings: a teaching lab that ships only English fails",
+          bool(rep.failed()), str(rep.failed()))
+
+    rep = Recorder()
+    L.check_strings(rep, {"langs": ["en"], "keys": {"en": ["a.one"]},
+                          "kernelKeys": {}, "flowKeys": []}, require_de=False)
+    check("strings: a research lab that ships only English passes",
+          not rep.failed(), str(rep.failed()))
+
+    rep = Recorder()
+    L.check_strings(rep, {"langs": ["en", "de"],
+                          "keys": {"en": ["a.one", "a.two"], "de": ["a.one"]},
+                          "kernelKeys": {}, "flowKeys": []}, require_de=False)
+    check("strings: a research lab that ships a half-translated DE still fails",
+          bool(rep.failed()), str(rep.failed()))
+
+    rep = Recorder()
+    L.check_strings(rep, {"langs": [], "keys": {}, "kernelKeys": {}, "flowKeys": []},
+                    require_de=False)
+    check("strings: no EN at all fails for every purpose",
           bool(rep.failed()), str(rep.failed()))
 
 
@@ -216,7 +365,11 @@ def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
         test_config(tmp)
+        test_purpose()
         test_flows_gate()
+        test_study(tmp)
+        test_triad(tmp)
+        test_tables(tmp)
         test_first_difference(tmp)
         test_remarks(tmp)
         test_strings()

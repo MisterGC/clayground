@@ -81,7 +81,9 @@ function createState() {
         arrived: 0,        // journeys that ended AT A HOUSE
         arrivedAt: {},     // house node id -> arrivals there
         arrivalRate: 0,    // smoothed arrivals per minute, all houses together
+        lossRate: 0,       // smoothed departures at dead ends per minute
         spawned: 0, gone: 0,
+        lifeSum: 0, lifeN: 0,   // seconds lived by every car that has left
         blockedTime: 0,    // car-seconds spent held at a stop line
         movingTime: 0,
         t: 0
@@ -173,7 +175,11 @@ function step(net, st, dt, rng, par) {
             // reached a HOUSE arrived somewhere, one that ran out of road did
             // not. A study measuring throughput wants only the first.
             if (kc.arrived) st.arrived++
-            else st.gone++
+            else { st.gone++; st.lossRate += 60 / TAU }
+            // how long the car lived is a property of the NETWORK (#209): a
+            // leaky plan ends journeys early, a ring keeps them going
+            st.lifeSum += st.t - kc.born
+            st.lifeN++
         } else kept.push(kc)
     }
     st.cars = kept
@@ -398,6 +404,7 @@ function _decayRates(net, st, dt) {
         if (st.rate[id]) st.rate[id] *= f
     }
     if (st.arrivalRate) st.arrivalRate *= f
+    if (st.lossRate) st.lossRate *= f
 }
 
 // ---- spawning --------------------------------------------------------------
@@ -564,6 +571,16 @@ function roadRate(st, roadId) { return st.rate[roadId] || 0 }
 // whose journeys have somewhere to end. Zero, always, without houses.
 function arrivalRate(st) { return st.arrivalRate || 0 }
 
+// The mirror image: cars per minute running out of road, same window. A
+// plan with no dead ends reads zero, which is what "the ring leaks nothing"
+// means as a number.
+function lossRate(st) { return st.lossRate || 0 }
+
+// Mean seconds a car lived, over every car that has left - at a house or at a
+// dead end. Zero until the first car has gone, because a mean of nothing is
+// not a measurement.
+function meanLifetime(st) { return st.lifeN ? st.lifeSum / st.lifeN : 0 }
+
 function summary(net, st, par) {
     return {
         cars: st.cars.length,
@@ -573,6 +590,8 @@ function summary(net, st, par) {
         arrived: st.arrived,
         arrivedAt: st.arrivedAt,
         arrivalRate: arrivalRate(st),
+        lossRate: lossRate(st),
+        meanLifetime: meanLifetime(st),
         meanSpeed: meanSpeed(st),
         stoppedShare: stoppedShare(st),
         simTime: st.t

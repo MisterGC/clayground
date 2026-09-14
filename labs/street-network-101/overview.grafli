@@ -41,10 +41,11 @@ is ever drawn by hand
 @ note shape 60,680 """
 result 1 — shape decides lifetime
 p = share of turns into a dead end
-crossroads p=1.00 →︎  6.6 s
-grid       p=0.33 →︎ 10.0 s
-ring       p=0.13 →︎ 28.5 s
-a car on the ring lives 4.3x longer
+crossroads p=1.00 →︎  6.2 s
+grid       p=0.33 →︎  9.1 s
+ring       p=0.13 →︎ 20.0 s
+a car on the ring lives 3.2x longer
+(studies/shape-lifetime, 3 seeds)
 """ ~small &link:./paper.md#measured-results
 
 @ note bansresult 700,940 """

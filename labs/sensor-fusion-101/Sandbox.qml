@@ -1094,10 +1094,17 @@ Item {
             key: "tunnel"
             demo: [["scenario", "tunnel"], ["simSpeed", 1.0]]
             watch: ({ "until": () => root.carInTunnel })
+            expect: () => root.carInTunnel
         }
         FlowStep {
             key: "recover"
             watch: ({ "until": () => !root.carInTunnel })
+            // The lesson as a number (#209): at the tunnel's mouth the filter
+            // has coasted on prediction alone and its 1-sigma disc is metres
+            // wide - records/tunnel-42.labrec climbs to 2.7 m inside, while
+            // open-sky-42 never exceeds 0.34 m once settled. A filter whose
+            // uncertainty did not grow without fixes would be lying.
+            expect: () => !root.carInTunnel && Math.hypot(kf.sigmaX, kf.sigmaY) > 1.0
         }
     }
     Narrator {
