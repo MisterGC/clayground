@@ -47,6 +47,9 @@ REQUIRED_MODULES = (
     "QtQuick.Timeline",       # balsam-exported skeletal animation clips
     "QtMultimedia", "QtQuick.Particles", "QtQuick.LocalStorage",
     "Clayground.Canvas3D", "Clayground.World", "Clayground.Behavior", "Clayground.Storage",
+    # what the published labs and the dojo's Character3D entry import (#250)
+    "Clayground.Character3D", "Clayground.Lab", "Clayground.Algorithm", "Clayground.Sound",
+    "Clayground.Common",
 )
 MODULE_PROBE_QML = "\n".join(f"import {m}" for m in REQUIRED_MODULES) + f"""
 import QtQuick

@@ -7,6 +7,10 @@ include(claytest)
 
 clay_add_node_test(kit_circuit
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/circuit/circuit.test.js)
+clay_add_node_test(kit_circuit_plan
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/circuit/plan.test.js)
+clay_add_node_test(kit_circuit_route
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/circuit/route.test.js)
 clay_add_node_test(kit_traffic
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/traffic/traffic.test.js)
 clay_add_node_test(kit_sensor
