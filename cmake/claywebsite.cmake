@@ -198,6 +198,12 @@ function(clay_website_create_target)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         COMMENT "Syncing plugin documentation..."
     )
+    # The sync appends a page's API Reference only when _includes/api/<plugin>.html
+    # already exists, and those files are written by the docs target - so the
+    # sync has to run after it, or every page comes out without the section (#260).
+    if(TARGET docs)
+        add_dependencies(website-sync-docs docs)
+    endif()
 
     # Generate the lab pages from the labs themselves - the paper and the
     # lab's own dictionary are the source, so the site never holds a second
