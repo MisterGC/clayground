@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ParamPanel
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Auto-generated slider panel for all registered parameters.
 
     Drop one into any lab; it builds a slider row per Parameter with
@@ -30,6 +31,10 @@ import QtQuick
     \sa Parameter, Lab
 */
 Rectangle {
+
+    // Focus mode is for studying a scene when nothing is being changed, and
+    // this panel is the changing.
+    visible: !LabView.focus
     id: _panel
 
     /*!

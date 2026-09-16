@@ -126,6 +126,24 @@ Character {
     // ============================================================================
 
     /*!
+        \qmlproperty real ParametricCharacter::handBuildResponse
+        \brief How much of the build the hands take, 0..1.
+
+        1 is the arm's own answer - a hand that gets as thin and as thick as
+        the limb it is on, which is what this used to be and what put claws on
+        a thin figure and mittens on a heavy one. 0 is a hand the build cannot
+        touch at all. The default sits nearer the second, because a hand is
+        nearly the same object on every adult and it is the arm around it that
+        changes: that is why a thin person's hands look big for them.
+
+        Only the cross-section. Hand LENGTH follows the arm's length, which is
+        a matter of \l maturity rather than of build.
+
+        \sa mass, muscle, Character::handScale
+    */
+    property real handBuildResponse: 0.5
+
+    /*!
         \qmlproperty color ParametricCharacter::skin
         \brief Skin color.
     */
@@ -195,6 +213,15 @@ Character {
     // Overall body width multiplier
     readonly property real _widthMultiplier: lerp(0.7, 1.3, mass * 0.6 + muscle * 0.4)
 
+    // What the build does to an arm's cross-section, as one number: 1 at the
+    // middle of both sliders, about 0.6 at the thin end and 1.5 at the heavy
+    // muscular one.
+    readonly property real _armBuild: _widthMultiplier * lerp(0.85, 1.15, muscle)
+
+    // And what it does to a HAND, which is the same number pulled back toward
+    // neutral by \l handBuildResponse.
+    readonly property real _handBuild: lerp(1.0, _armBuild, handBuildResponse)
+
     // Limb proportions affected by maturity
     // Children have shorter legs relative to torso
     readonly property real _legToBodyRatio: lerp(0.42, 0.48, maturity)
@@ -233,23 +260,60 @@ Character {
     torsoDepth: _headSize * 0.7 * _widthMultiplier
     waistWidth: shoulderWidth * _waistRatio
 
+    // The two trunk segments. Where the sliders used to reach the body only
+    // as one width multiplier - a heavy character was a wider character, from
+    // the shoulders to the shins - mass now shows as a belly and muscle as a
+    // chest, which is where they show on a person. Every one of these is
+    // exactly neutral at 0.5, so a default ParametricCharacter is the tapered
+    // box it always was.
+    bellyBulge: mass >= 0.5 ? lerp(1.0, 1.45, (mass - 0.5) * 2)
+                            : lerp(1.0, 0.90, (0.5 - mass) * 2)
+    chestSwell: muscle >= 0.5 ? lerp(1.0, 1.22, (muscle - 0.5) * 2)
+                              : lerp(1.0, 0.93, (0.5 - muscle) * 2)
+    // A waist is what a build has when it is not carrying weight in front of
+    // it: the pinch comes from muscle and femininity and is given back by
+    // mass. The single tapered box could not make this shape at all.
+    waistPinch: Math.max(0, lerp(0, 0.10, Math.max(0, (muscle - 0.5) * 2))
+                          + lerp(0, 0.07, Math.max(0, (femininity - 0.5) * 2))
+                          - lerp(0, 0.14, Math.max(0, (mass - 0.5) * 2)))
+
     // Hip dimensions
     hipWidth: _headSize * 1.6 * (1.0 / _shoulderHipRatio) * _widthMultiplier
     hipHeight: _headSize * 0.6
     hipDepth: torsoDepth
 
     // Arm dimensions
-    armWidth: _headSize * 0.35 * _widthMultiplier * lerp(0.85, 1.15, muscle)
+    armWidth: _headSize * 0.35 * _armBuild
     armHeight: torsoHeight * _armToTorsoRatio
     armDepth: armWidth * 1.1
+
+    // Hand dimensions. Length is left to \l Arm, which takes it off the arm -
+    // that follows maturity, not the build - but the CROSS-SECTION is set here,
+    // because the hand must not take the whole of the build's width.
+    //
+    // It used to. The palm is a fixed fraction of the arm's width and depth, so
+    // a thin, unmuscled figure got a hand three fifths of neutral and a heavy,
+    // muscular one half again as big: a spread of two and a half between the
+    // ends of two sliders, which came out as claws on one and mittens on the
+    // other. Bodies do not do that. A hand is nearly the same object on every
+    // adult - it is the limb that changes around it - which is why a thin
+    // person's hands look big for them and a heavy person's look small.
+    readonly property real _handArmWidth: _headSize * 0.35 * _handBuild
+    handWidth: _handArmWidth * 1.05
+    handDepth: _handArmWidth * 1.1 * 0.34
 
     // Leg dimensions
     legWidth: _headSize * 0.45 * _widthMultiplier * lerp(0.9, 1.1, muscle)
     legHeight: bodyHeight * _legToBodyRatio
     legDepth: legWidth * 1.2
 
-    // Movement properties are now derived from leg animation geometry
-    // walkSpeed and strideLength are calculated in WalkAnim based on leg swing angles
+    // Movement properties are derived from leg animation geometry: walkSpeed
+    // and strideLength come out of the gait cycle from the leg swing angles.
+
+    // The build walks. The four sliders go to the gait model, which is
+    // neutral at every default and fades each effect in toward the ends -
+    // see gait.js buildFactors(). Character.gaitFromBuild switches it off.
+    gaitBuild: ({ maturity: maturity, femininity: femininity, mass: mass, muscle: muscle })
 
     // Colors
     skinColor: skin

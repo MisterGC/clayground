@@ -1,3 +1,5 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+
 import QtQuick
 import QtQuick3D
 

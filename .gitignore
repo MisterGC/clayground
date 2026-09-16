@@ -76,6 +76,8 @@ Thumbs.db
 *.exe
 
 build*
+# the lab-new template KIND named build is a source directory, not a build tree
+!tools/lab-new/templates/build/
 .qmlls.ini
 
 # WASM build artifacts (built by CI)
@@ -127,3 +129,9 @@ docs/assets/images/*.svg.[0-9]*
 docs/labs/
 docs/_data/labs.yml
 docs/_data/lab_cards.yml
+
+# Narration wav masters stay local; the compressed m4a beside them ship
+labs/*/voice/**/*.wav
+
+# Personal groundwork/process notes - never part of the source tree
+mgc/

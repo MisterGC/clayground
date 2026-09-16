@@ -22,7 +22,11 @@ Canvas {
     onPaint: {
         const ctx = getContext("2d")
         ctx.reset()
-        Symbols.draw(ctx, type, width / 2, height / 2, width, height,
+        // the widest box of the symbol's own proportions that still fits: a
+        // transistor is square and would otherwise reach past the icon
+        const a = Symbols.aspect(type)
+        const bw = Math.min(width, height / a)
+        Symbols.draw(ctx, type, width / 2, height / 2, bw, bw * a,
                      { ink: ink, on: on })
     }
 }

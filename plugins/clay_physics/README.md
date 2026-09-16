@@ -18,6 +18,7 @@ import Box2D
 
 - **PhysicsItem** - Base component for physics-enabled items with world unit support
 - **RectBoxBody** - Rectangle-shaped physics body with visual representation
+- **CircleBody** - Circle-shaped physics body, for colliders that must not snag on corners
 - **ImageBoxBody** - Image-based physics body with box collision
 - **VisualizedPolyBody** - Polygon physics body integrated with Canvas visualization
 - **CollisionTracker** - Tracks entities colliding with a fixture
@@ -92,6 +93,25 @@ RectBoxBody {
     }
 }
 ```
+
+### Round Collider
+
+```qml
+CircleBody {
+    xWu: 5
+    yWu: 5
+    radiusWu: 0.5
+    color: "red"
+
+    bodyType: Body.Dynamic
+    density: 1
+    friction: 0.3
+    restitution: 0.5
+}
+```
+
+`xWu`/`yWu` address the bounding box's corner, as they do for `RectBoxBody`;
+the circle's centre sits `radiusWu` away from both.
 
 ### Collectible Items
 

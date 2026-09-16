@@ -1,4 +1,16 @@
 include (clayplugin)
+include (clayshader)
+
+# The face material. Its own MAIN() draws eyes and mouths; the outline and the
+# lighting come from Canvas3D's parts, so a head is bordered and lit by exactly
+# the code every other body part is bordered and lit by rather than by a copy
+# of it that will drift. Edit face3d_main.glsl, never the generated .frag.
+clay_compose_shader(face3d.frag
+    PARTS
+        ${CLAY_SHADER_PARTS_DIR}/box3d_edges.glsl
+        face3d_main.glsl
+        ${CLAY_SHADER_PARTS_DIR}/box3d_toon.glsl
+)
 
 # Text-to-speech is optional: when the Qt module is available, spoken text
 # gets real audio; otherwise Speech falls back to silent, timed lip-sync.
@@ -15,35 +27,63 @@ clay_plugin( Character3D
 
     SOURCES
         src/speech.cpp src/speech.h
+        src/visemeanalysis.cpp src/visemeanalysis.h
+        src/visemetimeline.h
+
+    RESOURCES
+        ${face3d_SHADER}
+        face3d.vert
 
     QML_FILES
         # Core Components
         Character.qml
+        Gait.qml
         CharacterEditor.qml
         ParametricCharacter.qml
         RatioBasedCharacter.qml
         ThoughtBubble.qml
+        Performance.qml
+
+        # Performance Scripting
+        scripting/performancescript.js
 
         # Body System
         bodyparts/BodyPart.qml
         bodyparts/BodyPartsGroup.qml
         bodyparts/Head.qml
+        bodyparts/FaceBox.qml
         bodyparts/Arm.qml
         bodyparts/Leg.qml
         bodyparts/Hand.qml
+        bodyparts/DetailedHand.qml
         bodyparts/Foot.qml
 
         # Animation System
         animation/ProceduralAnim.qml
+        animation/gait.js
+        animation/action.js
+        animation/ActionCycleAnim.qml
+        animation/GaitCycleAnim.qml
         animation/WalkAnim.qml
         animation/RunAnim.qml
         animation/IdleAnim.qml
         animation/UseAnim.qml
         animation/FightAnim.qml
+        animation/MoveSet.qml
         animation/TalkGestureAnim.qml
+        animation/GestureAnim.qml
+        animation/GazeAnim.qml
+        animation/ListenAnim.qml
         animation/PosAnim.qml
         animation/EulerAnim.qml
+        animation/HeadEulerAnim.qml
         animation/PosAndEulerAnim.qml
+
+        # Loadable Move Sets
+        # Optional, on top of the basic set above: loaded onto a character by
+        # Character::moveSet rather than instantiated with every one of them.
+        movesets/MartialArts.qml
+        movesets/martialarts.js
 
         # Control System
         control/CharacterCamera.qml
@@ -63,6 +103,38 @@ target_include_directories(ClayCharacter3D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/s
 if(Qt6TextToSpeech_FOUND)
     target_compile_definitions(ClayCharacter3D PRIVATE CLAY_CHARACTER3D_HAS_TTS)
 endif()
+
+# The gait model is Qt-free on purpose, so node checks in a second that the
+# all-neutral gait is the legacy walk and run to the digit - the one claim a
+# screenshot cannot make.
+clay_add_node_test(character3d_gait SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/gait.test.js)
+
+# The action model - what the arms do when the character is neither walking nor
+# holding a gesture - is Qt-free for the same reason, and the claims it makes
+# (a guard keeps both fists above the elbows, a punch closes the hand, a
+# working stroke actually moves) are numbers rather than screenshots.
+clay_add_node_test(character3d_action SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/animation/action.test.js)
+
+# The martial-arts move set is Qt-free for the same reason again, and it is
+# the reason the set is worth having as a model at all: "a front kick puts the
+# foot above the hip", "no crouch leaves a foot under the floor" and "the
+# get-up starts exactly where the knockdown ended" are numbers, and all three
+# were wrong at some point while the set was being written.
+clay_add_node_test(character3d_martialarts
+                   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/movesets/martialarts.test.js)
+
+# Behaviour suites. GazeAnim and ListenAnim ask their head and speaker for a
+# handful of properties and nothing else, so they are tested against stubs -
+# no built module, no window, no GPU, and it runs on Windows, where a suite
+# that needs the built module cannot (#192).
+clay_add_qml_test(character3d_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+
+# The head itself needs Canvas3D's C++ Box3DGeometry, so this half loads the
+# built module and is the half Windows has to skip.
+# tst_headpose.qml and tst_torso.qml both live here: a Head and a Character
+# are made of Box3D, whose geometry is C++ in Canvas3D.
+clay_add_qml_test(character3d_head_qml IMPORTS_BUILT_MODULE
+                  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_head)
 
 if(NOT EMSCRIPTEN)
     add_subdirectory(tests)

@@ -93,7 +93,14 @@ Item {
     // only, so the constellation never touches the seeded RNG stream.
     readonly property int satCount: 6
     readonly property real satRadius: 62
-    property var satellites: []
+    // The constellation at t = 0, and not an empty sky. A probe takes its
+    // sample BEFORE the handler below moves the satellites for that tick, so
+    // the very first sample reads whatever stood here - and an empty list is
+    // "fewer than three satellites in view", i.e. no GPS fix for the first
+    // second. Which list that was depended on how many wall-clock frames
+    // happened to run before the scenario was applied, so the same seed
+    // produced two different records depending on machine load (#208).
+    property var satellites: Gnss.constellation(0, satCount, satRadius)
     // line-of-sight blockers: exactly the boxes you can see standing there
     readonly property var losBlockers: {
         const out = []
@@ -112,6 +119,15 @@ Item {
     property Connections _skyConn: Connections {
         target: Lab
         function onSampled(t) { root.satellites = Gnss.constellation(t, root.satCount, root.satRadius) }
+    }
+    // A reset rewinds sim time, so it has to rewind the sky with it - the
+    // sensors snap their state here and would otherwise take their first
+    // reading of the new run against the last sky of the old one.
+    property Connections _skyReset: Connections {
+        target: clock
+        function onWasReset() {
+            root.satellites = Gnss.constellation(0, root.satCount, root.satRadius)
+        }
     }
 
     // --- fusion bookkeeping ----------------------------------------------
@@ -1078,10 +1094,17 @@ Item {
             key: "tunnel"
             demo: [["scenario", "tunnel"], ["simSpeed", 1.0]]
             watch: ({ "until": () => root.carInTunnel })
+            expect: () => root.carInTunnel
         }
         FlowStep {
             key: "recover"
             watch: ({ "until": () => !root.carInTunnel })
+            // The lesson as a number (#209): at the tunnel's mouth the filter
+            // has coasted on prediction alone and its 1-sigma disc is metres
+            // wide - records/tunnel-42.labrec climbs to 2.7 m inside, while
+            // open-sky-42 never exceeds 0.34 m once settled. A filter whose
+            // uncertainty did not grow without fixes would be lying.
+            expect: () => !root.carInTunnel && Math.hypot(kf.sigmaX, kf.sigmaY) > 1.0
         }
     }
     Narrator {

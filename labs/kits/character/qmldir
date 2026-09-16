@@ -1,0 +1,20 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# A directory import resolves by listing the directory, which is impossible
+# over HTTP - so a lab served by the Web Dojo needs its types named here.
+# Harmless on the desktop, where Qt scans the directory either way.
+#
+# One scene per aspect of a character. Every one of them is a Node that
+# answers the same contract (README.md, "The scene contract"), so a lab can
+# load any of them into its View3D and drive it the same way.
+Lineup 1.0 Lineup.qml
+GaitSheet 1.0 GaitSheet.qml
+GestureSheet 1.0 GestureSheet.qml
+ActionStage 1.0 ActionStage.qml
+MoveSheet 1.0 MoveSheet.qml
+HandBench 1.0 HandBench.qml
+FaceSheet 1.0 FaceSheet.qml
+HeadRow 1.0 HeadRow.qml
+SpeechRow 1.0 SpeechRow.qml
+ConversationStage 1.0 ConversationStage.qml
+CrowdField 1.0 CrowdField.qml

@@ -25,6 +25,8 @@ clay_app(webdojo
         Qt::QuickLayouts
         Qt::Quick3D
         Qt::Quick3DHelpers
+        Qt::Quick3DAssetUtils
+        Qt::QuickTimeline
         Qt::Sql
         Qt::Svg
         Qt6::QSvgPlugin
@@ -88,6 +90,7 @@ add_custom_target(clayground_starter
         ${CMAKE_CURRENT_SOURCE_DIR}/appshell/index.html
         ${CMAKE_CURRENT_SOURCE_DIR}/appshell/Main.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/appshell/README.md
+        ${CMAKE_CURRENT_SOURCE_DIR}/appshell/make-assets-manifest.py
         ${CMAKE_SOURCE_DIR}/docs/coi-serviceworker.js
         ${CMAKE_CURRENT_BINARY_DIR}/RUNTIME-MANIFEST.json
         ${CLAY_STARTER_DIR}/
@@ -96,7 +99,7 @@ add_custom_target(clayground_starter
         ${CLAY_STARTER_DIR}/LICENSES
     COMMAND ${CMAKE_COMMAND} -E chdir ${CLAY_STARTER_DIR}
         ${CMAKE_COMMAND} -E tar cf ${CMAKE_BINARY_DIR}/clayground-starter.zip --format=zip --
-        index.html Main.qml README.md clayground.js clayground.wasm
+        index.html Main.qml README.md make-assets-manifest.py clayground.js clayground.wasm
         qtloader.js coi-serviceworker.js RUNTIME-MANIFEST.json LICENSES
     DEPENDS webdojo
     COMMENT "Packaging Clayground starter bundle (clayground-starter.zip)"

@@ -6,6 +6,7 @@ import "scale.js" as Scale
 /*!
     \qmltype InstrumentScale
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief What a reading means - the measurement model every instrument face draws.
 
     An instrument is a model and a face, not a widget. This is the model: a

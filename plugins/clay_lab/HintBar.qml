@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype HintBar
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The bottom-centre line that says what you can do right now.
 
     Owns the slot rules that every lab got right by hand and would eventually
@@ -36,7 +37,25 @@ Rectangle {
         \qmlproperty string HintBar::text
         \brief The line to show; empty hides the bar.
     */
-    property alias text: _hint.text
+    property string text: ""
+
+    /*!
+        \qmlmethod void HintBar::flash(string message)
+        \brief Shows \a message for a moment, then returns to \l text.
+
+        The refusal channel: a key that cannot act right now says what is
+        missing here ("no earlier view", "nothing selected") instead of
+        doing nothing - and saying it must not disturb whatever the lab's
+        own hint binding currently reads, which is why this is a transient
+        overlay rather than a text write.
+    */
+    function flash(message) {
+        _flash = message
+        _flashTimer.restart()
+    }
+
+    property string _flash: ""
+    Timer { id: _flashTimer; interval: 1800; onTriggered: root._flash = "" }
 
     /*!
         \qmlproperty var HintBar::flow
@@ -78,7 +97,11 @@ Rectangle {
     anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
     anchors.bottomMargin: LabTheme.spaceL
 
-    visible: text !== "" && !(flow && flow.running)
+    // Focus mode takes it too: a line telling you what you could click is
+    // chrome about interaction, and focus mode is for when you are not
+    // interacting. The alarm banner is deliberately NOT treated this way -
+    // a short circuit outranks whatever you were trying to look at.
+    visible: (text !== "" || _flash !== "") && !(flow && flow.running) && !LabView.focus
     width: _hint.width + LabTheme.px(30)
     height: LabTheme.px(26)
     radius: LabTheme.px(6)
@@ -89,7 +112,10 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.min(implicitWidth, root._limit - LabTheme.px(30))
         elide: Text.ElideRight
-        color: LabTheme.inkSoft
+        text: root._flash !== "" ? root._flash : root.text
+        // a flash outranks the standing hint in ink too: it is an answer to
+        // the key just pressed, not ambient guidance
+        color: root._flash !== "" ? LabTheme.ink : LabTheme.inkSoft
         font.pixelSize: LabTheme.fontLead
         font.family: LabTheme.handFont
     }

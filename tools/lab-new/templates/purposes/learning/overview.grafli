@@ -1,0 +1,53 @@
+#!grafli v1
+# {{Title}} — concept map
+# Companion board to paper.md. Purpose: {{purpose}} — so this board GROWS
+# with the understanding: prerequisite -> concept -> consequence, and an
+# open question stays on the board as a question rather than being quietly
+# dropped. Started {{date}}.
+#
+# Skeleton. Replace every "…" with the real thing; delete a node only when
+# you can say why it does not apply. Keep every key and every scenario name
+# here identical to Sandbox.qml, strings.js and paper.md - a board that
+# disagrees with the lab teaches the wrong lab.
+
+# ── entry ──
+@ box paper "Paper →\nthe study path" 60,60 220x80 %soft &link:./paper.md
+@ note legend 900,60 """
+colors match the lab
+open questions are marked ?
+""" ~small
+
+# ── prerequisites ──
+@ box pre1 "prerequisite\n…" 60,240 240x110 %muted &link:./paper.md#the-model-at-the-level-i-can-hold-it
+
+# ── the concepts ──
+@ box concept "THE CONCEPT\n…" 400,220 260x130 %primary &link:./paper.md#the-question
+@ box expected "what I expected\n…\n(kept, wrong or not)" 400,420 260x130 %accent &link:./paper.md#what-i-expected
+
+# ── consequences ──
+@ box result "what happens\n…" 760,220 260x130 %teal &link:./paper.md#measured-results
+@ box broke "where the intuition broke\n…" 760,420 260x130 %rose &link:./paper.md#where-the-intuition-broke
+
+# ── still open ──
+@ box open1 "? …" 400,620 260x110 %highlight &link:./paper.md#still-open
+
+# ── arrows ──
+@ arrow pre1 -> concept "needed for"
+@ arrow concept -> result
+@ arrow expected -> broke "contradicted by" !dashed
+@ arrow result -> broke
+@ arrow broke -> open1 "opened"
+
+# ── the lab itself ──
+@ note scen 60,620 """
+scenarios (keys 1-2)
+1 intro - …
+2 … - …
+""" ~small &link:./paper.md#worked-examples
+
+@ note keys 60,800 """
+keys
+1-2 presets · T tour · F frame · 0 reset
+arrows/WASD travel · Shift+arrows turn
+Shift+R record · ? every key
+""" ~small &link:./paper.md#how-to-run-it

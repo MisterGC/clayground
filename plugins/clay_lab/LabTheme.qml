@@ -8,6 +8,7 @@ import "tokens.js" as Tokens
 /*!
     \qmltype LabTheme
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief Shared paper-and-ink design tokens for lab UIs, in light and dark.
 
     A warm, retro-print theme: paper surfaces, charcoal ink lines, a

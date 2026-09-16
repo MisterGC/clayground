@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ThemeSwitch
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief A button that swaps the lab between the light and dark palette.
 
     Drop it into a corner - beside \l LangSwitch is the convention - and the
@@ -26,6 +27,10 @@ import QtQuick
     \sa LabTheme, LangSwitch
 */
 Rectangle {
+
+    // See LangSwitch. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
+    visible: !LabView.focus
     id: _switch
 
     implicitWidth: LabTheme.px(26)

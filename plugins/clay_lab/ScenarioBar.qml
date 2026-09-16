@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ScenarioBar
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Clickable preset chips, each carrying what it is worth noticing.
 
     A lab's scenarios used to be reachable only by pressing \c 1..4, and the

@@ -194,14 +194,35 @@ ClayHttpClient {
 
 ### Authentication Options
 
+Three schemes, each configured by its own properties:
+
 ```qml
-// Direct token
+// Bearer token -> "Authorization: Bearer <token>"
+bearerToken: "your-token-here"
+
+// HTTP basic -> "Authorization: Basic <base64(user:password)>"
+basicAuthUser: "alice"
+basicAuthPassword: "s3cret"
+
+// API key -> a header of its own, "X-API-Key" unless renamed
+apiKey: "abc123"
+apiKeyHeader: "X-API-Key"
+```
+
+`bearerToken` takes precedence over `basicAuthUser`/`basicAuthPassword` — a
+request carries one `Authorization` header. `apiKey` is independent and can
+accompany either.
+
+Every credential value can be given literally or read from somewhere else:
+
+```qml
+// Direct value
 bearerToken: "your-token-here"
 
 // From environment variable
-bearerToken: "env:API_TOKEN"
+bearerToken: "env.API_TOKEN"
 
-// From file
+// From file (contents are trimmed)
 bearerToken: "file:///path/to/token.txt"
 ```
 

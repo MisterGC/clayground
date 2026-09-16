@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ScenarioSet
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Declarative collection of scenarios wiring the scenarios()/applyScenario() convention.
 
     Delegate the sandbox root's convention functions to this set:

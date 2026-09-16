@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype DigitFace
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief The reading as mono digits - the numeric face of an \l InstrumentScale.
 
     When the question is "what is the number", not "how far along". Digits

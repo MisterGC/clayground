@@ -7,6 +7,7 @@ import Clayground.Lab
 /*!
     \qmltype InstrumentBelt
     \inqmlmodule Clayground.Lab
+    \ingroup lab-handheld
     \brief What the viewer can pick up: the kernel's instruments in every lab,
     plus whatever the kit brought.
 
@@ -63,6 +64,10 @@ import Clayground.Lab
     \sa HandheldInstrument, TapeMeasure, Stopwatch, OrbitInput3D
 */
 Item {
+
+    // The belt is how a lab is MEASURED with, and focus mode is for the times
+    // that is not the point.
+    visible: !LabView.focus
     id: root
 
     anchors.fill: parent

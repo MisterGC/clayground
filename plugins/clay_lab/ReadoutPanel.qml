@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ReadoutPanel
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \inherits LabPanel
     \brief A titled panel of live readout rows, built from data.
 

@@ -14,6 +14,14 @@ class Box3dGeometry : public QQuick3DGeometry
     Q_PROPERTY(QVector3D size READ size WRITE setSize NOTIFY sizeChanged)
     Q_PROPERTY(QVector2D faceScale READ faceScale WRITE setFaceScale NOTIFY faceScaleChanged)
     Q_PROPERTY(ScaledFace scaledFace READ scaledFace WRITE setScaledFace NOTIFY scaledFaceChanged)
+    Q_PROPERTY(float bevel READ bevel WRITE setBevel NOTIFY bevelChanged)
+    // The chamfer's width in world units, as actually computed - bevel is a
+    // fraction of the shortest edge and is clamped, so it cannot be derived
+    // from the property and the size without repeating that arithmetic. A
+    // shader drawing on a face needs it: the chamfer insets every face quad,
+    // and the quad still carries 0..1 UVs, so anything mapping UVs back to
+    // world units lands short by this much on each side.
+    Q_PROPERTY(float bevelWidth READ bevelWidth NOTIFY bevelWidthChanged)
 
     // Edge rendering properties (matching VoxelMap)
     Q_PROPERTY(bool showEdges READ showEdges WRITE setShowEdges NOTIFY showEdgesChanged)
@@ -76,6 +84,10 @@ public:
     QVector2D faceScale() const;
     void setFaceScale(const QVector2D &newFaceScale);
 
+    float bevel() const;
+    float bevelWidth() const;
+    void setBevel(float newBevel);
+
     ScaledFace scaledFace() const;
     void setScaledFace(ScaledFace newScaledFace);
 
@@ -101,6 +113,8 @@ public:
 signals:
     void sizeChanged();
     void faceScaleChanged();
+    void bevelChanged();
+    void bevelWidthChanged();
     void scaledFaceChanged();
 
     // Edge rendering signals
@@ -115,6 +129,8 @@ private:
     void updateData();
     QVector3D m_size;
     QVector2D m_faceScale;
+    float m_bevel = 0.0f;
+    float m_bevelWidth = 0.0f;
     ScaledFace m_scaledFace;
 
     // Edge rendering properties with default values

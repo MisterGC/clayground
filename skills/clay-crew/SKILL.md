@@ -40,7 +40,9 @@ the lifecycle/failure artifacts, and the human collaboration channel.
   x,y,w,h` (what a framed region is *about*: item or 3D node, with name,
   type, source file and world position). Exit 1 =
   never loaded, 2 = rendered but the scene logged errors, 3 = the
-  `--wait-for` state never arrived. See the manual page for the rest.
+  `--wait-for` state never arrived. The whole option set, `--prefs` and
+  `--result` included, is `docs/docs/manual/clayrender.md` - the one
+  cheat-sheet; neither skill carries another.
 - **The dojo** (the rest of this skill) — interaction, hot-reload
   iteration, and anything genuinely stateful: driving input, stepping
   simulation time, tracing, or working in a shared session with the user.
@@ -777,6 +779,91 @@ same seed + same stepped frames must reproduce identical probe series,
 which is the determinism check every lab change should re-run. For
 *composing* labs (blocks, conventions, flows, design language), use the
 sibling skill `skills/clay-lab/`.
+
+## Reading a walk on a cycle sheet
+
+Any time a gait, a preset or the build mapping in
+`plugins/clay_character3d/animation/gait.js` is changed or verified, render
+the cycle sheet, not a moving character. The `gait` scenario of
+`labs/character-101` (`labs/kits/character/GaitSheet.qml`) freezes N idle
+figures at successive phases of one cycle (`Character.applyGaitPose(base,
+t)`, t = i/frames); nothing on the sheet animates, so the render is
+deterministic and a sheet compares across presets and commits. A flaw that
+hides from a debugger and springs to the eye in motion is on paper.
+
+```bash
+clayrender labs/character-101/Sandbox.qml --size 1800x900 --paused \
+    --eval 'applyScenario("gait"); act("preset", ["elderly"]); act("emotion", ["sad"]);
+            act("base", ["walk"]); Lab.set("maturity", 0.9); Lab.set("frames", 8)' \
+    --wait-for 'sceneReady' --result - --eval 'JSON.stringify(scene.report())' \
+    --out /tmp/elderly.png
+```
+
+Verbs (through `act(verb, [args])`, or a flow step): `preset`, `emotion`
+(`happy`/`sad`/`angry`/empty), `base` (`walk`/`run`). Knobs (through
+`Lab.set`): `frames`, `maturity`, `femininity`, `mass`, `muscle`. Shots
+(`goShot("side"|"front"|"back"|"top")`, `N` in the lab) turn the camera; the
+figures stand still, walking screen-right from the side.
+
+**Always `--wait-for 'sceneReady'`, never `--frames` alone.** Each figure
+takes its first pose 300 ms after IdleAnim has zeroed its joints, and
+`sceneReady` is every figure having had that first pass. Every later change
+(a verb, a `Lab.set`) re-poses the figures synchronously, so a capture on any
+frame after the change is current. A capture without the wait can land
+inside IdleAnim's 200 ms and show sixteen zeroed joints under a header naming
+a gait.
+
+How to read it (the labels under the figures say which is which):
+
+- `t = 0` and `t = 0.5` are the **contacts**: legs furthest apart, leading
+  heel down, figure at its lowest.
+- `t = 0.25` and `t = 0.75` are the **passing** positions: legs crossing,
+  free knee at its highest, figure at its highest if the gait bounces.
+- Between them: the arms oppose the legs, the head holds its attitude,
+  nothing folds the wrong way, and the lift reads against the squared paper.
+
+If one of the four poses looks wrong on the sheet it looks wrong at speed.
+
+`scene.report()` is the line to read numbers from: base, preset
+(`presetKnown: false` when the name is not in the table), emotion, build,
+every non-neutral factor of the first figure's `gaitFactors`, the cycle
+length, the derived speed and stride, and the trunk's belly/chest/back
+angles. The same numbers are the scene's probes (`gait.cycle`, `gait.speed`,
+`gait.stride`, `gait.hip`, `gait.knee`, `gait.arm`, `gait.lift`), sampled
+off the pure pose model at the phase the lab's clock stands in - so
+`labs/character-101/records/gait-42.labrec` IS the cycle, as curves.
+
+Tuning loop:
+
+```bash
+# 1. change numbers in gait.js (FACTORS, BASES, EMOTIONS, BUILD, PRESETS)
+node plugins/clay_character3d/animation/gait.test.js
+# 2. REBUILD - plugin QML/JS is baked into the plugin's resources; a render
+#    without this shows the OLD table and looks like the edit did nothing
+cmake --build build --target ClayCharacter3D
+# 3. re-render the sheet, and re-make the record the paper quotes
+labs/character-101/records/make.sh gait
+```
+
+Factors beyond a preset go through the sheet's shared Gait object:
+`--eval 'scene.gait.lean = 6'`.
+
+Trap: an `--eval` placed after `--wait-for` still runs before the wait, so a
+trailing `--eval` probe reads the scene before it is posed. Put the probe
+inside the `--wait-for` expression, or read `--result` of an `--eval` that
+runs after the scene was already posed.
+
+Reading a live gait: `character.gaitFactors` is the thing to assert on - it
+says what the character was asked to do, where a joint angle mid-swing says
+only where the leg happens to be. For a walking character use the `lineup`
+scenario of the same lab (six builds, one cycle, posed from the clock; `base`
+switches walk and run) or the dojo.
+
+The other aspects of a character are scenarios of the same lab and answer
+the same way - `applyScenario("<aspect>")`, `act(verb, [args])`, `Lab.set`,
+`sceneReady`, `scene.report()`: `gestures`, `action`, `moves`, `hands`,
+`faces`, `heads`, `speech`, `conversation`, `crowd`. The kit README
+(`labs/kits/character/README.md`) lists each scene's verbs and probes.
 
 ## Fix loop discipline
 

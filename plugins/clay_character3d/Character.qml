@@ -10,6 +10,8 @@ import QtQuick
 import Clayground.Canvas3D
 import "bodyparts"
 import "animation"
+import "animation/gait.js" as GaitLib
+import "animation/action.js" as ActionLib
 
 pragma ComponentBehavior: Bound
 
@@ -71,10 +73,524 @@ BodyPartsGroup {
     */
     property alias idleCycleDuration: _idleAnim.duration
 
+    // ============================================================================
+    // GAIT
+    // ============================================================================
+    // How the character walks and runs is one composed factor vector, fed by
+    // three sources that each default to nothing: the author's Gait object, the
+    // build (a ParametricCharacter hands its sliders over as gaitBuild), and
+    // the emotion the face is wearing. The cycles read gaitFactors; with every
+    // source at neutral they are the walk and run the framework always had.
+
+    /*!
+        \qmlproperty Gait Character::gait
+        \brief How this character walks and runs, by preset and by factor.
+
+        A neutral \l Gait - the default - changes nothing. Replace it to ask
+        for something:
+        \qml
+        Character { gait: Gait { preset: "heavy"; bounce: 0.02 } }
+        \endqml
+        It composes with what the build and the mood say rather than
+        overriding them; see \l gaitFactors.
+    */
+    property Gait gait: Gait {}
+
+    /*!
+        \qmlproperty bool Character::gaitFromBuild
+        \brief Whether the body's build shapes the gait. On by default.
+
+        A \l ParametricCharacter walks by its sliders: a child's quick high
+        steps, an elderly shuffle, a heavy rock, a feminine sway. All subtle,
+        zero at every default, and switched off here for a character whose
+        walk should ignore its body.
+    */
+    property bool gaitFromBuild: true
+
+    /*!
+        \qmlproperty bool Character::gaitFromEmotion
+        \brief Whether the mood shapes the gait. On by default.
+
+        The same channel the face uses: a spoken line's emotion while it is
+        spoken, \l emotion otherwise. A sad character slows and slumps, a happy
+        one springs, an angry one leans in with the elbows bent - the walking
+        counterpart of \l speechBodyLanguage.
+    */
+    property bool gaitFromEmotion: true
+
+    /*!
+        \qmlproperty var Character::gaitBuild
+        \brief The build as the gait model reads it: an object with
+               \c maturity, \c femininity, \c mass and \c muscle in 0..1, or
+               null. A \l ParametricCharacter binds its sliders here.
+    */
+    property var gaitBuild: null
+
+    /*!
+        \qmlproperty var Character::gaitFactors
+        \readonly
+        \brief The composed, clamped factor vector the cycles are walking with.
+
+        The thing to assert on: it says what the character was asked to do,
+        where a joint angle mid-swing says only where the leg happens to be.
+        Keys are the thirteen factors of \l Gait.
+    */
+    readonly property var gaitFactors: GaitLib.compose([
+        _character.gaitFromBuild ? GaitLib.buildFactors(_character.gaitBuild) : null,
+        _character.gaitFromEmotion ? GaitLib.emotionFactors(_character._gaitEmotion) : null,
+        _character.gait ? _character.gait.factors : null
+    ])
+
+    readonly property string _gaitEmotion: _emotionCtl.current !== "" ? _emotionCtl.current
+                                                                     : _emotionCtl.persistent
+
+    /*!
+        \qmlproperty real Character::gaitLift
+        \readonly
+        \brief How far the gait has raised the whole figure right now, in world
+               units - the bounce. Zero unless a cycle is running or a pose is
+               held by \l applyGaitPose().
+    */
+    /*!
+        \qmlproperty string Character::gaitHandPose
+        \brief What the gait wants the hands to be doing, "" when none does.
+
+        A layer, not a setting: \l handPose is the author's and is never
+        written to. It sits between a gesture and \l handPose: anger closes
+        the hands whether the character is walking or standing still, because
+        a furious figure does not stand with its hands open. Otherwise it is
+        the SPEED that decides - a walk carries loose hands, a run carries
+        straight ones - and \l handPose comes straight back on stop.
+
+        \sa handPose, gaitFactors
+    */
+    /*!
+        \qmlproperty real Character::handRestRoll
+        \brief The wrist's resting roll in degrees, signed per side by whoever
+               applies it: 90 turns the palms in to face the body.
+
+        Where a hand sits when nothing is posing it - standing as much as
+        walking, because a palm facing backwards off a hanging arm is a
+        mannequin either way. The same quarter turn about the same axis (the
+        hand's own Y, which is the forearm) that GestureAnim's thumbs-up uses.
+        A gait scales it through the \c handRoll factor; a gesture, a use or a
+        fight owns the wrist outright while it runs.
+    */
+    property real handRestRoll: 90
+
+    // A walk carries LOOSE hands and a run carries straight ones. Both used to
+    // be "open", which is the hand held flat with the fingers fanned - and
+    // that is a hand doing something, not a hand being carried. At walking
+    // pace it read as a figure wading; at a run it reads as a sprinter's
+    // flat hand, which is what runners actually do and why the run keeps it.
+    // Idle already falls through to handPose, whose default is "relax", so
+    // this also makes standing and walking agree about the hands rather than
+    // changing their shape at the first step.
+    readonly property string gaitHandPose:
+        _character.gaitFactors.fist > 0.5 ? "fist"
+      : _runAnim.running ? "open"
+      : _walkAnim.running ? "relax"
+      : ""
+
+    /*!
+        \qmlproperty string Character::actionHandPose
+        \readonly
+        \brief What the running activity wants the hands to be doing, "" when
+               none does.
+
+        The same kind of layer as \l gaitHandPose and it sits beside it: a
+        \c Fighting character's hands are fists and a \c Using character's are
+        loose, whatever \l handPose says. Before it existed nothing on the
+        \c Fighting path could close a hand, so a punch was thrown with the
+        fingers open and the whole cycle read as clawing rather than boxing.
+
+        \sa handPose, gaitHandPose, ActionCycleAnim::handPose
+    */
+    readonly property string actionHandPose: _character.moveHandPose !== "" ? _character.moveHandPose
+                                           : _fightAnim.handPose !== "" ? _fightAnim.handPose
+                                           : _useAnim.handPose
+
+    readonly property real gaitLift: _walkAnim.running ? _walkAnim.lift
+                                   : _runAnim.running ? _runAnim.lift
+                                   : _character._heldLift
+    property real _heldLift: 0
+
+    /*!
+        \qmlproperty real Character::bodyDrift
+        \readonly
+        \brief How far the body has travelled forward over its own feet, in
+               the character's own units.
+
+        The companion of \l gaitLift on the other axis, and written by the
+        same animators: a step, a jump or a stagger moves the whole figure -
+        feet included - relative to the character's position, and comes back
+        to zero by the end of the move. Carrying the character itself across
+        the floor is the caller's business; nothing here ever writes
+        \c position.
+
+        \sa gaitLift, moveSet
+    */
+    readonly property real bodyDrift: _character._heldDrift
+    property real _heldDrift: 0
+
+    /*!
+        \qmlmethod var Character::gaitPoseAt(string base, real t)
+        \brief The joint angles this character's gait has at phase \a t of the
+               \a base cycle ("walk" or "run"), 0..1, with nothing running.
+
+        Pure: the same answer as the running cycle would give at that moment,
+        computed from \l gaitFactors. Returns \c {{rightLeg, leftLeg, rightArm,
+        leftArm, hip, torso, belly, chest, head, lift}} in the joints' own
+        conventions, lift in leg heights. The cycle sheet is drawn from it.
+    */
+    function gaitPoseAt(base, t) {
+        return GaitLib.poseAt(GaitLib.derive(base, _character.gaitFactors), t)
+    }
+
+    /*!
+        \qmlmethod var Character::gaitTable(string base)
+        \brief The derived numbers the \a base cycle ("walk" or "run") is
+               replayed from at this character's \l gaitFactors - its
+               \c cycleMs among them.
+
+        The gait counterpart of \l actionTable(): what \l gaitPoseAt() poses
+        from, handed out so a lab can quote a cycle's length without an
+        animation running.
+
+        \sa gaitPoseAt(), actionTable()
+    */
+    function gaitTable(base) {
+        return GaitLib.derive(base, _character.gaitFactors)
+    }
+
+    /*!
+        \qmlmethod void Character::applyGaitPose(string base, real t)
+        \brief Freezes the joints at phase \a t of the \a base cycle.
+
+        For looking, not for playing: it writes the pose of \l gaitPoseAt()
+        straight onto the joints, which only makes sense while \l activity is
+        Idle and no gesture holds them - a running cycle would animate over it
+        within a frame. A row of characters frozen at successive phases is a
+        walk cycle on one sheet, the way animators check one; see the gait
+        sheet of the character lab, \c labs/kits/character/GaitSheet.qml.
+    */
+    function applyGaitPose(base, t) {
+        const p = _character.gaitPoseAt(base, t)
+        function leg(l, a) {
+            l.upperLeg.eulerRotation = Qt.vector3d(a.upper, 0, 0)
+            l.lowerLeg.eulerRotation = Qt.vector3d(a.lower, 0, 0)
+            l.foot.eulerRotation = Qt.vector3d(a.foot, 0, 0)
+        }
+        // side is +1 right, -1 left: the wrist roll is the one arm angle that
+        // mirrors, so the sheet has to be told which arm it is drawing.
+        function arm(m, a, side) {
+            m.upperArm.eulerRotation = Qt.vector3d(a.upper, 0, a.out)
+            m.lowerArm.eulerRotation = Qt.vector3d(a.lower, 0, 0)
+            // The same roll the running cycle applies. Zero here made the
+            // sheet disagree with the walk it is drawn to check.
+            m.hand.eulerRotation = Qt.vector3d(
+                0, side * _character.handRestRoll * _character.gaitFactors.handRoll, 0)
+        }
+        leg(_rightLeg, p.rightLeg)
+        leg(_leftLeg, p.leftLeg)
+        arm(_rightArm, p.rightArm, 1)
+        arm(_leftArm, p.leftArm, -1)
+        _hip.eulerRotation = Qt.vector3d(p.hip[0], p.hip[1], p.hip[2])
+        _torso.eulerRotation = Qt.vector3d(p.torso[0], p.torso[1], p.torso[2])
+        _belly.eulerRotation = Qt.vector3d(p.belly[0], p.belly[1], p.belly[2])
+        _chest.eulerRotation = Qt.vector3d(p.chest[0], p.chest[1], p.chest[2])
+        _head.poseEuler = Qt.vector3d(p.head[0], p.head[1], p.head[2])
+        _character._heldLift = p.lift * _character.legHeight
+    }
+
+    /*!
+        \qmlproperty real Character::actionIntensity
+        \brief How hard at it a \c Using or \c Fighting character is, 0..1.
+
+        Speed and amplitude, never a different pose: a harder fight is a faster
+        one with a tighter guard, and harder work is a bigger stroke.
+
+        \sa activity, workHeight
+    */
+    property real actionIntensity: 0.5
+
+    /*!
+        \qmlproperty real Character::workHeight
+        \brief Where the work is while \l activity is \c Using: 0 a table at
+               the waist, 0.5 a counter at the chest, 1 a shelf at head height.
+
+        Moves the whole posture, not only the hands: over a table the back
+        rounds and the head is down at the work, at a counter the forearms
+        angle up, and at a shelf the back arches and the head comes up -
+        reaching high is not something anyone does bent over.
+
+        \sa activity, actionIntensity
+    */
+    property real workHeight: 0.35
+
+    /*!
+        \qmlmethod var Character::actionPoseAt(string action, real t)
+        \brief The joint angles the \a action cycle ("use" or "fight") holds at
+               phase \a t, 0..1, with nothing running.
+
+        Pure, and the same answer the running cycle gives at that moment -
+        \l ActionCycleAnim plays this very function. Returns \c {{rightArm,
+        leftArm, rightLeg, leftLeg, hip, torso, belly, chest, head, hand}} in
+        the joints' own conventions, with the wrist roll as a fraction of a
+        quarter turn. The gesture sheet is drawn from it.
+
+        \sa applyActionPose(), gaitPoseAt()
+    */
+    function actionPoseAt(action, t) {
+        return ActionLib.poseAt(action === "fight" ? _fightAnim.table : _useAnim.table, t)
+    }
+
+    /*!
+        \qmlmethod var Character::actionTable(string action)
+        \brief The derived numbers the \a action cycle ("use" or "fight") is
+               replayed from at this character's \l actionIntensity and
+               \l workHeight - its \c cycleMs among them.
+
+        \sa actionPoseAt(), ActionCycleAnim::table
+    */
+    function actionTable(action) {
+        return action === "fight" ? _fightAnim.table : _useAnim.table
+    }
+
+    /*!
+        \qmlmethod void Character::applyActionPose(string action, real t)
+        \brief Freezes the joints at phase \a t of the \a action cycle.
+
+        For looking, not for playing, exactly as \l applyGaitPose() is: it only
+        makes sense while \l activity is Idle and no gesture holds the joints,
+        since a running cycle would animate over it within a frame. A row of
+        characters frozen at successive phases is the action on one sheet; see
+        the gesture sheet of the character lab, \c labs/kits/character/GestureSheet.qml.
+
+        The hands are NOT written here - they are \l handPose's, and a sheet
+        sets that itself.
+    */
+    function applyActionPose(action, t) {
+        const a = action === "fight" ? _fightAnim : _useAnim
+        a.apply(t)
+    }
+
+    // ============================================================================
+    // LOADABLE MOVE SETS
+    // ============================================================================
+    //
+    // Everything above this line is the BASIC SET: walking, running, standing,
+    // gazing, listening, gesturing, talking, working and boxing are what a
+    // character IS, every game wants them, and they are always-resident
+    // children of this file. A MOVE SET is what a character KNOWS - a martial
+    // art, a dance, a trade's hand-work. One game wants it and the next does
+    // not, so it is loaded onto a character on demand, replaces whatever was
+    // loaded before it, and can be unloaded again by clearing moveSet.
+
+    /*!
+        \qmlproperty string Character::moveSet
+        \brief The loadable move set on this character, "" for none.
+
+        Either the name of a set that ships with the plugin - see
+        \l shippedMoveSets, currently \c {"martial arts"} - or the URL of a
+        \l MoveSet QML file of your own. Setting it loads the set and drops
+        whatever was loaded before; setting it to "" unloads.
+
+        Loading does not itself move the character. Play something with
+        \l playMove():
+
+        \qml
+        Character {
+            id: fighter
+            moveSet: "martial arts"
+            Component.onCompleted: fighter.playMove("stance")
+        }
+        \endqml
+
+        A set only runs while \l activity is Idle, exactly as a gesture does:
+        \l playMove() puts the activity back to Idle rather than quietly doing
+        nothing, and starting any other activity drops the move.
+
+        \sa playMove(), moves, MoveSet, MartialArts
+    */
+    property string moveSet: ""
+
+    /*!
+        \qmlproperty var Character::shippedMoveSets
+        \readonly
+        \brief The sets that ship with the plugin, as a map of name to the URL
+               \l moveSet resolves it to.
+    */
+    readonly property var shippedMoveSets: ({
+        "martial arts": Qt.resolvedUrl("movesets/MartialArts.qml")
+    })
+
+    /*!
+        \qmlproperty var Character::moves
+        \readonly
+        \brief What the loaded set offers: a list of
+               \c {{name, label, group, loop, holds}}, empty when no set is
+               loaded.
+
+        Enough for a UI to build a row of buttons without knowing what the set
+        is about.
+    */
+    readonly property var moves: _character._moveSetItem
+                               ? _character._moveSetItem.moves : []
+
+    /*!
+        \qmlproperty string Character::moveSetName
+        \brief What the loaded set calls itself, "" when none is loaded.
+    */
+    readonly property string moveSetName: _character._moveSetItem
+                                        ? _character._moveSetItem.name : ""
+
+    /*!
+        \qmlproperty string Character::activeMove
+        \readonly
+        \brief The move being played, or the one whose last frame is being
+               held; "" when nothing is.
+    */
+    readonly property string activeMove: _character._moveSetItem
+                                       ? _character._moveSetItem.move : ""
+
+    /*!
+        \qmlproperty bool Character::movePlaying
+        \readonly
+        \brief True while a move is actually animating - false while a
+               knockdown lies on the floor, which \l moveHolding is for.
+    */
+    readonly property bool movePlaying: _character._moveSetItem
+                                      ? _character._moveSetItem.playing : false
+
+    /*!
+        \qmlproperty bool Character::moveHolding
+        \readonly
+        \brief True while the loaded set owns the joints - playing, or sitting
+               on the last frame of a move that holds.
+    */
+    readonly property bool moveHolding: _character._moveSetItem
+                                      ? _character._moveSetItem.holding : false
+
+    /*!
+        \qmlproperty string Character::moveHandPose
+        \readonly
+        \brief What the running move wants the hands to be doing, "" when no
+               move is running. Folded into \l actionHandPose.
+    */
+    readonly property string moveHandPose: _character._moveSetItem
+                                         ? _character._moveSetItem.handPose : ""
+
+    /*!
+        \qmlsignal Character::moveFinished(string move)
+        \brief Emitted when a one-shot move of the loaded set reaches its end.
+    */
+    signal moveFinished(string move)
+
+    /*!
+        \qmlmethod bool Character::playMove(string move)
+        \brief Plays \a move of the loaded set. Returns false, and does
+               nothing, when no set is loaded or the set has no such move.
+
+        A move owns the whole body, so this drops any held gesture and puts
+        \l activity back to Idle first - a call that quietly did nothing while
+        a walk was running is one nobody can tell from a broken move.
+    */
+    function playMove(move) {
+        if (!_character._moveSetItem)
+            return false
+        _character.activity = Character.Activity.Idle
+        _gestureAnim.drop()
+        return _character._moveSetItem.play(move)
+    }
+
+    /*!
+        \qmlmethod void Character::stopMove()
+        \brief Stops the running move and lets go of the joints, which the
+               idle pose then takes back to standing.
+    */
+    function stopMove() {
+        if (_character._moveSetItem)
+            _character._moveSetItem.stop()
+    }
+
+    /*!
+        \qmlmethod var Character::movePoseAt(string move, real t)
+        \brief The joint angles \a move of the loaded set holds at phase
+               \a t, 0..1, with nothing running. Null when there is no such
+               move.
+
+        Pure, and the same answer the running move gives at that moment - the
+        set plays this very function.
+
+        \sa applyMovePose(), actionPoseAt()
+    */
+    function movePoseAt(move, t) {
+        return _character._moveSetItem
+             ? _character._moveSetItem.poseAt(move, t) : null
+    }
+
+    /*!
+        \qmlmethod void Character::applyMovePose(string move, real t)
+        \brief Freezes the joints at phase \a t of \a move.
+
+        For looking, not for playing, exactly as \l applyActionPose() is: a
+        row of characters frozen at successive phases is the move on one
+        sheet.
+    */
+    function applyMovePose(move, t) {
+        if (_character._moveSetItem)
+            _character._moveSetItem.apply(move, t)
+    }
+
+    // The loaded set, and the one place it is built. Created in JS rather than
+    // through a Loader: a Loader is an Item and this file is a 3D Node, and a
+    // set is a plain QtObject that needs no place in either scene - only an
+    // owner to be destroyed with.
+    property var _moveSetItem: null
+
+    onMoveSetChanged: _character._loadMoveSet()
+
+    function _loadMoveSet() {
+        if (_character._moveSetItem) {
+            _character._moveSetItem.stop()
+            _character._moveSetItem.destroy()
+            _character._moveSetItem = null
+        }
+        const want = _character.moveSet
+        if (want === "")
+            return
+        const shipped = _character.shippedMoveSets[want]
+        const src = shipped === undefined ? want : shipped
+        const comp = Qt.createComponent(src, Component.PreferSynchronous)
+        if (comp.status !== Component.Ready) {
+            console.warn("Character: cannot load move set '" + want + "': "
+                         + comp.errorString())
+            return
+        }
+        _character._moveSetItem = comp.createObject(_character, { entity: _character })
+        if (!_character._moveSetItem) {
+            console.warn("Character: move set '" + want + "' did not instantiate")
+            return
+        }
+        _character._moveSetItem.intensity = Qt.binding(function () {
+            return _character.actionIntensity
+        })
+        _character._moveSetItem.finished.connect(_character.moveFinished)
+        // The idle pose has to be told to let go and to take over again; the
+        // gesture layer is handed over the same way.
+        _character._moveSetItem.holdingChanged.connect(function () {
+            if (!_character._moveSetItem.holding
+                && _character.activity === Character.Activity.Idle)
+                _idleAnim.restart()
+        })
+    }
+
     // Bounding box dimensions (derived from body parts)
-    width: Math.max(shoulderWidth, waistWidth, hipWidth)
+    width: Math.max(shoulderWidth, waistWidth, hipWidth, _belly.width,
+                    _character._waistJointWidth)
     height: footHeight + legHeight + hipHeight + torsoHeight + neckHeight + headHeight
-    depth: Math.max(torsoDepth, hipDepth)
+    depth: Math.max(torsoDepth, hipDepth, _belly.depth, _chest.depth)
 
     // ============================================================================
     // ACTIVITY & BEHAVIOR PROPERTIES
@@ -130,42 +646,72 @@ BodyPartsGroup {
     property bool speechBodyLanguage: true
 
     /*!
+        \qmlproperty enumeration Character::speechAccuracy
+        \brief How closely a recorded line is analysed for lip-sync.
+
+        \c Speech.Envelope reads loudness only - the shape of the mouth is a
+        guess. \c Speech.Spectral (the default) reads formant bands, so an
+        open vowel opens further than a closed one, a front vowel spreads and
+        a back vowel rounds.
+
+        Not a performance dial: the analysis is a few hundred thousand flops
+        for a whole line, once, before playback starts. What it costs is
+        time-to-first-sound and the samples held while it runs, which is why
+        a barked NPC line and a lecture can want different answers.
+
+        Whatever is asked for, the mouth still moves: an unreadable recording
+        falls back on its own. \l {Speech::effectiveAccuracy} says what the
+        last line actually got.
+
+        \sa Speech
+    */
+    property alias speechAccuracy: _speech.accuracy
+
+    /*!
         \qmlproperty string Character::speechEmotion
         \readonly
-        \brief The emotion of the current speech ("happy", "sad", "angry"
-               or empty for neutral).
+        \brief The emotion of the current speech ("happy", "sad", "angry",
+               "disgust", "surprised", or empty for neutral).
     */
     readonly property string speechEmotion: _emotionCtl.current
 
     /*!
-        \qmlmethod void Character::say(string what, string emotion)
+        \qmlmethod void Character::say(string what, string emotion, string transcript)
         \brief Makes the character say something with lip-synced mouth movement.
 
         Pass either plain text (spoken via text-to-speech when available,
         otherwise the mouth animates silently) or a path/URL to a wav/mp3
         file which is played back while the mouth follows the audio.
 
-        The optional emotion ("happy", "sad" or "angry") colors the
-        conversation: facial expression, voice pitch/rate (for TTS) and -
-        if the character is idle and \l speechBodyLanguage is enabled -
-        matching body language. Everything is restored when the speech
-        finishes.
+        For a recording, the optional transcript is what it was recorded
+        saying. With \l speechAccuracy at \c Speech.Aligned the mouth then
+        takes its shapes from that script and only its timing from the audio,
+        which is the only way a /m/ closes reliably - a bilabial is voiced,
+        so every acoustic measurement of one says "loud", not "shut".
+
+        The optional emotion ("happy", "sad", "angry", "disgust" or
+        "surprised") colors the conversation: facial expression, voice
+        pitch/rate (for TTS) and - if the character is idle and
+        \l speechBodyLanguage is enabled - matching body language.
+        Everything is restored when the speech finishes.
 
         Text may switch the emotion mid-speech with inline annotations:
         \qml
         npc.say("*angry* Get off my ground! *happy* Just kidding, come in.")
         \endqml
-        Recognized annotations are *happy*, *sad*, *angry* and *neutral*
-        (plus the aliases *joy*, *anger*, *sadness* and *calm*); each one
+        Recognized annotations are *happy*, *sad*, *angry*, *disgust*,
+        *surprised* and *neutral* (plus the aliases *joy*, *anger*,
+        *sadness*, *disgusted*, *surprise*, *shocked* and *calm*); each one
         applies from where it appears. The emotion argument sets the tone
         before the first annotation. Unknown annotations are left in the
         text untouched.
     */
-    function say(what, emotion) {
+    function say(what, emotion, transcript) {
         _sayQueue.cancel()
         // End any previous speech first: its finished() handling clears
         // the old emotion, so the ones applied by the queue survive.
         _speech.stop()
+        _sayQueue.transcript = transcript === undefined ? "" : transcript
         _sayQueue.segments = _sayQueue.parse("" + what,
                                              emotion === undefined ? "" : emotion)
         _sayQueue.index = 0
@@ -185,24 +731,24 @@ BodyPartsGroup {
     // them one after another, re-coloring face/voice/body per segment.
     QtObject {
         id: _sayQueue
+        // What the audio of this line was recorded saying, when the caller
+        // knows. Only Speech.Aligned reads it.
+        property string transcript: ""
         property var segments: []
         property int index: 0
         property bool active: false
 
         function parse(text, baseEmotion) {
-            const known = {
-                happy: "happy", joy: "happy",
-                sad: "sad", sadness: "sad",
-                angry: "angry", anger: "angry",
-                neutral: "", calm: ""
-            }
+            // The vocabulary is _emotionCtl's, not a second copy of it. It
+            // was a copy, and a copy is an emotion that works as an argument
+            // and is spoken aloud as an annotation.
             const re = /\*(\w+)\*/g
             let result = []
             let emotion = baseEmotion
             let last = 0
             let m
             while ((m = re.exec(text)) !== null) {
-                const e = known[m[1].toLowerCase()]
+                const e = _emotionCtl.known(m[1])
                 if (e === undefined)
                     continue // unknown annotation: keep it as spoken text
                 const chunk = text.slice(last, m.index).trim()
@@ -226,13 +772,18 @@ BodyPartsGroup {
             const seg = segments[index]
             index++
             _emotionCtl.apply(seg.emotion)
-            _speech.say(seg.text)
+            // The transcript rides along on every segment and is ignored by
+            // all but an audio one - inline emotion annotations split TEXT,
+            // and an audio line is always a single segment, so there is never
+            // a second segment for it to be wrong about.
+            _speech.say(seg.text, _sayQueue.transcript)
         }
 
         function cancel() {
             active = false
             segments = []
             index = 0
+            transcript = ""
         }
     }
 
@@ -243,34 +794,88 @@ BodyPartsGroup {
     QtObject {
         id: _emotionCtl
         property string current: ""
+        // The face between lines, set by setEmotion(). Kept apart from
+        // `current` because a spoken line's emotion is borrowed and this one
+        // is not: the line gives the face back to this when it ends.
+        property string persistent: ""
         property int savedFace: Head.Activity.Idle
         property real savedPitch: 0
         property real savedRate: 0
 
+        // The six faces, by the names a caller uses, with the aliases say()
+        // has always accepted. One table rather than three if-chains: an
+        // emotion added to only two of them is an emotion whose face works
+        // and whose voice does not, and nothing reports that.
+        //
+        // pitch and rate are OFFSETS applied to whatever the voice was set
+        // to, and are clamped to the -1..1 the Speech engine takes.
+        readonly property var faces: ({
+            happy:     { face: Head.Activity.ShowJoy,      pitch:  0.35, rate:  0.10 },
+            sad:       { face: Head.Activity.ShowSadness,  pitch: -0.35, rate: -0.30 },
+            angry:     { face: Head.Activity.ShowAnger,    pitch: -0.15, rate:  0.25 },
+            // Revulsion drags: lower and slower, the "ugh" of it.
+            disgust:   { face: Head.Activity.ShowDisgust,  pitch: -0.25, rate: -0.15 },
+            // Shock is the opposite - up and quick, the pitch jump of it.
+            surprised: { face: Head.Activity.ShowSurprise, pitch:  0.50, rate:  0.20 }
+        })
+
+        readonly property var aliases: ({
+            joy: "happy", sadness: "sad", anger: "angry",
+            disgusted: "disgust", surprise: "surprised", shocked: "surprised"
+        })
+
+        function canonical(emotion) {
+            emotion = ("" + emotion).toLowerCase()
+            if (aliases[emotion] !== undefined)
+                emotion = aliases[emotion]
+            return faces[emotion] !== undefined ? emotion : ""
+        }
+
+        function faceFor(emotion) {
+            const spec = faces[emotion]
+            return spec === undefined ? Head.Activity.Idle : spec.face
+        }
+
+        // The words that name the neutral face. Kept apart from the aliases
+        // because the annotation parser is the one caller that has to tell
+        // "*calm*" - a real cue, for no expression - from "*shrug*", which is
+        // not a cue at all and has to stay in the text and be spoken.
+        readonly property var neutralNames: ({ neutral: true, calm: true })
+
+        // What an annotation word means: a canonical emotion, "" for the
+        // neutral face, or undefined when the word is not an emotion.
+        function known(word) {
+            const w = ("" + word).toLowerCase()
+            if (neutralNames[w] === true)
+                return ""
+            const c = canonical(w)
+            return c === "" ? undefined : c
+        }
+
+        function persist(emotion) {
+            persistent = canonical(emotion)
+            const face = faceFor(persistent)
+            // Mid-line, the new expression is what the line hands back to
+            // when it finishes; the line's own emotion stays on the face
+            // until then.
+            if (current !== "")
+                savedFace = face
+            else
+                _character.faceActivity = face
+        }
+
         function apply(emotion) {
             clear()
-            emotion = ("" + emotion).toLowerCase()
-            if (emotion === "joy") emotion = "happy"
-            if (emotion === "sadness") emotion = "sad"
-            if (emotion === "anger") emotion = "angry"
-            if (emotion !== "happy" && emotion !== "sad" && emotion !== "angry")
+            emotion = canonical(emotion)
+            if (emotion === "")
                 return
             savedFace = _character.faceActivity
             savedPitch = _speech.pitch
             savedRate = _speech.rate
-            if (emotion === "happy") {
-                _character.faceActivity = Head.Activity.ShowJoy
-                _speech.pitch = Math.min(1, savedPitch + 0.35)
-                _speech.rate = Math.min(1, savedRate + 0.1)
-            } else if (emotion === "sad") {
-                _character.faceActivity = Head.Activity.ShowSadness
-                _speech.pitch = Math.max(-1, savedPitch - 0.35)
-                _speech.rate = Math.max(-1, savedRate - 0.3)
-            } else {
-                _character.faceActivity = Head.Activity.ShowAnger
-                _speech.pitch = Math.max(-1, savedPitch - 0.15)
-                _speech.rate = Math.min(1, savedRate + 0.25)
-            }
+            const spec = faces[emotion]
+            _character.faceActivity = spec.face
+            _speech.pitch = Math.max(-1, Math.min(1, savedPitch + spec.pitch))
+            _speech.rate = Math.max(-1, Math.min(1, savedRate + spec.rate))
             current = emotion
         }
 
@@ -301,12 +906,490 @@ BodyPartsGroup {
                  && _speech.speaking
                  && _character.speechBodyLanguage
                  && _character.activity === Character.Activity.Idle
+                 // A held gesture outranks the speech body language: the
+                 // caller asked for those arms by name, and two animators on
+                 // one joint interleave rather than take turns.
+                 && !_gestureAnim.holding
         loops: Animation.Infinite
         // Hand the joints back to the idle pose when the gesture ends
         onRunningChanged: {
-            if (!running && _character.activity === Character.Activity.Idle)
+            if (!running && _character.activity === Character.Activity.Idle
+                    && !_gestureAnim.holding)
                 _idleAnim.restart()
         }
+    }
+
+    // ============================================================================
+    // GESTURES & DIRECTION
+    // ============================================================================
+    // A gesture is a HELD pose - it eases in, stays until something else is
+    // asked for, and eases back - which is a different thing from the activity
+    // cycles, which loop. The two cannot share a joint, so:
+    //
+    //   * gestures only run while activity is Character.Activity.Idle, and
+    //     every verb below is ignored otherwise;
+    //   * starting any other activity drops the gesture first, handing the
+    //     joints over where they are;
+    //   * IdleAnim and the speech body language stay switched off for as long
+    //     as the gesture layer holds the joints, including the ease back to
+    //     rest. stopGesture() owns that ease, nothing else.
+
+    /*!
+        \qmlproperty string Character::gesture
+        \readonly
+        \brief What the hands are doing: "point", "present", "thumbsUp",
+               "talk", or "" for nothing.
+
+        Set the moment a gesture is asked for, while the arm is still on its
+        way there - which is what makes it the thing to assert on. Reading
+        joint angles instead, before \l gestureSettled, reports the pose the
+        character has just left.
+    */
+    readonly property string gesture: _gestureAnim.activeGesture
+
+    /*!
+        \qmlproperty bool Character::gestureSettled
+        \readonly
+        \brief True once the pose has arrived - the cue to start talking
+               about the thing that was pointed at.
+    */
+    readonly property bool gestureSettled: _gestureAnim.settled
+
+    /*!
+        \qmlproperty string Character::gestureHand
+        \readonly
+        \brief Which arm is doing it: "left", "right", or "" while released
+               or while talking, which is two-handed.
+    */
+    readonly property string gestureHand: _gestureAnim.activeHand
+
+    /*!
+        \qmlproperty int Character::gestureSettleMs
+        \brief How long a gesture takes to arrive at, and to leave.
+    */
+    property alias gestureSettleMs: _gestureAnim.settleMs
+
+    /*!
+        \qmlproperty real Character::gestureBeatScale
+        \brief Stretches the rhythm of \l gesticulate(). 1 is as authored,
+               above 1 is a slower speaker.
+    */
+    property alias gestureBeatScale: _gestureAnim.beatScale
+
+    /*!
+        \qmlproperty bool Character::safeSilhouette
+        \brief Whether a raised pointing arm is forced to bend at the elbow.
+
+        On by default, and a policy rather than a tuning value: a straight arm
+        raised forward reads as a fascist salute, which no character should be
+        able to strike by accident while pointing at something high. The
+        forearm does the reaching instead and the aim is unaffected. Turn it
+        off for a character whose job is exactly that shape - a salute, a
+        hand-raise, a throw.
+    */
+    property alias safeSilhouette: _gestureAnim.safeSilhouette
+
+    // ============================================================================
+    // LEVEL OF DETAIL
+    // ============================================================================
+
+    /*!
+        \qmlproperty enumeration Character::Detail
+        \brief How much hand a character is worth drawing.
+
+        \value Character.Detail.Minimal
+               The cheapest character there is: one box per hand, and a head
+               reduced to its skull, its hair and a drawn face - no nose, no
+               ears, no irises, no brows, no mouth corners. It still has a
+               face, because a drawn one costs nothing; this used to delete
+               the face outright, and a character with no face reads as broken
+               rather than as distant.
+        \value Character.Detail.Low
+               The whole body, one box per hand. It still acts - a \l Hand takes
+               its shape from \l handPose, so a fist and an open hand are
+               different blocks.
+        \value Character.Detail.High
+               Ten boxes per hand as well: four fingers and a thumb that fold.
+        \value Character.Detail.Auto
+               Picks between the three by how big the character lands on screen.
+               Needs \l view.
+    */
+    enum Detail {
+        Minimal,
+        Low,
+        High,
+        Auto
+    }
+
+    /*!
+        \qmlproperty enumeration Character::detail
+        \brief How much character to draw. \c Auto by default.
+
+        Auto has to measure the character against something, and a character
+        does not know what it is being looked at through - so with no \l view
+        it stays Low. That is deliberately the same as the old behaviour, so
+        the default costs an existing scene nothing until it opts in by handing
+        over a view.
+
+        \sa view, detailThreshold, minimalThreshold, effectiveDetail
+    */
+    property int detail: Character.Detail.Auto
+
+    /*!
+        \qmlproperty QtObject Character::view
+        \brief The \c View3D this character is being seen in.
+
+        Only \c Detail.Auto needs it, and only to ask how many pixels tall the
+        character currently is. Set the same way \l {Label3D} takes one.
+    */
+    property var view: null
+
+    /*!
+        \qmlproperty real Character::roundness
+        \brief How rounded every box in the character is, 0 for the hard-edged
+               original and about 0.3 for something nearly spherical.
+
+        A chamfer on every edge and corner of every part. It is what separates
+        a character built out of bricks from one built out of pebbles, and the
+        reason the cartoon tradition it comes from is full of round shapes:
+        roundness reads as soft, friendly and alive, where a right angle reads
+        as built.
+
+        It costs draw calls: none. A box goes from 12 triangles to 44 and stays
+        one draw call, and a character's cost was measured at 17.8 microseconds
+        per draw call and next to nothing per vertex - so this is close to free
+        and having more characters is not. See the crowd scene of the
+        character lab, \c labs/kits/character/CrowdField.qml.
+
+        \sa Box3D::bevel
+    */
+    property real roundness: 0.0
+
+    // Pushed down rather than bound, because the parts are built by Head, Arm
+    // and Leg and threading a property through every one of the thirty-odd
+    // boxes is thirty places to forget. Re-applied when the fingers arrive:
+    // DetailedHand is loaded on demand and misses the pass that ran before it
+    // existed, which shows up as one hard-edged hand on an otherwise round
+    // character.
+    function _applyRoundness(node) {
+        for (const k of node.children) {
+            if (k.bevel !== undefined)
+                k.bevel = _character.roundness
+            _character._applyRoundness(k)
+        }
+    }
+
+    onRoundnessChanged: _character._applyRoundness(_character)
+    onDetailedHandsChanged: _character._applyRoundness(_character)
+    Component.onCompleted: _character._applyRoundness(_character)
+
+    /*!
+        \qmlproperty real Character::detailThreshold
+        \brief How tall the character has to be on screen, in pixels, before
+               Auto gives it fingers.
+
+        The default of 240 is measured rather than picked: an extended index
+        finger stops being readable at all somewhere around a 90 px figure and
+        is comfortable by about 120, so the switch sits well clear of the point
+        where the fingers it buys would be invisible anyway.
+
+        There is a hysteresis band below it - a character drifting across the
+        line would otherwise grow and shed ten boxes a hand every few frames.
+    */
+    property real detailThreshold: 240
+
+    /*!
+        \qmlproperty real Character::minimalThreshold
+        \brief How small the character has to get, in pixels of figure height,
+               before Auto takes its face away.
+
+        Measured the same way as \l detailThreshold, by looking: at an 83 px
+        figure the eyes are clearly there and a character without them reads as
+        faceless rather than as distant; at 56 px it is marginal; by 26 px the
+        two are the same picture. 60 is the honest cut.
+
+        Worth thirteen draw calls a character - a face is two thirds of a head.
+    */
+    property real minimalThreshold: 60
+
+    /*!
+        \qmlproperty bool Character::detailedHands
+        \readonly
+        \brief Whether the hands have fingers right now.
+
+        The answer, not the question - \l detail is the question. Under Auto
+        this flips on its own.
+
+        \sa DetailedHand, detail
+    */
+    readonly property bool detailedHands: _detail.level === Character.Detail.High
+
+    /*!
+        \qmlproperty enumeration Character::effectiveDetail
+        \readonly
+        \brief Which \l {Character::Detail}{Detail} level is actually being
+               drawn - never \c Auto.
+    */
+    readonly property int effectiveDetail: _detail.level
+
+    /*!
+        \qmlproperty string Character::handPose
+        \brief What the hands do when no gesture is claiming them: "relax",
+               "open", "point", "thumbsUp" or "fist".
+
+        Read at both levels of detail. Fingers fold for it when there are
+        fingers; the plain box reshapes itself to the same pose's outline when
+        there are not.
+    */
+    property string handPose: "relax"
+
+    /*!
+        \qmlproperty bool Character::autoBlink
+        \brief Whether the character blinks on its own. On by default.
+
+        Off at \c Detail.Minimal regardless, where there is no eye left to
+        shut. Two characters sharing a \l blinkSeed blink in step, which is
+        the one thing a crowd must not do.
+
+        \sa blinkSeed, Head::blink
+    */
+    property bool autoBlink: true
+
+    /*!
+        \qmlproperty int Character::blinkSeed
+        \brief Which repeatable blink-and-glance rhythm this character gets.
+
+        Everything in the idle face is deterministic for a given seed, so two
+        runs of a sandbox render identically and two characters standing next
+        to each other do not. Give each of a crowd its own.
+    */
+    property int blinkSeed: 1
+
+    /*!
+        \qmlproperty bool Character::gazeBehaviour
+        \brief Whether the eyes move inside the head. On by default.
+
+        Off pins them dead centre, which is how every character looked before
+        this existed.
+
+        \sa lookAt, thinking, GazeAnim
+    */
+    property bool gazeBehaviour: true
+
+    /*!
+        \qmlproperty bool Character::thinking
+        \brief Whether the character is working something out.
+
+        While true the eyes leave whatever they were looking at and settle
+        off-axis, which is what a person does while recalling something
+        rather than reading it off the listener's face. Releasing it brings
+        them back.
+
+        It is the most legible "thinking" signal a face has, and on a boxy
+        one it is the only one - there is no brow furrow to read at ninety
+        pixels. Set it around the gap between being asked and answering.
+
+        \sa gazeBehaviour, lookAt
+    */
+    property bool thinking: false
+
+    /*!
+        \qmlproperty var Character::listeningTo
+        \brief Who this character is listening to, or null.
+
+        While it is set the eyes hold that character's face, break away every
+        few seconds because a continuous stare is not attention, and mark the
+        ends of its phrases. It takes over the look target for as long as it
+        is set - \l lookAt() and this are the same channel, and this is the
+        one holding it.
+
+        The other half of a conversation. Everything else here describes a
+        character while it speaks; without this the one who is not speaking
+        does nothing at all, which is what makes two characters talking read
+        as two monologues in turn.
+
+        \sa ListenAnim, lookAt, GazeAnim
+    */
+    property var listeningTo: null
+
+    /*! \qmlproperty bool Character::listening
+        \readonly
+        \brief Whether this character is attending to someone.
+
+        Says a target is set and the behaviour is live - NOT that the other
+        one is currently making a sound. A listener between two sentences is
+        still listening. */
+    readonly property bool listening: _listenAnim.running
+                                      && _character.listeningTo !== null
+                                      && _character.listeningTo !== undefined
+
+    /*!
+        \qmlproperty string Character::emotion
+        \readonly
+        \brief The face the character is wearing between lines: "happy",
+               "sad", "angry", "disgust", "surprised" or "" for neutral.
+
+        Unlike \l speechEmotion this one persists - it is what the face
+        returns to when a spoken line with its own emotion has finished.
+    */
+    readonly property string emotion: _emotionCtl.persistent
+
+    /*!
+        \qmlmethod void Character::pointAt(vector3d worldPos, string which)
+        \brief Points at a position in the scene and holds it.
+
+        \a which picks the arm: "auto" (the default - whichever side the
+        target is on), "left" or "right". The body turns most of the way
+        toward the target, leaving the last few degrees to head and shoulder,
+        and the head looks at it unless \l lookAt() says otherwise.
+
+        The pose is solved once, against the frame the character stands in
+        when it is asked for. Move the character afterwards and the arm is
+        aimed at where the target used to be relative to it - point again.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function pointAt(worldPos, which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("point", worldPos, which)
+    }
+
+    /*!
+        \qmlmethod void Character::presentAt(vector3d worldPos, string which)
+        \brief Offers an open hand toward a position in the scene and holds
+               it - the presenter's "here we have".
+
+        Palm up, hand at chest height, elbow bent: the gesture for a GROUP or
+        an AREA - several parts, a whole circuit - where a finger at the
+        centroid would point at nothing in particular. \a which picks the
+        arm exactly as in \l pointAt(); the body turns toward the target by
+        the same rule and the head looks at it.
+
+        The hand is never raised toward the target - only turned toward it -
+        so the silhouette stays folded whatever the target's height. Something
+        far above or below the hand is what \l pointAt() is for.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function presentAt(worldPos, which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("present", worldPos, which)
+    }
+
+    /*!
+        \qmlmethod void Character::thumbsUp(string which)
+        \brief Gives a thumbs up with \a which hand ("right" by default).
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function thumbsUp(which) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("thumbsUp", null,
+                             which === undefined ? "right" : which)
+    }
+
+    /*!
+        \qmlmethod void Character::gesticulate()
+        \brief Talks with the hands: a loose two-handed gesticulation that
+               runs until \l stopGesture().
+
+        The other half of pointing. A finger held on a thing for the length of
+        a paragraph turns the character into a signpost; the point has said
+        "this one" within a second or two, and everything after that is
+        explanation, which people deliver facing whoever they are explaining
+        it to. It replaces any point or thumbs-up - one layer owns these
+        joints - and it never stops by itself.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function gesticulate() {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.request("talk", null, "auto")
+    }
+
+    /*!
+        \qmlmethod void Character::stopGesture()
+        \brief Eases every held joint back to the resting pose.
+
+        The graceful counterpart to a gesture starting. A head aimed by
+        \l lookAt() is released with it.
+    */
+    function stopGesture() {
+        _gestureAnim.look(null)
+        _gestureAnim.request("", null, "auto")
+    }
+
+    /*!
+        \qmlmethod void Character::lookAt(vector3d worldPos)
+        \brief Aims the head - and only the head - at a position in the scene.
+
+        Outranks whatever the running gesture wanted to do with the head, so
+        a character can point at one thing and address someone else. Pass
+        null to hand the head back.
+
+        Ignored unless \l activity is Character.Activity.Idle.
+    */
+    function lookAt(worldPos) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.look(worldPos)
+    }
+
+    /*!
+        \qmlmethod void Character::turnTo(vector3d worldPos)
+        \brief Turns the whole body on the spot to face a position in the
+               scene, the short way round.
+
+        Changes the orientation the character rests in, so it outlives the
+        next \l stopGesture(). Nothing moves if the target is where the
+        character already stands.
+
+        Ignored unless \l activity is Character.Activity.Idle - a walking
+        character is steered by its controller instead.
+    */
+    function turnTo(worldPos) {
+        if (_character.activity !== Character.Activity.Idle)
+            return
+        _gestureAnim.turnTo(worldPos)
+    }
+
+    /*!
+        \qmlmethod void Character::nod(real degrees, int times)
+        \brief Nods, without losing what the head was looking at.
+
+        Rides on \l Head::offsetEuler, so it composes with the aim a body
+        animation or a \l lookAt() is holding rather than replacing it.
+
+        \a degrees defaults to 7 - a backchannel nod, not a bow - and
+        \a times to 1.
+
+        \sa Head::nod, listeningTo
+    */
+    function nod(degrees, times) {
+        if (_head)
+            _head.nod(degrees, times)
+    }
+
+    /*!
+        \qmlmethod void Character::setEmotion(string name)
+        \brief Puts a lasting expression on the face: "happy", "sad",
+               "angry", "disgust", "surprised", or "neutral"/"" for none.
+
+        Aliases: "joy", "sadness", "anger", "disgusted", "surprise",
+        "shocked", "calm". A name that is none of these is neutral.
+
+        Persists until it is changed, which is what separates it from the
+        emotion of one spoken line: \l say() colors the face for the length
+        of that line and then restores whatever was set here.
+
+        \sa emotion, Head::Activity
+    */
+    function setEmotion(name) {
+        _emotionCtl.persist(name)
     }
 
     // ============================================================================
@@ -357,11 +1440,94 @@ BodyPartsGroup {
     property alias torsoHeight: _torso.height
     /*! Depth of the torso. */
     property alias torsoDepth: _torso.depth
-    /*! Width at the waist. */
+    /*! Width at the waist - where the trunk meets the hip. */
     property alias waistWidth: _torso.waistWidth
 
-    /*! Torso/shirt color. */
-    property alias torsoColor: _torso.color
+    /*!
+        \qmlproperty real Character::bellyRatio
+        \brief The belly's share of \l torsoHeight, 0..1. The rest is the
+               chest, and the waist joint sits between them.
+
+        The trunk is two boxes on a joint rather than one box, which is what
+        lets a back round and a chest swell. 0.45 puts the joint where a waist
+        is; at that value, and with \l bellyBulge, \l chestSwell and
+        \l waistPinch left alone, the pair traces exactly the tapered box the
+        torso used to be.
+
+        \sa belly, chest, Gait::spineCurve
+    */
+    property real bellyRatio: 0.45
+
+    /*!
+        \qmlproperty real Character::bellyBulge
+        \brief How far the belly swells past the plain trunk taper. 1 leaves
+               it alone, 1.3 is a gut, below 1 tucks it in.
+
+        Mostly depth and rather less width, because that is how a belly reads:
+        it grows forward. The bottom of the belly stays at \l waistWidth by
+        \l torsoDepth however far it bulges, so the swell hangs off the ribs
+        rather than off the pelvis. \l ParametricCharacter drives it from
+        \c mass.
+    */
+    property real bellyBulge: 1.0
+
+    /*!
+        \qmlproperty real Character::chestSwell
+        \brief How much deeper the chest is than the plain trunk taper. 1
+               leaves it alone.
+
+        Depth only: the chest's width is \l shoulderWidth and stays it.
+        \l ParametricCharacter drives it from \c muscle.
+    */
+    property real chestSwell: 1.0
+
+    /*!
+        \qmlproperty real Character::waistPinch
+        \brief How far in the waist joint is drawn, as a fraction of the
+               width the taper would have there. 0 (the default) is no pinch.
+
+        The one shape a single tapered box could not make: narrow in the
+        middle and wider at both ends.
+    */
+    property real waistPinch: 0.0
+
+    /*! Torso/shirt color - both segments unless one is given its own. */
+    property color torsoColor: "red"
+
+    /*!
+        \qmlproperty color Character::bellyColor
+        \brief Colour of the lower trunk. Follows \l torsoColor until set.
+    */
+    property color bellyColor: _character.torsoColor
+
+    /*!
+        \qmlproperty color Character::chestColor
+        \brief Colour of the upper trunk. Follows \l torsoColor until set.
+    */
+    property color chestColor: _character.torsoColor
+
+    // The geometry the two segments are cut from. Clamped here rather than at
+    // every use: a bellyRatio of 0 or 1 is a box of zero height, and a
+    // faceScale divides by these.
+    readonly property real _bellyRatioC: Math.max(0.05, Math.min(0.95, _character.bellyRatio))
+    readonly property real _bellyBulgeC: Math.max(0.2, _character.bellyBulge)
+    readonly property real _chestSwellC: Math.max(0.2, _character.chestSwell)
+    // Where the old single box was, at the height the joint cuts it, less
+    // whatever the waist is pinched by.
+    readonly property real _waistJointWidth:
+        (_character.waistWidth
+         + (_character.shoulderWidth - _character.waistWidth) * _character._bellyRatioC)
+        * (1 - Math.max(0, Math.min(0.6, _character.waistPinch)))
+    // A belly is mostly depth: a third of the bulge goes into the width and
+    // the rest forward. Width is the expensive axis - a ParametricCharacter
+    // already widens the whole body with mass, and adding much more here is
+    // how a heavy, muscular build turns into a slab wider than it is tall.
+    readonly property real _bellyWidthK: 1 + (_character._bellyBulgeC - 1) * 0.35
+    // How far forward the belly box is pushed, so a gut is in front of the
+    // body rather than around it. A third of the extra depth; the chest and
+    // the hip take it straight back out.
+    readonly property real _bellyForward:
+        _character.torsoDepth * (_character._bellyBulgeC - 1) * 0.33
 
     // ============================================================================
     // HIP PROPERTIES
@@ -403,6 +1569,36 @@ BodyPartsGroup {
     /*! Hand color. */
     property alias handColor: _rightArm.handColor
 
+    /*!
+        \qmlproperty bool Character::gloves
+        \brief Whether the hands are gloved - their own colour, and a cuff at
+               each wrist.
+
+        A cartoon convention, and a legibility one: a hand the colour of the
+        arm it is on has to be found before it can be read. See \l {Arm::gloved}.
+
+        \sa gloveColor, handScale
+    */
+    property alias gloves: _rightArm.gloved
+
+    /*!
+        \qmlproperty color Character::gloveColor
+        \brief Colour of the gloves and their cuffs.
+    */
+    property alias gloveColor: _rightArm.gloveColor
+
+    /*!
+        \qmlproperty real Character::handScale
+        \brief How much bigger the hands are drawn than the proportion tables
+               give. 1 leaves them alone.
+
+        Pairs with \l gloves: the two together are how a cartoon makes a
+        gesture readable across a room. Big enough to see, light enough to
+        find. \l detail accounts for it - bigger hands mean the fingers are
+        worth drawing from further away.
+    */
+    property alias handScale: _rightArm.handScale
+
     // ============================================================================
     // LEG PROPERTIES (symmetric)
     // ============================================================================
@@ -443,12 +1639,87 @@ BodyPartsGroup {
     readonly property Leg rightLeg: _rightLeg
     /*! Reference to the head for animation. */
     readonly property Head head: _head
-    /*! Reference to the torso. */
+    /*!
+        \qmlproperty BodyPart Character::torso
+        \readonly
+        \brief The trunk as a whole - the frame \l belly and \l chest hang
+               in. It draws nothing; turning it turns the whole upper body,
+               which is what sway and rock do.
+    */
     readonly property BodyPart torso: _torso
+    /*!
+        \qmlproperty BodyPart Character::belly
+        \readonly
+        \brief The lower trunk. Pitching it bends the body at the hip; the
+               chest, the arms and the head come with it.
+    */
+    readonly property BodyPart belly: _belly
+    /*!
+        \qmlproperty BodyPart Character::chest
+        \readonly
+        \brief The upper trunk, on the waist joint. Pitching it against the
+               belly is what rounds a back or lifts a chest - a curve rather
+               than a tilt.
+    */
+    readonly property BodyPart chest: _chest
     /*! Reference to the hip. */
     readonly property BodyPart hip: _hip
 
-    BodyPart {
+    // Where the chest node sits in the character's own frame. The belly's
+    // forward offset and the chest's counter-offset cancel, so this is the
+    // waist joint on the trunk's own axis however far the belly bulges.
+    readonly property vector3d _chestOrigin: Qt.vector3d(
+        _torso.basePos.x + _belly.basePos.x + _chest.basePos.x,
+        _torso.basePos.y + _belly.basePos.y + _chest.basePos.y,
+        _torso.basePos.z + _belly.basePos.z + _chest.basePos.z)
+
+    /*!
+        \qmlproperty vector3d Character::rightShoulderPos
+        \readonly
+        \brief Where the right shoulder joint sits, in the character's own
+               coordinates (origin between the feet, +Z is the way the
+               character faces).
+
+        Published so gesture and aiming code can start from the joint that
+        does the work instead of re-summing the body hierarchy - and so it
+        keeps pointing at a shoulder when the torso's proportions change.
+    */
+    readonly property vector3d rightShoulderPos: Qt.vector3d(
+        _character._chestOrigin.x + _rightArm.basePos.x,
+        _character._chestOrigin.y + _rightArm.basePos.y,
+        _character._chestOrigin.z + _rightArm.basePos.z)
+
+    /*!
+        \qmlproperty vector3d Character::leftShoulderPos
+        \readonly
+        \brief Where the left shoulder joint sits, in the character's own
+               coordinates.
+    */
+    readonly property vector3d leftShoulderPos: Qt.vector3d(
+        _character._chestOrigin.x + _leftArm.basePos.x,
+        _character._chestOrigin.y + _leftArm.basePos.y,
+        _character._chestOrigin.z + _leftArm.basePos.z)
+
+    /*!
+        \qmlproperty vector3d Character::headPos
+        \readonly
+        \brief Where the head node sits, in the character's own coordinates -
+               the origin of the anchors published by \l Head.
+    */
+    readonly property vector3d headPos: Qt.vector3d(
+        _character._chestOrigin.x + _head.basePos.x,
+        _character._chestOrigin.y + _head.basePos.y,
+        _character._chestOrigin.z + _head.basePos.z)
+
+    // The trunk. The node itself draws nothing: it is the frame the two
+    // segments hang in, and it keeps every dimension the single-box torso had
+    // - width is the shoulders, height the whole torso, depth the trunk - so
+    // shoulderWidth, torsoHeight, torsoDepth and waistWidth still name what
+    // they always named. What changed is what is inside it: a belly and a
+    // chest on a waist joint, so the trunk can round and swell instead of
+    // only tipping. At the default bellyRatio, bellyBulge, chestSwell and
+    // waistPinch the pair traces exactly the trapezoid the one box drew.
+    BodyPartsGroup {
         id: _torso
 
         width: 3.5
@@ -456,27 +1727,120 @@ BodyPartsGroup {
         depth: 1.25
         property real waistWidth: 3.0
 
+        // Position torso above legs, feet, and hip - plus whatever the gait
+        // is lifting the whole figure by this instant. Everything hangs off
+        // the torso, so this is the figure's bounce, feet included.
+        // Position torso above legs, feet and hip - plus whatever the gait or
+        // a move is lifting the whole figure by this instant, and however far
+        // forward a step or a jump has carried it. Everything hangs off the
+        // torso, so this is the figure's bounce and its travel, feet included.
+        basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height
+                                + _character.gaitLift, _character.bodyDrift)
+
+      BodyPart {
+        id: _belly
+
+        // The box is measured at its BOTTOM, where it meets the hip, and its
+        // top face is scaled to the width the old trapezoid had at the waist
+        // joint. That way round on purpose: a belly is widest low and hangs
+        // OVER the belt, so the bulge has to grow the end that sits on the
+        // hip. Scaled the other way it grew under the ribs and tapered into
+        // the pelvis, which reads as a barrel rather than as a gut.
+        //
+        // At bellyBulge 1 the bottom is exactly waistWidth by torsoDepth and
+        // the top exactly the joint section, so the pair still traces the
+        // single box's outline.
+        width: _character.waistWidth * _character._bellyWidthK
+        height: _character.torsoHeight * _character._bellyRatioC
+        depth: _character.torsoDepth * _character._bellyBulgeC
+        color: _character.bellyColor
+
+        scaledFace: Box3DGeometry.TopFace
+        faceScale: Qt.vector2d(_character._waistJointWidth / Math.max(1e-6, _belly.width),
+                               _character.torsoDepth / Math.max(1e-6, _belly.depth))
+
+        // A belly grows forward more than back. Only the box moves; the chest
+        // and the hip take the offset straight back out (see their basePos)
+        // so the head, the shoulders and the legs all stay on the trunk's own
+        // axis however far it bulges.
+        basePos: Qt.vector3d(0, 0, _character._bellyForward)
+
+      BodyPart {
+        id: _chest
+
+        // Sits on the waist joint. The z undoes the belly's forward offset.
+        basePos: Qt.vector3d(0, _belly.height, -_character._bellyForward)
+
+        width: _character.shoulderWidth
+        height: _character.torsoHeight * (1 - _character._bellyRatioC)
+        depth: _character.torsoDepth * _character._chestSwellC
+        color: _character.chestColor
+
+        // The bottom face is the belly's TOP face - the joint section, which
+        // is the same whatever the belly is doing below it. A bulged belly
+        // therefore steps out from under the chest rather than dragging the
+        // ribcage wider with it.
         scaledFace: Box3DGeometry.BottomFace
-        faceScale: Qt.vector2d(waistWidth/width, 1.0)
-        // Position torso above legs, feet, and hip
-        basePos: Qt.vector3d(0, _character.legHeight + _character.footHeight + _hip.height, 0)
+        faceScale: Qt.vector2d(_character._waistJointWidth / Math.max(1e-6, _chest.width),
+                               _character.torsoDepth / Math.max(1e-6, _chest.depth))
 
         Head {
             id: _head
-            basePos:  Qt.vector3d(0, (_torso.height + _character.neckHeight), 0)
+            basePos:  Qt.vector3d(0, (_chest.height + _character.neckHeight), 0)
             speechSource: _speech
+
+            // The face is no longer something a distant character stops paying
+            // for. It used to be thirteen draw calls of the thirty-three a
+            // whole body costs, so Minimal deleted it outright and a far-off
+            // character read as faceless rather than as far off. Drawn into
+            // the head's own surfaces it costs none of them, so what travels
+            // down here is how much face to draw, not whether to draw one.
+            detail: _detail.level === Character.Detail.High ? Head.Detail.High
+                  : _detail.level === Character.Detail.Low  ? Head.Detail.Low
+                                                            : Head.Detail.Minimal
+
+            // Both of these existed on Head from the day the face became a
+            // shader and neither had anything above it that turned them on,
+            // so every character in the framework stared straight ahead and
+            // never blinked. A face that does not blink stops reading as a
+            // face within a few seconds - it is the cheapest aliveness there
+            // is and it was already paid for.
+            autoBlink: _character.autoBlink && _detail.level !== Character.Detail.Minimal
+            blinkSeed: _character.blinkSeed
+            // The same condition GazeAnim runs under, not just gazeBehaviour:
+            // a stopped ticker holds its last value, so a character dropping
+            // to Minimal mid-glance would freeze with its eyes off to one
+            // side rather than centre them.
+            gaze: (_character.gazeBehaviour
+                   && _detail.level !== Character.Detail.Minimal)
+                  ? _gazeAnim.gaze : Qt.vector2d(0, 0)
         }
 
         // Arms (containing hands)
         // Position at shoulder level (top of torso), arms extend downward
+        // Whichever hand the gesture claimed shapes itself for it; the other
+        // keeps whatever the character was asked to hold.
         Arm {
             id: _rightArm
-            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _torso.height, 0)
+            basePos: Qt.vector3d(_character.shoulderWidth * 0.5, _chest.height, 0)
+
+            articulated: _character.detailedHands
+            handPose: _gestureAnim.rightHandPose !== "" ? _gestureAnim.rightHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
+                    : _character.gaitHandPose !== "" ? _character.gaitHandPose
+                    : _character.handPose
         }
 
         Arm {
             id: _leftArm
-            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _torso.height, 0)
+            basePos: Qt.vector3d(-_character.shoulderWidth * 0.5, _chest.height, 0)
+
+            mirrored: true
+            articulated: _character.detailedHands
+            handPose: _gestureAnim.leftHandPose !== "" ? _gestureAnim.leftHandPose
+                    : _character.actionHandPose !== "" ? _character.actionHandPose
+                    : _character.gaitHandPose !== "" ? _character.gaitHandPose
+                    : _character.handPose
 
             // Mirror right arm dimensions
             width: _rightArm.width
@@ -490,6 +1854,9 @@ BodyPartsGroup {
             // Mirror colors
             color: _rightArm.color
             handColor: _rightArm.handColor
+            gloved: _rightArm.gloved
+            gloveColor: _rightArm.gloveColor
+            handScale: _rightArm.handScale
 
             // Mirror hand dimensions
             handWidth: _rightArm.handWidth
@@ -497,7 +1864,12 @@ BodyPartsGroup {
             handDepth: _rightArm.handDepth
         }
 
-        // Hip (containing legs)
+      }   // _chest
+
+        // Hip (containing legs). It hangs off the BELLY, not off the trunk
+        // group: the pelvis follows the lower back, so a hip that counters
+        // the trunk's tilt only has the belly's share of it to counter. See
+        // hipLean in gait.js.
         BodyPart {
             id: _hip
             width: 3.0
@@ -507,7 +1879,9 @@ BodyPartsGroup {
 
             scaledFace: Box3DGeometry.TopFace
             faceScale: Qt.vector2d(_torso.waistWidth/width, 1.0)
-            basePos: Qt.vector3d(0, -_hip.height, 0)
+            // The z undoes the belly's forward offset, the same way the
+            // chest's does: a gut moves the box, not the skeleton.
+            basePos: Qt.vector3d(0, -_hip.height, -_character._bellyForward)
 
             // Legs (containing feet)
             // Hip joint aligns with hip bottom (legs extend downward from there)
@@ -538,12 +1912,15 @@ BodyPartsGroup {
                 footDepth: _rightLeg.footDepth
             }
         }
-    }
 
+      }   // _belly
+    }   // _torso
+
+    // The two gaits. Angles and cycle length come from gaitFactors through
+    // gait.js; the entity's legHeight sets the stride and so the speed.
     WalkAnim {
         id: _walkAnim
         entity: _character
-        // Duration is calculated internally from leg geometry
         running: _character.activity === Character.Activity.Walking
         loops: Animation.Infinite
     }
@@ -551,22 +1928,208 @@ BodyPartsGroup {
     RunAnim {
         id: _runAnim
         entity: _character
-        // Duration is calculated internally from leg geometry
         running: _character.activity === Character.Activity.Running
         loops: Animation.Infinite
+    }
+
+    // --- the detail policy ----------------------------------------------------
+    //
+    // Apparent size, not distance. Distance is the wrong question: the same
+    // character twenty units away is half a screen tall through a long lens and
+    // a speck through a wide one, and it is the pixels that decide whether a
+    // finger is worth ten boxes. mapFrom3DScene answers in pixels and takes the
+    // lens, the viewport and the projection with it.
+    QtObject {
+        id: _detail
+
+        // What Auto last decided. Only consulted while detail IS Auto.
+        property int autoLevel: Character.Detail.Low
+
+        readonly property int level:
+            _character.detail !== Character.Detail.Auto ? _character.detail
+          : (_character.view !== null ? _detail.autoLevel : Character.Detail.Low)
+    }
+
+    function _autoDetail() {
+        const v = _character.view
+        if (!v)
+            return Character.Detail.Low
+
+        const base = _character.scenePosition
+        const tall = _character.height * _character.scale.y
+        const foot = v.mapFrom3DScene(base)
+        const head = v.mapFrom3DScene(base.plus(Qt.vector3d(0, tall, 0)))
+        // Behind the lens mapFrom3DScene reports a negative z, and a character
+        // straddling the near plane gives a screen height of thousands. Ten
+        // boxes a hand for something nobody can see is the cheapest bug here to
+        // avoid and the hardest to notice.
+        if (foot.z <= 0 || head.z <= 0)
+            return Character.Detail.Minimal
+
+        // How long the body axis is on screen. The full 2D distance rather
+        // than the vertical drop alone: a character off to the side of a wide
+        // frame, or seen through a rolled camera, stands at an angle on screen
+        // and the vertical component of that is short by however much it is
+        // tilted.
+        let px = Math.hypot(head.x - foot.x, head.y - foot.y)
+
+        // A gesture that shapes the hands is the whole reason fingers exist, so
+        // it gets them at twice the distance. Not an override: a character
+        // pointing at something from across the map still does not need a
+        // finger, and the plain hand has a pose for pointing precisely so it
+        // does not have to.
+        // An activity that shapes the hands counts too: boxing is fists, and
+        // a fist is exactly the shape that stops reading the moment the
+        // fingers go.
+        const claimed = _gestureAnim.rightHandPose !== ""
+                     || _gestureAnim.leftHandPose !== ""
+                     || _character.actionHandPose !== ""
+        // Divided by handScale: the threshold is really asking whether a
+        // FINGER is big enough to be worth ten boxes, and figure height is
+        // only a proxy for that. A character drawn with cartoon hands has
+        // readable fingers at half the figure height of one without.
+        const want = _character.detailThreshold * (claimed ? 0.5 : 1.0)
+                   / Math.max(0.01, _character.handScale)
+
+        // THE BODY AXIS IS NOT ENOUGH ON ITS OWN, and this is not a refinement.
+        //
+        // A camera looking along a character's own length - up at it from the
+        // floor, or down at it from above - projects a ten-unit body to a few
+        // pixels. The measurement above then says "tiny" about a figure filling
+        // the screen, and the character drops to Minimal because of where the
+        // camera is standing rather than how far away it is. Measured: at a
+        // fixed sixteen units a figure that is High at eye level fell to Low by
+        // 70 degrees of camera pitch and to Minimal by 85, up and down alike.
+        //
+        // So when the body axis has gone short, the two HORIZONTAL axes are
+        // measured too, each turned into the height it would imply, and the
+        // longest wins. The view direction cannot be near-parallel to all three
+        // at once: down the worst diagonal it is about 55 degrees off each,
+        // which reads them all a fifth short - and a threshold with a
+        // hysteresis band around it does not care about a fifth.
+        //
+        // Only when it matters. Two extra projections per poll is not much, but
+        // a crowd pays it per character, and a character that is already big
+        // enough for fingers cannot be made bigger by measuring it again.
+        if (px <= want) {
+            const wide = Math.max(0.01, _character.width * _character.scale.x)
+            const deep = Math.max(0.01, _character.depth * _character.scale.z)
+            const across = v.mapFrom3DScene(base.plus(Qt.vector3d(wide, 0, 0)))
+            const through = v.mapFrom3DScene(base.plus(Qt.vector3d(0, 0, deep)))
+            if (across.z > 0)
+                px = Math.max(px, Math.hypot(across.x - foot.x, across.y - foot.y)
+                                  / wide * tall)
+            if (through.z > 0)
+                px = Math.max(px, Math.hypot(through.x - foot.x, through.y - foot.y)
+                                  / deep * tall)
+        }
+
+        // Asymmetric on purpose at both boundaries: harder to gain detail than
+        // to keep it. A character sitting exactly on a threshold would
+        // otherwise pick up and drop the same thirteen or twenty boxes every
+        // few frames, and a face flickering on and off is far more noticeable
+        // than either version of it standing still.
+        const at = _detail.autoLevel
+
+        if (px > (at === Character.Detail.High ? want * 0.85 : want))
+            return Character.Detail.High
+
+        const bare = _character.minimalThreshold
+        if (px > (at === Character.Detail.Minimal ? bare : bare * 0.85))
+            return Character.Detail.Low
+
+        return Character.Detail.Minimal
+    }
+
+    // Polled rather than bound: this depends on scenePosition and on the
+    // camera, neither of which notifies. Four times a second is far more often
+    // than a switch that has a hysteresis band around it can actually fire.
+    Timer {
+        interval: 250
+        repeat: true
+        running: _character.detail === Character.Detail.Auto
+                 && _character.view !== null
+        triggeredOnStart: true
+        onTriggered: _detail.autoLevel = _character._autoDetail()
     }
 
     IdleAnim {
         id: _idleAnim
         entity: _character
         duration: 200
+        // IdleAnim zeroes all sixteen joints, which is exactly what a held
+        // pose is not allowed to have happen to it while it is being held -
+        // or while it is easing back to rest, which the gesture layer does
+        // itself. holding covers both.
+        // A loaded move set owns the joints exactly as a held gesture does,
+        // and for longer: a knockdown handed to the idle pose stands back up
+        // within a fifth of a second.
         running: _character.activity == Character.Activity.Idle
+                 && !_gestureAnim.holding
+                 && !_character.moveHolding
         loops: 1
+    }
+
+    // The eyes. GestureAnim aims the HEAD at the look target; this aims the
+    // eyes inside it, which is a different thing arriving at a different
+    // speed - see GazeAnim for why that difference is the whole effect.
+    GazeAnim {
+        id: _gazeAnim
+        head: _head
+        running: _character.gazeBehaviour
+                 && _detail.level !== Character.Detail.Minimal
+        target: _gestureAnim.lookTarget
+        averting: _character.thinking
+        seed: _character.blinkSeed
+        // Half the rate once a character is small enough to be at Low. The
+        // eyes still read there, but this is per-character work on the main
+        // thread and a crowd is where that stops being free.
+        interval: _detail.level === Character.Detail.High ? 33 : 66
+        // A real face nearly always blinks through a large gaze change. It
+        // costs one call and it is the difference between the eyes moving
+        // and the eyes cutting.
+        onSaccaded: if (_character.autoBlink) _head.blink()
+    }
+
+    // The other side of a conversation. It drives lookAt(), so it and an
+    // explicit lookAt() are the same channel by construction rather than by
+    // two animators arriving at the head from different directions.
+    ListenAnim {
+        id: _listenAnim
+        listener: _character
+        speaker: _character.listeningTo
+        seed: _character.blinkSeed
+        running: _character.gazeBehaviour
+                 && _detail.level !== Character.Detail.Minimal
+    }
+
+    GestureAnim {
+        id: _gestureAnim
+        entity: _character
+        // The joints come back to the gesture layer's own rest pose, which is
+        // the idle pose; restarting IdleAnim afterwards re-establishes it as
+        // the baseline for whatever comes next without moving anything.
+        onHoldingChanged: {
+            if (!holding && _character.activity === Character.Activity.Idle)
+                _idleAnim.restart()
+        }
+    }
+
+    // An activity cycle and a held pose cannot share a joint, so the pose goes
+    // first - immediately and without easing, since the cycle that is starting
+    // animates from wherever it finds the joints anyway.
+    onActivityChanged: {
+        if (_character.activity !== Character.Activity.Idle) {
+            _gestureAnim.drop()
+            _character.stopMove()
+        }
     }
 
     UseAnim {
         id: _useAnim
         entity: _character
+        intensity: _character.actionIntensity
+        workHeight: _character.workHeight
         running: _character.activity === Character.Activity.Using
         loops: Animation.Infinite
     }
@@ -574,6 +2137,7 @@ BodyPartsGroup {
     FightAnim {
         id: _fightAnim
         entity: _character
+        intensity: _character.actionIntensity
         running: _character.activity === Character.Activity.Fighting
         loops: Animation.Infinite
     }

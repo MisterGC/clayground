@@ -6,6 +6,7 @@ import Clayground.Common
 /*!
     \qmltype SimClock
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Seeded simulation clock driving deterministic probe sampling.
 
     The heart of the determinism contract: all lab randomness must come

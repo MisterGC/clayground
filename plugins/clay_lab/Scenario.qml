@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Scenario
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief A named, scripted lab situation, used inside a ScenarioSet.
 
     The script sets up entity state imperatively (initial QML property

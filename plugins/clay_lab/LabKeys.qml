@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype LabKeys
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The canonical lab key map, and the help text that describes it.
 
     Every lab reserves the same keys for the same things - scenarios on
@@ -18,6 +19,8 @@ import QtQuick
     (\c panBy / \c goalDistance - see \l {OrbitCamera3D}): \b arrows and
     \b WASD move across the scene, \b {Shift+arrows} turn it, \c + / \c -
     zoom, \c F frames the selection and \c 0 or \c Home frames everything.
+    With a \l jump wired, \c f (no Shift) starts keyboard selection and
+    framing moves to \c Shift+F - f acquires, F frames.
     WASD is reserved for the same reason the arrows are - it is the gesture
     every viewer already knows - which is why a lab may not spend those four
     letters on anything else. The arrows used to
@@ -116,6 +119,67 @@ Item {
         what lets a lab keep \c Del for deleting the thing it builds.
     */
     property var hands: null
+
+    /*!
+        \qmlproperty var LabKeys::jump
+        \brief A \l HintJump - keyboard selection on \c f.
+
+        Wiring one SPLITS the frame key: \c f (no Shift) puts the jump labels
+        up, \c Shift+F frames the selection - the map's first
+        Shift-differentiated letter pair, after the precedent of \c Shift+R
+        and the Shift-arrows. A lab without a jump keeps plain \c F framing,
+        so nothing existing changes until a lab opts in. While the labels are
+        up every key is routed to the jump - a text-entry context, like the
+        pin prompt, not a mode.
+    */
+    property var jump: null
+
+    /*!
+        \qmlproperty var LabKeys::hints
+        \brief A \l HintBar for refusals - a key that cannot act says why.
+
+        A refused key must never be silent (and must never touch the clock,
+        the RNG or the view state): with a bar wired, "no earlier view" is a
+        flashed line instead of nothing happening. \l refused fires either
+        way, for a lab that wants its own channel.
+    */
+    property var hints: null
+
+    /*!
+        \qmlsignal LabKeys::refused(string reason)
+        \brief A reserved key was pressed and could not act; \a reason is the
+        LabLang key describing what was missing.
+    */
+    signal refused(string reason)
+
+    function _refuse(reason) {
+        refused(reason)
+        if (hints && hints.flash) hints.flash(LabLang.t(reason))
+    }
+
+    /*!
+        \qmlproperty var LabKeys::selection
+        \brief The selected part's card as a keyboard target.
+
+        An adapter the lab supplies: \c {active} (something is selected),
+        \c {moveFocus(d)}, \c {adjust(d) -> bool} and \c {operate() -> bool}.
+        While active, \c j/\c k walk the card's control rows, \c h/\c l
+        adjust the focused one (step a value, flip a toggle, cycle an
+        option) and \b Enter operates the part's actuator. These live
+        \e only under a selection - the nearest-context rule, which is also
+        how \c h can belong to the card here and to the belt otherwise
+        (\c Esc clears the selection first). \c adjust/\c operate return
+        false to refuse, and the refusal is spoken through \l hints.
+    */
+    property var selection: null
+
+    /*!
+        \qmlproperty bool LabKeys::selectionKeys
+        \readonly
+        \brief A card is selected, so its keys are live.
+    */
+    readonly property bool selectionKeys:
+        selection !== null && selection !== undefined && selection.active
 
     /*!
         \qmlproperty string LabKeys::handKey
@@ -239,6 +303,12 @@ Item {
             out.push({ key: "␣", label: "keys.next" })
         }
         if (navKeys) out.push({ key: "␣", label: "keys.nav" })
+        if (jump) out.push({ key: "f", label: "keys.jump" })
+        if (selection) {
+            out.push({ key: "jk", label: "keys.cardwalk" })
+            out.push({ key: "hl", label: "keys.cardadjust" })
+            out.push({ key: "⏎", label: "keys.operate" })
+        }
         if (handKeys) {
             out.push({ key: handKey, label: "keys.hand" })
             out.push({ key: pinKey, label: "keys.pin" })
@@ -248,11 +318,14 @@ Item {
             out.push({ key: "←↑↓→ / WASD", label: "keys.pan" })
             out.push({ key: "⇧←↑↓→", label: "keys.orbit" })
             out.push({ key: "+-", label: "keys.zoom" })
-            out.push({ key: "F", label: "keys.frame" })
+            out.push({ key: jump ? "⇧F" : "F", label: "keys.frame" })
             out.push({ key: "0", label: "keys.reset" })
+            if (camera && camera.jumpBack)
+                out.push({ key: "⌃O ⌃I", label: "keys.jumplist" })
         }
         if (scaleKeys) out.push({ key: "⌃+ ⌃− ⌃0", label: "keys.uiscale" })
         if (recorder) out.push({ key: "⇧R", label: "keys.record" })
+        out.push({ key: "⇥", label: "keys.focus" })
         out.push({ key: "Esc", label: "keys.cancel" })
         out.push({ key: "?", label: "keys.help" })
         return out
@@ -272,7 +345,12 @@ Item {
 
         While a flow runs, \c Space / \c → advance it and \c ← steps back, so
         the narration reads the same in every lab. The lab's own keys keep
-        working throughout - a flow never locks the lab.
+        working throughout: what a running flow takes is the board (see
+        \l {Flow::control}), not the key map - the view, the text size, the
+        help and the transport are the reader's at every moment. The one
+        exception is the selected part's card, whose \c h / \c l / \b Enter
+        go through \l selection and are refused for a part the flow has not
+        lent out.
     */
     function handle(ev) {
         // --- the name prompt, before ANYTHING: while it is open the keyboard
@@ -281,6 +359,11 @@ Item {
         // these never arrive, which is exactly why the guard belongs here -
         // the one path that could deliver them is a lab that kept focus.
         if (handKeys && hands.pinning) return false
+
+        // --- jump labels, right after it and for the same reason: while
+        // they are up the letters ARE the input, and an 'h' in a label must
+        // not pick up an instrument under the typing.
+        if (jump && jump.active) return jump.handleKey(ev)
 
         // --- text size, BEFORE everything else: the bare +/-/0 keys are the
         // camera's, and a modifier is the only thing telling the two apart.
@@ -294,6 +377,21 @@ Item {
                 LabTheme.stepScale(-1); return true
             }
             if (ev.key === Qt.Key_0) { LabTheme.resetScale(); return true }
+        }
+
+        // --- the view jumplist, on the same modifier (and Meta, for the
+        // same macOS reason). Camera-side: OrbitCamera3D records every
+        // deliberate jump; these two walk the record.
+        if (camera && camera.jumpBack
+            && (ev.modifiers & (Qt.ControlModifier | Qt.MetaModifier))) {
+            if (ev.key === Qt.Key_O) {
+                if (!camera.jumpBack()) _refuse("jump.endBack")
+                return true
+            }
+            if (ev.key === Qt.Key_I) {
+                if (!camera.jumpForward()) _refuse("jump.endFwd")
+                return true
+            }
         }
 
         // --- flow transport (only while one runs, so arrows stay the view's)
@@ -312,6 +410,25 @@ Item {
         if (navKeys && ev.key === Qt.Key_Space) {
             pointer.springNav = true
             return true
+        }
+
+        // --- the selected part's card
+        // Before the belt on purpose: while a part is selected, h belongs
+        // to its card - the same nearest-context layering that gives Del to
+        // a measurement while one is being taken. Esc clears the selection
+        // and hands h back to the belt.
+        if (selectionKeys) {
+            const cl = _letterOf(ev)
+            if (cl === "J") { selection.moveFocus(1); return true }
+            if (cl === "K") { selection.moveFocus(-1); return true }
+            if (cl === "H" || cl === "L") {
+                if (!selection.adjust(cl === "H" ? -1 : 1)) _refuse("card.noAdjust")
+                return true
+            }
+            if (ev.key === Qt.Key_Return || ev.key === Qt.Key_Enter) {
+                if (!selection.operate()) _refuse("card.noOperate")
+                return true
+            }
         }
 
         // --- what is in the hand
@@ -367,6 +484,15 @@ Item {
             recorder.recording = !recorder.recording
             return true
         }
+        // Tab clears the HUD. Photoshop's key for the same act, and the one
+        // letter-free key left in the reserved half - F was already framing
+        // the selection. Accepting it is also what stops Qt walking the focus
+        // chain, which is the other thing Tab does in a Quick scene.
+        if (ev.key === Qt.Key_Backtab
+            || (ev.key === Qt.Key_Tab && !(ev.modifiers & Qt.ControlModifier))) {
+            LabView.toggleFocus()
+            return true
+        }
         if (ev.key === Qt.Key_Question
             || (ev.key === Qt.Key_Slash && (ev.modifiers & Qt.ShiftModifier))) {
             helpVisible = !helpVisible
@@ -404,7 +530,13 @@ Item {
             camera.zoomBy(0.88); return true
         }
         if (ev.key === Qt.Key_Minus && camera) { camera.zoomBy(1.14); return true }
-        if (ev.key === Qt.Key_F && frameSelection) { frameSelection(); return true }
+        if (ev.key === Qt.Key_F) {
+            // f acquires, ⇧F frames - but only once a lab wires a jump; a
+            // plain F in a jump-less lab keeps its old meaning, so the split
+            // costs existing labs nothing.
+            if (jump && !(ev.modifiers & Qt.ShiftModifier)) { jump.begin(); return true }
+            if (frameSelection) { frameSelection(); return true }
+        }
         if ((ev.key === Qt.Key_0 || ev.key === Qt.Key_Home) && frameAll) {
             frameAll(); return true
         }
@@ -434,6 +566,9 @@ Item {
     */
     function releaseSprings() {
         if (pointer) pointer.springNav = false
+        // Jump labels die with the focus too: their release (the typed
+        // letter) can no more arrive after a focus loss than Space's can.
+        if (jump && jump.active) jump.cancel()
     }
 
     // The release of a held key never arrives if the lab lost focus while it

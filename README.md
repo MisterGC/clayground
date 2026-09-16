@@ -17,7 +17,7 @@ learning and allowing more focused and faster development by reducing typical bu
 Before distributing a Clayground-based app, please read the LICENSE file for important information
 about the Qt dependency and related licensing considerations.
 
-📖 **[Documentation](https://mistergc.github.io/clayground/)** - Getting started guides, plugin docs, and more.
+📖 **[Documentation](https://clayground.mistergc.dev/)** - Getting started guides, plugin docs, and more.
 
 ![Platformer Screenshot](docs/assets/images/screenshot_platformer.png)
 
@@ -155,9 +155,9 @@ cmake --build build
 ### How to work with a sandbox?
 
 1. Clone this repo and build it as above (Qt 6.10.0+). Make sure to pull the submodules `git submodule update --recursive --init`
-2. Start the dojo app `claydojo --sbx <clone-dir>/sandboxes/void/Sandbox.qml`
+2. Start the dojo app `claydojo --sbx <clone-dir>/examples/void/Sandbox.qml`
 3. Move the created windows to a location that allows you to keep them visible even when your are editing code.
-4. Make changes to `<clone-dir>/sandboxes/void/Sandbox.qml` -> see the changes applied automatically
+4. Make changes to `<clone-dir>/examples/void/Sandbox.qml` -> see the changes applied automatically
 5. Press `Ctrl+G` in the app window to show the Guide/Help overlay.
 6. Check out the other sandboxes in the same way :)
 
@@ -191,7 +191,7 @@ allows to build a standalone app. So you can just use one as a template to build
 
 - **Desktop**: Linux, macOS, Windows
 - **Mobile**: iOS, Android
-- **Web**: WebAssembly (Emscripten) - see [Getting Started](https://mistergc.github.io/clayground/getting-started/#building-for-webassembly) for build instructions
+- **Web**: WebAssembly (Emscripten) - see [Getting Started](https://clayground.mistergc.dev/docs/getting-started/wasm-builds/) for build instructions
 
 ### Testing
 
@@ -249,7 +249,7 @@ The documentation website includes live WASM demos and API reference. To build a
 source ~/dev/emsdk/emsdk_env.sh
 
 # 2. Build WASM demos (multithread required for Qt Quick 3D)
-~/Qt/6.10.1/wasm_multithread/bin/qt-cmake -B build-wasm
+~/Qt/6.10.1/wasm_multithread/bin/qt-cmake -B build-wasm -DCLAY_BUILD_WEBSITE=ON .
 cmake --build build-wasm --target website-dev
 
 # 3. Build API documentation (requires desktop Qt)
@@ -264,7 +264,7 @@ bundle exec jekyll serve --baseurl ""
 
 Then open http://localhost:4000 in your browser.
 
-**Note:** The `website-dev` target copies WASM builds to `docs/wasm/`. The `docs` target generates API reference HTML in `docs/api/`.
+**Note:** The `website-dev` target copies the WASM artifacts to `docs/_site/demo/<demo>/`. The `docs` target generates API reference HTML in `docs/api/`.
 
 ### Plugin Development
 

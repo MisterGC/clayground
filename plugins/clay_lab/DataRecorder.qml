@@ -7,6 +7,7 @@ import "record.js" as Record
 /*!
     \qmltype DataRecorder
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Records a run as a citable run record (or as plain CSV).
 
     Recording starts and stops with \l recording. On stop the run is written

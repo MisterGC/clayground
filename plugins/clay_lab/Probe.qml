@@ -6,6 +6,7 @@ import "format.js" as Format
 /*!
     \qmltype Probe
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief A named observable sampled by the SimClock, auto-registered with Lab.
 
     Provide \c expr as a function returning a number; the SimClock samples

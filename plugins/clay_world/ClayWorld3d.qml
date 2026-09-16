@@ -143,19 +143,19 @@ ClayWorldBase {
         AxisHelper { id: _axisHelper; visible: _clayWorld3d.debugRendering }
 
         Loader3D {
-            sourceComponent: _world.freeCamera ? _wasdCtrl : _orbitCtrl
+            sourceComponent: _clayWorld3d.freeCamera ? _wasdCtrl : _orbitCtrl
             Component {
                 id: _wasdCtrl
                 WasdController {
                     parent: _viewport
-                    controlledObject: _world.camera
+                    controlledObject: _clayWorld3d.camera
                 }
             }
             Component {
                 id: _orbitCtrl
                 OrbitCameraController {
                     parent: _viewport
-                    camera: _world.camera
+                    camera: _clayWorld3d.camera
                     origin: _cameraRoot
                     panEnabled: false
                 }

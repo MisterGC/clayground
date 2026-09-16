@@ -39,15 +39,68 @@ function(clay_website_register_webdojo_example SOURCE DEST_DIR DISPLAY_NAME)
     message(STATUS "WebDojo example: ${DISPLAY_NAME} (${SOURCE_TYPE}) <- ${SOURCE}")
 endfunction()
 
+# Register a webdojo example assembled from more than one source directory.
+#
+# A plain entry is one directory copied under its own name, and a QML file in
+# it can reach nothing outside that directory. character-101 is a lab: it
+# loads its scenes out of labs/kits/character by relative path, so the entry
+# has to carry the kit too AND keep the shape "../kits/character" resolves in.
+#
+# DEST_DIR and DISPLAY_NAME are as above. ENTRY_FILE is relative to the
+# assembled entry (e.g. "character-101/Sandbox.qml"). Every further argument
+# is one "<source dir>|<subdirectory of the entry>" mapping.
+function(clay_website_register_webdojo_tree DEST_DIR DISPLAY_NAME ENTRY_FILE)
+    # Comma-joined: a registration is one ':'-separated record in a
+    # ';'-separated cache list, so a mapping may carry neither character.
+    string(REPLACE ";" "," MAPPINGS "${ARGN}")
+    set(CLAY_WEBDOJO_EXAMPLES ${CLAY_WEBDOJO_EXAMPLES}
+        "${MAPPINGS}:${DEST_DIR}:${DISPLAY_NAME}:${ENTRY_FILE}:tree" CACHE INTERNAL "")
+    message(STATUS "WebDojo example: ${DISPLAY_NAME} (tree) <- ${MAPPINGS}")
+endfunction()
+
 # Registers the labs tree as its own published payload.
 #
 # Deliberately NOT a webdojo example: a lab is not a demo of the framework, it
 # is a thing you go and use, launched from its own page. Keeping it out of the
 # gallery also keeps the eventual move to a lab subdomain a move of /labs/ and
 # /labs-run/ alone, with no dependency on the dojo's example index.
+#
+# EXCLUDE <dir>... names directories under SOURCE that are not published as
+# labs - they are copied and removed again, because copy_directory has no
+# filter. character-101 leaves the payload that way: it is the dojo's
+# Character3D demo, not a lab sample (#242).
 function(clay_website_register_lab SOURCE)
-    set(CLAY_WEBSITE_LABS ${CLAY_WEBSITE_LABS} "${SOURCE}" CACHE INTERNAL "")
-    message(STATUS "Lab payload: ${SOURCE} -> docs/labs-run/")
+    cmake_parse_arguments(ARG "" "" "EXCLUDE" ${ARGN})
+    string(REPLACE ";" "," EXCLUDES "${ARG_EXCLUDE}")
+    set(CLAY_WEBSITE_LABS ${CLAY_WEBSITE_LABS} "${SOURCE}|${EXCLUDES}" CACHE INTERNAL "")
+    if(EXCLUDES)
+        message(STATUS "Lab payload: ${SOURCE} -> docs/labs-run/, without ${EXCLUDES}")
+    else()
+        message(STATUS "Lab payload: ${SOURCE} -> docs/labs-run/")
+    endif()
+endfunction()
+
+# The files one source directory contributes to a published entry, relative to
+# it: everything but build files, editor config, unit tests and the transient
+# dot-state a developer run leaves behind.
+function(_clay_payload_files SRC_DIR OUT_VAR)
+    # Recursive: an entry whose sources sit in subdirectories (a lab and the
+    # kit it imports) would otherwise list its subdirectory names as if they
+    # were files, and the download would 404 on them.
+    file(GLOB_RECURSE DIR_FILES RELATIVE "${SRC_DIR}" "${SRC_DIR}/*")
+    set(KEPT "")
+    foreach(F IN LISTS DIR_FILES)
+        get_filename_component(F_NAME "${F}" NAME)
+        if(NOT F_NAME STREQUAL "CMakeLists.txt"
+           AND NOT F_NAME STREQUAL ".qmlls.ini"
+           AND NOT F MATCHES "\\.test\\.js$"
+           # any dot-directory or dotfile at any depth: .clay/ is
+           # transient inspector state a developer run leaves behind
+           AND NOT F MATCHES "(^|/)\\.")
+            list(APPEND KEPT "${F}")
+        endif()
+    endforeach()
+    set(${OUT_VAR} "${KEPT}" PARENT_SCOPE)
 endfunction()
 
 # Check all prerequisites at configure time (fail fast)
@@ -145,6 +198,12 @@ function(clay_website_create_target)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
         COMMENT "Syncing plugin documentation..."
     )
+    # The sync appends a page's API Reference only when _includes/api/<plugin>.html
+    # already exists, and those files are written by the docs target - so the
+    # sync has to run after it, or every page comes out without the section (#260).
+    if(TARGET docs)
+        add_dependencies(website-sync-docs docs)
+    endif()
 
     # Generate the lab pages from the labs themselves - the paper and the
     # lab's own dictionary are the source, so the site never holds a second
@@ -169,8 +228,24 @@ function(clay_website_create_target)
         list(GET PARTS 4 SOURCE_TYPE)
 
         # Determine entry file path
+        set(TREE_MAPPINGS "")
+        if(SOURCE_TYPE STREQUAL "tree")
+            string(REPLACE "," ";" TREE_MAPPINGS "${SOURCE}")
+        endif()
         if(SOURCE_TYPE STREQUAL "dir")
             set(ENTRY_PATH "${CMAKE_SOURCE_DIR}/${SOURCE}/${ENTRY_FILE}")
+        elseif(SOURCE_TYPE STREQUAL "tree")
+            # ENTRY_FILE is relative to the assembled entry, so the mapping
+            # whose subdirectory it starts in says which source holds it.
+            set(ENTRY_PATH "")
+            foreach(M IN LISTS TREE_MAPPINGS)
+                string(REPLACE "|" ";" M_PARTS "${M}")
+                list(GET M_PARTS 0 M_SRC)
+                list(GET M_PARTS 1 M_SUB)
+                if(ENTRY_FILE MATCHES "^${M_SUB}/(.+)$")
+                    set(ENTRY_PATH "${CMAKE_SOURCE_DIR}/${M_SRC}/${CMAKE_MATCH_1}")
+                endif()
+            endforeach()
         else()
             set(ENTRY_PATH "${CMAKE_SOURCE_DIR}/${SOURCE}")
         endif()
@@ -203,42 +278,33 @@ function(clay_website_create_target)
         endif()
 
         # Determine singleFile flag and files list
-        set(SINGLE_FILE "true")
-        set(FILES_JSON "")
+        set(FILES_PARTS "")
         if(SOURCE_TYPE STREQUAL "dir")
-            set(SRC_DIR "${CMAKE_SOURCE_DIR}/${SOURCE}")
-            # Recursive: an example whose sources sit in subdirectories (a lab
-            # and the kit it imports) would otherwise list its subdirectory
-            # names as if they were files, and the download would 404 on them.
-            file(GLOB_RECURSE DIR_FILES RELATIVE "${SRC_DIR}" "${SRC_DIR}/*")
-            set(FILTERED_FILES "")
-            foreach(F IN LISTS DIR_FILES)
-                # Exclude build/config files and anything that is not payload
-                get_filename_component(F_NAME "${F}" NAME)
-                if(NOT F_NAME STREQUAL "CMakeLists.txt"
-                   AND NOT F_NAME STREQUAL ".qmlls.ini"
-                   AND NOT F MATCHES "\\.test\\.js$"
-                   # any dot-directory or dotfile at any depth: .clay/ is
-                   # transient inspector state a developer run leaves behind
-                   AND NOT F MATCHES "(^|/)\\.")
-                    list(APPEND FILTERED_FILES "${F}")
-                endif()
-            endforeach()
-            list(LENGTH FILTERED_FILES FILE_COUNT)
-            if(FILE_COUNT GREATER 1)
-                set(SINGLE_FILE "false")
-            endif()
-            # Build JSON files array
-            set(FILES_PARTS "")
-            foreach(F IN LISTS FILTERED_FILES)
+            _clay_payload_files("${CMAKE_SOURCE_DIR}/${SOURCE}" ENTRY_FILES)
+            foreach(F IN LISTS ENTRY_FILES)
                 list(APPEND FILES_PARTS "\"${DEST_DIR}/${F}\"")
             endforeach()
-            string(REPLACE ";" ", " FILES_JSON_INNER "${FILES_PARTS}")
-            set(FILES_JSON "[${FILES_JSON_INNER}]")
+        elseif(SOURCE_TYPE STREQUAL "tree")
+            foreach(M IN LISTS TREE_MAPPINGS)
+                string(REPLACE "|" ";" M_PARTS "${M}")
+                list(GET M_PARTS 0 M_SRC)
+                list(GET M_PARTS 1 M_SUB)
+                _clay_payload_files("${CMAKE_SOURCE_DIR}/${M_SRC}" ENTRY_FILES)
+                foreach(F IN LISTS ENTRY_FILES)
+                    list(APPEND FILES_PARTS "\"${DEST_DIR}/${M_SUB}/${F}\"")
+                endforeach()
+            endforeach()
         else()
             # Single file source
-            set(FILES_JSON "[\"${DEST_DIR}/${ENTRY_FILE}\"]")
+            list(APPEND FILES_PARTS "\"${DEST_DIR}/${ENTRY_FILE}\"")
         endif()
+        set(SINGLE_FILE "true")
+        list(LENGTH FILES_PARTS FILE_COUNT)
+        if(FILE_COUNT GREATER 1)
+            set(SINGLE_FILE "false")
+        endif()
+        string(REPLACE ";" ", " FILES_JSON_INNER "${FILES_PARTS}")
+        set(FILES_JSON "[${FILES_JSON_INNER}]")
 
         if(NOT FIRST_ENTRY)
             string(APPEND EXAMPLES_JSON ",\n")
@@ -274,6 +340,23 @@ function(clay_website_create_target)
                     -DTARGET_DIR=${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}
                     -P ${CMAKE_SOURCE_DIR}/cmake/claystripdotdirs.cmake
             )
+        elseif(SOURCE_TYPE STREQUAL "tree")
+            # One copy per mapping, into the subdirectory the entry's own
+            # relative imports expect to find it in.
+            string(REPLACE "," ";" TREE_MAPPINGS "${SOURCE}")
+            foreach(M IN LISTS TREE_MAPPINGS)
+                string(REPLACE "|" ";" M_PARTS "${M}")
+                list(GET M_PARTS 0 M_SRC)
+                list(GET M_PARTS 1 M_SUB)
+                list(APPEND WEBDOJO_COPY_COMMANDS
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        ${CMAKE_SOURCE_DIR}/${M_SRC}
+                        ${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}/${M_SUB}
+                    COMMAND ${CMAKE_COMMAND}
+                        -DTARGET_DIR=${CMAKE_SOURCE_DIR}/docs/webdojo-examples/${DEST_DIR}/${M_SUB}
+                        -P ${CMAKE_SOURCE_DIR}/cmake/claystripdotdirs.cmake
+                )
+            endforeach()
         else()
             # Copy single file into directory as Sandbox.qml
             list(APPEND WEBDOJO_COPY_COMMANDS
@@ -287,7 +370,9 @@ function(clay_website_create_target)
     endforeach()
 
     # Lab payloads land under docs/labs-run/, served to the runtime over HTTP.
-    foreach(LAB_SOURCE IN LISTS CLAY_WEBSITE_LABS)
+    foreach(LAB_ENTRY IN LISTS CLAY_WEBSITE_LABS)
+        string(REPLACE "|" ";" LAB_PARTS "${LAB_ENTRY}")
+        list(GET LAB_PARTS 0 LAB_SOURCE)
         list(APPEND WEBDOJO_COPY_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_SOURCE_DIR}/${LAB_SOURCE}
@@ -296,6 +381,17 @@ function(clay_website_create_target)
                 -DTARGET_DIR=${CMAKE_SOURCE_DIR}/docs/labs-run
                 -P ${CMAKE_SOURCE_DIR}/cmake/claystripdotdirs.cmake
         )
+        list(LENGTH LAB_PARTS LAB_PART_COUNT)
+        if(LAB_PART_COUNT GREATER 1)
+            list(GET LAB_PARTS 1 LAB_EXCLUDES)
+            string(REPLACE "," ";" LAB_EXCLUDES "${LAB_EXCLUDES}")
+            foreach(E IN LISTS LAB_EXCLUDES)
+                list(APPEND WEBDOJO_COPY_COMMANDS
+                    COMMAND ${CMAKE_COMMAND} -E rm -rf
+                        ${CMAKE_SOURCE_DIR}/docs/labs-run/${E}
+                )
+            endforeach()
+        endif()
     endforeach()
 
     add_custom_target(website-sync-webdojo-examples

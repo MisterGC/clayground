@@ -1,5 +1,6 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 #include "speech.h"
+#include "visemeanalysis.h"
 
 #include <QAudioBuffer>
 #include <QAudioDecoder>
@@ -18,6 +19,13 @@ constexpr int TICK_MS = 16;
 // Smoothing factors per tick: mouth snaps open, relaxes closed.
 constexpr qreal ATTACK = 0.45;
 constexpr qreal RELEASE = 0.25;
+
+// Sixty seconds at 48 kHz. A line of dialogue is seconds, so this is generous
+// for what sayAudio() is for, and it is the thing that stops a music track
+// handed over by mistake from being retained in full. Past it the spectral
+// path gives up and the envelope - which streams and retains nothing - takes
+// the line.
+constexpr int MAX_ANALYSIS_SAMPLES = 60 * 48000;
 
 struct LetterShape
 {
@@ -128,6 +136,22 @@ void Speech::setPitch(qreal p)
     emit pitchChanged();
 }
 
+void Speech::setAccuracy(Accuracy a)
+{
+    if (accuracy_ == a)
+        return;
+    accuracy_ = a;
+    emit accuracyChanged();
+}
+
+void Speech::setEffectiveAccuracy(Accuracy a)
+{
+    if (effectiveAccuracy_ == a)
+        return;
+    effectiveAccuracy_ = a;
+    emit effectiveAccuracyChanged();
+}
+
 bool Speech::ttsAvailable() const
 {
 #ifdef CLAY_CHARACTER3D_HAS_TTS
@@ -137,7 +161,7 @@ bool Speech::ttsAvailable() const
 #endif
 }
 
-void Speech::say(const QString &what)
+void Speech::say(const QString &what, const QString &transcript)
 {
     const QString trimmed = what.trimmed();
     const QString lower = trimmed.toLower();
@@ -147,9 +171,10 @@ void Speech::say(const QString &what)
     if (looksLikeAudio) {
         const QUrl url(trimmed);
         if (url.isValid() && !url.scheme().isEmpty())
-            sayAudio(url);
+            sayAudio(url, transcript);
         else
-            sayAudio(QUrl::fromLocalFile(QFileInfo(trimmed).absoluteFilePath()));
+            sayAudio(QUrl::fromLocalFile(QFileInfo(trimmed).absoluteFilePath()),
+                     transcript);
     } else {
         sayText(trimmed);
     }
@@ -211,16 +236,104 @@ VisemeTimeline Speech::timelineForText(const QString &text, qreal paceScale)
     return tl;
 }
 
+int Speech::estimateDurationMs(const QString &text) const
+{
+    // The same pace scale sayText() uses, so the estimate is the duration.
+    return int(timelineForText(text, 1.0 - 0.4 * rate_).durationMs);
+}
+
+QVariantList Speech::wordMarks() const
+{
+    QVariantList out;
+    out.reserve(timeline_.wordMarks.size());
+    for (const auto &mark : timeline_.wordMarks) {
+        QVariantMap m;
+        m.insert(QStringLiteral("offset"), qlonglong(mark.first));
+        m.insert(QStringLiteral("ms"), qlonglong(mark.second));
+        out.append(m);
+    }
+    return out;
+}
+
+void Speech::setTimeline(const VisemeTimeline &tl)
+{
+    const qint64 was = timeline_.durationMs;
+    timeline_ = tl;
+    if (timeline_.durationMs != was)
+        emit durationMsChanged();
+}
+
+// A say() records what to say and starts it on the NEXT event-loop turn.
+//
+// Two failures made that necessary, both of them in the same shape - a line
+// that is replaced before it ever gets going:
+//
+//  * Two say() calls in one tick. The second one's stop() silences the TTS
+//    engine, whose Ready arrives asynchronously - after the new utterance has
+//    been handed over and reported itself Speaking. The stale Ready then ends
+//    the new line, and the character says nothing at all. Deferring the start
+//    puts that Ready back where it belongs: before the new line begins.
+//  * A cue scheduler driving speech from a timer hits the same window on
+//    purpose rather than by accident.
+//
+// Deferring also settles which line wins: the last say() of a tick overwrites
+// the pending one, so exactly one line starts and exactly that line reports
+// its started()/finished() pair. A line that never began reports neither -
+// nothing false to advance a queue with.
+void Speech::scheduleStart()
+{
+    if (startScheduled_)
+        return;
+    startScheduled_ = true;
+    QMetaObject::invokeMethod(this, [this]() {
+        startScheduled_ = false;
+        startPending();
+    }, Qt::QueuedConnection);
+}
+
+void Speech::startPending()
+{
+    const Pending kind = pendingKind_;
+    pendingKind_ = Pending::None;
+    switch (kind) {
+    case Pending::None:
+        break;
+    case Pending::Text:
+        startText(pendingText_);
+        break;
+    case Pending::Audio:
+        startAudio(pendingSource_, pendingTranscript_);
+        break;
+    }
+}
+
 void Speech::sayText(const QString &text)
 {
     stop();
-    if (text.isEmpty())
+    pendingKind_ = Pending::Text;
+    pendingText_ = text;
+    scheduleStart();
+}
+
+void Speech::startText(const QString &text)
+{
+    if (text.trimmed().isEmpty()) {
+        // An empty line still has to complete. A queue advancing on finished()
+        // waits forever otherwise, and a directive that produces a text-less
+        // segment makes that reachable. Reported as a zero-length utterance:
+        // begun and ended, never speaking.
+        emit started();
+        emit finished();
         return;
+    }
 
     // rate -1..1 => pace scale 1.6 .. 0.6 (slower rate = longer visemes)
-    timeline_ = timelineForText(text, 1.0 - 0.4 * rate_);
-    if (timeline_.keys.isEmpty())
+    setTimeline(timelineForText(text, 1.0 - 0.4 * rate_));
+    if (timeline_.keys.isEmpty()) {
+        emit started();
+        emit finished();
         return;
+    }
 
     beginSpeaking(Mode::Text);
 
@@ -281,8 +394,10 @@ void Speech::ensureTts()
 }
 #endif
 
-void Speech::startAudio(const QUrl &source)
+void Speech::startAudio(const QUrl &source, const QString &transcript)
 {
+    transcript_ = transcript;
+
     if (!player_) {
         player_ = new QMediaPlayer(this);
         audioOut_ = new QAudioOutput(this);
@@ -320,6 +435,8 @@ void Speech::startAudio(const QUrl &source)
                        << ") - falling back to babble envelope";
             babbleMode_ = true;
             analysisReady_ = true;
+            analysisSamples_.clear();
+            analysisSamples_.squeeze();
             player_->play();
         });
     }
@@ -334,6 +451,10 @@ void Speech::startAudio(const QUrl &source)
     samplesPerWindow_ = 0;
     analysisReady_ = false;
     babbleMode_ = false;
+    analysisSamples_.clear();
+    analysisRate_ = 0;
+    analysisTruncated_ = false;
+    setEffectiveAccuracy(Speech::Envelope);
 
     beginSpeaking(Mode::Audio);
     player_->setSource(source);
@@ -341,12 +462,20 @@ void Speech::startAudio(const QUrl &source)
     decoder_->start();
 }
 
-void Speech::sayAudio(const QUrl &source)
+void Speech::sayAudio(const QUrl &source, const QString &transcript)
 {
     stop();
-    if (source.isEmpty())
+    if (source.isEmpty()) {
+        // Same contract as an empty line: the caller gets its completion.
+        pendingKind_ = Pending::Text;
+        pendingText_.clear();
+        scheduleStart();
         return;
-    startAudio(source);
+    }
+    pendingKind_ = Pending::Audio;
+    pendingSource_ = source;
+    pendingTranscript_ = transcript;
+    scheduleStart();
 }
 
 void Speech::onDecoderBufferReady()
@@ -358,11 +487,24 @@ void Speech::onDecoderBufferReady()
     const QAudioFormat fmt = buffer.format();
     if (samplesPerWindow_ == 0)
         samplesPerWindow_ = qMax(1, fmt.sampleRate() * windowMs_ / 1000);
+    if (analysisRate_ == 0)
+        analysisRate_ = fmt.sampleRate();
 
     const int channels = qMax(1, fmt.channelCount());
     const int frames = buffer.frameCount();
 
-    auto processSample = [this](float mono) {
+    // Above Envelope the samples themselves are kept: band ratios need a
+    // spectrum, and a spectrum needs the waveform the streaming envelope
+    // throws away a window at a time.
+    const bool retain = accuracy_ != Speech::Envelope && !analysisTruncated_;
+
+    auto processSample = [this, retain](float mono) {
+        if (retain) {
+            if (analysisSamples_.size() >= MAX_ANALYSIS_SAMPLES)
+                analysisTruncated_ = true;
+            else
+                analysisSamples_.append(mono);
+        }
         winSumSquares_ += double(mono) * mono;
         if ((lastSample_ < 0.f) != (mono < 0.f))
             ++winZeroCrossings_;
@@ -425,46 +567,86 @@ void Speech::onDecoderBufferReady()
     }
 }
 
+// Loudness and zero crossings, from the windows the decode streamed past.
+// The floor every other tier falls back to.
+VisemeTimeline Speech::envelopeTimeline() const
+{
+    VisemeTimeline tl;
+    if (maxRms_ <= 0.f || rmsWindows_.isEmpty())
+        return tl;
+
+    const float gate = 0.06f * maxRms_;
+    for (int i = 0; i < rmsWindows_.size(); ++i) {
+        const float rms = rmsWindows_.at(i);
+        float open = 0.f, wide = 0.f, round = 0.f;
+        if (rms > gate) {
+            open = qPow(rms / maxRms_, 0.6f);
+            // High zero-crossing rate hints at sibilants/fricatives:
+            // narrow the mouth instead of opening it wide.
+            const float zcrNorm = qBound(0.f, (zcrWindows_.at(i) - 0.05f) / 0.25f, 1.f);
+            wide = 0.55f * zcrNorm;
+            open *= (1.f - 0.45f * zcrNorm);
+            round = 0.25f * (1.f - zcrNorm) * open;
+        }
+        tl.keys.append({qint64(i) * windowMs_, open, wide, round});
+    }
+    tl.durationMs = qint64(rmsWindows_.size()) * windowMs_;
+    return tl;
+}
+
 void Speech::onDecoderFinished()
 {
     if (mode_ != Mode::Audio || analysisReady_)
         return;
 
-    timeline_.keys.clear();
-    timeline_.wordMarks.clear();
+    // Ask for the tier that was requested, take the best one that answers.
+    // Nothing here reports failure to the caller: a fallback is a normal
+    // outcome of a recording the analyser cannot read, and the alternative
+    // to falling back is a character standing there with its mouth shut.
+    VisemeTimeline tl;
+    Accuracy got = Speech::Envelope;
 
-    if (maxRms_ > 0.f && !rmsWindows_.isEmpty()) {
-        const float gate = 0.06f * maxRms_;
-        for (int i = 0; i < rmsWindows_.size(); ++i) {
-            const float rms = rmsWindows_.at(i);
-            float open = 0.f, wide = 0.f, round = 0.f;
-            if (rms > gate) {
-                open = qPow(rms / maxRms_, 0.6f);
-                // High zero-crossing rate hints at sibilants/fricatives:
-                // narrow the mouth instead of opening it wide.
-                const float zcrNorm = qBound(0.f, (zcrWindows_.at(i) - 0.05f) / 0.25f, 1.f);
-                wide = 0.55f * zcrNorm;
-                open *= (1.f - 0.45f * zcrNorm);
-                round = 0.25f * (1.f - zcrNorm) * open;
-            }
-            timeline_.keys.append({qint64(i) * windowMs_, open, wide, round});
+    if (accuracy_ != Speech::Envelope && analysisRate_ > 0
+            && !analysisSamples_.isEmpty()) {
+        // Measured once. Both tiers above the floor read the same frames -
+        // Aligned only differs in having a script to put on top of them.
+        const auto frames = ClayViseme::analyse(analysisSamples_, analysisRate_);
+
+        if (accuracy_ == Speech::Aligned && !transcript_.trimmed().isEmpty()) {
+            // Pace does not matter: the estimate this builds is thrown away
+            // and replaced with the recording's own clock. What survives is
+            // the SEQUENCE, which is the half of lip-sync recognition is for.
+            const VisemeTimeline script = timelineForText(transcript_, 1.0);
+            tl = ClayViseme::align(script, frames);
+            if (!tl.keys.isEmpty())
+                got = Speech::Aligned;
         }
-        timeline_.durationMs = qint64(rmsWindows_.size()) * windowMs_;
-        analysisReady_ = true;
-        player_->play();
-    } else {
-        babbleMode_ = true;
-        analysisReady_ = true;
-        player_->play();
+        if (tl.keys.isEmpty()) {
+            tl = ClayViseme::timelineFromFrames(frames);
+            if (!tl.keys.isEmpty())
+                got = Speech::Spectral;
+        }
     }
+    if (tl.keys.isEmpty())
+        tl = envelopeTimeline();
+
+    // The samples have done their work; a whole line of audio is not worth
+    // holding for the length of the line.
+    analysisSamples_.clear();
+    analysisSamples_.squeeze();
+
+    setTimeline(tl);
+    setEffectiveAccuracy(got);
+    babbleMode_ = tl.keys.isEmpty();
+    analysisReady_ = true;
+    player_->play();
 }
 
 void Speech::buildBabbleTimeline(qint64 durationMs)
 {
     // Deterministic pseudo-syllables at ~5 Hz; used when the audio could
     // not be analyzed but still plays.
-    timeline_.keys.clear();
-    timeline_.wordMarks.clear();
+    VisemeTimeline tl;
     qint64 t = 0;
     quint32 seed = 0x9e3779b9u;
     while (t < durationMs) {
@@ -472,12 +654,13 @@ void Speech::buildBabbleTimeline(qint64 durationMs)
         const float open = 0.25f + 0.65f * ((seed >> 8) % 1000) / 1000.f;
         seed = seed * 1664525u + 1013904223u;
         const float round = 0.5f * ((seed >> 8) % 1000) / 1000.f;
-        timeline_.keys.append({t, open, 0.2f, round});
+        tl.keys.append({t, open, 0.2f, round});
         t += 90;
-        timeline_.keys.append({t, 0.1f, 0.1f, 0.f});
+        tl.keys.append({t, 0.1f, 0.1f, 0.f});
         t += 90;
     }
-    timeline_.durationMs = durationMs;
+    tl.durationMs = durationMs;
+    setTimeline(tl);
 }
 
 void Speech::beginSpeaking(Mode mode)
@@ -510,6 +693,9 @@ void Speech::finishSpeaking()
 
 void Speech::stop()
 {
+    // A line that has not started yet is simply dropped - it never reported a
+    // beginning, so it must not report an end either.
+    pendingKind_ = Pending::None;
 #ifdef CLAY_CHARACTER3D_HAS_TTS
     // Always silence the engine - it may still be speaking a previous
     // utterance even when our mode already moved on (e.g. watchdog end).
@@ -520,6 +706,10 @@ void Speech::stop()
         player_->stop();
         decoder_->stop();
     }
+    // A line abandoned mid-decode has no reason to keep its samples until the
+    // next one starts - and the next one may never come.
+    analysisSamples_.clear();
+    analysisSamples_.squeeze();
     finishSpeaking();
 }
 

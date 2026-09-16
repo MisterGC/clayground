@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype GridMode
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Snap-or-free placement, with grafli's grid contract.
 
     Small on purpose: the value is not the code, it is that every lab that

@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype FlowChip
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief The offer to be taught: starts a Flow, and says that it exists.
 
     A lab's guided flow used to be reachable only by pressing \c T, which

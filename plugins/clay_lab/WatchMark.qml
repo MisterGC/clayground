@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype WatchMark
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief The dot a watched object wears in the world, in its curve's colour.
 
     The other half of the watch loop: \l WatchChip puts a thing on the plot,

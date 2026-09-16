@@ -178,7 +178,8 @@ Item {
             skin: target.skin.toString(),
             hairTone: target.hairTone.toString(),
             topClothing: target.topClothing.toString(),
-            bottomClothing: target.bottomClothing.toString()
+            bottomClothing: target.bottomClothing.toString(),
+            gaitPreset: target.gait ? target.gait.preset : ""
         }
         store.set("char_" + target.name, JSON.stringify(settings))
         console.log("Saved settings for: " + target.name)
@@ -206,6 +207,7 @@ Item {
             if (settings.hairTone) target.hairTone = settings.hairTone
             if (settings.topClothing) target.topClothing = settings.topClothing
             if (settings.bottomClothing) target.bottomClothing = settings.bottomClothing
+            if (settings.gaitPreset !== undefined && target.gait) target.gait.preset = settings.gaitPreset
             console.log("Loaded settings for: " + target.name)
         } catch (e) {
             console.log("Failed to load settings for: " + target.name)
@@ -241,7 +243,65 @@ Item {
             editTarget.say(speechInput.text, speechEmotion)
     }
 
+    /*!
+        Where the editor's point and present aim, in the CHARACTER's own frame:
+        up, forward and off to its left. Its own frame rather than the scene's,
+        so the same chip produces the same pose wherever the figure stands and
+        whichever way it is facing - which is what makes two clicks comparable.
+    */
+    property vector3d gestureTarget: Qt.vector3d(-0.5, 0.75, 0.9)
+
+    /*!
+        Plays one held gesture on the edited character. The gesture layer only
+        runs while the activity is idle, so this puts the activity back rather
+        than silently doing nothing - a chip that does nothing when a walk is
+        running is a chip nobody can tell from a broken gesture.
+    */
+    function playGesture(what) {
+        const c = editTarget
+        if (!c)
+            return
+        c.activity = Character.Activity.Idle
+        if (what === "" || what === "none") {
+            c.stopGesture()
+            return
+        }
+        // Scaled by the figure's own height, so the aim means the same thing
+        // on a child and on a giant.
+        const h = c.height * c.scale.y
+        const at = c.mapPositionToScene(Qt.vector3d(gestureTarget.x * h,
+                                                    gestureTarget.y * h,
+                                                    gestureTarget.z * h))
+        if (what === "point") c.pointAt(at)
+        else if (what === "present") c.presentAt(at)
+        else if (what === "thumbsUp") c.thumbsUp()
+        else if (what === "talk") c.gesticulate()
+    }
+
     // Parameter slider component
+    // A choice in a row, drawn by hand: under the native macOS style a
+    // Button's highlighted and checked looks do not repaint when the state
+    // leaves them, so a row of Buttons shows every choice ever clicked.
+    component Chip: Rectangle {
+        id: chip
+        property string label: ""
+        property bool active: false
+        signal picked()
+        width: chipLabel.implicitWidth + 16
+        height: chipLabel.implicitHeight + 8
+        radius: 5
+        color: active ? _sysPal.highlight : Qt.alpha(root._panelFg, 0.08)
+        border.color: Qt.alpha(root._panelFg, active ? 0 : 0.25)
+        Text {
+            id: chipLabel
+            anchors.centerIn: parent
+            text: chip.label
+            font.pixelSize: 10
+            color: chip.active ? _sysPal.highlightedText : root._panelFg
+        }
+        MouseArea { anchors.fill: parent; onClicked: chip.picked() }
+    }
+
     component ParamSlider: RowLayout {
         property string label: ""
         property real value: 0.5
@@ -489,78 +549,320 @@ Item {
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
-                    Button {
-                        text: "Idle"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Idle
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Idle
-                    }
-                    Button {
-                        text: "Walk"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Walking
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Walking
-                    }
-                    Button {
-                        text: "Run"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Running
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Running
-                    }
-                    Button {
-                        text: "Using"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Using
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Using
-                    }
-                    Button {
-                        text: "Fight"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.activity === Character.Fighting
-                        enabled: root.editTarget !== null
-                        onClicked: if (root.editTarget) root.editTarget.activity = Character.Fighting
+                    Repeater {
+                        model: [
+                            { label: "idle", value: Character.Activity.Idle },
+                            { label: "walk", value: Character.Activity.Walking },
+                            { label: "run", value: Character.Activity.Running },
+                            { label: "use", value: Character.Activity.Using },
+                            { label: "fight", value: Character.Activity.Fighting }
+                        ]
+                        Chip {
+                            required property var modelData
+                            label: modelData.label
+                            active: root.editTarget !== null && root.editTarget.activity === modelData.value
+                            onPicked: if (root.editTarget) root.editTarget.activity = modelData.value
+                        }
                     }
                 }
 
-                // Facial expressions
+                // How much character to draw, and the one row that has to say
+                // what it is CURRENTLY drawing as well as what it was asked
+                // for: Auto is a policy, and a policy you cannot watch is a
+                // policy you argue with. Pinning it is the point of the other
+                // four chips - a character the camera lives on, a player
+                // above all, is better off at a fixed level than switching
+                // under its own close-up.
                 Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
-                Text { text: "Expression"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Text { text: "Detail"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
-                    Button {
-                        text: "Idle"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.Idle
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.Idle
+                    Repeater {
+                        model: [
+                            { label: "auto", value: Character.Detail.Auto },
+                            { label: "high", value: Character.Detail.High },
+                            { label: "low", value: Character.Detail.Low },
+                            { label: "minimal", value: Character.Detail.Minimal }
+                        ]
+                        Chip {
+                            required property var modelData
+                            label: modelData.label
+                            active: root.editTarget !== null
+                                    && root.editTarget.detail === modelData.value
+                            onPicked: {
+                                if (!root.editTarget) return
+                                root.editTarget.detail = modelData.value
+                                root.scheduleAutoSave()
+                            }
+                        }
                     }
-                    Button {
-                        text: "Joy"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowJoy
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowJoy
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const names = ["minimal", "low", "high"]
+                        const now = names[c.effectiveDetail] || "?"
+                        return c.detail === Character.Detail.Auto
+                             ? "auto -> " + now
+                               + (c.view ? "" : "   (no view set: auto cannot measure, stays low)")
+                             : "pinned to " + now
                     }
-                    Button {
-                        text: "Anger"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowAnger
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowAnger
+                }
+
+                // How the two whole-body actions are performed. Both go
+                // through action.js, and both are shape-preserving: the
+                // sliders change the speed and the size of what the character
+                // is doing, never which pose it is in.
+                ParamSlider {
+                    label: "Effort"
+                    value: root.editTarget ? root.editTarget.actionIntensity : 0.5
+                    from: 0.0; to: 1.0
+                    onValueChanged: if (root.editTarget) root.editTarget.actionIntensity = value
+                }
+                ParamSlider {
+                    label: "Work height"
+                    value: root.editTarget ? root.editTarget.workHeight : 0.35
+                    from: 0.0; to: 1.0
+                    onValueChanged: if (root.editTarget) root.editTarget.workHeight = value
+                }
+
+                // Gestures. The held poses, which live on a layer of their own
+                // and only run while the activity is idle - so picking one here
+                // sets the activity back to idle rather than quietly doing
+                // nothing, which is what the plain verb does.
+                //
+                // Point and present need somewhere to aim, and the editor has
+                // no scene to ask. The target is taken from the CHARACTER's own
+                // frame instead - up, forward and off to its left - so the
+                // gesture is the same wherever the figure is standing and
+                // whichever way it is facing.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Gesture"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["none", "point", "present", "thumbsUp", "talk"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.gesture === modelData
+                                        || (modelData === "none" && root.editTarget.gesture === ""))
+                            onPicked: root.playGesture(modelData)
+                        }
                     }
-                    Button {
-                        text: "Sad"
-                        font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.ShowSadness
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.ShowSadness
+                }
+
+                // What the fingers do when nothing else is shaping them. A
+                // layer below the gesture and below the activity, which is why
+                // picking a pose here can look like it did nothing: whichever
+                // of those is running owns the hands while it runs.
+                Text { text: "Hand pose"; font.pixelSize: 10; color: root._panelFgDim }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["relax", "open", "point", "thumbsUp", "fist"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && root.editTarget.handPose === modelData
+                            onPicked: if (root.editTarget) root.editTarget.handPose = modelData
+                        }
                     }
-                    Button {
-                        text: "Talk"
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    // Which layer actually owns the hands right now, and what
+                    // the arms are holding. The one line that answers "I picked
+                    // a hand pose and nothing happened".
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const who = c.gesture !== "" ? "gesture " + c.gesture
+                                  : c.actionHandPose !== "" ? "activity"
+                                  : c.gaitHandPose !== "" ? "gait"
+                                  : "handPose"
+                        return "hands: " + c.rightArm.handPose + " (from " + who + ")"
+                             + (c.gesture !== ""
+                                ? "   " + (c.gestureSettled ? "settled" : "moving")
+                                  + (c.gestureHand !== "" ? " / " + c.gestureHand : "")
+                                : "")
+                    }
+                }
+
+                // Moves. A loadable set is what a character KNOWS rather than
+                // what it IS: it is loaded on demand, replaces whatever was
+                // loaded before it, and owns the whole body while it runs. That
+                // makes it the same kind of thing as a gesture and it sits here
+                // beside one, not beside the activity chips.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Moves"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        // Taken from the character's own map of shipped sets
+                        // rather than written out here, so a second set that
+                        // ships needs no edit in the editor.
+                        model: root.editTarget
+                             ? ["none"].concat(Object.keys(root.editTarget.shippedMoveSets))
+                             : ["none"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.moveSet === modelData
+                                        || (modelData === "none"
+                                            && root.editTarget.moveSet === ""))
+                            onPicked: if (root.editTarget)
+                                          root.editTarget.moveSet =
+                                              modelData === "none" ? "" : modelData
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: "A set is loaded on demand and is not part of every character. "
+                        + "Its moves run only while the activity is idle, so picking one "
+                        + "puts the activity back to idle."
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: root.editTarget ? root.editTarget.moves : []
+                        Chip {
+                            required property var modelData
+                            label: modelData.name
+                            active: root.editTarget !== null
+                                    && root.editTarget.activeMove === modelData.name
+                            onPicked: root.editTarget.playMove(modelData.name)
+                        }
+                    }
+                    // In the row rather than under it: a knockdown holds its
+                    // last frame on the floor on purpose, and letting go of it
+                    // belongs next to whatever started it.
+                    Chip {
+                        label: "stop"
+                        visible: root.editTarget !== null
+                                 && root.editTarget.moves.length > 0
+                        onPicked: if (root.editTarget) root.editTarget.stopMove()
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    // Which set is loaded, what it is doing with the body, and
+                    // whether that is still moving. The line that answers "I
+                    // clicked a move and it looks stuck": a knockdown holds its
+                    // last frame until something releases it.
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        if (c.moveSet === "") return "no move set loaded"
+                        const set = c.moveSetName !== "" ? c.moveSetName : c.moveSet
+                        const move = c.activeMove !== "" ? c.activeMove : "idle"
+                        const how = c.movePlaying ? " (playing)"
+                                  : c.moveHolding ? " (holding)" : ""
+                        return set + " / " + move + how
+                    }
+                }
+
+                // Emotion: face AND walk, and it persists. This used to set the
+                // face alone (faceActivity), which left the walk unmoved and
+                // needed a second row for the gait's mood; one channel now.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Emotion"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["neutral", "happy", "sad", "angry",
+                                "disgust", "surprised"]
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null
+                                    && (root.editTarget.emotion === modelData
+                                        || (modelData === "neutral" && root.editTarget.emotion === ""))
+                            onPicked: if (root.editTarget) root.editTarget.setEmotion(modelData)
+                        }
+                    }
+                }
+
+                // Gait: how the walk and run are performed. A preset composes
+                // with the build sliders above and the emotion - it does not
+                // replace them - which is what the factor line shows.
+                Rectangle { height: 1; color: root._panelLine; Layout.fillWidth: true }
+                Text { text: "Gait"; font.pixelSize: 12; font.bold: true; color: root._panelFg }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: root.editTarget && root.editTarget.gait ? root.editTarget.gait.presetNames : []
+                        Chip {
+                            required property string modelData
+                            label: modelData
+                            active: root.editTarget !== null && root.editTarget.gait !== null
+                                    && (root.editTarget.gait.preset === modelData
+                                        || (modelData === "neutral" && root.editTarget.gait.preset === ""))
+                            onPicked: {
+                                if (!root.editTarget || !root.editTarget.gait) return
+                                root.editTarget.gait.preset = modelData
+                                root.scheduleAutoSave()
+                            }
+                        }
+                    }
+                }
+                Row {
+                    spacing: 8
+                    CheckBox {
+                        text: "from build"
                         font.pixelSize: 10
-                        highlighted: root.editTarget && root.editTarget.faceActivity === Head.Activity.Talk
-                        onClicked: if (root.editTarget) root.editTarget.faceActivity = Head.Activity.Talk
+                        checked: root.editTarget ? root.editTarget.gaitFromBuild : true
+                        onToggled: if (root.editTarget) root.editTarget.gaitFromBuild = checked
+                    }
+                    CheckBox {
+                        text: "from emotion"
+                        font.pixelSize: 10
+                        checked: root.editTarget ? root.editTarget.gaitFromEmotion : true
+                        onToggled: if (root.editTarget) root.editTarget.gaitFromEmotion = checked
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 9
+                    color: root._panelFgDim
+                    text: {
+                        const c = root.editTarget
+                        if (!c) return ""
+                        const f = c.gaitFactors
+                        const mul = ["tempo", "stride", "armSwing", "kneeLift"]
+                        let parts = []
+                        for (const k in f) {
+                            const n = mul.indexOf(k) >= 0 ? 1 : 0
+                            if (Math.abs(f[k] - n) > 1e-9) parts.push(k + " " + (+f[k].toFixed(2)))
+                        }
+                        return (parts.length ? parts.join("  ") : "neutral")
+                             + "   walk " + c.walkSpeed.toFixed(1) + "  run " + c.runSpeed.toFixed(1)
                     }
                 }
 
@@ -574,22 +876,24 @@ Item {
                     font.pixelSize: 11
                     onAccepted: root.sayCurrentInput()
                 }
+                // The mood of the LINE, borrowed for its length; the lasting one
+                // is the Emotion row above.
                 Flow {
                     Layout.fillWidth: true
                     spacing: 4
+                    Text { text: "line:"; font.pixelSize: 10; color: root._panelFgDim; height: 22; verticalAlignment: Text.AlignVCenter }
                     Repeater {
                         model: [
-                            { label: "Neutral", emotion: "" },
-                            { label: "Happy", emotion: "happy" },
-                            { label: "Sad", emotion: "sad" },
-                            { label: "Angry", emotion: "angry" }
+                            { label: "neutral", emotion: "" },
+                            { label: "happy", emotion: "happy" },
+                            { label: "sad", emotion: "sad" },
+                            { label: "angry", emotion: "angry" }
                         ]
-                        Button {
+                        Chip {
                             required property var modelData
-                            text: modelData.label
-                            font.pixelSize: 10
-                            highlighted: root.speechEmotion === modelData.emotion
-                            onClicked: root.speechEmotion = modelData.emotion
+                            label: modelData.label
+                            active: root.speechEmotion === modelData.emotion
+                            onPicked: root.speechEmotion = modelData.emotion
                         }
                     }
                 }

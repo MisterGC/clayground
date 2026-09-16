@@ -124,6 +124,54 @@ Item {
         name: "arrivals"; unit: "/min"
         expr: () => Traffic.arrivalRate(root.simState)
     }
+    // The paper's two results tables, as probes (#209): what a plan loses,
+    // how long a car lives on it, how much it moves and how much it was asked
+    // to hold. Every number a paper quotes has to come out of a record, and
+    // these used to be read off the panel.
+    Probe {
+        name: "lost"; unit: "/min"
+        expr: () => Traffic.lossRate(root.simState)
+    }
+    Probe {
+        name: "lifetime"; unit: "s"
+        expr: () => Traffic.meanLifetime(root.simState)
+    }
+    Probe {
+        name: "throughput"; unit: "car·u/s"
+        expr: () => root.simState.cars.length * Traffic.meanSpeed(root.simState)
+    }
+    Probe {
+        name: "asked"; unit: ""
+        expr: () => Traffic.targetCount(root.net, root.simParams())
+    }
+    // Plan constants, recorded so the structural half of a table (how leaky
+    // is the shape, how many places must cars take turns) is in the same
+    // record as the traffic it explains. They do not move during a run; their
+    // stddev in a record is 0, which is the check that they really are
+    // properties of the plan and not of the traffic.
+    Probe {
+        name: "deadEndShare"; unit: "%"
+        expr: () => root.net.stats.laneLength > 0
+                    ? 100 * root.net.stats.terminalLength / root.net.stats.laneLength : 0
+    }
+    Probe {
+        name: "junctions"; unit: ""
+        expr: () => root.net.stats.junctions
+    }
+    Probe {
+        name: "turns"; unit: ""
+        expr: () => root.net.stats.connectors
+    }
+    Probe {
+        name: "pTerminal"; unit: ""
+        expr: () => root.net.stats.connectors > 0
+                    ? root.net.stats.terminalTurns / root.net.stats.connectors : 0
+    }
+    Probe {
+        name: "meanLane"; unit: "u"
+        expr: () => root.net.stats.lanes > 0
+                    ? root.net.stats.laneLength / root.net.stats.lanes : 0
+    }
 
     // Shift+R writes a scratch run record into the lab's own records/ dir. No
     // command: a frame-driven session cannot be regenerated, and the citable
@@ -150,15 +198,16 @@ Item {
     // itself, and it fails silently as an invisible chip.
     readonly property alias watchMonitor: monitor
 
-    function watchValueOf(roadId) {
-        if (monitor.quantity === "flow") return Traffic.roadRate(simState, roadId)
+    function watchValueOf(roadId, q) {
+        const k = q || monitor.quantity
+        if (k === "flow") return Traffic.roadRate(simState, roadId)
         var n = 0, sum = 0
         for (const c of simState.cars) {
             if (c.kind !== 0) continue
             if (net.lanes[c.idx].roadId !== roadId) continue
             ++n; sum += c.v
         }
-        if (monitor.quantity === "load") return n
+        if (k === "load") return n
         return n ? sum / n : 0
     }
     function isWatched(id) { return monitor.isWatched(id) }
@@ -2191,7 +2240,7 @@ Item {
         plotHeight: LabTheme.px(142)
         windowSeconds: 40
         placeholder: LabLang.t("plot.empty")
-        valueOf: (id) => root.watchValueOf(id)
+        valueOf: (id, q) => root.watchValueOf(id, q)
         labelOf: (id) => root.roadLabel(id)
         revision: root.graphRev
     }

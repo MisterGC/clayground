@@ -25,6 +25,10 @@ MODULE_TO_PLUGIN = {
     "Clayground.Text": "text",
     "Clayground.Svg": "svg",
     "Clayground.Ai": "ai",
+    "Clayground.Character3D": "character3d",
+    "Clayground.Lab": "lab",
+    "Clayground.Sound": "sound",
+    "Clayground.Algorithm": "algorithm",
 }
 
 

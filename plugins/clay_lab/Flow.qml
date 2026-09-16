@@ -1,11 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// SPIKE (lab-flows groundwork, awaiting review): shape may still change.
 
 import QtQuick
 
 /*!
     \qmltype Flow
     \inqmlmodule Clayground.Lab
+    \ingroup lab-flow
     \brief A narrated walkthrough that drives the lab through its own mutation API.
 
     A flow is an ordered list of \l FlowStep. Demonstration steps run the
@@ -13,6 +13,12 @@ import QtQuick
     the lab being operated; task steps wait for a condition on lab state.
     Pacing is measured in \e sim seconds, so a flow traverses the same states
     live and headless, and \c SimClock.timeScale scales it.
+
+    While a flow runs the board is the flow's, and a task lends back exactly
+    the one interaction it asks for - see \l control. That is the whole
+    difference between a lesson and a demo somebody can walk over: the
+    professor cannot explain the current that flows while a second click is
+    reopening the switch.
 
     Example usage:
     \qml
@@ -28,6 +34,7 @@ import QtQuick
         FlowStep {
             key: "flip"
             task: { "until": (n) => root.elemAt(n("sw")).on,
+                    "allow": ["sw"],          // the one thing that is live
                     "solve": [["flipSwitch", "sw"]] }
         }
     }
@@ -85,10 +92,34 @@ Item {
     */
     readonly property bool running: index >= 0
     /*!
-        \qmlproperty bool Flow::paused
-        \brief Set when the learner takes over.
+        \qmlproperty string Flow::control
+        \readonly
+        \brief Who has the board right now: \c "learner", \c "flow" or \c "task".
+
+        A lesson alternates the way a game tutorial does. While no flow runs
+        the board is the \c learner's and everything works. The moment one
+        starts it is the \c flow's: it is building and explaining, and a
+        touch on the board is refused rather than obeyed. A task step opens
+        exactly what it named (\l {FlowStep::task}{task.allow}) and nothing
+        else - that is \c task - and the instant its \c until holds the
+        board is the flow's again. Full control comes back by leaving the
+        flow (\l stop()), not by touching something mid-lesson.
+
+        \sa grants(), refusal
     */
-    property bool paused: false
+    readonly property string control: !running ? "learner" : (waiting ? "task" : "flow")
+
+    /*!
+        \qmlproperty string Flow::refusal
+        \brief LabLang key of why the last touch did nothing; "" again after a moment.
+
+        The refusal channel of a locked board, and the reason locking one is
+        not the same as ignoring the learner: a click that does nothing and
+        says nothing reads as a broken lab. \l Narrator renders it.
+
+        \sa refuse()
+    */
+    property string refusal: ""
     /*!
         \qmlproperty bool Flow::waiting
         \readonly
@@ -108,6 +139,20 @@ Item {
     property bool hintShown: false
 
     /*!
+        \qmlproperty var Flow::unresolvedVerbs
+        \readonly
+        \brief Verb names a demo or a solve asked for and the lab does not have.
+
+        Cleared by \l start(). A verb that does not resolve fails SILENTLY -
+        the action does nothing and the flow walks on teaching nothing - so a
+        headless run has to be able to read the list rather than hope somebody
+        was watching the log.
+
+        \sa Lab::runFlow
+    */
+    property var unresolvedVerbs: []
+
+    /*!
         \qmlproperty string Flow::pacing
         \brief How a step ends: "ready" (default), "auto" or "manual".
 
@@ -120,6 +165,11 @@ Item {
         \c auto advances by itself once the estimate elapses (kiosk mode,
         recordings, and the headless verification run); \c manual offers no
         estimate at all.
+
+        A task step is the exception in every mode: it ends when its
+        \c until holds (or \l solve is asked for), never on a Next - the
+        \l Narrator offers none while \l waiting - so no later line can
+        assume the learner did something they did not.
     */
     property string pacing: "ready"
 
@@ -157,6 +207,18 @@ Item {
     readonly property string title: titleKey === "" ? "" : LabLang.t(titleKey)
 
     /*!
+        \qmlproperty var Flow::marks
+        \readonly
+        \brief The active step's \l {FlowStep::mark} names; empty when idle.
+
+        One binding for the lab: hand it to whatever resolves and draws the
+        marks (the professor kit's \c FlowGuide, or a \l MarkLayer
+        directly). It empties itself when the flow stops, so a mark cannot
+        outlive the lesson.
+    */
+    readonly property var marks: (step === null || !step.mark) ? [] : step.mark
+
+    /*!
         \qmlproperty string Flow::narration
         \readonly
         \brief The active step's text in the current language.
@@ -188,12 +250,16 @@ Item {
     */
     function start() {
         _checkpoints = ({}); _names = ({})
-        paused = false
+        unresolvedVerbs = []
+        refusal = ""
         goTo(0)
     }
 
-    /*! \qmlmethod void Flow::stop() */
-    function stop() { index = -1; paused = false; hintShown = false }
+    /*!
+        \qmlmethod void Flow::stop()
+        \brief Leaves the flow - and hands the whole board back, at once.
+    */
+    function stop() { index = -1; hintShown = false; refusal = "" }
 
     /*! \qmlmethod void Flow::next() */
     function next() {
@@ -223,7 +289,7 @@ Item {
         index = i
         stepTime = 0
         hintShown = false
-        paused = false
+        refusal = ""
         const s = steps[i]
         if (s.demo && s.demo.length) run(s.demo)
         applyView(s.view)          // after the demo: a step may frame what it built
@@ -256,10 +322,61 @@ Item {
     }
 
     /*!
-        \qmlmethod void Flow::takeOver()
-        \brief Pauses the flow because the learner touched the lab.
+        \qmlmethod bool Flow::grants(var id)
+        \brief May the learner touch part \a id right now?
+
+        True whenever no flow runs. While one does, only during a task step
+        and only for what that task's \c allow named - resolved through
+        \l nameOf, so a task names the part the way its \c until and its
+        \c solve do (\c {"allow": ["sw"]}). A task whose subject only exists
+        once its own demo has run gives a function instead
+        (\c {"allow": (n) => root.logicInputs}), evaluated per press. A task
+        that names nothing keeps the whole board live, which is what every
+        flow written before this existed still gets.
     */
-    function takeOver() { if (running && !waiting) paused = true }
+    function grants(id) {
+        if (!running) return true
+        const s = step
+        if (!s || !s.task) return false
+        let a = s.task.allow
+        if (a === undefined || a === null) return true
+        if (typeof a === "function") a = a(nameOf)
+        if (a === undefined || a === null) return true
+        for (const x of a) if (nameOf(x) === id) return true
+        return false
+    }
+
+    /*!
+        \qmlmethod void Flow::refuse()
+        \brief Says why the touch just refused did nothing, for a moment.
+    */
+    function refuse() {
+        refusal = control === "task" ? "flow.refuse.task" : "flow.refuse.busy"
+        _refuseTimer.restart()
+    }
+
+    /*!
+        \qmlmethod bool Flow::check()
+        \brief Re-tests the running task's \c until at once; advances if it holds.
+
+        The clock samples ten times a second, which is late enough for a
+        second click to land on a task the first one already satisfied - the
+        exact thing a locked board exists to stop. Whoever performed a granted
+        interaction calls this the moment the gesture is over, so the board is
+        the flow's again before the next press can arrive.
+    */
+    function check() {
+        if (!running || !waiting) return false
+        const s = step
+        if (!s.task.until || !s.task.until(nameOf)) return false
+        next()
+        return true
+    }
+
+    property Timer _refuseTimer: Timer {
+        interval: 2200
+        onTriggered: _flow.refusal = ""
+    }
 
     /*!
         \qmlmethod string Flow::sayOf(QtObject step)
@@ -296,7 +413,11 @@ Item {
             let verb = a[0], args = a.slice(1), bind = null
             if (verb === "let") { bind = args[0]; verb = args[1]; args = args.slice(2) }
             const fn = vs[verb]
-            if (!fn) { console.warn("Flow: lab has no verb '" + verb + "'"); continue }
+            if (!fn) {
+                console.warn("Flow: lab has no verb '" + verb + "'")
+                unresolvedVerbs = unresolvedVerbs.concat([verb])
+                continue
+            }
             const out = fn.apply(null, args.map(x => nameOf(x)))
             if (bind !== null) _names[bind] = out
         }
@@ -311,10 +432,26 @@ Item {
         return Math.max(2.5, words / 2.2)
     }
 
+    // Filed with the kernel so Lab.runFlow() can find it by id. Registration
+    // follows Parameter's rule - the moment the id is known, not at completion
+    // - because a lab's own Component.onCompleted runs before its children's.
+    Component.onCompleted: _register()
+    Component.onDestruction: Lab.unregisterFlow(_flow)
+    onFlowIdChanged: _register()
+
+    property string _registered: ""
+
+    function _register() {
+        if (flowId === _registered) return
+        if (_registered !== "") Lab.unregisterFlowNamed(_registered, _flow)
+        _registered = flowId
+        if (flowId !== "") Lab.registerFlow(_flow)
+    }
+
     // Sim-time driven, never a wall clock: same states live and headless.
     property Connections _tick: Connections {
         target: Lab
-        enabled: _flow.running && !_flow.paused
+        enabled: _flow.running
         function onSampled(t) {
             const s = _flow.step
             if (!s) return
@@ -326,8 +463,10 @@ Item {
                 return
             }
             if (s.task) {
-                const done = s.task.until ? s.task.until(_flow.nameOf) : false
-                if (done) { _flow.next(); return }
+                // check() is also what a granted interaction calls the moment
+                // it is done, so this is the backstop rather than the only
+                // route out of a task
+                if (_flow.check()) return
                 const after = s.task.hintAfter !== undefined ? s.task.hintAfter : 6
                 if (!_flow.hintShown && _flow.stepTime > after) _flow.hintShown = true
                 return

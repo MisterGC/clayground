@@ -207,9 +207,17 @@ function derive(graph) {
 
     var laneLen = 0
     for (var ll = 0; ll < net.lanes.length; ++ll) laneLen += net.lanes[ll].length
-    var bannedCount = 0
-    for (var bc = 0; bc < net.connectors.length; ++bc)
+    var bannedCount = 0, terminalTurns = 0
+    for (var bc = 0; bc < net.connectors.length; ++bc) {
         if (net.connectors[bc].banned) ++bannedCount
+        // a turn whose target lane has no way out is the one a car does not
+        // come back from - the share of these is what predicts how long a
+        // car survives on the plan (see the street-network paper)
+        else if (net.lanes[net.connectors[bc].toLane].terminal) ++terminalTurns
+    }
+    var terminalLen = 0
+    for (var tl = 0; tl < net.lanes.length; ++tl)
+        if (net.lanes[tl].terminal) terminalLen += net.lanes[tl].length
     net.stats = {
         nodes: net.nodes.length, roads: net.roads.length,
         lanes: net.lanes.length, connectors: net.connectors.length,
@@ -217,6 +225,8 @@ function derive(graph) {
         junctions: net.nodes.filter(function (x) { return x.degree >= 3 }).length,
         deadEnds: deadEnds,
         laneLength: laneLen,
+        terminalLength: terminalLen,
+        terminalTurns: terminalTurns,
         conflictPairs: net.connectors.reduce(function (s, c) {
             return s + c.conflicts.length }, 0) / 2
     }

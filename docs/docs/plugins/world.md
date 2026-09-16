@@ -22,12 +22,12 @@ import Clayground.World
 ## Core Components
 
 - **ClayWorld2d** - Complete 2D game world with Box2D physics, ClayCanvas rendering, and camera following
-- **ClayWorld3d** - Complete 3D game world with Qt Quick 3D physics and WASD/orbit camera controls
+- **ClayWorld3d** - Complete 3D game world with Qt Quick 3D physics and WASD/orbit camera controls (desktop only: `QtQuick3D.Physics` is not in the Web Runtime)
 - **ClayWorldBase** - Shared base functionality for scene loading and entity management
 - **SceneLoader2d** - Loads entities from SVG files into 2D worlds
 - **SceneLoader3d** - Loads entities from SVG files into 3D worlds
 - **Minimap2d** - Miniature map view of a 2D world
-- **Box3DBody** - 3D physics-enabled box shape
+- **Box3DBody** - 3D physics-enabled box shape (desktop only, like ClayWorld3d)
 
 ## Usage Examples
 

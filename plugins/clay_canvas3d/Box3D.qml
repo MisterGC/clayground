@@ -87,6 +87,24 @@ Model {
     property alias faceScale: _geometry.faceScale
 
     /*!
+        \qmlproperty real Box3D::bevel
+        \brief Chamfers every edge and corner, as a fraction of the box's
+               shortest edge. 0 (the default) is a hard box.
+
+        Rounds the shape without rounding the cost: 44 triangles instead of 12
+        and the same single draw call, which is the only budget that matters
+        here. The outline is unaffected - it is drawn from the face UVs rather
+        than from the triangulation, and the chamfers are given a flat UV so
+        the shader skips them.
+
+        Not for use with \c edgeMode: Triangles, which draws lines along the
+        triangulation itself and will outline every chamfer seam.
+
+        \sa Box3DGeometry::bevel
+    */
+    property alias bevel: _geometry.bevel
+
+    /*!
         \qmlproperty bool Box3D::showEdges
         \brief Whether to render dark edge lines.
 

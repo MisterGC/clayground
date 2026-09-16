@@ -67,3 +67,7 @@ pathfinder.setWalkable(10, 5, true)
 |--------|---------|-------------|
 | `findPath(startX, startY, endX, endY)` | list | A* shortest path as `[{x, y}, ...]` |
 | `setWalkable(x, y, walkable)` | void | Update a single cell |
+
+## API Reference
+
+{% include api/algorithm.html %}

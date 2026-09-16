@@ -22,6 +22,10 @@ writing lab code; skim again when something "impossible" happens.
   `mapFrom3DScene` silently returns zeros.
 - **`Label3D.showLeader` defaults to false** — callouts with leaders
   must opt in.
+- **A `WorldLabel` takes its camera from the view** (`camera: view3d.camera`),
+  never from the rig. Naming the rig's camera gets the label past its own
+  null-guard while the view still has none, and the first projection goes
+  through a *Cannot resolve view position* warning.
 
 ## Canvas3D edges
 
@@ -71,9 +75,34 @@ writing lab code; skim again when something "impossible" happens.
   `watch` onto `monitor.watched` is right, but every old `watch = [...]`
   write then throws at runtime (not at lint time) — route them through
   `setWatched()` / `watchOnly()` / `prune()` / `clear()`.
+- **`pragma ComponentBehavior: Bound` + a `Behavior` on a `Repeater3D`
+  delegate = SIGSEGV** the moment the model is republished (Qt 6.11.1) — and
+  a `Board` republishes on every mutation. Either drop the pragma (the
+  electronics lab) or animate inside the part component instead of on the
+  delegate (the build template). Found by `clayrender` exiting 139 on
+  `addPart`, with nothing in the log.
+- **`Qt.vector2d` is single precision.** A pad offset of 4.6 stored in one
+  comes back as 4.599999904632568; the board keeps pad offsets as plain JS
+  numbers and the schematic, the router and the hit test now agree to the
+  last digit. Do not carry geometry through `Qt.vector2d`/`vector3d`
+  properties when it is compared or serialized.
 - **Duplicate property bindings are an error**, so when you re-base a
   Rectangle onto `LabPanel`, delete the `radius`/`color`/`border.*` lines
   the panel already provides.
+- **`Flow` is the kernel's narrated walkthrough, and it shadows QtQuick's
+  `Flow` layout** the moment a file imports `Clayground.Lab`. A row of chips
+  written as `Flow { }` silently becomes a Flow with no steps; qmllint
+  reports it only as "Could not find property spacing". Import the layout
+  by name - `import QtQuick as Quick` and `Quick.Flow { }`.
+- **A `Node` already has a `state` property.** A kit scene that declares
+  `function state()` gets a property-override warning and a lab that calls
+  it gets the string. The character kit's contract calls its pair
+  `choiceState()` / `loadChoices()`.
+- **`Parameter`s and `Probe`s may live inside a loaded scene.** They register
+  with `Lab` on creation and unregister on destruction, so a `Loader3D`
+  swapping scenes swaps the panel, the plot and the record with them; give
+  them scene-prefixed names (`gait.cycle`) so two scenes never fight over
+  one.
 
 ## Lighting and shadows
 
@@ -93,6 +122,13 @@ writing lab code; skim again when something "impossible" happens.
 
 ## Camera
 
+- **Qt Quick 3D's default near plane is 10 units, and nothing in the rig
+  changes it.** A metre-scale lab whose camera comes within 10 of its
+  subject loses it to the near plane: the bob and rod vanish, a post tapers
+  into a spike, and `--project` reports a depth of `distance - 10`. Set
+  `camera.clipNear` on the rig (0.3 in the pendulum evidence lab). The
+  generated templates sit at distance 22, so the trap hides until someone
+  zooms in.
 - The anti-clip rule for an orbit rig is a **minimum camera height above
   the work plane**, not a minimum distance — a distance sphere wrongly
   blocks zooming onto a focused object; a height floor pushes the rig
@@ -198,6 +234,56 @@ until you publish.
   boundaries instead of blending across a reset.
 - A drifting constellation or similar background motion should be a pure
   function of `clock.time`, touching no RNG at all.
+- **A reset has to rewind everything sim time is read from, not just the
+  clock.** `clock.reset()` rewinds time, the RNG and the probes; anything
+  the lab derives from `t` in a `Lab.sampled` handler and stores in a
+  property is *not* rewound, so the first sample of the new run reads the
+  last sky of the old one. That was sensor-fusion-101's first GPS fix
+  alternating between 4.34302 and 4.34346 across machines (#208): the
+  answer depended on how many wall-clock frames happened to run before
+  `applyScenario`. Snap that state on `wasReset` too, and give the
+  property an initial value that is the state at `t = 0` rather than empty.
+- **A reload is not a fresh start.** The loader captures `viewState()` from
+  the outgoing root and re-applies it to the new one, and
+  `Lab.applyViewState` re-steps a world-less clock to the recorded sim
+  time — so a reloaded lab arrives having replayed the run you just
+  finished. Reset the outgoing clock *after* pausing and before asking for
+  the reload, or take a new process. (Reset before pausing and the ticker
+  fills the gap, which is why the first run of a session was the only one
+  that differed.)
+- **A record's identity is per-process.** A probe named after a
+  monotonically increasing part id (`part12`) names a different part in a
+  session that built something earlier. Two runs of one scenario belong in
+  two processes, which is what `records/make.sh` and `lab-check` both do.
+
+## Studies and records
+
+- **Scenarios are not comparable at one seed.** A sensor that produces no
+  fix draws no random numbers, so disabling one shifts the shared stream for
+  everything downstream. Two scenarios at one seed are two noise
+  realisations. Say so, or sweep seeds.
+- **A spread is not comparable across cells of different scale.** Ranking
+  four networks by raw `stddev(arrivals)` ranked them by their means, because
+  the means differed fourfold. `"normalize": "mean"` (a coefficient of
+  variation) asks the question that was intended. Check your objective
+  against the levels' *magnitudes* before you trust a ranking.
+- **Record the warm-up and every cell looks alike.** From cold, a rate climbs
+  from zero; that ramp is identical in every configuration and swamps the
+  difference you are measuring. Warm up unrecorded, then record.
+- **Pin the fleet, not the density.** If demand scales with the size of the
+  thing being varied, a comparison of shapes secretly measures size. Find the
+  quantity that has to be held constant for the comparison to mean anything,
+  and check it in the results (the topology study quotes `mean(cars)` per
+  network for exactly this).
+- **Crop, never shrink the window.** A lab's HUD is responsive: rendering
+  into a small viewport to keep a panel out of a figure reflows the layout
+  into something no user has ever seen and elides panel text into "the
+  current…". Capture at the size the lab is really used at and
+  `--crop <objectName>` the region you want, or hide the panels you do not.
+- **Never downscale a figure.** textli scales an over-wide picture to the
+  column itself and Enter on one fills the window from the *file*; a
+  pre-shrunk screenshot has thrown away the only detail that view exists to
+  show. Tune the framing, leave the pixel count alone.
 
 ## Numbers and UI copy
 

@@ -49,6 +49,13 @@ Box3D {
     */
     property vector3d baseEuler: Qt.vector3d(0,0,0)
 
+    /*!
+        \qmlproperty real BodyPart::bevel
+        \brief How rounded the part's edges are, 0 for a hard box.
+
+        Set for a whole character through \l {Character::roundness}.
+    */
+
     position: basePos
     eulerRotation: baseEuler
     showEdges: true

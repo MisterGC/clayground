@@ -2,6 +2,7 @@
 
 #include "audio_output.h"
 
+#include "audio_devices.h"
 #include "engine/instrument.h"
 
 #include <QAudioDevice>
@@ -62,6 +63,9 @@ void AudioOutput::start()
     fmt.setSampleRate(SAMPLE_RATE);
     fmt.setChannelCount(1);
     fmt.setSampleFormat(QAudioFormat::Float);
+
+    // Must come before any QMediaDevices/QAudioSink use - see #216.
+    primeAudioDevices();
 
     const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
     if (outputDevice.isNull()) {

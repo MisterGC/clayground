@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype TransportChip
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief Sim time, pause and speed - the clock, on screen.
 
     No lab showed its clock, which is a strange gap in a framework whose whole
@@ -31,6 +32,9 @@ import QtQuick
     \sa SimClock, Lab
 */
 Rectangle {
+
+    // The clock is a readout. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
     id: root
 
     /*!
@@ -92,7 +96,7 @@ Rectangle {
         clock.timeScale = next
     }
 
-    visible: clock !== null && clock !== undefined
+    visible: clock !== null && clock !== undefined && !LabView.focus
     implicitWidth: _row.width + 2 * LabTheme.spaceXl
     implicitHeight: LabTheme.px(28)
     width: implicitWidth

@@ -3,6 +3,8 @@
 #include "clayscenequery.h"
 
 #include <QHash>
+#include <QJSEngine>
+#include <QJSValue>
 #include <QJsonDocument>
 #include <QMetaObject>
 #include <QMetaProperty>
@@ -696,6 +698,88 @@ bool callVoid(QQuickItem* root, const QString& expression, QString* error)
     if (expr.hasError()) {
         if (error) *error = expr.error().description();
         return false;
+    }
+    return true;
+}
+
+bool evalValue(QQuickItem* root, const QString& source, QJsonValue* value,
+               QString* error)
+{
+    if (value) *value = QJsonValue::Null;
+
+    if (!root) {
+        if (error) *error = QStringLiteral("nothing loaded");
+        return false;
+    }
+
+    auto* context = QQmlEngine::contextForObject(root);
+    if (!context) {
+        if (error) *error = QStringLiteral("the root has no QML context");
+        return false;
+    }
+
+    // "clock.time" is an expression STATEMENT, so a function body wrapped
+    // around it returns undefined - which would answer null to exactly the
+    // question --result exists to ask. So a fragment that parses as an
+    // expression gets a `return` put in front of it.
+    //
+    // The parse is done by DEFINING the function and never calling it: a
+    // fragment of several statements fails to compile that way and falls back
+    // to a plain body. Deciding it by evaluating and retrying would run every
+    // side effect twice.
+    QString fragment = source.trimmed();
+    if (fragment.endsWith(QLatin1Char(';')))
+        fragment.chop(1);
+
+    QJSEngine* js = context->engine();
+    const bool asExpression =
+        js && !js->evaluate(QStringLiteral("(function(){\nreturn (\n%1\n)\n})")
+                            .arg(fragment)).isError();
+
+    const QString body = asExpression
+        ? QStringLiteral("return (\n%1\n)").arg(fragment)
+        : source;
+
+    // The value crosses as JSON text with a tag on it. JSON.stringify answers
+    // `undefined` for a function, a QML object and undefined itself, and none
+    // of those mean the JSON null a caller would otherwise read.
+    const QString wrapped = QStringLiteral(
+        "(function(){\n"
+        "  var __v = (function(){\n%1\n})();\n"
+        "  if (__v === undefined) return { kind: 'undefined' };\n"
+        "  try {\n"
+        "    var __s = JSON.stringify(__v);\n"
+        "    if (__s === undefined) return { kind: 'text', text: String(__v) };\n"
+        "    return { kind: 'json', text: __s };\n"
+        "  } catch (e) { return { kind: 'text', text: String(__v) }; }\n"
+        "})()").arg(body);
+
+    QQmlExpression expr(context, root, wrapped);
+    const QVariant out = expr.evaluate();
+    if (expr.hasError()) {
+        if (error) *error = expr.error().description();
+        return false;
+    }
+    if (!value)
+        return true;
+
+    const QVariantMap map = out.toMap();
+    const QString kind = map.value(QStringLiteral("kind")).toString();
+    if (kind == QLatin1String("text")) {
+        *value = map.value(QStringLiteral("text")).toString();
+    } else if (kind == QLatin1String("json")) {
+        // A bare scalar is not a JSON document, so it is parsed inside an
+        // array - the one way to read `0` and `{...}` through the same call.
+        const QByteArray text =
+            map.value(QStringLiteral("text")).toString().toUtf8();
+        QJsonParseError problem{};
+        const QJsonDocument doc =
+            QJsonDocument::fromJson("[" + text + "]", &problem);
+        if (problem.error == QJsonParseError::NoError && doc.isArray()
+            && doc.array().size() == 1)
+            *value = doc.array().at(0);
+        else
+            *value = QJsonValue(QString::fromUtf8(text));
     }
     return true;
 }

@@ -45,6 +45,8 @@ reduced question, stated here rather than discovered in the results.
 | the circuit actually closed | each level closes every switch after applying its preset — presets deliberately start open | a run with an open switch reads 0 mA, which is visible in the record |
 | the cell's voltage as the second thing varied | six `eval` levels calling `setBatteryVolts` on every cell | the lab clamps to 1.5–12 V in 0.5 V steps; all six levels land exactly |
 | *light* — how much the bulbs get | the `power` probe: dissipated power summed over every non-battery part | `labInfo().probes`, checked by `lab-sweep --check` |
+| what each bulb gets | four probes the study registers in `setup` through the lab's `probeOrdinal` verb: the first and second bulb's current and power | `lab-sweep --check` runs `setup` before it asks `labInfo()`, so a missing verb fails the check, not the sweep |
+| what the cell promises, to set the cost against | the `emf` probe: the sum of the cells' EMFs | likewise |
 | what the light costs the cell | the `iBattery` probe: total current out of the cells | likewise |
 | where that cost shows up | the `vTerm` probe: what the cell hands to the parts, EMF less its own internal drop | likewise |
 | whether the cell is past its rating | `iBattery` against the kit's 1.5 A rating | read off the record; the lab's own overload flag is `labInfo().circuit.overloaded` |
@@ -129,9 +131,16 @@ every time.
     { "probe": "power", "statistic": "stddev" }
   ],
 
-  "record": { "probes": ["power", "iBattery", "vTerm"] },
+  "record": { "probes": ["power", "iBattery", "vTerm", "emf", "bulb1I", "bulb1P", "bulb2I", "bulb2P"] },
 
   "run": { "warmupSteps": 0, "steps": 60, "stepHz": 60, "budget": 12 },
+
+  "setup": [
+    "probeOrdinal(\"bulb1I\", \"bulb\", 0, \"I\")",
+    "probeOrdinal(\"bulb1P\", \"bulb\", 0, \"P\")",
+    "probeOrdinal(\"bulb2I\", \"bulb\", 1, \"I\")",
+    "probeOrdinal(\"bulb2P\", \"bulb\", 1, \"P\")"
+  ],
 
   "parameters": [
     {
@@ -168,7 +177,64 @@ every time.
     }
   ],
 
-  "seeds": [42]
+  "seeds": [42],
+
+  "tables": {
+    "pair": {
+      "rows": "cell",
+      "labels": { "1v5": "1.5 V", "3v": "3 V", "4v5": "4.5 V", "6v": "6 V", "9v": "9 V", "12v": "12 V" },
+      "columns": [
+        { "head": "series I (mA)",   "fix": { "wiring": "series" },   "expr": "mean(iBattery)", "digits": 1 },
+        { "head": "parallel I (mA)", "fix": { "wiring": "parallel" }, "expr": "mean(iBattery)", "digits": 1 },
+        { "head": "series P (W)",    "fix": { "wiring": "series" },   "expr": "mean(power)", "digits": 3 },
+        { "head": "parallel P (W)",  "fix": { "wiring": "parallel" }, "expr": "mean(power)", "digits": 3 },
+        { "head": "parallel ÷ series (I)", "expr": "col('parallel I (mA)') / col('series I (mA)')", "digits": 3 },
+        { "head": "parallel ÷ series (P)", "expr": "col('parallel P (W)') / col('series P (W)')", "digits": 2 }
+      ]
+    },
+    "budget": {
+      "rows": "cell",
+      "labels": { "1v5": "1.5 V", "3v": "3 V", "4v5": "4.5 V", "6v": "6 V", "9v": "9 V", "12v": "12 V" },
+      "columns": [
+        { "head": "EMF (V)", "fix": { "wiring": "series" }, "expr": "mean(emf)", "digits": 2 },
+        { "head": "series vTerm (V)",   "fix": { "wiring": "series" },   "expr": "mean(vTerm)", "digits": 3 },
+        { "head": "series % of EMF",    "fix": { "wiring": "series" },   "expr": "100 * mean(vTerm) / mean(emf)", "digits": 1 },
+        { "head": "parallel vTerm (V)", "fix": { "wiring": "parallel" }, "expr": "mean(vTerm)", "digits": 3 },
+        { "head": "parallel % of EMF",  "fix": { "wiring": "parallel" }, "expr": "100 * mean(vTerm) / mean(emf)", "digits": 1 }
+      ]
+    },
+    "rating": {
+      "rows": "wiring",
+      "columns": [
+        { "head": "R_ext (Ω) = vTerm / I", "fix": { "cell": "12v" }, "expr": "1000 * mean(vTerm) / mean(iBattery)", "digits": 2 },
+        { "head": "crosses 1.5 A at (V) = 1.5 × (R_ext + 0.5)", "expr": "1.5 * (col('R_ext (Ω) = vTerm / I') + 0.5)", "digits": 2 },
+        { "head": "I at 12 V (mA)", "fix": { "cell": "12v" }, "expr": "mean(iBattery)", "digits": 0 },
+        { "head": "I at 4.5 V (mA)", "fix": { "cell": "4v5" }, "expr": "mean(iBattery)", "digits": 0 },
+        { "head": "I at 6 V (mA)", "fix": { "cell": "6v" }, "expr": "mean(iBattery)", "digits": 0 }
+      ]
+    },
+    "bulbs": {
+      "rows": "wiring",
+      "columns": [
+        { "head": "cell I (mA)", "fix": { "cell": "4v5" }, "expr": "mean(iBattery)", "digits": 1 },
+        { "head": "bulb 1 I (mA)", "fix": { "cell": "4v5" }, "expr": "mean(bulb1I)", "digits": 1 },
+        { "head": "bulb 2 I (mA)", "fix": { "cell": "4v5" }, "expr": "mean(bulb2I)", "digits": 1 },
+        { "head": "bulb 1 P (W)", "fix": { "cell": "4v5" }, "expr": "mean(bulb1P)", "digits": 2 },
+        { "head": "bulb 2 P (W)", "fix": { "cell": "4v5" }, "expr": "mean(bulb2P)", "digits": 2 },
+        { "head": "vTerm (V)", "fix": { "cell": "4v5" }, "expr": "mean(vTerm)", "digits": 2 }
+      ]
+    },
+    "census": {
+      "rows": "cells",
+      "columns": [
+        { "head": "I (mA)", "expr": "mean(iBattery)", "digits": 1 },
+        { "head": "P (W)", "expr": "mean(power)", "digits": 3 },
+        { "head": "vTerm (V)", "expr": "mean(vTerm)", "digits": 3 },
+        { "head": "stddev(P)", "expr": "stddev(power)", "digits": 3 },
+        { "head": "samples", "expr": "count(power)", "digits": 0 }
+      ]
+    }
+  }
 }
 ```
 
@@ -200,30 +266,63 @@ tools/lab-sweep/lab-sweep labs/electronics-101/studies/series-vs-parallel
 ```
 
 Full tables in `results.md`; the 12 records they were read from are in
-`records/`. Every number below is quoted from a record id, and nothing in
-this section was typed from memory.
+`records/`. Every table below is rendered from those records by
+`tools/lab-sweep/lab-table` between its `<!-- table: -->` markers, and names
+the record each row was read from; `lab-check` goes red when a rendered
+table no longer matches the records. Nothing in this section was typed.
 
 ### The pair, voltage by voltage
 
-| cell | series I | parallel I | series P | parallel P | parallel ÷ series (P) |
-|---|---|---|---|---|---|
-| 1.5 V | 119.9 mA | 427.4 mA | 0.173 W | 0.550 W | 3.18 |
-| 3 V | 239.8 mA | 854.7 mA | 0.691 W | 2.199 W | 3.18 |
-| 4.5 V | 359.7 mA | 1282.1 mA | 1.554 W | 4.947 W | 3.18 |
-| 6 V | 479.6 mA | 1709.4 mA | 2.763 W | 8.795 W | 3.18 |
-| 9 V | 719.4 mA | 2564.1 mA | 6.216 W | 19.790 W | 3.18 |
-| 12 V | 959.2 mA | 3418.8 mA | 11.051 W | 35.181 W | 3.18 |
+<!-- table: pair -->
+| cell | series I (mA) | parallel I (mA) | series P (W) | parallel P (W) | parallel ÷ series (I) | parallel ÷ series (P) | records |
+|---|---|---|---|---|---|---|---|
+| 1.5 V | 119.9 | 427.4 | 0.173 | 0.550 | 3.564 | 3.18 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 239.8 | 854.7 | 0.691 | 2.199 | 3.564 | 3.18 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 359.7 | 1282.0 | 1.554 | 4.947 | 3.564 | 3.18 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 479.6 | 1709.4 | 2.763 | 8.795 | 3.564 | 3.18 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 719.4 | 2564.1 | 6.216 | 19.790 | 3.564 | 3.18 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 959.2 | 3418.8 | 11.051 | 35.181 | 3.564 | 3.18 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
 
 **Parallel wins at every voltage, by the same factor every time.** Not
-approximately the same — the current ratio is 3.564 at all six levels and
-the power ratio 3.18 at all six, to every digit the records carry. That
+approximately the same — the two ratio columns read 3.564 and 3.18 at all
+six levels, to every digit the records carry. That
 constancy is itself the result: both wirings are linear in the cell's EMF, so
 the *choice of wiring* is a property of the circuit and not of how hard you
 drive it. Turning the cell up cannot turn a series board into a parallel one.
 
-Every recorded standard deviation is exactly 0.000, in all twelve runs. The
-eleven samples per record really are eleven copies of one operating point,
-which is what a steady-state solver owes and what the method claimed.
+Every recorded standard deviation is exactly 0.000, in all twelve runs — the
+census below lists every run with its `stddev(P)`. The eleven samples per
+record really are eleven copies of one operating point, which is what a
+steady-state solver owes and what the method claimed.
+
+<!-- table: census -->
+| configuration | I (mA) | P (W) | vTerm (V) | stddev(P) | samples | records |
+|---|---|---|---|---|---|---|
+| series-1v5 | 119.9 | 0.173 | 1.440 | 0.000 | 11 | `series-1v5-42` |
+| series-3v | 239.8 | 0.691 | 2.880 | 0.000 | 11 | `series-3v-42` |
+| series-4v5 | 359.7 | 1.554 | 4.320 | 0.000 | 11 | `series-4v5-42` |
+| series-6v | 479.6 | 2.763 | 5.760 | 0.000 | 11 | `series-6v-42` |
+| series-9v | 719.4 | 6.216 | 8.640 | 0.000 | 11 | `series-9v-42` |
+| series-12v | 959.2 | 11.051 | 11.520 | 0.000 | 11 | `series-12v-42` |
+| parallel-1v5 | 427.4 | 0.550 | 1.286 | 0.000 | 11 | `parallel-1v5-42` |
+| parallel-3v | 854.7 | 2.199 | 2.573 | 0.000 | 11 | `parallel-3v-42` |
+| parallel-4v5 | 1282.0 | 4.947 | 3.859 | 0.000 | 11 | `parallel-4v5-42` |
+| parallel-6v | 1709.4 | 8.795 | 5.145 | 0.000 | 11 | `parallel-6v-42` |
+| parallel-9v | 2564.1 | 19.790 | 7.718 | 0.000 | 11 | `parallel-9v-42` |
+| parallel-12v | 3418.8 | 35.181 | 10.291 | 0.000 | 11 | `parallel-12v-42` |
+<!-- /table -->
+
+And the two bulbs themselves, at 4.5 V, read one at a time through the
+`probeOrdinal` probes the manifest's `setup` registers — the current every
+wire carries in series, and the split in parallel:
+
+<!-- table: bulbs -->
+| wiring | cell I (mA) | bulb 1 I (mA) | bulb 2 I (mA) | bulb 1 P (W) | bulb 2 P (W) | vTerm (V) | records |
+|---|---|---|---|---|---|---|---|
+| series | 359.7 | 359.7 | 359.7 | 0.78 | 0.78 | 4.32 | `series-4v5-42` |
+| parallel | 1282.0 | 641.0 | 641.0 | 2.47 | 2.47 | 3.86 | `parallel-4v5-42` |
+<!-- /table -->
 
 ### The two ratios are different, and the gap is the answer
 
@@ -234,14 +333,19 @@ them is exactly what the cell keeps for itself.
 Read it off the terminal voltage, which is what the cell actually hands to
 the bulbs:
 
-| cell | series `vTerm` | of EMF | parallel `vTerm` | of EMF |
-|---|---|---|---|---|
-| 1.5 V | 1.440 V | 96.0 % | 1.286 V | 85.7 % |
-| 4.5 V | 4.320 V | 96.0 % | 3.859 V | 85.8 % |
-| 12 V | 11.520 V | 96.0 % | 10.291 V | 85.8 % |
+<!-- table: budget -->
+| cell | EMF (V) | series vTerm (V) | series % of EMF | parallel vTerm (V) | parallel % of EMF | records |
+|---|---|---|---|---|---|---|
+| 1.5 V | 1.50 | 1.440 | 96.0 | 1.286 | 85.8 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 3.00 | 2.880 | 96.0 | 2.573 | 85.8 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 4.50 | 4.320 | 96.0 | 3.859 | 85.8 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 6.00 | 5.760 | 96.0 | 5.145 | 85.8 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 9.00 | 8.640 | 96.0 | 7.718 | 85.8 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 12.00 | 11.520 | 96.0 | 10.291 | 85.8 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
 
 A series board gets **96 %** of the cell's volts to its bulbs at every
-voltage; a parallel board gets **86 %**. The missing tenth is burned inside
+voltage; a parallel board gets **86 %** (85.7–85.8 % in the table). The missing tenth is burned inside
 the cell, across its own 0.5 Ω, and it is the price of asking for three and a
 half times the current. So the honest form of "parallel is brighter" is:
 *parallel asks the cell for 3.56× as much and gets 3.18× as much light back,
@@ -250,22 +354,28 @@ because the cell takes a bigger cut when you lean on it harder.*
 The fractions are constant for the same reason the ratios are: with
 everything linear, the split between what reaches the parts and what stays
 in the cell is `R_ext / (R_ext + R_int)`, and neither resistance depends on
-the EMF. Read straight off the records, `R_ext = vTerm / I` is **12.01 Ω**
-in series and **3.01 Ω** in parallel — the two bulbs stacked, versus the two
-bulbs halved.
+the EMF. Read straight off the records — the `rating` table below computes it as
+`vTerm / I` — `R_ext` is **12.01 Ω** in series and **3.01 Ω** in parallel:
+the two bulbs stacked, versus the two bulbs halved.
 
 ### Where the cell gives out
 
 The kit rates the cell at 1.5 A. Against that line the two wirings behave as
 different kinds of circuit, not as two sizes of the same one:
 
-| wiring | crosses 1.5 A at | inside the cell's 1.5–12 V range? |
-|---|---|---|
-| `series` | 18.8 V | **never** — 12 V draws 959 mA, well under |
-| `parallel` | 5.27 V | **yes** — over from 6 V up |
+<!-- table: rating -->
+| wiring | R_ext (Ω) = vTerm / I | crosses 1.5 A at (V) = 1.5 × (R_ext + 0.5) | I at 12 V (mA) | I at 4.5 V (mA) | I at 6 V (mA) | records |
+|---|---|---|---|---|---|---|
+| series | 12.01 | 18.77 | 959 | 360 | 480 | `series-12v-42`, `series-4v5-42`, `series-6v-42` |
+| parallel | 3.01 | 5.27 | 3419 | 1282 | 1709 | `parallel-12v-42`, `parallel-4v5-42`, `parallel-6v-42` |
+<!-- /table -->
 
-Both crossings are computed from the records' own `R_ext` (1.5 A × (`R_ext` +
-0.5 Ω)), and the lab agrees where it can be asked: `labInfo().circuit.overloaded`
+Both crossings are computed from the records' own `R_ext` — the column says
+so in its head, `1.5 × (R_ext + 0.5)`, with the cell's 0.5 Ω the one kit
+constant in the table — and the answer the numbers give is: the series
+board **never** reaches 1.5 A inside the cell's 1.5–12 V range (its 12 V
+current is in the table, well under), the parallel board is over it from
+6 V up. The lab agrees where it can be asked: `labInfo().circuit.overloaded`
 is `false` for `series` at 4.5 V, 6 V and 12 V, and for `parallel` at 4.5 V,
 and `true` for `parallel` at 6 V and 12 V.
 

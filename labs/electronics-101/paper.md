@@ -34,9 +34,10 @@ answer.*
 ## The solver
 
 The lab solves the board as a DC resistive network by **nodal analysis**
-(`labs/kits/circuit/circuit.js`). Every part has two terminals; wires
-merge terminals into **nets** with union-find, so a net is one electrical
-node. With $n$ nets the unknowns are the node voltages
+(`labs/kits/circuit/circuit.js`). Most parts have two terminals; the
+transistor has three and the gate package has five. Wires merge terminals
+into **nets** with union-find, so a net is one electrical node. With $n$
+nets the unknowns are the node voltages
 $\mathbf{v} = [v_0, \dots, v_{n-1}]^T$, and Kirchhoff's current law at
 every node is one linear system:
 
@@ -88,13 +89,364 @@ iterates: assume each LED's state, build and solve $G\,\mathbf{v}=\mathbf{i}$,
 re-check each LED, repeat until the states stop changing. An LED that sits
 in a branch which cannot carry current (behind an open switch, where the
 leak dividers fake a faint forward bias) would flip on/off forever; a
-flip counter pins it **off** after a few oscillations — the physically
-correct answer — inside a 12-iteration cap. On every scenario here the
-fixed point is reached in **≤ 2 iterations**.
+flip counter pins it where it stands after six oscillations — the
+physically correct answer for a dead branch — inside a 40-iteration cap.
+Across every preset the lab ships, the fixed point is reached in
+**1 to 7 iterations**; the transistor gates below use the same loop and
+the same counter.
 
 That iteration *is* the lesson made mechanical: current does not flow
 because a wire exists, it flows because the node voltages, solved all at
 once, leave a forward drop across a part that will pass it.
+
+The plain **diode** is the same model with a lower knee
+($V_F = 0.7\,\mathrm{V}$, $R = 10\,\Omega$) and no light. It is in the kit
+because "the LED is a diode that glows" is a sentence worth being able to
+check, and because two of them make a logic gate with no transistor in it.
+
+## The transistor
+
+The transistor is the first part in the kit with **three** terminals, and
+the first whose current is controlled by something other than the voltage
+across it. Terminal 0 is the collector, 1 the base, 2 the emitter; wires
+merge all three into nets exactly as before, so nothing about the net
+building or the linear solve changes.
+
+![one transistor on the board, its pads named](figures/pinout.png)
+
+*The part, with the board saying which leg is which — the one thing about a
+transistor that cannot be read off its shape. The flat face is on the base
+side, and the grey collar at its foot is the region indicator: grey for cut
+off, gold for active, green for saturated. Placed on a real board the part
+is usually turned a quarter turn, and the print turns with it, the way
+silkscreen does.*
+
+What changes is the stamp. The base-emitter junction is the *same
+piecewise-linear diode companion the LED uses*, with a 0.7 V knee — so the
+base current is not a rule, it is whatever the network allows:
+
+$$
+I_B = \frac{V_{BE} - V_{F,BE}}{R_{BE}},\qquad
+V_{F,BE} = 0.7\,\mathrm{V},\ R_{BE} = 25\,\Omega
+$$
+
+The collector is where a transistor stops being a diode. In the **active**
+region it carries $\beta$ times the base current *regardless of the voltage
+across it* — a current between the collector and emitter nets that depends
+on the voltage between the **base** and emitter nets. That is the one
+asymmetric stamp in this solver, and the reason $G$ is solved by plain
+Gaussian elimination rather than by anything that assumes symmetry:
+
+$$
+G_{cb}\mathrel{+}= g_m,\quad G_{ce}\mathrel{-}= g_m,\quad
+G_{eb}\mathrel{-}= g_m,\quad G_{ee}\mathrel{+}= g_m,
+\qquad g_m = \beta / R_{BE},\ \beta = 100
+$$
+
+A current source cannot push current the supply has not got, so the model
+carries three regions rather than one, and *which one it is in is solved
+for*, on the same assume-solve-re-check loop the diodes use:
+
+$$
+\text{region} =
+\begin{cases}
+\textbf{off} & V_{BE} < V_{F,BE} \\[2pt]
+\textbf{sat} & V_{BE} \ge V_{F,BE}\ \text{and}\ V_{CE} < V_{CE,\mathrm{sat}} \\[2pt]
+\textbf{active} & \text{otherwise}
+\end{cases}
+\qquad V_{CE,\mathrm{sat}} = 0.15\,\mathrm{V}
+$$
+
+*Off* is two leakage resistors. *Active* is the transconductance above,
+with a 100 kΩ collector-emitter leak standing in for the Early effect.
+*Saturated* is the collector clamped at $V_{CE,\mathrm{sat}}$ behind a
+4 Ω slope — a closed switch with a small offset, which is what a saturated
+transistor is. Saturation is left again when the collector branch asks for
+more than $\beta I_B$ can supply.
+
+One number in there is not a physical constant but a **conditioning
+decision**, and it was a bug first. Cut-off leakage is
+$R_{BE,\mathrm{off}} = 10^{7}\,\Omega$ against an open switch's
+$10^{9}\,\Omega$. With both at $10^9$ they form a 1:1 divider: a base
+reached only through an open switch sits at half the supply, well past its
+0.7 V knee, and **a transistor whose input is disconnected switches itself
+on**. Real silicon leaks tens of nanoamps while a real open contact leaks
+nothing measurable, so the two belong decades apart — here, two of them.
+The kit's unit suite pins this case.
+
+### Measured: one transistor as a switch
+
+Preset `transistor` (`5`) is the smallest circuit that shows what the part
+does: a switch and a 4.7 kΩ resistor into the base, an ammeter *in the base
+lead*, and an LED with a 220 Ω resistor from the supply to the collector.
+
+| switch | region | $I_B$ (meter) | $I_C$ | $V_{CE}$ | LED |
+|---|---|---|---|---|---|
+| open | `off` | 0.000 mA | 0.00 mA | 2.500 V | dark |
+| closed | `sat` | 0.803 mA | 9.81 mA | 0.189 V | lit |
+
+![the transistor preset, switched on, with values shown](figures/transistor.png)
+
+*The two currents in one frame, which is the only reason this preset is laid
+out the way it is: the meter sits in the base lead and reads 0.80 mA, and the
+lamp branch on the right carries 9.81.*
+
+The base current is Ohm's law on the base branch and nothing else:
+$(4.5 - 0.7)/(4700 + 25) = 0.804\,\mathrm{mA}$, which is what the meter
+reads. The collector then carries **12.2 times** that — not a hundred
+times, and the gap is the entire point. $\beta I_B$ would be 80 mA; the
+lamp branch can only draw $(4.5 - 2.0 - 0.15)/(220 + 15) \approx
+10\,\mathrm{mA}$, so the transistor runs out of circuit before it runs out
+of gain and settles into saturation at $V_{CE} = 0.19\,\mathrm{V}$. **The
+lamp, not the transistor, is setting the current** — which is exactly the
+condition every logic gate below is operated in.
+
+Starve the base instead (470 kΩ in the unit suite) and the same part sits
+in the active region, where the ratio is $\beta$ to within the Early leak.
+Same component, same equations, different circuit around it.
+
+## Logic gates
+
+The gates are the reason the transistor is in the kit, and none of them is
+a part: each is a wiring, built from the same palette, with two switches
+for inputs and one LED for the answer. Each input is a switch from the
+supply to a node with a **10 kΩ pull-down** — not decoration, but the
+difference between an input that is *low* and one that is merely *not
+connected to anything*, which the paragraph above shows is not the same
+thing.
+
+The lab reads the answer back off the board rather than printing it. The
+truth-table panel runs the solver once per input combination on a copy of
+the exact board in front of you, so editing the circuit edits the table;
+`labInfo().logic.table` returns the same thing to an agent.
+
+### The cheapest gate has no transistor in it
+
+Preset `diode-or` (`6`) is an OR made of two diodes: each input feeds the
+lamp through one, and the diodes are what stop the two inputs driving each
+other. That is their whole job, and it is a reading rather than an
+assertion — with one input high, the idle diode sits at
+**$-3.72\,\mathrm{V}$ and carries nothing**, which is not "quiet" but
+firmly reverse-biased.
+
+| A B | LED | D1 | D2 |
+|---|---|---|---|
+| 0 1 | **7.33 mA** | 0.00 mA, $-3.723$ V | 7.33 mA, 0.773 V |
+| 1 1 | **7.48 mA** | 3.74 mA, 0.737 V | 3.74 mA, 0.737 V |
+
+Closing the second switch adds 2 %, because the two diodes now share the
+current and each drops a little less on its own 10 Ω slope — the whole of
+the difference between 0.773 V and 0.737 V, and a reminder that a
+piecewise-linear diode is a knee **and** a slope, never a fixed 0.7 V.
+
+This gate is also where the solver's piecewise iteration was caught being
+wrong. A conducting diode used to be switched back off once its current
+fell below $10^{-7}\,\mathrm{A}$ — and on the pass where the diode has just
+turned on but the LED behind it is *still assumed off*, it is feeding a
+$10^{9}\,\Omega$ load and carries about half a nanoamp. Read as "stopped",
+the diode switched off, the LED then had no supply and followed, and the
+pair oscillated until the flip-lock pinned both: a gate that solved to dark
+with the battery connected. A conducting diode now stays on until its
+current actually **reverses**, and the case is in the unit suite.
+
+What diode logic cannot do is invert, or drive another gate without losing
+0.7 V a stage: it is a gate you can build, not a family you can compose.
+That is what the next three presets need a transistor for.
+
+### AND is series, OR is parallel
+
+This is the pleasant part: the two gates are the lab's own series and
+parallel presets with the bulbs replaced by transistors.
+
+| gate | wiring | inputs | LED | per-transistor |
+|---|---|---|---|---|
+| **AND** | Q1 and Q2 in series | 1 0 | dark | Q1 `off`, Q2 `off` |
+| | | 1 1 | **9.02 mA** | Q1 `sat` 9.02 mA · Q2 `sat` 9.78 mA |
+| **OR** | Q1 and Q2 in parallel | 1 0 | **9.81 mA** | Q1 `off` · Q2 `sat` 9.81 mA |
+| | | 1 1 | **9.89 mA** | 4.94 mA each |
+
+![the AND gate, one input high](figures/logic-and.png)
+
+***AND*** *— the two transistors stacked in series down the right-hand
+branch, with A high and B low. The lamp is dark and the table says so.*
+
+![the OR gate, one input high](figures/logic-or.png)
+
+***OR*** *— the same two parts, now hanging off a shared collector rail. One
+input is enough, and the lamp is lit.*
+
+Three readings there are worth stopping on, and none of them is something
+a truth table can tell you.
+
+**In the AND at `1 0`, the transistor whose input is high is `off` too.**
+Q1's emitter sits on Q2's collector, and with Q2 not conducting that node
+floats up to 4.06 V — so Q1's base, at 4.5 V, is only 0.44 V above its own
+emitter, short of the 0.7 V knee. *An upper transistor in a series stack
+cannot switch on until the one below it does.* The gate is not "two
+switches in a row that happen to both need to be closed"; the lower one
+enables the upper one.
+
+**In the AND at `1 1`, the two collector currents differ by exactly one
+base current.** Q2 carries 9.78 mA where Q1 carries 9.02 — and
+$9.02 + 0.76 = 9.78$, because Q1's *emitter* current is its collector
+current plus its base current, and that is what flows into Q2. Kirchhoff at
+a three-terminal part, visible in two readings.
+
+**In the OR at `1 1`, the lamp gets 9.89 mA rather than twice 9.81.** The
+current splits 4.94 mA each. The 220 Ω resistor and the LED set the
+current, not the transistors, so opening a second path in parallel with an
+already-saturated one buys almost nothing — the same lesson the two-bulb
+presets teach, arriving from the other direction.
+
+### XOR costs five transistors
+
+XOR is the one that will not fall out of a wiring, because it is not
+monotone: turning a second input on has to turn the lamp *off*. It is built
+as $(A \lor B) \land \lnot(A \land B)$, which on the board is the OR pair
+you have just built, sitting on top of a fifth transistor that a **NAND**
+switches off:
+
+- Q1 and Q2 in series with a 4.7 kΩ pull-up form the NAND. Its collector
+  node is high unless both inputs are.
+- Q3 and Q4 in parallel are the OR, in the lamp's path.
+- Q5 sits under them, driven from the NAND node through 4.7 kΩ.
+
+| A B | LED | NAND node | Q5 |
+|---|---|---|---|
+| 0 0 | dark | high | `sat` — but nothing above it conducts |
+| 1 0 | **9.02 mA** | high, $V_{CE}(Q1) = 2.45\,\mathrm{V}$ | `sat`, 9.78 mA |
+| 0 1 | **9.02 mA** | high | `sat` |
+| 1 1 | dark | collapsed to $V_{CE}(Q1) = 0.154\,\mathrm{V}$ | `off`, $V_{CE} = 3.80\,\mathrm{V}$ |
+
+![XOR with one input high](figures/logic-xor-1.png)
+
+![XOR with both inputs high](figures/logic-xor-3.png)
+
+*The pair the gate is about, on one board with one switch moved. Above: A
+high, B low, and the lamp lit. Below: both high — four of the five
+transistors are now conducting (green collars) and the lamp is out, because
+the fifth, bottom right of the output branch, has been cut off by the NAND.*
+
+The last row is the whole gate. Both inputs are high, both OR transistors
+are conducting, the supply is still there — and the lamp is dark, because
+Q5's base is looking at 0.15 V instead of 4.5 V. **The cell draws 3.4 mA in
+that row against 11.4 mA in the lit ones**: the current has not been
+diverted, it has been refused.
+
+![the XOR as a schematic](figures/logic-xor-plan.png)
+
+*Thirty-eight parts is where the lab's schematic view (`M`) stops being a
+nicety: the same board, drawn the way a circuit diagram draws it, is the
+only form of this circuit that can be followed with a finger.*
+
+![the truth table panel](figures/truthtable.png)
+
+*And the panel that makes the claim checkable. It is not a table of XOR — it
+is four solves of whatever is currently on the board, so erasing a wire
+redraws it. The highlighted row is where the switches are standing.*
+
+Thirty-eight parts and forty-seven wires for one bit of a decision. That
+count is not a failure of the drawing — it is the honest price of XOR in
+this technology, and it is the reason the picture of a modern chip is
+worth having in mind while looking at the board.
+
+## The gate as a package
+
+Nobody builds that twice, which is the whole reason integrated circuits
+exist. The kit therefore also carries a **gate**: one part, five pins, and a
+function you set on it the way you set a resistor's ohms — `and`, `or`,
+`xor`, `nand`, `nor` or `not`, printed on the case, with the schematic
+symbol changing to match.
+
+It is the only *behavioural* part in the kit, and the design decision that
+keeps it electronics rather than algebra is where its output voltage comes
+from. There is no invented logic-high anywhere in the model. The package has
+**VCC and GND pins like a real chip**, and the output is pushed onto
+whichever of those two pads it was actually given, through a 50 Ω output
+resistance:
+
+| | |
+|---|---|
+| inputs | 1 MΩ from each input pad to the GND pad, so a floating input reads low |
+| supply | 100 kΩ VCC→GND — the quiescent draw of a chip doing nothing |
+| threshold | ratiometric: high above $V_{CC}/2$, so it works at any supply |
+| output | push-pull, 50 Ω, onto the VCC net or the GND net |
+| unpowered | below 0.5 V of supply the output goes high-impedance |
+
+![one gate package, close up, both inputs high](figures/gate.png)
+
+*One package with both inputs high. The pins are named on the board, the
+function is printed on the case, and the green pip beside the output pin is
+the level it is driving. The chevrons on the supply wires are not decoration
+— that is the current the chip is drawing to do this.*
+
+Measured on the `gates` preset (`10`) at 4.5 V, an AND package driving an
+LED through 220 Ω:
+
+| A B | output | $V_Y$ | $I_Y$ | LED | cell |
+|---|---|---|---|---|---|
+| 0 0 | low | 0.000 V | 0.00 mA | dark | 0.05 mA |
+| 1 0 | low | 0.000 V | 0.00 mA | dark | 0.50 mA |
+| 1 1 | high | **4.057 V** | 8.75 mA | **8.75 mA** | 9.71 mA |
+
+Three things in that table are worth more than the boolean.
+
+**The output high is 4.057 V, not 4.5.** The 50 Ω output resistance drops
+0.44 V at 8.75 mA — a real chip's output is a *switch to the rail*, not a
+perfect voltage, and it sags under load exactly like everything else in this
+lab. **The cell draws 0.05 mA with both inputs low**: that is the quiescent
+current, the price of having the chip on the board at all, and it is in the
+network rather than in a footnote — 0.20 mW of it. And **unwire VCC and the
+gate stops answering**: supply 0.000 V, `powered: false`, output
+high-impedance, lamp dark, with both inputs still high. A chip with no power
+is not a chip that outputs low; it is a chip that outputs nothing.
+
+The state of that output — high, low, or high-impedance — is resolved on the
+same assume-solve-re-check loop the diodes and the transistor already use.
+That is what lets gates be *composed*: wire one output into the next input
+and the answer settles out of the network, with nothing anywhere evaluating
+a boolean expression.
+
+### A half adder
+
+Which is the point of having them. The `half-adder` preset (`11`) is two
+packages reading the same two inputs — an XOR and an AND — and it is the
+first thing gates were ever built for:
+
+| A B | SUM | CARRY |
+|---|---|---|
+| 0 0 | ○ | ○ |
+| 0 1 | ● | ○ |
+| 1 0 | ● | ○ |
+| 1 1 | ○ | ● |
+
+![the half adder with both inputs high](figures/half-adder.png)
+
+*Both inputs on: the SUM lamp is dark and the CARRY lamp is lit, which is
+the bottom row of the table above and also the answer to 1 + 1.*
+
+Read the bottom row as arithmetic rather than as logic: 1 + 1 gives a sum
+of 0 and carries 1, which is how binary writes 2. Twenty-eight parts,
+thirty-seven wires, twenty-five nets, and it settles in **two iterations**.
+
+![the half adder as a schematic](figures/half-adder-plan.png)
+
+*And in the schematic view, where the ANSI shapes do the work the packages
+cannot: the double curve is the XOR, the plain D is the AND, and neither
+needs a word printed on it.*
+
+The truth table panel grows a column per output here, and both are measured
+the same way as everything else: eight solves of the actual board, four rows
+by two lamps.
+
+**Where this stops.** The gate is a threshold, a boolean and a 50 Ω output —
+not a transistor network and not a real logic family. It has no propagation
+delay, no fan-out limit and no noise margin, and wiring an output back to an
+input does not latch: it oscillates until the solver's flip-lock pins it.
+That is the same limit as everywhere else in this lab — there is no time in
+the model — and it is why the arithmetic half of a processor is reachable
+here and the sequential half is not. If the question is *how a gate is made*,
+the five-transistor XOR above is the honest answer and this part is not.
 
 ## Short circuit vs. heavy load
 
@@ -152,9 +504,29 @@ same picture that shows the fault.
 - **Ideal wires.** A wire has exactly zero resistance; it merges two
   terminals into one net. All contact resistance lives in the parts
   (closed switch and ammeter at $0.01\,\Omega$), never in the wiring.
-- **LED as piecewise-linear.** A hard knee at $V_F$ then a constant
-  $15\,\Omega$ slope, not the smooth Shockley $I = I_S(e^{V/nV_T}-1)$.
-  Reverse breakdown is not modeled — a reversed LED is simply open.
+- **The gate is behavioural.** A threshold, a boolean and a 50 Ω output —
+  not a transistor network and not a real logic family (no TTL/CMOS
+  distinction, no noise margin, no fan-out limit, no propagation delay).
+  It is the level of abstraction at which "two of these make an adder" is
+  the interesting sentence; the five-transistor XOR is the level at which
+  "this is how a gate is made" is.
+- **Diodes as piecewise-linear.** A hard knee at $V_F$ then a constant
+  slope ($15\,\Omega$ for an LED, $10\,\Omega$ for a plain diode), not the
+  smooth Shockley $I = I_S(e^{V/nV_T}-1)$. Reverse breakdown is not
+  modeled — a reversed diode is simply open.
+- **The transistor is a switch with a gain, not a device model.** $\beta$
+  is a constant 100: it does not fall off at high current, does not vary
+  with temperature and does not differ between two parts. There is no
+  junction capacitance and therefore **no switching speed** — a gate here
+  settles instantly, so propagation delay, fan-out limits and race
+  conditions are all outside the model. Anything *sequential* is out of
+  reach for the same reason: a flip-flop wired up here has no defined
+  state, because the feedback loop it depends on is exactly the transient
+  the solver has no notion of. Only NPN exists, so CMOS cannot be built.
+- **Cut-off leakage is a chosen number, not a measured one.**
+  $10^{7}\,\Omega$ base-emitter and $10^{8}\,\Omega$ collector-emitter,
+  picked to sit decades below an open switch for the reason argued above.
+  Sound as a ranking; not a claim about any real part.
 - **Constant bulb resistance.** The filament is a fixed $6\,\Omega$; a
   real incandescent's resistance climbs several-fold as it heats, so its
   true cold-inrush and warm-running currents differ. Brightness here is
@@ -165,90 +537,118 @@ same picture that shows the fault.
 
 ## Measured results
 
-Default board, `batteryV = 4.5 V`, read live off the running lab
-(the solver also carries a 19-case node unit suite — Ohm's law, switch
-open/closed, LED forward and reversed-dark, series/parallel bulbs, short
-detection, meter readings, floating elements, parallel-LED current
-sharing):
+*Quote only what a record holds.* Every table in this section is rendered by
+`tools/lab-sweep/lab-table` from the committed run records of the study in
+`studies/series-vs-parallel/` — twelve stepped runs, one seed, driven
+headlessly by `tools/lab-sweep` — and every row names the record it was read
+from. Regenerate the records, then the tables, with
 
-| scenario | battery current | per-element reading | result |
-|---|---|---|---|
-| **led-basic** (470 Ω + LED), switch open | 0 mA | everything 0 mA | dark |
-| **led-basic**, switch closed | 5.15 mA | LED 5.15 mA · $V_\mathrm{LED}$ 2.08 V · ammeter 5.1 mA | LED lit |
-| **series** (two 6 Ω bulbs) | 360 mA | 360 mA through both · 0.78 W each | both dim |
-| **parallel** (two 6 Ω bulbs) | 1282 mA | 641 mA per bulb · 2.47 W each | both near-full |
-| **reversed LED** (anode to −) | 0 mA | pinned off | dark |
-| **dead short** (wire + to −) | 9 A | — | short flag · red battery · banner |
+```
+tools/lab-sweep/lab-sweep labs/electronics-101/studies/series-vs-parallel
+tools/lab-sweep/lab-table labs/electronics-101
+```
 
-Readings worth chasing to their equations. The lit LED draws
-
-$$
-I = \frac{V - V_F}{R + R_\mathrm{LED} + R_\mathrm{int} + 2R_\mathrm{shunt}}
-  = \frac{4.5 - 2.0}{470 + 15 + 0.5 + 0.02} = 5.15\,\mathrm{mA},
-$$
-
-and the voltmeter across it reads $V_F + I\,R_\mathrm{LED} =
-2.0 + 0.00515 \times 15 = 2.08\,\mathrm{V}$ — the knee plus the drop on
-the internal slope. The dead short is limited only by the battery's own
-$0.5\,\Omega$: $4.5 / 0.5 = 9\,\mathrm{A}$, which trips the
-$1.5\,\mathrm{A}$ short flag.
+and `lab-check` goes red when a table here no longer matches the records.
+The transistor, the gates, the package and the half adder are pinned by the
+solver's 169-case node unit suite, not by a record; the readings quoted in
+their sections above illustrate the argument, and this section makes no
+claim about them.
 
 The headline is the series-versus-parallel pair. **Same two bulbs, same
-battery, only the wiring differs**, yet the battery delivers 360 mA in
-series and 1282 mA in parallel — roughly $3.5\times$. Series stacks the
-resistances ($0.5 + 6 + 6$) so the shared current is small and both bulbs
-barely glow; parallel halves them ($0.5 + 3$) so each bulb gets nearly
-the full cell and blazes. That contrast, produced by rewiring alone, is
-the core physical lesson of the lab.
+cell, only the wiring differs**, and at 4.5 V:
+
+<!-- table: series-vs-parallel/bulbs -->
+| wiring | cell I (mA) | bulb 1 I (mA) | bulb 2 I (mA) | bulb 1 P (W) | bulb 2 P (W) | vTerm (V) | records |
+|---|---|---|---|---|---|---|---|
+| series | 359.7 | 359.7 | 359.7 | 0.78 | 0.78 | 4.32 | `series-4v5-42` |
+| parallel | 1282.0 | 641.0 | 641.0 | 2.47 | 2.47 | 3.86 | `parallel-4v5-42` |
+<!-- /table -->
+
+Series stacks the resistances ($0.5 + 6 + 6$) so the shared current is small
+— the same 359.7 mA through the cell and through each bulb, and both bulbs
+barely glow at 0.78 W; parallel halves them ($0.5 + 3$) so the cell delivers
+1282 mA, 641 mA per rung, and each bulb blazes at 2.47 W — roughly
+$3.5\times$ the current and $3.2\times$ the light. That contrast, produced by
+rewiring alone, is the core physical lesson of the lab.
 
 ![two bulbs in series](figures/series.png)
 
-***series*** *— one loop, so 359.7 mA appears on every wire and the cell's
-volts divide, 2.16 V to each bulb.*
+***series*** *— one loop, so 359.7 mA appears on every wire and each bulb
+gets 0.78 W.*
 
 ![two bulbs in parallel](figures/parallel.png)
 
-***parallel*** *— a ladder, so both bulbs sit across the same 3.85 V and the
-current splits, 641 mA each, rejoining at the rails.*
+***parallel*** *— a ladder, so the current splits, 641 mA and 2.47 W per
+bulb, rejoining at the rails.*
 
 Same two bulbs, same cell, same switch. The only difference is which wire goes
 where — and it is visible before you read a single number, in how brightly the
 two pairs glow.
 
-## The same contrast, run as a study
+### The same contrast, across the cell's whole range
 
-The two rows above are one voltage of a question that deserves a sweep, so
-the lab carries one: **`studies/series-vs-parallel/`** asks what the wiring
-decides across the cell's whole usable range, 1.5 V to 12 V, twelve runs
-driven headlessly by `tools/lab-sweep` and committed as twelve run records.
-The study document states the question, argues its own answerability against
-this kit's model card, and only then reports; everything below is quoted from
-`studies/series-vs-parallel/results.md`, which is generated from the records
-rather than typed.
+The rows above are one voltage of a question that deserves a sweep, so the
+study asks what the wiring decides from 1.5 V to 12 V. The study document
+states the question, argues its own answerability against this kit's model
+card, and only then reports.
 
-Three findings, and the third is the one this table could not have shown:
+<!-- table: series-vs-parallel/pair -->
+| cell | series I (mA) | parallel I (mA) | series P (W) | parallel P (W) | parallel ÷ series (I) | parallel ÷ series (P) | records |
+|---|---|---|---|---|---|---|---|
+| 1.5 V | 119.9 | 427.4 | 0.173 | 0.550 | 3.564 | 3.18 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 239.8 | 854.7 | 0.691 | 2.199 | 3.564 | 3.18 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 359.7 | 1282.0 | 1.554 | 4.947 | 3.564 | 3.18 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 479.6 | 1709.4 | 2.763 | 8.795 | 3.564 | 3.18 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 719.4 | 2564.1 | 6.216 | 19.790 | 3.564 | 3.18 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 959.2 | 3418.8 | 11.051 | 35.181 | 3.564 | 3.18 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
 
-1. **Parallel delivers 3.18× the power, at every voltage.** Not approximately
-   — the same figure at all six levels, because both wirings are linear in
-   the cell's EMF. Turning the cell up cannot turn a series board into a
-   parallel one; the choice of wiring is a property of the circuit.
-2. **It asks for 3.564× the current to do it.** The two ratios differ, and
-   the gap is what the cell keeps for itself: a series board gets **96 %** of
-   the cell's volts to its bulbs, a parallel board **86 %**. The honest form
-   of "parallel is brighter" is *parallel asks for 3.56× as much and gets
-   3.18× as much back, because a cell takes a bigger cut when you lean on it.*
-3. **Only one of them ever reaches the cell's rating.** Computed from each
-   record's own $R_\mathrm{ext} = V_\mathrm{term}/|I|$, the parallel board
-   crosses 1.5 A at **5.27 V** and is over it from 6 V up; the series board
-   would need **18.8 V**, which is past the cell's ceiling. Neither is ever a
-   short — 3.01 Ω is still six times the cell's own 0.5 Ω, however hard it is
-   pushed, which is the distinction argued above being checked rather than
-   asserted.
+Three findings, and the third is the one the 4.5 V rows could not have shown.
 
-`R_ext` is 12.01 Ω in series and 3.01 Ω in parallel, read off the records as
-$V_\mathrm{term}/|I|$ — the two bulbs stacked against the two bulbs halved.
-Every other number in the study follows from those two by Ohm's law, which is
-why none of the ratios move with voltage.
+**Parallel delivers 3.18× the power, at every voltage.** Not approximately
+— the same figure at all six levels, because both wirings are linear in
+the cell's EMF. Turning the cell up cannot turn a series board into a
+parallel one; the choice of wiring is a property of the circuit.
+
+**It asks for 3.564× the current to do it.** The two ratios differ, and the
+gap is what the cell keeps for itself:
+
+<!-- table: series-vs-parallel/budget -->
+| cell | EMF (V) | series vTerm (V) | series % of EMF | parallel vTerm (V) | parallel % of EMF | records |
+|---|---|---|---|---|---|---|
+| 1.5 V | 1.50 | 1.440 | 96.0 | 1.286 | 85.8 | `series-1v5-42`, `parallel-1v5-42` |
+| 3 V | 3.00 | 2.880 | 96.0 | 2.573 | 85.8 | `series-3v-42`, `parallel-3v-42` |
+| 4.5 V | 4.50 | 4.320 | 96.0 | 3.859 | 85.8 | `series-4v5-42`, `parallel-4v5-42` |
+| 6 V | 6.00 | 5.760 | 96.0 | 5.145 | 85.8 | `series-6v-42`, `parallel-6v-42` |
+| 9 V | 9.00 | 8.640 | 96.0 | 7.718 | 85.8 | `series-9v-42`, `parallel-9v-42` |
+| 12 V | 12.00 | 11.520 | 96.0 | 10.291 | 85.8 | `series-12v-42`, `parallel-12v-42` |
+<!-- /table -->
+
+A series board gets **96 %** of the cell's volts to its bulbs, a parallel
+board **86 %**. The honest form of "parallel is brighter" is *parallel asks
+for 3.56× as much and gets 3.18× as much back, because a cell takes a bigger
+cut when you lean on it.*
+
+**Only one of them ever reaches the cell's rating.** Computed from each
+record's own $R_\mathrm{ext} = V_\mathrm{term}/|I|$:
+
+<!-- table: series-vs-parallel/rating -->
+| wiring | R_ext (Ω) = vTerm / I | crosses 1.5 A at (V) = 1.5 × (R_ext + 0.5) | I at 12 V (mA) | I at 4.5 V (mA) | I at 6 V (mA) | records |
+|---|---|---|---|---|---|---|
+| series | 12.01 | 18.77 | 959 | 360 | 480 | `series-12v-42`, `series-4v5-42`, `series-6v-42` |
+| parallel | 3.01 | 5.27 | 3419 | 1282 | 1709 | `parallel-12v-42`, `parallel-4v5-42`, `parallel-6v-42` |
+<!-- /table -->
+
+The parallel board crosses 1.5 A at **5.27 V** and is over it from 6 V up;
+the series board would need **18.8 V**, which is past the cell's ceiling.
+Neither is ever a short — 3.01 Ω is still six times the cell's own 0.5 Ω,
+however hard it is pushed, which is the distinction argued above being
+checked rather than asserted.
+
+$R_\mathrm{ext}$ is 12.01 Ω in series and 3.01 Ω in parallel — the two
+bulbs stacked against the two bulbs halved. Every other number in the study
+follows from those two by Ohm's law, which is why none of the ratios move
+with voltage.
 
 ## Things to try
 
@@ -275,6 +675,37 @@ why none of the ratios move with voltage.
 - **Make a short.** Run a single wire straight from $+$ to $-$. 9 A, the
   battery flashes red, the banner drops. Now put a resistor in that wire
   and watch the short clear — that is what a resistor is *for*.
+- **Starve a base and watch the region change.** Load `transistor` (`5`),
+  select the 4.7 kΩ base resistor and drag it up. The lamp dims, and the
+  selection card's region flips from *saturated* to *active* at the point
+  where $\beta I_B$ falls below what the lamp wants — which is the whole
+  definition of saturation, arrived at by turning one knob.
+- **Break an AND gate on purpose.** In `logic-and` (`7`), erase the wire
+  between the two transistors and rewire them in parallel. The truth table
+  redraws itself as an OR, because it is not a table — it is four solves of
+  whatever is on the board.
+- **Find the row that costs the least.** In `logic-xor` (`9`), watch the
+  cell current as you walk the four rows: 0.4 mA, 11.4, 11.4, 3.4. The
+  gate's *answer* and the gate's *appetite* are different quantities, and
+  the dark rows are not the cheap ones in the way you would guess.
+- **Take a diode out of the diode OR.** In `diode-or` (`6`), delete D2 and
+  wire B's input node straight to the lamp. The lamp still lights from A
+  alone — but B's input, which read **0.000 V**, now sits at
+  **3.719 V**, driven by A through the lamp it was supposed to be
+  independent of. The diode was not there to make the gate work; it was
+  there to keep the two inputs from becoming one.
+- **Turn one gate into six.** Load `gates` (`10`), select the package and
+  click through AND, OR, XOR, NAND, NOR, NOT. The case relabels, the
+  schematic symbol changes shape, and the truth table is *re-solved* each
+  time — four fresh solves of the board, not a lookup.
+- **Starve a chip.** In the same preset, erase the wire from the plus rail
+  to the package's VCC pin. Both inputs stay high and the lamp goes out:
+  supply 0.000 V, output high-impedance. A chip with no power does not
+  output low, it outputs nothing — which is a different fault, and one you
+  can see the difference of here.
+- **Read an adder as arithmetic.** In `half-adder` (`11`) walk the four
+  rows and read SUM and CARRY as a two-digit binary number: 0, 1, 1, 10.
+  That is addition, done by two parts and a battery.
 - **Clip a meter on and keep what it says.** Press `H` until the voltmeter
   (`⚡`) is in your hand, click a bulb, and it reads that bulb live while you
   keep working. Press `P`, give the reading a name, and it becomes a probe
@@ -344,6 +775,42 @@ in a textbook stops being an abstraction.
 the ladder as a circuit diagram in the corner. Neither is a picture of the
 other — both are drawn from the same list of parts and wires, which is why
 moving a part moves it in both.*
+
+`Z` gives that diagram the whole window, and `Z` or `Esc` puts it back in its
+corner. This is one canvas at two sizes, not two views: the same symbols, the
+same routed wires, the same model. What changes is how much room there is to
+say things. In the corner, none — at map size the symbols are barely thirty
+pixels apart and a two-line label would cover the neighbour it belongs beside,
+so the small diagram says nothing rather than saying it illegibly. Filling the
+window there is room to **letter every part**: its designator, and what it is
+rated at — `R4 / 4.70 kΩ`, `BAT / 4.50 V`, `IC1 / XOR`. With values on (`V`)
+each label grows a third line with what the part is actually *doing*, and a
+transistor's says which region it is working in.
+
+That split is deliberate. A rating is a fact about the part you chose and is
+true with the power off; a reading is a fact about the circuit and changes when
+you flip a switch. A diagram that ran them together would be teaching that the
+two are the same kind of number.
+
+![the XOR board as a full-window lettered schematic](figures/plan-max.png)
+
+*The XOR preset with the diagram given the window: twenty parts, every one of
+them named and rated. Nothing here is drawn that the postage-stamp version does
+not also draw — the lettering is the whole difference, and the lettering is
+what a small panel has no room for.*
+
+Where the text goes is `labs/kits/circuit/plan.js`, and it is a real problem
+rather than an offset: a label is offered four sides in turn and takes the
+first on which it covers no symbol, no label already placed, and no wire — text
+laid across a conductor reads as a break in it. A label with nowhere clear to
+go is not dropped, because an unnamed part is a worse diagram than a crowded
+one; it gets a small card under it instead, which is what a draughtsman does
+with a note that has to sit over a wire.
+
+The big diagram is also a way of *navigating* the circuit: hovering a symbol
+highlights that part on the board behind, and clicking one selects it, so the
+selection card and the plot follow from the diagram as readily as from the
+board.
 
 Wires meet at **junctions**: click any wire and a solder dot is dropped
 where you clicked, splitting it in two and starting a branch from that point
@@ -424,6 +891,62 @@ visible at a glance instead of only in the numbers. Parts are sunk slightly
 into the board and their terminals are near-flush pads, so the wires meet
 them at board level. Nobody expects a shadow from a line lying on paper, so
 shadows are now a question only for the parts, where they work.
+
+### Wires turn corners
+
+A wire used to be the straight line between two pads. On the one-loop boards
+that is invisible, because the pads are already in line; on the XOR it is
+thirty-eight parts joined by a fan of diagonals, and a diagonal has no
+relationship to the grid the parts stand on. Every board people solder and
+every diagram people draw runs its wires along two axes.
+
+`labs/kits/circuit/route.js` therefore routes each wire as a **Manhattan
+path**, on three rules. First, a lead leaves along its pad's own side — the
+direction is read off the pad's offset from the middle of the part, so a
+resistor's wire leaves the end of the resistor and a transistor's base lead
+leaves the base side. Without that rule an orthogonal path is merely
+orthogonal, and can still start by crossing the part it belongs to. Second,
+two pads already in line still get the straight wire, unless a part is
+standing in that lane or another wire is already running along it: that is
+what leaves every rail on every preset exactly as it was, and what makes the
+voltmeter's leads loop **around** the LED they are measuring instead of
+lying on top of the wire already in that row. Third, where the route turns is
+chosen by scoring a handful of candidates: crossing a part it is not wired to
+is expensive, entering a pad from the wrong side nearly as expensive, each
+corner costs a little, each unit hidden under an already-routed wire costs a
+little more, and length costs least. Candidate turning points include the
+sides of the nearby parts themselves, which is what lets a route pass a part
+by a hair rather than miss it by one.
+
+Routing is geometry, so it is recomputed when the board moves and never when
+the currents change — a search over candidate paths has no business inside
+the solve loop. All the wires are routed in one pass rather than one at a
+time, because a wire has to know which lanes are already taken; the order of
+the list decides who keeps a lane and who goes round, and the same board
+always produces the same paths.
+
+The measured result, over the eleven preset boards: no diagonal segments, no
+wire laid across a part it is not wired to, and the longest stretch of one
+wire hidden under another down from 23 units to 10. It costs 20 ms to route
+the XOR's 47 wires, paid once per board change.
+
+![the XOR board straight down, every wire orthogonal](figures/routing.png)
+
+*The XOR from as far overhead as the camera goes. Thirty-eight parts,
+forty-seven wires, and every one of them runs along one of two board
+directions — two families of parallel lines and no third. (The board still
+shears slightly: 84° is the rig's limit, not 90°.) No wire is laid over a part
+it is not wired to.*
+
+![the voltmeter's leads looping around the LED](figures/across.png)
+
+*A voltmeter wired across an LED sits in the LED's own row. A straight lead
+would be drawn exactly on top of the wire already there and neither would be
+readable, so the two leads loop round instead — which is also how a diagram
+draws a meter across a part.*
+
+The schematic view is drawn from the same paths, which is the point at which
+it stops being a sketch of the board and starts being a circuit diagram.
 
 Giving each wire a direction needs a little care. A wire cannot be oriented
 by voltage: in this model a wire **is** the net (ideal, zero resistance), so
@@ -533,6 +1056,9 @@ lends the left button to panning for exactly as long as it is held down.
 - Element conductances / Norton stamps: `labs/kits/circuit/circuit.js:92`, `labs/kits/circuit/circuit.js:135`
 - LED piecewise model and flip-lock iteration: `labs/kits/circuit/circuit.js:124`, `labs/kits/circuit/circuit.js:146`
 - Part visuals (LED glow, bulb glow): `labs/kits/circuit/CircuitElement3D.qml:1`, `labs/kits/circuit/CircuitElement3D.qml:136`, `labs/kits/circuit/CircuitElement3D.qml:171`
+- Manhattan wire routing (`routeAll`, `routeOne`): `labs/kits/circuit/route.js:1`
+- Which way a lead leaves its pad (`terminalDir`): `labs/electronics-101/Sandbox.qml:217`
+- The routed paths, cached per board change (`wireRoutes`): `labs/electronics-101/Sandbox.qml:1312`
 - Scenarios (each seeds its own watch list): `labs/electronics-101/Sandbox.qml:444`
 - Fixed probes (`iBattery`, `power`, `vTerm`): `labs/electronics-101/Sandbox.qml:50`
 - Watch list and the monitor: `labs/electronics-101/Sandbox.qml:100`, `labs/electronics-101/Sandbox.qml:1828`
@@ -552,5 +1078,6 @@ lends the left button to panning for exactly as long as it is held down.
 - This paper's figures, and the one script that regenerates them: `labs/electronics-101/figures/make.sh`
 
 *Verified via the clay-crew inspector on the running lab: the readings
-above are read straight from the probes and meter pills; the solver's
-19-case node suite covers the same circuits headless.*
+above are read straight from the probes and meter pills; the kit's node
+suites cover the same circuits headless — 169 assertions on the solver, 54
+on the router.*

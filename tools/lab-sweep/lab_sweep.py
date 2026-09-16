@@ -46,6 +46,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import lab_table as LT         # noqa: E402
 import manifest as M           # noqa: E402
 import record as R             # noqa: E402
 
@@ -195,7 +196,7 @@ def run_clayrender(clayrender, sandbox, root, script_text, extra=None):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def read_labinfo(clayrender, sandbox, root):
+def read_labinfo(clayrender, sandbox, root, m):
     """The lab's own labInfo(), for the mechanical answerability check.
 
     This loads the lab - there is no way to know what probes a QML file
@@ -203,8 +204,13 @@ def read_labinfo(clayrender, sandbox, root):
     records nothing, which is what `--check` promises.
     """
     marker = "LAB-SWEEP-LABINFO "
+    # The manifest's `setup` runs first, as it does before every cell: a
+    # study may register the probes it reads there (#209, electronics'
+    # probeOrdinal), and a check that asked the lab before setup would fail
+    # the study for probes the sweep itself would have had.
     script = ("clock._frameTicker.running = false\n"
-              'console.log("' + marker + '" + JSON.stringify('
+              + "\n".join(js_lines(m.get("setup"))) + "\n"
+              + 'console.log("' + marker + '" + JSON.stringify('
               "Object.assign({ scenarios: (typeof scenarios === 'function') "
               "? scenarios() : null }, labInfo())))\n")
     code, out = run_clayrender(clayrender, sandbox, root, script)
@@ -365,6 +371,12 @@ def main():
     ap.add_argument("--jobs", type=int, default=4, help="parallel runs")
     ap.add_argument("--clayrender", default=None,
                     help="path to clayrender (default: build/bin/clayrender)")
+    ap.add_argument("--records-dir", default=None, metavar="DIR",
+                    help="write the records here instead of into the study's "
+                         "records/, and leave results.md alone. This is how "
+                         "tools/lab-check/lab-check regenerates a study's "
+                         "records and compares them without writing into the "
+                         "tree it is checking.")
     args = ap.parse_args()
 
     study_dir, doc = find_study(args.study)
@@ -403,7 +415,7 @@ def main():
             "(cmake --build build --target clayrender)")
 
     if args.check:
-        info = read_labinfo(args.clayrender, sandbox, root)
+        info = read_labinfo(args.clayrender, sandbox, root, m)
         errors = M.check_against_lab(m, info)
         if errors:
             print("\nanswerability check FAILED:")
@@ -419,7 +431,7 @@ def main():
               "from the model card that the model holds for the question.")
         return 0
 
-    records_dir = os.path.join(study_dir, "records")
+    records_dir = args.records_dir or os.path.join(study_dir, "records")
     os.makedirs(records_dir, exist_ok=True)
 
     print()
@@ -453,7 +465,9 @@ def main():
     # looking exactly like the full one - is the worst artifact this tool could
     # produce. Re-running one cell (to check determinism, or after a fix) must
     # not be able to silently truncate the table the conclusion was read from.
-    partial = len(runs) != M.matrix_size(m)
+    # Records written somewhere else are not the study's records, so they
+    # cannot be what its table is built from either - same rule as --only.
+    partial = len(runs) != M.matrix_size(m) or bool(args.records_dir)
     if partial:
         print(f"\n{len(results)} record(s) rewritten; results.md left alone "
               "(a partial run must not rewrite the study's table - re-run "
@@ -463,6 +477,13 @@ def main():
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(results_table(m, rows, m["studyPath"]))
         print(f"\n{len(results)} records -> {os.path.relpath(out_path, root)}")
+        # The study's own marked tables are rewritten from the fresh records
+        # in the same breath (#209) - a full run that left study.md quoting
+        # the previous sweep would be the typed-number problem coming back
+        # through the tool meant to end it. The lab's paper.md is NOT touched
+        # here: `lab-table <lab>` does that, and lab-check says when it is due.
+        for rel, ref, ok, detail in LT.process(doc):
+            print(f"  {'table' if ok else 'TABLE ERROR'}  {rel}: {ref}  ({detail})")
 
     best = rows[0]
     print(f"best{' (of what was run)' if partial else ''}: {best['label']}  "

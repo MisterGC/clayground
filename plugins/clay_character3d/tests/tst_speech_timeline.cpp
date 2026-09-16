@@ -1,9 +1,16 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
 // Unit tests for Speech::timelineForText - the pure text -> viseme
-// timeline builder used for lip-sync.
+// timeline builder used for lip-sync - and for the two things a cue
+// scheduler needs from the engine around it: an exposed duration, and a
+// say() that always reports the end of the line it started.
+//
+// Built without CLAY_CHARACTER3D_HAS_TTS (see tests/CMakeLists.txt), so the
+// engine runs its silent path here: timings come from the timeline, not from
+// a speech engine that may or may not exist on the machine.
 
 #include <QtTest>
+#include <QSignalSpy>
 #include "speech.h"
 
 class TestSpeechTimeline : public QObject
@@ -19,6 +26,12 @@ private slots:
     void punctuationAddsPauses();
     void wordMarksMatchWordStarts();
     void paceScaleStretchesTimeline();
+
+    void estimateMatchesTheTimeline();
+    void estimateFollowsTheRate();
+    void emptyLineStillFinishes();
+    void emptyLineFinishesLater();
+    void lastSayOfATickWins();
 };
 
 void TestSpeechTimeline::emptyTextYieldsClosedMouth()
@@ -94,6 +107,83 @@ void TestSpeechTimeline::paceScaleStretchesTimeline()
     const VisemeTimeline fast = Speech::timelineForText("hello world", 0.6);
     const VisemeTimeline slow = Speech::timelineForText("hello world", 1.6);
     QVERIFY(slow.durationMs > fast.durationMs);
+}
+
+// The number a scheduler asks for must be the number the mouth is driven by.
+// Two estimates of one line is the bug this exposure exists to delete.
+void TestSpeechTimeline::estimateMatchesTheTimeline()
+{
+    Speech s;
+    const QString text = "Hello world, how are you today?";
+    QCOMPARE(qint64(s.estimateDurationMs(text)),
+             Speech::timelineForText(text, 1.0).durationMs);
+    QCOMPARE(s.estimateDurationMs(QString()), 0);
+}
+
+void TestSpeechTimeline::estimateFollowsTheRate()
+{
+    Speech s;
+    const QString text = "Hello world";
+    const int normal = s.estimateDurationMs(text);
+    s.setRate(1.0);
+    const int fast = s.estimateDurationMs(text);
+    s.setRate(-1.0);
+    const int slow = s.estimateDurationMs(text);
+    QVERIFY(fast < normal);
+    QVERIFY(slow > normal);
+}
+
+// A queue whose only advance trigger is finished() hangs forever on a line
+// that never reports one. An empty line is exactly that case, and a directive
+// producing a text-less segment makes it reachable.
+void TestSpeechTimeline::emptyLineStillFinishes()
+{
+    Speech s;
+    QSignalSpy started(&s, &Speech::started);
+    QSignalSpy finished(&s, &Speech::finished);
+
+    s.say(QStringLiteral("   "));
+    QCOMPARE(finished.count(), 0); // never re-entrant into the caller
+
+    QVERIFY(finished.wait(2000));
+    QCOMPARE(started.count(), 1);
+    QCOMPARE(finished.count(), 1);
+    QVERIFY(!s.speaking());
+}
+
+void TestSpeechTimeline::emptyLineFinishesLater()
+{
+    Speech s;
+    QSignalSpy finished(&s, &Speech::finished);
+    s.sayText(QString());
+    QVERIFY(finished.wait(2000));
+    QCOMPARE(finished.count(), 1);
+}
+
+// Two say() calls in one tick: the second line is the one that runs, and it
+// is the only one that reports anything. The dropped line must not emit a
+// finished() of its own - a scheduler would read that as its new line ending
+// and advance a cue too early.
+void TestSpeechTimeline::lastSayOfATickWins()
+{
+    Speech s;
+    QSignalSpy started(&s, &Speech::started);
+    QSignalSpy finished(&s, &Speech::finished);
+
+    s.sayText(QStringLiteral("one"));
+    s.sayText(QStringLiteral("two"));
+
+    QVERIFY(started.wait(2000));
+    QCOMPARE(started.count(), 1);
+    QCOMPARE(finished.count(), 0);
+    QVERIFY(s.speaking());
+    // The line that survived decides the duration.
+    QCOMPARE(qint64(s.durationMs()), Speech::timelineForText("two", 1.0).durationMs);
+
+    QVERIFY(finished.wait(5000));
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(started.count(), 1);
+    QVERIFY(!s.speaking());
 }
 
 QTEST_GUILESS_MAIN(TestSpeechTimeline)

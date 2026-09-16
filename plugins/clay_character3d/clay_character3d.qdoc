@@ -14,8 +14,9 @@
         derived from the text's letters. Without a TTS engine the same
         timeline animates silently.
     \li Audio files (wav/mp3) - played back while the mouth follows the
-        audio's loudness envelope; a zero-crossing heuristic separates
-        wide "s"-like sounds from open vowels.
+        recording. How closely it is read is set by \l accuracy: loudness
+        alone, formant bands, or - given the transcript - the script's own
+        shapes on the recording's clock.
     \endlist
 
     The mouth shape is published through the continuous properties
@@ -76,17 +77,79 @@
     \readonly
     \brief True when a text-to-speech engine is available at runtime.
 
-    \qmlmethod void Speech::say(string what)
+    \qmlproperty int Speech::durationMs
+    \readonly
+    \brief How long the line currently being said lasts.
+
+    Anything scheduling around a line needs this number, and the engine has
+    always known it. See also \l {Speech::estimateDurationMs}{estimateDurationMs()},
+    which answers the same question without saying anything.
+
+    \qmlproperty enumeration Speech::accuracy
+    \brief How hard the audio path works at reading a mouth out of a recording.
+
+    \value Speech.Envelope Loudness and zero crossings. Says how far the jaw
+           dropped and nothing about the shape of the mouth.
+    \value Speech.Spectral Formant bands: an open vowel opens further than a
+           closed one, a front vowel spreads, a back vowel rounds, a fricative
+           narrows. The default.
+    \value Speech.Aligned The script's own shapes on the recording's clock.
+           Needs a transcript - see \l {Speech::sayAudio}{sayAudio()} - and
+           falls back to Spectral without one.
+
+    The tiers are not a performance dial: the analysis is a few hundred
+    thousand flops for a whole line, once, before playback starts. What
+    separates them is time-to-first-sound, the samples held while the analysis
+    runs, and - for Aligned - whether anyone wrote the line down.
+
+    No tier leaves the mouth dead. A recording the analyser cannot read falls
+    back to the one below on its own, and Envelope is the floor.
+
+    \sa effectiveAccuracy, Character::speechAccuracy
+
+    \qmlproperty enumeration Speech::effectiveAccuracy
+    \readonly
+    \brief What the last line actually got.
+
+    Only the same as \l accuracy when the audio could carry it. Asking for
+    Aligned and reading Spectral back is a normal outcome - an unreadable
+    recording or a missing transcript - and not an error.
+
+    \qmlmethod void Speech::say(string what, string transcript)
     \brief Says text or plays an audio file, auto-detected from the string.
 
     Strings ending in a known audio extension (wav/mp3/ogg/m4a/flac) are
-    treated as file paths or URLs, anything else as text to speak.
+    treated as file paths or URLs, anything else as text to speak. The
+    optional \a transcript is forwarded to \l {Speech::sayAudio}{sayAudio()}
+    and ignored by the text path.
 
     \qmlmethod void Speech::sayText(string text)
     \brief Speaks the given text (TTS when available, silent lip-sync otherwise).
 
-    \qmlmethod void Speech::sayAudio(url source)
+    \qmlmethod void Speech::sayAudio(url source, string transcript)
     \brief Plays the given audio file with lip-sync from audio analysis.
+
+    The optional \a transcript is what the recording was recorded saying.
+    Given one, and with \l accuracy at \c Speech.Aligned, the mouth takes
+    its shapes from that script and only its timing from the audio - which is
+    the only way an /m/ closes reliably, since a bilabial is voiced and every
+    acoustic measurement of one says "loud" rather than "shut".
+
+    A transcript that does not match the recording is refused rather than
+    used, and the tier below takes the line.
+
+    \qmlmethod int Speech::estimateDurationMs(string text)
+    \brief How long this engine would take over \a text, without saying it.
+
+    The same number the mouth is driven by, so anything scheduling around a
+    line stops having to guess a speech rate of its own.
+
+    \qmlmethod list Speech::wordMarks()
+    \brief The current line's words as \c {{offset, ms}} pairs.
+
+    The character offset in the source text and when that word starts. Empty
+    before the first line. Available for a recorded line too when it was read
+    at \c Speech.Aligned, since the alignment carries them across.
 
     \qmlmethod void Speech::stop()
     \brief Interrupts the current speech output.

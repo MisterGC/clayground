@@ -2,7 +2,7 @@ include (clayplugin)
 
 # Needs to be told first otherwise clay_plugin / qt_add_qml_module don't
 # generate instructions for singletons
-set_source_files_properties(Lab.qml LabTheme.qml LabLang.qml LabPrefs.qml
+set_source_files_properties(Lab.qml LabTheme.qml LabLang.qml LabPrefs.qml LabView.qml
                             PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 clay_plugin( Lab
@@ -17,6 +17,7 @@ clay_plugin( Lab
         Lab.qml
         LabTheme.qml
         LabPrefs.qml
+        LabView.qml
         palette.js
         tokens.js
         format.js
@@ -39,7 +40,10 @@ clay_plugin( Lab
         Narrator.qml
         FlowChip.qml
         WorldLabel.qml
+        MarkLayer.qml
         SelectionFrame3D.qml
+        HintJump.qml
+        CardFocusRing.qml
         LabStage3D.qml
         LabPanel.qml
         LabKeys.qml
@@ -66,13 +70,21 @@ clay_plugin( Lab
         Compass.qml
         GridMode.qml
         CameraAnchorMark.qml
+        CameraDirector.qml
+        SceneTitle.qml
         measure.js
         HandheldInstrument.qml
         TapeMeasure.qml
         Stopwatch.qml
         InstrumentBelt.qml
-        Tour.qml
-        TourStep.qml
+        board.js
+        Board.qml
+        BoardInput.qml
+        BoardWires3D.qml
+        PartPlacer.qml
+        BoardPalette.qml
+        PartCard.qml
+        BoardOverlay.qml
 
     LINK_LIBS
         Qt::Core
@@ -104,3 +116,20 @@ clay_add_node_test(lab_record  SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/record.test.js
 # only exists inside a paint call can only be checked by looking at a picture
 # (#204).
 clay_add_node_test(lab_measure SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/measure.test.js)
+# The board's rules - cell arithmetic, pad rotation, the hit test order, keep-out,
+# serialization - used to live inline in every build lab (#211).
+clay_add_node_test(lab_board   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board.test.js)
+# The skill's block catalog is generated from the briefs above
+# (docs/scripts/lab_catalog.py -> skills/clay-lab/references/catalog.md). This
+# check fails when a type was added or its brief edited without regenerating,
+# so the catalog an agent reads cannot describe a kernel that no longer exists
+# (#210).
+if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME lab_catalog
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/docs/scripts/lab_catalog.py --check)
+        set_tests_properties(lab_catalog PROPERTIES LABELS "tools" TIMEOUT 30)
+    endif()
+endif()

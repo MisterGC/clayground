@@ -23,7 +23,7 @@ env:
   # Pin to 6.10.1 - wildcard causes issues when new versions are released (checksum propagation delays)
   QT_VERSION: '6.10.1'
   QT_VERSION_WASM: '6.10.1'
-  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtshadertools qt5compat qtimageformats'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
   AQT_VERSION: '>=3.2.0'
   EMSDK_VERSION: '4.0.7'
@@ -155,6 +155,16 @@ jobs:
         pip install playwright
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --screenshot starter-smoke.png
+
+    # Clayground.Sound's first audio-device query used to deadlock the page's
+    # main thread (#216) - a failure no desktop test can see.
+    - name: Sound Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/sound \
+          --expect "clay-sound: audio device query returned" \
+          --timeout 90
 
     - name: Test
       if: matrix.qt-target == 'desktop'

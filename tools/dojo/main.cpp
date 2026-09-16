@@ -8,6 +8,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QDir>
+#include <QCoreApplication>
 #include <QDebug>
 #include <QCommandLineParser>
 #include <iostream>
@@ -70,6 +71,12 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion(CLAY_DOJO_VERSION);
 
     QQmlApplicationEngine engine;
+    // Absolute, off the binary rather than off the working directory. The
+    // relative form below only resolves when the dojo is launched from
+    // build/bin, so every documented invocation - all of which run it from
+    // the repo root - found no Clayground modules at all and loaded a blank
+    // white sandbox. clayrender always did it this way; these did not.
+    engine.addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine.addImportPath("qml");
     ClayScene::applyStorageDir(&engine);
 

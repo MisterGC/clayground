@@ -31,6 +31,7 @@ Dependency-free (stdlib only) so it runs in CI without an install step.
 import json
 import os
 import re
+import shutil
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -46,7 +47,7 @@ REPO = REPO_ROOT + "/blob/main"
 
 # Order is editorial, not alphabetical: this is the sequence a newcomer
 # should meet them in - simplest domain first, most open-ended last.
-ORDER = ["electronics-101", "sensor-fusion-101", "street-network-101"]
+ORDER = ["electronics-101", "hydraulics-101", "sensor-fusion-101", "street-network-101"]
 
 # Which kit each lab leans on, for the fact strip. Derived from the lab's
 # own imports rather than hardcoded.
@@ -237,6 +238,22 @@ def write_cards(lab_names):
     return entries
 
 
+def copy_figures(body, lab_dir, slug):
+    """The opening section keeps its `![..](figures/x.png)` references as
+    they are, and the page's permalink is /labs/<slug>/, so the file has to
+    sit beside the page at docs/labs/<slug>/figures/x.png for Jekyll to
+    serve it - without this the lab page shows a broken image (#247)."""
+    for rel in re.findall(r"!\[[^\]]*\]\((figures/[^)\s]+)\)", body):
+        src = os.path.join(lab_dir, rel)
+        if not os.path.exists(src):
+            print("warning: %s references %s, which does not exist"
+                  % (slug, rel), file=sys.stderr)
+            continue
+        dst = os.path.join(OUT_DIR, slug, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
+
+
 def main():
     if not os.path.isdir(LABS_DIR):
         print("no labs/ directory - nothing to import", file=sys.stderr)
@@ -254,6 +271,7 @@ def main():
         paper = read(paper_path)
         name, tagline = split_title(paper)
         body = opening_section(paper)
+        copy_figures(body, lab_dir, slug)
         scen = scenarios_of(lab_dir)
         kit = kit_of(lab_dir)
         # A screenshot is optional: a lab without one still gets a page, it

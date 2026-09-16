@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ReadoutRow
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief One line of a readout: swatch, name, live value.
 
     The row three labs wrote out by hand - sensor-fusion's legend entries,

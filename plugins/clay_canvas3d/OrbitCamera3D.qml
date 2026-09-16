@@ -31,12 +31,20 @@ import QtQuick3D
     was asked for, not to the frame it happened to be caught on.
 
     \note Move the rig with \l orbitBy, \l zoomBy, \l zoomToward,
-    \l setDistance, \l setPivot, \l reanchor, \l panBy, \l frame, \l focusOn
-    and \l goTo rather than by writing the pose properties. Every one of them computes the limited value first and writes
+    \l setDistance, \l setPivot, \l reanchor, \l panBy, \l frame, \l fit,
+    \l focusOn and \l goTo rather than by writing the pose properties. Every one of them computes the limited value first and writes
     it \e once, which is what makes an animated rig correct: a Behavior defers
     the write, so a write-then-clamp reads back what was there before and
     silently cancels its own move. Direct writes are for the declared initial
     pose (they are adopted as the goal while nothing is animating).
+
+    \section2 Where you have been
+
+    An endless ground has nothing to navigate back by, so the rig keeps two
+    memories. \l pushJump / \l jumpBack / \l jumpForward are vim's jumplist:
+    every deliberate jump records the place it left, travel records nothing.
+    \l frameWithReturn is the shorter loop - dive onto something, press again,
+    and the overview you left comes back exactly.
 
     Example usage:
     \qml
@@ -211,6 +219,64 @@ Node {
         down from wherever you are". \l goTo travels to one.
     */
     property var viewpoints: ({})
+
+    /*!
+        \qmlproperty var OrbitCamera3D::view
+        \brief The View3D this rig renders through. Optional.
+
+        What tells the rig the shape of its frame. Without it every fit is
+        made against the vertical field alone, which is right for a landscape
+        window and too tight for a portrait one; with it \l aspect is known
+        and \l fit composes against the real picture. Nothing else reads it.
+    */
+    property var view: null
+
+    /*!
+        \qmlproperty real OrbitCamera3D::aspect
+        \readonly
+        \brief Width over height of the frame; 0 while \l view is not set.
+    */
+    readonly property real aspect: (view && view.height > 0) ? view.width / view.height : 0
+
+    // --- following ---------------------------------------------------------
+    // A moving subject and a camera that only ever cuts is the one thing a
+    // television audience will not forgive: the presenter walks out of the
+    // side of the picture and the cut lands on an empty frame. A follow is
+    // the operator's pan - the subject may wander inside a central zone
+    // freely, and the rig moves only once it reaches the edge of that zone,
+    // and then just far enough to keep it there. That lag is the point: a
+    // camera locked to a moving thing reads as the thing standing still and
+    // the world sliding, which is the opposite of what happened.
+
+    /*!
+        \qmlproperty var OrbitCamera3D::follow
+        \brief What to keep in frame while it moves: a function returning a
+               \c vector3d or an array of them, called every frame. Null is off.
+
+        The subject may drift within the inner part of the frame without the
+        rig reacting (\l followSlack); once any point crosses that zone the
+        pivot pans along the ground - never zooms - just far enough to bring
+        it back, over \l followMs. A \l frame, \l fit or \l goTo made while a
+        follow is on still happens; the follow only corrects what leaves the
+        picture after it. The pan leash still applies, so a subject that walks
+        past \l panLeash does get left behind - back the shot off, that is
+        what \l fit's \c pad is for.
+    */
+    property var follow: null
+
+    /*!
+        \qmlproperty real OrbitCamera3D::followSlack
+        \brief How much of the half-frame the subject may cross before the
+               rig pans: 0 pans at the first pixel, 0.25 (default) lets it
+               reach three quarters of the way to the edge.
+    */
+    property real followSlack: 0.25
+
+    /*!
+        \qmlproperty int OrbitCamera3D::followMs
+        \brief How long one follow correction glides; the lag of the pan.
+    */
+    property int followMs: 500
 
     /*!
         \qmlproperty PerspectiveCamera OrbitCamera3D::camera
@@ -608,15 +674,38 @@ Node {
     }
 
     /*!
-        \qmlmethod void OrbitCamera3D::frame(var points, real pad)
+        \qmlmethod void OrbitCamera3D::frame(var points, real pad, var angles)
         \brief Centres on the given world points and backs off until they fit.
 
         \a points is an array of vector3d (or {x, y, z}); \a pad is a headroom
         factor (1.0 = tight, 1.3 = comfortable). Keeps the current yaw/pitch,
-        so framing never disorients the viewer.
+        so framing never disorients the viewer - unless \a angles asks for a
+        specific one: an optional \c {{yaw, pitch}} (either field alone is
+        fine) folded into the same single glide. For the framing that IS a
+        deliberate change of viewpoint - a lab dropping to eye level while a
+        character presents - where framing first and pitching second would
+        move the camera twice.
     */
-    function frame(points, pad) {
+    function frame(points, pad, angles) {
         if (!points || points.length === 0) return
+        const b = _boundsOf(points)
+        var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
+        // one move, not a setPivot followed by a setDistance: two writes to an
+        // animated rig start two glides that arrive at different times, and the
+        // scene visibly slides while it zooms
+        const aYaw = angles && angles.yaw !== undefined ? angles.yaw : _goal.yaw
+        const aPitch = angles && angles.pitch !== undefined ? angles.pitch : _goal.pitch
+        clearReturn()          // framing IS the reset F comes home from
+        _apply(aYaw, aPitch,
+               (b.radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
+               Qt.vector3d(b.cx, b.cy, b.cz))
+    }
+
+    // What framing works from, split out so \l frameWithReturn can ask "is this
+    // the same selection?" without moving anything. Centre and radius only:
+    // they depend on the points alone, while the pose framing produces also
+    // carries the yaw and pitch the viewer has turned to since.
+    function _boundsOf(points) {
         var minX = Infinity, maxX = -Infinity, minY = Infinity
         var maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
         for (var i = 0; i < points.length; ++i) {
@@ -625,14 +714,236 @@ Node {
             minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
             minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
         }
-        var radius = Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2
-        var tanHalf = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
-        // one move, not a setPivot followed by a setDistance: two writes to an
-        // animated rig start two glides that arrive at different times, and the
-        // scene visibly slides while it zooms
-        _apply(_goal.yaw, _goal.pitch,
-               (radius / Math.max(0.05, tanHalf)) * (pad === undefined ? 1.3 : pad),
-               Qt.vector3d((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2))
+        return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, cz: (minZ + maxZ) / 2,
+                 radius: Math.max(maxX - minX, maxZ - minZ, maxY - minY) / 2 }
+    }
+
+    // --- composing a shot ----------------------------------------------------
+    // frame() fits a bounding sphere against the vertical field of view, which
+    // is safe and often loose: a presenter beside a part is a flat, wide set
+    // of points, and a sphere around it backs off for a height it does not
+    // have. What a shot actually needs is every point INSIDE the picture with
+    // a margin, and the picture is not the whole window - the bottom carries
+    // a flow bar, the top a hint strip. fit() does that in screen space.
+
+    // The camera's axes at a yaw/pitch: right (on the ground), up (in the
+    // image) and forward (from the camera INTO the scene) - the three a shot
+    // is composed in. dir is the view axis the rest of the rig uses,
+    // pointing the other way.
+    function _axes(y, p) {
+        const a = y * Math.PI / 180
+        const dir = _dirTo(y, p)
+        const r = Qt.vector3d(Math.cos(a), 0, -Math.sin(a))
+        const f = Qt.vector3d(-dir.x, -dir.y, -dir.z)
+        const u = Qt.vector3d(r.y * f.z - r.z * f.y,
+                              r.z * f.x - r.x * f.z,
+                              r.x * f.y - r.y * f.x)
+        return { r: r, u: u, f: f, dir: dir }
+    }
+
+    function _dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z }
+
+    // Half-extents of the frame at unit depth. Without a view the frame is
+    // assumed landscape (16:9): a fit that assumed square would back off for
+    // width no real window lacks.
+    function _tanHV(asp) {
+        const tanV = Math.tan(fieldOfView * 0.5 * Math.PI / 180)
+        const a = asp !== undefined && asp > 0 ? asp : (aspect > 0 ? aspect : 16 / 9)
+        return { v: tanV, h: tanV * a }
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::fit(var points, var opts)
+        \brief Composes a shot: every point inside the picture, as close as that allows.
+
+        The screen-space fit. \a points is an array of \c vector3d (or
+        \c {{x, y, z}}); \a opts is an optional object:
+
+        \list
+        \li \c yaw, \c pitch - the angles to shoot from; either alone is fine,
+            what is left out keeps its goal value. Folded into the same glide.
+        \li \c pad - headroom factor on the distance found (default 1.15).
+        \li \c safe - \c {{top, bottom, left, right}}, each the fraction of the
+            frame that is NOT picture: chrome, a flow bar, a hint strip. The
+            points are fitted into what is left and centred in it, so a bar
+            along the bottom moves the subject \e up rather than shrinking it.
+        \li \c aspect - overrides \l aspect for this shot.
+        \li \c ms - glide time for this move; left out, the rig's current
+            glide applies (\l smoothMs, or \l travelMs inside a journey).
+        \endlist
+
+        Where \l frame fits a sphere against the vertical field and keeps the
+        pivot on the centre of the points, this projects every point and finds
+        the nearest distance at which all of them sit inside the safe
+        rectangle, shifting the pivot within the image plane to centre them
+        there. The pivot may therefore leave the ground; \l minPivotY still
+        bounds it. Returns false when there is nothing to fit. Clears the
+        \l frameWithReturn excursion, like \l frame.
+    */
+    function fit(points, opts) {
+        if (!points || points.length === 0) return false
+        opts = opts || {}
+        const y = opts.yaw !== undefined ? opts.yaw : _goal.yaw
+        const p = _fitPitch(opts.pitch !== undefined ? opts.pitch : _goal.pitch)
+        const pad = opts.pad === undefined ? 1.15 : Math.max(0.5, opts.pad)
+        const safe = opts.safe || {}
+        const b = _boundsOf(points)
+        const ax = _axes(y, p)
+        const t = _tanHV(opts.aspect)
+        // the safe rectangle, normalized: +1 is the top and the right
+        const xmin = -1 + 2 * (safe.left || 0), xmax = 1 - 2 * (safe.right || 0)
+        const ymin = -1 + 2 * (safe.bottom || 0), ymax = 1 - 2 * (safe.top || 0)
+        if (xmin >= xmax || ymin >= ymax) return false
+        // every point in the camera's axes, relative to the centre of them all
+        const rel = []
+        for (let i = 0; i < points.length; ++i) {
+            const q = points[i]
+            const v = Qt.vector3d(q.x - b.cx, q.y - b.cy, q.z - b.cz)
+            rel.push({ r: _dot(v, ax.r), u: _dot(v, ax.u), f: _dot(v, ax.f) })
+        }
+        // At distance d the camera sits d behind the centre, so a point is
+        // d + f deep, and it needs a pivot offset (ro, uo) in the image plane
+        // that keeps it between the safe edges. Intersect those intervals
+        // over all points: non-empty means d is enough. They only widen as d
+        // grows, which is what lets the nearest d be found by bisection.
+        function offsets(d) {
+            let rLo = -Infinity, rHi = Infinity, uLo = -Infinity, uHi = Infinity
+            for (let i = 0; i < rel.length; ++i) {
+                const e = rel[i]
+                const depth = d + e.f
+                if (depth <= 1e-6) return null
+                rLo = Math.max(rLo, e.r - xmax * depth * t.h)
+                rHi = Math.min(rHi, e.r - xmin * depth * t.h)
+                uLo = Math.max(uLo, e.u - ymax * depth * t.v)
+                uHi = Math.min(uHi, e.u - ymin * depth * t.v)
+            }
+            if (rLo > rHi || uLo > uHi) return null
+            return { ro: (rLo + rHi) / 2, uo: (uLo + uHi) / 2 }
+        }
+        let lo = Math.max(1e-3, minDistance), hi = Math.max(lo, maxDistance)
+        let d, off
+        if (!offsets(hi)) {
+            // not even the furthest allowed pose holds them all: take it, and
+            // centre on the middle of the set as frame() would
+            d = hi
+            off = { ro: 0, uo: 0 }
+        } else {
+            if (offsets(lo)) {
+                hi = lo
+            } else {
+                for (let i = 0; i < 40 && hi - lo > 1e-4; ++i) {
+                    const mid = (lo + hi) / 2
+                    if (offsets(mid)) hi = mid; else lo = mid
+                }
+            }
+            d = Math.min(maxDistance, hi * pad)
+            off = offsets(d) || offsets(hi)
+        }
+        const pv = Qt.vector3d(b.cx + ax.r.x * off.ro + ax.u.x * off.uo,
+                               b.cy + ax.r.y * off.ro + ax.u.y * off.uo,
+                               b.cz + ax.r.z * off.ro + ax.u.z * off.uo)
+        clearReturn()
+        if (opts.ms !== undefined && opts.ms !== null) _travel(opts.ms)
+        _apply(y, p, d, pv)
+        return true
+    }
+
+    /*!
+        \qmlmethod var OrbitCamera3D::project(var p, bool goal)
+        \brief Where a world point lands in the frame, without a View3D.
+
+        Returns \c {{x, y, depth}}: \c x and \c y normalized so that -1..1 is
+        the picture (\c y up), \c depth the distance in front of the lens - a
+        point at or behind it has \c depth <= 0 and its x/y mean nothing.
+        Computed from the rig's own pose, so it answers for a rig that is not
+        rendering at all; \a goal true projects through the goal pose rather
+        than the interpolant, which is what a follow correction needs.
+    */
+    function project(p, goal) {
+        const y = goal ? _goal.yaw : yaw, pt = goal ? _goal.pitch : pitch
+        const d = goal ? _goal.distance : distance, pv = goal ? _goal.pivot : pivot
+        const ax = _axes(y, pt)
+        const t = _tanHV()
+        const cx = pv.x + ax.dir.x * d, cy = pv.y + ax.dir.y * d, cz = pv.z + ax.dir.z * d
+        const v = Qt.vector3d(p.x - cx, p.y - cy, p.z - cz)
+        const depth = _dot(v, ax.f)
+        if (depth <= 1e-9) return { x: 0, y: 0, depth: depth }
+        return { x: _dot(v, ax.r) / (depth * t.h), y: _dot(v, ax.u) / (depth * t.v),
+                 depth: depth }
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::covers(var points, real margin, bool goal)
+        \brief Whether every point is inside the frame, \a margin (0..1, a
+               fraction of the half-frame) away from its edges.
+
+        The question a shot is verified by: not "did the camera move" but
+        "is the thing still in the picture". \a goal as for \l project.
+    */
+    function covers(points, margin, goal) {
+        if (!points) return false
+        const pts = Array.isArray(points) ? points : [points]
+        const lim = 1 - (margin === undefined ? 0 : margin)
+        for (let i = 0; i < pts.length; ++i) {
+            const n = project(pts[i], goal)
+            if (n.depth <= 0 || Math.abs(n.x) > lim || Math.abs(n.y) > lim)
+                return false
+        }
+        return pts.length > 0
+    }
+
+    // One frame of the follow: find how far past the inner zone the subject
+    // has got, and pan the goal pivot by exactly the ground move that puts it
+    // back on the zone's edge. Screen right is a ground direction already, so
+    // that half is a division; screen up is "away" along the ground, and a
+    // pan away changes a point's depth as well as its height, so that half
+    // solves the projection for the move (the depth term is what made the
+    // first version overshoot by a third). A flat shot cannot pan a tall
+    // thing into frame at all - the solve degenerates - and then the point
+    // is left where it is rather than chased the wrong way. Nothing happens
+    // while the subject is inside the zone, so a follow at rest costs a
+    // projection per point and no writes.
+    function _followTick() {
+        if (typeof follow !== "function") return
+        let pts = follow()
+        if (!pts) return
+        if (!Array.isArray(pts)) pts = [pts]
+        if (pts.length === 0) return
+        const lim = 1 - Math.max(0, Math.min(0.9, followSlack))
+        const t = _tanHV()
+        const s = Math.sin(_goal.pitch * Math.PI / 180)
+        const c = Math.cos(_goal.pitch * Math.PI / 180)
+        let dR = 0, dA = 0
+        for (let i = 0; i < pts.length; ++i) {
+            const n = project(pts[i], true)
+            if (n.depth <= 0) continue
+            if (Math.abs(n.x) > lim) {
+                const want = n.x > 0 ? lim : -lim
+                const m = (n.x - want) * n.depth * t.h
+                dR = m > 0 ? Math.max(dR, m) : Math.min(dR, m)
+            }
+            if (Math.abs(n.y) > lim) {
+                const want = n.y > 0 ? lim : -lim
+                const up = n.y * n.depth * t.v
+                const den = s - want * t.v * c
+                if (Math.abs(den) < 0.05) continue
+                const m = (up - want * t.v * n.depth) / den
+                dA = m > 0 ? Math.max(dA, m) : Math.min(dA, m)
+            }
+        }
+        if (Math.abs(dR) < 1e-4 && Math.abs(dA) < 1e-4) return
+        const a = _goal.yaw * Math.PI / 180
+        const rx = Math.cos(a), rz = -Math.sin(a)
+        const ax = -Math.sin(a), az = -Math.cos(a)
+        _travel(followMs)
+        _apply(_goal.yaw, _goal.pitch, _goal.distance,
+               Qt.vector3d(_goal.pivot.x + rx * dR + ax * dA, _goal.pivot.y,
+                           _goal.pivot.z + rz * dR + az * dA))
+    }
+
+    FrameAnimation {
+        running: typeof root.follow === "function"
+        onTriggered: root._followTick()
     }
 
     /*!
@@ -646,17 +957,24 @@ Node {
 
         The verb a lab's own picking calls: the input layer never decides what
         is worth looking at, it only offers the ride.
+
+        A journey, so it \l pushJump s: this is where you were before you dived
+        at something, and \l jumpBack is how you get back.
     */
     function focusOn(what, pad, ms) {
         if (!what) return
-        _travel(ms)
         // Array.isArray, not a duck-typed `length` check: a vector3d HAS a
         // length - it is the method that measures the vector - so the obvious
         // test says "array" for exactly the single point this branch is for.
         const pts = Array.isArray(what) ? what : [what]
         if (pts.length === 0) return
-        if (pts.length === 1) { setPivot(pts[0]); return }
-        frame(pts, pad)
+        // after the guards, so a refused focus leaves no trace on the jumplist
+        pushJump()
+        clearReturn()
+        _travel(ms)
+        if (pts.length === 1) setPivot(pts[0])
+        else frame(pts, pad)
+        _settleJump()
     }
 
     /*!
@@ -665,15 +983,21 @@ Node {
 
         Yaw takes the short way round: a rig turned three times over does not
         unwind on the way to a viewpoint that says \c {yaw: 0}.
+
+        Named places are jumps, so this \l pushJump s - and a name that does not
+        exist does not, because it did not go anywhere.
     */
     function goTo(name, ms) {
         const vp = viewpoints ? viewpoints[name] : undefined
         if (vp === undefined || vp === null) return false
+        pushJump()
+        clearReturn()
         _travel(ms)
         const s = {}
         for (const k in vp) s[k] = vp[k]
         if (s.yaw !== undefined) s.yaw = _nearestYaw(_goal.yaw, s.yaw)
         applyState(s)
+        _settleJump()
         return true
     }
 
@@ -725,6 +1049,244 @@ Node {
                s.pitch !== undefined ? s.pitch : _goal.pitch,
                s.distance !== undefined ? s.distance : _goal.distance,
                s.px !== undefined ? Qt.vector3d(s.px, s.py, s.pz) : _goal.pivot)
+    }
+
+    // --- where you have been -----------------------------------------------
+    //
+    // Two kinds of memory, and they are different questions. The jumplist
+    // answers "where was I before this?" over a whole session (vim's Ctrl+O /
+    // Ctrl+I, imported as-is); the return pose answers "where do I go back to
+    // when I am done looking at this?" for one dive.
+    //
+    // Both hold GOAL poses, never the interpolant, for the reason state() does:
+    // a jump taken mid-glide has to remember where the rig was headed, or
+    // coming back lands on whichever frame the key happened to fall on.
+    //
+    // The stacks are REASSIGNED rather than mutated in place, so jumpsBack and
+    // jumpsAhead actually notify - an array pushed into is the same array, and
+    // a binding on its length never fires again.
+
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpDepth
+        \brief How many places back the jumplist remembers.
+
+        Bounded because the alternative is a session-long leak of poses nobody
+        will ever walk back to; the oldest entry falls off the bottom.
+    */
+    property int jumpDepth: 50
+
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpsBack
+        \readonly
+        \brief Places \l jumpBack can still take you.
+    */
+    readonly property int jumpsBack: _back.length
+    /*!
+        \qmlproperty int OrbitCamera3D::jumpsAhead
+        \readonly
+        \brief Places \l jumpForward can still take you.
+    */
+    readonly property int jumpsAhead: _fwd.length
+
+    /*!
+        \qmlproperty bool OrbitCamera3D::hasReturnPose
+        \readonly
+        \brief A \l frameWithReturn dive is open, so the next one comes home.
+
+        What a lab shows in its hint bar, so the second press of the framing key
+        is offered rather than discovered.
+    */
+    readonly property bool hasReturnPose: _returnPose !== null
+
+    property var _back: []
+    property var _fwd: []
+    property var _returnPose: null
+    property var _returnTarget: null
+
+    /*!
+        \qmlmethod void OrbitCamera3D::pushJump()
+        \brief Records the pose the rig is in as a place worth coming back to.
+
+        \l goTo, \l focusOn and \l frameWithReturn call it themselves; anything
+        else that means a \e jump rather than travel calls it first - a lab's
+        reset-the-view key, a flow step that aims the camera, a hint label
+        selected and flown to. Travel deliberately does not: a jumplist that
+        filled up with every drag would have nothing recognisable left in it,
+        which is exactly why vim distinguishes the two.
+
+        Clears the forward list, because history that was walked back and then
+        left is no longer where you are going - unless the jump turns out not to
+        move the rig at all, and then nothing about the memory changes. A key
+        that went nowhere must leave no trace, or the next \l jumpBack answers
+        for a press that did nothing.
+    */
+    function pushJump() {
+        const here = state()
+        _jumpPending = true
+        _jumpPrevFwd = _fwd
+        _fwd = []
+        // the pose already on top is not a place you left - but the entry is
+        // still what _settleJump measures the move against, so the flag says
+        // whether it is ours to take back off again
+        _jumpPushed = _back.length === 0 || !_samePose(_back[_back.length - 1], here)
+        if (!_jumpPushed) return
+        var b = _back.concat([here])
+        if (b.length > Math.max(1, jumpDepth)) b = b.slice(b.length - Math.max(1, jumpDepth))
+        _back = b
+    }
+
+    // Every jump verb ends here: whatever the move did, the recorded pose is on
+    // top of the list, so comparing it against the goal pose says whether the
+    // rig actually went anywhere. It did not for a goTo to the viewpoint you
+    // are standing on, or a focusOn onto what is already centred - and those
+    // must not consume the way forward either.
+    property bool _jumpPending: false
+    property bool _jumpPushed: false
+    property var _jumpPrevFwd: null
+    function _settleJump() {
+        if (!_jumpPending) return
+        _jumpPending = false
+        const pushed = _jumpPushed, prevFwd = _jumpPrevFwd
+        _jumpPrevFwd = null
+        if (_back.length === 0) return
+        if (!_samePose(_back[_back.length - 1], state())) return   // it moved
+        if (pushed) _back = _back.slice(0, _back.length - 1)
+        _fwd = prevFwd ? prevFwd : []
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::jumpBack(int ms)
+        \brief Travels to the place before the last jump; false at the end.
+
+        False is the interesting half: nothing moves and the caller is expected
+        to say so, because a key that silently does nothing reads as broken.
+        The pose being left is put on the forward list, so the walk is
+        reversible by \l jumpForward for as long as no new jump happens.
+    */
+    function jumpBack(ms) {
+        if (_back.length === 0) return false
+        const to = _back[_back.length - 1]
+        _back = _back.slice(0, _back.length - 1)
+        _fwd = _fwd.concat([state()]).slice(-Math.max(1, jumpDepth))
+        clearReturn()
+        _travel(ms)
+        applyState(to)
+        return true
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::jumpForward(int ms)
+        \brief Undoes a \l jumpBack; false when there is nothing ahead.
+    */
+    function jumpForward(ms) {
+        if (_fwd.length === 0) return false
+        const to = _fwd[_fwd.length - 1]
+        _fwd = _fwd.slice(0, _fwd.length - 1)
+        // NOT pushJump(): that clears the forward list, which is the one thing
+        // walking it must not do
+        _back = _back.concat([state()]).slice(-Math.max(1, jumpDepth))
+        clearReturn()
+        _travel(ms)
+        applyState(to)
+        return true
+    }
+
+    /*!
+        \qmlmethod bool OrbitCamera3D::frameWithReturn(var points, real pad)
+        \brief Dives onto \a points, and the next call on the same thing comes back.
+
+        The framing key pressed twice is a round trip: dive in to read a value
+        up close, press it again, and the overview you left is restored exactly
+        - including the yaw you had turned to, which is what "exactly" has to
+        mean or the second press is just another reframing.
+
+        \list
+        \li No return pose stored: remembers where you are and frames
+            \a points.
+        \li Stored, and \a points is the same extent again (or nothing is
+            selected at all): flies home and forgets.
+        \li Stored, and \a points is a \e different extent: reframes onto it and
+            \b keeps the original return pose. The loop always closes where it
+            began - walking from part to part is one excursion, not a chain of
+            them, and the way home does not drift with it.
+        \endlist
+
+        Sameness is the extent, not the selection: this layer has never been
+        told what a part is, and the centre and radius of what it was asked to
+        frame is the whole of what it can compare. Two different selections that
+        occupy the same box are one place as far as the camera is concerned,
+        which is also how they look.
+
+        Returns false only when there was nothing to do - no points and no way
+        home. Any jump (\l goTo, \l focusOn, \l jumpBack) and any plain \l frame
+        drops the return pose: those are departures, not the end of an
+        excursion.
+    */
+    function frameWithReturn(points, pad) {
+        const target = points && points.length > 0 ? _boundsOf(points) : null
+        if (_returnPose !== null && (target === null || _sameTarget(target, _returnTarget))) {
+            const home = _returnPose
+            pushJump()             // the close-up is a place too: Ctrl+O dives back in
+            clearReturn()
+            _travel()
+            applyState(home)
+            _settleJump()
+            return true
+        }
+        if (target === null) return false
+        const home = _returnPose !== null ? _returnPose : state()
+        pushJump()
+        _travel()
+        frame(points, pad)         // clears the return pose...
+        _returnPose = home         // ...which is why it is stored afterwards
+        _returnTarget = target
+        _settleJump()
+        return true
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::clearJumps()
+        \brief Forgets everywhere the rig has been.
+
+        For a scene that has been replaced under the camera - a scenario
+        applied, a board cleared - where the recorded poses now describe places
+        in a world that no longer exists. Walking the list cannot do this:
+        \l jumpBack and \l jumpForward only move an entry from one side to the
+        other, which is what makes them reversible.
+    */
+    function clearJumps() {
+        _back = []
+        _fwd = []
+    }
+
+    /*!
+        \qmlmethod void OrbitCamera3D::clearReturn()
+        \brief Forgets the open \l frameWithReturn excursion.
+
+        For a lab that ends one by other means - a scenario change, a scene
+        rebuilt under the camera - where the pose the dive began from no longer
+        describes anywhere the viewer would recognise.
+    */
+    function clearReturn() {
+        _returnPose = null
+        _returnTarget = null
+    }
+
+    function _samePose(a, b) {
+        return Math.abs(a.yaw - b.yaw) < 1e-4 && Math.abs(a.pitch - b.pitch) < 1e-4
+               && Math.abs(a.distance - b.distance) < 1e-4
+               && Math.abs(a.px - b.px) < 1e-4 && Math.abs(a.py - b.py) < 1e-4
+               && Math.abs(a.pz - b.pz) < 1e-4
+    }
+
+    // Relative to the extent's own size, so "the same selection" survives the
+    // float noise of a rebuilt scene without calling two neighbouring parts one
+    // place.
+    function _sameTarget(a, b) {
+        if (!a || !b) return false
+        const eps = Math.max(1e-3, Math.max(a.radius, b.radius) * 0.01)
+        return Math.abs(a.cx - b.cx) < eps && Math.abs(a.cy - b.cy) < eps
+               && Math.abs(a.cz - b.cz) < eps && Math.abs(a.radius - b.radius) < eps
     }
 
     Behavior on yaw {

@@ -197,6 +197,131 @@ Item {
           code == 0 and centre_of(out_script) == (0xFF, 0x33, 0x66),
           f"exit {code} {centre_of(out_script)}")
 
+    # --result: the value of each fragment, not just "it did not throw" (#207).
+    def results_of(argv):
+        code, out, err = run(args.clayrender, argv + ["--result", "-"])
+        # The JSON array is written before the "shot.png (WxH)" line, so it is
+        # everything up to and including the closing bracket.
+        end = out.rfind("]")
+        try:
+            return code, json.loads(out[:end + 1]), err
+        except ValueError:
+            return code, None, out + err
+
+    code, got, err = results_of([state, "--out", os.path.join(tmp, "res.png"),
+                                 "--size", "60x40", "--eval", "spawned"])
+    check("--result gives an expression its value, not null",
+          code == 0 and got == [{"source": "spawned", "value": 0}], str(got)[:160])
+
+    code, got, _ = results_of([state, "--out", os.path.join(tmp, "res.png"),
+                               "--size", "60x40",
+                               "--eval", 'applyScenario("hot")',
+                               "--eval", "({ fill: String(fill), n: [1, 2] })"])
+    check("--result keeps one entry per fragment, in command-line order",
+          code == 0 and len(got) == 2 and got[0]["value"] is None
+          and got[1]["value"]["n"] == [1, 2], str(got)[:200])
+
+    # Several statements are not an expression, so the value is what the
+    # fragment RETURNS - and a fragment that returns nothing answers null.
+    code, got, _ = results_of([state, "--out", os.path.join(tmp, "res.png"),
+                               "--size", "60x40",
+                               "--eval", "var x = 2; return x * 3"])
+    check("a multi-statement fragment answers with what it returns",
+          code == 0 and got[0]["value"] == 6, str(got)[:160])
+
+    code, got, _ = results_of([state, "--out", os.path.join(tmp, "res.png"),
+                               "--size", "60x40", "--eval", "root"])
+    check("a value JSON cannot carry comes back as a readable string",
+          code == 0 and isinstance(got[0]["value"], str)
+          and got[0]["value"] != "", str(got)[:160])
+
+    # --result takes a different route into the scene, so the failure has to
+    # be checked on that route too: a throw is exit 1 with the message, never
+    # a null value quietly written into the array.
+    code, out, err = run(args.clayrender,
+                         [state, "--out", os.path.join(tmp, "res.png"),
+                          "--size", "60x40", "--result", "-",
+                          "--eval", "noSuchFunction()"])
+    check("a broken --eval under --result still fails loudly",
+          code == 1 and "noSuchFunction" in err and "value" not in out,
+          f"exit {code} {err.strip()[:80]}")
+
+    res_file = os.path.join(tmp, "result.json")
+    code, _, err = run(args.clayrender,
+                       [state, "--out", os.path.join(tmp, "res.png"),
+                        "--size", "60x40", "--eval", "spawned",
+                        "--result", res_file])
+    check("--result <file> writes the same array to disk",
+          code == 0 and json.load(open(res_file))[0]["value"] == 0,
+          f"exit {code} {err.strip()[:80]}")
+
+    # A sandbox with a sim clock, so --paused can be checked on the thing it
+    # exists for: sim time that has already moved by the first --eval.
+    write(os.path.join(tmp, "Clocked.qml"), """
+import QtQuick
+import Clayground.Lab
+Item {
+    SimClock { id: clock; sampleInterval: 0.1 }
+    Rectangle { anchors.fill: parent; color: "#101820" }
+}
+""")
+    clocked = os.path.join(tmp, "Clocked.qml")
+    code, got, err = results_of([clocked, "--out", os.path.join(tmp, "clk.png"),
+                                 "--size", "60x40", "--eval", "clock.time"])
+    ticked = got[0]["value"] if got else None
+    check("without --paused the frame ticker has already moved sim time",
+          code == 0 and isinstance(ticked, (int, float)) and ticked > 0,
+          f"exit {code} {ticked} {err.strip()[:80]}")
+
+    code, got, err = results_of([clocked, "--out", os.path.join(tmp, "clk.png"),
+                                 "--size", "60x40", "--paused",
+                                 "--eval", "clock.time"])
+    check("--paused means the first --eval sees clock.time === 0",
+          code == 0 and got and got[0]["value"] == 0,
+          f"exit {code} {str(got)[:120]} {err.strip()[:80]}")
+
+    # Lab.runFlow through clayrender: the whole point of the three flags
+    # together is that a lesson can be walked and asked what broke (#207).
+    write(os.path.join(tmp, "Flowed.qml"), """
+import QtQuick
+import Clayground.Lab
+Item {
+    id: root
+    property int taps: 0
+    function flowActions() { return { "tap": () => { root.taps += 1; return root.taps } } }
+    function flows() { return [demoFlow.flowId] }
+    function startFlow(id) {
+        if (id === demoFlow.flowId) { demoFlow.start(); return true }
+        return false
+    }
+    function viewState() { return { taps: root.taps } }
+    function applyViewState(s) { root.taps = s.taps }
+    SimClock { id: clock; sampleInterval: 0.1 }
+    Flow {
+        id: demoFlow
+        lab: root
+        flowId: "demo"
+        FlowStep { key: "tap"; dwell: 0.3; demo: [["tap"]] }
+        FlowStep {
+            key: "again"
+            task: ({ "until": () => root.taps === 2, "solve": [["tap"]] })
+        }
+        FlowStep { key: "check"; dwell: 0.3; expect: () => root.taps === 2 }
+    }
+    Rectangle { anchors.fill: parent; color: "#101820" }
+}
+""")
+    code, got, err = results_of([os.path.join(tmp, "Flowed.qml"), "--out",
+                                 os.path.join(tmp, "flow.png"), "--size",
+                                 "60x40", "--paused",
+                                 "--eval", 'Lab.runFlow("demo")'])
+    ran = got[0]["value"] if got else None
+    check("Lab.runFlow walks a flow headless and reports a clean run",
+          code == 0 and ran and ran["finished"] is True
+          and ran["failedExpects"] == [] and ran["failedTasks"] == []
+          and ran["unresolvedVerbs"] == [],
+          f"exit {code} {str(ran)[:160]} {err.strip()[:80]}")
+
     # The order on the command line is the order of application - the parser
     # groups values per option, so this is the check that keeps it honest.
     out_a = os.path.join(tmp, "order_a.png")
@@ -237,6 +362,74 @@ Item {
                         "--wait-timeout", "400"])
     check("a broken --wait-for is an error, not a timeout",
           code == 1 and "noSuchThing" in err, f"exit {code} {err.strip()[:80]}")
+
+    # --trace: the scene over time, one sample per rendered frame (#219). A
+    # property that an animation moves is the smallest thing that must show
+    # up as a changing series and cannot be read off a single picture.
+    write(os.path.join(tmp, "Moving.qml"), """
+import QtQuick
+Item {
+    id: root
+    property real pos: 0
+    NumberAnimation on pos { from: 0; to: 100; duration: 400; running: true }
+    Rectangle { anchors.fill: parent; color: "#101820" }
+}
+""")
+    moving = os.path.join(tmp, "Moving.qml")
+
+    def trace_lines(path):
+        try:
+            with open(path) as f:
+                return [json.loads(line) for line in f if line.strip()]
+        except (OSError, ValueError):
+            return None
+
+    trace_file = os.path.join(tmp, "trace.jsonl")
+    code, _, err = run(args.clayrender,
+                       [moving, "--out", os.path.join(tmp, "trace.png"),
+                        "--size", "60x40", "--frames", "6",
+                        "--trace", "pos", "--trace", "noSuchThing.x",
+                        "--trace-out", trace_file])
+    lines = trace_lines(trace_file) or []
+    meta, samples = (lines[0] if lines else {}), lines[1:]
+    check("--trace with a throwing expression still exits 0",
+          code == 0, f"exit {code} {err.strip()[:80]}")
+    check("the trace opens with the loader's meta line",
+          meta.get("meta") == "trace_start" and isinstance(meta.get("epochMs"), (int, float))
+          and meta.get("watch") == ["pos", "noSuchThing.x"], json.dumps(meta)[:160])
+    check("one sample per rendered frame, at least --frames of them",
+          len(samples) >= 6 and all("frame" in s and "t" in s and "values" in s for s in samples),
+          f"{len(samples)} samples")
+    ts = [s.get("t", -1) for s in samples]
+    check("t never runs backwards",
+          bool(ts) and ts[0] == 0 and all(a <= b for a, b in zip(ts, ts[1:])), str(ts)[:120])
+    series = [s["values"].get("pos") for s in samples]
+    check("the traced value moves over the run",
+          len(set(series)) > 1 and all(isinstance(v, (int, float)) for v in series),
+          str(series)[:120])
+    errors = [s["values"].get("noSuchThing.x") for s in samples]
+    check("a throwing expression yields an error object in every sample",
+          errors and all(isinstance(e, dict) and "noSuchThing" in e.get("error", "")
+                         for e in errors), str(errors[:1])[:120])
+
+    code, _, err = run(args.clayrender,
+                       [moving, "--out", os.path.join(tmp, "trace.png"),
+                        "--size", "60x40", "--trace", "pos"])
+    check("--trace without --trace-out is a usage error",
+          code == 1 and "--trace-out" in err, f"exit {code} {err.strip()[:80]}")
+
+    # A state that never arrives still leaves its trace: that is the evidence
+    # of what the scene did instead, and exit 3 must not throw it away.
+    late_trace = os.path.join(tmp, "late.jsonl")
+    code, _, _ = run(args.clayrender,
+                     [moving, "--out", os.path.join(tmp, "late.png"),
+                      "--size", "60x40", "--trace", "pos",
+                      "--trace-out", late_trace,
+                      "--wait-for", "pos > 1000", "--wait-timeout", "300"])
+    late = trace_lines(late_trace) or []
+    check("a --wait-for that exits 3 still writes the trace so far",
+          code == 3 and len(late) >= 3 and late[0].get("meta") == "trace_start",
+          f"exit {code} {len(late)} lines")
 
     # Crop and scale, applied in that order.
     out_crop = os.path.join(tmp, "crop.png")

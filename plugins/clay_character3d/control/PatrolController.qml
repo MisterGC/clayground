@@ -143,8 +143,8 @@ Item {
     function angleToDestination() {
         const dx = destX - character.position.x
         const dz = destZ - character.position.z
-        // atan2 gives angle from +X axis, we need angle from -Z axis (forward)
-        // Forward is -Z, so we compute angle accordingly
+        // atan2 gives angle from +X axis, we need angle from +Z axis (forward)
+        // Forward is +Z, so we compute angle accordingly
         return Math.atan2(dx, dz) * 180 / Math.PI
     }
 

@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype BarFace
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief A level bar on an \l InstrumentScale - horizontal or vertical, with peak-hold.
 
     The face for a quantity read as "how far along" rather than as a number: a

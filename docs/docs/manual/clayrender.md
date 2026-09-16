@@ -16,6 +16,10 @@ no long-lived process, several variants render in parallel, nothing can hand
 back a stale or dead instance's picture, and a full 3D sandbox takes well under
 a second.
 
+The sandbox is positional or `--sbx <file>`, whichever the surrounding script
+already speaks - the Dojo's spelling works here too. Giving both is an error
+rather than a guess.
+
 Use the [Dojo]({{ site.baseurl }}/docs/manual/dojo/) instead when you need
 interaction, hot reload, or anything genuinely stateful.
 
@@ -64,6 +68,132 @@ default), `clayrender` exits **3 and writes no image** — a picture of a state
 that was never reached is worse than no picture. A *broken* expression is a
 different thing: that is exit 1 with the QML error, so a typo never reads as
 "the state never happened".
+
+## Getting an answer back
+
+`--eval` and `--script` change the scene; `--result` says what they came out
+to. It writes a JSON array with one entry per fragment, in the order they ran:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out board.png --paused \
+    --result - --eval 'Lab.scenario' --eval 'toggleSwitch(2); return simOf(4).i'
+```
+
+```json
+[
+    { "source": "Lab.scenario", "value": "led-basic" },
+    { "source": "toggleSwitch(2); return simOf(4).i", "value": 0.005149224103621227 }
+]
+```
+
+`-` means stdout; anything else is a file. `source` is the fragment as the
+command line spelled it — for `--script`, the path.
+
+A fragment that parses as an *expression* answers with what it evaluates to,
+so `clock.time` is a number rather than `null`. A fragment of several
+statements answers with what it `return`s, and with `null` when it returns
+nothing. A value JSON cannot carry — a QML object, a function, `NaN` — comes
+back as its `String()`, because an unreadable answer is worse than an
+approximate one.
+
+Values are captured **where the fragment runs**, which is before `--wait-for`,
+before `--settle` and before the capture. An `--eval` written after
+`--wait-for` on the command line still runs first, so it reports the state
+*before* the wait; put the assertion in the `--wait-for` expression instead and
+read the exit code.
+
+## Watching it move
+
+`--result` answers at one moment; `--trace` answers at every frame. It
+evaluates an expression in the root's context once per rendered frame — from
+the first `--set`/`--eval`/`--script` through `--frames`, `--wait-for` and
+`--settle`, up to and including the frame the picture shows — and writes the
+samples to `--trace-out`. That is how a question about *motion* gets answered
+without a Dojo session: did the professor stay in frame for the whole flight,
+how did the camera's goal pose change while a step ran.
+
+```bash
+clayrender labs/kits/professor/Sandbox.qml --out x.png \
+    --eval 'prof.appear()' --eval 'prof.travelTo(Qt.vector3d(6,0,4))' \
+    --trace 'view3d.mapFrom3DScene(prof.headAnchor).x' \
+    --trace 'prof.travelling' --trace-out flight.jsonl \
+    --wait-for '!prof.travelling' --wait-timeout 8000
+```
+
+```
+{"epochMs":1788600672519,"meta":"trace_start","sampling":"frame","watch":["view3d.mapFrom3DScene(prof.headAnchor).x","prof.travelling"]}
+{"frame":0,"t":0,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":640}}
+{"frame":1,"t":19,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":640}}
+...
+{"frame":49,"t":2847,"values":{"prof.travelling":true,"view3d.mapFrom3DScene(prof.headAnchor).x":2533.457275390625}}
+{"frame":50,"t":2906,"values":{"prof.travelling":false,"view3d.mapFrom3DScene(prof.headAnchor).x":2531.55224609375}}
+```
+
+Fifty-two frames later the professor has landed — and at 2533 px on a
+1280-wide viewport, its head left the picture on the way. That is a fact
+about the sandbox's default camera, and the single frame `--out` wrote could
+never have told you.
+
+The file is JSONL in the shape of the Dojo inspector's `trace.jsonl`: a meta
+line naming what was watched, then one object per rendered frame with the
+`frame` index, `t` in milliseconds since the first sample and `values` keyed by
+the expression as the command line spelled it. `-` writes it to stdout. The
+one difference from the inspector's trace is the clock — the inspector samples
+on a timer, `clayrender` samples the frames it draws, so a sample is never a
+moment between two frames.
+
+Values follow the `--result` rules: numbers, strings and booleans as they are,
+objects and arrays as JSON (a `vector3d` comes back as `{x, y, z}`), and
+anything JSON cannot carry as its `String()`. An expression that throws yields
+`{"error": "..."}` for that frame and nothing else; a trace is an observer,
+and one that aborted the run would turn *what happened* into *nothing
+happened*. Exit codes are unaffected by tracing, and the file is written a line
+at a time — so a `--wait-for` that exits 3 leaves the trace of how the state
+was *not* reached, which is usually the evidence you wanted.
+
+`--trace` needs `--trace-out`, and the other way round: both together or it is
+a usage error.
+
+## Starting paused
+
+`--paused` sets `Clayground.paused` before the sandbox root is created, so no
+frame ticker ever starts:
+
+```bash
+clayrender labs/sensor-fusion-101/Sandbox.qml --out shot.png \
+    --paused --result - --eval 'clock.time'      # 0, not "some wall clock"
+```
+
+Without it, the frames rendered at load have already moved sim time by the
+first `--eval` — which is why recipes used to open with
+`clock._frameTicker.running = false`, and why one that forgot produced a
+different number on every machine. A stepped run advances the clock itself
+(`Lab.runFlow()`, `clock._advance(1 / 60)`), and `--paused` is what stops
+anything else from advancing it underneath.
+
+## Running a lab's flow
+
+`Lab.runFlow(flowId)` walks a lab's guided flow with nobody watching and
+reports what broke — the headless half of *every flow is also a test*:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --out /tmp/x.png \
+    --paused --result - --eval 'Lab.runFlow("led-basics")'
+```
+
+```json
+{ "flowId": "led-basics", "steps": 5292, "finished": true,
+  "unresolvedVerbs": [], "failedTasks": [], "failedExpects": [] }
+```
+
+It forces `pacing: "auto"`, advances the clock in 1/60 s steps and performs
+every learner task itself, so a whole lesson runs in a second or two. A verb
+the lab does not have lands in `unresolvedVerbs` (a missing verb otherwise
+fails silently), a `FlowStep.expect` that does not hold lands in
+`failedExpects` with its step key, and `finished: false` means the step bound
+was hit rather than the end — never a hang. While it runs, `Lab.headless` is
+set: the narrator hides, the professor stays put and no narration audio is
+decoded.
 
 ## Getting a usable image
 
@@ -146,11 +276,27 @@ clayrender Sandbox.qml --out shot.png \
 | 0 | rendered, no complaints |
 | 1 | never loaded (missing file, QML that does not parse) — nothing written |
 | 2 | rendered, but the scene logged warnings or errors — image still written |
+| 3 | `--wait-for` never came true — no image, but a `--trace` is still written |
 
 Exit 2 exists because a runtime `ReferenceError` does not stop a component from
 instantiating: a broken scene can produce a perfectly plausible picture. The
 image is written so you can look at it, and the exit code stops a script from
 treating it as success.
+
+## Settings never leak
+
+Whatever a render persists through `LabPrefs` - theme, language, UI scale -
+goes to a throwaway store that dies with the process (`--prefs isolated`, the
+default). So `--eval 'LabTheme.mode = "dark"'` stays inside that one render
+and the next one is light at 100 % again, whatever the Dojo currently looks
+like; a figure of a German lab needs `--eval 'LabLang.lang = "de"'` rather
+than your session. No reset ritual at the end of a series.
+
+Two escapes: `--prefs user` writes the real store the Dojo reads, so a flip
+there *does* stick - end such a series at `LabTheme.mode = "light"` and
+`LabTheme.resetScale()`; `--prefs <dir>` keeps one throwaway store across a
+series. The carrier is `CLAY_STORAGE_DIR`, honoured by any host that sets it
+before building its engine.
 
 ## What it needs
 

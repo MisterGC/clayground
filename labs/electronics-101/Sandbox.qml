@@ -5,19 +5,27 @@ import QtQuick3D
 import Clayground.Canvas3D
 import Clayground.Lab
 import "../kits/circuit"
+import "../kits/professor"
 import "../kits/circuit/circuit.js" as Circuit
+import "../kits/circuit/route.js" as Route
+import "../kits/circuit/plan.js" as Plan
 import "../kits/circuit/symbols.js" as Symbols
+import "../kits/circuit/parts.js" as Parts
 import "../kits/circuit/strings.js" as CircuitStrings
 import "strings.js" as Strings
 
 // Electronics 101 — a school electronics kit on a pegboard: battery,
-// switch, resistor, LED, bulb and meters, wired freely by clicking
-// terminals. A DC nodal solver lights things up in real time.
+// switch, resistor, LED, bulb, diode, NPN transistor and meters, wired
+// freely by clicking terminals. A DC nodal solver lights things up in real
+// time, and the logic presets are gates rather than pictures of gates -
+// their truth tables are four more solves of the board in front of you.
 //
 // Keys are declared once, on the LabKeys below, which is also what generates
 // the on-screen list: press ? to see the whole map. The short version:
-// 1..4 presets · T the guided tour · C clear · E eraser · V values ·
-// M schematic · W plot the selected part · # grid mode · R turn · Del ·
+// 1..9 presets · T the guided flow (there are two - the offered one follows
+// the preset) · C clear · E eraser · V values · M schematic · Z the schematic
+// full window (lettered with every part's rating, and its reading too when V
+// is on) · Q plot the selected part · # grid mode · R turn · Del ·
 // Shift+R record · Esc cancel.
 //
 // There is no mode. The LEFT BUTTON IS ALWAYS THE BOARD'S: an empty hand wires
@@ -81,6 +89,44 @@ Item {
         }
     }
 
+    // The other half of vTerm: what the cells promise before their own drop.
+    // A paper that says "the parts get 86 % of the cell's volts" needs both
+    // numbers in the same record (#209) - the EMF is set per cell, so it is
+    // not a Parameter and would otherwise be in no record at all.
+    Probe {
+        name: "emf"; unit: "V"
+        expr: () => {
+            let sum = 0
+            const cells = root.sim.batteries || ({})
+            for (const el of root.elements)
+                if (el.type === "battery" && cells[el.id])
+                    sum += cells[el.id].emf
+            return sum
+        }
+    }
+
+    // A named probe on "the k-th part of that type" (#209). A study that
+    // wants the reading of one bulb cannot name it by id - ids depend on
+    // what was built before the preset - and the watch probes carry the
+    // monitor's one quantity at a time. This resolves the part on every
+    // sample, so it survives a preset rebuilding the board, and it reads the
+    // attribute it was given: "I" (mA), "V" or "P". Returns the probe's name,
+    // or "" when the attribute is unknown.
+    function probeOrdinal(name, type, index, attr) {
+        if (attr !== "I" && attr !== "V" && attr !== "P") return ""
+        const unit = attr === "I" ? "mA" : attr === "V" ? "V" : "W"
+        const p = ordinalProbe.createObject(root, {
+            name: name, unit: unit,
+            expr: () => {
+                const parts = root.elements.filter(e => e.type === type)
+                const el = parts[index]
+                return el ? root.watchValueOf(el.id, attr) : NaN
+            }
+        })
+        return p ? name : ""
+    }
+    Component { id: ordinalProbe; Probe {} }
+
     // Shift+R writes a scratch run record into the lab's own records/ dir. No
     // command: a frame-driven session cannot be regenerated, and the citable
     // records are the ones a committed driver steps out (see the clay-lab skill).
@@ -105,11 +151,12 @@ Item {
     // itself, and it fails silently as an invisible chip.
     readonly property alias watchMonitor: monitor
 
-    function watchValueOf(id) {
+    function watchValueOf(id, q) {
         const s = simOf(id)
+        const k = q || monitor.quantity
         // magnitudes, like the value labels: direction is the chevrons' job
-        if (monitor.quantity === "V") return Math.abs(s.v)
-        if (monitor.quantity === "P") return s.power
+        if (k === "V") return Math.abs(s.v)
+        if (k === "P") return s.power
         return Math.abs(s.i) * 1000
     }
     function isWatched(id) { return monitor.isWatched(id) }
@@ -119,27 +166,50 @@ Item {
     function watchOnly(ids) { monitor.watchOnly(ids) }
 
     // --- circuit state ---------------------------------------------------
-    // elements: {id, type, col, row, rot, value, on} - col/row are fractional
-    // cell coordinates (snapping rounds them) - wires: {id, a:[el,ti], b:[el,ti]}
-    property var elements: []
-    property var wires: []
-    property int nextId: 1
+    // The board owns the parts and the wires: where they stand, what they are
+    // wired to, the hit test, the keep-out, the batching that lets a preset
+    // make eighty mutations and publish once (see Board). What stays here is
+    // electricity - the solver bridge and the circuit's own readings - and a
+    // few short names the scenarios, the flows and the figure scripts use.
+    // elements: {id, type, col, row, rot, value, on, func} - col/row are
+    // fractional cell coordinates (snapping rounds them) - wires: {id, a:[el,ti], b:[el,ti]}
+    readonly property alias elements: board.parts
+    readonly property alias wires: board.wires
+    readonly property alias nextId: board.nextId
+    readonly property alias elemRev: board.rev     // bumped on moves so positions rebind
+    property alias selectedId: board.selectedId   // -1 = nothing selected
+    property alias hoverHit: board.hoverHit       // last hit under the cursor
+    property alias wiringFrom: board.wiringFrom   // {el, ti} while a wire is dangling
+    property alias eraser: board.eraser
     property var sim: ({ ok: true, perElement: {}, shorted: false, overloaded: false,
                         iterations: 0 })
-    property int elemRev: 0          // bumped on moves so positions rebind
 
     // Peg raster: 5 world units, so a part can be nudged half a part-width.
-    // A part body is ~9 units wide, hence the two-peg keep-out in cellFree.
-    readonly property int cols: 20
-    readonly property int rows: 12
+    // A part body is ~9 units wide, hence the two-peg keep-out the board
+    // derives from it. The board grew with the logic presets: an XOR is
+    // thirty-odd parts on three rails, and it simply did not fit on the
+    // twenty by twelve the one-loop circuits were laid out on.
+    readonly property int cols: 28
+    readonly property int rows: 16
     readonly property real cell: 5
 
-    function cellX(col) { return (col - (cols - 1) / 2) * cell }
-    function cellZ(row) { return (row - (rows - 1) / 2) * cell }
-    function elemAt(id) {
-        for (const el of elements) if (el.id === id) return el
-        return null
+    Board {
+        id: board
+        cols: root.cols; rows: root.rows; cell: root.cell
+        spec: Parts.spec
+        // A wire leaves each pad on that pad's own side and turns at right
+        // angles - the kit's route.js does the choosing, the board only asks.
+        router: ({ all: (links, obstacles, lane) => Route.routeAll(links, obstacles, lane),
+                   one: (a, b, lane) => Route.routeOne(a, b, [], null, lane) })
+        // geometry is not electricity: a move or a turn does not re-solve
+        onChanged: (kind) => { if (kind !== "view") root.resolve() }
+        onCleared: { root.setLogic([], []); monitor.clear() }
+        onRemoved: (id) => monitor.setWatched(id, false)
     }
+
+    function cellX(col) { return board.cellX(col) }
+    function cellZ(row) { return board.cellZ(row) }
+    function elemAt(id) { return board.partAt(id) }
     function batteryOf(id) {
         const b = sim.batteries ? sim.batteries[id] : null
         return b ? b : null
@@ -168,143 +238,163 @@ Item {
     }
     function fmtV(v) { return LabLang.num(v, 2) + " V" }
 
+    // --- what the diagram letters a part with -------------------------------
+    // A designator, what the part is RATED at, and - only when values are on -
+    // what it is actually doing. Three short lines at most: a label longer than
+    // the symbol it belongs to has stopped being a label.
+    //
+    // The split matters more than it looks. A rating is a fact about the part
+    // you chose (470 Ω, 4.5 V, XOR) and is true with the power off; a reading
+    // is a fact about the circuit (5.1 mA, 2.42 V) and changes when you flip a
+    // switch. A schematic that ran them together would be teaching that the
+    // two are the same kind of number.
+    function planRating(el) {
+        if (el.type === "resistor") return LabLang.qty(el.value, "Ω")
+        if (el.type === "battery") return fmtV(el.value || defaultVolts)
+        if (el.type === "gate") return LabLang.t("gate." + (el.func || "and")).toUpperCase()
+        return ""
+    }
+
+    function planReading(el) {
+        const s = simOf(el.id)
+        if (el.type === "voltmeter") return fmtV(s.v)
+        if (el.type === "ammeter") return fmtA(s.i)
+        // a transistor's own account of itself: which region it is working in
+        // is the thing about it that a voltage and a current do not say
+        if (el.type === "transistor")
+            return LabLang.t("npn." + (s.mode === undefined ? "off" : s.mode))
+                 + " " + fmtA(s.ic === undefined ? s.i : s.ic)
+        return fmtA(Math.abs(s.i)) + "  " + fmtV(Math.abs(s.v))
+    }
+
+    // The box a schematic symbol is drawn in, in pixels, at a given scale.
+    // Measured from the part's own pads rather than picked: the symbol's leads
+    // run to the edges of this box, and the wires run to the pads, so if the
+    // two disagree the diagram shows a circuit that is not joined up. A fixed
+    // pixel size is what disagreement looks like - the wires grow with the
+    // diagram and the symbols do not.
+    //
+    // The floor is the other direction and is harmless: a symbol drawn LARGER
+    // than its pads are apart overshoots them and its leads run under the
+    // wires, which is invisible. Only too small leaves a gap. So the map-sized
+    // diagram, where a true-to-scale symbol would be ten pixels across, keeps
+    // its legible minimum.
+    function planBox(type, s, minW) {
+        const f = Symbols.leadFractions(type)
+        let mx = 0
+        for (let ti = 0; ti < terminalCount(type); ++ti)
+            mx = Math.max(mx, Math.abs(terminalLocal(type, ti).x))
+        const span = mx > 0 ? 2 * mx / cell : 1.4   // pad separation, in cells
+        const trueW = span * s / (2 * f.x)          // the box that joins up exactly
+        const grow = Math.max(1, minW / trueW)      // the legibility floor, as a factor
+        const w = trueW * grow
+        if (f.y <= 0) return { w: w, h: w * Symbols.aspect(type) }
+        // terminal 1 is the off-axis pad on both parts that have one: the
+        // transistor's base and the gate's A input
+        const offY = Math.abs(terminalLocal(type, 1).y) / cell
+        return { w: w, h: offY * s / f.y * grow }
+    }
+
+    function planLines(el) {
+        if (el.type === "junction") return []      // a solder dot needs no name
+        const out = [partLabel(el.id)]
+        const rating = planRating(el)
+        if (rating !== "") out.push(rating)
+        if (showValues) {
+            const reading = planReading(el)
+            if (reading !== "") out.push(reading)
+        }
+        return out
+    }
+
     function simOf(id) {
         const e = sim.perElement[id]
         return e ? e : { v: 0, i: 0, on: false, power: 0 }
     }
-    function terminalPos(elId, ti) {
-        elemRev
-        const el = elemAt(elId)
-        if (!el) return Qt.vector3d(0, 0, 0)
-        // local (+/-3.5, 0) turned by the part's yaw (Qt rotates y ccw seen
-        // from above: x' = x*cos, z' = -x*sin)
-        // a junction is a single point: both of its terminals sit dead centre
-        const off = el.type === "junction" ? 0 : (ti === 0 ? -3.5 : 3.5)
-        const a = (el.rot || 0) * Math.PI / 180
-        return Qt.vector3d(cellX(el.col) + off * Math.cos(a), 0.35,
-                           cellZ(el.row) - off * Math.sin(a))
-    }
+    // --- terminals ---------------------------------------------------------
+    // Where a part's pads sit, how far its body reaches and which part of it
+    // you operate all come from the kit's parts.js, through the board;
+    // CircuitElement3D draws the pads from the same numbers. These are the
+    // short names the schematic and the scenarios use.
+    function terminalCount(type) { return board.terminalCount(type) }
+    function terminalLocal(type, ti) { return board.terminalLocal(type, ti) }
+    function terminalDir(elId, ti) { return board.terminalDir(elId, ti) }
+    function bodyHalf(type) { return board.bodyHalf(type) }
+    function actuatorHalf(type) { return board.actuatorHalf(type) }
+    function terminalPos(elId, ti) { return board.terminalPos(elId, ti) }
+    function keepOut(type) { return board.keepOut(type) }
+    function cellFree(col, row, ignoreId, type) { return board.cellFree(col, row, ignoreId, type) }
+    function nearestFreeCell(col, row, type) { return board.nearestFreeCell(col, row, type) }
+    function hitAt(wx, wz) { return board.hitAt(wx, wz) }
 
-    function resolve() {
-        const els = elements.map(el => ({
-            id: el.id, type: el.type, on: el.on,
+    // What the solver is handed. Everything it is allowed to read about a part
+    // has to be listed here - a field left out does not fail, it silently takes
+    // the solver's default, which is how every gate on the board answered AND
+    // no matter what its case said.
+    function solverElements(switchStates) {
+        return elements.map(el => ({
+            id: el.id, type: el.type,
+            on: (switchStates && switchStates[el.id] !== undefined)
+                ? switchStates[el.id] : el.on,
+            func: el.func,
             // a battery carries its own volts; the panel slider is a master
             // that moves them all at once
             value: el.type === "battery" ? (el.value || defaultVolts) : el.value
         }))
-        sim = Circuit.solve(els, wires)
     }
+    function resolve() { sim = Circuit.solve(solverElements(null), wires) }
     function setBatteryVolts(id, v) {
         const el = elemAt(id)
         if (!el || el.type !== "battery") return
         const nv = Math.round(Math.max(1.5, Math.min(12, v)) * 2) / 2
-        if (nv === el.value) return
-        el.value = nv
-        elemRev++
-        resolve()
+        board.setField(id, "value", nv)
     }
 
-    // Two pegs of clearance for real parts; junctions are dots and need one
-    function cellFree(col, row, ignoreId, type) {
-        for (const el of elements) {
-            if (el.id === ignoreId) continue
-            const k = (type === "junction" || el.type === "junction") ? 0.7 : 1.6
-            if (Math.abs(el.col - col) < k && Math.abs(el.row - row) < k) return false
-        }
-        return true
-    }
-    function nearestFreeCell(col, row, type) {
-        col = Math.max(0, Math.min(cols - 1, Math.round(col)))
-        row = Math.max(0, Math.min(rows - 1, Math.round(row)))
-        for (let radius = 0; radius < cols; ++radius)
-            for (let dr = -radius; dr <= radius; ++dr)
-                for (let dc = -radius; dc <= radius; ++dc) {
-                    const c = col + dc, r = row + dr
-                    if (c < 0 || c >= cols || r < 0 || r >= rows) continue
-                    if (cellFree(c, r, -1, type)) return { col: c, row: r }
-                }
-        return null
-    }
-
+    // --- mutations ---------------------------------------------------------
+    // One mutation API, three drivers: the UI calls these, a Flow calls them
+    // by name (flowActions), an agent through the inspector's eval. The
+    // board does the editing and the batching; what is here is what the
+    // circuit adds - which parts can be set to what.
+    function beginBatch() { board.beginBatch() }
+    function endBatch() { board.endBatch() }
     function addElement(type, col, row) {
-        const spot = nearestFreeCell(col === undefined ? 10 : col,
-                                     row === undefined ? 6 : row, type)
-        if (!spot) return -1
-        const el = { id: nextId++, type: type, col: spot.col, row: spot.row, rot: 0,
-                     value: type === "resistor" ? 470
-                          : (type === "battery" ? defaultVolts : 0), on: false }
-        elements = elements.concat([el])
-        resolve()
-        return el.id
+        return board.addPart(type, col === undefined ? 10 : col, row === undefined ? 6 : row)
     }
-    // A solder dot: wires meet here, so a board is no longer limited to
-    // point-to-point links between part terminals. Placed exactly (never
-    // snapped), because it lands wherever the wire was clicked.
-    function addJunction(col, row) {
-        const j = { id: nextId++, type: "junction", col: col, row: row,
-                    rot: 0, value: 0, on: false }
-        elements = elements.concat([j])
-        resolve()
-        return j.id
+    // Place and turn in one go. A quarter turn is 90 degrees counter-clockwise
+    // seen from above; three of them put terminal 0 at the TOP, which is what
+    // a branch fed from the plus rail wants.
+    function addRotated(type, col, row, quarters) {
+        return board.addRotated(type, col === undefined ? 10 : col, row === undefined ? 6 : row, quarters)
     }
-
-    // Drops a junction onto an existing wire and splits it in two, which is
-    // what makes a branch (and therefore a parallel circuit) buildable.
-    function splitWireAt(wireId, wx, wz) {
-        let w = null
-        for (const x of wires) if (x.id === wireId) w = x
-        if (!w) return -1
-        const a = terminalPos(w.a[0], w.a[1])
-        const b = terminalPos(w.b[0], w.b[1])
-        const dx = b.x - a.x, dz = b.z - a.z
-        const len2 = dx * dx + dz * dz
-        const t = len2 < 1e-9 ? 0
-            : Math.max(0, Math.min(1, ((wx - a.x) * dx + (wz - a.z) * dz) / len2))
-        const j = addJunction((a.x + t * dx) / cell + (cols - 1) / 2,
-                              (a.z + t * dz) / cell + (rows - 1) / 2)
-        wires = wires.filter(x => x.id !== wireId).concat([
-            { id: nextId++, a: w.a, b: [j, 0] },
-            { id: nextId++, a: [j, 0], b: w.b }])
-        resolve()
-        return j
-    }
-
-    function removeElement(id) {
-        wires = wires.filter(w => w.a[0] !== id && w.b[0] !== id)
-        elements = elements.filter(el => el.id !== id)
-        if (selectedId === id) selectedId = -1
-        // `watch` is a readonly alias onto the monitor's set - a deleted part
-        // leaves through the monitor's own API, never by assigning the alias
-        monitor.setWatched(id, false)
-        resolve()
-    }
-    // snap: land on a free peg cell (grafli's grid mode) - otherwise the part
-    // follows the cursor freely and may sit anywhere on the board
-    function moveElement(id, col, row, snap) {
-        const el = elemAt(id)
-        if (!el) return
-        col = Math.max(0, Math.min(cols - 1, col))
-        row = Math.max(0, Math.min(rows - 1, row))
-        if (snap) {
-            col = Math.round(col); row = Math.round(row)
-            if (!cellFree(col, row, id, el.type)) return
-        }
-        el.col = col; el.row = row
-        elemRev++
-    }
-    // 90 degree steps, kept unbounded so the animation always turns forward
-    function rotateElement(id) {
-        const el = elemAt(id)
-        if (!el) return
-        el.rot = (el.rot || 0) + 90
-        elemRev++
-    }
+    // Resistance by value rather than by step index, for scenarios and flows.
+    function setOhms(id, ohms) { setResistanceStep(id, resistorStepOf(ohms)) }
+    function addJunction(col, row) { return board.addJunction(col, row) }
+    function splitWireAt(wireId, wx, wz) { return board.splitWireAt(wireId, wx, wz) }
+    function removeElement(id) { board.removePart(id) }
+    function moveElement(id, col, row, snap) { board.movePart(id, col, row, snap) }
+    function rotateElement(id) { board.rotatePart(id) }
     function toggleSwitch(id) {
         const el = elemAt(id)
         if (!el || el.type !== "switch") return
-        el.on = !el.on
-        elemRev++
-        resolve()
+        board.setField(id, "on", !el.on)
+    }
+    // Setting beats toggling for a control that shows both states at once: a
+    // pair of chips has to be able to say "on" when on is already true and
+    // mean it, or clicking the lit one turns the switch off.
+    function setSwitch(id, on) {
+        const el = elemAt(id)
+        if (!el || el.type !== "switch") return
+        board.setField(id, "on", on)
+    }
+    // Which logic function a gate package performs. The same idiom as a
+    // resistor's ohms: the part is one thing you place, and what it does is a
+    // property you set on it - printed on the package, and the schematic
+    // symbol changes with it.
+    readonly property var gateFuncs: ["and", "or", "xor", "nand", "nor", "not"]
+    function setGateFunc(id, f) {
+        const el = elemAt(id)
+        if (!el || el.type !== "gate" || gateFuncs.indexOf(f) < 0) return
+        board.setField(id, "func", f)
     }
     // Resistance runs over the real E12 series, the values a shop actually
     // sells - which is also what makes the colour bands honest, since a band
@@ -329,31 +419,75 @@ Item {
         const el = elemAt(id)
         if (!el || el.type !== "resistor") return
         const v = resistorSteps[Math.max(0, Math.min(resistorSteps.length - 1, step))]
-        if (v === el.value) return
-        el.value = v
-        elemRev++
-        resolve()
+        board.setField(id, "value", v)
     }
-    function addWire(a, b) {
-        if (a[0] === b[0] && a[1] === b[1]) return
-        for (const w of wires) {
-            const same = (w.a[0] === a[0] && w.a[1] === a[1] && w.b[0] === b[0] && w.b[1] === b[1])
-                      || (w.a[0] === b[0] && w.a[1] === b[1] && w.b[0] === a[0] && w.b[1] === a[1])
-            if (same) return
+    function addWire(a, b) { board.addWire(a, b) }
+    function removeWire(id) { board.removeWire(id) }
+    // The board empties itself and says so; the logic table and the plot go
+    // with it (Board.onCleared above), the tags through the overlay's own ear.
+    function clearBoard() { board.clear() }
+
+    // --- the truth table ---------------------------------------------------
+    // A gate preset says which switches are its inputs and which part is its
+    // output, and the table is then MEASURED rather than stated: for every
+    // combination the solver is run again on a copy of this exact board with
+    // those switches set, and the answer is whether the output lights. Nothing
+    // in the table is written down anywhere - flip a switch, add a resistor,
+    // reverse the LED, and the table changes with the board, because it IS the
+    // board.
+    property var logicInputs: []     // switch element ids, first one on the left
+    // The parts whose `on` is the answer, left to right. More than one because
+    // an adder has two: a sum and a carry, and they are the same experiment.
+    property var logicOutputs: []
+    property var logicOutputNames: []   // optional column headings, per output
+
+    function setLogic(inputs, outputs, names) {
+        logicInputs = inputs ? inputs.slice() : []
+        logicOutputs = outputs === undefined || outputs === null ? []
+                     : (Array.isArray(outputs) ? outputs.slice() : [outputs])
+        logicOutputNames = names ? names.slice() : []
+    }
+    readonly property bool hasLogic: logicInputs.length > 0 && logicOutputs.length > 0
+
+    function solveWith(switchStates) {
+        return Circuit.solve(solverElements(switchStates), wires)
+    }
+
+    function truthTable() {
+        if (!hasLogic) return []
+        const n = logicInputs.length
+        const rows = []
+        for (let m = 0; m < (1 << n); ++m) {
+            const bits = [], states = ({})
+            for (let k = 0; k < n; ++k) {
+                const bit = !!(m & (1 << (n - 1 - k)))
+                bits.push(bit)
+                states[logicInputs[k]] = bit
+            }
+            const solved = solveWith(states).perElement
+            const outs = logicOutputs.map(id => !!(solved[id] && solved[id].on))
+            rows.push({ inputs: bits, outs: outs, out: outs[0] })
         }
-        wires = wires.concat([{ id: nextId++, a: a, b: b }])
-        resolve()
+        return rows
     }
-    function removeWire(id) {
-        wires = wires.filter(w => w.id !== id)
-        resolve()
+    // A / B / C ... for the inputs; the outputs use whatever the preset named
+    // them (SUM, CARRY) and fall back to Y, Z ... when it named nothing.
+    function logicInputName(k) { return String.fromCharCode(65 + k) }
+    function logicOutputName(k) {
+        if (logicOutputNames[k] !== undefined)
+            return LabLang.t(logicOutputNames[k])
+        return logicOutputs.length === 1 ? LabLang.t("truth.out")
+                                         : String.fromCharCode(89 + k)
     }
-    function clearBoard() {
-        elements = []; wires = []
-        wiringFrom = null
-        selectedId = -1
-        monitor.clear()
-        resolve()
+    // which row of that table the board is standing on right now
+    function logicRowIndex() {
+        if (!hasLogic) return -1
+        let m = 0
+        for (let k = 0; k < logicInputs.length; ++k) {
+            const el = elemAt(logicInputs[k])
+            if (el && el.on) m |= 1 << (logicInputs.length - 1 - k)
+        }
+        return m
     }
 
     // --- camera -----------------------------------------------------------
@@ -363,6 +497,34 @@ Item {
     // matters is minHeight - flatten the angle and the rig backs off instead
     // of diving through the setup, which a minimum DISTANCE could not do
     // without also blocking a zoom onto a single part.
+    //
+    // While the teacher is on the board the camera is the director's (the
+    // kernel's CameraDirector, wired into the FlowGuide below): journey,
+    // two-shot, portrait, cutaway, in the order television would take them.
+    // This file used to carry that grammar itself - a frame on arrival, a
+    // portrait on addressing, a pair of hooks into the script's cues, floors
+    // relaxed here and restored there - and it was where the pointing lost
+    // its subject: nothing in it reframed for a *point at* cue, and the
+    // ballast trick that pushed the part up out of the flow bar was a safe
+    // area spelled as geometry (#219). What is left here is the camera
+    // OUTSIDE a lesson: the keys, and the flow's own `frame` verb for a
+    // flow that runs with nobody on stage.
+
+    // While the teacher is on the board, the part tags and the wire readings
+    // come off.
+    //
+    // They are screen-space overlays over a 3D scene, so nothing depth-tests
+    // them against a character standing in it. Chasing that with geometry -
+    // a keep-out rect, hysteresis so it did not flip, a leader line so the
+    // tag still said what it named, a clip so the leader passed behind him -
+    // worked, and every one of those pieces was another thing to get wrong.
+    // A lesson is a guided sequence: the professor is saying which part this
+    // is, so the tag repeating it is not carrying its weight anyway.
+    //
+    // Outside a flow nothing is standing on the board and the labels behave
+    // exactly as they always did.
+    readonly property bool labelsHidden: prof.present
+
     function frameCells(cells) {
         if (!cells || !cells.length) {
             // one applyState, not a pivot write plus a setDistance: the rig
@@ -371,20 +533,42 @@ Item {
             rig.applyState({ px: 0, py: 2, pz: 0, distance: rig.maxDistance })
             return
         }
-        // a single part is a point; give the frame some extent so the camera
-        // lands on something rather than diving at it
+        rig.frame(cellExtent(cells), 1.25)
+    }
+    // a single part is a point; give the frame some extent so the camera
+    // lands on something rather than diving at it - the same box the
+    // director is handed as a step's extent, so a key and a lesson frame a
+    // part the same way
+    function cellExtent(cells) {
         const pts = []
         for (const c of cells) {
             pts.push(Qt.vector3d(cellX(c.col) - 7, 2, cellZ(c.row) - 7))
             pts.push(Qt.vector3d(cellX(c.col) + 7, 2, cellZ(c.row) + 7))
         }
-        rig.frame(pts, 1.25)
+        return pts
     }
-    function frameAll() { frameCells(elements) }
-    function frameSetup() { frameAll() }          // the flow's "frame" verb
+
+    // Reset is a jump: 0/Home records where you were, so Ctrl+O undoes it.
+    function frameAll() { rig.pushJump(); frameCells(elements) }
+    // The flow's "frame" verb. A no-op while the teacher is on the board: the
+    // director frames each step from the professor's own choreography, and a
+    // wide shot cut here at step entry was the jump the professor then flew
+    // out of (#219).
+    function frameSetup() { if (!prof.present) frameAll() }
     function frameSelection() {
+        if (prof.present) return
         const el = elemAt(selectedId)
-        frameCells(el ? [el] : elements)
+        if (!el) {
+            // ⇧F with nothing selected: an open dive is the thing to close;
+            // failing that, frame the board as it always did
+            if (rig.hasReturnPose) { rig.frameWithReturn(null, 1.0); return }
+            frameCells(elements)
+            return
+        }
+        // The same ±7 extent frameCells gives a single part, but through the
+        // rig's sticky frame: the first press dives, the second flies back to
+        // the view the dive left - even after reselecting in between.
+        rig.frameWithReturn(cellExtent([el]), 1.15)
     }
     // The camera verbs a flow (or an agent) can call by name. The rig itself
     // is reachable as `rig`; these exist so a flow's action list reads like
@@ -396,24 +580,42 @@ Item {
 
     // --- serialization (survives reloads via the viewState convention) ---
     function circuitState() {
-        return { elements: elements.map(el => Object.assign({}, el)),
-                 wires: wires.map(w => ({ id: w.id, a: w.a.slice(), b: w.b.slice() })),
-                 nextId: nextId }
+        const s = board.state()
+        return { elements: s.parts, wires: s.wires, nextId: s.nextId,
+                 // which parts the gate presets call inputs and output: the
+                 // truth table is derived, but WHAT it is a table of is a
+                 // choice, and it has to survive a reload with the board
+                 logic: { inputs: logicInputs.slice(),
+                          outputs: logicOutputs.slice(),
+                          names: logicOutputNames.slice() } }
     }
     function loadCircuit(s) {
-        elements = s.elements.map(el => Object.assign({ rot: 0 }, el))
-        wires = s.wires.map(w => ({ id: w.id, a: w.a.slice(), b: w.b.slice() }))
-        nextId = s.nextId
-        wiringFrom = null
-        selectedId = -1
-        resolve()
+        // outputs used to be a single id; a board saved before the half-adder
+        // preset existed still has to come back
+        if (s.logic)
+            setLogic(s.logic.inputs,
+                     s.logic.outputs !== undefined ? s.logic.outputs
+                     : (s.logic.output !== undefined && s.logic.output !== -1
+                        ? [s.logic.output] : []),
+                     s.logic.names)
+        else setLogic([], [])
+        board.load({ parts: s.elements, wires: s.wires, nextId: s.nextId })   // re-solves
     }
 
     function viewState() {
         return Object.assign(Lab.viewState(), {
             circuit: circuitState(),
             watch: monitor.watched.slice(), watchQuantity: monitor.quantity,
+            traces: monitor.traces(),
+            valueAttr: overlay.valueAttr,
+            watchLabels: Object.assign({}, overlay.tags),
             lang: LabLang.lang,
+            // which palette sections the reader folded away: a fact about the
+            // reader and the room, like the theme, so it survives a reload
+            sections: Object.assign({}, palette.sectionsOpen),
+            // and whether the schematic is up, and how big - the same kind of
+            // fact: it is about how this reader wants to look at the board
+            plan: { open: showPlan, max: planMax },
             cam: rig.state()
         })
     }
@@ -432,8 +634,18 @@ Item {
         // the watched set is the user's, so it wins over what a preset seeded;
         // parts that no longer exist are dropped rather than plotted as zero
         if (s.lang) LabLang.lang = s.lang
+        if (s.sections) palette.sectionsOpen = Object.assign({}, s.sections)
+        if (s.plan) {
+            if (s.plan.open !== undefined) showPlan = s.plan.open
+            if (s.plan.max !== undefined) planMax = s.plan.max
+        }
         if (s.watchQuantity) monitor.quantity = s.watchQuantity
         if (s.watch) monitor.watchOnly(s.watch.filter(id => elemAt(id) !== null))
+        // pinned strips are exact (id, quantity) pairs, so they win over the
+        // single-quantity watch list an older state carried
+        if (s.traces) monitor.traceOnly(s.traces.filter(t => elemAt(t.id) !== null))
+        if (s.valueAttr !== undefined) overlay.valueAttr = s.valueAttr
+        if (s.watchLabels) overlay.load({ tags: s.watchLabels })
         if (s.cam) {
             rig.applyState(s.cam)
         }
@@ -522,15 +734,404 @@ Item {
                 root.watchOnly([led])
             }
         }
+
+        // --- the transistor, and the four gates built out of it -------------
+        //
+        // Every one of these is drawn the way a schematic is: a plus rail
+        // along the top of the board, a ground rail along the bottom, the cell
+        // standing between them on the left, and each stage a vertical branch
+        // hanging off the rails. Nothing here is scripted - the LED lights
+        // because the solver says current is flowing through it, exactly as in
+        // the one-loop presets.
+        Scenario {
+            // One NPN as a switch: a base current a hundred times smaller than
+            // the current it lets through. The ammeter is IN the base lead on
+            // purpose - that is the whole lesson, and it is a number, not a
+            // claim.
+            name: "transistor"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([2, 9, 20], 1, 14)
+                const bat = root.addRotated("battery", 2, 7, 3)
+                root.addWire([bat, 0], [rails.top[2], 0])
+                root.addWire([bat, 1], [rails.bot[2], 0])
+
+                const sw = root.addRotated("switch", 9, 4, 3)
+                const jb = root.addJunction(9, 7)
+                // the pull-down that makes an open switch mean LOW rather than
+                // "not connected to anything" - see addLogicInput
+                const pd = root.addRotated("resistor", 9, 10, 3)
+                root.setOhms(pd, 10000)
+                const rb = root.addElement("resistor", 13, 7)
+                root.setOhms(rb, 4700)
+                // The meter goes AFTER the fork, in the base lead itself.
+                // Upstream of it, it reads the base current plus whatever the
+                // pull-down is wasting - and then the ratio this preset exists
+                // to show comes out wrong by half a milliamp.
+                const am = root.addElement("ammeter", 17, 7)
+                const q = root.addRotated("transistor", 20, 7, 3)
+                root.addWire([rails.top[9], 0], [sw, 0])
+                root.addWire([sw, 1], [jb, 0])
+                root.addWire([jb, 0], [pd, 0])
+                root.addWire([pd, 1], [rails.bot[9], 0])
+                root.addWire([jb, 0], [rb, 0])
+                root.addWire([rb, 1], [am, 0])
+                root.addWire([am, 1], [q, 1])          // into the base
+
+                const led = root.addRotated("led", 20, 2, 3)
+                const rl = root.addRotated("resistor", 20, 4, 3)
+                root.setOhms(rl, 220)
+                root.addWire([rails.top[20], 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [q, 0])          // into the collector
+                root.addWire([q, 2], [rails.bot[20], 0])   // emitter to ground
+
+                // the two currents side by side: that ratio IS the transistor
+                root.setLogic([sw], led)
+                root.watchOnly([am, led])
+            }
+        }
+        Scenario {
+            // OR without a single transistor. Two diodes let either switch
+            // feed the LED and stop it feeding back out through the other one
+            // - which is the only reason the diodes are there, and it can be
+            // read straight off the board: the idle branch carries nothing.
+            name: "diode-or"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([2, 8, 12, 16], 1, 14)
+                const bat = root.addRotated("battery", 2, 7, 3)
+                root.addWire([bat, 0], [rails.top[2], 0])
+                root.addWire([bat, 1], [rails.bot[2], 0])
+
+                // The same driven inputs the transistor gates use, and they
+                // are what makes the diodes matter: a switch that only ever
+                // connects to plus leaves its node floating when it is open,
+                // and two floating nodes tied together are not two inputs.
+                const a = root.addLogicInput(8, 3, 6, 9, rails)
+                const b = root.addLogicInput(16, 3, 6, 9, rails)
+
+                const dA = root.addElement("diode", 11, 6)
+                const dB = root.addRotated("diode", 13, 6, 2)   // anode facing B
+                const jm = root.addJunction(12, 6)
+                const led = root.addRotated("led", 12, 9, 3)
+                const rl = root.addRotated("resistor", 12, 11, 3)
+                root.setOhms(rl, 220)
+
+                root.addWire([a.node, 0], [dA, 0])
+                root.addWire([dA, 1], [jm, 0])
+                root.addWire([b.node, 0], [dB, 0])
+                root.addWire([dB, 1], [jm, 0])
+                root.addWire([jm, 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [rails.bot[12], 0])
+                root.setLogic([a.sw, b.sw], led)
+                root.watchOnly([dA, dB])
+            }
+        }
+        Scenario {
+            // AND: the two transistors sit in SERIES, so the current has to
+            // get past both of them - the series preset again, with the
+            // switches replaced by something a wire can operate.
+            name: "logic-and"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([3, 9, 15, 22], 0, 15)
+                const bat = root.addRotated("battery", 3, 7, 3)
+                root.addWire([bat, 0], [rails.top[3], 0])
+                root.addWire([bat, 1], [rails.bot[3], 0])
+
+                const a = root.addLogicInput(9, 4, 8, 11, rails)
+                const b = root.addLogicInput(15, 4, 12, 14, rails)
+
+                const led = root.addRotated("led", 22, 2, 3)
+                const rl = root.addRotated("resistor", 22, 5, 3)
+                root.setOhms(rl, 220)
+                const q1 = root.addRotated("transistor", 22, 8, 3)
+                const q2 = root.addRotated("transistor", 22, 12, 3)
+                root.addWire([rails.top[22], 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [q1, 0])
+                root.addWire([q1, 2], [q2, 0])       // emitter into collector
+                root.addWire([q2, 2], [rails.bot[22], 0])
+
+                const rbA = root.addElement("resistor", 18, 8)
+                const rbB = root.addElement("resistor", 18, 12)
+                root.setOhms(rbA, 4700); root.setOhms(rbB, 4700)
+                root.addWire([a.node, 0], [rbA, 0]); root.addWire([rbA, 1], [q1, 1])
+                root.addWire([b.node, 0], [rbB, 0]); root.addWire([rbB, 1], [q2, 1])
+
+                root.setLogic([a.sw, b.sw], led)
+                root.watchOnly([q1, q2])
+            }
+        }
+        Scenario {
+            // OR: the same two transistors, now in PARALLEL. One path or the
+            // other is enough, which is the parallel preset's lesson with the
+            // bulbs swapped for switches made of silicon.
+            name: "logic-or"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([3, 9, 14, 20, 25], 0, 15)
+                const bat = root.addRotated("battery", 3, 7, 3)
+                root.addWire([bat, 0], [rails.top[3], 0])
+                root.addWire([bat, 1], [rails.bot[3], 0])
+
+                const a = root.addLogicInput(9, 4, 8, 10, rails)
+                const b = root.addLogicInput(14, 7, 11, 13, rails)
+
+                const led = root.addRotated("led", 20, 2, 3)
+                const rl = root.addRotated("resistor", 20, 4, 3)
+                root.setOhms(rl, 220)
+                const jc1 = root.addJunction(20, 5.6)
+                const jc2 = root.addJunction(25, 5.6)
+                const q1 = root.addRotated("transistor", 20, 8, 3)
+                const q2 = root.addRotated("transistor", 25, 11, 3)
+                root.addWire([rails.top[20], 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [jc1, 0])
+                root.addWire([jc1, 0], [jc2, 0])     // the shared collector rail
+                root.addWire([jc1, 0], [q1, 0])
+                root.addWire([jc2, 0], [q2, 0])
+                root.addWire([q1, 2], [rails.bot[20], 0])
+                root.addWire([q2, 2], [rails.bot[25], 0])
+
+                const rbA = root.addElement("resistor", 17, 8)
+                const rbB = root.addElement("resistor", 22, 11)
+                root.setOhms(rbA, 4700); root.setOhms(rbB, 4700)
+                root.addWire([a.node, 0], [rbA, 0]); root.addWire([rbA, 1], [q1, 1])
+                root.addWire([b.node, 0], [rbB, 0]); root.addWire([rbB, 1], [q2, 1])
+
+                root.setLogic([a.sw, b.sw], led)
+                root.watchOnly([q1, q2])
+            }
+        }
+        Scenario {
+            // XOR - exactly one of them. There is no such thing as an XOR
+            // part: it is (A or B) AND NOT (A and B), so the board holds the
+            // two gates you have just built plus the NAND that vetoes them.
+            // Five transistors for one lamp is not a mistake in the drawing;
+            // it is what this function costs.
+            name: "logic-xor"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([2, 6, 10, 15, 20], 0, 15)
+                const bat = root.addRotated("battery", 2, 7, 3)
+                root.addWire([bat, 0], [rails.top[2], 0])
+                root.addWire([bat, 1], [rails.bot[2], 0])
+
+                // Each input feeds two gates, so it is tapped twice on its way
+                // down to the pull-down - one dot per gate, chained.
+                const a = root.addLogicInput(6, 2, 5, 10, rails, [7])
+                const aLo = a.taps[0]
+                const b = root.addLogicInput(10, 2, 9, 13, rails, [11])
+                const bLo = b.taps[0]
+
+                // --- the NAND: two in series, pulled up to the rail --------
+                const rn = root.addRotated("resistor", 15, 2, 3)
+                root.setOhms(rn, 4700)
+                const jn = root.addJunction(15, 3.5)
+                const qn1 = root.addRotated("transistor", 15, 5, 3)
+                const qn2 = root.addRotated("transistor", 15, 9, 3)
+                root.addWire([rails.top[15], 0], [rn, 0])
+                root.addWire([rn, 1], [jn, 0])
+                root.addWire([jn, 0], [qn1, 0])
+                root.addWire([qn1, 2], [qn2, 0])
+                root.addWire([qn2, 2], [rails.bot[15], 0])
+                const rbn1 = root.addElement("resistor", 12, 5)
+                const rbn2 = root.addElement("resistor", 12, 9)
+                root.setOhms(rbn1, 4700); root.setOhms(rbn2, 4700)
+                root.addWire([a.node, 0], [rbn1, 0]); root.addWire([rbn1, 1], [qn1, 1])
+                root.addWire([b.node, 0], [rbn2, 0]); root.addWire([rbn2, 1], [qn2, 1])
+
+                // --- the OR pair, and the transistor the NAND vetoes -------
+                const led = root.addRotated("led", 20, 2, 3)
+                const rl = root.addRotated("resistor", 20, 4, 3)
+                root.setOhms(rl, 220)
+                const jm1 = root.addJunction(20, 5.5)
+                const jm2 = root.addJunction(25, 5.5)
+                const q3 = root.addRotated("transistor", 20, 7, 3)
+                const q4 = root.addRotated("transistor", 25, 11, 3)
+                const je = root.addJunction(23, 9.5)
+                const q5 = root.addRotated("transistor", 20, 13, 3)
+                root.addWire([rails.top[20], 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [jm1, 0])
+                root.addWire([jm1, 0], [jm2, 0])
+                root.addWire([jm1, 0], [q3, 0])
+                root.addWire([jm2, 0], [q4, 0])
+                root.addWire([q3, 2], [je, 0])
+                root.addWire([q4, 2], [je, 0])
+                root.addWire([je, 0], [q5, 0])
+                root.addWire([q5, 2], [rails.bot[20], 0])
+
+                const rb3 = root.addElement("resistor", 16, 7)
+                const rb4 = root.addElement("resistor", 21, 11)
+                root.setOhms(rb3, 4700); root.setOhms(rb4, 4700)
+                root.addWire([aLo, 0], [rb3, 0]); root.addWire([rb3, 1], [q3, 1])
+                root.addWire([bLo, 0], [rb4, 0]); root.addWire([rb4, 1], [q4, 1])
+
+                // the NAND's answer, brought down the outside to Q5's base
+                const jn2 = root.addJunction(17.5, 3.5)
+                const jn3 = root.addJunction(17.5, 13)
+                const rbn5 = root.addElement("resistor", 18, 13)
+                root.setOhms(rbn5, 4700)
+                root.addWire([jn, 0], [jn2, 0])
+                root.addWire([jn2, 0], [jn3, 0])
+                root.addWire([jn3, 0], [rbn5, 0])
+                root.addWire([rbn5, 1], [q5, 1])
+
+                root.setLogic([a.sw, b.sw], led)
+                root.watchOnly([q5, led])
+            }
+        }
+        Scenario {
+            // The gate as a PACKAGE. One chip, two switches and a lamp - and
+            // the function is a property you set on it, so the same board is
+            // all six gates in turn and the truth table redraws under your
+            // finger. Note the supply pins: unwire VCC and the chip does
+            // nothing, because its output swings between the pads it is
+            // actually given, not between numbers it invented.
+            name: "gates"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([2, 8, 14, 20, 24], 1, 14)
+                const bat = root.addRotated("battery", 2, 7, 3)
+                root.addWire([bat, 0], [rails.top[2], 0])
+                root.addWire([bat, 1], [rails.bot[2], 0])
+
+                const a = root.addLogicInput(8, 3, 6, 9, rails)
+                const b = root.addLogicInput(14, 3, 9, 11, rails)
+
+                const g = root.addElement("gate", 20, 7)
+                root.setGateFunc(g, "and")
+                root.addWire([rails.top[20], 0], [g, 0])     // VCC
+                root.addWire([g, 4], [rails.bot[20], 0])     // GND
+                root.addWire([a.node, 0], [g, 1])            // A
+                root.addWire([b.node, 0], [g, 2])            // B
+
+                const jy = root.addJunction(24, 7)
+                const led = root.addRotated("led", 24, 9, 3)
+                const rl = root.addRotated("resistor", 24, 11, 3)
+                root.setOhms(rl, 220)
+                root.addWire([g, 3], [jy, 0])                // Y
+                root.addWire([jy, 0], [led, 0])
+                root.addWire([led, 1], [rl, 0])
+                root.addWire([rl, 1], [rails.bot[24], 0])
+
+                root.setLogic([a.sw, b.sw], led)
+                root.watchOnly([led])
+            }
+        }
+        Scenario {
+            // A half adder: two gates reading the same two inputs, and two
+            // answers. SUM is A xor B, CARRY is A and B - which is binary
+            // addition, and the first thing anybody ever built gates FOR.
+            name: "half-adder"
+            script: () => {
+                root.clearBoard()
+                const rails = root.addRails([2, 7, 11, 17, 21, 25], 0, 15)
+                const bat = root.addRotated("battery", 2, 7, 3)
+                root.addWire([bat, 0], [rails.top[2], 0])
+                root.addWire([bat, 1], [rails.bot[2], 0])
+
+                // each input feeds both gates, so each is tapped twice
+                const a = root.addLogicInput(7, 1, 4, 12, rails, [10])
+                const b = root.addLogicInput(11, 1, 6, 13, rails, [11])
+
+                // the two chips, stacked, each with its own run to the rails
+                const gs = root.addElement("gate", 17, 5)     // SUM  = A xor B
+                const gc = root.addElement("gate", 17, 11)    // CARRY = A and B
+                root.setGateFunc(gs, "xor")
+                root.setGateFunc(gc, "and")
+                root.addWire([rails.top[17], 0], [gs, 0])     // VCC, straight up
+                root.addWire([gs, 4], [rails.bot[17] , 0])    // GND, straight down
+                const jv = root.addJunction(21, 10.1)
+                root.addWire([rails.top[21], 0], [jv, 0])
+                root.addWire([jv, 0], [gc, 0])                // VCC for the lower one
+                root.addWire([gc, 4], [rails.bot[17], 0])
+
+                root.addWire([a.node, 0], [gs, 1])
+                root.addWire([b.node, 0], [gs, 2])
+                root.addWire([a.taps[0], 0], [gc, 1])
+                root.addWire([b.taps[0], 0], [gc, 2])
+
+                const ledS = root.addRotated("led", 25, 3, 3)
+                const rlS = root.addRotated("resistor", 25, 6, 3)
+                const ledC = root.addRotated("led", 25, 10, 3)
+                const rlC = root.addRotated("resistor", 25, 13, 3)
+                root.setOhms(rlS, 220); root.setOhms(rlC, 220)
+                root.addWire([gs, 3], [ledS, 0])
+                root.addWire([ledS, 1], [rlS, 0])
+                root.addWire([rlS, 1], [rails.bot[25], 0])
+                root.addWire([gc, 3], [ledC, 0])
+                root.addWire([ledC, 1], [rlC, 0])
+                root.addWire([rlC, 1], [rails.bot[25], 0])
+
+                root.setLogic([a.sw, b.sw], [ledS, ledC],
+                              ["truth.sum", "truth.carry"])
+                root.watchOnly([ledS, ledC])
+            }
+        }
+    }
+
+    // --- shared wiring idioms ----------------------------------------------
+    // A plus rail across the top of the board and a ground rail across the
+    // bottom, as chains of solder dots at the given columns. Every logic
+    // preset is drawn on these two, which is the only reason five gates can
+    // sit on one board and still be followed with a finger.
+    function addRails(columns, topRow, botRow) {
+        const top = ({}), bot = ({})
+        let pt = -1, pb = -1
+        for (const c of columns) {
+            const jt = addJunction(c, topRow), jb = addJunction(c, botRow)
+            top[c] = jt; bot[c] = jb
+            if (pt !== -1) { addWire([pt, 0], [jt, 0]); addWire([pb, 0], [jb, 0]) }
+            pt = jt; pb = jb
+        }
+        return { top: top, bot: bot }
+    }
+
+    // One logic input: a switch from the plus rail down to a node, and a
+    // 10 kOhm pull-down from that node to ground. The pull-down is not
+    // decoration - without it an open switch leaves the node FLOATING, which
+    // is not the same thing as low, and a gate fed from a floating wire is the
+    // classic beginner's fault.
+    // `taps` are extra rows on the way down where the same signal is picked up
+    // again - one solder dot per gate it feeds, chained, so a second consumer
+    // never means a second wire drawn along the first one.
+    function addLogicInput(col, swRow, nodeRow, pdRow, rails, taps) {
+        const sw = addRotated("switch", col, swRow, 3)
+        const node = addJunction(col, nodeRow)
+        addWire([rails.top[col], 0], [sw, 0])
+        addWire([sw, 1], [node, 0])
+        let last = node
+        const extra = []
+        for (const r of (taps || [])) {
+            const j = addJunction(col, r)
+            addWire([last, 0], [j, 0])
+            extra.push(j)
+            last = j
+        }
+        const pd = addRotated("resistor", col, pdRow, 3)
+        setOhms(pd, 10000)
+        addWire([last, 0], [pd, 0])
+        addWire([pd, 1], [rails.bot[col], 0])
+        return { sw: sw, node: node, taps: extra, pullDown: pd }
     }
     function scenarios() { return scenarioSet.names() }
     function applyScenario(n) {
-        const r = scenarioSet.apply(n)
+        // One batch around the whole script: a preset is dozens of mutations
+        // that nobody watches happen, so the view is published once at the end
+        // rather than after each one.
+        beginBatch()
+        let r
+        try { r = scenarioSet.apply(n) } finally { endBatch() }
         frameSetup()   // every preset arrives properly framed
         return r
     }
 
-    // --- flow actions (SPIKE, see mgc/groundwork/lab-flows-2026-07-25.md) ---
+    // --- flow actions ------------------------------------------------------
     // One mutation API, three drivers: the UI below calls these same
     // functions, a Flow calls them by name, and an agent can call them
     // through the inspector's eval. Nothing here is flow-only.
@@ -542,18 +1143,380 @@ Item {
             "setVolts":   (id, v) => setBatteryVolts(id, v),
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
             "watch":      (id, on) => setWatched(id, on),
+            // a named probe on the k-th part of a type: "probe", "bulb1I", "bulb", 0, "I"
+            "probe":      (name, type, index, attr) => probeOrdinal(name, type, index, attr),
             "select":     (id) => { selectedId = id },
-            "showValues": (on) => { showValues = on },
+            "showValues": (on) => { valueAttr = on ? "I" : "" },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
             "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
-            "view":       (name) => rig.goTo(name)
+            "view":       (name) => rig.goTo(name),
+            // set every declared logic input at once, as a bit pattern: 0b10
+            // is "A on, B off". One verb for "put the gate in this row".
+            "setInputs":  (mask) => setLogicInputs(mask),
+            // what the first (or n-th) package on the board does
+            "gateFunc":   (f, n) => {
+                const gs = elements.filter(e => e.type === "gate")
+                const g = gs[n === undefined ? 0 : n]
+                if (g) setGateFunc(g.id, f)
+            }
         }
     }
-    function flows() { return [ledFlow.flowId] }
+    function setLogicInputs(mask) {
+        for (let k = 0; k < logicInputs.length; ++k) {
+            const want = !!(mask & (1 << (logicInputs.length - 1 - k)))
+            const el = elemAt(logicInputs[k])
+            if (el && el.type === "switch" && el.on !== want) toggleSwitch(el.id)
+        }
+    }
+    function flows() { return [ledFlow.flowId, logicFlow.flowId] }
     function startFlow(id) {
         if (id === ledFlow.flowId) { ledFlow.start(); return true }
+        if (id === logicFlow.flowId) { logicFlow.start(); return true }
         return false
+    }
+    // --- who is teaching -----------------------------------------------------
+    // A flow already says the right words in the right order. What it cannot
+    // do from a panel at the bottom of the window is turn to the part being
+    // discussed and put a finger on it, and that is the difference between
+    // reading a caption and being shown something.
+    //
+    // The kit knows how a professor behaves; only this file can know where
+    // step four's subject is on THIS board. That mapping is all that follows.
+
+    // Where a professor stands to talk about the parts with these ids: behind
+    // them, from the camera's point of view.
+    //
+    // Behind, not beside, and not in front: the rig looks down the board from
+    // +z, so anything standing nearer the camera than the part it is pointing
+    // at hides the part. Standing on the far side, it points back toward the
+    // viewer and occludes nothing but empty board.
+    function subjectOf(ids) {
+        root.elemRev
+        const parts = []
+        for (const id of (ids || [])) {
+            const e = root.elemAt(id)
+            if (e) parts.push(e)
+        }
+        if (!parts.length)
+            return null
+
+        // A step about several parts still has to point at ONE of them. The
+        // centroid of five transistors is bare board, and a finger aimed at
+        // bare board is a finger aimed at nothing - measured at fifteen units
+        // from the nearest part on three of these steps. So: the middle of
+        // the group decides WHERE, and the part nearest that middle is what
+        // actually gets pointed at.
+        let cx = 0, cz = 0
+        for (const p of parts) { cx += root.cellX(p.col); cz += root.cellZ(p.row) }
+        cx /= parts.length; cz /= parts.length
+
+        let best = parts[0], bestD = Infinity
+        for (const p of parts) {
+            const dx = root.cellX(p.col) - cx, dz = root.cellZ(p.row) - cz
+            const d = dx * dx + dz * dz
+            if (d < bestD) { bestD = d; best = p }
+        }
+
+        const bx = root.cellX(best.col), bz = root.cellZ(best.row)
+        // Clear the part's OWN footprint before the standing gap, whichever
+        // way it is turned: a gate reaches 7 units and a flat 8.5 put the
+        // professor inside the package, wearing it.
+        const half = root.bodyHalf(best.type)
+        const reach = Math.max(half.x, half.y) + root.profClear
+        // Beside the part, not behind it. Behind kept the part uncovered
+        // from the steep working angle, but the presenting shots are flat
+        // (22 degrees, 8 for a portrait) and from there a figure standing
+        // behind a transistor stands ON it - the learner saw a coat where
+        // the three legs were being named (#219). To the side, a little
+        // back, on whichever side has no other part within reach; behind
+        // only when both sides are taken.
+        const side = root._freeSide(best, parts, reach)
+        const stand = side === 0 ? Qt.vector3d(bx, 0, bz - reach)
+                    : Qt.vector3d(bx + side * reach, 0, bz - reach * 0.45)
+        return { id: best.id,
+                 ids: parts.map(p => p.id),
+                 stand: stand,
+                 // A hand's breadth above the board, so the finger lands on
+                 // the part rather than on the ground under it.
+                 look: Qt.vector3d(bx, 1.5, bz),
+                 // Every part the step is about, for the camera: a step whose
+                 // line is "two of them reading the same inputs" that shows
+                 // one gate has framed the pointing and lost the sentence.
+                 extent: root.cellExtent(parts),
+                 // The camera stays on the two-shot for a step that asks the
+                 // learner to click something, or whose line names the
+                 // parts of the thing: a portrait of the teacher helps with
+                 // neither. Decided per step by holdStep().
+                 hold: root.holdStep() }
+    }
+
+    // +1 for the right of the part, -1 for the left, 0 for behind: the first
+    // side with no part of the board (not just this step's) within the
+    // professor's reach.
+    function _freeSide(best, parts, reach) {
+        const bx = root.cellX(best.col), bz = root.cellZ(best.row)
+        for (const side of [1, -1]) {
+            const sx = bx + side * reach, sz = bz - reach * 0.45
+            let free = true
+            for (const e of root.elements) {
+                if (e.id === best.id) continue
+                const dx = root.cellX(e.col) - sx, dz = root.cellZ(e.row) - sz
+                if (Math.abs(dx) < root.profClear && Math.abs(dz) < root.profClear) { free = false; break }
+            }
+            if (free) return side
+        }
+        return 0
+    }
+
+    // Whether the running step keeps the camera on its subject: every task
+    // step (the learner has to find the thing), every step that raises marks
+    // (the ring is on the board, so a portrait of the teacher shows none of
+    // it), and the steps whose line walks through the parts of one thing.
+    readonly property var heldSteps: ["meet", "chip"]
+    function holdStep() {
+        const f = root.currentFlow
+        if (!f || !f.step) return false
+        return f.step.task !== null
+            || (f.step.mark && f.step.mark.length > 0)
+            || root.heldSteps.indexOf(f.step.key) >= 0
+    }
+
+    // The scene a step opens, for the establishing shot: a step whose demo
+    // replaces the board with a preset is a different scene, and it is
+    // announced with the preset's own name.
+    function flowScene(i) {
+        const f = root.currentFlow
+        if (!f || !f.step || !f.step.demo) return ""
+        for (const a of f.step.demo)
+            if (a && a[0] === "scenario") return LabLang.t("scenario." + a[1])
+        return ""
+    }
+
+    // The gap between the professor and its subject's edge. Enough that a
+    // raised arm reaches the part rather than through it, and that the two
+    // are not one blob at the framing the flow uses.
+    readonly property real profClear: 7
+
+    function idsOfType(t) {
+        return root.elements.filter(e => e.type === t).map(e => e.id)
+    }
+
+    // The LED flow builds its own board and binds a name to every part it
+    // adds, so its subjects are exact - `nameOf` returns the element id the
+    // step's own `addPart` produced.
+    function ledSubject(f, key) {
+        const n = (s) => f.nameOf(s)
+        if (key === "battery")  return [n("bat")]
+        if (key === "led")      return [n("led")]
+        if (key === "resistor") return [n("res")]
+        if (key === "wire")     return [n("bat"), n("sw"), n("led"), n("res")]
+        if (key === "flip")     return [n("sw")]
+        if (key === "lit")      return [n("led")]
+        if (key === "why")      return [n("res"), n("led")]
+        if (key === "values")   return root.elements.map(e => e.id)
+        if (key === "try")      return [n("res")]
+        return []               // "empty": there is nothing on the board yet
+    }
+
+    // The logic flow jumps between scenario presets instead of building
+    // anything, so nothing is name-bound and the subjects have to be found by
+    // what they ARE. Resolved per step rather than once, because most of
+    // these steps have just replaced every element on the board.
+    function logicSubject(key) {
+        const q = root.idsOfType("transistor")
+        const g = root.idsOfType("gate")
+        const leds = root.idsOfType("led")
+        const ins = root.logicInputs || []
+        if (key === "meet")      return q.slice(0, 1)
+        if (key === "switch")    return ins.slice(0, 1)
+        if (key === "gain")      return leds.concat(root.idsOfType("ammeter"))
+        if (key === "and")       return q
+        if (key === "andtask")   return ins
+        if (key === "or")        return q
+        if (key === "xor")       return q
+        if (key === "xortask")   return ins
+        if (key === "both")      return q.slice(-1).concat(leds)
+        if (key === "cost")      return q
+        if (key === "chip")      return g
+        if (key === "chiptask")  return ins
+        if (key === "switchit")  return g
+        if (key === "adder")     return g
+        return []
+    }
+
+    // What the professor should do on step \a i of the flow that is running.
+    // Keyed on the step's own key, not on its index: a flow gains a step one
+    // day and an index-keyed table silently teaches the wrong lesson.
+    function flowSubject(i) {
+        const f = root.currentFlow
+        if (!f || !f.running || !f.step)
+            return null
+        const key = f.step.key
+        const ids = f.flowId === "led-basics" ? root.ledSubject(f, key)
+                                              : root.logicSubject(key)
+        return root.subjectOf(ids)
+    }
+
+    // --- narration audio -----------------------------------------------------
+    // Pre-rendered clips under voice/en/, made offline by the local
+    // text-to-speech project rather than synthesised here: nothing about this
+    // needs a speech engine at runtime, and a file rendered in advance can be
+    // listened to before a learner hears it. The compressed m4a files ship
+    // with the lab; the wav masters they were cut from stay local
+    // (gitignored). voice/README.md carries the regeneration recipe and the
+    // spoken-form texts.
+    //
+    // English only. A step with no file is narrated in text, so the German
+    // side is unaffected. The LED flow's directed steps (battery, led,
+    // resistor, lit, why) do not appear here - they speak per LINE through
+    // flowScriptVoice below, not per step.
+    readonly property var voicedLedSteps: ["empty", "wire", "flip", "values", "try"]
+    readonly property var voicedLogicSteps: ["meet", "switch", "gain", "and", "andtask",
+                                             "or", "xor", "xortask", "both", "cost",
+                                             "chip", "chiptask", "switchit", "adder"]
+    function flowVoice(i) {
+        const f = root.currentFlow
+        if (!f || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        if (!s)
+            return ""
+        if (f.flowId === "led-basics")
+            return root.voicedLedSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/" + s.key + ".m4a")
+        if (f.flowId === "logic-gates")
+            return root.voicedLogicSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/logic-" + s.key + ".m4a")
+        return ""
+    }
+
+    // --- directed steps (same local trial) -----------------------------------
+    // Five of the LED flow's steps carry a performance script instead of the
+    // built-in speak-point-address beat: the "this is X" steps point at the
+    // part and then turn to the reader, "lit" celebrates, "why" explains to
+    // the face and lands its last sentence back on the resistor. The learner
+    // task steps (flip, try) and the sweeps (wire, values) keep the beat.
+    //
+    // English only, like the audio - a directed step falls back to the plain
+    // narrated step in German or without these entries.
+    readonly property var ledScripts: ({
+        "battery":
+            "*point at the battery* This is the cell. It pushes: 4.5 volts"
+            + " between its two pads."
+            + " *face viewer* *gesticulate* The gold pad is the plus side.",
+        "led":
+            "*point at the LED* The LED. It only conducts one way."
+            + " *face viewer* *gesticulate* And only above about 2 volts"
+            + " — its forward voltage.",
+        "resistor":
+            "*point at the resistor* And a 470 Ω resistor."
+            + " *face viewer* *gesticulate* Without it the LED would take all"
+            + " the current it can get and die. This is its seatbelt.",
+        // The insert: the LED alone for a beat as it is named, the way a
+        // science programme cuts to the thing at the moment it does its
+        // thing - then back out for the number, said to the reader.
+        "lit":
+            "*happy* *point at the LED* There it is. *cut to the LED* *pause 1.8s*"
+            + " *face viewer* *gesticulate* 5.1 mA flow, and the LED glows.",
+        "why":
+            "*face viewer* *gesticulate* Why 5.1 mA? The cell offers 4.5 V,"
+            + " the LED eats about 2.1 of them, and the rest — 2.4 V —"
+            + " falls across the resistor."
+            + " *point at the resistor* 2.4 V over 470 Ω is 5.1 mA."
+            + " The resistor sets the current."
+    })
+
+    function flowScript(i) {
+        const f = root.currentFlow
+        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        return s && root.ledScripts[s.key] ? root.ledScripts[s.key] : ""
+    }
+
+    // One recording per spoken LINE of a directed step - a pointed sentence
+    // and an addressed one are two files (battery-0.wav, battery-1.wav).
+    function flowScriptVoice(i, sayIndex) {
+        const f = root.currentFlow
+        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+            return ""
+        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
+        if (!s || !root.ledScripts[s.key])
+            return ""
+        return Qt.resolvedUrl("voice/en/" + s.key + "-" + sayIndex + ".m4a")
+    }
+
+    // What a script's `*point at NAME*` - and a step's `mark:` list - means in
+    // THIS scene. The parts are model data, not named nodes, so the lookup
+    // answers from the model - the same authority subjectOf() uses - rather
+    // than from a scene walk.
+    //
+    // Two spellings on purpose. A script is prose ("the resistor"), so it
+    // reads that way; a `mark:` list is authoring, written once and shown in
+    // both languages, so it is the bare type ("resistor"). Both land on the
+    // same part.
+    readonly property var scriptTypes: ({
+        "the battery": "battery", "the cell": "battery", "battery": "battery",
+        "the LED": "led", "led": "led",
+        "the resistor": "resistor", "resistor": "resistor",
+        "the switch": "switch", "switch": "switch",
+        "the transistor": "transistor", "transistor": "transistor",
+        "the gate": "gate", "gate": "gate"
+    })
+    // The transistor's legs, by the terminal index circuit.js gives them.
+    // This is what "or sub-parts" means here: a mark can land on one pad of
+    // one part, which is the whole of "collector on the left".
+    readonly property var scriptLegs: ({
+        "the collector": 0, "collector": 0,
+        "the base": 1, "base": 1,
+        "the emitter": 2, "emitter": 2
+    })
+    function scriptTarget(name) {
+        root.elemRev
+        const leg = root.scriptLegs[name]
+        if (leg !== undefined) {
+            const qs = root.idsOfType("transistor")
+            if (!qs.length)
+                return null
+            // The pad itself, lifted a little so a ring sits on the leg
+            // rather than in the board under it.
+            const p = root.terminalPos(qs[0], leg)
+            return Qt.vector3d(p.x, 1.5, p.z)
+        }
+        const type = root.scriptTypes[name]
+        if (!type)
+            return null
+        const ids = root.idsOfType(type)
+        if (!ids.length)
+            return null
+        const e = root.elemAt(ids[0])
+        // A hand's breadth above the board, as subjectOf() aims.
+        return e ? Qt.vector3d(root.cellX(e.col), 1.5, root.cellZ(e.row)) : null
+    }
+
+    // What a mark's ring is captioned with, in the reader's language. The
+    // names above are authoring tokens - identical in EN and DE, which is what
+    // lets the cross-language lint compare two versions of a script - so the
+    // caption cannot come from the name itself.
+    function markLabel(name) {
+        if (root.scriptLegs[name] !== undefined)
+            return LabLang.t("npn." + name.replace("the ", ""))
+        const type = root.scriptTypes[name]
+        return type ? LabLang.t("part." + type) : ""
+    }
+
+    // Which lesson `T` and the chip offer. Two flows, one key: a lab with a
+    // switch to choose between them would be asking the learner to pick a
+    // lesson before they know what either is - so the offer follows the board
+    // instead, and whichever flow is running always wins.
+    readonly property var currentFlow: {
+        if (logicFlow.running) return logicFlow
+        if (ledFlow.running) return ledFlow
+        const s = Lab.scenario
+        return (s === "transistor" || s === "diode-or" || s === "gates"
+                || s === "half-adder" || s.indexOf("logic-") === 0)
+               ? logicFlow : ledFlow
     }
 
     function labInfo() {
@@ -563,10 +1526,21 @@ Item {
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
                          overloaded: sim.overloaded, iterations: sim.iterations }
+        // the gate's answer, measured, so an agent can check what the lab
+        // teaches without reading a single pixel
+        if (hasLogic)
+            info.logic = { inputs: logicInputs.slice(),
+                           outputs: logicOutputs.slice(),
+                           row: logicRowIndex(),
+                           table: truthTable().map(r => ({ inputs: r.inputs,
+                                                           outs: r.outs })) }
         // language-neutral for agents: types and ids, not display labels
-        info.flow = { id: ledFlow.running ? ledFlow.flowId : "",
-                      step: ledFlow.index, paused: ledFlow.paused,
-                      waiting: ledFlow.waiting }
+        const f = currentFlow
+        info.flow = { id: f.running ? f.flowId : "",
+                      offered: f.flowId,
+                      step: f.index, waiting: f.waiting,
+                      // who has the board: "learner", "flow" or "task"
+                      control: f.control }
         info.ui = { selected: selectedId, snap: grid.snap,
                     watching: watch.map(id => ({ id: id, type: elemAt(id).type })),
                     quantity: monitor.quantity, lang: LabLang.lang }
@@ -580,115 +1554,104 @@ Item {
     // when free). GridMode itself draws nothing - the stage does, from here.
     GridMode { id: grid; step: root.cell }
 
-    property var wiringFrom: null       // {el, ti} while a wire is dangling
-    property bool eraser: false
-    property var hoverHit: null         // last hit under the cursor
-    property var cursorW: Qt.vector3d(0, 1.9, 0)
-    property int selectedId: -1         // -1 = nothing selected
-    property bool showValues: false     // V: label every part and every wire
-    property bool showPlan: true        // M: the schematic minimap
+    // Selection, hover, the dangling wire and the eraser live on the board;
+    // the "you can flip this" affordance on the mouse (BoardInput) - it
+    // drives the cursor, the part's own highlight and the hint bar, so the
+    // three cannot say different things.
+    readonly property alias hoverActuator: boardMouse.hoverActuator
+    readonly property alias hoverActuatorIdle: boardMouse.hoverActuatorIdle
 
-    // world-space hit test against the data model (no per-model picking)
-    function hitAt(wx, wz) {
-        // terminals first (they sit inside the element radius)
-        for (const el of elements)
-            for (let ti = 0; ti < 2; ++ti) {
-                const p = terminalPos(el.id, ti)
-                if (Math.hypot(p.x - wx, p.z - wz) < 2.3)
-                    return { kind: "terminal", el: el.id, ti: ti }
-            }
-        for (const el of elements) {
-            const x = cellX(el.col), z = cellZ(el.row)
-            if (el.type === "junction") continue   // handled as a terminal
-            // body box turned by the part's yaw -> axis-aligned bound of it
-            const a = (el.rot || 0) * Math.PI / 180
-            const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
-            if (Math.abs(x - wx) < 4.6 * c + 3.4 * s
-                && Math.abs(z - wz) < 4.6 * s + 3.4 * c)
-                return { kind: "element", el: el.id, type: el.type }
-        }
-        // wires lie flat on the board, so a point-to-segment distance is all
-        // it takes to grab one anywhere along its length
-        for (const w of wires) {
-            const a = terminalPos(w.a[0], w.a[1])
-            const b = terminalPos(w.b[0], w.b[1])
-            const dx = b.x - a.x, dz = b.z - a.z
-            const len2 = dx * dx + dz * dz
-            const t = len2 < 1e-9 ? 0
-                : Math.max(0, Math.min(1, ((wx - a.x) * dx + (wz - a.z) * dz) / len2))
-            if (Math.hypot(a.x + t * dx - wx, a.z + t * dz - wz) < 1.3)
-                return { kind: "wire", wire: w.id }
-        }
-        return null
+    // V cycles the scene-wide watch attribute: off → I → V → P → off, in the
+    // monitor's own quantity order (the kit's list, per groundwork D5). The
+    // overlay keeps the bool as a two-way twin so every read-site, flow verb
+    // and committed figure script (`showValues = true`) keeps meaning something.
+    property alias valueAttr: overlay.valueAttr
+    property alias showValues: overlay.showValues     // V: label every part and every wire
+    function cycleValueAttr() { overlay.cycleValueAttr() }
+    // One reading, any attribute - the value labels, the per-part tags and
+    // the card all speak through this, so they cannot disagree.
+    function readingOf(id, attr) {
+        const s = simOf(id)
+        if (attr === "V") return fmtV(Math.abs(s.v))
+        if (attr === "P") return LabLang.qty(s.power, "W", 2)
+        return fmtA(Math.abs(s.i))
+    }
+    // The kit's severity band (groundwork D1): current above the cell's
+    // rating warns; these parts have no rated voltage or power, so only I
+    // has a band. An alarming reading is formatted, never hidden.
+    function severityOf(id, attr) {
+        if (attr === "I" && Math.abs(simOf(id).i) > ratedCurrent) return "warn"
+        return "ok"
     }
 
-    // --- wires --------------------------------------------------------------
-    // Wires are drawn flat on the board, as one instanced line batch: that is
-    // what buys arrowheads and a flowing current animation, and it stays a
-    // single draw call however many wires the board grows. Nothing expects a
-    // shadow from a line lying on the paper, so the shadow question is simply
-    // gone (a batch could not cast one anyway - see LineBatch3D).
-    // The top of the stage's overlay budget: as high as a marking may sit and
-    // still belong to the paper rather than float above it.
+    // --- per-part watch tags (one value on one part, set from its card) ----
+    // The middle rung of the persistence ladder: cheaper than a trace (no
+    // probe, no history), longer-lived than a selection. id → attribute,
+    // kept by the overlay that draws them.
+    readonly property alias watchLabels: overlay.tags
+    function setWatchLabel(id, attr) { overlay.setTag(id, attr) }
+    property bool showPlan: true        // M: the schematic minimap
+    // Z: the same schematic, filling the window. Not a second view - the same
+    // canvas, given room. A diagram the size of a postage stamp can only show
+    // the SHAPE of a circuit; at full size there is room to letter it, which is
+    // what turns it from a picture of the board into something you can read
+    // values off.
+    property bool planMax: false
+    function togglePlanMax() {
+        if (!showPlan) { showPlan = true; planMax = true; return }
+        planMax = !planMax
+    }
+
     readonly property real wireY: stage.overlayMaxY
 
-    function wireEnds(w) {
-        const a = terminalPos(w.a[0], w.a[1])
-        const b = terminalPos(w.b[0], w.b[1])
-        return [Qt.vector3d(a.x, wireY, a.z), Qt.vector3d(b.x, wireY, b.z)]
-    }
+    // --- routing -------------------------------------------------------------
+    // A wire is not the straight line between two pads any more. It leaves each
+    // pad on that pad's own side and then turns at right angles, the way a
+    // wire on a real board and a line on a real diagram both do - the kit's
+    // route.js does the choosing, the board asks it (see the router above)
+    // and caches the answer per board change, never per solve.
+    readonly property var wireRoutes: board.routes
+    function wirePath(w) { return wires3d.pathOf(w) }
+    function wireMid(w) { return wires3d.midOf(w) }
 
     // Style 0 is the idle wire; 1..flowSteps march chevrons at increasing
     // speed. The speed is relative to the largest current on the board, not
     // absolute, so a junction visibly splits: the trunk runs at full speed
     // and each branch at its share of it.
-    readonly property int flowSteps: 6
-
+    readonly property int flowSteps: wires3d.flowSteps
     function wireStyle(amps, iMax) {
         const m = Math.abs(amps)
         if (!(m > 1e-5)) return 0
-        const rel = iMax > 1e-9 ? m / iMax : 1
-        return 1 + Math.min(flowSteps - 1, Math.max(0, Math.round((flowSteps - 1) * rel)))
+        return wires3d.flowStyle(iMax > 1e-9 ? m / iMax : 1)
     }
-
-    // Two lines per wire: the ink body, plus a chevron overlay that marches
-    // along it while current flows. The overlay rides a hair above the body
-    // so the two never fight over depth.
-    function wireLines() {
-        elemRev
-        let iMax = 0
+    readonly property real iMax: {
+        elemRev; sim
+        let m = 0
         for (const w of wires) {
             const c = sim.wireCurrent ? sim.wireCurrent[w.id] : null
-            if (c !== null && c !== undefined) iMax = Math.max(iMax, Math.abs(c))
+            if (c !== null && c !== undefined) m = Math.max(m, Math.abs(c))
         }
-        const out = []
-        for (const w of wires) {
-            const pts = wireEnds(w)
-            const i = sim.wireCurrent ? sim.wireCurrent[w.id] : null
-            const amps = (i === null || i === undefined) ? 0 : i
-            const style = wireStyle(amps, iMax)
-            const hovered = hoverHit && hoverHit.kind === "wire" && hoverHit.wire === w.id
-
-            // a wire past the cell's rating is the one that would get hot:
-            // in a short this paints the bypass path, which is the answer to
-            // "where is all that current going?"
-            const hot = Math.abs(amps) > root.ratedCurrent
-            out.push({ points: pts,
-                       color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
-                            : hot ? LabTheme.alarm
-                            : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
-                       width: hot ? 0.66 : 0.5, styleId: 0 })
-            if (style === 0) continue
-
-            // chevrons point from the first point to the last, so a negative
-            // current simply draws the overlay the other way round
-            const flow = amps < 0 ? [pts[1], pts[0]] : pts
-            out.push({ points: flow.map(p => Qt.vector3d(p.x, p.y + 0.05, p.z)),
-                       color: LabTheme.highlight, width: 0.62, styleId: style })
-        }
-        return out
+        return m
     }
-
+    // How one wire is drawn: the ink body, plus a chevron overlay that marches
+    // along it while current flows. A wire past the cell's rating is the one
+    // that would get hot: in a short this paints the bypass path, which is
+    // the answer to "where is all that current going?"
+    function wireLine(w, pts, hovered) {
+        const i = sim.wireCurrent ? sim.wireCurrent[w.id] : null
+        const amps = (i === null || i === undefined) ? 0 : i
+        const style = wireStyle(amps, iMax)
+        const hot = Math.abs(amps) > ratedCurrent
+        return { color: hovered ? (eraser ? LabTheme.alarm : LabTheme.secondary)
+                      : hot ? LabTheme.alarm
+                      : (style === 0 ? LabTheme.inkFaint : LabTheme.ink),
+                 width: hot ? 0.66 : 0.5, styleId: 0,
+                 // chevrons point from the first point to the last, so a
+                 // negative current simply draws the overlay the other way round
+                 flow: style === 0 ? null
+                     : { reverse: amps < 0, color: LabTheme.highlight, width: 0.62, styleId: style } }
+    }
+    function wireLines() { return wires3d.lines }
 
     // --- 3D scene ---------------------------------------------------------
     View3D {
@@ -713,6 +1676,69 @@ Item {
             shadowMapFar: 250             // measured: covers the board at maxDistance 170
         }
         CameraAnchorMark { pointer: nav }
+
+        // --- the teacher -----------------------------------------------------
+        // Sized to the board, not to a room: a part is nine units across and
+        // the sheet is 140 by 80, so the kit's default 1.48 would put a
+        // professor a sixth of a resistor tall. Scaled through height3d
+        // rather than through the node's scale, because the speech bubble is
+        // a sibling positioned in scene units and would not come with it.
+        Professor {
+            id: prof
+            view: view3d
+            height3d: 6.2                 // stands about 9 units, two cells
+            // The board is 140 wide. At the kit's 3.2 units a second, crossing
+            // it would take three quarters of a minute and hit the flight
+            // clamp instead - this is a hop between parts, not a commute.
+            travelSpeed: 34
+            objectName: "professor"
+        }
+
+        // Which shot when - the kernel's grammar, not this file's. The safe
+        // area is the chrome, measured off a 1400x900 window: the presets
+        // panel down the left, the selection card and the narrator bar
+        // along the bottom (the card reaches a quarter of the way up), the
+        // hint strip at the top.
+        CameraDirector {
+            id: director
+            rig: rig
+            presenter: prof
+            // The presets panel is hidden during a lesson, so the picture
+            // starts at the left edge; outside one it is the palette's width.
+            safe: ({ top: 0.08, bottom: 0.27, left: 0.04, right: 0.04 })
+        }
+
+        // The flow, handed to the professor. Bound to currentFlow rather than
+        // to one of the two: which lesson is offered follows the scenario, and
+        // the professor teaches whichever one is running.
+        FlowGuide {
+            id: guide
+            professor: prof
+            running: root.currentFlow ? root.currentFlow.running : false
+            step: root.currentFlow ? root.currentFlow.index : -1
+            text: root.currentFlow ? root.currentFlow.narration : ""
+            subjectOf: (i) => root.flowSubject(i)
+            voiceOf: (i) => root.flowVoice(i)
+            scriptOf: (i) => root.flowScript(i)
+            scriptVoiceOf: (i, sayIndex) => root.flowScriptVoice(i, sayIndex)
+            scriptResolve: (name) => root.scriptTarget(name)
+            // The eye's half of a line that names things: the step says which
+            // parts it is about, the guide resolves them and the MarkLayer
+            // below rings them for as long as the line lasts.
+            marks: root.currentFlow ? root.currentFlow.marks : []
+            markLabelOf: (n) => root.markLabel(n)
+            director: director
+            sceneOf: (i) => root.flowScene(i)
+            scenePointsOf: (i) => root.cellExtent(root.elements)
+            // Arrives at the far edge, centred - off the board, so the puff
+            // does not go off in the middle of the circuit, and behind it, so
+            // the first flight is toward the viewer.
+            entrance: Qt.vector3d(0, 0, root.cellZ(0) - 14)
+            // Not the character plugin's text-to-speech, which synthesises at
+            // runtime and cannot be heard before it is shipped. The audio here
+            // is pre-rendered per step and arrives through voiceOf above.
+            spoken: false
+        }
         // The tape measure, in the same screen space and for the same reason:
         // it answers "how far apart are those pads" without disturbing the
         // board, and it never clips into a part. The kit's own Voltmeter rides
@@ -727,44 +1753,14 @@ Item {
             // about to place. A build tool is an instrument whose reading is
             // an act: it takes a place, and instead of remembering it, it puts
             // something there. That is the whole of "build is not a mode".
-            HandheldInstrument {
-                id: placer
-                name: "place"
-                label: LabLang.t("part." + partType)
-                glyph: "✎"
-                pickKind: "point"
-                maxPicks: 1
-                tone: LabTheme.secondary
-                hint: "hint.placing"
+            PartPlacer { id: placer; board: board; partType: "resistor" }
 
-                property string partType: "resistor"
-
-                // where the part would land, as board cells - null off-board
-                readonly property var spot: {
-                    if (!hovering || !hovering.point) return null
-                    const p = hovering.point
-                    const col = p.x / root.cell + (root.cols - 1) / 2
-                    const row = p.z / root.cell + (root.rows - 1) / 2
-                    if (col < -0.5 || col > root.cols - 0.5
-                        || row < -0.5 || row > root.rows - 0.5) return null
-                    return { col: Math.round(col), row: Math.round(row) }
-                }
-                readonly property bool free: spot !== null
-                                             && root.cellFree(spot.col, spot.row, -1, partType)
-
-                // A click PLACES rather than accumulating: the pick is the
-                // instruction, not the subject. Refused where the cell is
-                // taken - and the ghost said so before the click.
-                function add(pick) {
-                    if (!spot || !free) return
-                    root.addElement(partType, spot.col, spot.row)
-                }
-            }
         }
         environment: stage.environment
 
         OrbitCamera3D {
             id: rig
+            view: view3d          // the frame's shape, for the director's fits
             pivot: Qt.vector3d(0, 2, 0)
             yaw: 0
             pitch: 48
@@ -848,6 +1844,18 @@ Item {
                 simV: root.simOf(modelData.id).v
                 simPower: root.simOf(modelData.id).power
                 lit: root.simOf(modelData.id).on
+                // which region a transistor is working in, so five identical
+                // black blobs stop looking identical
+                mode: {
+                    const m = root.simOf(modelData.id).mode
+                    return m === undefined ? "" : m
+                }
+                // which logic a gate package performs, printed on its case
+                func: {
+                    root.elemRev
+                    const e = root.elemAt(modelData.id)
+                    return e && e.func ? e.func : "and"
+                }
                 shorted: {
                     const b = root.batteryOf(modelData.id)
                     return b !== null && b.shorted
@@ -856,8 +1864,14 @@ Item {
                     const b = root.batteryOf(modelData.id)
                     return b !== null && b.overloaded
                 }
-                hovered: root.hoverHit !== null && root.hoverHit.kind === "element"
+                hovered: root.hoverHit !== null
+                         && (root.hoverHit.kind === "element"
+                             || root.hoverHit.kind === "actuator")
                          && root.hoverHit.el === modelData.id
+                // Distinct from `hovered`: the frame says "this part", this
+                // says "this part can be operated, here".
+                actuatorHovered: root.hoverActuator
+                                 && root.hoverHit.el === modelData.id
                 wiringTerminal: {
                     if (root.wiringFrom && root.wiringFrom.el === modelData.id)
                         return root.wiringFrom.ti
@@ -869,43 +1883,18 @@ Item {
             }
         }
 
-        LineBatch3D {  // every wire, one instanced draw call
-            widthUnits: LineBatch3D.World
-            orientation: LineBatch3D.Flat     // ribbons lie in the board plane
-            opaque: true                      // crossings resolve by depth
-            depthBias: 4
-            castsShadows: false
-            flowTime: clock.time              // sim clock: the flow is deterministic
-            flowAutoPlay: false
-            styles: [
-                { dash: [0, 0], capRound: true, opacity: 1.0 },
-                // deliberately unhurried: the flow is there to be read, not
-                // to make the board feel busy
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.0 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 1.8 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 2.8 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 4.0 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 5.4 },
-                { dash: [1.4, 3.4], pattern: "chevron", flow: 7.0 }
-            ]
-            lines: {
-                root.elemRev; root.sim; root.hoverHit; root.eraser
-                return root.wireLines()
-            }
+        // Every wire, one instanced draw call, flat on the board - plus the
+        // dangling preview, routed like the real thing. The kit says how a
+        // wire is drawn (wireLine); the kernel draws it.
+        BoardWires3D {
+            id: wires3d
+            board: board
+            y: root.wireY
+            clock: clock                      // sim clock: the flow is deterministic
+            solved: root.sim
+            lineOf: (w, pts, hovered) => root.wireLine(w, pts, hovered)
         }
 
-        MultiLine3D {  // dangling wire preview - flat, like the real thing
-            visible: root.wiringFrom !== null
-            coords: {
-                if (!root.wiringFrom) return []
-                const a = root.terminalPos(root.wiringFrom.el, root.wiringFrom.ti)
-                const b = root.cursorW
-                return [[Qt.vector3d(a.x, root.wireY, a.z),
-                         Qt.vector3d(b.x, root.wireY, b.z)]]
-            }
-            color: LabTheme.secondary
-            width: 0.4
-        }
     }
 
     // --- navigation --------------------------------------------------------
@@ -923,348 +1912,64 @@ Item {
     }
 
     // --- mouse interaction ------------------------------------------------
-    MouseArea {
+    // The gesture is the kernel's (BoardInput): an empty hand wires pads,
+    // selects and drags a part, taps a wire to branch from it, and operates
+    // the SELECTED part's actuator on a second click. What this lab adds is
+    // what operating means here - a switch flips - and which flow owns the
+    // board while it teaches.
+    BoardInput {
         id: boardMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-        cursorShape: nav.cursorShape
-        property var dragElem: null
-        property bool dragged: false
-        property var pressW: null
-        // Alt inverts the current grid mode for the length of one drag
-        function snapping(mods) {
-            return grid.snapping(mods)
-        }
-
-        function worldAt(mx, my) { return stage.worldAt(view3d, mx, my) }
-
-        // The gesture lives in named functions rather than in the signal
-        // handlers, so a flow, a test or an agent can perform the SAME drag a
-        // hand does - the inspector can synthesize a click but not a drag, and
-        // wiring two pads together is the one thing this lab is for. The
-        // handlers below are three one-liners that forward to them.
-        function moveAt(mx, my, mods, isDown) {
-            if (isDown && nav.active) { nav.move(mx, my); return }
-            if (isDown && hands.held) { hands.move(mx, my); return }
-            if (!isDown) nav.hoverAt(mx, my)
-            const w = worldAt(mx, my)
-            if (!w) return
-            root.cursorW = Qt.vector3d(w.x, 1.9, w.z)
-            if (isDown && dragElem) {
-                if (!dragged && pressW && Math.hypot(w.x - pressW.x, w.z - pressW.z) > 1.2)
-                    dragged = true
-                if (dragged)
-                    root.moveElement(dragElem,
-                                     w.x / root.cell + (root.cols - 1) / 2,
-                                     w.z / root.cell + (root.rows - 1) / 2,
-                                     snapping(mods))
-            } else {
-                root.hoverHit = root.hitAt(w.x, w.z)
-            }
-        }
-
-        // A click, as one call: press and release with no movement between.
-        function clickAt(x, y, mods) {
-            pressAt(x, y, Qt.LeftButton, mods || 0)
-            releaseAt()
-        }
-        // Drag a part from one window point to another, in one call.
-        function dragFrom(x1, y1, x2, y2, mods) {
-            pressAt(x1, y1, Qt.LeftButton, mods || 0)
-            moveAt(x2, y2, mods || 0, true)
-            releaseAt()
-        }
-
-        onWheel: (wheel) => nav.wheel(wheel.angleDelta.y, wheel.x, wheel.y)
-
-        onDoubleClicked: (mouse) => {
-            // only over bare board: a double-click on a part belongs to the part
-            const w = worldAt(mouse.x, mouse.y)
-            if (w && !root.hitAt(w.x, w.z)) nav.recenterAt(mouse.x, mouse.y)
-        }
-
-        onPositionChanged: (mouse) => moveAt(mouse.x, mouse.y, mouse.modifiers, pressed)
-        onPressed: (mouse) => pressAt(mouse.x, mouse.y, mouse.button, mouse.modifiers)
-        onReleased: releaseAt()
-
-        function pressAt(mx, my, button, mods) {
-            root.forceActiveFocus()
-            nav.cancel()
-            // Ask the camera first, and with the default buttons the answer for
-            // the left button is always no - so nothing below has to think
-            // about the camera again, and nothing below can be starved by it.
-            if (nav.begin(mx, my, button, mods) !== "") return
-            // Then the hand: an instrument out means the click is the
-            // instrument's, and it decides click-versus-drag itself.
-            if (hands.held) { hands.press(mx, my); return }
-            const w = worldAt(mx, my)
-            pressW = w; dragged = false; dragElem = null
-            const hit = w ? root.hitAt(w.x, w.z) : null
-            // empty board (or off-board): a click there means "nothing"
-            if (!hit) {
-                root.selectedId = -1
-                if (!root.eraser) root.wiringFrom = null
-                return
-            }
-            if (root.eraser) {
-                if (hit.kind === "wire") root.removeWire(hit.wire)
-                else if (hit.kind === "element" || hit.kind === "terminal")
-                    root.removeElement(hit.el)
-                return
-            }
-            // Clicking a wire taps into it: a junction is dropped where you
-            // clicked and the wire splits, so you can branch off anywhere.
-            if (hit.kind === "wire") {
-                const j = root.splitWireAt(hit.wire, w.x, w.z)
-                if (j === -1) return
-                if (root.wiringFrom) {
-                    root.addWire([root.wiringFrom.el, root.wiringFrom.ti], [j, 0])
-                    root.wiringFrom = null
-                } else {
-                    root.wiringFrom = { el: j, ti: 0 }
-                }
-                return
-            }
-            if (hit.kind === "terminal") {
-                const el = root.elemAt(hit.el)
-                // an idle click on a junction grabs the dot itself; while
-                // wiring, the same click connects to it
-                if (el && el.type === "junction" && root.wiringFrom === null) {
-                    root.selectedId = hit.el
-                    dragElem = hit.el
-                    return
-                }
-                if (root.wiringFrom === null)
-                    root.wiringFrom = { el: hit.el, ti: hit.ti }
-                else {
-                    root.addWire([root.wiringFrom.el, root.wiringFrom.ti],
-                                 [hit.el, hit.ti])
-                    root.wiringFrom = null
-                }
-                return
-            }
-            if (hit.kind === "element") {
-                root.selectedId = hit.el
-                dragElem = hit.el
-            }
-            ledFlow.takeOver()   // the learner is driving now, not the flow
-        }
-
-        function releaseAt() {
-            nav.end()          // a flicked drag coasts to a stop from here
-            if (hands.release()) return   // the click was the instrument's
-            if (dragElem && !dragged) {
-                const el = root.elemAt(dragElem)
-                if (el && el.type === "switch") root.toggleSwitch(dragElem)
-                // a resistor is set with the slider on its selection card
-            }
-            dragElem = null; dragged = false
-        }
+        board: board
+        nav: nav
+        hands: hands
+        stage: stage
+        view: view3d
+        grid: grid
+        // While a lesson runs the board is the lesson's: a task lends back
+        // exactly the part it asked for and takes it back the moment it is
+        // done, and everything else refuses out loud (#221).
+        flow: root.currentFlow
+        onOperate: (id) => root.toggleSwitch(id)
     }
-
-    // A right CLICK is "put it down" - the RTS cancel. It empties the hand and
-    // drops whatever the board had half-started, in that order, so one press
-    // walks back one step. A right DRAG still turns the view and cancels
-    // nothing; only the distance travelled tells them apart.
-    Connections {
-        target: nav
-        function onCancelled() {
-            if (!hands.empty) { hands.putAway(); return }
-            if (root.wiringFrom) { root.wiringFrom = null; return }
-            if (root.eraser) { root.eraser = false; return }
-            root.selectedId = -1
-        }
-    }
-
-    // --- how much page there is -------------------------------------------
-    // Turn the text size up and the left column stops fitting. Two answers,
-    // both measured rather than switched on the scale: the palette lays its
-    // parts and tools two across and drops their one-line hints (captions give
-    // way before things you click), and the schematic steps out from under it
-    // into the empty middle. On a tall screen at the same scale neither fires.
-    readonly property bool compactPalette:
-        root.height < LabTheme.px(760)
-    readonly property bool planUnderPalette:
-        plan.y > palette.y + palette.height + LabTheme.px(16)
 
     // --- palette ----------------------------------------------------------
-    readonly property var partCatalog: [
-        { type: "battery", color: "#3e9b92" },
-        { type: "switch", color: "#c56c54" },
-        { type: "resistor", color: "#d9c9a0" },
-        { type: "led", color: "#e05a40" },
-        { type: "bulb", color: "#d4ba6a" },
-        { type: "ammeter", color: "#3f7a57" },
-        { type: "voltmeter", color: "#8160a8" }
-    ]
+    // The kernel's: presets, the parts to take, the tools, in sections the
+    // reader folds. Where the small schematic sits relative to it is this
+    // lab's question - held false while the panel is maximised: it reads
+    // plan.y, the maximised panel moves, and a rule about dodging the palette
+    // has nothing to say about a panel that is covering it.
+    readonly property bool planUnderPalette: root.planMax ? false
+        : plan.y > palette.y + palette.height + LabTheme.px(16)
+    readonly property alias sectionsOpen: palette.sectionsOpen
 
-    LabPanel {
+    BoardPalette {
         id: palette
         // Named so a figure can ask for it by name: a paper wants a picture of
         // "the palette", and a pixel rectangle for it goes wrong the moment the
         // UI scale changes. See clayrender --crop.
         objectName: "palette"
-        x: LabTheme.px(12); y: LabTheme.px(12)
-        width: LabTheme.px(208)
-        title: LabLang.t("lab.title")
-
-        // The presets, clickable and each carrying what it is worth noticing.
-        // They used to be reachable only by pressing 1..4, with nothing but
-        // the active name on screen - the best material in the lab, hidden.
-        ScenarioBar {
-            lab: root
-            width: LabTheme.px(188)
-        }
-        // and the offer to be taught, from the first frame
-        FlowChip { flow: ledFlow }
-        Item { width: LabTheme.px(1); height: LabTheme.px(2) }
-        // The parts. Turn the text size up and this list alone is taller than
-        // the window, so it reflows into two columns and drops the one-line
-        // hints - captions give way before the things you click, and the
-        // symbol beside each name still says what the part is.
-        Grid {
-            id: partGrid
-            columns: root.compactPalette ? 2 : 1
-            spacing: LabTheme.spaceS
-            readonly property real cellW: columns === 1 ? LabTheme.px(188)
-                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
-            Repeater {
-                model: root.partCatalog
-                Rectangle {
-                    width: partGrid.cellW
-                    height: root.compactPalette ? LabTheme.px(28) : LabTheme.px(40)
-                    radius: LabTheme.px(6)
-                    color: partArea.containsMouse ? LabTheme.panel : LabTheme.paper
-                    border.color: partArea.containsMouse ? LabTheme.secondary : LabTheme.panelEdge
-                    Rectangle {  // the part's colour on the board
-                        x: LabTheme.px(6); anchors.verticalCenter: parent.verticalCenter
-                        width: LabTheme.px(10); height: LabTheme.px(10); radius: LabTheme.px(3)
-                        color: modelData.color
-                    }
-                    // and its schematic symbol: the palette is where a kit can
-                    // teach "this lump is that squiggle" for free
-                    SymbolIcon {
-                        visible: !root.compactPalette
-                        x: LabTheme.px(20); anchors.verticalCenter: parent.verticalCenter
-                        type: modelData.type
-                        ink: LabTheme.inkSoft
-                    }
-                    Column {
-                        x: root.compactPalette ? LabTheme.px(22) : LabTheme.px(60)
-                        anchors.verticalCenter: parent.verticalCenter
-                        Text {
-                            text: LabLang.t("part." + modelData.type)
-                            width: partGrid.cellW - LabTheme.px(28)
-                            elide: Text.ElideRight
-                            color: LabTheme.ink; font.pixelSize: LabTheme.fontBody
-                            font.bold: true; font.family: LabTheme.monoFont
-                        }
-                        // bounded: a translated hint is often longer than the
-                        // English one and must not run out of the panel
-                        Text {
-                            visible: !root.compactPalette
-                            text: LabLang.t("part." + modelData.type + ".hint")
-                            width: LabTheme.px(122); elide: Text.ElideRight
-                            color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
-                            font.family: LabTheme.handFont
-                        }
-                    }
-                    // Clicking a part TAKES it, it does not place it. The
-                    // press-here-release-there drag this replaces dropped the
-                    // part wherever the release happened to land - including
-                    // under the palette panel itself, which is where most of
-                    // them ended up. Now the board shows a ghost where it
-                    // would go, a click puts it there, and Esc or the right
-                    // button puts it back down.
-                    MouseArea {
-                        id: partArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: {
-                            if (hands.held === placer
-                                && placer.partType === modelData.type) {
-                                hands.putAway()          // clicking it again puts it back
-                                return
-                            }
-                            placer.partType = modelData.type
-                            hands.takeNamed("place")
-                        }
-                    }
-                }
-            }
-        }
-        Item { width: LabTheme.px(1); height: LabTheme.px(4) }
-        // The tools. Two across when the column is tight, one when it is not.
-        Grid {
-            id: toolGrid
-            columns: root.compactPalette ? 2 : 1
-            spacing: LabTheme.spaceS
-            readonly property real cellW: columns === 1 ? LabTheme.px(188)
-                                        : (LabTheme.px(188) - LabTheme.spaceS) / 2
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: root.eraser ? LabTheme.clay : LabTheme.paper
-                border.color: root.eraser ? LabTheme.alarm : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t(root.eraser ? "btn.eraser.on" : "btn.eraser")
-                    color: LabTheme.inkOn(parent.color); font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.eraser = !root.eraser }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper
-                border.color: root.showValues ? LabTheme.secondary : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t(root.showValues ? "btn.values.on" : "btn.values.off")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.showValues = !root.showValues }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper
-                border.color: grid.snap ? LabTheme.secondary : LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t(grid.snap ? "btn.grid.snap" : "btn.grid.free")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: grid.toggle() }
-            }
-            Rectangle {
-                width: toolGrid.cellW; height: LabTheme.px(30); radius: LabTheme.px(6)
-                color: LabTheme.paper; border.color: LabTheme.panelEdge
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - LabTheme.spaceL
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                    text: LabLang.t("btn.clear")
-                    color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                    font.family: LabTheme.monoFont
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.clearBoard() }
-            }
-        }
+        // Off during a lesson: nothing in it is used while the flow builds
+        // and explains, and a column of presets beside a teacher is one more
+        // thing to look at. It fades rather than pops, and comes back the
+        // moment the flow ends.
+        readonly property bool inLesson: root.currentFlow ? root.currentFlow.running : false
+        visible: opacity > 0.001
+        opacity: inLesson ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: 300 } }
+        board: board
+        lab: root
+        flow: root.currentFlow
+        hands: hands
+        placer: placer
+        grid: grid
+        overlay: overlay
+        catalog: Parts.catalog
+        // and each part's schematic symbol: the palette is where a kit can
+        // teach "this lump is that squiggle" for free
+        icon: Component { SymbolIcon {} }
     }
 
-    // --- flow (SPIKE) ------------------------------------------------------
+    // --- flow --------------------------------------------------------------
     // "Why does the LED light?" - a demo that builds the circuit, hands the
     // switch to the learner, then explains the number it produced.
     Flow {
@@ -1296,6 +2001,10 @@ Item {
         }
         FlowStep {
             key: "wire"
+            // "cell to switch, switch to LED, LED through the resistor and
+            // back to the cell" - four parts named in one breath, and until
+            // now four things to find by ear.
+            mark: ["battery", "switch", "led", "resistor"]
             demo: [["let", "sw", "addPart", "switch", 12, 2],
                    ["select", -1], ["frame", "setup"],
                    ["wire", "bat", 1, "sw", 0],
@@ -1308,6 +2017,7 @@ Item {
             task: ({ "until": (n) => { const e = root.elemAt(n("sw")); return e && e.on },
                      "hint": "flow.led-basics.flip.hint",
                      "hintAfter": 7,
+                     "allow": ["sw"],
                      "solve": [["flipSwitch", "sw"]] })
         }
         FlowStep {
@@ -1320,13 +2030,162 @@ Item {
             key: "values"
             demo: [["showValues", true]]
         }
+        // The handoff, and a task rather than a closing line: the lesson ends
+        // by lending the learner the one control it has been talking about,
+        // and ends FOR GOOD the moment they use it - after which the whole
+        // board is theirs.
         FlowStep {
             key: "try"
             demo: [["select", "res"], ["frame", "selection"]]
+            task: ({ "until": (n) => { const e = root.elemAt(n("res"))
+                                       return e && e.value !== 470 },
+                     "hint": "flow.led-basics.try.hint",
+                     "hintAfter": 9,
+                     "allow": ["res"],
+                     "solve": [["setOhms", "res", 220]] })
         }
     }
+    // --- flow: from one transistor to XOR ----------------------------------
+    // The second lesson, and the one the new parts are for. It does not build
+    // anything by hand: each step jumps to the preset that already holds the
+    // circuit and then asks the learner to work its truth table, because what
+    // is being taught here is what a gate DOES, not where to click.
+    Flow {
+        id: logicFlow
+        lab: root
+        camera: rig
+        flowId: "logic-gates"
+        titleKey: "flow.logic-gates.title"
+
+        FlowStep {
+            key: "meet"
+            // "collector on the left, emitter on the right, base facing you":
+            // three sub-parts of one part, each ringed and captioned in the
+            // reader's language while the line names them.
+            mark: ["collector", "base", "emitter"]
+            demo: [["scenario", "transistor"], ["showValues", false],
+                   ["setInputs", 0], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "switch"
+            // The subject is whatever the preset just put on the board, so
+            // the task names it with a function rather than a bound name.
+            task: ({ "until": () => root.logicRowIndex() === 1,
+                     "hint": "flow.logic-gates.switch.hint",
+                     "hintAfter": 7,
+                     "allow": () => root.logicInputs,
+                     "solve": [["setInputs", 1]] })
+        }
+        FlowStep {
+            key: "gain"
+            demo: [["showValues", true]]
+        }
+        FlowStep {
+            key: "and"
+            demo: [["scenario", "logic-and"], ["setInputs", 0],
+                   ["showValues", false], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "andtask"
+            task: ({ "until": () => root.logicRowIndex() === 3,
+                     "hint": "flow.logic-gates.andtask.hint",
+                     "hintAfter": 8,
+                     "allow": () => root.logicInputs,
+                     "solve": [["setInputs", 3]] })
+            // the gate is what the preset claims it is, or this step fails
+            expect: () => {
+                const t = root.truthTable()
+                return t.length === 4 && !t[0].out && !t[1].out && !t[2].out && t[3].out
+            }
+        }
+        FlowStep {
+            key: "or"
+            demo: [["scenario", "logic-or"], ["setInputs", 1], ["frame", "setup"]]
+            expect: () => {
+                const t = root.truthTable()
+                return t.length === 4 && !t[0].out && t[1].out && t[2].out && t[3].out
+            }
+        }
+        FlowStep {
+            key: "xor"
+            demo: [["scenario", "logic-xor"], ["setInputs", 0], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "xortask"
+            task: ({ "until": () => { const r = root.logicRowIndex()
+                                      return r === 1 || r === 2 },
+                     "hint": "flow.logic-gates.xortask.hint",
+                     "hintAfter": 8,
+                     "allow": () => root.logicInputs,
+                     "solve": [["setInputs", 1]] })
+            expect: () => {
+                const t = root.truthTable()
+                return t.length === 4 && !t[0].out && t[1].out && t[2].out && !t[3].out
+            }
+        }
+        FlowStep {
+            key: "both"
+            demo: [["setInputs", 3]]
+        }
+        FlowStep {
+            key: "cost"
+            demo: [["showValues", false], ["frame", "setup"]]
+        }
+        // --- and now the same thing as a part ------------------------------
+        FlowStep {
+            key: "chip"
+            demo: [["scenario", "gates"], ["gateFunc", "xor"],
+                   ["setInputs", 0], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "chiptask"
+            task: ({ "until": () => { const r = root.logicRowIndex()
+                                      return r === 1 || r === 2 },
+                     "hint": "flow.logic-gates.chiptask.hint",
+                     "hintAfter": 8,
+                     "allow": () => root.logicInputs,
+                     "solve": [["setInputs", 1]] })
+            // the package answers the same as the five transistors did
+            expect: () => {
+                const t = root.truthTable()
+                return t.length === 4 && !t[0].out && t[1].out && t[2].out && !t[3].out
+            }
+        }
+        FlowStep {
+            key: "switchit"
+            demo: [["gateFunc", "nand"], ["setInputs", 3]]
+            expect: () => {
+                const t = root.truthTable()
+                return t.length === 4 && t[0].out && t[1].out && t[2].out && !t[3].out
+            }
+        }
+        FlowStep {
+            key: "adder"
+            demo: [["scenario", "half-adder"], ["setInputs", 3], ["frame", "setup"]]
+            expect: () => {
+                const t = root.truthTable()
+                if (t.length !== 4) return false
+                // SUM = A xor B, CARRY = A and B
+                const sum = t.map(r => r.outs[0]), carry = t.map(r => r.outs[1])
+                return !sum[0] && sum[1] && sum[2] && !sum[3]
+                    && !carry[0] && !carry[1] && !carry[2] && carry[3]
+            }
+        }
+    }
+
+    // The scene card: the director's title while an establishing shot
+    // holds, over the whole picture.
+    SceneTitle {
+        anchors.fill: parent
+        text: director.title
+    }
+
     Narrator {
-        flow: ledFlow
+        flow: root.currentFlow
+        // The professor is carrying the line in its own bubble; the panel
+        // keeps the title, the dots, the hint and the controls, which is the
+        // half of it that has no substitute in the scene.
+        showText: !prof.present
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: LabTheme.spaceXl
@@ -1408,28 +2267,78 @@ Item {
     // the parts are, lines where the wires are. The 3D board says what you
     // built; this says what it *is*. Both stay in step because they read the
     // same model - and the symbols are the very ones from the palette.
+    //
+    // Two sizes, ONE canvas. In the corner it is a map: enough to see the shape
+    // of the circuit and where you are in it. Filling the window it is a
+    // drawing: the same symbols and the same wires, with room to letter every
+    // part with what it is and - with values on - what it is doing. Nothing is
+    // drawn in the big one that is not drawn in the small one; the difference
+    // is only how much room there is to say it.
+
+    // The backdrop. Not a decoration: while the diagram is up it is the thing
+    // you are looking at, and a board still showing through behind it would
+    // invite a click that goes nowhere.
+    Rectangle {
+        id: planScrim
+        anchors.fill: parent
+        visible: root.showPlan && root.planMax && !LabView.focus
+        z: 49
+        color: LabTheme.paper
+        opacity: 0.97
+        Behavior on opacity { NumberAnimation { duration: 110 } }
+        // clicking off the diagram puts it back, the way any lightbox behaves
+        // hoverEnabled so the board underneath stops reporting hovers: while
+        // the diagram is up, what the pointer is over is the diagram's business
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: root.planMax = false
+        }
+    }
+
     LabPanel {
         id: plan
         objectName: "schematic"
         visible: root.showPlan
-        // steps out from under the palette when the palette reaches it
-        anchors.left: root.planUnderPalette ? parent.left : palette.right
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: LabTheme.spaceXl
-        anchors.bottomMargin: LabTheme.px(44)
-        width: LabTheme.px(250)
-        height: LabTheme.px(176)
+        // Maximised it is centred and nearly the whole window; otherwise it
+        // keeps its corner and steps out from under the palette when the
+        // palette reaches it.
+        //
+        // Placed by x and y rather than by anchors, and that is not a style
+        // choice. Switching anchors per mode meant clearing one set and setting
+        // another, and a binding that evaluates to undefined does NOT reliably
+        // release an anchor: verticalCenter survived the restore, QML found it
+        // alongside bottom, and sized the panel to satisfy both - so the
+        // restored panel came back 936x812 instead of 250x176. One layout
+        // mechanism, two positions, nothing to leak between them.
+        readonly property real smallW: LabTheme.px(250)
+        readonly property real smallH: LabTheme.px(176)
+        width: root.planMax ? parent.width - LabTheme.px(48) : smallW
+        height: root.planMax ? parent.height - LabTheme.px(48) : smallH
+        x: root.planMax ? (parent.width - width) / 2
+         : (root.planUnderPalette ? 0 : palette.x + palette.width) + LabTheme.spaceXl
+        y: root.planMax ? (parent.height - height) / 2
+         : parent.height - height - LabTheme.px(44)
+        // this panel is declared before the truth table, the monitor and the
+        // hint bar, and HUD stacking here is document order - so covering the
+        // window takes an explicit z
+        z: root.planMax ? 50 : 0
         title: LabLang.t("plan.title")
-        tag: "M"
+        tag: root.planMax ? "Z · Esc" : "M · Z"
 
         Canvas {
             id: planCanvas
             width: plan.body.width
             height: plan.body.height
 
-            // one repaint trigger for everything the diagram depends on
+            // one repaint trigger for everything the diagram depends on. Its
+            // own size is in there too: maximising changes nothing about the
+            // model, so nothing else here would notice.
             readonly property int rev: root.elemRev + root.selectedId * 7919
                                        + (root.showPlan ? 1 : 0)
+                                       + (root.planMax ? 2 : 0)
+                                       + (root.showValues ? 4 : 0)
+                                       + Math.round(width) + Math.round(height) * 3
             readonly property var simRef: root.sim
             onRevChanged: requestPaint()
             onSimRefChanged: requestPaint()
@@ -1439,12 +2348,29 @@ Item {
                 function onShowPlanChanged() { planCanvas.requestPaint() }
             }
 
+            // How big the symbols are drawn, and how much air the diagram
+            // keeps around itself. Both are read by the mouse as well as by
+            // the paint, so they live here rather than inside onPaint.
+            //
+            // Maximised the margin is much wider than it looks it needs to be:
+            // it is not margin, it is where the labels of the outermost parts
+            // go. A diagram fitted edge to edge has nowhere to put its lettering
+            // except on top of itself.
+            readonly property real padPx: root.planMax ? LabTheme.px(58) : 26
+            // The smallest a symbol may be drawn, whatever the scale says. Not
+            // a size - a floor. Everything else about a symbol's box comes off
+            // the part's pads, through root.planBox.
+            readonly property real minSymbol: root.planMax ? LabTheme.px(26) : 22
+            // what a two-terminal part comes out at, which is what the mouse
+            // uses to decide whether a click landed on a symbol
+            readonly property real symbolSize: root.planBox("resistor", fit.s, minSymbol).w
+
             // Fits the parts, not the whole board: an empty pegboard would
             // squeeze the diagram into a corner. Uniform scale, so the shape
             // of the circuit stays the shape you built.
             readonly property var fit: {
                 root.elemRev
-                const pad = 26
+                const pad = padPx
                 if (!root.elements.length)
                     return { s: 1, ox: width / 2, oy: height / 2, cx: 0, cy: 0 }
                 let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity
@@ -1453,34 +2379,84 @@ Item {
                     r0 = Math.min(r0, el.row); r1 = Math.max(r1, el.row)
                 }
                 const spanC = Math.max(1.2, c1 - c0), spanR = Math.max(1.2, r1 - r0)
-                const s = Math.min((width - 2 * pad) / spanC, (height - 2 * pad) / spanR)
+                let s = Math.max(1, Math.min((width - 2 * pad) / spanC,
+                                             (height - 2 * pad) / spanR))
+                // Filling the window is right for a board with thirty parts on
+                // it and wrong for one with four: stretched to the edges, a
+                // single loop becomes a huge empty rectangle with a symbol in
+                // each corner. Past this the diagram stops growing and simply
+                // sits in the middle of the sheet, which is what a small
+                // circuit drawn on a big sheet looks like anyway.
+                if (root.planMax) s = Math.min(s, LabTheme.px(96))
                 return { s: s, ox: width / 2, oy: height / 2,
                          cx: (c0 + c1) / 2, cy: (r0 + r1) / 2 }
             }
             function px(col) { return fit.ox + (col - fit.cx) * fit.s }
             function py(row) { return fit.oy + (row - fit.cy) * fit.s }
 
+            // Which part a point in the diagram is on, or -1. The same question
+            // the board's own hit test answers, asked of the drawing.
+            function partAt(mx, my) {
+                let best = -1, bd = Infinity
+                for (const el of root.elements) {
+                    const d = Math.hypot(px(el.col) - mx, py(el.row) - my)
+                    if (d < bd) { bd = d; best = el.id }
+                }
+                return bd <= symbolSize * 0.75 ? best : -1
+            }
+
+            // Small, the diagram is a button: click it and it opens. Big, it
+            // is a view: click a symbol and that part is selected on the board
+            // behind it, so the diagram is a way of NAVIGATING the circuit and
+            // not only of looking at it.
+            MouseArea {
+                id: planMouse
+                objectName: "planMouse"
+                anchors.fill: parent
+                hoverEnabled: root.planMax
+                cursorShape: Qt.PointingHandCursor
+                // the gesture lives in a named function, so a flow or an agent
+                // can perform the same click the hand performs
+                function clickAt(mx, my) {
+                    if (!root.planMax) { root.planMax = true; return }
+                    const id = planCanvas.partAt(mx, my)
+                    if (id !== -1) root.selectedId = id
+                }
+                onClicked: (m) => clickAt(m.x, m.y)
+                onPositionChanged: (m) => {
+                    if (!root.planMax) return
+                    const id = planCanvas.partAt(m.x, m.y)
+                    root.hoverHit = id === -1 ? null
+                                  : { kind: "element", el: id,
+                                      type: root.elemAt(id).type }
+                }
+                onExited: if (root.planMax) root.hoverHit = null
+            }
+
             onPaint: {
                 const ctx = getContext("2d")
                 ctx.reset()
 
-                // wires first, so symbols sit on top of their leads. Ends go
-                // to the terminal, not the part centre - otherwise a wire
-                // bridging one part's own two terminals (a short across the
-                // cell) would collapse to a point and vanish from the diagram.
-                function end(ref) {
-                    const el = root.elemAt(ref[0])
-                    if (!el) return null
-                    if (el.type === "junction")
-                        return { x: px(el.col), y: py(el.row) }
-                    const off = ref[1] === 0 ? -0.7 : 0.7
-                    const a = (el.rot || 0) * Math.PI / 180
-                    return { x: px(el.col + off * Math.cos(a)),
-                             y: py(el.row - off * Math.sin(a)) }
+                // wires first, so symbols sit on top of their leads. The very
+                // path the board draws, mapped into the panel: a diagram whose
+                // wires ran diagonally while the board's turned corners would
+                // be a diagram of a different board - and right angles are what
+                // a circuit diagram is drawn with anyway.
+                function traceOf(w) {
+                    const r = root.wireRoutes[w.id]
+                    if (r && r.length > 1) return r
+                    const a = root.terminalPos(w.a[0], w.a[1])
+                    const b = root.terminalPos(w.b[0], w.b[1])
+                    return [{ x: a.x, z: a.z }, { x: b.x, z: b.z }]
                 }
+                // Each drawn segment is also kept as a rectangle, because a
+                // label written across a wire is worse than no label: it reads
+                // as a break in the conductor. The lettering below dodges these
+                // the same way it dodges the symbols.
+                const wireRects = []
+                const clear = Math.max(3, LabTheme.px(3))
                 for (const w of root.wires) {
-                    const a = end(w.a), b = end(w.b)
-                    if (!a || !b) continue
+                    const r = traceOf(w)
                     const i = root.sim.wireCurrent ? root.sim.wireCurrent[w.id] : null
                     const amps = (i === null || i === undefined) ? 0 : Math.abs(i)
                     const hot = amps > root.ratedCurrent
@@ -1488,296 +2464,622 @@ Item {
                                      : amps > 1e-5 ? LabTheme.ink
                                      : LabTheme.inkFaint).toString()
                     ctx.lineWidth = hot ? 2.4 : (amps > 1e-5 ? 1.6 : 1.2)
+                    ctx.lineJoin = "round"
                     ctx.beginPath()
-                    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y)
+                    let lastX = 0, lastY = 0
+                    for (let k = 0; k < r.length; ++k) {
+                        const cx = px(r[k].x / root.cell + (root.cols - 1) / 2)
+                        const cy = py(r[k].z / root.cell + (root.rows - 1) / 2)
+                        if (k === 0) ctx.moveTo(cx, cy)
+                        else {
+                            ctx.lineTo(cx, cy)
+                            wireRects.push({ x: Math.min(lastX, cx) - clear,
+                                             y: Math.min(lastY, cy) - clear,
+                                             w: Math.abs(cx - lastX) + 2 * clear,
+                                             h: Math.abs(cy - lastY) + 2 * clear })
+                        }
+                        lastX = cx; lastY = cy
+                    }
                     ctx.stroke()
                 }
+
+                // one box per part, measured from that part's own pads
+                const boxes = {}
+                for (const el of root.elements)
+                    boxes[el.id] = root.planBox(el.type, fit.s, minSymbol)
 
                 for (const el of root.elements) {
                     const sel = el.id === root.selectedId
                     const hov = root.hoverHit && root.hoverHit.el === el.id
-                    const sw = Math.max(22, Math.min(40, fit.s * 1.5))
-                    Symbols.draw(ctx, el.type, px(el.col), py(el.row), sw, sw * 0.66, {
+                    const box = boxes[el.id]
+                    Symbols.draw(ctx, el.type, px(el.col), py(el.row),
+                                 box.w, box.h, {
                         ink: (sel || hov ? LabTheme.secondary : LabTheme.ink).toString(),
                         lineWidth: sel ? 2.2 : 1.5,
                         rot: el.rot || 0,
-                        on: el.type === "switch" ? el.on : false
+                        on: el.type === "switch" ? el.on : false,
+                        // which gate this is. Without it every package on the
+                        // board was drawn as an AND, so the half adder's two
+                        // chips were the same picture twice.
+                        func: el.func || "and"
                     })
+                }
+
+                // --- the lettering ------------------------------------------
+                // Only where there is room for it. At map size the symbols are
+                // 30 px apart and a two-line label would cover the neighbour it
+                // belongs beside - so the small diagram says nothing rather
+                // than saying it illegibly.
+                if (!Plan.readable(fit.s, 26)) return
+
+                const fs = LabTheme.fontSmall
+                const lh = Math.round(fs * 1.3)
+                ctx.font = fs + "px \"" + LabTheme.monoFont + "\""
+                ctx.textBaseline = "top"
+
+                // Every part contributes its symbol box, so a label dodges the
+                // parts it does not belong to as well as its own - including
+                // the solder dots, which have no label of their own but are
+                // still something you must not write over.
+                const anchors = []
+                for (const el of root.elements) {
+                    const lines = root.planLines(el)
+                    let lw = 0
+                    for (const t of lines) lw = Math.max(lw, ctx.measureText(t).width)
+                    anchors.push({ id: el.id, x: px(el.col), y: py(el.row),
+                                   w: boxes[el.id].w, h: boxes[el.id].h,
+                                   lw: lines.length ? lw + 4 : 0,
+                                   lh: lines.length ? lines.length * lh : 0 })
+                }
+                const spots = Plan.placeLabels(anchors, {
+                    gap: Math.round(fs * 0.5),
+                    box: { w: width, h: height },
+                    avoid: wireRects
+                })
+
+                for (let i = 0; i < spots.length; ++i) {
+                    const spot = spots[i]
+                    const el = root.elemAt(spot.id)
+                    if (!el) continue
+                    const lines = root.planLines(el)
+                    if (!lines.length) continue
+                    const sel = el.id === root.selectedId
+                    const hov = root.hoverHit && root.hoverHit.el === el.id
+                    // A label with nowhere clear to go is not dropped - an
+                    // unnamed part is a worse diagram than a crowded one. It
+                    // gets a card under it instead, which is what a draughtsman
+                    // does with a note that has to sit over a conductor: the
+                    // line is then clearly BEHIND the text rather than broken
+                    // by it.
+                    if (!spot.placed) {
+                        ctx.fillStyle = LabTheme.panel.toString()
+                        ctx.globalAlpha = 0.92
+                        ctx.fillRect(spot.x, spot.y - 1, spot.w, spot.h + 2)
+                        ctx.globalAlpha = 1.0
+                    }
+                    for (let k = 0; k < lines.length; ++k) {
+                        // the designator carries the ink, the numbers under it
+                        // are quieter - so a glance finds the part and a look
+                        // finds its value
+                        ctx.fillStyle = (sel || hov ? LabTheme.secondary
+                                       : k === 0 ? LabTheme.ink
+                                                 : LabTheme.inkSoft).toString()
+                        ctx.fillText(lines[k], spot.x + 2, spot.y + k * lh)
+                    }
                 }
             }
         }
     }
 
-    // --- value labels ------------------------------------------------------
+    // The handle on the corner of the diagram. A key is not an affordance -
+    // nobody presses Z at a panel they have not been told about - so the thing
+    // that opens the diagram has to be visible on the diagram. Declared beside
+    // the panel rather than inside it: a LabPanel stacks its children in a
+    // column, and this one has to sit ON the drawing.
+    Rectangle {
+        id: planZoom
+        // The panel fades rather than hides (see LabPanel), so anything
+        // declared BESIDE it has to be told about focus itself.
+        visible: plan.visible && !LabView.focus
+        z: plan.z + 1
+        anchors.right: plan.right
+        anchors.bottom: plan.bottom
+        anchors.margins: LabTheme.spaceM
+        width: LabTheme.px(22)
+        height: LabTheme.px(22)
+        radius: LabTheme.px(4)
+        color: planZoomHover.containsMouse ? LabTheme.secondary : LabTheme.panel
+        border.color: LabTheme.panelEdge
+        border.width: Math.max(1, LabTheme.uiScale)
+        opacity: 0.95
+        Text {
+            anchors.centerIn: parent
+            // the arrows point the way the panel is about to go
+            text: root.planMax ? "⤡" : "⤢"
+            color: planZoomHover.containsMouse ? LabTheme.inkOn(LabTheme.secondary)
+                                               : LabTheme.inkSoft
+            font.pixelSize: LabTheme.fontLabel
+        }
+        MouseArea {
+            id: planZoomHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.togglePlanMax()
+        }
+    }
+    // and what it will do, in words, for as long as the pointer is on it
+    LabPanel {
+        visible: planZoomHover.containsMouse
+        z: planZoom.z
+        anchors.right: planZoom.left
+        anchors.verticalCenter: planZoom.verticalCenter
+        anchors.rightMargin: LabTheme.spaceM
+        padding: LabTheme.px(6)
+        Text {
+            text: LabLang.t(root.planMax ? "plan.close" : "plan.open")
+            color: LabTheme.inkSoft
+            font.pixelSize: LabTheme.fontSmall
+            font.family: LabTheme.monoFont
+        }
+    }
+
+    // --- truth table -------------------------------------------------------
+    // What the gate on the board actually does, for every combination of its
+    // inputs. Not a picture of a table from a textbook: each row is a fresh
+    // solve of this exact board with those switches set, so editing the
+    // circuit edits the table. The row you are standing on is highlighted, so
+    // flipping a switch walks you down it.
+    LabPanel {
+        id: truth
+        objectName: "truthTable"
+        visible: root.hasLogic
+        anchors.right: parent.right
+        anchors.top: topSwitches.bottom
+        anchors.rightMargin: LabTheme.spaceXl
+        anchors.topMargin: LabTheme.spaceL
+        // wide enough for the columns it actually has: an adder brings a
+        // second answer column, and the panel must not elide it
+        width: LabTheme.px(96) + truth.colW * (root.logicInputs.length
+                                               + root.logicOutputs.length * 1.4)
+        title: LabLang.t("truth.title")
+
+        readonly property var rows: {
+            root.elemRev; root.sim; root.logicInputs; root.logicOutputs
+            return root.truthTable()
+        }
+        readonly property int liveRow: { root.elemRev; return root.logicRowIndex() }
+        readonly property real colW: LabTheme.px(30)
+        readonly property real outW: colW + LabTheme.px(14)
+
+        Row {
+            spacing: LabTheme.px(3)
+            Repeater {
+                model: root.logicInputs.length
+                Text {
+                    required property int index
+                    width: truth.colW
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.logicInputName(index)
+                    color: LabTheme.inkSoft
+                    font.pixelSize: LabTheme.fontSmall; font.bold: true
+                    font.letterSpacing: 1.0
+                    font.family: LabTheme.monoFont
+                }
+            }
+            Repeater {
+                model: root.logicOutputs.length
+                Text {
+                    required property int index
+                    width: truth.outW
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                    text: root.logicOutputName(index)
+                    color: LabTheme.primary
+                    font.pixelSize: LabTheme.fontSmall; font.bold: true
+                    font.letterSpacing: 1.0
+                    font.family: LabTheme.monoFont
+                }
+            }
+        }
+        Repeater {
+            model: truth.rows
+            Rectangle {
+                id: _row
+                required property var modelData
+                required property int index
+                readonly property bool live: index === truth.liveRow
+                // ink follows the fill: the live row is FILLED, and a colour
+                // pinned to ink disappears on it
+                readonly property color rowInk: LabTheme.inkOn(color)
+                width: truth.body.width
+                height: LabTheme.px(21)
+                radius: LabTheme.px(4)
+                color: live ? LabTheme.secondary : LabTheme.panel
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: LabTheme.px(3)
+                    Repeater {
+                        model: _row.modelData.inputs
+                        Text {
+                            required property bool modelData
+                            width: truth.colW
+                            horizontalAlignment: Text.AlignHCenter
+                            text: modelData ? "1" : "0"
+                            color: _row.rowInk
+                            font.pixelSize: LabTheme.fontBody
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                    Repeater {
+                        model: _row.modelData.outs
+                        Text {
+                            required property bool modelData
+                            width: truth.outW
+                            horizontalAlignment: Text.AlignHCenter
+                            text: modelData ? "●" : "○"
+                            color: modelData ? LabTheme.accent : _row.rowInk
+                            font.pixelSize: LabTheme.fontBody
+                            font.family: LabTheme.monoFont
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            width: truth.body.width
+            wrapMode: Text.WordWrap
+            text: LabLang.t("truth.note")
+            color: LabTheme.inkFaint
+            font.pixelSize: LabTheme.fontBody
+            font.family: LabTheme.handFont
+        }
+    }
+
+    // --- readings over the board -------------------------------------------
     // The whole point of the lab in one toggle: with V on, every part shows
     // its current and voltage and every wire its current, so series (one
     // current everywhere, voltages divide) and parallel (one voltage, the
-    // current splits) can simply be read off the board.
-    Repeater {
-        model: root.showValues ? root.elements : []
-        Rectangle {
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.elemAt(modelData.id)
-                if (!e) return Qt.vector3d(0, 0, 0)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
-            }
-            visible: modelData.type !== "junction" && screenAt.z > 0
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            y: Math.max(2, Math.min(root.height - height - 2, screenAt.y - height))
-            width: valueText.width + 12
-            height: LabTheme.px(20)
-            radius: LabTheme.px(5)
-            color: LabTheme.panel
-            border.color: LabTheme.panelEdge; border.width: LabTheme.px(1)
-            opacity: 0.94
-            Text {
-                id: valueText
-                anchors.centerIn: parent
-                // magnitudes only: direction is what the chevrons are for,
-                // and a signed reading here only invites "why is it minus?"
-                text: {
-                    const s = root.simOf(modelData.id)
-                    return root.fmtA(Math.abs(s.i)) + "  " + root.fmtV(Math.abs(s.v))
-                }
-                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall
-                font.family: LabTheme.monoFont
-            }
+    // current splits) can simply be read off the board. Watch marks in the
+    // curve's own colour, and the per-part tags pinned from the card, are the
+    // same overlay - all speaking through readingOf, so they cannot disagree.
+    BoardOverlay {
+        id: overlay
+        anchors.fill: parent
+        board: board
+        view: view3d
+        camera: rig.camera
+        monitor: monitor
+        solved: root.sim
+        hidden: root.labelsHidden
+        // The readings a lesson leaves on ("values", "try") step aside where
+        // the professor stands: they are screen space, and a "2.1 mA" pill
+        // sat on his face in the last step of the LED flow (#219).
+        keepOut: {
+            if (!prof.present) return null
+            rig.pivot; rig.yaw; rig.pitch; rig.distance; prof.stand; prof.headAnchor
+            const feet = view3d.mapFrom3DScene(prof.position)
+            const head = view3d.mapFrom3DScene(prof.headAnchor)
+            if (feet.z <= 0 || head.z <= 0) return null
+            const h = Math.abs(feet.y - head.y)
+            const w = h * 0.45
+            return { x: Math.min(feet.x, head.x) - w, y: head.y - h * 0.15,
+                     width: Math.abs(feet.x - head.x) + 2 * w, height: h * 1.2 }
         }
-    }
-    Repeater {
-        model: root.showValues ? root.wires : []
-        Text {
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.wireEnds(modelData)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    (e[0].x + e[1].x) / 2, 0.6, (e[0].z + e[1].z) / 2))
-            }
-            visible: root.showValues && screenAt.z > 0
-            x: screenAt.x - width / 2
-            y: screenAt.y - height / 2
-            text: {
-                const i = root.sim.wireCurrent ? root.sim.wireCurrent[modelData.id] : null
-                if (i === null || i === undefined) return "?"
-                return root.fmtA(Math.abs(i))
-            }
-            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall; font.bold: true
-            font.family: LabTheme.monoFont
-            style: Text.Outline; styleColor: LabTheme.paperDeep
+        readingOf: (id, attr) => root.readingOf(id, attr)
+        severityOf: (id, attr) => root.severityOf(id, attr)
+        labelOf: (id) => root.partLabel(id)
+        // wires only carry a current, so their labels ride only that attribute
+        wireReadingOf: (w) => {
+            const i = root.sim.wireCurrent ? root.sim.wireCurrent[w.id] : null
+            if (i === null || i === undefined) return "?"
+            return root.fmtA(Math.abs(i))
         }
     }
 
-    // --- watch marks -------------------------------------------------------
-    // A tag in the curve's own colour, so "which line is which part" is read
-    // off the board instead of guessed from the legend order.
-    Repeater {
-        model: root.watch
-        WatchMark {
-            readonly property int pid: modelData
-            // the projection needs the camera's own scene transform listed, or
-            // the binding freezes the moment the rig moves
-            readonly property var screenAt: {
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-                const e = root.elemAt(pid)
-                if (!e) return Qt.vector3d(0, 0, 0)
-                return view3d.mapFrom3DScene(Qt.vector3d(
-                    root.cellX(e.col), 6.0, root.cellZ(e.row)))
-            }
-            monitor: root.watchMonitor
-            target: pid
-            label: { root.elemRev; return root.partLabel(pid) }
-            visible: screenAt.z > 0 && root.isWatched(pid)
-            x: Math.max(2, Math.min(root.width - width - 2, screenAt.x - width / 2))
-            // steps aside for the value label when V is on
-            y: Math.max(2, Math.min(root.height - height - 2,
-                                    screenAt.y - height
-                                    - (root.showValues ? LabTheme.px(23) : 0)))
-        }
+    // --- the parts the lesson is naming right now --------------------------
+    // Over the readings, because a mark is deixis and a reading is data: while
+    // the professor says "the battery, the switch, the LED and the resistor,
+    // one loop", the ring is the sentence and the numbers are background.
+    // Same keep-out as the readings - a ring drawn on a coat marks the coat.
+    // NOT `id: marks` - the type has a property of that name, and an id that
+    // shadows it turns `marks: ...` into an assignment to itself (the
+    // WatchChip/OrbitInput3D trap).
+    MarkLayer {
+        id: markLayer
+        objectName: "markLayer"
+        anchors.fill: parent
+        view: view3d
+        camera: rig.camera
+        marks: guide.markPoints
+        keepOut: overlay.keepOut
     }
 
     // --- selection card (what is selected, what it reads, what you can do) -
-    LabPanel {
+    // The kernel's card follows the part and carries the watch and tag rows;
+    // what a circuit part is called, what it reads and which of its values
+    // can be set here are this lab's. A part's state belongs on its card: a
+    // resistor's ohms are a slider, a gate's function a row of chips, a
+    // switch's on/off a pair of them.
+    function cardTitle(e) {
+        const name = LabLang.t("part." + e.type).toUpperCase()
+        if (e.type === "resistor")
+            return name + "  " + (e.value >= 1000
+                ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
+                : e.value + " Ω")
+        if (e.type === "battery")
+            return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
+        if (e.type === "switch")
+            return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
+        if (e.type === "transistor") {
+            const m = root.simOf(e.id).mode
+            return name + "  " + LabLang.t("npn." + (m === undefined ? "off" : m))
+        }
+        if (e.type === "gate")
+            return LabLang.t("gate." + (e.func || "and")).toUpperCase()
+        return name
+    }
+    // h/l on the card's rows: a switch's state, a gate's function, a value.
+    function adjustCardRow(el, row, d) {
+        if (row === "state") { setSwitch(el.id, !el.on); return true }
+        if (row === "func") {
+            const i = gateFuncs.indexOf(el.func || "and")
+            const n = gateFuncs.length
+            setGateFunc(el.id, gateFuncs[((i + d) % n + n) % n])
+            return true
+        }
+        if (row === "value") {
+            if (el.type === "battery") {
+                const v = (el.value || defaultVolts) + d * 0.5
+                setBatteryVolts(el.id, Math.max(1.5, Math.min(12, v)))
+            } else {
+                const s = resistorStepOf(el.value) + d
+                setResistanceStep(el.id, Math.max(0, Math.min(resistorSteps.length - 1, s)))
+            }
+            return true
+        }
+        return false
+    }
+
+    PartCard {
         id: selCard
         objectName: "partCard"
-        padding: 10
-        spacing: LabTheme.px(1)
-        border.color: LabTheme.secondary
-        readonly property var el: {
-            root.elemRev
-            return root.selectedId === -1 ? null : root.elemAt(root.selectedId)
+        board: board
+        // The card is up through most of a lesson - the flow selects each
+        // part as it explains it - so it reads throughout and only acts for
+        // the part the running task named (#221).
+        flow: root.currentFlow
+        view: view3d
+        camera: rig.camera
+        monitor: monitor
+        overlay: overlay
+        titleOf: (e) => root.cardTitle(e)
+        readingOf: (e) => { const s = root.simOf(e.id); return root.fmtV(s.v) + "   " + root.fmtA(s.i) }
+        hintOf: (e) => LabLang.t(e.type === "resistor" ? "card.hint.resistor"
+                                : e.type === "battery" ? "card.hint.battery" : "card.hint.part")
+        minWidthOf: (e) => (e.type === "resistor" || e.type === "battery") ? LabTheme.px(196)
+                          : e.type === "gate" ? LabTheme.px(228) : 0
+        adjust: (e, row, d) => root.adjustCardRow(e, row, d)
+        operate: (e) => {
+            if (!root.actuatorHalf(e.type)) return false
+            root.toggleSwitch(e.id)
+            return true
         }
-        readonly property var screenAt: {
-            root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
-            if (!el) return Qt.vector3d(0, 0, 0)
-            return view3d.mapFrom3DScene(Qt.vector3d(root.cellX(el.col), 0,
-                                                     root.cellZ(el.row) + 5.5))
-        }
-        visible: el !== null && screenAt.z > 0
-        // kept inside the window: zoomed in, the anchor point can sit far
-        // below the viewport
-        x: Math.max(8, Math.min(root.width - width - 8, screenAt.x - width / 2))
-        y: Math.max(8, Math.min(root.height - height - 44, screenAt.y + 6))
-        width: Math.max(selCol.width + 20, (isResistor || isBattery) ? 196 : 0)
-        height: selCol.height + 14
-        readonly property bool isResistor: el !== null && el.type === "resistor"
-        readonly property bool isBattery: el !== null && el.type === "battery"
+        readonly property bool isResistor: part !== null && part.type === "resistor"
+        readonly property bool isBattery: part !== null && part.type === "battery"
+        readonly property bool isGate: part !== null && part.type === "gate"
         readonly property var bat: {
             root.elemRev; root.sim
-            return el && el.type === "battery" ? root.batteryOf(el.id) : null
+            return part && part.type === "battery" ? root.batteryOf(part.id) : null
         }
 
-        Column {
-            id: selCol
-            spacing: LabTheme.px(1)
-            Text {
-                text: {
-                    // elemRev per binding: `el` hands back the same object
-                    // every time, and re-assigning an identical reference is
-                    // not a change as far as QML is concerned
-                    root.elemRev
-                    if (!selCard.el) return ""
-                    const e = selCard.el
-                    const name = LabLang.t("part." + e.type).toUpperCase()
-                    if (e.type === "resistor")
-                        return name + "  " + (e.value >= 1000
-                            ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
-                            : e.value + " Ω")
-                    if (e.type === "battery")
-                        return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
-                    if (e.type === "switch")
-                        return name + "  " + LabLang.t(e.on ? "switch.closed" : "switch.open")
-                    return name
-                }
-                color: LabTheme.primary; font.pixelSize: LabTheme.fontSmall; font.bold: true
-                font.letterSpacing: 1.0; font.family: LabTheme.monoFont
+        // The transistor's own account of itself. Its v/i line above is
+        // the collector-emitter pair, which is what every other readout in
+        // the lab shows for it; what only this card can add is the tiny
+        // current on the third leg, and the ratio between the two - which
+        // is the entire reason the part exists.
+        Text {
+            visible: selCard.part !== null && selCard.part.type === "transistor"
+            text: {
+                root.elemRev; root.sim
+                if (!selCard.part || selCard.part.type !== "transistor") return ""
+                const s = root.simOf(selCard.part.id)
+                const gain = Math.abs(s.ib) > 1e-9
+                             ? LabLang.num(Math.abs(s.ic / s.ib), 0) : "—"
+                return "Ib " + root.fmtA(s.ib) + "   Ic " + root.fmtA(s.ic)
+                     + "   ×" + gain
             }
-            Text {
-                text: {
-                    root.elemRev
-                    if (!selCard.el) return ""
-                    const s = root.simOf(selCard.el.id)
-                    return root.fmtV(s.v) + "   " + root.fmtA(s.i)
-                }
-                color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
-                font.family: LabTheme.monoFont
-            }
-            // Resistance slider: drag it and the colour bands on the part
-            // change with the value, because the bands are the real code.
-            Item {
-                visible: selCard.isResistor || selCard.isBattery
-                width: selCard.width - 20
-                height: visible ? 22 : 0
-
-                Item {
-                    id: rSlider
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width; height: LabTheme.px(16)
-                    readonly property int steps: selCard.isBattery
-                        ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
-                    readonly property real ratio: {
+            color: LabTheme.inkSoft; font.pixelSize: LabTheme.fontSmall
+            font.family: LabTheme.monoFont
+        }
+        // Which logic the selected package performs. Same idiom as the
+        // resistor's slider: you place one part and then say what it is,
+        // and the case, the schematic symbol and the truth table all
+        // follow. Changing it re-solves, so the table redraws under your
+        // finger - which is the fastest way there is to learn what six
+        // gates actually do.
+        // A Grid and not a Flow: `Flow` in this file is the LAB's Flow -
+        // the narrated walkthrough - because Clayground.Lab is imported
+        // after QtQuick and wins the name. Three across, two rows.
+        Grid {
+            id: funcGrid
+            visible: selCard.part !== null && selCard.part.type === "gate"
+            width: selCard.width - 20
+            height: visible ? implicitHeight : 0
+            columns: 3
+            spacing: LabTheme.px(3)
+            CardFocusRing { on: selCard.focusedRow === "func" }
+            readonly property real cellW:
+                (selCard.width - 20 - 2 * LabTheme.px(3)) / 3
+            Repeater {
+                model: root.gateFuncs
+                Rectangle {
+                    required property string modelData
+                    // elemRev here too: `part` is the same reference after an
+                    // in-place func change, so without it the scene flips
+                    // to OR while this chip keeps highlighting AND
+                    readonly property bool active: {
                         root.elemRev
-                        if (!selCard.el) return 0
-                        if (selCard.isBattery)
-                            return ((selCard.el.value || root.defaultVolts) - 1.5) / 10.5
-                        return steps > 0 ? root.resistorStepOf(selCard.el.value) / steps : 0
+                        return selCard.part !== null && selCard.part.func === modelData
                     }
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
-                        color: LabTheme.panelEdge
-                    }
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: rSlider.ratio * parent.width
-                        height: LabTheme.px(4); radius: LabTheme.px(2)
-                        color: LabTheme.secondary
-                    }
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: rSlider.ratio * (parent.width - width)
-                        width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
-                        color: LabTheme.panel
-                        border.color: LabTheme.ink; border.width: LabTheme.px(2)
+                    width: funcGrid.cellW
+                    height: LabTheme.px(20)
+                    radius: LabTheme.px(4)
+                    color: active ? LabTheme.secondary : LabTheme.paper
+                    border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                    border.width: LabTheme.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: LabLang.t("gate." + parent.modelData).toUpperCase()
+                        color: LabTheme.inkOn(parent.color)
+                        font.pixelSize: LabTheme.fontSmall; font.bold: true
+                        font.family: LabTheme.monoFont
                     }
                     MouseArea {
                         anchors.fill: parent
-                        anchors.margins: -6
-                        function applyAt(mx) {
-                            if (!selCard.el) return
-                            const t = Math.max(0, Math.min(1, (mx + 6) / rSlider.width))
-                            if (selCard.isBattery)
-                                root.setBatteryVolts(selCard.el.id, 1.5 + t * 10.5)
-                            else
-                                root.setResistanceStep(selCard.el.id,
-                                                       Math.round(t * rSlider.steps))
-                        }
-                        onPressed: (mouse) => applyAt(mouse.x)
-                        onPositionChanged: (mouse) => { if (pressed) applyAt(mouse.x) }
+                        onClicked: if (selCard.part)
+                                       root.setGateFunc(selCard.part.id, parent.modelData)
                     }
                 }
             }
-            // The cell's own account of itself: EMF splits into what it
-            // burns inside and what actually reaches the parts. A short is
-            // then not a slogan on a banner but a bar gone all-red.
-            BudgetBar {
-                visible: selCard.isBattery && selCard.bat !== null
-                width: selCard.width - 20
-                height: visible ? implicitHeight : 0
-                unit: "V"
-                total: selCard.bat ? selCard.bat.emf : 1
-                segments: {
+        }
+        // A switch's state, where a gate's function and a resistor's
+        // ohms already live. Two chips rather than one toggle: a toggle
+        // says what will happen, a pair says what IS.
+        Row {
+            id: switchState
+            visible: selCard.part !== null && selCard.part.type === "switch"
+            height: visible ? implicitHeight : 0
+            spacing: LabTheme.px(3)
+            CardFocusRing { on: selCard.focusedRow === "state" }
+            Repeater {
+                model: [true, false]
+                Rectangle {
+                    required property bool modelData
+                    // same elemRev discipline as the gate chips: `on` is
+                    // mutated in place, the reference never changes
+                    readonly property bool active: {
+                        root.elemRev
+                        return selCard.part !== null && selCard.part.on === modelData
+                    }
+                    width: (selCard.width - 20 - LabTheme.px(3)) / 2
+                    height: LabTheme.px(20)
+                    radius: LabTheme.px(4)
+                    color: active ? LabTheme.secondary : LabTheme.paper
+                    border.color: active ? LabTheme.secondary : LabTheme.panelEdge
+                    border.width: LabTheme.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: LabLang.t(parent.modelData ? "switch.on" : "switch.off")
+                        color: LabTheme.inkOn(parent.color)
+                        font.pixelSize: LabTheme.fontSmall; font.bold: true
+                        font.family: LabTheme.monoFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: if (selCard.part)
+                                       root.setSwitch(selCard.part.id, parent.modelData)
+                    }
+                }
+            }
+        }
+
+        // Resistance slider: drag it and the colour bands on the part
+        // change with the value, because the bands are the real code.
+        Item {
+            visible: selCard.isResistor || selCard.isBattery
+            width: selCard.width - 20
+            height: visible ? 22 : 0
+            CardFocusRing { on: selCard.focusedRow === "value" }
+
+            Item {
+                id: rSlider
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width; height: LabTheme.px(16)
+                readonly property int steps: selCard.isBattery
+                    ? 21 : root.resistorSteps.length - 1   // 1.5 .. 12 V in 0.5 steps
+                readonly property real ratio: {
                     root.elemRev
-                    const b = selCard.bat
-                    if (!b) return []
-                    return [{ label: LabLang.t("cell.reaches"), value: b.vTerm,
-                              color: LabTheme.teal },
-                            { label: LabLang.t("cell.lost"), value: b.internalDrop,
-                              color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
+                    if (!selCard.part) return 0
+                    if (selCard.isBattery)
+                        return ((selCard.part.value || root.defaultVolts) - 1.5) / 10.5
+                    return steps > 0 ? root.resistorStepOf(selCard.part.value) / steps : 0
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width; height: LabTheme.px(4); radius: LabTheme.px(2)
+                    color: LabTheme.panelEdge
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: rSlider.ratio * parent.width
+                    height: LabTheme.px(4); radius: LabTheme.px(2)
+                    color: LabTheme.secondary
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: rSlider.ratio * (parent.width - width)
+                    width: LabTheme.px(12); height: LabTheme.px(12); radius: LabTheme.px(6)
+                    color: LabTheme.panel
+                    border.color: LabTheme.ink; border.width: LabTheme.px(2)
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    function applyAt(mx) {
+                        if (!selCard.part) return
+                        const t = Math.max(0, Math.min(1, (mx + 6) / rSlider.width))
+                        if (selCard.isBattery)
+                            root.setBatteryVolts(selCard.part.id, 1.5 + t * 10.5)
+                        else
+                            root.setResistanceStep(selCard.part.id,
+                                                   Math.round(t * rSlider.steps))
+                    }
+                    onPressed: (mouse) => applyAt(mouse.x)
+                    onPositionChanged: (mouse) => { if (pressed) applyAt(mouse.x) }
                 }
             }
-            Text {
-                visible: selCard.isBattery && selCard.bat !== null
-                width: selCard.width - 20
-                wrapMode: Text.WordWrap
-                text: {
-                    const b = selCard.bat
-                    if (!b) return ""
-                    if (b.shorted)
-                        return LabLang.tf("cell.short", LabLang.num(b.rExt, 2))
-                    if (b.overloaded)
-                        return LabLang.tf("cell.heavy", LabLang.num(Math.abs(b.i), 2),
-                                          LabLang.num(b.rated, 1))
-                    return LabLang.tf("cell.ok", b.rExt > 9999 ? LabLang.t("cell.open")
-                        : LabLang.num(b.rExt, b.rExt < 100 ? 1 : 0) + " Ω")
-                }
-                color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
-                     : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
-                     : LabTheme.inkFaint
-                font.pixelSize: LabTheme.fontBody
-                font.family: LabTheme.handFont
+        }
+        // The cell's own account of itself: EMF splits into what it
+        // burns inside and what actually reaches the parts. A short is
+        // then not a slogan on a banner but a bar gone all-red.
+        BudgetBar {
+            visible: selCard.isBattery && selCard.bat !== null
+            width: selCard.width - 20
+            height: visible ? implicitHeight : 0
+            unit: "V"
+            total: selCard.bat ? selCard.bat.emf : 1
+            segments: {
+                root.elemRev
+                const b = selCard.bat
+                if (!b) return []
+                return [{ label: LabLang.t("cell.reaches"), value: b.vTerm,
+                          color: LabTheme.teal },
+                        { label: LabLang.t("cell.lost"), value: b.internalDrop,
+                          color: b.shorted ? LabTheme.alarm : LabTheme.clay }]
             }
-            // Monitoring is a per-part act, like selecting: this puts the part
-            // on the plot in the colour it then wears on the board. The chip
-            // is the kernel's - it reads the series limit off the monitor
-            // itself, so this card can no longer disagree with the plot about
-            // whether there is a colour left - and a junction hides it by
-            // having no target rather than by a second visibility rule.
-            WatchChip {
-                monitor: root.watchMonitor
-                target: selCard.el !== null && selCard.el.type !== "junction"
-                        ? selCard.el.id : undefined
-                labels: ({ add: "card.watch", on: "card.watched",
-                           full: "card.watch.full" })
+        }
+        Text {
+            visible: selCard.isBattery && selCard.bat !== null
+            width: selCard.width - 20
+            wrapMode: Text.WordWrap
+            text: {
+                const b = selCard.bat
+                if (!b) return ""
+                if (b.shorted)
+                    return LabLang.tf("cell.short", LabLang.num(b.rExt, 2))
+                if (b.overloaded)
+                    return LabLang.tf("cell.heavy", LabLang.num(Math.abs(b.i), 2),
+                                      LabLang.num(b.rated, 1))
+                return LabLang.tf("cell.ok", b.rExt > 9999 ? LabLang.t("cell.open")
+                    : LabLang.num(b.rExt, b.rExt < 100 ? 1 : 0) + " Ω")
             }
-            Text {
-                text: LabLang.t(selCard.isResistor ? "card.hint.resistor"
-                     : selCard.isBattery ? "card.hint.battery" : "card.hint.part")
-                color: LabTheme.inkFaint; font.pixelSize: LabTheme.fontBody
-                font.family: LabTheme.handFont
-            }
+            color: selCard.bat && selCard.bat.shorted ? LabTheme.alarm
+                 : selCard.bat && selCard.bat.overloaded ? LabTheme.accent
+                 : LabTheme.inkFaint
+            font.pixelSize: LabTheme.fontBody
+            font.family: LabTheme.handFont
         }
     }
 
@@ -1806,26 +3108,22 @@ Item {
         // under the banner's slot, not in it: a short circuit outranks the
         // clock for the top line of the page
         anchors.topMargin: LabTheme.px(58)
+        // The professor's speech bubble hangs over its head, its head is in
+        // the upper half of a framed shot, and this is the top centre of the
+        // window: the two were printed on top of each other. Same call the
+        // hint bar makes when the Narrator takes the bottom strip - while
+        // somebody is teaching, the slot is theirs.
+        //
+        // And the clock is a reading, so focus mode takes it as well.
+        visible: !prof.present && !LabView.focus
     }
 
     // --- hint bar ----------------------------------------------------------
     HintBar {
         id: hintBar
-        flow: ledFlow                 // the narrator owns this slot while it runs
+        flow: root.currentFlow        // the narrator owns this slot while it runs
         rightGuard: monitor
-        text: {
-            // the hand outranks everything: while an instrument is out, a hint
-            // about clicking pads describes something you are not doing
-            if (!hands.empty) return LabLang.t(hands.held.hint)
-            if (root.eraser) return LabLang.t("hint.eraser")
-            if (root.wiringFrom) return LabLang.t("hint.wiring")
-            if (root.selectedId !== -1)
-                return LabLang.t("hint.selected")
-                + LabLang.t(grid.snap ? "hint.selected.snap"
-                                      : "hint.selected.free")
-                + LabLang.t("hint.selected.frame")
-            return LabLang.t("hint.idle")
-        }
+        text: boardMouse.hint         // the hand, the eraser, the actuator, the wire, the selection
     }
 
     // --- monitor -----------------------------------------------------------
@@ -1844,7 +3142,7 @@ Item {
             { key: "P", label: "quantity.power", unit: "W" }]
         windowSeconds: 30
         placeholder: LabLang.t("plot.empty")
-        valueOf: (id) => root.watchValueOf(id)
+        valueOf: (id, q) => root.watchValueOf(id, q)
         labelOf: (id) => root.partLabel(id)
         // a solder dot has no reading of its own
         canWatch: (id) => {
@@ -1856,32 +3154,47 @@ Item {
         revision: root.elemRev + root.elements.length
     }
 
+    // --- keyboard selection ------------------------------------------------
+    // f puts a letter on every part; typing it selects, exactly as a click
+    // would, and the camera holds still (⇧F is the dive). A switch needs no
+    // extra target: its actuator sits at the body centre, so the part's own
+    // chip already labels the lever.
+    function jumpTargets() {
+        return board.jumpTargets((id) => partLabel(id), (el) => LabLang.t("code." + el.type))
+    }
+
+    HintJump {
+        id: hintJump
+        view: view3d
+        camera: rig.camera
+        rig: rig
+        targets: root.jumpTargets
+        onSelected: (t) => root.selectedId = t.id
+    }
+
     // --- keys --------------------------------------------------------------
     // The reserved half of the map (presets, flow transport, view, record,
-    // help) belongs to LabKeys; what is listed here is what this lab adds -
-    // and declaring a key here is also what documents it in LabHelp.
+    // help) belongs to LabKeys, the board's half (clear, eraser, values,
+    // plot, turn, grid, remove) to the Board; what is listed here is what
+    // this lab adds - and declaring a key here is also what documents it in
+    // LabHelp.
     LabKeys {
         id: keymap
         lab: root
         camera: rig
         pointer: nav
         hands: hands
-        flow: ledFlow
+        flow: root.currentFlow
         recorder: recorder
-        keys: [
-            { key: "C", label: "key.clear", action: () => root.clearBoard() },
-            { key: "E", label: "key.eraser", action: () => root.eraser = !root.eraser },
-            { key: "V", label: "key.values", action: () => root.showValues = !root.showValues },
-            { key: "M", label: "key.plan", action: () => root.showPlan = !root.showPlan },
-            { key: "Q", label: "key.watch", action: () => {
-                if (root.selectedId !== -1) root.toggleWatch(root.selectedId) } },
-            { key: "R", label: "key.rotate", action: () => {
-                if (root.selectedId !== -1) root.rotateElement(root.selectedId) } },
-            { key: "#", label: "key.grid", action: () => grid.toggle() },
-            { key: "G", label: "key.grid", hidden: true, action: () => grid.toggle() },
-            { key: "Del", label: "key.delete", action: () => {
-                if (root.selectedId !== -1) root.removeElement(root.selectedId) } }
-        ]
+        jump: hintJump
+        hints: hintBar
+        selection: selCard.keys
+        keys: board.keys(grid, overlay).concat([
+            { key: "M", label: "key.plan", action: () => {
+                root.showPlan = !root.showPlan
+                if (!root.showPlan) root.planMax = false } },
+            { key: "Z", label: "key.planmax", action: () => root.togglePlanMax() }
+        ]).concat(board.selectionKeys(monitor, grid))
     }
     LabHelp {
         keymap: keymap
@@ -1894,7 +3207,10 @@ Item {
         // what is left is this lab's own cancel: the flow's Esc has already
         // had its turn inside handle()
         if (ev.key === Qt.Key_Escape) {
-            wiringFrom = null; eraser = false; selectedId = -1
+            // the diagram first: while it is covering the window, Esc is what
+            // anyone would expect to close it, not what clears a selection
+            if (planMax) { planMax = false; return }
+            boardMouse.cancelAll()
         }
     }
     // the other half of the Space quasimode: without it the hand stays down

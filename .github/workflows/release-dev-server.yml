@@ -11,7 +11,7 @@ permissions:
 env:
   QT_VERSION_WASM: '6.10.1'
   QT_VERSION_HOST: '6.10.1'
-  QT_MODULES: 'qtmultimedia qtquick3d qtshadertools qt5compat qtimageformats'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquicktimeline qtshadertools qt5compat qtimageformats'
   EMSDK_VERSION: '4.0.7'
 
 jobs:

@@ -22,7 +22,6 @@ Press `Ctrl+G` in the sandbox window to see all available shortcuts:
 |----------|--------|
 | `Ctrl+G` | Toggle guide/help overlay |
 | `Ctrl+L` | Toggle logging overlay |
-| `Ctrl+R` | Reload current sandbox |
 | `Ctrl+1-5` | Switch between loaded sandboxes |
 
 ## Live Reloading

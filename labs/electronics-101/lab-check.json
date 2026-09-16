@@ -1,0 +1,6 @@
+{
+    "purpose": "teaching",
+    "steps": 600,
+    "flows": ["led-basics", "logic-gates"],
+    "scenarios": "all"
+}

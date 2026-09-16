@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Gauge
     \inqmlmodule Clayground.Lab
+    \ingroup lab-instruments
     \brief A needle dial that picks its own range - the instrument, not a number.
 
     A reading printed as text says what the value is; a dial says what it is

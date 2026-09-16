@@ -1,0 +1,7 @@
+#!/bin/sh
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# The spelling the skill, the READMEs and labs/CMakeLists.txt use. Keeping the
+# entry point free of the .py suffix means a failing ctest line names a command
+# you can paste.
+exec python3 "$(dirname "$0")/lab_check.py" "$@"

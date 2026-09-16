@@ -59,6 +59,7 @@ Flow {
         task: ({ "until": (n) => { const e = root.elemAt(n("sw")); return e && e.on },
                  "hint": "flow.led-basics.flip.hint",
                  "hintAfter": 7,    // sim seconds until the hint shows
+                 "allow": ["sw"],   // the one part that is live meanwhile
                  "solve": [["flipSwitch", "sw"]] })   // the "show me" path
     }
     FlowStep {
@@ -74,6 +75,8 @@ Flow {
 }
 Narrator { flow: ledFlow }          // bottom-centre; hide the hint bar
                                     // while ledFlow.running
+BoardInput { flow: ledFlow }        // and the board is the flow's while it runs
+PartCard   { flow: ledFlow }
 ```
 
 Three step kinds, by who acts:
@@ -81,22 +84,37 @@ Three step kinds, by who acts:
 - **demo** — the lab acts through its verbs; the learner watches.
 - **task** — the learner acts; `until` is a predicate on *lab state*
   ("the LED is lit"), never on a specific click, so there is always more
-  than one way to satisfy it. Escalation, all optional: narration →
-  after `hintAfter` sim-seconds the hint shows → *show me* runs `solve`.
-  Nobody is ever stuck.
+  than one way to satisfy it. `allow` names what the task lends out —
+  the parts that answer while it runs, written the way `until` and
+  `solve` write them (`"allow": ["sw"]`, or a function of the same
+  lookup when the subject is whatever the step's own preset put there).
+  Escalation, all optional: narration → after `hintAfter` sim-seconds
+  the hint shows → *show me* runs `solve`. Nobody is ever stuck.
 - **watch** — the *simulation* acts; the step ends when the world
   reaches the moment worth explaining. The narrator says "watching…"
-  instead of "your turn"; interruption there counts as taking over,
-  while acting during a task counts as participating (`takeOver()` is a
-  no-op while `waiting`).
+  instead of "your turn".
 
 A step with none of the three just narrates.
 
 ## Rules that make a flow teach
 
-- **A flow never locks the lab.** Input mid-flow pauses it (wire your
-  interaction handlers to call `flow.takeOver()`); the narrator offers
-  resume / replay / leave. No modal overlay, no disabled inputs.
+- **A lesson owns the board while it teaches** (#221). `Flow.control` is
+  `"learner"` (nothing running — everything works), `"flow"` (a demo or a
+  narrated step — the board is inert) or `"task"` (only what `allow`
+  named). The instant a task's `until` holds the board is the flow's
+  again, so a second click cannot undo what the first one just achieved.
+  Wire it by handing the flow to the input rather than by disabling
+  anything: `BoardInput { flow: root.currentFlow }` and
+  `PartCard { flow: root.currentFlow }`. A refused touch is *answered* —
+  `Flow.refuse()` puts a line in the narrator — because a click that does
+  nothing and says nothing reads as a broken lab. Full control comes back
+  by leaving (`flow.stop()`, the narrator's ✕), never by touching
+  something mid-lesson. A task with no `allow` keeps the whole board
+  live, which is what a flow written before this gets.
+  The camera is never gated: looking around is not touching.
+- **The headless run is not affected.** `Lab.runFlow()` performs each
+  task through `solve()`, i.e. through the lab's verbs, and never through
+  the input layer — so a locked board cannot lock `lab_check_<lab>` out.
 - **Pacing ripens, never forces.** `pacing: "ready"` (default): a
   reading-time estimate ripens the Next control — dimmed but **always
   clickable**, never disabled. `"auto"` advances on elapse (kiosk,
@@ -104,16 +122,31 @@ A step with none of the three just narrates.
   Dwell is measured in **sim seconds**, so `timeScale` scales a flow and
   headless runs traverse identical states.
 - **One idea per step**; keep narration under ~240 characters.
+- **Timing, as measured.** A demo may apply a scenario in any step, not only
+  the first; the step's dwell survives the clock rewind. `expect` is
+  asserted on the first sample tick after the dwell elapses, so `dwell: 6`
+  asserts at t = 6.05 s with the default sample interval — measure the
+  expected value at that tick, not at 6.0.
 - **Checkpoints make scrubbing cheap**: before each step the runner
   stores `viewState()` + the name table; `goTo(k)` restores checkpoint k
   and replays only step k's demo. Progress dots are clickable. In Box2D
   labs a backward jump resumes from the scenario boundary, not the exact
   frame (see pitfalls).
-- **Every flow is also a test.** Run it headless with `pacing: "auto"`:
-  verbs must resolve, each `task.until` must hold after its `solve`,
-  each `expect` must pass. Give the key steps `expect` predicates with
-  the *measured* value — a drifted lab then breaks its own lesson
-  loudly instead of teaching a wrong number.
+- **Every flow is also a test.** One command walks it:
+
+  ```bash
+  clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
+      --paused --result - --eval 'Lab.runFlow("<flowId>")'
+  ```
+
+  `Lab.runFlow()` forces `pacing: "auto"`, steps the clock at 1/60 s and
+  runs each task's `solve` itself, then reports `unresolvedVerbs`,
+  `failedTasks` and `failedExpects` (each with its step key) plus
+  `finished`. Give the key steps `expect` predicates with the *measured*
+  value — a drifted lab then breaks its own lesson loudly instead of
+  teaching a wrong number. `lab_check_<lab>` (#208) runs the same call for
+  every id in `flows()`, so a lesson that drifts is red in a build; the
+  command above is for one flow while you are working on it.
 - **End with a handoff**: explain the number the learner just produced
   ("2.4 V over 470 Ω is 5.1 mA"), then "now try it yourself" — and
   ideally a final *task* that verifies transfer ("build two bulbs in
@@ -149,10 +182,13 @@ A flow nobody finds teaches nobody. Ship all three:
 
 Implemented: `Flow`, `FlowStep`, `Narrator`, `FlowChip`, verbs-as-data
 with `let` bindings, task/watch/expect, checkpoint scrubbing, ripening
-pacing, `takeOver`, `LabLang` narration keys (the `flow.*` chrome lives
-in the kernel dictionary — never copy it into a lab). **Not yet built** (planned, don't
-reference in code): `FlowSet`, a flow picker, `FlowCursor` (animated
-pointer), callout bubbles, flows as files under `labs/<lab>/flows/`,
-resume-after-reload of a running flow, record mode, `flow --check`
-validation, gym integration. Declare flows inline in `Sandbox.qml` and
-expose `flows()` / `startFlow(id)` manually until then.
+pacing, `control`/`grants`/`refuse` (#221), `LabLang` narration keys (the `flow.*` chrome lives
+in the kernel dictionary — never copy it into a lab), and the headless
+run `Lab.runFlow(flowId)` (every `Flow` registers itself with `Lab`
+under its `flowId`; `Lab.headless` is what the Narrator, the professor
+kit's `FlowGuide` and narration audio stand down for). **Not yet built**
+(planned, don't reference in code): `FlowSet`, a flow picker,
+`FlowCursor` (animated pointer), callout bubbles, flows as files under
+`labs/<lab>/flows/`, resume-after-reload of a running flow, record mode.
+Declare flows inline in `Sandbox.qml` and expose `flows()` / `startFlow(id)`
+manually until then.

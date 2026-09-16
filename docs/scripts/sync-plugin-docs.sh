@@ -34,6 +34,7 @@ plugins=(
     "svg:SVG"
     "canvas:Canvas"
     "canvas3d:Canvas3D"
+    "character3d:Character3D"
     "physics:Physics"
     "world:World"
     "behavior:Behavior"

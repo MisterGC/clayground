@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype Compass
     \inqmlmodule Clayground.Lab
+    \ingroup lab-chrome
     \brief Which way the work surface faces while you circle it.
 
     You stay at the bottom and the board turns, which is what actually
@@ -19,6 +20,10 @@ import QtQuick
     \sa OrbitCamera3D
 */
 Rectangle {
+
+    // Which way the board faces is orientation, not scene. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
+    visible: !LabView.focus
     id: root
 
     /*!

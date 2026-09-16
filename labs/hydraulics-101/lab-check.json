@@ -1,0 +1,6 @@
+{
+    "purpose": "teaching",
+    "steps": 600,
+    "flows": ["wheel-basics"],
+    "scenarios": "all"
+}

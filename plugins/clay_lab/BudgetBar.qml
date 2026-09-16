@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype BudgetBar
     \inqmlmodule Clayground.Lab
+    \ingroup lab-kernel
     \brief Shows how one total splits into its parts.
 
     A stacked bar plus a legend, for the question every lab eventually asks:

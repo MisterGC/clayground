@@ -1,0 +1,6 @@
+#!/bin/sh
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# The spelling the skill and the READMEs use. Keeping the entry point free of
+# the .py suffix means the "next steps" block reads as a command.
+exec python3 "$(dirname "$0")/lab_new.py" "$@"

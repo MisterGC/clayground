@@ -244,6 +244,10 @@ private:
     // request instead and report how many were dropped.
     bool m_inRequest = false;
     int m_reentrantDropped = 0;
+    // The id of the last request actually carried out. A write to request.json
+    // is routinely reported twice by QFileSystemWatcher, and acting on both
+    // runs the action twice - see processRequest().
+    QString m_lastRequestId;
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;

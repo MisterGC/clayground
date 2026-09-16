@@ -128,6 +128,9 @@ Item {
     */
     signal turned(real deltaYaw)
 
+    // Whether the current walk or run is this controller's doing.
+    property bool _driving: false
+
     Timer {
         id: updateTimer
         interval: root.updateInterval
@@ -149,7 +152,7 @@ Item {
                 // Compute yaw in radians
                 const yawRad = root.character.eulerRotation.y * Math.PI / 180;
 
-                // Forward vector: yaw=0 means looking along -Z
+                // Forward vector: yaw=0 means looking along +Z
                 const fwdX = Math.sin(yawRad);
                 const fwdZ = Math.cos(yawRad);
 
@@ -168,15 +171,21 @@ Item {
                 root.moved(deltaX, deltaZ);
             }
 
-            // Update character activity state based on movement and sprint
-            // Only override movement-based activities, preserve special activities like Using/Fighting
+            // Update character activity state based on movement and sprint.
+            // Only a walk or run THIS controller started is ended by the
+            // input going quiet: a walk set from outside (an editor button,
+            // a script) used to be reset to Idle on the next tick, so no
+            // button that said "walk" ever worked while a controller was
+            // attached. Using and Fighting are never touched.
             if (root.processedAxisY) {
                 root.character.activity = root.sprinting ? Character.Running : Character.Walking;
-            } else if (root.character.activity === Character.Walking ||
-                       root.character.activity === Character.Running) {
-                root.character.activity = Character.Idle;
+                root._driving = true;
+            } else if (root._driving) {
+                if (root.character.activity === Character.Walking ||
+                    root.character.activity === Character.Running)
+                    root.character.activity = Character.Idle;
+                root._driving = false;
             }
-            // Note: Using and Fighting activities are preserved until explicitly changed
         }
     }
 

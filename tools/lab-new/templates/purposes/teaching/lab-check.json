@@ -1,0 +1,6 @@
+{
+    "purpose": "{{purpose}}",
+    "steps": 600,
+    "flows": ["{{id}}-intro"],
+    "scenarios": "all"
+}

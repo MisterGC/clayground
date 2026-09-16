@@ -5,6 +5,7 @@ import QtQuick
 /*!
     \qmltype ScaleSwitch
     \inqmlmodule Clayground.Lab
+    \ingroup lab-theme
     \brief Makes the whole lab larger or smaller: A-, the current percentage, A+.
 
     The third member of the corner family, beside \l LangSwitch and
@@ -35,6 +36,10 @@ import QtQuick
     \sa LabTheme, ThemeSwitch, LangSwitch
 */
 Row {
+
+    // See LangSwitch. Focus mode takes it with the
+    // rest of the HUD - see LabView::focus.
+    visible: !LabView.focus
     id: root
 
     /*!
