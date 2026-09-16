@@ -91,3 +91,15 @@
     \brief The experiment kernel: parameters, probes, a seeded clock,
     instruments and the chrome every lab shares.
 */
+
+/*!
+    \qmlmodule Clayground.Sound
+    \title Clayground Sound Module
+    \brief Synth, sampler and tracker audio: Sound and Music for existing assets, instruments and a song player.
+*/
+
+/*!
+    \qmlmodule Clayground.Algorithm
+    \title Clayground Algorithm Module
+    \brief Computational algorithm components for games and simulations, with no Clayground dependencies.
+*/

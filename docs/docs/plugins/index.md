@@ -14,6 +14,7 @@ Essential utilities and data management.
 - **[Storage]({{ site.baseurl }}/docs/plugins/storage/)** - Persistent key-value storage for game data and settings
 - **[Text]({{ site.baseurl }}/docs/plugins/text/)** - CSV parsing, JSON transformations, and text highlighting
 - **[SVG]({{ site.baseurl }}/docs/plugins/svg/)** - Read/write SVG files and use SVG elements as image sources
+- **[Algorithm]({{ site.baseurl }}/docs/plugins/algorithm/)** - Algorithm components for games and simulations, with no Clayground dependencies
 
 ## Rendering Plugins
 
@@ -21,6 +22,7 @@ Visual presentation for 2D and 3D games.
 
 - **[Canvas]({{ site.baseurl }}/docs/plugins/canvas/)** - 2D world coordinate system with camera and viewport management
 - **[Canvas3D]({{ site.baseurl }}/docs/plugins/canvas3d/)** - 3D primitives with toon shading and voxel maps
+- **[Character3D]({{ site.baseurl }}/docs/plugins/character3d/)** - Parametric 3D characters: a shader face, articulated hands, gaits, gestures, move sets and speech
 
 ## Game System Plugins
 
@@ -36,6 +38,13 @@ User interaction and communication.
 
 - **[GameController]({{ site.baseurl }}/docs/plugins/gamecontroller/)** - Unified input for keyboard, gamepad, and touch
 - **[Network]({{ site.baseurl }}/docs/plugins/network/)** - P2P multiplayer and HTTP client
+- **[Sound]({{ site.baseurl }}/docs/plugins/sound/)** - Synth, sampler and tracker audio, with Sound and Music for existing assets
+
+## Lab Plugin
+
+Simulation, learning and research spaces.
+
+- **[Lab]({{ site.baseurl }}/docs/plugins/lab/)** - The lab kernel: clock, scenarios, probes, flows, instruments and the board layer
 
 ## AI Plugin
 

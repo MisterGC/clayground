@@ -340,3 +340,7 @@ clayrender plugins/clay_lab/demo/Sandbox.qml --out shot.png --size 1400x900 \
 ```
 
 `labs/electronics-101/` and `labs/hydraulics-101/` are full build labs on the board layer.
+
+## API Reference
+
+{% include api/lab.html %}

@@ -17,6 +17,7 @@ sources = modules.qdoc
 
 # Source directories - the plugins
 sourcedirs = ../plugins/clay_ai \
+             ../plugins/clay_algorithm \
              ../plugins/clay_common \
              ../plugins/clay_storage \
              ../plugins/clay_svg \

@@ -1,4 +1,9 @@
-# Character3D Plugin
+---
+layout: docs
+title: Character3D Plugin
+permalink: /docs/plugins/character3d/
+---
+
 
 The Character3D plugin provides a framework for creating animated 3D characters
 in Clayground applications. It features a modular body part system, procedural
@@ -1223,3 +1228,7 @@ reports `started()` and `finished()` (asynchronously, never re-entrantly), so a
 queue advancing on `finished()` cannot hang on it; and of several `say()` calls
 in one tick, exactly the last one runs and it is the only one that reports
 anything - a line replaced before it began emits neither signal.
+
+## API Reference
+
+{% include api/character3d.html %}

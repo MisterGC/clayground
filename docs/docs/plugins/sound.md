@@ -160,9 +160,24 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 
 ## Platform Support
 
-- **WASM**: `Sound` / `Music` today; full hybrid engine coming in the next
-  stage (AudioWorklet backend).
+- **WASM**: full support — the same QAudioSink-driven engine as desktop,
+  through Qt Multimedia's emscripten backend. See "What `Music` cannot do
+  on WASM" below.
 - **Desktop/Mobile**: Full support — all types above work end-to-end.
+
+### What `Music` cannot do on WASM
+
+Qt's WebAssembly media backend plays a `Music` source through an HTML
+`<audio>` element and reports almost nothing back, so on the web
+(and only there):
+
+- `status` and `loaded` stay at their initial values until the track ends
+- `duration` and `position` stay `0`
+- `loop` has no effect — the track plays once
+
+A background loop on the web therefore needs a `Sound` re-triggered by a
+`Timer` at the clip length, the way `Music` was worked around before it
+played at all (see #216).
 
 ## Technical Notes
 
@@ -173,3 +188,7 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 - **Hot-reload**: `SongPlayer` watches its source file; drop a `.dojoignore`
   (`songs/` or `*.song.json`) next to your `Sandbox.qml` to prevent the
   dojo from reloading the whole scene on song edits
+
+## API Reference
+
+{% include api/sound.html %}

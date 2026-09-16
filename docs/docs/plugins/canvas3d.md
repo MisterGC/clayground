@@ -84,6 +84,20 @@ Box3D {
 }
 ```
 
+#### Rounded boxes
+
+`bevel` chamfers every edge and corner, as a fraction of the box's shortest
+edge; 0 (the default) is a hard box. It rounds the shape without rounding the
+cost: 44 triangles instead of 12 and the same single draw call. The outline is
+drawn from the face UVs, so it survives the chamfer. Not for use with
+`edgeMode: Triangles`, which outlines every chamfer seam.
+
+```qml
+Box3D {
+    bevel: 0.15
+}
+```
+
 ### Poly3D
 
 The area primitive: hand it a ring of 2D points and it fills the polygon.
@@ -285,7 +299,7 @@ of `LineBatch3D` for the flat-on-ground case.
 #### Label3D - anchored callouts
 
 A rounded "pill" with optional icon, anchored to a moving `anchorNode` or a fixed
-`anchorPosition`. It billboards to the camera every frame and, by default, holds a
+`anchorPosition`. It stays parallel to the image plane every frame and, by default, holds a
 constant on-screen size (`sizeMode: Label3D.Screen`); switch to `Label3D.World` to
 scale with the scene. An optional `showLeader` draws a thin line from the pill to
 the anchor - the offset-callout look. A single shared per-view ticker (via

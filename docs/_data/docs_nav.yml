@@ -19,12 +19,16 @@
   children:
     - title: Dojo - Live Reloading
       url: /docs/manual/dojo/
+    - title: clayrender - Headless Rendering
+      url: /docs/manual/clayrender/
     - title: Inspector
       url: /docs/manual/inspector/
     - title: Logging Overlay
       url: /docs/manual/logging/
     - title: Plugin Development
       url: /docs/manual/plugin-development/
+    - title: Multiplayer
+      url: /docs/manual/multiplayer/
 
 - title: Plugin Reference
   url: /docs/plugins/
@@ -41,6 +45,8 @@
       url: /docs/plugins/canvas/
     - title: Canvas3D
       url: /docs/plugins/canvas3d/
+    - title: Character3D
+      url: /docs/plugins/character3d/
     - title: Physics
       url: /docs/plugins/physics/
     - title: World
