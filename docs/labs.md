@@ -40,8 +40,10 @@ What those two look like depends on what the lab is *for*. A lab built for
 understanding does. One built for **teaching** gets a lesson plan and a
 storyboard of reveals, with the guided tour as the main artifact. One built
 for **research** gets a lab report — hypothesis, method, results with seeds
-and uncertainty, limitations — and a diagram of the model itself. Same three
-files either way; different documents.
+and uncertainty, limitations — and a diagram of the model itself. Not the
+same files either way: a paper is owed by every purpose, a board by a lab built
+for learning or teaching, and a research lab owes a study with its records
+instead.
 
 ## The labs
 
@@ -59,11 +61,13 @@ files either way; different documents.
 ## The kits, and what they are honest about
 
 Under every lab sits a *kit*: the domain model itself. A model is only worth
-something if you know where it stops, so each kit publishes a **Lab Card** —
+something if you know where it stops, so each kit that models a domain
+publishes a **Lab Card** —
 what it models and with which method, which simplifications are deliberate
 and which way each one bends the result, where it stops being valid, what you
 can vary and measure through it, and, plainly, which questions it can and
-cannot answer.
+cannot answer. The character and professor kits carry presentation machinery
+rather than a domain model, so they have no card.
 
 <div class="lab-cards">
 {% for card in site.data.lab_cards %}

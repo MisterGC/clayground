@@ -3,8 +3,8 @@
 
 project = Clayground
 description = Clayground Game Development Framework
-version = 2026.6
-url = https://mistergc.github.io/clayground
+version = 2026.7
+url = https://clayground.mistergc.dev
 
 # The module declarations, named as one file rather than by putting docs/ on
 # sourcedirs. That used to be ".", which walked the whole website tree - the

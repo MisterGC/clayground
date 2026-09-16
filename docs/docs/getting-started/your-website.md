@@ -49,6 +49,9 @@ Qt Quick 3D is in the runtime, and two more modules since v2026.7: `QtQuick.Time
 (what balsam emits for skeletal animation clips) and `QtQuick3D.AssetUtils`
 (`RuntimeLoader`, glTF/GLB parsed at load time).
 
+Not in the runtime: `QtQuick3D.Physics`, so `ClayWorld3d` and `Box3DBody` are
+desktop-only. 3D scenes for the web use `Canvas3D` directly.
+
 One wrinkle: Qt opens meshes, textures, `.qad` keyframe files and GLBs with `QFile`, which
 cannot read from a URL - a `Model { source: "meshes/x.mesh" }` served over HTTP silently
 shows nothing. So the app shell preloads them: keep such files under `assets/` next to
@@ -124,7 +127,7 @@ some in-app webviews do not.
 The bundle you download **is** a specific runtime version — deployed games
 never change behind your back. Check which version you're running in the
 browser console: the runtime prints
-`Clayground Web Runtime v2026.3 (Qt 6.10.1)` on startup, and
+`Clayground Web Runtime v2026.7 (Qt 6.10.1)` on startup, and
 `RUNTIME-MANIFEST.json` carries the same data.
 
 To update (e.g. after a security patch release — see

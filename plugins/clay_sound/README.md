@@ -155,8 +155,9 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 
 ## Platform Support
 
-- **WASM**: `Sound` / `Music` today; full hybrid engine coming in the next
-  stage (AudioWorklet backend).
+- **WASM**: full support — the same QAudioSink-driven engine as desktop,
+  through Qt Multimedia's emscripten backend. See "What `Music` cannot do
+  on WASM" below.
 - **Desktop/Mobile**: Full support — all types above work end-to-end.
 
 ### What `Music` cannot do on WASM

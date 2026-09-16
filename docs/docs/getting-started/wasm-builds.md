@@ -48,7 +48,7 @@ Open `http://localhost:8080/platformer.html` in your browser.
 
 ## Platform Limitations
 
-- **Network plugin unavailable**: `Clayground.Network` uses TCP sockets which aren't supported in browsers
+- **Network over WebRTC only**: `Clayground.Network` uses WebRTC (PeerJS signaling) in the browser, not TCP/UDP. `ClayHttpClient` works as on desktop.
 - **No dynamic plugin loading**: The `pluginlive` example is excluded
 - **Single-threaded recommended**: Multi-threaded WASM requires special server headers (SharedArrayBuffer)
 
