@@ -12,7 +12,7 @@ can only fail in the browser - see tests/pages/.
 
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
-                               [--overlay dir] [--expect "marker"]
+                               [--overlay dir] [--expect "marker"] [--click]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -90,6 +90,9 @@ def main():
                     help="directory copied over a temp copy of the starter bundle")
     ap.add_argument("--expect", default="",
                     help="console marker the page must print, on top of loading")
+    ap.add_argument("--click", action="store_true",
+                    help="click the page once after loading, so it has the user "
+                         "activation browsers require before any audio plays")
     args = ap.parse_args()
 
     serve_dir = args.starter_dir
@@ -151,6 +154,14 @@ def run(args, serve_dir):
         page.on("console", on_console)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         page.goto(url)
+        if args.click:
+            # A media element's play() rejects without user activation, and Qt's
+            # WASM backend does not catch that rejection - it would reach the
+            # page as an error. One real click makes the activation sticky for
+            # the rest of the document's life, which is what a player page needs
+            # anyway. It lands before the QML has loaded; that is fine, the
+            # activation is the document's, not an element's.
+            page.mouse.click(10, 10)
         # Poll via a Playwright call so the sync event loop is pumped and console
         # events actually fire; a bare threading.Event.wait() would stall dispatch
         # and always burn the full timeout even when the app boots in seconds.
