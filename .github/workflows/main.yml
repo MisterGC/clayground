@@ -166,6 +166,17 @@ jobs:
           --expect "clay-sound: audio device query returned" \
           --timeout 90
 
+    # Music.play() used to kill the page instead of requesting the track
+    # (#261) - the marker below only appears if the browser played the clip.
+    - name: Music Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/music \
+          --expect "clay-sound: music played to the end on the web" \
+          --click \
+          --timeout 90
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build
