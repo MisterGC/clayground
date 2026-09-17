@@ -177,6 +177,21 @@ jobs:
           --click \
           --timeout 90
 
+    # Hammering the demo's effect and procedural buttons was reported to
+    # silence the page for the rest of the session (#262). Whether a page
+    # still makes a sound is invisible to QML state - the engine keeps
+    # scheduling and draining voices either way - so this step listens to
+    # the page's audio graph before and after 3000 presses.
+    - name: Sound Hammer Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/sound-hammer \
+          --expect "clay-sound: hammer probe finished" \
+          --require-audible baseline,after-hammer \
+          --click \
+          --timeout 120
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build
