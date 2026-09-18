@@ -192,6 +192,24 @@ jobs:
           --click \
           --timeout 120
 
+    # Every step above loads a page that sits next to the runtime, the way a
+    # deployed game does. The website does not: the runtime boots from
+    # demo/webdojo/ and is handed an example out of webdojo-examples/, so the
+    # example's track and sample are fetched across two directories (#263).
+    # This step serves that layout, loads the published sound example through
+    # the site's own dojo shell, and then a gate page next to it that plays
+    # that example's music.mp3 and triggers notes into the shared sink.
+    - name: Sound Example Regression (WASM, site route)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --site-example plugins/clay_sound/demo:sound \
+          --site-gate tools/webdojo/tests/pages/sound-site/Gate.qml \
+          --expect "clay-sound: site gate finished" \
+          --require-audible notes \
+          --click \
+          --timeout 180
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build
