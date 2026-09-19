@@ -156,23 +156,34 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 ## Platform Support
 
 - **WASM**: full support — the same QAudioSink-driven engine as desktop,
-  through Qt Multimedia's emscripten backend. See "What `Music` cannot do
-  on WASM" below.
+  through Qt Multimedia's emscripten backend. `Music` goes its own way
+  there, see "`Music` on WASM" below.
 - **Desktop/Mobile**: Full support — all types above work end-to-end.
 
-### What `Music` cannot do on WASM
+### `Music` on WASM: it plays, and reports almost nothing
 
-Qt's WebAssembly media backend plays a `Music` source through an HTML
-`<audio>` element and reports almost nothing back, so on the web
-(and only there):
+On the web a `Music` track **plays**: the bytes are fetched, written to the
+browser's in-memory filesystem and handed to an HTML `<audio>` element.
+Qt's WebAssembly media backend only ever plays what it can open as a local
+file, so a `qrc:` or `http(s)` source has to take that detour — handing it
+the URL directly routes it to a video output that does not exist and takes
+the whole page down (#261).
 
-- `status` and `loaded` stay at their initial values until the track ends
-- `duration` and `position` stay `0`
-- `loop` has no effect — the track plays once
+What that costs, on the web and only there (measured with Qt 6.10.1 in
+Chrome):
 
-A background loop on the web therefore needs a `Sound` re-triggered by a
-`Timer` at the clip length, the way `Music` was worked around before it
-played at all (see #216).
+- **A user gesture is required first.** A `play()` before the first click or
+  key press is refused by the browser, and Qt does not catch that refusal —
+  it surfaces as an uncaught `play() failed because the user didn't
+  interact with the document first` in the console.
+- **`.mp3`, not `.wav`.** The backend labels a staged `.wav` blob
+  `audio/vnd.wave`, a type Chrome declines, and the track stays silent.
+- `position` and `duration` stay `0`
+- `loop` has no effect — the track plays once, then `finished` fires
+- `status` does reach `Ready`
+
+A background loop on the web therefore needs the `finished` signal or a
+`Sound` re-triggered by a `Timer` at the clip length (see #216).
 
 ## Technical Notes
 

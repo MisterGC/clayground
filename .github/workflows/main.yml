@@ -166,6 +166,50 @@ jobs:
           --expect "clay-sound: audio device query returned" \
           --timeout 90
 
+    # Music.play() used to kill the page instead of requesting the track
+    # (#261) - the marker below only appears if the browser played the clip.
+    - name: Music Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/music \
+          --expect "clay-sound: music played to the end on the web" \
+          --click \
+          --timeout 90
+
+    # Hammering the demo's effect and procedural buttons was reported to
+    # silence the page for the rest of the session (#262). Whether a page
+    # still makes a sound is invisible to QML state - the engine keeps
+    # scheduling and draining voices either way - so this step listens to
+    # the page's audio graph before and after 3000 presses.
+    - name: Sound Hammer Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/sound-hammer \
+          --expect "clay-sound: hammer probe finished" \
+          --require-audible baseline,after-hammer \
+          --click \
+          --timeout 120
+
+    # Every step above loads a page that sits next to the runtime, the way a
+    # deployed game does. The website does not: the runtime boots from
+    # demo/webdojo/ and is handed an example out of webdojo-examples/, so the
+    # example's track and sample are fetched across two directories (#263).
+    # This step serves that layout, loads the published sound example through
+    # the site's own dojo shell, and then a gate page next to it that plays
+    # that example's music.mp3 and triggers notes into the shared sink.
+    - name: Sound Example Regression (WASM, site route)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --site-example plugins/clay_sound/demo:sound \
+          --site-gate tools/webdojo/tests/pages/sound-site/Gate.qml \
+          --expect "clay-sound: site gate finished" \
+          --require-audible notes \
+          --click \
+          --timeout 300
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build

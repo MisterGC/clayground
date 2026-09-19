@@ -8,13 +8,15 @@
 // QMediaPlayer::setSourceDevice(), so a backend that cannot open network
 // URLs still plays them.
 //
-// On WASM every source goes to setSource(): QWasmAudioOutput hands the URL
-// to an HTML <audio> element, and its QIODevice overload plays nothing.
-// What that backend does NOT do (#216): report mediaStatus beyond
-// EndOfMedia, report duration/position, or honour setLoops() — so `status`,
-// `loaded`, `duration`, `position` stay at their initial values there and
-// `loop` has no effect. Playback itself needs a user gesture first, as it
-// does for any audio in a browser.
+// On WASM the source is always a file in the browser's in-memory
+// filesystem: the WASM backend plays only what it can open with QFile
+// (it turns those bytes into a blob for an <audio> element), so qrc: and
+// http(s) tracks are written there first — anything else is routed to a
+// video output that does not exist and kills the page (#261).
+// What that backend does NOT do: play a QIODevice source, report position,
+// or honour setLoops() — so `position` stays 0 there and `loop` has no
+// effect (#216). Playback itself needs a user gesture first, as it does
+// for any audio in a browser.
 
 #ifndef CLAY_SOUND_MUSIC_H
 #define CLAY_SOUND_MUSIC_H
@@ -34,6 +36,7 @@ class QAudioOutput;
 class QMediaPlayer;
 class QNetworkAccessManager;
 class QNetworkReply;
+class QTemporaryFile;
 QT_END_NAMESPACE
 
 class Music : public QObject
@@ -113,6 +116,12 @@ private:
     // is loaded.
     std::unique_ptr<QBuffer> buffer_;
 
+#ifdef Q_OS_WASM
+    // The same bytes as a file in the browser's in-memory filesystem - the
+    // only shape the WASM backend plays. Deleted with the object.
+    std::unique_ptr<QTemporaryFile> staged_;
+#endif
+
     QNetworkAccessManager   *nam_ = nullptr;
     QPointer<QNetworkReply>  activeReply_;
 
@@ -124,6 +133,9 @@ private:
     // indistinguishable from "no source set". Tracked here so status() can
     // report an error instead of Null.
     bool   hasError_    = false;
+    // play() called while the source was still being fetched; started as
+    // soon as the media is there.
+    bool   playRequested_ = false;
 };
 
 #endif // CLAY_SOUND_MUSIC_H
