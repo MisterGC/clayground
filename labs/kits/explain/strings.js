@@ -1,11 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 .pragma library
 
-// The explain bench's own vocabulary: the four approaches as scenarios, the
-// transistor's parts by their anatomy.js ids, the callout details, the chalk
-// labels and the narration of the four lessons - one lesson per approach,
-// all teaching the same thing so the mechanisms can be compared and not the
-// words. Registered by Sandbox.qml before the first applyScenario.
+// The explain bench's own vocabulary: the four approaches and their
+// combination as scenarios, the transistor's parts by their anatomy.js ids,
+// the callout details, the chalk labels and the narration of the five
+// lessons - one per scenario, all teaching the same thing so the mechanisms
+// can be compared and not the words. Registered by Sandbox.qml before the first applyScenario.
 var dict = {
     "en": {
         "explain.title": "EXPLAIN BENCH",
@@ -19,6 +19,8 @@ var dict = {
         "scenario.note.callouts": "rings and captions on the sub-parts, one after another; the case can be ghosted",
         "scenario.note.chalkboard": "a cut to a slate: the cross-section and the gain graph draw themselves",
         "scenario.note.inside": "the professor shrinks, the camera flies in, and the die is a landscape with carriers",
+        "scenario.combined": "the combination",
+        "scenario.note.combined": "the favourite: x-ray it, take it apart, then a slate beside the open part draws what the layers do",
 
         // parts, by anatomy.js id
         "explain.part.part": "transistor",
@@ -80,6 +82,8 @@ var dict = {
         "explain.btn.dive.in": "go inside",
         "explain.btn.dive.out": "come back out",
         "explain.btn.currents": "base current",
+        "explain.btn.split.beside": "slate beside the part",
+        "explain.btn.split.over": "slate over the scene",
         "explain.key.explode": "take apart / put together",
         "explain.key.xray": "x-ray the case on / off",
         "explain.key.focus": "focus the next part",
@@ -125,7 +129,18 @@ var dict = {
         "flow.explain-inside.layers": "We stand on the emitter. Below us the thin base, and below that the wide collector. Three layers, two junctions.",
         "flow.explain-inside.flow": "Watch the carriers: electrons pour from the emitter through the base into the collector. The few the base draws off are the base current.",
         "flow.explain-inside.control": "Cut the base current and everything stops. That is the whole trick: the small current lets the big one pass.",
-        "flow.explain-inside.surface": "Back out. From the bench nothing has changed — but you have seen what the base does."
+        "flow.explain-inside.surface": "Back out. From the bench nothing has changed — but you have seen what the base does.",
+
+        // --- lesson 5: the combination -----------------------------------
+        "flow.explain-combined.title": "See inside, then see what it does",
+        "flow.explain-combined.meet": "This is a transistor: a black case, three legs. First let us see what is inside — then what it does.",
+        "flow.explain-combined.legs": "Collector, base, emitter. Two of them carry the working current; the base is the control.",
+        "flow.explain-combined.xray": "The case is only epoxy. Look through it: a chip the size of a grain of rice, and two wires up to the legs.",
+        "flow.explain-combined.open": "Now the parts come out of each other's way — the case lifts off, the chip's layers rise apart.",
+        "flow.explain-combined.layers": "Three layers: N, a thin P, and N again. The thin one in the middle is the base.",
+        "flow.explain-combined.currents": "What they do you cannot see — so beside them, a drawing: a small current into the base opens the way for a large one from collector to emitter.",
+        "flow.explain-combined.graph": "And as a graph: Ic is about twelve times Ib, until the lamp cannot take more and the line goes flat.",
+        "flow.explain-combined.back": "Board away, case back on. A black lump again — but you know its three layers and its two currents."
     },
     "de": {
         "explain.title": "ERKLÄR-BANK",
@@ -139,6 +154,8 @@ var dict = {
         "scenario.note.callouts": "Ringe und Kärtchen an den Teilen, eins nach dem anderen; das Gehäuse wird durchsichtig",
         "scenario.note.chalkboard": "Schnitt zur Tafel: Querschnitt und Verstärkungskurve zeichnen sich selbst",
         "scenario.note.inside": "der Professor schrumpft, die Kamera fliegt hinein, der Chip wird zur Landschaft mit Ladungsträgern",
+        "scenario.combined": "die Kombination",
+        "scenario.note.combined": "der Favorit: durchleuchten, auseinandernehmen, dann zeichnet eine Tafel neben dem offenen Teil, was die Schichten tun",
 
         "explain.part.part": "Transistor",
         "explain.part.print": "Aufdruck",
@@ -195,6 +212,8 @@ var dict = {
         "explain.btn.dive.in": "hineingehen",
         "explain.btn.dive.out": "wieder heraus",
         "explain.btn.currents": "Basisstrom",
+        "explain.btn.split.beside": "Tafel neben dem Teil",
+        "explain.btn.split.over": "Tafel über der Szene",
         "explain.key.explode": "auseinander / zusammen",
         "explain.key.xray": "Gehäuse durchleuchten an / aus",
         "explain.key.focus": "nächstes Teil hervorheben",
@@ -236,6 +255,16 @@ var dict = {
         "flow.explain-inside.layers": "Wir stehen auf dem Emitter. Unter uns die dünne Basis, darunter der breite Kollektor. Drei Schichten, zwei Übergänge.",
         "flow.explain-inside.flow": "Sieh die Ladungsträger: Elektronen strömen vom Emitter durch die Basis in den Kollektor. Die wenigen, die die Basis abzweigt, sind der Basisstrom.",
         "flow.explain-inside.control": "Nimm den Basisstrom weg, und alles steht. Das ist der ganze Trick: der kleine Strom lässt den großen durch.",
-        "flow.explain-inside.surface": "Wieder heraus. Von der Bank aus hat sich nichts verändert — aber du hast gesehen, was die Basis tut."
+        "flow.explain-inside.surface": "Wieder heraus. Von der Bank aus hat sich nichts verändert — aber du hast gesehen, was die Basis tut.",
+
+        "flow.explain-combined.title": "Hineinsehen, dann verstehen",
+        "flow.explain-combined.meet": "Das ist ein Transistor: ein schwarzes Gehäuse, drei Beine. Erst sehen wir hinein — dann, was er tut.",
+        "flow.explain-combined.legs": "Kollektor, Basis, Emitter. Zwei führen den Arbeitsstrom; die Basis steuert.",
+        "flow.explain-combined.xray": "Das Gehäuse ist nur Epoxid. Sieh hindurch: ein Chip so groß wie ein Reiskorn, und zwei Drähte hinauf zu den Beinen.",
+        "flow.explain-combined.open": "Jetzt gehen sich die Teile aus dem Weg — das Gehäuse hebt sich ab, die Schichten des Chips steigen auseinander.",
+        "flow.explain-combined.layers": "Drei Schichten: N, ein dünnes P, wieder N. Die dünne in der Mitte ist die Basis.",
+        "flow.explain-combined.currents": "Was sie tun, sieht man nicht — also daneben eine Zeichnung: ein kleiner Strom in die Basis öffnet den Weg für einen großen vom Kollektor zum Emitter.",
+        "flow.explain-combined.graph": "Und als Kurve: Ic ist etwa zwölfmal Ib, bis die Lampe nicht mehr verlangt und die Linie flach wird.",
+        "flow.explain-combined.back": "Tafel weg, Gehäuse wieder drauf. Wieder ein schwarzer Klumpen — aber du kennst seine drei Schichten und seine zwei Ströme."
     }
 }

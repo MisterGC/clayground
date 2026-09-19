@@ -7,14 +7,16 @@
 //   2 callouts        rings and captioned cards on its sub-parts, the case ghosted
 //   3 chalkboard      a documentary cut to a slate that draws itself
 //   4 dive in         the professor shrinks and the camera flies into the die
+//   5 combined        the favourite: x-ray and take apart, then a slate beside
+//                     the opened part draws what the layers do
 //
-// Each scenario has its own lesson on T, and all four lessons teach the same
+// Each scenario has its own lesson on T, and all five lessons teach the same
 // thing - three legs, three layers, a small current steering a large one - so
 // what is being compared is the mechanism and never the words. Deliberately
 // a kit bench and not a lab: it has no experiment, no probes worth a record,
 // and the question it answers is "which of these should the kernel grow".
 //
-// Keys: 1-4 approaches · T lesson · E take apart / together · X x-ray · Z focus
+// Keys: 1-5 approaches · T lesson · E take apart / together · X x-ray · Z focus
 // next part · N / L / U callouts next / all / none · O chalkboard · Y draw ·
 // G switch the drawing · I dive in / out · B base current. Camera as
 // everywhere: right-drag turns, middle drags, wheel zooms, Space+left pans.
@@ -52,7 +54,8 @@ Item {
     // lessons drive four different things and a half-exploded part under a
     // chalkboard is nobody's lesson.
     readonly property string approach: Lab.scenario
-    readonly property var approaches: ["exploded", "callouts", "chalkboard", "inside"]
+    readonly property var approaches: ["exploded", "callouts", "chalkboard", "inside", "combined"]
+    readonly property var allFlows: [explodedFlow, calloutFlow, chalkFlow, diveFlow, combinedFlow]
 
     ScenarioSet {
         id: scenarioSet
@@ -60,10 +63,11 @@ Item {
         Scenario { name: "callouts";   script: () => root.resetMechanisms() }
         Scenario { name: "chalkboard"; script: () => root.resetMechanisms() }
         Scenario { name: "inside";     script: () => root.resetMechanisms() }
+        Scenario { name: "combined";   script: () => root.resetMechanisms() }
     }
     function scenarios() { return scenarioSet.names() }
     function applyScenario(n) {
-        for (const f of [explodedFlow, calloutFlow, chalkFlow, diveFlow])
+        for (const f of root.allFlows)
             if (f.running) f.stop()
         const r = scenarioSet.apply(n)
         frameAll()
@@ -179,6 +183,25 @@ Item {
             "flow":    { part: "junction.eb",  side: 0, hold: true },
             "control": { part: "base",         side: 0, hold: true },
             "surface": { }
+        },
+        // The favourite, as one lesson: the object first (x-ray, then apart),
+        // the drawing second - beside the opened die, so the chalk layers sit
+        // next to the real ones. The professor stays on the far side of the
+        // part from the slate, in the picture, pointing.
+        "explain-combined": {
+            "meet":     { part: "case",          side: 1 },
+            "legs":     { part: "leg.base",      side: 1,  hold: true,
+                          parts: ["leg.collector", "leg.base", "leg.emitter"] },
+            "xray":     { part: "die.base",      side: 1,  hold: true,
+                          parts: ["header", "wires", "leg.base"] },
+            "open":     { part: "case",          side: -1, wide: true, hold: true },
+            "layers":   { part: "die.base",      side: -1, hold: true,
+                          parts: ["die.collector", "die.base", "die.emitter"] },
+            "currents": { part: "die.base",      side: -1, hold: true,
+                          parts: ["die.collector", "die.base", "die.emitter"] },
+            "graph":    { part: "die.base",      side: -1, hold: true,
+                          parts: ["die.collector", "die.base", "die.emitter"] },
+            "back":     { part: "case",          side: 1,  wide: true }
         }
     })
 
@@ -222,9 +245,17 @@ Item {
             "dive":     (on) => { if (on === undefined || on) dive.enter(); else dive.leave() },
             "currents": (ib, ic) => { root.iB = ib; root.iC = ic },
             "scenario": (n) => applyScenario(n),
-            "frame":    (what) => what === "assembly" ? frameAssembly() : frameAll()
+            "frame":    (what) => what === "assembly" ? frameAssembly() : frameAll(),
+            "split":    (on) => { root.split = on === undefined ? true : !!on }
         }
     }
+    // The combination's one open question, as a switch: the slate beside the
+    // opened part (the drawing next to the thing it draws, the professor still
+    // in the picture) or over the whole scene, the cut of approach 3.
+    property bool split: true
+    readonly property bool slateBeside: root.approach === "combined" && root.split
+    // where the slate's half begins, as a fraction of the width
+    readonly property real slateFrom: 0.5
     // "section" or "gain" draws that drawing (from the start unless a
     // progress is given); "off" closes the board.
     property string chalkDrawing: "section"
@@ -244,10 +275,9 @@ Item {
         beta: LabLang.t("explain.chalk.beta")
     })
 
-    function flows() { return [explodedFlow.flowId, calloutFlow.flowId,
-                               chalkFlow.flowId, diveFlow.flowId] }
+    function flows() { return root.allFlows.map((f) => f.flowId) }
     function startFlow(id) {
-        for (const f of [explodedFlow, calloutFlow, chalkFlow, diveFlow])
+        for (const f of root.allFlows)
             if (f.flowId === id) {
                 // a lesson belongs to its approach, so starting one switches
                 const a = root.approaches[root.flows().indexOf(id)]
@@ -259,10 +289,10 @@ Item {
     }
     // Whichever lesson is running wins; otherwise the current approach's.
     readonly property var currentFlow: {
-        for (const f of [explodedFlow, calloutFlow, chalkFlow, diveFlow])
+        for (const f of root.allFlows)
             if (f.running) return f
         const i = root.approaches.indexOf(root.approach)
-        return [explodedFlow, calloutFlow, chalkFlow, diveFlow][i < 0 ? 0 : i]
+        return root.allFlows[i < 0 ? 0 : i]
     }
 
     // --- lesson 1: the exploded view --------------------------------------
@@ -339,6 +369,34 @@ Item {
                    expect: () => !dive.inside }
     }
 
+    // --- lesson 5: the combination ----------------------------------------
+    // Approach 1 for the structure, approach 3 for the function, in that
+    // order: by the time the slate draws the layers the learner has seen the
+    // real ones come apart. Callouts are the captioned marks; no cards.
+    Flow {
+        id: combinedFlow
+        lab: root
+        camera: rig
+        flowId: "explain-combined"
+        titleKey: "flow.explain-combined.title"
+        FlowStep { key: "meet";     demo: [["explode", 0], ["xray", 0], ["focus", ""], ["chalk", "off"]]
+                   mark: ["case"] }
+        FlowStep { key: "legs";     mark: ["leg.collector", "leg.base", "leg.emitter"] }
+        FlowStep { key: "xray";     demo: [["xray", 0.75]]; mark: ["die.base", "wires"]
+                   expect: () => assembly.xray === 0.75 }
+        FlowStep { key: "open";     demo: [["explode", 1]]; mark: ["case"]
+                   expect: () => assembly.spread === 1 && assembly.xray === 0.75 }
+        FlowStep { key: "layers";   demo: [["focus", "die.base"]]
+                   mark: ["die.collector", "die.base", "die.emitter"]
+                   expect: () => assembly.focus === "die.base" }
+        FlowStep { key: "currents"; demo: [["chalk", "section", 1]]; mark: ["die.base"]
+                   expect: () => chalk.shown && root.chalkDrawing === "section" && assembly.spread === 1 }
+        FlowStep { key: "graph";    demo: [["chalk", "gain", 1]]
+                   expect: () => chalk.shown && root.chalkDrawing === "gain" }
+        FlowStep { key: "back";     demo: [["chalk", "off"], ["focus", ""], ["explode", 0], ["xray", 0]]
+                   expect: () => !chalk.shown && assembly.spread === 0 && assembly.xray === 0 }
+    }
+
     // --- camera ----------------------------------------------------------------
     // The part and, once it has arrived, the professor beside it: the
     // opening shot is a two-shot of the bench, not a close-up of a lump.
@@ -409,8 +467,11 @@ Item {
             id: director
             rig: rig
             presenter: prof
-            // The bench panel down the left, the narrator along the bottom.
-            safe: ({ top: 0.08, bottom: 0.24, left: 0.18, right: 0.04 })
+            // The bench panel down the left, the narrator along the bottom -
+            // and, while a slate stands beside the part, the slate's half.
+            safe: chalk.shown && root.slateBeside
+                  ? ({ top: 0.08, bottom: 0.24, left: 0.18, right: 1 - root.slateFrom + 0.02 })
+                  : ({ top: 0.08, bottom: 0.24, left: 0.18, right: 0.04 })
         }
 
         FlowGuide {
@@ -418,7 +479,11 @@ Item {
             professor: prof
             running: root.currentFlow ? root.currentFlow.running : false
             step: root.currentFlow ? root.currentFlow.index : -1
-            text: root.currentFlow ? root.currentFlow.narration : ""
+            // While a slate stands beside the part the Narrator carries the
+            // line: a bubble sized in pixels over a figure framed into a third
+            // of the width lands under the panel or under the slate.
+            text: !root.currentFlow ? ""
+                : (chalk.shown && root.slateBeside) ? "" : root.currentFlow.narration
             subjectOf: (i) => root.flowSubject(i)
             scriptResolve: (name) => root.resolveName(name)
             marks: root.currentFlow ? root.currentFlow.marks : []
@@ -545,12 +610,15 @@ Item {
                  ? Chalk.gainGraph(12, { ib: root.chalkLabels.ibAxis, ic: root.chalkLabels.icAxis,
                                          beta: root.chalkLabels.beta })
                  : Chalk.transistorSection(root.chalkLabels)
-        // A dark board has little light to take away.
-        scrimOpacity: LabTheme.dark ? 0.45 : 0.6
+        // A dark board has little light to take away. Beside the part the
+        // scrim is a tint, not a cut: the object it draws has to stay legible.
+        scrimOpacity: root.slateBeside ? 0.22 : (LabTheme.dark ? 0.45 : 0.6)
         // The Narrator carries the line while the board is up (the professor
         // is behind the scrim, and a bubble seen through it is a bubble nobody
-        // reads), so the slate keeps out of the narrator's strip.
-        safe: ({ bottom: LabTheme.px(150) })
+        // reads), so the slate keeps out of the narrator's strip. Beside the
+        // part it also keeps to its own half.
+        safe: ({ bottom: LabTheme.px(150),
+                 left: root.slateBeside ? Math.round(root.width * root.slateFrom) : 0 })
     }
 
     // --- chrome -------------------------------------------------------------------
@@ -623,16 +691,16 @@ Item {
         ScenarioBar { lab: root; width: controls.body.width }
         Item { width: 1; height: LabTheme.spaceM }
 
-        // approach 1
+        // approach 1 (and the combination)
         BenchButton {
-            visible: root.approach === "exploded"
+            visible: root.approach === "exploded" || root.approach === "combined"
             label: (assembly.spread > 0.5 ? LabLang.t("explain.btn.assemble")
                                           : LabLang.t("explain.btn.explode")) + "  (E)"
             active: assembly.spread > 0.5
             onHit: root.toggleExplode()
         }
         BenchButton {
-            visible: root.approach === "exploded"
+            visible: root.approach === "exploded" || root.approach === "combined"
             label: LabLang.t("explain.btn.focus") + "  (Z)"
             active: assembly.focus !== ""
             onHit: root.focusNext()
@@ -654,32 +722,40 @@ Item {
             label: LabLang.t("explain.btn.callout.none") + "  (U)"
             onHit: callouts.revealed = 0
         }
-        // approaches 1 and 2 share the x-ray
+        // approaches 1 and 2 share the x-ray, and so does the combination
         BenchButton {
-            visible: root.approach === "exploded" || root.approach === "callouts"
+            visible: root.approach !== "chalkboard" && root.approach !== "inside"
             label: (assembly.xray > 0.5 ? LabLang.t("explain.btn.solid")
                                         : LabLang.t("explain.btn.xray")) + "  (X)"
             active: assembly.xray > 0.5
             onHit: assembly.xray = assembly.xray > 0.5 ? 0 : 0.75
         }
-        // approach 3
+        // approach 3 (and the combination)
         BenchButton {
-            visible: root.approach === "chalkboard"
+            visible: root.approach === "chalkboard" || root.approach === "combined"
             label: (chalk.shown ? LabLang.t("explain.btn.chalk.close")
                                 : LabLang.t("explain.btn.chalk.open")) + "  (O)"
             active: chalk.shown
             onHit: root.toggleChalk()
         }
         BenchButton {
-            visible: root.approach === "chalkboard"
+            visible: root.approach === "chalkboard" || root.approach === "combined"
             label: LabLang.t("explain.btn.chalk.draw") + "  (Y)"
             onHit: root.drawChalk()
         }
         BenchButton {
-            visible: root.approach === "chalkboard"
+            visible: root.approach === "chalkboard" || root.approach === "combined"
             label: (root.chalkDrawing === "gain" ? LabLang.t("explain.btn.chalk.section")
                                                   : LabLang.t("explain.btn.chalk.graph")) + "  (G)"
             onHit: root.switchDrawing()
+        }
+        // the combination's own switch: where the slate stands
+        BenchButton {
+            visible: root.approach === "combined"
+            label: root.split ? LabLang.t("explain.btn.split.beside")
+                              : LabLang.t("explain.btn.split.over")
+            active: root.split
+            onHit: root.split = !root.split
         }
         // approach 4
         BenchButton {
@@ -772,7 +848,7 @@ Item {
                  chalk: { shown: chalk.shown, drawing: root.chalkDrawing,
                           progress: chalk.progress, progressNow: chalk.progressNow },
                  inside: dive.inside, depth: dive.depth,
-                 iB: root.iB, iC: root.iC,
+                 iB: root.iB, iC: root.iC, split: root.split,
                  lesson: root.currentFlow ? root.currentFlow.flowId : "",
                  lessonStep: root.currentFlow ? root.currentFlow.index : -1,
                  marks: markLayer.count }
@@ -784,7 +860,7 @@ Item {
         return { spread: assembly.spread, xray: assembly.xray, focus: assembly.focus,
                  callouts: callouts.revealed,
                  chalkShown: chalk.shown, chalkDrawing: root.chalkDrawing,
-                 chalkProgress: chalk.progress,
+                 chalkProgress: chalk.progress, split: root.split,
                  inside: dive.inside, iB: root.iB, iC: root.iC,
                  sx: prof.stand.x, sy: prof.stand.y, sz: prof.stand.z,
                  heading: prof.heading,
@@ -799,6 +875,7 @@ Item {
         if (s.chalkDrawing !== undefined) root.chalkDrawing = s.chalkDrawing
         if (s.chalkProgress !== undefined) chalk.progress = s.chalkProgress
         if (s.chalkShown !== undefined) chalk.shown = s.chalkShown
+        if (s.split !== undefined) root.split = s.split
         if (s.iB !== undefined) root.iB = s.iB
         if (s.iC !== undefined) root.iC = s.iC
         if (s.cam) rig.applyState(s.cam)

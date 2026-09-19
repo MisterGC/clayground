@@ -5,8 +5,9 @@ at the transistor and says "three legs, a base current, a chip inside", and
 the learner sees a black lump. This kit holds one prototype per way of
 answering that, all explaining the same subject — the NPN transistor of
 `labs/kits/circuit` — so they can be compared side by side in
-`labs/kits/explain/Sandbox.qml` (scenarios `1`–`4`, `T` runs the lesson of
-the current one).
+`labs/kits/explain/Sandbox.qml` (scenarios `1`–`4`, `5` the favourite
+combination of 1 and 3 as one lesson, `T` runs the lesson of the current
+one).
 
 | approach | type(s) | what the learner sees |
 |---|---|---|

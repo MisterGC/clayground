@@ -3,7 +3,7 @@
 Four prototypes of how a lesson gets *inside* a thing the scene shows as a
 lump, built on one subject (the NPN transistor of `labs/kits/circuit`) and
 compared in one dojo (`labs/kits/explain/Sandbox.qml`, scenarios `1`–`4`,
-`T` for the current one's lesson). This document is the comparison, the
+`5` the favourite combination, `T` for the current one's lesson). This document is the comparison, the
 favourite with its reasoning, and how the pieces would land in the framework
 for good. Remarks go inline as `{>>comments<<}`.
 
@@ -49,7 +49,7 @@ lab — could use the mechanism without editing it.
 ## 3. What was built, and how to look at it
 
 ```bash
-./build/bin/claydojo --sbx labs/kits/explain/Sandbox.qml     # 1-4 pick an approach, T runs its lesson
+./build/bin/claydojo --sbx labs/kits/explain/Sandbox.qml     # 1-4 pick an approach, 5 the combination, T runs its lesson
 ```
 
 One kit, `labs/kits/explain/` (`README.md` is the contract every type was
@@ -61,13 +61,26 @@ built against):
 | 2 callouts | `callouts` | `CalloutLayer.qml` (+ the anatomy's `xray`) | the same anatomy's `partAt()` |
 | 3 chalkboard | `chalkboard` | `Chalkboard.qml`, `chalk.js` | `transistorSection()`, `gainGraph()` in `chalk.js` |
 | 4 dive in | `inside` | `DiveIn.qml`, `carriers.js` | `TransistorInterior3D.qml` |
+| 5 the combination | `combined` | 1 + 3, in that order; the slate beside the open part | nothing new |
 
-All four lessons say the same thing in the same order (three legs → the
+Scenario `5` is §5's verdict as one lesson, so it can be judged as a
+whole rather than assembled in the head: x-ray, take apart, focus the
+layers, then the chalk section draws itself *beside* the open die and the
+gain graph follows on the same slate, the professor still in the picture
+pointing at the real base layer; the case goes back on last. Its one
+switch (the bench button "slate beside the part" / "slate over the scene")
+is the open fork of §9: the beside variant is the Chalkboard's `safe`
+margin set to half the width with a light scrim, the over variant is
+approach 3's cut. While the slate stands beside, the Narrator carries the
+line — a bubble sized in pixels over a figure framed into a third of the
+width lands under the panel or under the slate.
+
+All five lessons say the same thing in the same order (three legs → the
 case opens → three layers → a small current steers a large one) so the
 words drop out of the comparison; every mechanism is a **verb** in the
 bench's `flowActions()` (`explode`, `xray`, `focus`, `callouts`, `chalk`,
 `dive`, `currents`) and every animated quantity is a goal with a read-only
-interpolant, which is what lets `Lab.runFlow()` walk all four headless.
+interpolant, which is what lets `Lab.runFlow()` walk all five headless.
 The professor is the same `FlowGuide` + `CameraDirector` wiring
 `electronics-101` uses; the only new seam is `resolveName()`, which answers
 a part id with a scene point from `anatomy.partAt()` (or the interior's
