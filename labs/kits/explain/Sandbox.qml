@@ -193,7 +193,8 @@ Item {
     function flowActions() {
         return {
             "explode":  (v) => { assembly.spread = v === undefined ? 1 : v },
-            "xray":     (v) => { assembly.xray = v === undefined ? 1 : v },
+            // 1 would delete the case (opacity is 1 - xray); a ghost keeps the part recognisable
+            "xray":     (v) => { assembly.xray = v === undefined ? 0.75 : v },
             "focus":    (id) => { assembly.focus = id === undefined || id === null ? "" : id },
             "callouts": (n) => { callouts.revealed = n === undefined ? -1 : n },
             "chalk":    (what, progress) => setChalk(what, progress),
@@ -274,8 +275,8 @@ Item {
         FlowStep { key: "meet";   demo: [["callouts", 0], ["xray", 0]] }
         FlowStep { key: "legs";   demo: [["callouts", 3]]
                    expect: () => callouts.revealed === 3 }
-        FlowStep { key: "case";   demo: [["callouts", 5], ["xray", 1]]
-                   expect: () => assembly.xray === 1 }
+        FlowStep { key: "case";   demo: [["callouts", 5], ["xray", 0.75]]
+                   expect: () => assembly.xray === 0.75 }
         FlowStep { key: "inside"; demo: [["callouts", 9]] }
         FlowStep { key: "all";    demo: [["callouts", -1]]
                    expect: () => callouts.revealed === -1 && callouts.shownCount === callouts.count }
@@ -602,7 +603,7 @@ Item {
             label: (assembly.xray > 0.5 ? LabLang.t("explain.btn.solid")
                                         : LabLang.t("explain.btn.xray")) + "  (X)"
             active: assembly.xray > 0.5
-            onHit: assembly.xray = assembly.xray > 0.5 ? 0 : 1
+            onHit: assembly.xray = assembly.xray > 0.5 ? 0 : 0.75
         }
         // approach 3
         BenchButton {
@@ -759,7 +760,7 @@ Item {
         keys: [
             { key: "E", label: "explain.key.explode", action: () => root.toggleExplode() },
             { key: "X", label: "explain.key.xray",
-              action: () => { assembly.xray = assembly.xray > 0.5 ? 0 : 1 } },
+              action: () => { assembly.xray = assembly.xray > 0.5 ? 0 : 0.75 } },
             { key: "Z", label: "explain.key.focus", action: () => root.focusNext() },
             { key: "N", label: "explain.key.callout.next", action: () => root.calloutNext() },
             { key: "L", label: "explain.key.callout.all", action: () => { callouts.revealed = -1 } },

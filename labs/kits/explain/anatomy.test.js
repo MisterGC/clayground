@@ -70,5 +70,8 @@ K.ok('base clears collector', exploded[1].y0 > exploded[0].y1 + 0.2,
 K.ok('emitter clears base', exploded[2].y0 > exploded[1].y1 + 0.2)
 const caseTop = A.offsetAt('case', 1).y
 K.ok('the case rises above the wires', caseTop > A.offsetAt('wires', 1).y + 1)
+// From +z, anything that comes toward the camera hides the column behind it.
+K.ok('the facet leaves the die column sideways, not forward',
+     Math.abs(A.offsetAt('face', 1).x) > 2 && A.offsetAt('face', 1).z < 1.5)
 
 process.exit(K.report('explain kit anatomy'))

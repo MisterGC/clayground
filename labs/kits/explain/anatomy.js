@@ -58,7 +58,10 @@ var PARTS = [
     { id: "leg.base",       role: "metal", order: 2, offset: { x: 0,    y: 0,   z: 1.5 } },
     { id: "leg.emitter",    role: "metal", order: 3, offset: { x: 1.5,  y: 0,   z: 0 } },
     { id: "case",           role: "epoxy", order: 4, offset: { x: 0,    y: 8.5, z: 0 } },
-    { id: "face",           role: "epoxy", order: 0, offset: { x: 0,    y: 7.0, z: 3.0 } },
+    // The facet flies to the SIDE, not toward the viewer: the rig looks from
+    // +z, and a slab that comes forward sits in front of the die it is
+    // supposed to reveal (found in the exploded view's first renders).
+    { id: "face",           role: "epoxy", order: 0, offset: { x: 3.0,  y: 6.5, z: 0.8 } },
     { id: "header",         role: "metal", order: 0, offset: { x: 0,    y: 1.2, z: 0 } },
     { id: "die.collector",  role: "n",     order: 5, offset: { x: 0,    y: 2.6, z: 0 } },
     { id: "die.base",       role: "p",     order: 6, offset: { x: 0,    y: 3.8, z: 0 } },
