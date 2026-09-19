@@ -74,9 +74,15 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
                         },
                         entryFunction: window.clayground_entry || window.webdojo_entry,
                         containerElements: [screen],
-                        
+
                     }
                 });
+                // Publish the runtime handle under the name the app shell uses
+                // (tools/webdojo/appshell/index.html). Without it nothing outside
+                // this function can call loadQmlFromUrl - not the console, and
+                // not the CI gate that loads an example the way the dojo page
+                // does (#263).
+                window.clayground = instance;
             } catch (e) {
                 console.error(e);
                 console.error(e.stack);
