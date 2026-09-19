@@ -239,3 +239,45 @@ Each type has its own bench under `bench/` (`ExplodeBench.qml`,
 `CalloutBench.qml`, `ChalkBench.qml`, `DiveBench.qml`) — a stage, a rig,
 the component and a `report()` — for working on one mechanism without the
 others.
+
+## As built — where the prototypes departed from the contract above
+
+The contract was written before the four types existed; the types kept its
+names and semantics and departed in these named places, each for a reason
+measured on the way. The findings and the verdict are in `EVALUATION.md`.
+
+- `ExplodedView3D` has no `default property list<ExplodePart>`: a
+  `list<T>` does not parent into the 3D scene graph, so the parts would not
+  draw. It uses `Node`'s own default property and collects duck-typed parts
+  (`partId`/`offset`/`basePosition`) on completion; `parts` exposes the
+  list. `ExplodePart` gained `basePosition` (the authored pose), `ghost` (a
+  second opacity factor, so an x-ray and the focus dimming do not fight
+  over one property) and `anchorScene`.
+- `TransistorAnatomy3D.xray` maps to `1 - xray` as written, which makes 1
+  a deletion; the sandbox drives 0.75. Node `opacity` blends on
+  `PrincipledMaterial` and on `Box3D` in Qt 6.11.1 — no material tricks.
+- `CalloutLayer` draws the badge on the ring *and* on the card, answers
+  `cardRectOf()` as `{0,0,0,0}` for a card that is not on screen, and adds
+  `autoRule` (`"far"` as specified, `"near"` — what the sandbox uses,
+  because the far rule crossed leaders over a centred subject), `live`
+  (per-frame re-projection: `mapFrom3DScene` answers zeros until the view
+  has drawn once, and a still camera never re-triggers a binding),
+  `visibleCount`, `layout`.
+- `Chalkboard.chalkColor` defaults to `LabTheme.inkOn(slateColor)`, not
+  `paper` (near-black in the dark palette); the scrim is `paperDeep` in the
+  dark theme and `ink` in the light one (`ink` inverts); `scrimOpacity`,
+  `transitionMs` and `safe` (px guards, so the slate keeps out of the
+  narrator's strip) were added. `chalk.js` gained `cut()`, `subOps()`,
+  `validate()` and the geometry helpers the renderer and the pricing share.
+- `TransistorInterior3D`'s slabs are `#Cube` + blended `PrincipledMaterial`
+  with `BoxLine3D` outlines, not `Box3D` (its material does no alpha
+  blending); the junctions are rings, not plates (a plate at 18° hid the
+  collector's carriers). `carriers.js` assigns lanes in two blocks so a
+  change of base current does not reshuffle every carrier.
+- `DiveIn` fits all eight corners of `bounds()` plus the presenter with
+  `presenterHeadroom` (a two-corner fit hung six corners off the frame),
+  returns through a registered viewpoint and `goTo(name, ms)` because
+  `applyState` has no duration, and writes `interior.reveal` itself — a
+  lab must not bind it too.
+- Benches: `LabKeys` dispatches letters only, so a digit key a bench wants
+  is handled in its own `Keys.onPressed` and does not appear in `LabHelp`.

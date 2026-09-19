@@ -107,16 +107,22 @@ Item {
         return p
     }
 
-    // Every part of the assembly as it stands now, for a camera that has to
+    // Every part of the assembly where it is GOING, for a camera that has to
     // hold the whole explosion, plus the ground under it so the fit keeps
-    // the board in the picture.
+    // the board in the picture. The goal, not the interpolant: a fit taken
+    // the instant `spread` is set would frame the parts where they still
+    // are and lose the column as it rises (it did).
     function assemblyPoints() {
-        assembly.spreadNow
         const pts = [Qt.vector3d(root.partPos.x - 5, 0, root.partPos.z - 5),
                      Qt.vector3d(root.partPos.x + 5, 0, root.partPos.z + 5)]
         for (const id of assembly.partIds) {
             const p = assembly.partAt(id)
-            if (p && p.x === p.x) pts.push(p)
+            if (!p || p.x !== p.x) continue
+            const now = Anatomy.offsetAt(id, assembly.spreadNow)
+            const goal = Anatomy.offsetAt(id, assembly.spread)
+            const u = assembly.unit
+            pts.push(Qt.vector3d(p.x + (goal.x - now.x) * u, p.y + (goal.y - now.y) * u,
+                                 p.z + (goal.z - now.z) * u))
         }
         return pts
     }
