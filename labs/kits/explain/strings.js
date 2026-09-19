@@ -41,9 +41,9 @@ var dict = {
         "explain.part.junction.bc": "base–collector junction",
 
         // one line under each callout card
-        "explain.detail.leg.collector": "the leg the working current leaves by",
+        "explain.detail.leg.collector": "the leg the working current comes in by (by convention)",
         "explain.detail.leg.base": "a small current here controls the large one",
-        "explain.detail.leg.emitter": "the leg the working current comes in by",
+        "explain.detail.leg.emitter": "the leg it leaves by, joined by the base current",
         "explain.detail.case": "epoxy — protects a chip a tenth its size",
         "explain.detail.face": "the flat side is the base's side; that is how you orient it",
         "explain.detail.die.collector": "the wide bottom layer, bonded to the collector's tab",
@@ -158,9 +158,9 @@ var dict = {
         "explain.part.junction.eb": "Emitter-Basis-Übergang",
         "explain.part.junction.bc": "Basis-Kollektor-Übergang",
 
-        "explain.detail.leg.collector": "das Bein, durch das der Arbeitsstrom hinausgeht",
+        "explain.detail.leg.collector": "das Bein, durch das der Arbeitsstrom hereinkommt (technische Stromrichtung)",
         "explain.detail.leg.base": "ein kleiner Strom hier steuert den großen",
-        "explain.detail.leg.emitter": "das Bein, durch das der Arbeitsstrom hereinkommt",
+        "explain.detail.leg.emitter": "das Bein, durch das er hinausgeht, zusammen mit dem Basisstrom",
         "explain.detail.case": "Epoxid — schützt einen Chip von einem Zehntel seiner Größe",
         "explain.detail.face": "die flache Seite ist die Basisseite; daran richtet man es aus",
         "explain.detail.die.collector": "die breite untere Schicht, auf den Kollektorträger gebondet",

@@ -458,7 +458,7 @@ Item {
         objectName: "markLayer"
         anchors.fill: parent
         view: view3d
-        camera: rig.camera
+        camera: view3d.camera
         marks: guide.markPoints
     }
 
@@ -484,9 +484,14 @@ Item {
         objectName: "callouts"
         anchors.fill: parent
         view: view3d
-        camera: rig.camera
+        // the VIEW's camera, never the rig's: the rig's passes the null guard
+        // while the view still has none (the WorldLabel rule)
+        camera: view3d.camera
         callouts: root.calloutList
         revealed: 0
+        // A card on the near side keeps its leader off the part; the far-side
+        // rule crossed two leaders over a centred subject.
+        autoRule: "near"
     }
 
     Chalkboard {
