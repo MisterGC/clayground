@@ -185,6 +185,12 @@ Chrome):
 A background loop on the web therefore needs the `finished` signal or a
 `Sound` re-triggered by a `Timer` at the clip length (see #216).
 
+Two of those points were re-measured on Qt 6.11.1 and did not move (#264):
+`position` stays `0` through a 30 s track, and `status` reaches Ready. The
+user-gesture rule, the `.wav` MIME refusal and `loop` were not re-tested on
+6.11.1. Which Qt the web runtime is built with, and why, is pinned and
+argued in `.github/workflows/main.yml`.
+
 ## Technical Notes
 
 - Audio is fully preloaded before playback (no streaming)
