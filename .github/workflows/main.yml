@@ -208,7 +208,7 @@ jobs:
           --expect "clay-sound: site gate finished" \
           --require-audible notes \
           --click \
-          --timeout 180
+          --timeout 300
 
     - name: Test
       if: matrix.qt-target == 'desktop'

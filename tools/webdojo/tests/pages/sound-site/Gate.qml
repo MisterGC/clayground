@@ -12,8 +12,10 @@
 // Two things are checked, and neither is visible in QML state:
 //
 //   * music.mp3 really plays - Music goes through a media element on the web,
-//     so the audio probe cannot hear it; a position that advances is the
-//     evidence, and a page that froze never reports one (#216, #261);
+//     so the audio probe cannot hear it. The track reaching its end is the
+//     evidence: `position` and `duration` stay 0 on the web (#261), so a
+//     position that advances is evidence of nothing. A page that froze never
+//     reports the end either (#216);
 //   * the notes phase really reaches the shared sink - Sound and
 //     SynthInstrument go through it, and a sink that was opened on a device
 //     that cannot play swallows every sample silently (#262). Music is
@@ -31,18 +33,18 @@ Rectangle {
     // sound several times, short enough to keep the CI step under a minute.
     readonly property int noteIntervalMs: 250
     readonly property int noteTicks: 12
-    // A position this far in is playback, not a media element reporting the
-    // start of a track it never decoded.
-    readonly property int musicProgressMs: 800
     // How long a step waits for something it cannot do anything about (the
-    // sample arriving, the track starting) before it says so and stops. The
+    // sample arriving, the track ending) before it says so and stops. The
     // marker never comes then, so the run fails - with a line naming what was
     // waited for instead of a silent timeout.
     readonly property int assetWaitMs: 20000
-    readonly property int musicWaitMs: 45000
+    // The example's own music.mp3 runs ~30 s and this waits for its end, so
+    // the limit has to clear that with room for the fetch and the decode.
+    readonly property int musicWaitMs: 60000
 
     property string phase: "loading"
     property int notes: 0
+    property bool musicFinished: false
 
     Music {
         id: music
@@ -50,6 +52,10 @@ Rectangle {
         volume: 0.4
         onStatusChanged: if (music.status === 3)
             console.log("clay-sound: site music failed to load")
+        onFinished: {
+            root.musicFinished = true;
+            console.log("clay-sound: site music played to the end");
+        }
     }
 
     Sound {
@@ -103,6 +109,7 @@ Rectangle {
         console.log("clay-sound: site gate gave up waiting for " + what
                     + " - status=" + music.status + " playing=" + music.playing
                     + " position=" + music.position
+                    + " finished=" + root.musicFinished
                     + " effectLoaded=" + effect.loaded);
     }
 
@@ -118,13 +125,11 @@ Rectangle {
             next(200);
             break;
         case 2:
-            if (music.position < root.musicProgressMs) {
-                retry(root.musicWaitMs, "music.mp3 to advance");
+            if (!root.musicFinished) {
+                retry(root.musicWaitMs, "music.mp3 to play to its end");
                 return;
             }
             waited = 0;
-            console.log("clay-sound: site music advanced position=" + music.position
-                        + " duration=" + music.duration);
             music.stop();
             setPhase("notes");
             notesTimer.start();      // calls advance() when it runs out
