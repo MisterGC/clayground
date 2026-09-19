@@ -107,6 +107,16 @@ Item {
     property real inset: 0.08
 
     /*!
+        \qmlproperty var Chalkboard::safe
+        \brief What is NOT picture: \c {{top, bottom, left, right}} in px - a
+               narrator bar, a panel - that the slate is centred around.
+
+        The scrim still covers the whole item; only the slate keeps out. Same
+        idea as \c CameraDirector.safe, in pixels because the chrome is.
+    */
+    property var safe: ({ top: 0, bottom: 0, left: 0, right: 0 })
+
+    /*!
         \qmlproperty color Chalkboard::slateColor
         \brief The slate. A physical colour, like the circuit kit's epoxy.
     */
@@ -214,7 +224,13 @@ Item {
     }
     onShownChanged: root._pres = root.shown ? 1 : 0
 
-    readonly property real _margin: Math.min(root.width, root.height) * root.inset
+    readonly property real _safeL: root.safe && root.safe.left ? root.safe.left : 0
+    readonly property real _safeR: root.safe && root.safe.right ? root.safe.right : 0
+    readonly property real _safeT: root.safe && root.safe.top ? root.safe.top : 0
+    readonly property real _safeB: root.safe && root.safe.bottom ? root.safe.bottom : 0
+    readonly property real _freeW: Math.max(1, root.width - _safeL - _safeR)
+    readonly property real _freeH: Math.max(1, root.height - _safeT - _safeB)
+    readonly property real _margin: Math.min(_freeW, _freeH) * root.inset
 
     // The scene stays visible, dimmed: the board is ABOUT the thing behind it,
     // and cutting to black would throw that away.
@@ -226,9 +242,11 @@ Item {
 
     Item {
         id: stack
-        anchors.centerIn: parent
-        width: Math.max(1, root.width - 2 * root._margin)
-        height: Math.max(1, root.height - 2 * root._margin)
+        // Centred in what the chrome leaves free, not in the whole item.
+        x: root._safeL + (root._freeW - width) / 2
+        y: root._safeT + (root._freeH - height) / 2
+        width: Math.max(1, root._freeW - 2 * root._margin)
+        height: Math.max(1, root._freeH - 2 * root._margin)
 
         Rectangle {
             id: slate

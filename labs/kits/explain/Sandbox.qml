@@ -523,9 +523,10 @@ Item {
                  : Chalk.transistorSection(root.chalkLabels)
         // A dark board has little light to take away.
         scrimOpacity: LabTheme.dark ? 0.45 : 0.6
-        // The board carries the line while it is up: the professor is behind
-        // the scrim, and a bubble seen through it is a bubble nobody reads.
-        caption: root.currentFlow && root.currentFlow.running ? root.currentFlow.narration : ""
+        // The Narrator carries the line while the board is up (the professor
+        // is behind the scrim, and a bubble seen through it is a bubble nobody
+        // reads), so the slate keeps out of the narrator's strip.
+        safe: ({ bottom: LabTheme.px(150) })
     }
 
     // --- chrome -------------------------------------------------------------------
@@ -534,7 +535,7 @@ Item {
     Narrator {
         flow: root.currentFlow
         z: 6                       // above the chalkboard's scrim: the lesson stays in reach
-        showText: !prof.present && !chalk.shown
+        showText: !prof.present || chalk.shown
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: LabTheme.spaceXl
