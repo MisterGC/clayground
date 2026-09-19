@@ -132,19 +132,25 @@ Item {
     // --- the lessons' choreography, as data --------------------------------
     // Per flow, per step: which part the line is about (`part`), which side
     // of it the professor stands on (`side`, 0 = stay where you are, absent =
-    // no flight), whether the camera holds the whole assembly (`wide`) and
-    // whether it stays on the two-shot for the step (`hold`). What the
-    // professor SAYS is in strings.js; this is only where it stands and what
-    // it points at.
+    // no flight), what the camera holds besides the finger's target (`parts`
+    // for a few named pieces, `wide` for the whole assembly) and whether it
+    // stays on the two-shot for the step (`hold`). What the professor SAYS is
+    // in strings.js; this is only where it stands and what it points at.
     readonly property var choreography: ({
         "explain-exploded": {
             "meet":   { part: "case",          side: 1 },
-            "legs":   { part: "leg.base",      side: 1,  hold: true },
+            "legs":   { part: "leg.base",      side: 1,  hold: true,
+                        parts: ["leg.collector", "leg.base", "leg.emitter"] },
             "open":   { part: "case",          side: -1, wide: true, hold: true },
-            "die":    { part: "die.collector", side: -1, wide: true, hold: true },
-            "layers": { part: "die.base",      side: -1, wide: true, hold: true },
-            "wires":  { part: "wires",         side: -1, wide: true, hold: true },
-            "close":  { part: "case",          side: 1 }
+            // a shot of the die, not of the whole column: three slabs a
+            // hand's breadth apart vanish in a frame that also holds the case
+            "die":    { part: "die.collector", side: -1, hold: true,
+                        parts: ["header", "die.collector", "die.emitter"] },
+            "layers": { part: "die.base",      side: -1, hold: true,
+                        parts: ["die.collector", "die.base", "die.emitter"] },
+            "wires":  { part: "wires",         side: -1, hold: true,
+                        parts: ["wires", "die.emitter", "leg.base", "leg.emitter"] },
+            "close":  { part: "case",          side: 1,  wide: true }
         },
         "explain-callouts": {
             "meet":   { part: "case",          side: 1 },
@@ -183,6 +189,14 @@ Item {
         if (c.side !== undefined && c.side !== 0 && !dive.inside)
             s.stand = root.standBeside(c.side)
         if (c.wide) s.extent = root.assemblyPoints()
+        else if (c.parts) {
+            const pts = look ? [look] : []
+            for (const id of c.parts) {
+                const p = root.resolveName(id)
+                if (p) pts.push(p)
+            }
+            s.extent = pts
+        }
         return s
     }
 
@@ -498,9 +512,17 @@ Item {
         id: chalk
         objectName: "chalk"
         anchors.fill: parent
+        // Over the chrome as well as the scene - the cut dims everything but
+        // the board; only the lesson's controls (the Narrator) stay above it.
+        z: 5
+        // The graph's axes want the bare symbols; the section's arrows carry
+        // the measured values.
         drawing: root.chalkDrawing === "gain"
-                 ? Chalk.gainGraph(12, root.chalkLabels)
+                 ? Chalk.gainGraph(12, { ib: root.chalkLabels.ibAxis, ic: root.chalkLabels.icAxis,
+                                         beta: root.chalkLabels.beta })
                  : Chalk.transistorSection(root.chalkLabels)
+        // A dark board has little light to take away.
+        scrimOpacity: LabTheme.dark ? 0.45 : 0.6
         // The board carries the line while it is up: the professor is behind
         // the scrim, and a bubble seen through it is a bubble nobody reads.
         caption: root.currentFlow && root.currentFlow.running ? root.currentFlow.narration : ""
@@ -511,6 +533,7 @@ Item {
 
     Narrator {
         flow: root.currentFlow
+        z: 6                       // above the chalkboard's scrim: the lesson stays in reach
         showText: !prof.present && !chalk.shown
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
