@@ -382,7 +382,8 @@ Item {
             time: clock.time
             baseCurrent: root.iB
             collectorCurrent: root.iC
-            reveal: dive.depth
+            // `reveal` is the dive's to write (it follows depth); binding it
+            // here too would be two writers on one property
             visible: dive.depth > 0.001
         }
 
@@ -416,10 +417,11 @@ Item {
             scriptResolve: (name) => root.resolveName(name)
             marks: root.currentFlow ? root.currentFlow.marks : []
             markLabelOf: (n) => LabLang.t("explain.part." + n)
-            // Inside the die the dive owns the camera: a two-shot from the
-            // director would restore the board's floors and pull the camera
-            // back out through the case.
-            director: dive.inside ? null : director
+            // Inside the die - and all the way back out - the dive owns the
+            // camera: a two-shot from the director would restore the board's
+            // floors and pull the camera out through the case, and a portrait
+            // ordered mid-surfacing would frame a figure that is still growing.
+            director: (dive.inside || dive.depth > 0.001) ? null : director
             entrance: Qt.vector3d(12, 0, -8)
             spoken: false
         }
@@ -463,6 +465,21 @@ Item {
         target: assembly
         interior: interior
         ghosts: [assembly]
+        // 0.12 of a black case is no case at all on the light board; a
+        // quarter keeps a shell around the die, which is what says "inside"
+        ghostOpacity: 0.28
+    }
+    // The anatomy's own die, header and bond wires fade out entirely as the
+    // dive goes in - the interior stands in their place, and from a hand's
+    // breadth away a ghosted bond wire is a beam across the whole picture.
+    Connections {
+        target: dive
+        function onDepthChanged() {
+            for (const id of ["header", "die.collector", "die.base", "die.emitter", "wires"]) {
+                const part = assembly.partOf(id)
+                if (part) part.ghost = 1 - dive.depth
+            }
+        }
     }
 
     // --- the 2D layers over the scene --------------------------------------------

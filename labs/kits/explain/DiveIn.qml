@@ -72,6 +72,12 @@ Item {
     /*! How much of a ghosted part is left at full depth. */
     property real ghostOpacity: 0.12
 
+    /*! Room above the shrunken presenter, as a factor of its inside height:
+        its speech bubble is sized in pixels and hangs over its head, so a
+        frame cut at the crown puts the words off the top of the picture
+        (CameraDirector keeps 2.2 for the same reason). */
+    property real presenterHeadroom: 2.6
+
     /*! The rig floors the dive needs, and the only two it touches. */
     property real insideMinDistance: 0.3
     property real insideMinHeight: 0.1
@@ -130,7 +136,7 @@ Item {
         if (root.presenter && root.interior && root.interior.standPoint) {
             const s = root.interior.standPoint
             const h = (root._saved ? root._saved.height3d : root.presenter.height3d)
-                    * root.presenterScale * 1.4
+                    * root.presenterScale * root.presenterHeadroom
             pts.push(s, Qt.vector3d(s.x, s.y + h, s.z))
         }
         return pts
