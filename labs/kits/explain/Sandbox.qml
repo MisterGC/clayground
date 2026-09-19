@@ -124,9 +124,9 @@ Item {
     // The professor stands beside the part, on the far side (smaller z): the
     // rig looks down the board from +z and a figure nearer the camera than
     // the part it points at hides it.
-    readonly property real profClear: 9
+    readonly property real profClear: 7.5
     function standBeside(side) {
-        return Qt.vector3d(root.partPos.x + side * root.profClear, 0, root.partPos.z - 3)
+        return Qt.vector3d(root.partPos.x + side * root.profClear, 0, root.partPos.z - 2.5)
     }
 
     // --- the lessons' choreography, as data --------------------------------
@@ -390,10 +390,11 @@ Item {
             id: prof
             objectName: "professor"
             view: view3d
-            // The electronics lab's size against a nine-unit part - this is
-            // how the professor stands next to a transistor there.
-            height3d: 6.2
-            travelSpeed: 34
+            // Smaller than the electronics lab's 6.2: there the two-shot is
+            // wide anyway (a board of parts), here it holds one four-unit part
+            // and a figure half again as tall pushed the part to a thumbnail.
+            height3d: 4.6
+            travelSpeed: 28
             stand: Qt.vector3d(12, 0, -8)
         }
 
