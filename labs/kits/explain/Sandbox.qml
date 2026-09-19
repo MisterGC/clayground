@@ -39,6 +39,7 @@ Item {
         forceActiveFocus()
         applyScenario("exploded")
         prof.appear()
+        frameAll()
     }
 
     // The flows run in sim time, and the interior's carriers move with it -
@@ -319,10 +320,13 @@ Item {
     }
 
     // --- camera ----------------------------------------------------------------
+    // The part and, once it has arrived, the professor beside it: the
+    // opening shot is a two-shot of the bench, not a close-up of a lump.
     function frameAll() {
-        rig.fit([Qt.vector3d(root.partPos.x - 7, 0, root.partPos.z - 7),
-                 Qt.vector3d(root.partPos.x + 7, 4, root.partPos.z + 7)],
-                { pitch: 30, pad: 1.2, safe: director.safe })
+        let pts = [Qt.vector3d(root.partPos.x - 7, 0, root.partPos.z - 7),
+                   Qt.vector3d(root.partPos.x + 7, 4, root.partPos.z + 7)]
+        if (prof.present) pts = pts.concat(director.presenterPoints())
+        rig.fit(pts, { pitch: 26, pad: 1.15, safe: director.safe })
     }
     function frameAssembly() {
         rig.fit(root.assemblyPoints(), { pitch: 24, pad: 1.25, safe: director.safe })
@@ -652,7 +656,6 @@ Item {
         width: LabTheme.px(200)
         title: LabLang.t("explain.state")
         Text {
-            width: parent.width
             text: "approach  " + root.approach
                 + "\nspread    " + LabLang.num(assembly.spreadNow, 2)
                 + "\nxray      " + LabLang.num(assembly.xrayNow, 2)
