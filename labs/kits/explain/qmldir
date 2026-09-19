@@ -1,0 +1,10 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+# Every type of the explain kit, so the directory imports over HTTP as well
+# as from disk (a directory cannot be listed by the web runtime).
+ExplodedView3D 1.0 ExplodedView3D.qml
+ExplodePart 1.0 ExplodePart.qml
+TransistorAnatomy3D 1.0 TransistorAnatomy3D.qml
+CalloutLayer 1.0 CalloutLayer.qml
+Chalkboard 1.0 Chalkboard.qml
+DiveIn 1.0 DiveIn.qml
+TransistorInterior3D 1.0 TransistorInterior3D.qml
