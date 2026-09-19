@@ -19,6 +19,12 @@ clay_add_node_test(kit_hydro
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/hydro/hydro.test.js)
 clay_add_node_test(kit_character
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/character/sheet.test.js)
+clay_add_node_test(kit_explain_anatomy
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/explain/anatomy.test.js)
+clay_add_node_test(kit_explain_chalk
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/explain/chalk.test.js)
+clay_add_node_test(kit_explain_carriers
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/explain/carriers.test.js)
 
 # lab_check_<lab> - the lab contract, as a test that can go red (#208).
 #
