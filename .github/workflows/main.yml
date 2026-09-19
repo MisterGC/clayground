@@ -21,8 +21,15 @@ concurrency:
 
 env:
   # Pin to 6.10.1 - wildcard causes issues when new versions are released (checksum propagation delays)
+  # The WASM pin was re-measured against 6.11.1 on 2026-09-19 (#264) and stays:
+  # the four browser audio gates below pass on both, with the same markers and
+  # peak RMS within noise, and Music still reports position 0 through a whole
+  # track on 6.11.1. What 6.11.1 does cost is 2.6 MB of raw wasm (39,190,933
+  # -> 41,936,825 bytes), leaving 6 KB under the 40 MB the size report warns
+  # at. Measure again once 6.12 is out - it replaces the OpenAL backend behind
+  # QAudioSink/QAudioSource on wasm with WebAudio AudioWorklets.
   QT_VERSION: '6.10.1'
-  QT_VERSION_WASM: '6.11.1'
+  QT_VERSION_WASM: '6.10.1'
   QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qt5compat qtimageformats'
   CMAKE_BUILD_TYPE: Release
   AQT_VERSION: '>=3.2.0'
