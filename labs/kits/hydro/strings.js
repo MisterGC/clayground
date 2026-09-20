@@ -53,7 +53,31 @@ var dict = {
         "code.wheel": "WHL",
         "code.flowmeter": "FM",
         "code.gauge": "PG",
-        "code.junction": "J"
+        "code.junction": "J",
+
+        // the valve's parts, as the anatomy names them (valve.js). Short noun
+        // phrases: a mark carries a name, not a sentence.
+        "anatomy.body": "valve body",
+        "anatomy.flange.in": "inlet flange",
+        "anatomy.flange.out": "outlet flange",
+        "anatomy.stem": "stem",
+        "anatomy.handwheel": "handwheel",
+        "anatomy.handwheel.rim": "rim",
+        "anatomy.handwheel.spokes": "spokes",
+        "anatomy.plate": "state plate",
+
+        // the kit's own lesson on the valve (ValveBench.qml)
+        "flow.valve.title": "The valve, taken apart",
+        "flow.valve.meet": "This is the valve you operate on the board: one body, two ports, a handwheel on top.",
+        "flow.valve.ports": "Water arrives at the inlet flange and leaves by the outlet.",
+        "flow.valve.shell": "Take the outside off first - the handwheel comes away as one piece.",
+        "flow.valve.inside": "Now what it was hiding: the stem rises out of the body and the rim lifts off its spokes.",
+        "flow.valve.wheel": "The rim is the part your hand holds; the spokes under it are what turn the stem.",
+        "flow.valve.named": "Every piece has a name, and here they all are at once.",
+        "flow.valve.close": "Put it back together - the same valve the board started with.",
+
+        "bench.valve.title": "VALVE ANATOMY",
+        "bench.valve.question": "At spread 0, is this the kit's valve?"
     },
     "de": {
         "part.pump": "Pumpe",
@@ -94,6 +118,27 @@ var dict = {
         "code.wheel": "WRD",
         "code.flowmeter": "DFM",
         "code.gauge": "MAN",
-        "code.junction": "T"
+        "code.junction": "T",
+
+        "anatomy.body": "Ventilgehäuse",
+        "anatomy.flange.in": "Eingangsflansch",
+        "anatomy.flange.out": "Ausgangsflansch",
+        "anatomy.stem": "Spindel",
+        "anatomy.handwheel": "Handrad",
+        "anatomy.handwheel.rim": "Radkranz",
+        "anatomy.handwheel.spokes": "Speichen",
+        "anatomy.plate": "Zustandsschild",
+
+        "flow.valve.title": "Das Ventil, zerlegt",
+        "flow.valve.meet": "Das ist das Ventil, das du auf dem Brett bedienst: ein Gehäuse, zwei Anschlüsse, oben ein Handrad.",
+        "flow.valve.ports": "Das Wasser kommt am Eingangsflansch an und verlässt das Ventil am Ausgang.",
+        "flow.valve.shell": "Zuerst kommt das Äußere ab - das Handrad löst sich als ein Stück.",
+        "flow.valve.inside": "Jetzt das Verborgene: die Spindel fährt aus dem Gehäuse, der Radkranz hebt sich von den Speichen.",
+        "flow.valve.wheel": "Den Radkranz fasst die Hand an; die Speichen darunter drehen die Spindel.",
+        "flow.valve.named": "Jedes Stück hat einen Namen - hier sind sie alle auf einmal.",
+        "flow.valve.close": "Wieder zusammensetzen - dasselbe Ventil wie am Anfang.",
+
+        "bench.valve.title": "VENTIL-ANATOMIE",
+        "bench.valve.question": "Ist das bei Spread 0 das Ventil des Kits?"
     }
 }

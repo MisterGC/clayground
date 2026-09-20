@@ -42,6 +42,36 @@ Node {
     property bool selected: false
     property int wiringTerminal: -1  // pad glowing during plumbing, -1 none
 
+    // --- the valve as a thing with parts ------------------------------------
+    // Four goals in, three answers out: what a lesson needs to take this part
+    // apart, name its pieces and point at them. Inert on every other type,
+    // where there is no anatomy to ask.
+
+    /*! Goal: 0 assembled, 1 the outside off, 2 fully apart (a valve only). */
+    property real spread: 0
+
+    /*! Goal: the id of the part to look at; every other piece dims. */
+    property string focus: ""
+
+    /*! Part id to display text - the lesson's words, never looked up here. */
+    property var labels: ({})
+
+    /*! Which pieces carry a mark: a list of part ids, or "all". */
+    property var labelled: []
+
+    /*! The valve's ValveAnatomy3D, or null unless this part is a valve. */
+    readonly property var anatomy: _valveLoader.item
+
+    /*! One {id, at, label} per marked piece - what a MarkLayer takes. */
+    readonly property var marks: root.anatomy ? root.anatomy.marks : []
+
+    /*! Where piece `id`'s anchor is now, or WILL be at `atSpread`; a NaN
+        triple for a piece this part does not have. */
+    function partAt(id, atSpread) {
+        return root.anatomy ? root.anatomy.partAt(id, atSpread)
+                            : Qt.vector3d(NaN, NaN, NaN)
+    }
+
     // --- board geometry, from the one file that owns it ---------------------
     readonly property var _spec: Parts.specOf(type)
     readonly property int termCount: _spec ? _spec.terminals.length : 0
@@ -219,79 +249,25 @@ Node {
     // turns a quarter and changes colour. The handwheel lightens while the
     // pointer is over it, which is how the board says "this is the bit you
     // grab" before anything is clicked.
-    Node {
-        id: _valve
-        visible: root.type === "valve"
-        readonly property color tone: root.switchOn ? LabTheme.forest : LabTheme.clay
-        readonly property color wheelTone: root.actuatorHovered
-                                           ? LabTheme.step(tone, 1.25) : tone
-        Part {                                   // body
-            width: 5.0; height: 1.5; depth: 3.0
-            position: Qt.vector3d(0, 0.05, 0)
-            color: Parts.colorOf("valve")
-        }
-        Repeater3D {                             // the two flanges
-            model: 2
-            Model {
-                required property int index
-                source: "#Cylinder"
-                position: Qt.vector3d(index === 0 ? -2.6 : 2.6, 0.75, 0)
-                eulerRotation.z: 90
-                scale: Qt.vector3d(0.017, 0.006, 0.017)
-                materials: Matte { baseColor: LabTheme.muted }
-            }
-        }
-        Model {                                  // stem
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 2.0, 0)
-            scale: Qt.vector3d(0.004, 0.008, 0.004)
-            materials: Matte { baseColor: LabTheme.muted }
-        }
-        Node {                                   // handwheel
-            position: Qt.vector3d(0, 2.7, 0)
-            eulerRotation.y: root.switchOn ? 0 : 90
-            Behavior on eulerRotation.y { NumberAnimation { duration: 160 } }
-            Model {                              // rim
-                source: "#Cylinder"
-                scale: Qt.vector3d(0.026, 0.003, 0.026)
-                materials: Matte { baseColor: _valve.wheelTone }
-            }
-            Repeater3D {                         // spokes, so the turn is visible
-                model: 2
-                Part {
-                    required property int index
-                    width: index === 0 ? 5.0 : 0.5
-                    height: 0.28
-                    depth: index === 0 ? 0.5 : 5.0
-                    position: Qt.vector3d(0, -0.14, 0)
-                    color: LabTheme.step(_valve.wheelTone, 0.85)
-                    showEdges: false
-                }
-            }
-        }
-        Model {                                  // printed state
-            // a handwheel's angle is hard to read from straight above, and
-            // from above is how a board is mostly seen
-            position: Qt.vector3d(0, 1.57, 1.1)
-            source: "#Rectangle"
-            eulerRotation.x: -90
-            scale: Qt.vector3d(0.026, 0.008, 1)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    sourceItem: Item {
-                        width: 200; height: 92
-                        Rectangle { anchors.fill: parent; color: LabTheme.panel }
-                        Text {
-                            anchors.centerIn: parent
-                            text: LabLang.t(root.switchOn ? "valve.open" : "valve.closed")
-                            color: _valve.tone
-                            font.pixelSize: 60; font.bold: true
-                            font.letterSpacing: 4
-                            font.family: LabTheme.monoFont
-                        }
-                    }
-                }
+    //
+    // The only body here that is LOADED rather than declared with the others:
+    // the valve is drawn by ValveAnatomy3D, which carries a part table of
+    // eight rows and an exploded view's machinery behind it. A board is mostly
+    // pipes and pumps, and every one of them would pay for that table without
+    // ever using it - so the anatomy arrives with the first valve, not before.
+    Loader3D {
+        id: _valveLoader
+        active: root.type === "valve"
+        sourceComponent: Component {
+            ValveAnatomy3D {
+                spread: root.spread
+                focus: root.focus
+                labels: root.labels
+                labelled: root.labelled
+                switchOn: root.switchOn
+                actuatorHovered: root.actuatorHovered
+                // the element owns the vocabulary, the subject only prints it
+                stateText: LabLang.t(root.switchOn ? "valve.open" : "valve.closed")
             }
         }
     }
