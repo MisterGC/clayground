@@ -6,3 +6,6 @@
 CircuitElement3D 1.0 CircuitElement3D.qml
 SymbolIcon 1.0 SymbolIcon.qml
 Voltmeter 1.0 Voltmeter.qml
+TransistorAnatomy3D 1.0 TransistorAnatomy3D.qml
+# not used by a lab - the kit's own bench for the anatomy, run with clayrender
+AnatomyBench 1.0 AnatomyBench.qml
