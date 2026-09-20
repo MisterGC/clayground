@@ -1,6 +1,6 @@
 # Explain kit — mechanisms for showing a detail the scene hides
 
-> **Prototype.** This kit is the #269 evaluation bench, merged so the follow-ups have it in the tree. #272–#276 promote its pieces into the kernel and #279 deletes it afterwards — build on those, not on this.
+> **Prototype, reference only.** This kit is the #269 evaluation bench. It stays on branch `issue-269` unmerged; #272–#276 build the kernel versions of its pieces (read it with `git show issue-269:labs/kits/explain/<file>`) — build on those, not on this.
 
 Issue #269 asks how a lab lesson gets *inside* a thing: the professor points
 at the transistor and says "three legs, a base current, a chip inside", and
