@@ -1,5 +1,7 @@
 # Explain kit — mechanisms for showing a detail the scene hides
 
+> **Prototype.** This kit is the #269 evaluation bench, merged so the follow-ups have it in the tree. #272–#276 promote its pieces into the kernel and #279 deletes it afterwards — build on those, not on this.
+
 Issue #269 asks how a lab lesson gets *inside* a thing: the professor points
 at the transistor and says "three legs, a base current, a chip inside", and
 the learner sees a black lump. This kit holds one prototype per way of
