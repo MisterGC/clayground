@@ -35,6 +35,8 @@ for the first time; the skill does not repeat it.
 
 ## Flow — the narrated walkthrough and what it points at
 
+- **`ExplodePart`** — One named piece of an `ExplodedView3D`: the models that draw it, plus its row of the part table. — `plugins/clay_lab/ExplodePart.qml`
+- **`ExplodedView3D`** — Any composition of named parts comes apart along its axes, staged and labelled, by id. — `plugins/clay_lab/ExplodedView3D.qml`
 - **`Flow`** — A narrated walkthrough that drives the lab through its own mutation API. — `plugins/clay_lab/Flow.qml`
 - **`FlowChip`** — The offer to be taught: starts a Flow, and says that it exists. — `plugins/clay_lab/FlowChip.qml`
 - **`FlowStep`** — One stop of a lab Flow: what is said, what the lab does, what the learner does. — `plugins/clay_lab/FlowStep.qml`

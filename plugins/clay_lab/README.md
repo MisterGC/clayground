@@ -178,6 +178,24 @@ Everything below was hand-rolled in two labs before it moved here.
   now, optionally captioned. Fed by a `FlowStep.mark` list or a
   performance script's `*mark ...*` cue; `keepOut` keeps a ring off a
   presenter standing in front of the part it marks.
+- **ExplodedView3D / ExplodePart** — the subject contract: anything a lesson
+  takes apart or points into is a part table (`ExplodePart` rows with an id,
+  a role, a teaching order, a stage, an offset and an anchor), and every
+  mechanism resolves a part by name through `partAt(id)` - marks, the
+  finger, the camera and cards. Like the classic engineering drawing: parts
+  travel along their own axes with a dashed assembly line from where they
+  sat, the shell comes off at `spread 1` and what is inside at `spread 2`,
+  a part may contain parts (a sub-assembly leaves as a whole, then opens),
+  and `labelled` puts a mark with the table's label on each part. `spread`
+  and `focus` are goals with read-only `spreadNow`/`focusNow` interpolants
+  (`Behavior`-eased, like the rig), so a flow's `expect` reads the goal and
+  `Lab.runFlow` holds headless; `partAt(id, spread)` answers where a part is
+  GOING, for a camera that has to frame the explosion before it happened.
+  The table's algebra is `explode.js` (`node explode.test.js`), and a kit's
+  own table (`labs/kits/circuit/anatomy.js`) is validated by the same
+  rules. The circuit kit's transistor and the hydro kit's valve are their
+  elements' own anatomies at `spread 0`: the same part comes apart, not a
+  model of it.
 - **SelectionFrame3D** — the shared hover/select language on the work
   surface (thin outline hovering, full frame plus facing mark selected).
   Used by the circuit kit; note that its lift is measured from the object,
