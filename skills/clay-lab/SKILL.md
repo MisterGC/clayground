@@ -172,6 +172,16 @@ template is a lab that ctest boots (`lab_new_boot_<kind>`), so it cannot rot.
 - **Dual representation, one model**: the 3D scene shows what you built, an
   abstract panel (`MiniMap`) shows what it *is*, from the same data; `M`
   toggles it. One toggle that states the lesson (`V` labels every part).
+- **A subject is an `ExplodedView3D`.** Anything a lesson takes apart or
+  points into is a part table - `ExplodePart` rows (id, role, order, stage,
+  offset, anchor) kept Qt-free beside the kit's models, handed to each part
+  as `row`, node-checked with the kernel's `explode.js` `validate` - and
+  every mechanism resolves a part by id through `partAt(id)`: marks
+  (`labelled` + `labels`), the finger, the camera (`partAt(id, spread)` is
+  where it is going), cards. A kit element IS its anatomy at `spread 0`
+  (the circuit kit's transistor, the hydro kit's valve), never a second
+  model beside it. Assembly lines and labels come from the table; nothing
+  is hand-placed.
 - HUD slots: palette top-left · compass under it · abstract view bottom-left
   · monitor bottom-right · banner top-centre · hint bar bottom-centre
   (`HintBar { flow: …; rightGuard: monitor }`) · language, theme and scale
@@ -253,6 +263,9 @@ Then, in order (clay-crew skill has the inspector protocol):
 
    The answer must read `"finished": true` with `unresolvedVerbs`,
    `failedTasks` and `failedExpects` empty. `--paused` is not optional.
+   An `expect` reads a goal (`spread`, `focus`, `xray`), never its `…Now`
+   interpolant: headless, sim time steps and nothing else moves, so a flow
+   asserts what it asked for, never what the screen shows.
 7. Measure, never guess, anything with a numeric knob (shadows, fades):
    parameter sweep + pixel sampling.
 8. Motion is judged over time: `clayrender --trace <expr> --trace-out

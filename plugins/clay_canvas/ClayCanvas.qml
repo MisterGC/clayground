@@ -166,6 +166,27 @@ Item {
     }
 
     /*!
+        \qmlmethod void ClayCanvas::fit(real xMin, real yMin, real xMax, real yMax, real marginWu)
+        \brief Frames a world rectangle: the view shows it whole, aspect kept, centred.
+
+        \a marginWu (optional, default 0) is added on every side. Sets
+        \l pixelPerUnit directly - which ends the zoomFactor binding, as
+        assigning pixelPerUnit always has - and stops following
+        \l observedItem. A rectangle wider than the world clamps to the
+        world's edge like any viewport position does.
+    */
+    function fit(xMin, yMin, xMax, yMax, marginWu) {
+        var m = (marginWu === undefined || marginWu === null) ? 0 : marginWu;
+        var w = (xMax - xMin) + 2 * m;
+        var h = (yMax - yMin) + 2 * m;
+        if (!(w > 0) || !(h > 0) || !(width > 0) || !(height > 0)) return;
+        observedItem = null;
+        pixelPerUnit = Math.min(width / w, height / h);
+        viewPortCenterWuX = (xMin + xMax) / 2;
+        viewPortCenterWuY = (yMin + yMax) / 2;
+    }
+
+    /*!
         \qmlmethod list ClayCanvas::find(object filters)
         \brief Search for items matching filter conditions.
 

@@ -161,25 +161,79 @@ run: a signed flow or an honest `null`. Per solve: `netCount` and
 - `symbols.js` — `draw(ctx, type, cx, cy, w, h, opts)`, ISO 1219 fluid-power
   symbols shared by the palette and any schematic view, so the symbol in
   the list is the symbol in the diagram.
+- `valve.js` — the valve's part table: the geometry constants the anatomy
+  is drawn from (`BODY`, `FLANGE`, `STEM`, `WHEEL`, `PLATE`), `ROLES`,
+  `PARTS`, and `partById`, `partIds`, `explainOrder`, `travelAt`,
+  `offsetAt`, `validate`. Qt-free, so `node` checks it — and the kernel's
+  own `explode.js` validates the very same rows.
 - QML: `HydroElement3D` (same public interface as the circuit kit's
   `CircuitElement3D`, under the domain's names: `simQ`, `simDp`, `turning`),
-  `SymbolIcon`, and `Bench` — the kit's own visual test.
-- `strings.js` — the kit's EN/DE part vocabulary.
+  `SymbolIcon`, `ValveAnatomy3D` (below), and `Bench` and `ValveBench` —
+  the kit's own visual tests.
+- `strings.js` — the kit's EN/DE part vocabulary, the part names under
+  `anatomy.<id>` and the valve lesson under `flow.valve.*`.
+
+### The valve as a thing with parts
+
+`ValveAnatomy3D` is the kit's valve drawn as a kernel `ExplodedView3D` over
+the rows of `valve.js`: eight pieces — body, inlet and outlet flange, stem,
+handwheel with its rim and spokes, state plate — in two stages. The outside
+comes off while `spread` goes 0 → 1, what it was hiding comes apart while
+`spread` goes 1 → 2, and the handwheel is a sub-assembly: it leaves as one
+piece, then its rim lifts off its spokes. At `spread 0` it is the valve
+`HydroElement3D` has always drawn, pose for pose.
+
+`HydroElement3D` loads it for `type: "valve"` and for nothing else — a part
+table on every pipe and pump of a board would be paid for and never used —
+and passes the goals straight through:
+
+| property | what it is |
+|---|---|
+| `spread` | 0 assembled, 1 the outside off, 2 fully apart |
+| `focus` | the id of the piece to look at; every other piece dims |
+| `labels` | part id → display text, the lesson's own words |
+| `labelled` | which pieces carry a mark: a list of ids, or `"all"` |
+| `anatomy` | the loaded `ValveAnatomy3D`, `null` on any other type |
+| `marks` | one `{id, at, label}` per marked piece, for a `MarkLayer` |
+| `partAt(id, atSpread)` | where a piece's anchor is now, or will be |
+
+The ids are `body`, `flange.in`, `flange.out`, `stem`, `handwheel`,
+`handwheel.rim`, `handwheel.spokes` and `plate`; `strings.js` names them
+under `anatomy.<id>`, in both languages. `ValveBench` is the bench that
+operates all of it, with the lesson `flow.valve` on it.
 
 ## Tests
 
 ```bash
 node labs/kits/hydro/hydro.test.js
+node labs/kits/hydro/valve.test.js
 ```
 
-Covers the solver's derivations (series, parallel, dividers), the short
-versus overload distinction, the continuity peeling and its honest `null`
-for un-attributable runs, the pipe ladder, the board contract in
+The first covers the solver's derivations (series, parallel, dividers), the
+short versus overload distinction, the continuity peeling and its honest
+`null` for un-attributable runs, the pipe ladder, the board contract in
 `parts.js`, and EN/DE key parity.
 
-The visuals have their own check:
+The second covers the valve's part table: that the kernel's own `explode.js`
+accepts the same rows and agrees about the stages and the teaching order,
+that the handwheel's two pieces name it as their parent, that stage 1 lifts
+the outside and stage 2 opens what it hid, and that at full spread no piece
+is left sitting inside another.
+
+The visuals have their own checks:
 
 ```bash
 clayrender labs/kits/hydro/Bench.qml --out /tmp/hydro-bench.png \
     --size 1400x900 --settle
+clayrender labs/kits/hydro/ValveBench.qml --out /tmp/valve-bench.png \
+    --size 900x600 --settle
+```
+
+The valve bench also runs its lesson with nobody watching, which is the
+cheapest check that the anatomy still answers every id a lesson names:
+
+```bash
+clayrender labs/kits/hydro/ValveBench.qml --out /tmp/valve-flow.png \
+    --size 900x600 --paused --result - \
+    --eval 'return JSON.stringify(Lab.runFlow("valve"))'
 ```
