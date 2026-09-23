@@ -82,8 +82,10 @@ Item {
     /*!
         \qmlproperty bool AnchoredMask::enabled
         \brief When false the shader is fully skipped (no GPU cost).
+
+        This is Item's own \c enabled, not a redeclaration: overriding a
+        base member is a load-time warning in every scene that uses the mask.
     */
-    property bool enabled: true
 
     readonly property real _ppu: world ? world.pixelPerUnit : 0
     readonly property real _canvasXInWU: (world && world.canvas) ? world.canvas.xInWU : 0
