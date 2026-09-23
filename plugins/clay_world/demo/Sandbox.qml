@@ -11,7 +11,8 @@ Item {
         {"title": "3D Primitives", "comp": _sbx3d},
         {"title": "3D Scene (SVG areas)", "comp": _sbx3dScene},
         {"title": "2D World", "comp": _sbx2d},
-        {"title": "2D Lighting", "comp": _sbxLighting2d}
+        {"title": "2D Lighting", "comp": _sbxLighting2d},
+        {"title": "2D Screen FX + Camera", "comp": _sbxJuice2d}
     ]
     property int demoIndex: 0
 
@@ -27,6 +28,10 @@ Item {
     Component {
         id: _sbxLighting2d
         SandboxLighting2d {}
+    }
+    Component {
+        id: _sbxJuice2d
+        SandboxJuice2d {}
     }
     Component {
         id: _sbx3d
