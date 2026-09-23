@@ -7,6 +7,7 @@ set(CMAKE_AUTOMOC ON)
 
 add_library (${PROJECT_NAME} STATIC
     clayfilesysobserver.cpp
+    clayshaderbaker.cpp
     dojoignore.cpp
     utilityfunctions.cpp
 )

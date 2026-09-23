@@ -64,6 +64,7 @@ private:
 
 private:
     void reloadIgnoreFor(const QString &sandboxDir);
+    void bakeShaders(const QString &sandboxDir);
 
     ClayFileSysObserver fileObserver_;
     DojoIgnore ignore_;
