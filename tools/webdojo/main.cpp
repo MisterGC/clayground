@@ -5,7 +5,9 @@
 //
 
 #include <QGuiApplication>
+#include <QFileInfo>
 #include <QPointer>
+#include <QQmlAbstractUrlInterceptor>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickWindow>
@@ -27,6 +29,38 @@ static QObject* g_rootObject = nullptr;
 // A Window root (a clay_app game's Main.qml) is shown as it is, as a native
 // WASM build would show it; the runtime's own window steps aside meanwhile.
 static QPointer<QQuickWindow> g_gameWindow;
+
+// Directory of the QML entry loaded by URL: preloaded files under /game/ are
+// laid out relative to it (index.html sits next to Main.qml).
+static QString g_gameBase;
+
+// Maps a shader url that points into the game's http directory to its copy
+// under /game/ when the app shell preloaded one. ShaderEffect reads .qsb only
+// with QFile ("rhi shader effect only supports files (qrc or local) at the
+// moment"), so a relative `fragmentShader: "shaders/x.frag.qsb"` in a game
+// served over http fails unless it is read from the in-memory filesystem.
+// Only .qsb: other preloaded files (sounds under assets/) are fetched by URL
+// by their consumers and must keep their http URL; Quick 3D files are
+// referenced as file:///game/<path> explicitly.
+class PreloadedFileInterceptor : public QQmlAbstractUrlInterceptor
+{
+public:
+    QUrl intercept(const QUrl& url, DataType type) override
+    {
+        if (type != UrlString || g_gameBase.isEmpty())
+            return url;
+        if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))
+            return url;
+        const QString s = url.toString(QUrl::RemoveQuery | QUrl::RemoveFragment);
+        if (!s.startsWith(g_gameBase) || !s.endsWith(QLatin1String(".qsb")))
+            return url;
+        const QString rel = QUrl::fromPercentEncoding(s.mid(g_gameBase.size()).toUtf8());
+        const QString local = QStringLiteral("/game/") + rel;
+        if (rel.isEmpty() || rel.contains(QLatin1String("..")) || !QFileInfo(local).isFile())
+            return url;
+        return QUrl::fromLocalFile(local);
+    }
+};
 
 // Custom message handler to route Qt messages to browser console
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg)
@@ -140,6 +174,7 @@ void loadQmlFromString(const std::string& qmlSource)
     }
 
     unloadCurrent();
+    g_gameBase.clear();
 
     // Create component from string
     QQmlComponent component(g_engine);
@@ -181,6 +216,8 @@ void loadQmlFromUrl(const std::string& url)
     emscripten_log(EM_LOG_CONSOLE, "Loading QML from URL: %s", url.c_str());
 
     const QUrl entry(QString::fromStdString(url));
+    g_gameBase = entry.adjusted(QUrl::RemoveFilename | QUrl::RemoveQuery | QUrl::RemoveFragment)
+                     .toString();
 
     // Create component from URL - use Asynchronous mode for network loading
     auto* component = new QQmlComponent(g_engine, entry, QQmlComponent::Asynchronous);
@@ -243,6 +280,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     g_engine = new QQmlApplicationEngine();
+    g_engine->addUrlInterceptor(new PreloadedFileInterceptor);
 
     // Make the app's Qml resources available (includes Clayground plugins)
     g_engine->addImportPath(QStringLiteral(":/"));
