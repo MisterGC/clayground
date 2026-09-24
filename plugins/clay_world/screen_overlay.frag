@@ -56,9 +56,12 @@ void main() {
         float b1 = (t - 0.08) * 14.0;
         float b2 = (t - 0.3) * 14.0;
         float beat = exp(-b1 * b1) + 0.6 * exp(-b2 * b2);
-        float edge = smoothstep(0.35, 1.05, r);
-        float a = clamp(edge * ubuf.lowHealth * (0.55 + 0.45 * beat), 0.0, 1.0);
-        acc = over(vec4(vec3(0.55, 0.02, 0.02) * a, a), acc);
+        // Only the outer corners, a deep blood red, and mostly the beat
+        // itself: a steady bright red rim read as an alarm light, not as the
+        // player's pulse.
+        float edge = smoothstep(0.6, 1.2, r);
+        float a = clamp(edge * ubuf.lowHealth * (0.2 + 0.3 * beat), 0.0, 1.0);
+        acc = over(vec4(vec3(0.32, 0.0, 0.02) * a, a), acc);
     }
 
     if (ubuf.grain > 0.0) {

@@ -55,7 +55,9 @@ void main() {
     rgb *= vec3(1.0 + 0.2 * ubuf.temperature, 1.0 + 0.03 * ubuf.temperature,
                 1.0 - 0.2 * ubuf.temperature);
     float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
-    float sat = ubuf.saturation * (1.0 - 0.85 * ubuf.lowHealth);
+    // Colour drains with health, but only partly: a grey screen reads as a
+    // broken picture, not as a dying hero.
+    float sat = ubuf.saturation * (1.0 - 0.35 * ubuf.lowHealth);
     rgb = mix(vec3(luma), rgb, sat);
     rgb = (rgb - 0.5) * ubuf.contrast + 0.5 + ubuf.brightness;
     rgb = clamp(rgb, 0.0, 1.0);
