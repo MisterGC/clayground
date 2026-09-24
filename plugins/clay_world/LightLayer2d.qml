@@ -129,6 +129,22 @@ Item {
     property bool active: true
 
     /*!
+        \qmlproperty Item LightLayer2d::emissive
+        \readonly
+        \brief Parent for things that give off light themselves.
+
+        Items parented here are drawn above the darkness, so a flame, a spark
+        or a pair of eyes in the dark keeps its full colour where the floor
+        around it is black. The item scrolls with the world and has the size
+        of \c{world.room}, so children place themselves exactly as they
+        would in the room (\c{y: parent.height - yWu * pixelPerUnit}). It is
+        hidden together with the layer, and it does not cast or receive
+        light - pair a glowing thing with a Light2d if it should light its
+        surroundings.
+    */
+    readonly property Item emissive: _emissive
+
+    /*!
         \qmlproperty int LightLayer2d::maxLights
         \readonly
         \brief How many lights the shader takes at once.
@@ -359,6 +375,22 @@ Item {
     anchors.fill: parent
     z: 100
     visible: active && !!_canvas
+
+    // Above the darkness, moving with the room: the room is the canvas'
+    // scrolling content item, so mirroring its geometry keeps world
+    // coordinates identical for everything placed in here.
+    Item {
+        id: _emissive
+        parent: root._canvas ? root._canvas : root
+        readonly property var _room: root.world ? root.world.room : null
+        property real pixelPerUnit: root.world ? root.world.pixelPerUnit : 1
+        x: _room ? _room.x : 0
+        y: _room ? _room.y : 0
+        width: _room ? _room.width : 0
+        height: _room ? _room.height : 0
+        z: 101
+        visible: root.visible
+    }
 
     FrameAnimation {
         running: root.visible
