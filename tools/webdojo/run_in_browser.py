@@ -25,6 +25,7 @@ Steps (--do, repeatable, run in order after the QML loaded):
     hold:<Key>:<ms>    hold a key down
     click:<x>:<y>      click at a position, fractions of the page size (0..1)
     shot:<name>        screenshot to <out>/<name>.png
+    fps                log how many frames the page presents in one second
     expect:<text>      wait (up to --timeout) for a console line containing text
 Default: wait:4000 shot:loaded
 
@@ -54,7 +55,9 @@ RUNTIME_FILES = {"clayground.js", "clayground.wasm", "qtloader.js", "index.html"
                  "coi-serviceworker.js", "RUNTIME-MANIFEST.json"}
 ERROR_MARKERS = ("QML Error", "Failed to create QML object", "is not installed",
                  "[Qt Critical]", "[Qt Fatal]", "shader", "Shader", "GL_INVALID",
-                 "WebGL:", "Failed to link", "graphics pipeline")
+                 "WebGL:", "Failed to link", "graphics pipeline",
+                 # an item bound to two windows is not drawn at all
+                 "Cannot use same item on different windows")
 
 
 def load_manifest_module():
@@ -195,8 +198,18 @@ def run_headless(url, args):
                     page.mouse.click(float(fx) * w, float(fy) * h)
                 elif kind == "shot":
                     path = os.path.join(args.out, f"{rest}.png")
-                    page.screenshot(path=path)
+                    # software WebGL (headless has no GPU) can take seconds per frame
+                    page.screenshot(path=path, timeout=args.timeout * 1000)
                     shots.append(path)
+                elif kind == "fps":
+                    # frames the browser presented in one second of wall time
+                    fps = page.evaluate("""() => new Promise(done => {
+                        let n = 0; const t0 = performance.now();
+                        const tick = () => { n++; if (performance.now() - t0 < 1000)
+                            requestAnimationFrame(tick); else done(n); };
+                        requestAnimationFrame(tick); })""")
+                    record("info", f"fps: {fps}")
+                    print(f"fps: {fps}")
                 elif kind == "expect":
                     seen = []
                     page.on("console", lambda m: seen.append(rest in m.text))
