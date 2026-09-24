@@ -40,7 +40,7 @@ bool ClayShaderBaker::bake(const QString& source, QString* error)
     }
     QProcess p;
     p.setProcessChannelMode(QProcess::MergedChannels);
-    p.start(tool, {"--glsl", "100 es,120,150", "--hlsl", "50", "--msl", "12",
+    p.start(tool, {"--glsl", "100 es,120,150,300 es", "--hlsl", "50", "--msl", "12",
                    "-o", source + ".qsb", source});
     // A shader compiles in well under a second; the ceiling only guards
     // against a hung tool blocking the reload forever.

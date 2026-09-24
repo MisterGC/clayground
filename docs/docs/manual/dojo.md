@@ -70,9 +70,11 @@ ShaderEffect {
 A shader that does not compile does not reload silently into an effect that
 stopped drawing: qsb's message, with file and line, shows up in the Dojo and
 in the inspector log. The targets are the ones `qt_add_shaders()` uses by
-default (GLSL 100 es/120/150, HLSL 50, MSL 12), so a shader that bakes here
-also builds for WebAssembly. For the shipped app, bake the same files into
-the resources at the same relative path:
+default (GLSL 100 es/120/150, HLSL 50, MSL 12) plus GLSL 300 es, which the
+browser runtime needs: WebGL2 refuses to link a fragment shader of another
+version than its 300 es vertex shaders. So the same `.qsb` files work when
+the game is served to the web runtime. For the shipped app, bake the same
+files into the resources at the same relative path:
 
 ```cmake
 qt_add_shaders(my_game "my_game_shaders" PREFIX "/" FILES src/shaders/floor.frag)

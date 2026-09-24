@@ -11,8 +11,11 @@
 // path qt_add_shaders() gives it in an app's resources, so one QML line works
 // in both.
 //
-// The targets match qt_add_shaders()' defaults (GLSL 100 es/120/150, HLSL 50,
-// MSL 12), so a shader that bakes here also bakes for the WebAssembly build.
+// The targets are qt_add_shaders()' defaults (GLSL 100 es/120/150, HLSL 50,
+// MSL 12) plus GLSL 300 es: the WebAssembly runtime draws with WebGL2, whose
+// vertex shaders are 300 es, and a fragment shader of another version fails
+// to link ("Fragment shader version does not match other shader versions").
+// One .qsb therefore serves the desktop dojo and the browser alike.
 
 #pragma once
 
