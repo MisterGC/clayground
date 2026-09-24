@@ -122,7 +122,9 @@ signals:
     void playerJoined(const QString &nodeId);
     void playerLeft(const QString &nodeId);
     void messageReceived(const QString &fromId, const QVariant &data);
-    void stateReceived(const QString &fromId, const QVariant &data);
+    // sentAt: the sender's clock (ms since epoch) when the update was
+    // broadcast, or -1 when the sender did not include one.
+    void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
 
@@ -176,6 +178,7 @@ private:
     void setupPeerConnection(const QString &peerId, bool isOfferer);
     void setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
     void setupStateChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
+    void assignChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc, bool isState);
     void sendToPeer(const QString &peerId, const QString &message);
     void sendStateToPeer(const QString &peerId, const QString &message);
     void handleDataChannelMessage(const QString &fromId, const std::string &message);
@@ -189,8 +192,8 @@ private:
     void setupLocalSignalingConnections();
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
-    static QString encodeLanCode(const QString &host, uint16_t port);
-    static bool decodeLanCode(const QString &code, QString &host, uint16_t &port);
+    static QString encodeLanCode(const QString &host, uint16_t port, const QString &secret);
+    static bool decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret);
     static QString getLocalIpAddress();
 
     std::unique_ptr<PeerJSSignaling> signaling_;
@@ -200,6 +203,7 @@ private:
 
     QString networkId_;
     QString nodeId_;
+    QString lanSecret_;  // random part of a LAN code, checked by the host's signaling server
     bool isHost_ = false;
     bool connected_ = false;
     int maxNodes_ = 8;

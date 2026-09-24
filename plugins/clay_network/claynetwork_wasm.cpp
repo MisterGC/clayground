@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "claynetwork_wasm.h"
+#include <QDateTime>
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1051,10 +1052,11 @@ void ClayNetwork::broadcast(const QVariant &data)
 void ClayNetwork::broadcastState(const QVariant &data)
 {
 #ifdef __EMSCRIPTEN__
-    // Use same wire format as Desktop: {"t": "s", "q": seq, "d": {...}}
+    // Same wire format as Desktop: {"t": "s", "q": seq, "ts": sender ms, "d": {...}}
     QJsonObject msg;
     msg["t"] = "s";
     msg["q"] = static_cast<qint64>(++stateSeqOut_);
+    msg["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QByteArray json = QJsonDocument(msg).toJson(QJsonDocument::Compact);
     js_broadcast_state(instanceId_, json.constData());
@@ -1226,7 +1228,8 @@ void ClayNetwork::onMessage(const char* fromId, const char* data, bool isState)
         }
         stateRecvCount_[from]++;
         stateLastMs_[from] = clock_.elapsed();
-        emit stateReceived(from, msgData);
+        double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+        emit stateReceived(from, msgData, sentAt);
     } else {
         emit messageReceived(from, msgData);
     }

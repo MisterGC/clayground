@@ -35,7 +35,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `maxNodes` | int | 8 | Max nodes (2-8) |
 | `autoRelay` | bool | true | Host auto-relays in Star topology |
 | `iceServers` | var | [] | Custom STUN/TURN servers |
-| `verbose` | bool | false | Enable diagnostics and latency monitoring |
+| `verbose` | bool | false | Enable `diagnosticMessage` output (phases, ICE candidates) |
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
 
 ### Read-only State
@@ -52,7 +52,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `connectionPhase` | string | Current phase: "signaling", "ice", "datachannel" |
 | `phaseTiming` | var | `{ signaling, ice, datachannel, total }` in ms |
 | `latency` | int | Best RTT across peers in ms (-1 if unknown) |
-| `peerStats` | var | Per-peer stats (when verbose) |
+| `peerStats` | var | Per-peer transport stats (always on) |
+| `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs (always on) |
 
 ### Signals
 
@@ -62,7 +63,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `nodeJoined(nodeId)` | A node joined the network |
 | `nodeLeft(nodeId)` | A node left the network |
 | `messageReceived(fromId, data)` | Reliable message received |
-| `stateReceived(fromId, data)` | State update received |
+| `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
 | `errorOccurred(message)` | Connection error |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
@@ -94,7 +95,9 @@ Network {
 
 ## Verbose Mode & Diagnostics
 
-Enable `verbose: true` to get connection diagnostics and latency monitoring:
+`latency`, `peerStats` and `syncStats` are always maintained (one tiny
+ping per peer every 2 s). Enable `verbose: true` for the connection
+diagnostics on top:
 
 ```qml
 Network {
@@ -106,12 +109,13 @@ Network {
 }
 ```
 
-This enables:
-- **Phase tracking**: `connectionPhase` shows "signaling", "ice", or "datachannel"
-- **Phase timing**: `phaseTiming` breaks down time spent in each phase
+This adds:
+- **Phase reporting**: `diagnosticMessage` announces "signaling", "ice" and "datachannel" as they happen
 - **ICE candidate reporting**: Shows which candidate types were discovered (host/srflx/relay)
-- **Latency monitoring**: `latency` updated every 2s via ping/pong
-- **Per-peer stats**: `peerStats` with latency, message counts, byte counts
+
+Always available, verbose or not: `connectionPhase`, `phaseTiming`, `latency`
+(updated every 2 s via ping/pong), `peerStats` (latency, message and byte
+counts, state channel) and `syncStats` (per-origin sequence, drops, age).
 
 ## How It Works
 
@@ -164,8 +168,11 @@ host relays state between joiners and propagates the roster, so `nodes` and
 ## Multiplayer Helpers
 
 - **`StateInterpolator`** - snapshot-buffer interpolation for remote
-  entities (render a constant `delayMs` in the past, blend between states,
-  bounded extrapolation). Use this instead of `Behavior` animations.
+  entities (render `delayMs` in the past, blend between states, bounded
+  extrapolation). Feed it `push(data, sentAt)` with the timestamp from
+  `stateReceived` so snapshots sit on the sender's timeline, and set
+  `autoDelay: true` to let it size the delay from the observed jitter
+  instead of guessing one. Use this instead of `Behavior` animations.
 - **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
   state rate, state age and stale-drop counts (`network.syncStats` /
   `network.peerStats` / `network.stateAgeMs(id)` for programmatic access).
@@ -181,9 +188,15 @@ shared seeds).
 | **Cloud** | PeerJS server | Yes (Browser + Desktop + Mobile) | No, when using clay-dev-server as local signaling relay |
 | **Local** | Embedded WS server | Desktop/Mobile only | No |
 
+The modes are `Network.SignalingMode.Cloud` and `Network.SignalingMode.Local`
+in code.
+
 `clay-dev-server` includes a built-in PeerJS signaling relay (`wss://<host>:<port>/peerjs`), so Cloud mode works entirely offline on a LAN. The PeerJS library is vendored locally (no CDN needed) and peer IDs are generated client-side (no cloud `/id` endpoint needed). This enables browser-based P2P networking without any internet dependency. Install the signaling extra with: `pip install clay_dev_server[signaling]`
 
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
+A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
+turns away any joiner whose first message does not carry the secret, so
+knowing the host's address alone is not enough to drop into a session.
 
 ## Platform Support
 
