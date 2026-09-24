@@ -5,6 +5,7 @@
 //
 
 #include <QGuiApplication>
+#include <QPointer>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickWindow>
@@ -23,6 +24,9 @@
 static QQmlApplicationEngine* g_engine = nullptr;
 static QQuickWindow* g_window = nullptr;
 static QObject* g_rootObject = nullptr;
+// A Window root (a clay_app game's Main.qml) is shown as it is, as a native
+// WASM build would show it; the runtime's own window steps aside meanwhile.
+static QPointer<QQuickWindow> g_gameWindow;
 
 // Custom message handler to route Qt messages to browser console
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg)
@@ -49,6 +53,84 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     }
 }
 
+static void unloadCurrent()
+{
+    if (g_rootObject) {
+        delete g_rootObject;
+        g_rootObject = nullptr;
+    }
+    if (g_gameWindow.isNull() && g_window && !g_window->isVisible())
+        g_window->show();
+}
+
+static void fitToWindow(QQuickItem* item)
+{
+    item->setSize(g_window->size());
+    QObject::connect(g_window, &QQuickWindow::widthChanged, item, [item]() {
+        item->setWidth(g_window->width());
+    });
+    QObject::connect(g_window, &QQuickWindow::heightChanged, item, [item]() {
+        item->setHeight(g_window->height());
+    });
+}
+
+// Keyboard input reaches an item only when it has active focus in the active
+// window. Keep the focus the QML asked for (an item with `focus: true` or a
+// forceActiveFocus() of its own); if it asked for none, `fallback` takes it,
+// as a desktop window would give it to its content.
+static void giveFocus(QQuickWindow* win, QQuickItem* fallback)
+{
+    win->requestActivate();
+    auto* scoped = win->contentItem()->scopedFocusItem();
+    if (scoped)
+        scoped->forceActiveFocus();
+    else if (fallback)
+        fallback->forceActiveFocus();
+}
+
+// A Window root cannot be parented into the runtime's window, and moving its
+// items there is not sound either: an item a ShaderEffectSource or layer
+// refers to stays bound to the Window it was created in ("Cannot use same
+// item on different windows at the same time") and is never drawn - a
+// ClayWorld2d with lighting rendered nothing but its HUD. So the Window is
+// shown itself, frameless and filling the page like a native WASM build of
+// the game, and the runtime's window is hidden until the next load.
+static void showGameWindow(QQuickWindow* win)
+{
+    g_gameWindow = win;
+    win->setFlag(Qt::FramelessWindowHint, true);
+    if (win->visibility() != QWindow::FullScreen)
+        win->showMaximized();
+    g_window->hide();
+    giveFocus(win, win->contentItem());
+}
+
+// Shared by string and URL loading: create, show, focus.
+static void createAndShow(QQmlComponent* component)
+{
+    QObject* obj = component->create(g_engine->rootContext());
+    if (!obj) {
+        for (const auto& error : component->errors())
+            emscripten_log(EM_LOG_ERROR, "QML Error: %s", error.toString().toUtf8().constData());
+        emscripten_log(EM_LOG_ERROR, "Failed to create QML object");
+        return;
+    }
+    g_rootObject = obj;
+
+    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
+        item->setParentItem(g_window->contentItem());
+        fitToWindow(item);
+        giveFocus(g_window, item);
+        emscripten_log(EM_LOG_CONSOLE, "QML loaded successfully");
+    } else if (auto* win = qobject_cast<QQuickWindow*>(obj)) {
+        showGameWindow(win);
+        emscripten_log(EM_LOG_CONSOLE, "QML loaded successfully (Window root shown)");
+    } else {
+        emscripten_log(EM_LOG_ERROR, "QML Error: the root object is neither an Item nor a "
+                                     "Window, nothing to show");
+    }
+}
+
 // Called from JavaScript to load new QML content
 void loadQmlFromString(const std::string& qmlSource)
 {
@@ -57,11 +139,7 @@ void loadQmlFromString(const std::string& qmlSource)
         return;
     }
 
-    // Clean up previous root object
-    if (g_rootObject) {
-        delete g_rootObject;
-        g_rootObject = nullptr;
-    }
+    unloadCurrent();
 
     // Create component from string
     QQmlComponent component(g_engine);
@@ -83,49 +161,7 @@ void loadQmlFromString(const std::string& qmlSource)
         // For async loading, we'd need a callback - but setData should be sync
     }
 
-    // Create and parent to window's content item
-    g_rootObject = component.create();
-    if (!g_rootObject) {
-        emscripten_log(EM_LOG_ERROR, "Failed to create QML object");
-        return;
-    }
-
-    if (auto* item = qobject_cast<QQuickItem*>(g_rootObject)) {
-        item->setParentItem(g_window->contentItem());
-        item->setSize(g_window->size());
-
-        // Handle window resize
-        QObject::connect(g_window, &QQuickWindow::widthChanged, item, [item]() {
-            item->setWidth(g_window->width());
-        });
-        QObject::connect(g_window, &QQuickWindow::heightChanged, item, [item]() {
-            item->setHeight(g_window->height());
-        });
-
-        emscripten_log(EM_LOG_CONSOLE, "QML loaded successfully");
-    } else {
-        emscripten_log(EM_LOG_WARN, "Root object is not a QQuickItem");
-    }
-}
-
-// Helper to setup loaded QML object (shared by string and URL loading)
-static void setupLoadedObject(QObject* obj)
-{
-    if (auto* item = qobject_cast<QQuickItem*>(obj)) {
-        item->setParentItem(g_window->contentItem());
-        item->setSize(g_window->size());
-
-        QObject::connect(g_window, &QQuickWindow::widthChanged, item, [item]() {
-            item->setWidth(g_window->width());
-        });
-        QObject::connect(g_window, &QQuickWindow::heightChanged, item, [item]() {
-            item->setHeight(g_window->height());
-        });
-
-        emscripten_log(EM_LOG_CONSOLE, "QML loaded successfully");
-    } else {
-        emscripten_log(EM_LOG_WARN, "Root object is not a QQuickItem");
-    }
+    createAndShow(&component);
 }
 
 // Called from JavaScript to load QML from a remote URL
@@ -137,20 +173,17 @@ void loadQmlFromUrl(const std::string& url)
         return;
     }
 
-    // Clean up previous root object
-    if (g_rootObject) {
-        delete g_rootObject;
-        g_rootObject = nullptr;
-    }
+    unloadCurrent();
 
     // Clear cached QML components so changed files are re-fetched
     g_engine->clearComponentCache();
 
     emscripten_log(EM_LOG_CONSOLE, "Loading QML from URL: %s", url.c_str());
 
+    const QUrl entry(QString::fromStdString(url));
+
     // Create component from URL - use Asynchronous mode for network loading
-    auto* component = new QQmlComponent(g_engine, QUrl(QString::fromStdString(url)),
-                                        QQmlComponent::Asynchronous);
+    auto* component = new QQmlComponent(g_engine, entry, QQmlComponent::Asynchronous);
 
     auto finishLoad = [component]() {
         if (component->isError()) {
@@ -162,15 +195,8 @@ void loadQmlFromUrl(const std::string& url)
             return;
         }
 
-        if (component->isReady()) {
-            g_rootObject = component->create();
-            if (!g_rootObject) {
-                emscripten_log(EM_LOG_ERROR, "Failed to create QML object from URL");
-                component->deleteLater();
-                return;
-            }
-            setupLoadedObject(g_rootObject);
-        }
+        if (component->isReady())
+            createAndShow(component);
         component->deleteLater();
     };
 

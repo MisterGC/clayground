@@ -134,12 +134,16 @@
                 loading.style.display = 'none';
 
                 // Keyboard focus fix for Qt WASM (QTBUG-91095): refocus Qt's
-                // hidden input element after pointer interactions.
+                // hidden input element after pointer interactions - and focus it
+                // right away, so a keyboard-driven title screen works before the
+                // first click (otherwise keys go to <body> and Qt never sees them).
                 setTimeout(() => {
                     const qtDiv = Array.from(screen.querySelectorAll('div')).find(d => d.shadowRoot);
                     const qtInput = qtDiv?.shadowRoot.querySelector('input.qt-window-input-element');
-                    if (qtInput)
+                    if (qtInput) {
+                        qtInput.focus();
                         screen.addEventListener('pointerup', () => qtInput.focus(), true);
+                    }
                 }, 100);
             } catch (e) {
                 loading.textContent = 'Failed to start: ' + e;
