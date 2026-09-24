@@ -34,16 +34,16 @@ bool LocalSignalingServer::start(uint16_t port)
 
         server_ = std::make_shared<rtc::WebSocketServer>(config);
 
-        server_->onClient([this](std::shared_ptr<rtc::WebSocket> ws) {
+        const QString secret = secret_;
+        server_->onClient([this, secret](std::shared_ptr<rtc::WebSocket> ws) {
             QString peerId;
 
-            ws->onOpen([this, ws, &peerId]() {
-                // PeerJS sends id in URL query: ws://host:port/peerjs?key=...&id=PEER_ID&token=...
-                // For simplicity, we'll extract it from the first message or path
+            ws->onOpen([]() {
+                // The peer identifies itself in its first message
                 qDebug() << "LocalSignalingServer: Client WebSocket opened";
             });
 
-            ws->onMessage([this, ws, peerId](auto message) mutable {
+            ws->onMessage([this, ws, peerId, secret](auto message) mutable {
                 if (std::holds_alternative<std::string>(message)) {
                     std::string msg = std::get<std::string>(message);
 
@@ -52,11 +52,20 @@ bool LocalSignalingServer::start(uint16_t port)
                         // Parse the path to get peer ID from query params
                         // Or get it from HELLO message
                         QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(msg));
-                        if (doc.isObject()) {
-                            QJsonObject obj = doc.object();
-                            if (obj.contains("id")) {
-                                peerId = obj["id"].toString();
-                            }
+                        QJsonObject obj = doc.isObject() ? doc.object() : QJsonObject();
+                        // The LAN code carries a secret; a joiner that does
+                        // not know it never gets registered or relayed (#293)
+                        if (!secret.isEmpty() && obj["secret"].toString() != secret) {
+                            QJsonObject err;
+                            err["type"] = "ERROR";
+                            err["payload"] = QJsonObject{{"msg", "Wrong LAN code"}};
+                            ws->send(QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString());
+                            ws->close();
+                            qWarning() << "LocalSignalingServer: Rejected client with wrong secret";
+                            return;
+                        }
+                        if (obj.contains("id")) {
+                            peerId = obj["id"].toString();
                         }
 
                         // If still no peer ID, generate one
@@ -108,6 +117,11 @@ bool LocalSignalingServer::start(uint16_t port)
         emit errorOccurred(QString::fromStdString(e.what()));
         return false;
     }
+}
+
+void LocalSignalingServer::setSecret(const QString &secret)
+{
+    secret_ = secret;
 }
 
 void LocalSignalingServer::stop()
@@ -186,13 +200,17 @@ LocalSignalingClient::~LocalSignalingClient()
     disconnect();
 }
 
-void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId)
+void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId,
+                                   const QString &secret)
 {
     if (ws_) {
         disconnect();
     }
 
     peerId_ = peerId.isEmpty() ? QUuid::createUuid().toString(QUuid::Id128).left(16) : peerId;
+    secret_ = secret;
+    closedByUs_ = false;
+    errorReported_ = false;
 
     // Connect to local signaling server
     QString url = QString("ws://%1:%2/peerjs?id=%3").arg(host).arg(port).arg(peerId_);
@@ -225,6 +243,7 @@ void LocalSignalingClient::connect(const QString &host, uint16_t port, const QSt
 
 void LocalSignalingClient::disconnect()
 {
+    closedByUs_ = true;
     if (ws_) {
         ws_->close();
         ws_.reset();
@@ -250,6 +269,8 @@ void LocalSignalingClient::onWsOpen()
     // Send identification message
     QJsonObject idMsg;
     idMsg["id"] = peerId_;
+    if (!secret_.isEmpty())
+        idMsg["secret"] = secret_;
     ws_->send(QJsonDocument(idMsg).toJson(QJsonDocument::Compact).toStdString());
 }
 
@@ -302,6 +323,7 @@ void LocalSignalingClient::onWsMessage(const std::string &message)
     }
     else if (type == "ERROR") {
         QString errorMsg = obj["payload"].toObject()["msg"].toString();
+        errorReported_ = true;
         emit errorOccurred(errorMsg);
     }
 }
@@ -315,7 +337,12 @@ void LocalSignalingClient::onWsError(const std::string &error)
 void LocalSignalingClient::onWsClosed()
 {
     qDebug() << "LocalSignalingClient: WebSocket closed";
+    bool wasRegistered = connected_;
     connected_ = false;
+    // Closed before the server ever registered us (it turns away joiners
+    // whose LAN code is wrong): report it instead of waiting for the timeout
+    if (!wasRegistered && !closedByUs_ && !errorReported_)
+        emit errorOccurred("Signaling server closed the connection (wrong LAN code?)");
     emit disconnected();
 }
 

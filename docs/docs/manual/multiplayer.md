@@ -58,18 +58,23 @@ Raw 20 Hz updates rendered directly look jittery, and smoothing them with
 `Behavior` animations fights the property system (see below). Use
 `StateInterpolator`: it buffers timestamped snapshots and renders the entity
 a small constant delay in the past, always blending between two known
-states - the standard technique used by fast-paced multiplayer games.
+states - the standard technique used by fast-paced multiplayer games. Hand
+it the sender's timestamp (third argument of `stateReceived`): snapshots
+then sit on the sender's timeline, so a burst that arrives late after a
+stall plays back at the sender's speed instead of being squeezed into the
+milliseconds of its arrival.
 
 ```qml
 // Remote avatar
 PhysicsItem {
     id: avatar
 
-    function pushState(data) { sync.push(data) }
+    function pushState(data, sentAt) { sync.push(data, sentAt) }
 
     StateInterpolator {
         id: sync
-        delayMs: 120            // >= 2x the sender's update interval
+        autoDelay: true         // sized from the observed jitter; or set
+                                // delayMs >= 2x the sender's update interval
         angleKeys: ["a"]        // degrees, interpolated via shortest arc
         onUpdated: {
             avatar.xWu = value.x
@@ -81,12 +86,21 @@ PhysicsItem {
 
 // Feed it from the network
 Network {
-    onStateReceived: (from, data) => remoteAvatars[from]?.pushState(data)
+    onStateReceived: (from, data, sentAt) => remoteAvatars[from]?.pushState(data, sentAt)
 }
 ```
 
 Call `sync.reset()` when the entity teleports (level change, respawn) so it
 snaps instead of gliding across the map.
+
+The delay is the visible lag: every 10 ms puts a 7.5 Wu/s entity 0.075 Wu
+behind where it really is, so keep it as small as the stream allows.
+`autoDelay` derives it from the sender's period and the observed lateness
+of updates (about twice the period plus the 95th-percentile jitter) and
+glides towards that value, so a LAN session ends up around 50 ms at 60 Hz
+sends while an internet session gets what its jitter needs. Sending on
+every physics step instead of a 20 Hz timer is what makes the small delay
+possible; the lossy channel makes the rate cheap.
 
 **Do not use `Behavior` on `xWu`/`yWu`.** Beyond being the wrong model for
 network smoothing (every update restarts an animation from wherever it is -
@@ -147,8 +161,8 @@ newest state and how many stale updates were dropped. How to read it:
   works (that is the design), but consider a lower send rate.
 - **`[fallback]` marker** - the lossy state channel didn't negotiate and
   state travels over the reliable channel; expect lag under loss.
-- **rtt high but rate fine** - pure latency; increase `delayMs` on your
-  interpolators rather than fighting jitter.
+- **rtt high but rate fine** - pure latency; use `autoDelay` (or raise
+  `delayMs`) on your interpolators rather than fighting jitter.
 
 The same numbers are available programmatically via `network.syncStats`,
 `network.peerStats` and `network.stateAgeMs(nodeId)` - including from the
