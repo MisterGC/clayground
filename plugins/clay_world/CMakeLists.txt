@@ -12,10 +12,14 @@ clay_plugin( World
         ClayWorld2dCamera.qml
         ClayWorld3d.qml
         ClayWorldBase.qml
+        Light2d.qml
+        LightLayer2d.qml
+        lightregistry.js
         Minimap2d.qml
         SceneLoader2d.qml
         SceneLoader3d.qml
         SceneLoaderBase.qml
+        ScreenFx2d.qml
 
     LINK_LIBS
         Qt::Core
@@ -30,6 +34,9 @@ qt6_add_shaders(ClayWorld "clay_world_shaders"
         "/qt/qml/Clayground/World"
     FILES
         anchored_mask.frag
+        light_layer.frag
+        screen_grade.frag
+        screen_overlay.frag
 )
 
 # QML checks on the loaders and the world types. They run against the built

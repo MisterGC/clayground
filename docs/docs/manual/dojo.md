@@ -52,6 +52,37 @@ At the heart of Dojo is a sophisticated hot-reload system. When you save a QML f
 
 The 50ms debounce window catches rapid file changes from editor auto-saves.
 
+## A Sandbox's Own Shaders
+
+A `ShaderEffect` only takes compiled `.qsb` files. The Dojo compiles a
+sandbox's shaders for you: every `*.frag` and `*.vert` under the sandbox
+directory is baked with Qt's `qsb` into `<name>.frag.qsb` right beside it —
+when the Dojo starts (only sources newer than their `.qsb`) and again each
+time you save one, before the reload. `clayrender` does the same before it
+loads a sandbox.
+
+```qml
+ShaderEffect {
+    fragmentShader: "shaders/floor.frag.qsb"   // baked from shaders/floor.frag
+}
+```
+
+A shader that does not compile does not reload silently into an effect that
+stopped drawing: qsb's message, with file and line, shows up in the Dojo and
+in the inspector log. The targets are the ones `qt_add_shaders()` uses by
+default (GLSL 100 es/120/150, HLSL 50, MSL 12) plus GLSL 300 es, which the
+browser runtime needs: WebGL2 refuses to link a fragment shader of another
+version than its 300 es vertex shaders. So the same `.qsb` files work when
+the game is served to the web runtime. For the shipped app, bake the same
+files into the resources at the same relative path:
+
+```cmake
+qt_add_shaders(my_game "my_game_shaders" PREFIX "/" FILES src/shaders/floor.frag)
+```
+
+Keep `*.qsb` out of version control — they are build output. Set `CLAY_QSB`
+to use a `qsb` other than the one shipped with your Qt.
+
 ## Ignoring Files — `.dojoignore`
 
 Dojo watches the sandbox directory recursively, so **any** file change in

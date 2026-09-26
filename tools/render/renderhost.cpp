@@ -3,6 +3,7 @@
 #include "renderhost.h"
 
 #include <clayscenequery.h>
+#include <clayshaderbaker.h>
 #include <claystorage.h>
 
 #include <QCoreApplication>
@@ -72,6 +73,12 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     // that silently drops the background is exactly the kind of half-truth
     // this tool exists to remove.
     m_window->setColor(Qt::black);
+
+    // The sandbox's own shaders exist only as sources until something bakes
+    // them - the dojo loader does it on change, a render has to do it itself
+    // or it pictures a scene whose effects silently failed to load.
+    auto const baked = ClayShaderBaker::bakeStale(fi.absolutePath());
+    m_errors << baked.errors;
 
     m_engine = std::make_unique<QQmlEngine>();
     // Resolve plugins relative to the binary, not the current directory -
