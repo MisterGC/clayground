@@ -19,7 +19,10 @@ public:
     explicit LocalSignalingServer(QObject *parent = nullptr);
     ~LocalSignalingServer() override;
 
-    bool start(uint16_t port = 0);
+    // A non-empty secret makes every client prove it in its first message
+    // before it is registered - an unregistered socket gets nothing relayed
+    // and can relay nothing (#293).
+    bool start(uint16_t port = 0, const QString &secret = QString());
     void stop();
     bool isRunning() const;
     uint16_t port() const;
@@ -35,6 +38,7 @@ private:
 
     std::shared_ptr<rtc::WebSocketServer> server_;
     QHash<QString, std::weak_ptr<rtc::WebSocket>> clients_;
+    QString secret_;
     uint16_t port_ = 0;
     bool running_ = false;
 };
@@ -47,7 +51,8 @@ public:
     explicit LocalSignalingClient(QObject *parent = nullptr);
     ~LocalSignalingClient() override;
 
-    void connect(const QString &host, uint16_t port, const QString &peerId = QString());
+    void connect(const QString &host, uint16_t port, const QString &peerId = QString(),
+                 const QString &secret = QString());
     void disconnect();
     bool isConnected() const;
     QString peerId() const;
@@ -74,5 +79,6 @@ private:
 
     std::shared_ptr<rtc::WebSocket> ws_;
     QString peerId_;
+    QString secret_;
     bool connected_ = false;
 };

@@ -189,12 +189,15 @@ private:
     void setupLocalSignalingConnections();
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
-    static QString encodeLanCode(const QString &host, uint16_t port);
-    static bool decodeLanCode(const QString &code, QString &host, uint16_t &port);
+    static QString generateLanSecret();
+    static bool isLanCode(const QString &code);
+    static QString encodeLanCode(const QString &host, uint16_t port, const QString &secret);
+    static bool decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret);
     static QString getLocalIpAddress();
 
     std::unique_ptr<PeerJSSignaling> signaling_;
     std::unique_ptr<LocalSignalingServer> localServer_;
+    QString lanSecret_;
     std::unique_ptr<LocalSignalingClient> localClient_;
     QHash<QString, PeerConn> peers_;
 

@@ -185,6 +185,8 @@ shared seeds).
 
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 
+A LAN code has the form `L<ip>-<port>-<secret>`: the host's address and signaling port in base36, plus an 8-character secret drawn from the OS random generator each time a network is hosted. The embedded signaling server registers a websocket only after its first message carries that secret, so a client that found the host by scanning the network gets an error and is disconnected - no offer or answer is relayed to or from it. The signaling socket itself is plain `ws://`; the data channels are DTLS-encrypted by WebRTC.
+
 ## Platform Support
 
 | Platform | P2P (Network) | HTTP Client |

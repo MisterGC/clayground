@@ -181,17 +181,20 @@ void ClayNetwork::createRoom()
         signaling_->connect(networkId_);
     } else if (signalingMode_ == Local) {
         // Start local signaling server
+        // The secret is part of the LAN code, so only someone given the code
+        // can reach the server - knowing IP and port is not enough (#293)
+        lanSecret_ = generateLanSecret();
         localServer_ = std::make_unique<LocalSignalingServer>(this);
-        if (!localServer_->start(0)) {  // 0 = auto-select port
+        if (!localServer_->start(0, lanSecret_)) {  // 0 = auto-select port
             status_ = Error;
             emit statusChanged();
             emit errorOccurred("Failed to start local signaling server");
             return;
         }
 
-        // Generate LAN code from local IP and port
+        // Generate LAN code from local IP, port and secret
         QString localIp = getLocalIpAddress();
-        networkId_ = encodeLanCode(localIp, localServer_->port());
+        networkId_ = encodeLanCode(localIp, localServer_->port(), lanSecret_);
         emit networkIdChanged();
 
         // Connect local client to own server for signaling
@@ -242,12 +245,11 @@ void ClayNetwork::joinRoom(const QString &networkId)
         signaling_->setServerUrl(signalingUrl_);
         signaling_->connect();
     } else {
-        // Check if this is a LAN code
-        QString host;
-        uint16_t port;
-        if (decodeLanCode(networkId, host, port)) {
+        // Check if this is a LAN code; a malformed one (e.g. a pre-#293
+        // code without secret) fails in connectLocalSignaling() with an
+        // error instead of silently trying the cloud
+        if (isLanCode(networkId)) {
             // Local mode: connect to local signaling server
-            qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
             signalingMode_ = Local;
             emit signalingModeChanged();
             connectLocalSignaling();
@@ -279,6 +281,7 @@ void ClayNetwork::leave()
         localServer_->stop();
         localServer_.reset();
     }
+    lanSecret_.clear();
     signaling_->disconnect();
 
     networkId_.clear();
@@ -949,19 +952,22 @@ void ClayNetwork::connectLocalSignaling()
 {
     QString host;
     uint16_t port;
+    QString secret;
 
     if (isHost_) {
         // Host connects to its own local server
         host = "127.0.0.1";
         port = localServer_->port();
+        secret = lanSecret_;
     } else {
         // Client decodes the LAN code
-        if (!decodeLanCode(networkId_, host, port)) {
+        if (!decodeLanCode(networkId_, host, port, secret)) {
             status_ = Error;
             emit statusChanged();
             emit errorOccurred("Invalid LAN code");
             return;
         }
+        qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
     }
 
     localClient_ = std::make_unique<LocalSignalingClient>(this);
@@ -969,7 +975,7 @@ void ClayNetwork::connectLocalSignaling()
 
     // Host uses "HOST" as peerId so clients can find it; clients generate unique ID
     QString peerId = isHost_ ? "HOST" : QString();
-    localClient_->connect(host, port, peerId);
+    localClient_->connect(host, port, peerId, secret);
 }
 
 void ClayNetwork::setupLocalSignalingConnections()
@@ -986,11 +992,65 @@ void ClayNetwork::setupLocalSignalingConnections()
                      this, &ClayNetwork::onSignalingError);
 }
 
-QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port)
+namespace {
+
+const QString kBase36 = QStringLiteral("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+// Length of the LAN code secret: 8 base36 chars are ~41 bits, and every
+// wrong guess costs a websocket connect the server closes again.
+constexpr int kLanSecretLength = 8;
+
+QString toBase36(uint64_t num)
 {
-    // Encode IP:port as a LAN code with separator
-    // Format: "L" + base36(ip_as_uint32) + "-" + base36(port)
-    // Example: 192.168.1.42:9000 -> "L1HGF041-6Y4"
+    if (num == 0) return "0";
+    QString result;
+    while (num > 0) {
+        result.prepend(kBase36[num % 36]);
+        num /= 36;
+    }
+    return result;
+}
+
+bool fromBase36(const QString &str, uint64_t &result)
+{
+    if (str.isEmpty() || str.size() > 12) {
+        return false;
+    }
+    result = 0;
+    for (QChar c : str) {
+        const qsizetype digit = kBase36.indexOf(c.toUpper());
+        if (digit < 0) {
+            return false;
+        }
+        result = result * 36 + static_cast<uint64_t>(digit);
+    }
+    return true;
+}
+
+} // namespace
+
+QString ClayNetwork::generateLanSecret()
+{
+    // system() is the OS CSPRNG; global() is only seeded from it and must
+    // not produce anything an attacker should not predict
+    QString secret;
+    for (int i = 0; i < kLanSecretLength; ++i) {
+        secret += kBase36[QRandomGenerator::system()->bounded(static_cast<int>(kBase36.size()))];
+    }
+    return secret;
+}
+
+bool ClayNetwork::isLanCode(const QString &code)
+{
+    // Cloud codes are 6 chars from an alphabet without '-'
+    return code.startsWith('L') && code.contains('-');
+}
+
+QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port, const QString &secret)
+{
+    // Encode IP:port plus the server's secret as a LAN code
+    // Format: "L" + base36(ip_as_uint32) + "-" + base36(port) + "-" + secret
+    // Example: 192.168.1.42:9000 -> "L1HGF041-6Y4-K7Q2M9XA"
 
     QStringList parts = host.split('.');
     if (parts.size() != 4) {
@@ -1003,50 +1063,36 @@ QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port)
         ip = (ip << 8) | (parts[i].toUInt() & 0xFF);
     }
 
-    // Encode as base36
-    auto toBase36 = [](uint64_t num) -> QString {
-        const QString chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        if (num == 0) return "0";
-        QString result;
-        while (num > 0) {
-            result.prepend(chars[num % 36]);
-            num /= 36;
-        }
-        return result;
-    };
-
-    return QString("L%1-%2").arg(toBase36(ip)).arg(toBase36(port));
+    return QString("L%1-%2-%3").arg(toBase36(ip), toBase36(port), secret);
 }
 
-bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &port)
+bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret)
 {
-    // Check if it's a LAN code (starts with 'L' and contains separator)
-    if (!code.startsWith('L') || !code.contains('-')) {
+    if (!isLanCode(code)) {
         return false;
     }
 
-    auto fromBase36 = [](const QString &str) -> uint64_t {
-        uint64_t result = 0;
-        for (QChar c : str) {
-            result *= 36;
-            if (c >= '0' && c <= '9') {
-                result += c.unicode() - '0';
-            } else if (c >= 'A' && c <= 'Z') {
-                result += c.unicode() - 'A' + 10;
-            } else if (c >= 'a' && c <= 'z') {
-                result += c.unicode() - 'a' + 10;
-            }
+    // "LXXXXXX-YYY-SSSSSSSS" -> ["LXXXXXX", "YYY", "SSSSSSSS"]; a code
+    // without the secret part is refused rather than tried without one
+    const QStringList parts = code.mid(1).split('-');
+    if (parts.size() != 3 || parts[2].size() != kLanSecretLength) {
+        return false;
+    }
+
+    uint64_t ip = 0;
+    uint64_t portValue = 0;
+    if (!fromBase36(parts[0], ip) || ip > 0xFFFFFFFFu
+        || !fromBase36(parts[1], portValue) || portValue == 0 || portValue > 0xFFFF) {
+        return false;
+    }
+    for (QChar c : parts[2]) {
+        if (kBase36.indexOf(c.toUpper()) < 0) {
+            return false;
         }
-        return result;
-    };
+    }
 
-    // Split on separator: "LXXXXXX-YYY" -> ["LXXXXXX", "YYY"]
-    int sepIndex = code.indexOf('-');
-    QString ipPart = code.mid(1, sepIndex - 1);  // Skip 'L', up to separator
-    QString portPart = code.mid(sepIndex + 1);    // After separator
-
-    uint32_t ip = static_cast<uint32_t>(fromBase36(ipPart));
-    port = static_cast<uint16_t>(fromBase36(portPart));
+    port = static_cast<uint16_t>(portValue);
+    secret = parts[2].toUpper();
 
     // Convert uint32 to IP string
     host = QString("%1.%2.%3.%4")

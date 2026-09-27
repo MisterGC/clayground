@@ -22,6 +22,7 @@ Item {
     readonly property string netId: net.networkId
     readonly property bool connected: net.connected
     readonly property var nodeList: net.nodes
+    property string lastError: ""
 
     // Interpolated view on trackedSender's stream (-1 until data flows)
     property string trackedSender: ""
@@ -39,6 +40,7 @@ Item {
         id: net
         maxNodes: 4
         topology: Network.Topology.Star
+        onErrorOccurred: (message) => gym.lastError = message
         onStateReceived: (from, data) => {
             if (from === gym.trackedSender) sync.push(data)
         }

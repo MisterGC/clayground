@@ -4,7 +4,8 @@
 
 Spawns three loader instances on the net-gym sandbox, connects them via
 Local signaling (host + 2 joiners, Star topology) and verifies through the
-inspector protocol: roster propagation, the unreliable state channel,
+inspector protocol: the LAN code secret (a fourth instance with a wrong or
+missing secret stays out), roster propagation, the unreliable state channel,
 sequence-guarded state flow (incl. relayed senders), interpolation
 tracking, and node departure.
 """
@@ -105,7 +106,7 @@ def main():
     env = dict(os.environ)
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-    names = ["host", "joinB", "joinC"]
+    names = ["host", "joinB", "joinC", "intruder"]
     procs = {}
     insp = {}
     try:
@@ -116,7 +117,7 @@ def main():
                 cwd=loader_dir, env=env, stdout=logf, stderr=subprocess.STDOUT)
             insp[n] = Inspect(sandbox_dir, n)
 
-        A, B, C = insp["host"], insp["joinB"], insp["joinC"]
+        A, B, C, X = insp["host"], insp["joinB"], insp["joinC"], insp["intruder"]
 
         # -- 1: all instances up ------------------------------------------
         up = all(insp[n].wait_phase("ready") for n in names)
@@ -136,6 +137,28 @@ def main():
         check("joinC: connected", wait_for(lambda: C.eval1("connected") is True, 25))
 
         host_id_on_b = B.eval1("nodeList[0]")
+
+        # -- 2b: the LAN code secret keeps out who only knows IP and port --
+        parts = str(code).split("-")
+        check("host: LAN code carries an 8-char secret",
+              len(parts) == 3 and len(parts[2]) == 8, str(code))
+        if len(parts) == 3:
+            wrong = parts[2][:-1] + ("A" if parts[2][-1] != "A" else "B")
+            X.eval([f"joinNet('{parts[0]}-{parts[1]}-{wrong}')"])
+            check("intruder: wrong secret is refused by the host",
+                  wait_for(lambda: X.eval1("lastError") == "Invalid network code", 15),
+                  str(X.eval1("lastError")))
+            X.eval(["netRef.leave()", "gym.lastError = ''"])
+            X.eval([f"joinNet('{parts[0]}-{parts[1]}')"])
+            check("intruder: code without secret is refused",
+                  wait_for(lambda: X.eval1("lastError") == "Invalid LAN code", 10),
+                  str(X.eval1("lastError")))
+            time.sleep(1.0)
+            check("intruder: never connected, host roster unchanged",
+                  X.eval1("connected") is False and A.eval1("nodeList.length") == 2,
+                  f"connected={X.eval1('connected')} "
+                  f"host={A.eval1('JSON.stringify(nodeList)')}")
+            X.eval(["netRef.leave()"])
 
         # -- 3: roster propagation (star topology) ------------------------
         check("roster: host sees 2 nodes",

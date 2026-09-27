@@ -21,11 +21,30 @@ LocalSignalingServer::~LocalSignalingServer()
     stop();
 }
 
-bool LocalSignalingServer::start(uint16_t port)
+namespace {
+
+// Compares in time independent of where the first mismatch sits, so the
+// secret cannot be guessed one character at a time by timing the reject.
+bool sameSecret(const QString &a, const QString &b)
+{
+    if (a.size() != b.size()) {
+        return false;
+    }
+    char16_t diff = 0;
+    for (qsizetype i = 0; i < a.size(); ++i) {
+        diff |= a[i].unicode() ^ b[i].unicode();
+    }
+    return diff == 0;
+}
+
+} // namespace
+
+bool LocalSignalingServer::start(uint16_t port, const QString &secret)
 {
     if (running_) {
         return true;
     }
+    secret_ = secret;
 
     try {
         rtc::WebSocketServer::Configuration config;
@@ -52,11 +71,26 @@ bool LocalSignalingServer::start(uint16_t port)
                         // Parse the path to get peer ID from query params
                         // Or get it from HELLO message
                         QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(msg));
-                        if (doc.isObject()) {
-                            QJsonObject obj = doc.object();
-                            if (obj.contains("id")) {
-                                peerId = obj["id"].toString();
-                            }
+                        QJsonObject obj = doc.isObject() ? doc.object() : QJsonObject();
+
+                        // Without the secret from the LAN code the socket is
+                        // never registered: nothing can be relayed to it and
+                        // none of its offers or answers reach a peer (#293).
+                        if (!secret_.isEmpty()
+                            && !sameSecret(obj["key"].toString(), secret_)) {
+                            qWarning() << "LocalSignalingServer: Rejected a client without the network secret";
+                            QJsonObject payload;
+                            payload["msg"] = "Invalid network code";
+                            QJsonObject errorMsg;
+                            errorMsg["type"] = "ERROR";
+                            errorMsg["payload"] = payload;
+                            ws->send(QJsonDocument(errorMsg).toJson(QJsonDocument::Compact).toStdString());
+                            ws->close();
+                            return;
+                        }
+
+                        if (obj.contains("id")) {
+                            peerId = obj["id"].toString();
                         }
 
                         // If still no peer ID, generate one
@@ -117,6 +151,7 @@ void LocalSignalingServer::stop()
         server_.reset();
     }
     clients_.clear();
+    secret_.clear();
     running_ = false;
     port_ = 0;
 }
@@ -186,13 +221,15 @@ LocalSignalingClient::~LocalSignalingClient()
     disconnect();
 }
 
-void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId)
+void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId,
+                                   const QString &secret)
 {
     if (ws_) {
         disconnect();
     }
 
     peerId_ = peerId.isEmpty() ? QUuid::createUuid().toString(QUuid::Id128).left(16) : peerId;
+    secret_ = secret;
 
     // Connect to local signaling server
     QString url = QString("ws://%1:%2/peerjs?id=%3").arg(host).arg(port).arg(peerId_);
@@ -231,6 +268,7 @@ void LocalSignalingClient::disconnect()
     }
     connected_ = false;
     peerId_.clear();
+    secret_.clear();
 }
 
 bool LocalSignalingClient::isConnected() const
@@ -248,8 +286,13 @@ void LocalSignalingClient::onWsOpen()
     qDebug() << "LocalSignalingClient: WebSocket opened, sending ID message";
 
     // Send identification message
+    // The secret travels in the message, not the URL, so it stays out of
+    // the connect log line above.
     QJsonObject idMsg;
     idMsg["id"] = peerId_;
+    if (!secret_.isEmpty()) {
+        idMsg["key"] = secret_;
+    }
     ws_->send(QJsonDocument(idMsg).toJson(QJsonDocument::Compact).toStdString());
 }
 
