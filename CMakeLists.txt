@@ -22,6 +22,20 @@ project (Clayground
 # Must be after project() so platform detection (EMSCRIPTEN, etc.) works
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
 
+# A game that pulls Clayground in with add_subdirectory() calls include(clayapp)
+# next; what clayinit set lives only in this directory's scope, so it is handed
+# up. Without the module path that include fails and clay_app() is unknown;
+# without the output dirs the game's executable lands in the build root, where
+# the directory of its own QML module (named like the executable) already is -
+# the link fails with "cannot open output file: Is a directory" - and it would
+# not sit next to bin/qml, where the Clayground plugins are.
+if(NOT PROJECT_IS_TOP_LEVEL)
+    set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" PARENT_SCOPE)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}" PARENT_SCOPE)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" PARENT_SCOPE)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" PARENT_SCOPE)
+endif()
+
 include(claycommon)
 include(clayplugin)
 
