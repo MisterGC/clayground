@@ -4,6 +4,7 @@
 #include "signaling_peerjs.h"
 #include "signaling_local.h"
 #include <rtc/rtc.hpp>
+#include <QThread>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -182,6 +183,8 @@ void ClayNetwork::createRoom()
     } else if (signalingMode_ == Local) {
         // Start local signaling server
         localServer_ = std::make_unique<LocalSignalingServer>(this);
+        lanSecret_ = generateNetworkCode();
+        localServer_->setSecret(lanSecret_);
         if (!localServer_->start(0)) {  // 0 = auto-select port
             status_ = Error;
             emit statusChanged();
@@ -189,9 +192,10 @@ void ClayNetwork::createRoom()
             return;
         }
 
-        // Generate LAN code from local IP and port
+        // Generate LAN code from local IP, port and a random secret that
+        // the signaling server demands from every joiner (#293)
         QString localIp = getLocalIpAddress();
-        networkId_ = encodeLanCode(localIp, localServer_->port());
+        networkId_ = encodeLanCode(localIp, localServer_->port(), lanSecret_);
         emit networkIdChanged();
 
         // Connect local client to own server for signaling
@@ -245,7 +249,8 @@ void ClayNetwork::joinRoom(const QString &networkId)
         // Check if this is a LAN code
         QString host;
         uint16_t port;
-        if (decodeLanCode(networkId, host, port)) {
+        QString secret;
+        if (decodeLanCode(networkId, host, port, secret)) {
             // Local mode: connect to local signaling server
             qDebug() << "ClayNetwork: Decoded LAN code - connecting to" << host << ":" << port;
             signalingMode_ = Local;
@@ -325,6 +330,9 @@ void ClayNetwork::broadcastState(const QVariant &data)
     QJsonObject msg;
     msg["t"] = "s";  // state
     msg["q"] = static_cast<qint64>(++stateSeqOut_);
+    // Sender clock, so receivers can place the snapshot on the sender's
+    // timeline instead of its arrival time (StateInterpolator, #290)
+    msg["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 
@@ -586,9 +594,28 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
     qDebug() << "ClayNetwork: Peer connection setup complete for" << peerId;
 }
 
+// The offerer calls setupDataChannel/setupStateChannel on the Qt thread; the
+// answerer gets them from pc->onDataChannel on libdatachannel's thread. The
+// callbacks have to be registered right there (libdatachannel fires onOpen
+// synchronously after onDataChannel returns), but peers_ belongs to the Qt
+// thread, so the bookkeeping hops over like every other callback (#292).
+void ClayNetwork::assignChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc, bool isState)
+{
+    auto assign = [this, peerId, dc, isState]() {
+        if (isState)
+            peers_[peerId].dcState = dc;
+        else
+            peers_[peerId].dc = dc;
+    };
+    if (QThread::currentThread() == thread())
+        assign();
+    else
+        QMetaObject::invokeMethod(this, assign, Qt::QueuedConnection);
+}
+
 void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc)
 {
-    peers_[peerId].dc = dc;
+    assignChannel(peerId, dc, false);
 
     dc->onOpen([this, peerId]() {
         QMetaObject::invokeMethod(this, [this, peerId]() {
@@ -653,7 +680,7 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
 
 void ClayNetwork::setupStateChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc)
 {
-    peers_[peerId].dcState = dc;
+    assignChannel(peerId, dc, true);
 
     dc->onOpen([this, peerId]() {
         QMetaObject::invokeMethod(this, [this, peerId]() {
@@ -825,7 +852,8 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
         if (type == "m") {
             emit messageReceived(actualFromId, data);
         } else if (type == "s") {
-            emit stateReceived(actualFromId, data);
+            double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+            emit stateReceived(actualFromId, data, sentAt);
         }
     }, Qt::QueuedConnection);
 }
@@ -949,14 +977,16 @@ void ClayNetwork::connectLocalSignaling()
 {
     QString host;
     uint16_t port;
+    QString secret;
 
     if (isHost_) {
         // Host connects to its own local server
         host = "127.0.0.1";
         port = localServer_->port();
+        secret = lanSecret_;
     } else {
         // Client decodes the LAN code
-        if (!decodeLanCode(networkId_, host, port)) {
+        if (!decodeLanCode(networkId_, host, port, secret)) {
             status_ = Error;
             emit statusChanged();
             emit errorOccurred("Invalid LAN code");
@@ -969,7 +999,7 @@ void ClayNetwork::connectLocalSignaling()
 
     // Host uses "HOST" as peerId so clients can find it; clients generate unique ID
     QString peerId = isHost_ ? "HOST" : QString();
-    localClient_->connect(host, port, peerId);
+    localClient_->connect(host, port, peerId, secret);
 }
 
 void ClayNetwork::setupLocalSignalingConnections()
@@ -986,11 +1016,11 @@ void ClayNetwork::setupLocalSignalingConnections()
                      this, &ClayNetwork::onSignalingError);
 }
 
-QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port)
+QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port, const QString &secret)
 {
-    // Encode IP:port as a LAN code with separator
-    // Format: "L" + base36(ip_as_uint32) + "-" + base36(port)
-    // Example: 192.168.1.42:9000 -> "L1HGF041-6Y4"
+    // Encode IP:port plus the join secret as a LAN code
+    // Format: "L" + base36(ip_as_uint32) + "-" + base36(port) + "-" + secret
+    // Example: 192.168.1.42:9000 -> "L1HGF041-6Y4-K7QP2M"
 
     QStringList parts = host.split('.');
     if (parts.size() != 4) {
@@ -1015,10 +1045,10 @@ QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port)
         return result;
     };
 
-    return QString("L%1-%2").arg(toBase36(ip)).arg(toBase36(port));
+    return QString("L%1-%2-%3").arg(toBase36(ip)).arg(toBase36(port)).arg(secret);
 }
 
-bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &port)
+bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret)
 {
     // Check if it's a LAN code (starts with 'L' and contains separator)
     if (!code.startsWith('L') || !code.contains('-')) {
@@ -1040,10 +1070,13 @@ bool ClayNetwork::decodeLanCode(const QString &code, QString &host, uint16_t &po
         return result;
     };
 
-    // Split on separator: "LXXXXXX-YYY" -> ["LXXXXXX", "YYY"]
-    int sepIndex = code.indexOf('-');
-    QString ipPart = code.mid(1, sepIndex - 1);  // Skip 'L', up to separator
-    QString portPart = code.mid(sepIndex + 1);    // After separator
+    // Split on separator: "LXXXXXX-YYY-SECRET" -> ["LXXXXXX", "YYY", "SECRET"]
+    // (a code without the third part is accepted; the host rejects it if it
+    // expects a secret)
+    QStringList parts = code.split('-');
+    QString ipPart = parts[0].mid(1);  // Skip 'L'
+    QString portPart = parts.size() > 1 ? parts[1] : QString();
+    secret = parts.size() > 2 ? parts[2].trimmed().toUpper() : QString();
 
     uint32_t ip = static_cast<uint32_t>(fromBase36(ipPart));
     port = static_cast<uint16_t>(fromBase36(portPart));

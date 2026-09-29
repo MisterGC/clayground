@@ -5,5 +5,7 @@
 # Harmless on the desktop, where Qt scans the directory either way.
 HydroElement3D 1.0 HydroElement3D.qml
 SymbolIcon 1.0 SymbolIcon.qml
-# not used by a lab - the kit's own visual test, run with clayrender
+ValveAnatomy3D 1.0 ValveAnatomy3D.qml
+# not used by a lab - the kit's own visual tests, run with clayrender
 Bench 1.0 Bench.qml
+ValveBench 1.0 ValveBench.qml

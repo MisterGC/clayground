@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "clayliveloader.h"
+#include <clayshaderbaker.h>
 #include <utilityfunctions.h>
 
 #include <QDebug>
@@ -136,6 +137,7 @@ void ClayLiveLoader::addSandboxes(const QStringList &sbxFiles)
             qInfo() << "\n\nAdd Sandbox: " << sbx;
             auto const dir = sbxTest.absoluteDir().absolutePath();
             reloadIgnoreFor(dir);
+            bakeShaders(dir);
             fileObserver_.observeDir(dir);
 
             // Also watch the sandbox file itself
@@ -166,6 +168,17 @@ void ClayLiveLoader::reloadIgnoreFor(const QString &sandboxDir)
     // Watch the ignore file so edits take effect without a dojo restart.
     if (QFileInfo::exists(ignoreFile_))
         fileObserver_.observeFile(ignoreFile_);
+}
+
+void ClayLiveLoader::bakeShaders(const QString &sandboxDir)
+{
+    auto const r = ClayShaderBaker::bakeStale(sandboxDir);
+    if (r.baked > 0)
+        qInfo().noquote() << "Baked" << r.baked << "shader(s) in" << sandboxDir;
+    for (auto const& err: r.errors) {
+        qWarning().noquote() << err;
+        postMessage(err);
+    }
 }
 
 void ClayLiveLoader::addDynImportDir(const QString &path)
@@ -237,6 +250,19 @@ void ClayLiveLoader::onFileChanged(const QString &path)
     }
 
     qInfo() << "File changed:" << path;
+
+    // A shader source is baked before the reload so the scene picks up the
+    // new .qsb; its errors go where QML errors go, or a typo in a shader
+    // would look like an effect that just stopped drawing.
+    if (ClayShaderBaker::isShaderSource(path)) {
+        QString err;
+        if (ClayShaderBaker::bake(path, &err))
+            qInfo().noquote() << "Baked shader:" << path + ".qsb";
+        else {
+            qWarning().noquote() << err;
+            postMessage(err);
+        }
+    }
 
     if (restartIfDifferentSbx(path)) {
         qInfo() << "Switching to different sandbox";

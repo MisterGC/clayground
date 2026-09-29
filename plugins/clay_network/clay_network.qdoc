@@ -85,11 +85,14 @@
     all data flows directly between peers.
 
     \list
-    \li \b Internet - Uses PeerJS cloud server for peer discovery.
-        Works across platforms (Browser, Desktop, Mobile).
-        Requires internet connectivity.
-    \li \b LAN - Host runs an embedded signaling server.
-        Works on local network without internet.
+    \li \b Cloud (\c Network.SignalingMode.Cloud) - Uses a PeerJS server for
+        peer discovery: the public cloud server by default, or a self-hosted
+        relay via \c signalingUrl (clay-dev-server ships one, so this mode
+        also works offline on a LAN). Works across platforms (Browser,
+        Desktop, Mobile).
+    \li \b Local (\c Network.SignalingMode.Local) - Host runs an embedded
+        signaling server; the network code carries its IP, port and a join
+        secret. Works on a local network without internet.
         Desktop and Mobile only (not available in browser).
     \endlist
 

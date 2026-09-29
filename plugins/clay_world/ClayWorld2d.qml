@@ -177,7 +177,9 @@ ClayWorldBase {
             id: _physicsWorld
             gravity: Qt.point(0,15*9.81)
             timeStep: 1/60.0
-            timeScale: Clayground.timeScale
+            // hitStop() multiplies on top of the global time scale, so the
+            // dojo's time control and a hit stop never overwrite each other.
+            timeScale: Clayground.timeScale * _world._hitStopScale
             pixelsPerMeter: _theCanvas.pixelPerUnit ? _theCanvas.pixelPerUnit : 1
             running: true
         }
@@ -201,6 +203,46 @@ ClayWorldBase {
                 Clayground.ackStep(frames);
             }
         }
+    }
+
+    /*!
+        \qmlmethod void ClayWorld2d::hitStop(int ms, real scale)
+        \brief Freezes or slows the physics for \a ms milliseconds of wall
+        clock - the freeze frame that sells a heavy hit.
+
+        \a scale is the physics speed meanwhile: 0 (default) stops it, 0.2
+        is slow motion. It multiplies with the global time scale and does not
+        touch pause. Overlapping calls merge: the lower scale and the later
+        end win. Only the physics world is scaled; QML timers and animations
+        of the game keep their pace. Typical: 50..90 ms at 0 on a heavy hit,
+        120 ms at 0.2 on a parry.
+    */
+    function hitStop(ms, scale) {
+        var s = (scale === undefined || scale === null) ? 0 : Math.max(0, Math.min(1, scale));
+        var until = Date.now() + Math.max(0, ms);
+        if (_hitStopTimer.running) {
+            s = Math.min(s, _hitStopScale);
+            until = Math.max(until, _hitStopUntil);
+        }
+        _hitStopScale = s;
+        _hitStopUntil = until;
+        _hitStopTimer.interval = Math.max(1, until - Date.now());
+        _hitStopTimer.restart();
+    }
+
+    /*!
+        \qmlproperty bool ClayWorld2d::hitStopActive
+        \readonly
+        \brief True while a hitStop() is slowing the physics.
+    */
+    readonly property bool hitStopActive: _hitStopTimer.running
+
+    property real _hitStopScale: 1
+    property real _hitStopUntil: 0
+    Timer {
+        id: _hitStopTimer
+        repeat: false
+        onTriggered: _world._hitStopScale = 1
     }
 
     /*!
@@ -231,6 +273,9 @@ ClayWorldBase {
         info["running"] = running;
         info["gravity"] = [gravity.x, gravity.y];
         info["timeStep"] = timeStep;
+        info["hitStop"] = {"active": hitStopActive, "scale": _hitStopScale,
+                           "remainingMs": hitStopActive
+                               ? Math.max(0, _hitStopUntil - Date.now()) : 0};
         info["baseZCoord"] = baseZCoord;
         info["lastZCoord"] = lastZCoord;
         return info;

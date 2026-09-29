@@ -86,8 +86,11 @@
     \li WASM: Browser autoplay policies require user interaction before audio plays
     \li WASM: Remote URLs must have CORS headers enabled
     \li WASM: Music plays through an HTML audio element, which reports no
-        duration or position back and ignores \c loop; use a Sound
-        re-triggered by a Timer for a looping background track
+        duration or position back and ignores \c loop; use the \c finished
+        signal or a Sound re-triggered by a Timer for a looping background
+        track
+    \li WASM: use \c .mp3 for Music - a staged \c .wav is labelled
+        \c audio/vnd.wave, a type browsers decline, and stays silent
     \li Desktop: Uses low-latency QSoundEffect for Sound, full-featured QMediaPlayer for Music
     \endlist
 

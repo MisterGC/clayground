@@ -1,5 +1,5 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
-// @brief 2D shapes, images, connectors and polygons
+// @brief 2D shapes, images, connectors, sketch strokes, arrows, hand text and axes
 // @tags 2D, Canvas, Shapes
 // @category Plugin Demos
 
@@ -17,6 +17,8 @@ Rectangle {
     property color pink: "#ff3366"
     property color gold: "#ffd93d"
     property color dimText: "#8a8a8a"
+    property color chalk: "#f1efe6"
+    property color slate: "#2e3d37"
     property string monoFont: Qt.platform.os === "osx" ? "Menlo" :
                               Qt.platform.os === "windows" ? "Consolas" : "monospace"
 
@@ -48,7 +50,7 @@ Rectangle {
         anchors.fill: parent
         anchors.topMargin: 35
         pixelPerUnit: 50
-        worldXMin: 0; worldXMax: 14
+        worldXMin: 0; worldXMax: 24
         worldYMin: 0; worldYMax: 10
         keyBoardNavigationEnabled: true
 
@@ -57,7 +59,26 @@ Rectangle {
         Component { id: txtFactory; Canv.Text { canvas: theCanvas; fontSizeWu: .3 } }
         Component { id: imgFactory; Canv.Image { canvas: theCanvas; source: "image.svg" } }
         Component { id: rectFactory; Canv.Rectangle { canvas: theCanvas } }
-        Component { id: connFactory; Canv.Connector { } }
+        Component { id: connFactory; Canv.Connector { canvas: theCanvas } }
+        Component { id: axesFactory; Canv.Axes { canvas: theCanvas } }
+
+        // Write, hold, wipe, write again. The two self-drawing pieces share one
+        // rhythm so they can be read side by side instead of drifting apart.
+        Component {
+            id: writeLoopFactory
+            SequentialAnimation {
+                id: theLoop
+                property var subject: null
+                running: theLoop.subject !== null
+                loops: Animation.Infinite
+                NumberAnimation {
+                    target: theLoop.subject; property: "progress"
+                    from: 0; to: 1; duration: 3000
+                }
+                PauseAnimation { duration: 1200 }
+                PropertyAction { target: theLoop.subject; property: "progress"; value: 0 }
+            }
+        }
 
         Component.onCompleted: {
             // --- Left: Polygons showcase ---
@@ -184,6 +205,113 @@ Rectangle {
             polyFactory.createObject(theCanvas, {
                 vertices: diamond, strokeColor: root.cyan, strokeWidth: 2
             });
+
+            // --- Right: the board - sketch strokes, arrows, hand text, axes ---
+
+            // The slate goes down first: everything after it is a later sibling
+            // and therefore drawn on top of it, no z juggling needed.
+            rectFactory.createObject(theCanvas, {
+                objectName: "boardSlate",
+                xWu: 14.5, yWu: 10.0, widthWu: 9.5, heightWu: 10.0,
+                color: root.slate
+            });
+
+            // One zigzag, two pens: the difference is the sketch look, nothing else.
+            let boardZig = function(x0, y0) {
+                let pts = [];
+                for (let i = 0; i < 5; i++)
+                    pts.push({x: x0 + i * 0.8, y: i % 2 === 0 ? y0 : y0 + 1.4});
+                return pts;
+            };
+
+            polyFactory.createObject(theCanvas, {
+                objectName: "chalkPoly",
+                vertices: boardZig(15.0, 7.8),
+                strokeColor: root.chalk, strokeWidth: 3,
+                sketch: "chalk", progress: 0.6, seed: 3
+            });
+            txtFactory.createObject(theCanvas, {
+                objectName: "capChalk",
+                xWu: 15.0, yWu: 7.5, text: "Chalk", color: root.dimText
+            });
+
+            polyFactory.createObject(theCanvas, {
+                objectName: "markerPoly",
+                vertices: boardZig(19.6, 7.8),
+                strokeColor: root.gold, strokeWidth: 3,
+                sketch: "marker", progress: 0.8, seed: 7
+            });
+            txtFactory.createObject(theCanvas, {
+                objectName: "capMarker",
+                xWu: 19.6, yWu: 7.5, text: "Marker", color: root.dimText
+            });
+
+            let bx1 = rectFactory.createObject(theCanvas, {
+                objectName: "boardBoxA",
+                xWu: 15.2, yWu: 6.8, widthWu: 1.6, heightWu: 0.9,
+                color: root.teal, radius: 4
+            });
+            let bx2 = rectFactory.createObject(theCanvas, {
+                objectName: "boardBoxB",
+                xWu: 18.4, yWu: 6.8, widthWu: 1.6, heightWu: 0.9,
+                color: root.cyan, radius: 4
+            });
+
+            // attach "edge" puts the head where the box starts; with "center" the
+            // shaft would run under the box and the head would sit inside it.
+            connFactory.createObject(theCanvas, {
+                objectName: "boxArrow",
+                canvas: theCanvas,
+                from: bx1, to: bx2, color: root.cyan, strokeWidth: 3,
+                arrow: "to", attach: "edge", sketch: "marker", seed: 5
+            });
+
+            // An arrow needs no items at all - two world points and the canvas.
+            connFactory.createObject(theCanvas, {
+                objectName: "freeArrow",
+                canvas: theCanvas,
+                from: {x: 21.2, y: 6.7}, to: {x: 23.4, y: 5.5},
+                color: root.chalk, strokeWidth: 3,
+                arrow: "both", sketch: "chalk", seed: 11
+            });
+            txtFactory.createObject(theCanvas, {
+                objectName: "capArrows",
+                xWu: 15.2, yWu: 5.5, text: "Arrows", color: root.dimText
+            });
+
+            let handText = txtFactory.createObject(theCanvas, {
+                objectName: "handText",
+                xWu: 15.2, yWu: 4.9, fontSizeWu: 0.55,
+                text: "a board writes itself", color: root.chalk,
+                sketch: "chalk"
+            });
+            writeLoopFactory.createObject(theCanvas, {subject: handText});
+            txtFactory.createObject(theCanvas, {
+                objectName: "capHandText",
+                xWu: 15.2, yWu: 4.1, text: "Hand text", color: root.dimText
+            });
+
+            // The series points are world points, like Poly vertices - they are
+            // placed on the board, not relative to the axes' origin.
+            let boardAxes = axesFactory.createObject(theCanvas, {
+                objectName: "boardAxes",
+                xWu: 16.5, yWu: 0.9, widthWu: 4.5, heightWu: 2.3,
+                xLabel: "Ib", yLabel: "Ic", fontSizeWu: 0.4,
+                strokeColor: root.chalk, strokeWidth: 3,
+                seriesColor: root.gold, seriesWidth: 3,
+                series: [{x: 16.8, y: 1.05}, {x: 17.8, y: 1.4}, {x: 18.8, y: 1.95},
+                         {x: 19.7, y: 2.55}, {x: 20.6, y: 3.0}],
+                sketch: "chalk", seed: 2
+            });
+            writeLoopFactory.createObject(theCanvas, {subject: boardAxes});
+            txtFactory.createObject(theCanvas, {
+                objectName: "capAxes",
+                xWu: 16.5, yWu: 0.6, text: "Axes", color: root.dimText
+            });
+
+            // The board doubled the world's width, so frame the whole thing -
+            // in any window size the showcase and the board are both in view.
+            theCanvas.fit(0, 0, 24, 10, 0.2);
         }
     }
 }

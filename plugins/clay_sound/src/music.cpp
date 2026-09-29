@@ -13,6 +13,13 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 
+#ifdef Q_OS_WASM
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryFile>
+#endif
+
 namespace {
 
 bool isLocal(const QUrl &url)
@@ -26,9 +33,21 @@ bool isLocal(const QUrl &url)
 }
 
 #ifdef Q_OS_WASM
-constexpr bool WASM_PLAYS_URLS_DIRECTLY = true;
-#else
-constexpr bool WASM_PLAYS_URLS_DIRECTLY = false;
+// Everything Qt's WASM media backend can play goes through the local-file
+// branch of QWasmAudioOutput::setSource(): it opens the file with QFile,
+// hands the bytes to the browser as a blob and plays that from an <audio>
+// element. Any other source - an http(s) URL, a qrc: path - fails the
+// backend's "is this audio?" test (it mime-types QUrl::toLocalFile(), which
+// is empty for those) and is routed to the *video* output instead, whose
+// element only exists when a video sink was attached. Nothing is requested,
+// and the first read of the missing element's currentTime takes the whole
+// page down with "Cannot read properties of undefined". (#261)
+QByteArray readEmbedded(const QUrl &url)
+{
+    QFile f(QLatin1Char(':') + url.path());
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    return f.readAll();
+}
 #endif
 
 } // namespace
@@ -81,6 +100,8 @@ void Music::setSource(const QUrl &url)
 
     const bool hadError = hasError_;
     hasError_ = false;
+    // A new track does not inherit the play() request made for the old one.
+    playRequested_ = false;
 
     if (source_.isEmpty()) {
         resetSource();
@@ -88,21 +109,38 @@ void Music::setSource(const QUrl &url)
         return;
     }
 
-    if (isLocal(source_) || WASM_PLAYS_URLS_DIRECTLY) {
-        // Desktop / file:/qrc: — QMediaPlayer handles these directly.
-        // On WASM every scheme goes here: QWasmAudioOutput hands an http(s)
-        // URL straight to an HTML <audio> element, while its QIODevice
-        // overload only stores the device and never plays it — so the QBuffer
-        // detour below would leave the player at NoMedia, and prefetching
-        // would download the track a second time. (#216)
-        // Drop any prior buffer so the player isn't pinned to old data.
+#ifdef Q_OS_WASM
+    // Only a real file in the browser's in-memory filesystem plays — see the
+    // note above readEmbedded(). A qrc: track is copied there, an http(s) one
+    // is fetched and written there once loaded.
+    if (source_.isLocalFile()) {
+        buffer_.reset();
+        player_->setSource(source_);
+    } else if (source_.scheme() == QLatin1String("qrc")) {
+        const QByteArray bytes = readEmbedded(source_);
+        if (bytes.isEmpty()) {
+            qWarning() << "[Music] cannot read" << source_;
+            hasError_ = true;
+            resetSource();
+            emit statusChanged();
+            return;
+        }
+        applyLoadedBytes(bytes, source_);
+    } else {
+        beginRemoteFetch(source_);
+    }
+#else
+    if (isLocal(source_)) {
+        // file:/qrc: — QMediaPlayer handles these directly. Drop any prior
+        // buffer so the player isn't pinned to old data.
         buffer_.reset();
         player_->setSource(source_);
     } else {
-        // Desktop http(s) — pull bytes via QNAM and feed them through a
-        // QBuffer, so a backend that cannot open network URLs still plays.
+        // http(s) — pull bytes via QNAM and feed them through a QBuffer, so a
+        // backend that cannot open network URLs still plays.
         beginRemoteFetch(source_);
     }
+#endif
     if (hadError) emit statusChanged();
 }
 
@@ -166,19 +204,36 @@ int Music::status() const
 qint64 Music::position() const { return player_ ? player_->position() : 0; }
 qint64 Music::duration() const { return player_ ? player_->duration() : 0; }
 
-void Music::play()  { if (player_) player_->play(); }
-void Music::pause() { if (player_) player_->pause(); }
-void Music::stop()  { if (player_) player_->stop(); }
+void Music::play()
+{
+    if (!player_) return;
+    // A source that is fetched first - every http(s) track, and on WASM the
+    // qrc: ones too - reaches the player only later, and play() on NoMedia
+    // is a no-op. The request is kept so it starts when the media lands.
+    playRequested_ = true;
+    player_->play();
+}
+
+void Music::pause() { playRequested_ = false; if (player_) player_->pause(); }
+void Music::stop()  { playRequested_ = false; if (player_) player_->stop(); }
 void Music::seek(qint64 ms) { if (player_) player_->setPosition(ms); }
 void Music::load()  {}
 
 void Music::onMediaStatusChanged()
 {
-    if (player_->mediaStatus() == QMediaPlayer::InvalidMedia)
+    const auto status = player_->mediaStatus();
+    if (status == QMediaPlayer::InvalidMedia)
         qWarning() << "[Music] invalid media:" << player_->errorString();
+    if (playRequested_
+        && (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia)
+        && player_->playbackState() != QMediaPlayer::PlayingState) {
+        player_->play();
+    }
+    if (status == QMediaPlayer::EndOfMedia)
+        playRequested_ = false;
     emit statusChanged();
     emit loadedChanged();
-    if (player_->mediaStatus() == QMediaPlayer::EndOfMedia)
+    if (status == QMediaPlayer::EndOfMedia)
         emit finished();
 }
 
@@ -190,6 +245,29 @@ void Music::onPlaybackStateChanged()
 
 void Music::applyLoadedBytes(const QByteArray &bytes, const QUrl &origin)
 {
+#ifdef Q_OS_WASM
+    // A QIODevice source is stored and never played by the WASM backend
+    // (#216), so the bytes are written to the browser's in-memory filesystem
+    // and played from there. The suffix is kept: the backend mime-types the
+    // file name to decide that this is audio at all, and puts that type on
+    // the <source> element it hands the browser.
+    const QString suffix = QFileInfo(origin.path()).suffix();
+    auto staged = std::make_unique<QTemporaryFile>(
+        QDir::tempPath() + QLatin1String("/clay-music-XXXXXX")
+        + (suffix.isEmpty() ? QString() : QLatin1Char('.') + suffix));
+    if (!staged->open() || staged->write(bytes) != bytes.size()) {
+        qWarning() << "[Music] could not stage" << origin
+                   << "in the browser filesystem:" << staged->errorString();
+        hasError_ = true;
+        resetSource();
+        emit statusChanged();
+        return;
+    }
+    staged->flush();
+    // The file must outlive setSource(): the backend opens it again by name.
+    staged_ = std::move(staged);
+    player_->setSource(QUrl::fromLocalFile(staged_->fileName()));
+#else
     // Recreate the buffer so seeking after a re-fetch starts fresh.
     buffer_ = std::make_unique<QBuffer>();
     buffer_->setData(bytes);
@@ -198,6 +276,7 @@ void Music::applyLoadedBytes(const QByteArray &bytes, const QUrl &origin)
     // from the file extension when the bytes don't carry an MP4-style
     // sniffable header.
     player_->setSourceDevice(buffer_.get(), origin);
+#endif
 }
 
 void Music::beginRemoteFetch(const QUrl &url)
@@ -242,4 +321,7 @@ void Music::resetSource()
 {
     if (player_) player_->setSource({});
     buffer_.reset();
+#ifdef Q_OS_WASM
+    staged_.reset();
+#endif
 }

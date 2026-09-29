@@ -27,6 +27,7 @@ private slots:
     void testStateSequenceNumber();
     void testStaleStateDetection();
     void testRelayPreservesStatePayload();
+    void testStateCarriesSendTime();
     void testRosterSystemMessage();
 };
 
@@ -212,6 +213,33 @@ void TestNetworkSerialization::testRelayPreservesStatePayload()
     QCOMPARE(parsed["t"].toString(), "s");
     QCOMPARE(parsed["d"].toObject()["x"].toDouble(), 7.25);
     QCOMPARE(parsed["d"].toObject()["a"].toInt(), -90);
+}
+
+void TestNetworkSerialization::testStateCarriesSendTime()
+{
+    // State updates carry the sender's clock in "ts" (ms since epoch, a
+    // double on the wire) and a relay must pass it through untouched (#290)
+    QJsonObject msg;
+    msg["t"] = "s";
+    msg["q"] = 7;
+    msg["ts"] = static_cast<double>(1789000000123LL);
+    msg["d"] = QJsonObject::fromVariantMap({{"x", 1.0}});
+
+    QJsonObject relayed = msg;
+    relayed["from"] = "origin";
+    QString json = QString::fromUtf8(QJsonDocument(relayed).toJson(QJsonDocument::Compact));
+
+    QJsonObject parsed = QJsonDocument::fromJson(json.toUtf8()).object();
+    QVERIFY(parsed.contains("ts"));
+    QCOMPARE(static_cast<qint64>(parsed["ts"].toDouble()), 1789000000123LL);
+
+    // A sender without "ts" (older build) maps to -1 on the receiver
+    QJsonObject legacy;
+    legacy["t"] = "s";
+    legacy["q"] = 8;
+    legacy["d"] = QJsonObject();
+    double sentAt = legacy.contains("ts") ? legacy["ts"].toDouble() : -1.0;
+    QCOMPARE(sentAt, -1.0);
 }
 
 void TestNetworkSerialization::testRosterSystemMessage()

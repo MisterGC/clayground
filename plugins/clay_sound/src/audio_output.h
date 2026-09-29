@@ -19,12 +19,19 @@
 // note (which itself is almost always the result of a user click or key
 // press). QML can also call start() explicitly from a button handler if
 // it wants the sink open before the first note.
+//
+// start() only reports itself running once a sink actually opened, and
+// tries every output device for that: a sink that failed to open still
+// accepts writes and drops them, so trusting the default device silenced
+// whole sessions on the web (#262).
 
 #ifndef CLAY_SOUND_AUDIO_OUTPUT_H
 #define CLAY_SOUND_AUDIO_OUTPUT_H
 
 #include "engine/engine.h"
 
+#include <QAudioDevice>
+#include <QElapsedTimer>
 #include <QObject>
 #include <QTimer>
 
@@ -83,14 +90,21 @@ private:
 
     void onPull();
 
+    // Open the sink on one specific device. Returns false (and leaves no
+    // sink behind) when the device cannot be opened.
+    bool openSink(const QAudioDevice& device);
+
     static constexpr int SAMPLE_RATE = 44100;
     static constexpr int BUFFER_MS   = 20;
+    // Shortest gap between a failed attempt to open the sink and the next.
+    static constexpr int RETRY_MIN_MS = 500;
 
     Engine      engine_{SAMPLE_RATE};
     QAudioSink* sink_     = nullptr;
     QIODevice*  device_   = nullptr;
     QTimer      pullTimer_;
     bool        sinkRunning_ = false;
+    QElapsedTimer sinceFailedOpen_;
 };
 
 } // namespace clay::sound

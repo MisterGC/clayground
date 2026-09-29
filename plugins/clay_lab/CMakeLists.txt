@@ -41,6 +41,9 @@ clay_plugin( Lab
         FlowChip.qml
         WorldLabel.qml
         MarkLayer.qml
+        ExplodedView3D.qml
+        ExplodePart.qml
+        explode.js
         SelectionFrame3D.qml
         HintJump.qml
         CardFocusRing.qml
@@ -119,6 +122,9 @@ clay_add_node_test(lab_measure SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/measure.test.j
 # The board's rules - cell arithmetic, pad rotation, the hit test order, keep-out,
 # serialization - used to live inline in every build lab (#211).
 clay_add_node_test(lab_board   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board.test.js)
+# The part-table algebra behind ExplodedView3D (#274): what a kit's table is
+# validated against before a Model is built from it.
+clay_add_node_test(lab_explode SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/explode.test.js)
 # The skill's block catalog is generated from the briefs above
 # (docs/scripts/lab_catalog.py -> skills/clay-lab/references/catalog.md). This
 # check fails when a type was added or its brief edited without regenerating,

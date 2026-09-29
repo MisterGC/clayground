@@ -130,8 +130,18 @@ def main():
         code = A.eval1("netId")
         check("host: network code assigned", ok and bool(code), str(code))
 
+        check("host: LAN code carries a secret", code.count("-") == 2, str(code))
+
         B.eval([f"joinNet('{code}')"])
         check("joinB: connected", wait_for(lambda: B.eval1("connected") is True, 25))
+
+        # -- 2b: a code with the wrong secret is turned away ---------------
+        bad = code[:-1] + ("A" if code[-1] != "A" else "B")
+        C.eval([f"joinNet('{bad}')"])
+        rejected = wait_for(lambda: "Wrong LAN code" in (C.eval1("lastError") or ""), 10)
+        check("joinC: wrong secret rejected", rejected and C.eval1("connected") is not True,
+              str(C.eval1("lastError")))
+        wait_for(lambda: C.eval1("status") in (0, 3), 5)
         C.eval([f"joinNet('{code}')"])
         check("joinC: connected", wait_for(lambda: C.eval1("connected") is True, 25))
 
@@ -183,6 +193,50 @@ def main():
         check("interp: remote view tracks sender",
               len(diffs) >= 3 and max(diffs) < 8.0,
               f"diffs={[round(d, 2) for d in diffs]}")
+        off = B.eval1("syncRef.clockOffsetMs")
+        check("interp: snapshots placed on the sender's clock",
+              isinstance(off, (int, float)) and off == off,  # a number, not NaN
+              f"clockOffsetMs={off}")
+
+        # -- 6b: auto delay sizes itself from the stream (#291) --------------
+        # Loopback at 20 Hz: about 2 x 50 ms plus a few ms of lateness.
+        B.eval(["syncRef.autoDelay = true"])
+        time.sleep(3.0)
+        d_clean = B.eval1("syncRef.effectiveDelayMs")
+        check("interp: auto delay settles near 2x period on loopback",
+              d_clean is not None and 80 <= d_clean <= 150,
+              f"effectiveDelayMs={round(d_clean, 1) if d_clean is not None else d_clean}")
+        B.eval(["jitterMs = 120"])
+        time.sleep(4.0)
+        d_jit = B.eval1("syncRef.effectiveDelayMs")
+        check("interp: auto delay grows under arrival jitter",
+              d_clean is not None and d_jit is not None and d_jit > d_clean + 40,
+              f"effectiveDelayMs={round(d_jit, 1) if d_jit is not None else d_jit}")
+        B.eval(["jitterMs = 0", "syncRef.autoDelay = false"])
+
+        # -- 6c: a late burst plays back at the sender's speed (#290) -------
+        # Hold the stream for 150 ms at a time and release it in one burst
+        # into a 300 ms buffer (the buffer must cover the stall, otherwise a
+        # catch-up jump is inevitable whatever the stamping). With sender
+        # timestamps the interpolated value keeps the sender's 10 Wu/s.
+        B.eval([f"trackSender('{host_id_on_b}')", "syncRef.delayMs = 300", "stallMs = 150"])
+        time.sleep(1.0)
+        B.eval(["resetSpeedStats()"])
+        time.sleep(2.5)
+        v_sent = B.eval1("maxObservedSpeed")
+        check("interp: burst arrival does not outrun the sender",
+              v_sent is not None and v_sent < 15.0,
+              f"maxSpeed={round(v_sent, 1) if v_sent is not None else v_sent} Wu/s (sender 10)")
+        # Same burst stamped on arrival, for comparison (not a check: it is
+        # the behaviour #290 removed, printed so a regression stays visible)
+        B.eval([f"trackSender('{host_id_on_b}')", "useSentAt = false"])
+        time.sleep(1.0)
+        B.eval(["resetSpeedStats()"])
+        time.sleep(2.5)
+        v_arr = B.eval1("maxObservedSpeed")
+        print(f"info  interp: same burst stamped on arrival -> maxSpeed="
+              f"{round(v_arr, 1) if v_arr is not None else v_arr} Wu/s")
+        B.eval(["useSentAt = true", "stallMs = 0", "syncRef.delayMs = 120"])
 
         # -- 7: departure --------------------------------------------------
         C.eval(["netRef.leave()"])

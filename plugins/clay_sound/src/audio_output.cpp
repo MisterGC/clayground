@@ -59,33 +59,79 @@ void AudioOutput::start()
         return;
     }
 
+    // Every open attempt costs a browser AudioContext and a page only
+    // tolerates a handful of those, so a page where nothing opens must not
+    // try again on every triggered note. Only a failed attempt arms this.
+    if (sinceFailedOpen_.isValid() && sinceFailedOpen_.elapsed() < RETRY_MIN_MS)
+        return;
+
+    // Must come before any QMediaDevices/QAudioSink use - see #216.
+    primeAudioDevices();
+
+    // The default output device is not always one the platform can open,
+    // so try the others before giving up. On WASM the device list holds
+    // both the OpenAL device - the only one Qt's sink can open - and every
+    // device the browser enumerates asynchronously, each flagged default;
+    // which one QMediaDevices reports therefore depends on timing, and on
+    // the browser devices the open fails (#262).
+    QList<QAudioDevice> candidates;
+    const QAudioDevice preferred = QMediaDevices::defaultAudioOutput();
+    if (!preferred.isNull()) candidates.append(preferred);
+    for (const QAudioDevice& dev : QMediaDevices::audioOutputs())
+        if (dev != preferred) candidates.append(dev);
+
+    if (candidates.isEmpty()) {
+        qWarning() << "clay::sound::AudioOutput: no audio output device";
+        return;
+    }
+
+    for (const QAudioDevice& dev : candidates) {
+        if (!openSink(dev)) continue;
+        if (dev != preferred)
+            qWarning() << "clay::sound::AudioOutput: playing on"
+                       << dev.description() << "- the default device did not open";
+        sinceFailedOpen_.invalidate();
+        sinkRunning_ = true;
+        pullTimer_.start(BUFFER_MS);
+        return;
+    }
+
+    // Leave the sink closed rather than writing into a dead one: the next
+    // triggered note calls start() again, by which time the device list
+    // may have settled.
+    sinceFailedOpen_.start();
+    qWarning() << "clay::sound::AudioOutput: none of" << candidates.size()
+               << "audio output devices could be opened; a later note retries";
+}
+
+bool AudioOutput::openSink(const QAudioDevice& device)
+{
     QAudioFormat fmt;
     fmt.setSampleRate(SAMPLE_RATE);
     fmt.setChannelCount(1);
     fmt.setSampleFormat(QAudioFormat::Float);
 
-    // Must come before any QMediaDevices/QAudioSink use - see #216.
-    primeAudioDevices();
-
-    const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
-    if (outputDevice.isNull()) {
-        qWarning() << "clay::sound::AudioOutput: no default audio output device";
-        return;
-    }
-
     delete sink_;
-    sink_ = new QAudioSink(outputDevice, fmt, this);
+    sink_ = new QAudioSink(device, fmt, this);
     sink_->setBufferSize(SAMPLE_RATE * sizeof(float) / 5); // ~200ms
     device_ = sink_->start();
-    if (!device_) {
-        qWarning() << "clay::sound::AudioOutput: failed to start audio sink";
+
+    // A sink that failed to open still hands out a writable QIODevice, and
+    // everything written to it is discarded without a word. The state is
+    // what tells the two apart: an open sink idles waiting for data, a
+    // failed one stays stopped (#262). Its error() is no use here - Qt's
+    // WASM sink latches UnderrunError inside start() even when the open
+    // succeeded, because a push-mode sink starts out with nothing queued.
+    if (!device_ || sink_->state() == QAudio::StoppedState) {
+        qWarning() << "clay::sound::AudioOutput: audio output device"
+                   << device.description() << "did not open (error"
+                   << sink_->error() << ", state" << sink_->state() << ")";
         delete sink_;
         sink_ = nullptr;
-        return;
+        device_ = nullptr;
+        return false;
     }
-
-    sinkRunning_ = true;
-    pullTimer_.start(BUFFER_MS);
+    return true;
 }
 
 void AudioOutput::stop()
