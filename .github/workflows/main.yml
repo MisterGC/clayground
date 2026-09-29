@@ -3,10 +3,11 @@ name: CI
 on:
   push:
     branches: [ main ]
+  # PRs into a release branch are checked too: plan steps and fixes for the
+  # next release target release/*, not main.
   pull_request:
-    branches: [ main ]
-  # Manual on-demand runs (e.g. to validate a PR into a release branch, which
-  # otherwise gets no CI) — kept opt-in to avoid burning runners on every PR.
+    branches: [ main, 'release/**' ]
+  # Manual on-demand runs, for a branch no PR covers yet.
   workflow_dispatch:
 
 # Builds are ccache/sccache-accelerated (see "Setup compiler cache" below);
