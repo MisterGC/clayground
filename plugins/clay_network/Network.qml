@@ -17,10 +17,11 @@ import Clayground.Network
     \section1 Signaling Modes
 
     \list
-    \li \b Internet - Uses PeerJS signaling server for peer discovery. Requires internet.
+    \li \b Cloud - Uses a PeerJS signaling server for peer discovery: the public
+        one by default, or your own via \l signalingUrl (clay-dev-server ships one).
         Enables Browser <-> Desktop <-> Mobile connectivity.
-    \li \b LAN - Embedded signaling server with encoded IP codes.
-        Works on local network without internet. Desktop/Mobile only.
+    \li \b Local - Embedded signaling server; the code carries the host's IP, port
+        and a join secret. Works on a local network without internet. Desktop/Mobile only.
     \endlist
 
     \section1 Network Topologies
@@ -55,9 +56,8 @@ import Clayground.Network
                 chatLog.append(data.text)
         }
 
-        onStateReceived: (from, data) => {
-            entities[from].x = data.x
-            entities[from].y = data.y
+        onStateReceived: (from, data, sentAt) => {
+            entities[from].sync.push(data, sentAt)   // a StateInterpolator
         }
     }
 
@@ -105,10 +105,12 @@ Item {
         Signaling is only used for initial peer discovery. Once connected,
         all data flows directly peer-to-peer via WebRTC data channels.
 
-        \value Network.SignalingMode.Cloud Uses PeerJS server for peer discovery (default). Requires internet.
-               Enables cross-platform Browser <-> Desktop <-> Mobile connectivity.
-        \value Network.SignalingMode.Local Host runs embedded signaling server. No internet needed.
-               Works on local network only. Not available on WASM (browser).
+        \value Network.SignalingMode.Cloud Uses a PeerJS server for peer discovery (default): the
+               public one, or a self-hosted relay via \l signalingUrl. Enables cross-platform
+               Browser <-> Desktop <-> Mobile connectivity.
+        \value Network.SignalingMode.Local Host runs an embedded signaling server; the network code
+               carries its IP, port and a join secret. No internet needed, local network only.
+               Not available on WASM (browser).
     */
     property int signalingMode: Network.SignalingMode.Cloud
 
@@ -190,7 +192,8 @@ Item {
         \brief The current network code.
 
         Empty string if not connected. For hosts, this is the code to share.
-        Works identically for cloud (e.g., "ABC123") and local (encoded IP) modes.
+        Works identically for cloud (e.g., "ABC123") and local
+        (e.g., "L1HGF041-6Y4-K7QP2M": encoded IP, port and join secret) modes.
     */
     readonly property string networkId: _backend ? _backend.roomId : ""
 
@@ -316,12 +319,17 @@ Item {
     signal messageReceived(string fromId, var data)
 
     /*!
-        \qmlsignal Network::stateReceived(string fromId, var data)
+        \qmlsignal Network::stateReceived(string fromId, var data, real sentAt)
         \brief Emitted when a state update is received.
 
-        Updates sent via broadcastState() arrive here.
+        Updates sent via broadcastState() arrive here. \a sentAt is the
+        sender's clock (milliseconds since the epoch) when it called
+        broadcastState(), or -1 when the sender did not include one; hand it
+        to \l StateInterpolator::push so the snapshot lands on the sender's
+        timeline instead of its arrival time. Handlers that only take
+        \c (fromId, data) keep working.
     */
-    signal stateReceived(string fromId, var data)
+    signal stateReceived(string fromId, var data, real sentAt)
 
     /*!
         \qmlsignal Network::errorOccurred(string message)
@@ -482,7 +490,7 @@ Item {
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)
         onPlayerLeft: (playerId) => root.nodeLeft(playerId)
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
-        onStateReceived: (fromId, data) => root.stateReceived(fromId, data)
+        onStateReceived: (fromId, data, sentAt) => root.stateReceived(fromId, data, sentAt)
         onErrorOccurred: (message) => root.errorOccurred(message)
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
     }

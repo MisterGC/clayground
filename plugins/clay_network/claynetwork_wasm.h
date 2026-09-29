@@ -112,7 +112,9 @@ signals:
     void playerJoined(const QString &nodeId);
     void playerLeft(const QString &nodeId);
     void messageReceived(const QString &fromId, const QVariant &data);
-    void stateReceived(const QString &fromId, const QVariant &data);
+    // sentAt: the sender's clock (ms since epoch) when the update was
+    // broadcast, or -1 when the sender did not include one.
+    void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
 
