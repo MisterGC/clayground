@@ -46,3 +46,7 @@ include(claytest)
 # built Clayground.World plugin rather than importing QML sources (#192).
 clay_add_qml_test(world_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+# RENDERS: the hit stop suite compares grabbed frames, which the default
+# "minimal" platform leaves empty.
+clay_add_qml_test(world_render_qml IMPORTS_BUILT_MODULE RENDERS
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/render)
