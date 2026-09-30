@@ -6,9 +6,15 @@ include(CMakeParseArguments)
 #   clay_add_qml_test(<Name>
 #       DIRECTORY <dir-with-qml-tests>
 #       [IMPORT_DIRS <additional-import-dirs>...]
+#       [IMPORTS_BUILT_MODULE] [RENDERS]
 #   )
+#
+# RENDERS: the suite compares pixels. The default "minimal" platform renders
+# nothing - grabImage() returns an empty image there, so two grabs always
+# compare equal. Such a suite runs on "offscreen" with the software Qt Quick
+# backend instead, which draws real pixels and needs no GPU on a CI runner.
 function(clay_add_qml_test NAME)
-    set(options IMPORTS_BUILT_MODULE)
+    set(options IMPORTS_BUILT_MODULE RENDERS)
     set(oneValueArgs DIRECTORY)
     set(multiValueArgs IMPORT_DIRS)
     cmake_parse_arguments(T "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -91,8 +97,13 @@ function(clay_add_qml_test NAME)
     )
 
     # Run headless, with software backend for stability
+    if(T_RENDERS)
+        set(_platform_env "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    else()
+        set(_platform_env "QT_QPA_PLATFORM=minimal;QT_OPENGL=software")
+    endif()
     set_tests_properties(qml_${NAME} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=minimal;QT_OPENGL=software;${_runner_env}"
+        ENVIRONMENT "${_platform_env};${_runner_env}"
         LABELS "qml"
     )
 
