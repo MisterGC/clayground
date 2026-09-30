@@ -10,6 +10,11 @@
 // marker comes from onFinished, so it only appears if the browser really
 // fetched, decoded and played the ~1.9 s clip; the run needs --click,
 // without a user gesture no browser plays audio at all.
+//
+// track.mp3 must hold whole MPEG frames only. The first clip was a byte
+// range cut out of a longer file, ending in a partial frame; Chrome 153's
+// MP3 decoder rejects that frame ("mpa: invalid packet length"), the
+// element pauses without "ended", and the marker never comes (#319).
 
 import QtQuick
 import Clayground.Sound
