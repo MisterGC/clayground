@@ -218,8 +218,11 @@ ClayWorldBase {
         does not touch pause. In \c "view" mode the picture holds instead
         and \a scale is ignored. Overlapping calls merge: the lower scale and
         the later end win. QML timers and animations of the game keep their
-        pace either way. Typical: 50..90 ms at 0 on a heavy hit, 120 ms at
-        0.2 on a parry.
+        pace either way, as they do through the dojo's pause and single
+        step: game logic that must stand still with the world (enemy AI,
+        cooldowns, telegraphs) belongs on a PhysicsTimer, which counts the
+        simulated time of \l physics. Typical: 50..90 ms at 0 on a heavy
+        hit, 120 ms at 0.2 on a parry.
     */
     function hitStop(ms, scale) {
         var s = (scale === undefined || scale === null) ? 0 : Math.max(0, Math.min(1, scale));

@@ -22,6 +22,7 @@ import Box2D
 - **ImageBoxBody** - Image-based physics body with box collision
 - **VisualizedPolyBody** - Polygon physics body integrated with Canvas visualization
 - **CollisionTracker** - Tracks entities colliding with a fixture
+- **PhysicsTimer** - Timer on simulated time: pause, single-step and hit stop hold it
 - **PhysicsUtils** - Singleton with collision connection helpers
 
 ## Usage Examples
@@ -204,6 +205,22 @@ RectBoxBody {
             console.log("Entity left zone:", entity)
         }
     }
+}
+```
+
+### Game Logic on Simulated Time
+
+A QML `Timer` runs on wall clock, so it keeps firing while the world is
+paused, single-stepped or frozen by a hit stop. A `PhysicsTimer` counts the
+time of the physics steps instead and stands still with the world:
+
+```qml
+PhysicsTimer {
+    world: theWorld.physics   // a ClayWorld2d's Box2D world
+    interval: 800             // simulated milliseconds
+    repeat: true
+    running: true
+    onTriggered: enemy.decide()
 }
 ```
 
