@@ -155,10 +155,18 @@ def launch_browser(p, headless=True):
     for channel in ("chrome", None):
         try:
             if channel:
-                return p.chromium.launch(channel=channel, headless=headless)
-            return p.chromium.launch(headless=headless)
+                browser = p.chromium.launch(channel=channel, headless=headless)
+            else:
+                browser = p.chromium.launch(headless=headless)
         except Exception as e:
             print(f"chromium launch (channel={channel}) failed: {e}")
+            continue
+        # The browser is not pinned - the runner image's Chrome comes first and
+        # moves with the image - so a gate that turns red on unchanged code has
+        # to show which browser it ran in (#319).
+        print(f"Browser: {'system Chrome' if channel else 'Playwright Chromium'} "
+              f"{browser.version}")
+        return browser
     return None
 
 
