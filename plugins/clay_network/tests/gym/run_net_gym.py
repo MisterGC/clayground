@@ -9,11 +9,13 @@ senders that cannot be forged, the unreliable state channel,
 sequence-guarded state flow (incl. relayed senders), interpolation
 tracking, and node departure. A raw websocket that knows the LAN code
 tries to register under ids that are taken (#321). Then the host's link is
-conditioned - 10 % loss, latency with jitter, a blackout - and finally the
-host leaves (#301).
+conditioned - 10 % loss, latency with jitter, a blackout - and its link is
+out for less than the grace period without anybody leaving. The host
+leaves, hosts again and is killed (#301, #299).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
-instead (needs wsproto); the LAN code checks are Local-only and skipped.
+instead (needs wsproto); the LAN code checks are Local-only and skipped,
+the signaling drop is Cloud-only - a Local host is its own server.
 """
 
 import argparse
@@ -32,7 +34,8 @@ import uuid
 
 from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_loss, scenario_latency, scenario_blackout,
-                    scenario_host_leaves)
+                    scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
+                    scenario_host_killed)
 
 
 class Inspect:
@@ -237,7 +240,7 @@ def main():
             check("joinC: connected", wait_for(lambda: C.eval1("connected") is True, 25))
 
         host_id_on_b = B.eval1("nodeList[0]")
-        run_after_join(A, B, C, names, insp, host_id_on_b)
+        run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs)
     except Exception as e:
         # An instance that stops answering raises here (Inspect.request).
         # finish() exits from the finally below, which would drop this
@@ -279,7 +282,7 @@ def lan_checks(B, C, code):
           wait_for(lambda: C.eval1("connected") is True, 25))
 
 
-def run_after_join(A, B, C, names, insp, host_id_on_b):
+def run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs):
     """Everything after the three nodes are in: roster, sender ids, state
     flow, interpolation, the conditioned link and departures."""
     # -- 3: roster propagation (star topology) ------------------------
@@ -421,8 +424,30 @@ def run_after_join(A, B, C, names, insp, host_id_on_b):
           wait_for(lambda: B.eval1("nodeList.length") == 1, 15),
           str(B.eval1("JSON.stringify(nodeList)")))
 
-    # -- 9: the host leaves (#301) ---------------------------------------
-    scenario_host_leaves(A, [("joinB", B)], host_id_on_b)
+    # -- 10: out for less than the grace period, nobody leaves (#299) ----
+    scenario_short_outage(A, [("joinB", B)])
+
+    # -- 11: the host's signaling drops and comes back (#299) -------------
+    # joinC joins once it is back; only a Cloud host has a server to lose
+    joiners = [("joinB", B)]
+    if cloud:
+        scenario_signaling_drop(A, B, code, late=("joinC", C))
+        joiners.append(("joinC", C))
+
+    # -- 9: the host leaves (#301, #299) ---------------------------------
+    scenario_host_leaves(A, joiners, host_id_on_b)
+
+    # -- 12: the host process is killed (#299) ---------------------------
+    A.eval(["hostUp()"])
+    rehosted = wait_for(lambda: A.eval1("netId") not in (None, "")
+                        and A.eval1("connected") is True, 20)
+    code2 = A.eval1("netId")
+    B.eval([f"joinNet('{code2}')"])
+    rejoined = wait_for(lambda: B.eval1("connected") is True, 25)
+    if check("host killed: the host hosts again and joinB rejoins", rehosted and rejoined,
+             str(code2)):
+        scenario_host_killed(lambda: procs["host"].kill(), B.eval1("netRef.hostId"),
+                             [("joinB", B)], "process killed")
 
 
 def finish(procs, tmp):
