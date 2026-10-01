@@ -276,6 +276,11 @@ class TestCloudSignaling : public QObject
 private slots:
     void selfSignedCertificateIsAnError()
     {
+#ifdef Q_OS_WIN
+        // libdatachannel (v0.21.2) does not check the certificate on Windows,
+        // as PeerJSSignaling warns and the docs say - there is no error to see
+        QSKIP("the server certificate is not checked on Windows (libdatachannel)");
+#endif
         FakePeerJSServer server(tlsServer());
         ClayNetwork net;
         net.setSignalingUrl(server.url());
