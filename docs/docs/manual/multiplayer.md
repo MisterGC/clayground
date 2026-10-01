@@ -116,6 +116,16 @@ relays traffic between joiners (`autoRelay`). Consequences:
 - `nodes` lists all *other* participants on every node (the host propagates
   the roster). Spawn one remote avatar per entry, keyed by node id - state
   updates arrive tagged with the *original* sender's id even when relayed.
+- `hostId` names the host on every node (on the host it equals `nodeId`).
+  Compare a sender against it to tell the host's word from a joiner's;
+  don't assume the host's id looks a certain way - it is `"HOST"` with
+  Local signaling and the network code with Cloud.
+- A sender id cannot be forged. Each message is attributed to the node at
+  the other end of the connection it came over; only the host's relay may
+  name another sender, and only one that is in the receiver's roster -
+  anything else is dropped. So `from` in `messageReceived` and
+  `stateReceived` names the node whose connection carried the message, not
+  whatever the message claims.
 - Joiner-to-joiner latency is two hops. Keep that in mind for hit
   judgments; favor letting each client be authoritative over things that
   only affect itself (own position, own attacks).
