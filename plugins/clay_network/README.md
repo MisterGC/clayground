@@ -39,6 +39,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `verifySignalingCertificate` | bool | true | Native: a `wss` server whose certificate does not verify is an error; `false` opts out |
 | `verbose` | bool | false | Enable `diagnosticMessage` output (phases, ICE candidates) |
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
+| `gracePeriod` | int | 5000 | A peer that leaves a ping unanswered this long (ms) counts as gone (0 to disable) - see [Leaving](#leaving) |
 | `linkConditions` | var | {} | Simulated loss, latency, jitter, bandwidth cap, blackout and dropped signaling, for tests - see [Testing on a Bad Link](#testing-on-a-bad-link) |
 
 ### Read-only State
@@ -49,6 +50,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `nodeId` | string | This node's unique ID |
 | `hostId` | string | The host's node ID, the same on every node |
 | `isHost` | bool | True if this node is the host |
+| `acceptingJoins` | bool | True on a host new nodes can reach; false while its Cloud signaling is lost |
 | `connected` | bool | True when connected |
 | `status` | enum | `Disconnected`, `Connecting`, `Connected`, `Error` |
 | `nodeCount` | int | Number of nodes in the network |
@@ -68,8 +70,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `nodeLeft(nodeId)` | A node left the network |
 | `messageReceived(fromId, data)` | Reliable message received |
 | `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
-| `errorOccurred(message)` | Connection error |
-| `signalingLost()` | Native Cloud: the signaling connection dropped after it was up; peers stay, a host takes no new joiners |
+| `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
+| `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
 
@@ -79,10 +81,35 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 |--------|-------------|
 | `host()` | Create a network and become host |
 | `join(networkId)` | Join using a network code |
-| `leave()` | Disconnect from the network |
+| `leave()` | Say goodbye and disconnect from the network |
 | `broadcast(data)` | Send reliable message to all nodes |
 | `broadcastState(data)` | Send state update (high-frequency) |
 | `sendTo(nodeId, data)` | Send to a specific node |
+
+## Leaving
+
+A node finds out that another one left in one of three ways, the same
+natively and in the browser:
+
+- **It says goodbye.** `leave()` tells every peer before it closes, so they
+  report it in `nodeLeft` at once. When the host leaves, every joiner's
+  network ends: `status` turns `Disconnected` and `errorOccurred("The host
+  left the network")` follows the `nodeLeft` of every node it knew.
+- **It goes silent.** Every node pings its peers every 2 s. A peer that
+  leaves a ping unanswered, and sends nothing else either, for `gracePeriod`
+  (5 s by default) is dropped - a crashed host, a closed laptop. A joiner
+  notices such a host within `gracePeriod` plus 2 s and ends as above, with
+  "The host did not answer for 5000 ms".
+- **Its connection fails.** WebRTC reporting the connection failed or
+  closed. A connection that is only `Disconnected` can recover and is not a
+  leave: a link that comes back within `gracePeriod` loses nobody.
+
+When a Cloud node's signaling connection drops, the network goes on over
+the data channels: `signalingLost()` fires, and the node reconnects under
+the same id, retrying after 1, 2 and then every 4 s - a server may still
+hold the old id for a while and answer `ID-TAKEN`. Until a host is back,
+`acceptingJoins` is false: nobody new can find it. A Local host is its own
+signaling server and has none to lose.
 
 ## ICE Server Configuration
 
@@ -151,7 +178,9 @@ The native backend conditions in `link_conditioner.cpp`, the browser in
 
 The net gym (`tests/gym`) runs three nodes and checks state flow, sender
 attribution and interpolation, then puts the host behind 10 % loss, 80±20 ms
-latency and a blackout, and finally lets it leave. It runs natively over
+latency and a blackout, cuts its link for less than the grace period, drops
+its Cloud signaling, lets it leave and finally kills it - the process
+natively, the page in the browser. It runs natively over
 Local signaling (ctest `network_sync_gym`) and over Cloud signaling through
 clay-dev-server's relay (`network_sync_gym_cloud`, registered when Python has
 `wsproto`), and in the browser with two pages of the WASM runtime against the
@@ -247,7 +276,8 @@ yet (libdatachannel skips it there).
 
 While its signaling connection is up, a native node sends the PeerJS
 `HEARTBEAT` every 5 s, so a host stays joinable past the server's idle
-timeout. If the connection drops anyway, `signalingLost()` fires.
+timeout. If the connection drops anyway, `signalingLost()` fires and the node
+reconnects (see [Leaving](#leaving)).
 
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
