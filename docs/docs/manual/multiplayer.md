@@ -120,6 +120,10 @@ relays traffic between joiners (`autoRelay`). Consequences:
   Compare a sender against it to tell the host's word from a joiner's;
   don't assume the host's id looks a certain way - it is `"HOST"` with
   Local signaling and the network code with Cloud.
+- With Cloud signaling, a host is joinable only while its connection to the
+  signaling server is up. A native host keeps it alive on its own; if it
+  drops anyway, `signalingLost()` fires - the nodes already in stay
+  connected, but nobody new gets in until the host hosts again.
 - A sender id cannot be forged. Each message is attributed to the node at
   the other end of the connection it came over; only the host's relay may
   name another sender, and only one that is in the receiver's roster -

@@ -35,6 +35,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `maxNodes` | int | 8 | Max nodes (2-8) |
 | `autoRelay` | bool | true | Host auto-relays in Star topology |
 | `iceServers` | var | [] | Custom STUN/TURN servers |
+| `signalingUrl` | string | "" | Your own PeerJS-compatible server instead of the public one |
+| `verifySignalingCertificate` | bool | true | Native: a `wss` server whose certificate does not verify is an error; `false` opts out |
 | `verbose` | bool | false | Enable `diagnosticMessage` output (phases, ICE candidates) |
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
 
@@ -66,6 +68,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `messageReceived(fromId, data)` | Reliable message received |
 | `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
 | `errorOccurred(message)` | Connection error |
+| `signalingLost()` | Native Cloud: the signaling connection dropped after it was up; peers stay, a host takes no new joiners |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
 
@@ -193,6 +196,18 @@ The modes are `Network.SignalingMode.Cloud` and `Network.SignalingMode.Local`
 in code.
 
 `clay-dev-server` includes a built-in PeerJS signaling relay (`wss://<host>:<port>/peerjs`), so Cloud mode works entirely offline on a LAN. The PeerJS library is vendored locally (no CDN needed) and peer IDs are generated client-side (no cloud `/id` endpoint needed). This enables browser-based P2P networking without any internet dependency. Install the signaling extra with: `pip install clay_dev_server[signaling]`
+
+A native node checks the signaling server's certificate, and clay-dev-server's
+is self-signed: set `verifySignalingCertificate: false` on a desktop or mobile
+`Network` that uses it. Do that only for a server you control - without the
+check, anyone on the path to the server can swap the session descriptions,
+and with them the keys the data channels are encrypted with. The browser
+checks the certificate itself; on Windows the native check is not available
+yet (libdatachannel skips it there).
+
+While its signaling connection is up, a native node sends the PeerJS
+`HEARTBEAT` every 5 s, so a host stays joinable past the server's idle
+timeout. If the connection drops anyway, `signalingLost()` fires.
 
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
