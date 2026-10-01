@@ -178,7 +178,7 @@ def main():
             server, signaling_url = start_dev_server(tmp, os.path.join(tmp, "dev-server.log"))
             if not check("cloud: clay-dev-server signaling is up", server is not None,
                          signaling_url):
-                return finish(procs, tmp)
+                return
             procs["dev-server"] = server
 
         for n in names:
@@ -194,7 +194,7 @@ def main():
         up = all(insp[n].wait_phase("ready") for n in names)
         check("gym: all instances ready", up)
         if not up:
-            return finish(procs, tmp)
+            return
 
         # -- 2: host + join ------------------------------------------------
         if cloud:
@@ -220,6 +220,12 @@ def main():
 
         host_id_on_b = B.eval1("nodeList[0]")
         run_after_join(A, B, C, names, insp, host_id_on_b)
+    except Exception as e:
+        # An instance that stops answering raises here (Inspect.request).
+        # finish() exits from the finally below, which would drop this
+        # exception - a run cut short must not end green on the checks it
+        # made before (#301)
+        check("harness: ran to the end", False, repr(e))
     finally:
         finish(procs, tmp)
 
