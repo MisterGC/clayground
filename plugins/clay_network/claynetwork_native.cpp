@@ -359,6 +359,11 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
     sendToPeer(nodeId, json);
 }
 
+void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
+{
+    sendToPeer(nodeId, json);
+}
+
 void ClayNetwork::onSignalingConnected(const QString &peerId)
 {
     qDebug() << "ClayNetwork: Signaling connected, peerId:" << peerId << "isHost:" << isHost_;

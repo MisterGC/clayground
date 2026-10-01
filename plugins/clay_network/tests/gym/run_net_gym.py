@@ -4,7 +4,8 @@
 
 Spawns three loader instances on the net-gym sandbox, connects them via
 Local signaling (host + 2 joiners, Star topology) and verifies through the
-inspector protocol: roster propagation, the unreliable state channel,
+inspector protocol: roster propagation, a host id every node agrees on,
+senders that cannot be forged, the unreliable state channel,
 sequence-guarded state flow (incl. relayed senders), interpolation
 tracking, and node departure.
 """
@@ -157,6 +158,45 @@ def main():
         check("roster: joinC sees host + joinB",
               wait_for(lambda: C.eval1("nodeList.length") == 2, 10),
               str(C.eval1("JSON.stringify(nodeList)")))
+
+        # -- 3b: every node names the same host (#298) ----------------------
+        host_node = A.eval1("netRef.nodeId")
+        hosts = {n: insp[n].eval1("netRef.hostId") for n in names}
+        check("hostId: every node names the host",
+              bool(host_node) and all(h == host_node for h in hosts.values())
+              and host_id_on_b == host_node,
+              f"host nodeId={host_node} hostId={hosts}")
+        id_b = B.eval1("netRef.nodeId")
+        id_c = C.eval1("netRef.nodeId")
+
+        def senders(inst, probe):
+            return [m.get("from") for m in
+                    json.loads(inst.eval1(f"msgsWithProbe('{probe}')") or "[]")]
+
+        # -- 3c: a forged "from" to the host is attributed to its link -------
+        # joinC speaks to the host as joinB; host and relay must both say joinC
+        forged = json.dumps({"t": "m", "from": id_b, "d": {"probe": "forged"}})
+        C.eval([f"netRef._sendRaw(netRef.hostId, {json.dumps(forged)})"])
+        wait_for(lambda: senders(A, "forged") and senders(B, "forged"), 5)
+        check("sender: forged from to the host is attributed to the real sender",
+              senders(A, "forged") == [id_c],
+              f"host saw {senders(A, 'forged')}, joinC is {id_c}, claimed {id_b}")
+        check("sender: the host relays it under the real sender",
+              senders(B, "forged") == [id_c],
+              f"joinB saw {senders(B, 'forged')}")
+
+        # -- 3d: a relayed sender outside the roster is dropped --------------
+        # The host is trusted to relay, but only for nodes that joined: a
+        # made-up "from" goes nowhere, the one after it (reliable, in order)
+        # arrives - so its arrival proves the ghost had its chance.
+        ghost = json.dumps({"t": "m", "from": "ghost0000", "d": {"probe": "ghost"}})
+        after = json.dumps({"t": "m", "from": id_c, "d": {"probe": "after"}})
+        A.eval([f"netRef._sendRaw('{id_b}', {json.dumps(ghost)})",
+                f"netRef._sendRaw('{id_b}', {json.dumps(after)})"])
+        arrived = wait_for(lambda: senders(B, "after"), 5)
+        check("sender: a relayed from outside the roster is dropped",
+              arrived and senders(B, "ghost") == [] and senders(B, "after") == [id_c],
+              f"ghost={senders(B, 'ghost')} after={senders(B, 'after')}")
 
         # -- 4: unreliable state channel negotiated ------------------------
         check("transport: state channel unreliable",

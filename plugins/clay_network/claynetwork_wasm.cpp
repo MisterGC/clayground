@@ -1096,6 +1096,18 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
 #endif
 }
 
+void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
+{
+#ifdef __EMSCRIPTEN__
+    QByteArray nodeBytes = nodeId.toUtf8();
+    QByteArray jsonBytes = json.toUtf8();
+    js_send_to(instanceId_, nodeBytes.constData(), jsonBytes.constData());
+#else
+    Q_UNUSED(nodeId)
+    Q_UNUSED(json)
+#endif
+}
+
 QString ClayNetwork::generateNetworkCode() const
 {
     // Generate a 6-character network code (no ambiguous chars)

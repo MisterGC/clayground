@@ -469,6 +469,13 @@ Item {
         return _backend ? _backend.stateAgeMs(nodeId) : -1
     }
 
+    // Test hook, not API: sends json to nodeId exactly as given, so a test
+    // can put a forged "from" on the wire (net gym, #298)
+    function _sendRaw(nodeId, json) {
+        if (_backend && connected && nodeId)
+            _backend.sendRaw(nodeId, json)
+    }
+
     // ========== Connection Timeout ==========
 
     Timer {

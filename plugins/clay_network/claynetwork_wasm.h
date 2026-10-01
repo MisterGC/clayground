@@ -106,6 +106,9 @@ public slots:
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
+    // Test hook: puts json on the wire to nodeId as it is, bypassing the
+    // message envelope - the net gym forges a sender id with it (#298)
+    void sendRaw(const QString &nodeId, const QString &json);
     void ping();
     int stateAgeMs(const QString &nodeId) const;
 
