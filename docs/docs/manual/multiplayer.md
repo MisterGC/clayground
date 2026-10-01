@@ -128,7 +128,7 @@ relays traffic between joiners (`autoRelay`). Consequences:
 - When the host leaves - `leave()`, a crash, a lost connection - every
   joiner's network ends: `nodeLeft` for every node, then `status`
   `Disconnected` with `errorOccurred`. A clean leave arrives at once, a
-  silent host after `gracePeriod` (5 s) plus up to 2 s. Handle that error
+  silent host after `gracePeriod` (5 s) plus under a second. Handle that error
   as "the session is over", not as a failed join.
 - A sender id cannot be forged. Each message is attributed to the node at
   the other end of the connection it came over; only the host's relay may

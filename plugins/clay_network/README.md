@@ -95,11 +95,13 @@ natively and in the browser:
   report it in `nodeLeft` at once. When the host leaves, every joiner's
   network ends: `status` turns `Disconnected` and `errorOccurred("The host
   left the network")` follows the `nodeLeft` of every node it knew.
-- **It goes silent.** Every node pings its peers every 2 s. A peer that
-  leaves a ping unanswered, and sends nothing else either, for `gracePeriod`
-  (5 s by default) is dropped - a crashed host, a closed laptop. A joiner
-  notices such a host within `gracePeriod` plus 2 s and ends as above, with
-  "The host did not answer for 5000 ms".
+- **It goes silent.** Every node pings its peers every 2 s, and a peer it
+  has not heard from for 0.5 s right away. A peer that leaves a ping
+  unanswered, and sends nothing else either, for `gracePeriod` (5 s by
+  default) is dropped - a crashed host, a closed laptop. A joiner notices
+  such a host within `gracePeriod` plus about 0.75 s and ends as above,
+  with "The host did not answer for 5000 ms". A peer that streams state
+  is never quiet, so in a game the extra pings do not happen.
 - **Its connection fails.** WebRTC reporting the connection failed or
   closed. A connection that is only `Disconnected` can recover and is not a
   leave: a link that comes back within `gracePeriod` loses nobody.
