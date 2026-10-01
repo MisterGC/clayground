@@ -50,6 +50,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
     Q_PROPERTY(QVariantList iceServers READ iceServers WRITE setIceServers NOTIFY iceServersChanged)
     Q_PROPERTY(QString signalingUrl READ signalingUrl WRITE setSignalingUrl NOTIFY signalingUrlChanged)
+    Q_PROPERTY(bool verifySignalingCertificate READ verifySignalingCertificate WRITE setVerifySignalingCertificate NOTIFY verifySignalingCertificateChanged)
     Q_PROPERTY(bool verbose READ verbose WRITE setVerbose NOTIFY verboseChanged)
     Q_PROPERTY(QString connectionPhase READ connectionPhase NOTIFY connectionPhaseChanged)
     Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
@@ -101,6 +102,8 @@ public:
     void setIceServers(const QVariantList &servers);
     QString signalingUrl() const;
     void setSignalingUrl(const QString &url);
+    bool verifySignalingCertificate() const;
+    void setVerifySignalingCertificate(bool verify);
     bool verbose() const;
     void setVerbose(bool v);
     QString connectionPhase() const;
@@ -131,6 +134,9 @@ signals:
     // broadcast, or -1 when the sender did not include one.
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
+    // The Cloud signaling connection dropped after it was up. Peers already
+    // connected stay; a host takes no new joiners until it hosts again (#320)
+    void signalingLost();
     void diagnosticMessage(const QString &phase, const QString &detail);
 
     void networkIdChanged();
@@ -147,6 +153,7 @@ signals:
     void signalingModeChanged();
     void iceServersChanged();
     void signalingUrlChanged();
+    void verifySignalingCertificateChanged();
     void verboseChanged();
     void connectionPhaseChanged();
     void phaseTimingChanged();
@@ -160,6 +167,7 @@ private slots:
     void onSignalingAnswer(const QString &fromId, const QString &sdp);
     void onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid);
     void onSignalingError(const QString &error);
+    void onSignalingDisconnected();
 
 private:
     struct PeerConn {
@@ -222,6 +230,7 @@ private:
 
     // Custom signaling
     QString signalingUrl_;
+    bool verifySignalingCertificate_ = true;
 
     // ICE configuration
     QVariantList iceServers_;

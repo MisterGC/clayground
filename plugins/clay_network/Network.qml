@@ -163,8 +163,32 @@ Item {
         Use this to point at a local PeerJS-compatible relay (e.g. clay-dev-server).
 
         Example: "wss://myhost:8090/peerjs"
+
+        A \c wss server must present a certificate this machine trusts for
+        its host name, or connecting ends in errorOccurred(); see
+        \l verifySignalingCertificate.
     */
     property string signalingUrl: ""
+
+    /*!
+        \qmlproperty bool Network::verifySignalingCertificate
+        \brief Whether a native node checks the signaling server's certificate.
+
+        Default: true. A \c wss signaling server whose certificate does not
+        verify - self-signed, expired, or issued for another host name - ends
+        the connection attempt in errorOccurred() and status Error.
+
+        Set to false only for a server you control whose certificate cannot
+        verify, such as clay-dev-server's self-signed one. Without the check,
+        anyone on the path to the server can swap the session descriptions,
+        and with them the keys the data channels are encrypted with.
+
+        Applies to desktop and mobile. The browser checks the certificate
+        itself and ignores this property. On Windows the certificate is not
+        checked yet, whatever this says (a libdatachannel limitation).
+        Must be set before calling host() or join().
+    */
+    property bool verifySignalingCertificate: true
 
     /*!
         \qmlproperty bool Network::verbose
@@ -352,6 +376,22 @@ Item {
     signal errorOccurred(string message)
 
     /*!
+        \qmlsignal Network::signalingLost()
+        \brief Emitted when the Cloud signaling connection drops after it was up.
+
+        Nodes already connected keep their data channels and \l status stays
+        as it is. A host can take no new joiners until it hosts again; a
+        joiner still connecting gets no further help from the server and
+        runs into \l connectionTimeout.
+
+        While connected, a native node keeps the connection alive with the
+        PeerJS heartbeat, so this means the server or the network dropped it.
+        Desktop and mobile only so far; in the browser a signaling drop
+        currently ends in status Disconnected instead.
+    */
+    signal signalingLost()
+
+    /*!
         \qmlsignal Network::diagnosticMessage(string phase, string detail)
         \brief Emitted with diagnostic info when verbose is true.
 
@@ -382,6 +422,7 @@ Item {
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
             _backend.signalingUrl = root.signalingUrl
+            _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.createRoom()
@@ -401,6 +442,7 @@ Item {
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
             _backend.signalingUrl = root.signalingUrl
+            _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.joinRoom(networkId)
@@ -513,6 +555,7 @@ Item {
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
         onStateReceived: (fromId, data, sentAt) => root.stateReceived(fromId, data, sentAt)
         onErrorOccurred: (message) => root.errorOccurred(message)
+        onSignalingLost: () => root.signalingLost()
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
     }
 }

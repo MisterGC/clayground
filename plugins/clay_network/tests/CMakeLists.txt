@@ -72,3 +72,37 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
         TIMEOUT 180
     )
 endif()
+
+# Native Cloud signaling against an in-process PeerJS server: certificate
+# check and its opt-out, the heartbeat that keeps a host joinable past the
+# server's idle timeout, a dropped connection as signalingLost (#320). The
+# backend is compiled in, so neither the plugin nor a QML engine is needed.
+# The hold takes the full 120 s the issue asks for; CLAY_NET_HOLD_MS shortens
+# it for a quick local run.
+find_package(OpenSSL REQUIRED)
+
+add_executable(tst_cloud_signaling
+    tst_cloud_signaling.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_cloud_signaling PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_cloud_signaling PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_cloud_signaling PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+    OpenSSL::Crypto
+)
+
+add_test(NAME network_cloud_signaling COMMAND tst_cloud_signaling)
+set_tests_properties(network_cloud_signaling PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 300
+)
