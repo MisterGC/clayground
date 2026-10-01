@@ -12,6 +12,8 @@ include(FetchContent)
 set(COMMON_SOURCES
     claywebaccess.cpp
     claywebaccess.h
+    link_conditioner.cpp
+    link_conditioner.h
     sender.h
 )
 
@@ -28,6 +30,20 @@ if(EMSCRIPTEN)
         claynetwork_wasm.cpp
         claynetwork_wasm.h
     )
+
+    # The browser's link conditioner is plain JS, so node can test it
+    # (link_conditioner.test.js); the backend embeds it as a string and
+    # evaluates it in the page. COPYONLY rewrites the header only when the
+    # script changed, so an unrelated reconfigure rebuilds nothing.
+    file(READ ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.js CLAY_LINK_CONDITIONER_JS)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h.tmp
+        "// Generated from link_conditioner.js - do not edit\n"
+        "#pragma once\n"
+        "static const char kLinkConditionerJs[] = R\"CLAYJS(${CLAY_LINK_CONDITIONER_JS})CLAYJS\";\n")
+    configure_file(${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h COPYONLY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.js)
 else()
     # Native: WebRTC via libdatachannel
     FetchContent_Declare(
@@ -79,7 +95,14 @@ clay_plugin(Network
         ${LINK_LIBRARIES}
 )
 
-# Add tests (only for native builds, not WASM)
-if(NOT EMSCRIPTEN AND BUILD_TESTING)
+if(EMSCRIPTEN)
+    target_include_directories(ClayNetwork PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
+# Add tests (only for native builds, not WASM). The top level calls
+# enable_testing() but not include(CTest), so BUILD_TESTING is undefined
+# unless somebody sets it - CI does not, and gated on it alone the net gym
+# never ran there. Default it to on, like tools/common does.
+if(NOT EMSCRIPTEN AND (NOT DEFINED BUILD_TESTING OR BUILD_TESTING))
     add_subdirectory(tests)
 endif()

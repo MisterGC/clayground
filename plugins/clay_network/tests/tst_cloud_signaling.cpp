@@ -276,6 +276,11 @@ class TestCloudSignaling : public QObject
 private slots:
     void selfSignedCertificateIsAnError()
     {
+#ifdef Q_OS_WIN
+        // libdatachannel (v0.21.2) does not check the certificate on Windows,
+        // as PeerJSSignaling warns and the docs say - there is no error to see
+        QSKIP("the server certificate is not checked on Windows (libdatachannel)");
+#endif
         FakePeerJSServer server(tlsServer());
         ClayNetwork net;
         net.setSignalingUrl(server.url());
@@ -369,6 +374,36 @@ private slots:
         QCOMPARE(lost.count(), 1);
         QCOMPARE(errors.count(), 0);
         QCOMPARE(host.status(), ClayNetwork::Connected);
+    }
+
+    // linkConditions.dropSignaling (#301) cuts a live connection the way a
+    // server drop does, and an attempt made while it is set does not get out
+    void conditionerDropsSignaling()
+    {
+        FakePeerJSServer server(FakePeerJSServer::Options{});
+        ClayNetwork host;
+        host.setSignalingUrl(server.url());
+        QSignalSpy created(&host, &ClayNetwork::roomCreated);
+        QSignalSpy lost(&host, &ClayNetwork::signalingLost);
+        QSignalSpy errors(&host, &ClayNetwork::errorOccurred);
+
+        host.createRoom();
+        QVERIFY(created.wait(10000));
+        host.setLinkConditions({{"dropSignaling", true}});
+
+        QVERIFY(lost.wait(5000));
+        QCOMPARE(lost.count(), 1);
+        QCOMPARE(errors.count(), 0);
+        QCOMPARE(host.status(), ClayNetwork::Connected);
+
+        ClayNetwork joiner;
+        joiner.setSignalingUrl(server.url());
+        joiner.setLinkConditions({{"dropSignaling", true}});
+        QSignalSpy joinErrors(&joiner, &ClayNetwork::errorOccurred);
+        joiner.joinRoom(host.networkId());
+        QCOMPARE(joinErrors.count(), 1);
+        QVERIFY(joinErrors.first().first().toString().contains("unreachable"));
+        QCOMPARE(joiner.status(), ClayNetwork::Error);
     }
 
     void leaveIsNotALoss()

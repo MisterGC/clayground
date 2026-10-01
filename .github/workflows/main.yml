@@ -109,6 +109,12 @@ jobs:
         key: ${{ matrix.os }}-${{ matrix.qt-target }}
         max-size: 1G
 
+    # clay-dev-server's signaling relay needs wsproto; with it, configure
+    # registers the net gym's Cloud run (network_sync_gym_cloud, #301)
+    - name: Install Python Test Dependencies (Desktop)
+      if: matrix.qt-target == 'desktop'
+      run: pip install wsproto
+
     - name: Configure CMake (Desktop)
       if: matrix.qt-target == 'desktop'
       run: |
@@ -218,10 +224,43 @@ jobs:
           --click \
           --timeout 300
 
+    # Two browser pages host and join through clay-dev-server's signaling and
+    # run the net gym's link scenarios - 10 % loss, latency, a blackout, the
+    # host leaving - on the WASM backend (#301). The public PeerJS server is
+    # too flaky for CI, so the relay comes from this checkout.
+    - name: Net Gym (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        pip install wsproto
+        python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
+
+    # A missing wsproto would drop the Cloud gym from ctest without a word
+    - name: Check the Cloud Net Gym Is Registered (Desktop)
+      if: matrix.qt-target == 'desktop'
+      working-directory: build
+      shell: bash
+      run: |
+        ctest -N -R '^network_sync_gym_cloud$' > registered.txt
+        grep -q 'Total Tests: 1' registered.txt
+
     - name: Test
       if: matrix.qt-target == 'desktop'
       working-directory: build
       run: ctest --output-on-failure
+
+    # A red net gym keeps its loader logs and inspector state under
+    # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
+    # on the runner says nothing about why (#301)
+    - name: Upload Net Gym Logs (Desktop)
+      if: failure() && matrix.qt-target == 'desktop'
+      uses: actions/upload-artifact@v7
+      with:
+        name: net-gym-logs-${{ matrix.os }}
+        path: build/net-gym-logs
+        # the inspector state lives in .clay/, which is skipped otherwise
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Upload Starter Bundle
       if: always() && matrix.qt-target == 'wasm'

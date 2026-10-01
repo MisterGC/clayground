@@ -3,6 +3,7 @@
 # Unit tests for clay_network plugin
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
+include(claytest)
 
 # Serialization tests (no network required)
 add_executable(tst_network_serialization
@@ -21,6 +22,29 @@ target_link_libraries(tst_network_serialization PRIVATE
 
 add_test(NAME network_serialization COMMAND tst_network_serialization)
 set_tests_properties(network_serialization PROPERTIES LABELS "network;unit")
+
+# Link conditioner (#301): what loss, latency, jitter, a bandwidth cap and a
+# blackout do to a packet, on a test clock. Qt Core only.
+add_executable(tst_link_conditioner
+    tst_link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+)
+
+set_target_properties(tst_link_conditioner PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_link_conditioner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_link_conditioner PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_link_conditioner COMMAND tst_link_conditioner)
+set_tests_properties(network_link_conditioner PROPERTIES LABELS "network;unit")
+
+# The browser's twin of it, link_conditioner.js, against the same cases
+clay_add_node_test(network_link_conditioner
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.test.js)
 
 # HTTP auth tests - drive ClayHttpClient against a local echo server and assert
 # the headers that actually go out. ClayWebAccess is compiled in and registered
@@ -68,9 +92,29 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
     )
     set_tests_properties(network_sync_gym PROPERTIES
         LABELS "network;integration;gym"
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        TIMEOUT 180
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
+        TIMEOUT 300
     )
+
+    # The same gym over Cloud signaling, through clay-dev-server's PeerJS
+    # relay from this checkout (#301). The relay needs wsproto; without it
+    # the test is not registered, and configure says so.
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import wsproto"
+                    RESULT_VARIABLE _clay_has_wsproto OUTPUT_QUIET ERROR_QUIET)
+    if(_clay_has_wsproto EQUAL 0)
+        add_test(NAME network_sync_gym_cloud
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/gym/run_net_gym.py
+                    --loader $<TARGET_FILE:clayliveloader> --signaling cloud
+        )
+        set_tests_properties(network_sync_gym_cloud PROPERTIES
+            LABELS "network;integration;gym"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
+            TIMEOUT 300
+        )
+    else()
+        message(STATUS "wsproto not found for ${Python3_EXECUTABLE} - "
+                       "network_sync_gym_cloud is not registered (pip install wsproto)")
+    endif()
 endif()
 
 # Native Cloud signaling against an in-process PeerJS server: certificate
@@ -84,6 +128,7 @@ find_package(OpenSSL REQUIRED)
 add_executable(tst_cloud_signaling
     tst_cloud_signaling.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
 )
@@ -113,6 +158,7 @@ set_tests_properties(network_cloud_signaling PROPERTIES
 add_executable(tst_local_signaling
     tst_local_signaling.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
 )

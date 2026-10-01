@@ -156,6 +156,29 @@ QVariantMap ClayNetwork::syncStats() const {
     return stats;
 }
 
+QVariantMap ClayNetwork::linkConditions() const { return conditioner_.conditions(); }
+
+void ClayNetwork::setLinkConditions(const QVariantMap &conditions)
+{
+    const bool wasDropped = conditioner_.dropSignaling();
+    conditioner_.setConditions(conditions);
+    // Cut a live Cloud signaling connection the way a server or network
+    // drop would, so it ends in signalingLost like the real thing (#320)
+    if (!wasDropped && conditioner_.dropSignaling() && signaling_->isConnected())
+        signaling_->drop();
+    emit linkConditionsChanged();
+}
+
+bool ClayNetwork::refuseWhileSignalingDropped()
+{
+    if (!conditioner_.dropSignaling())
+        return false;
+    status_ = Error;
+    emit statusChanged();
+    emit errorOccurred("Signaling server unreachable (link conditioner)");
+    return true;
+}
+
 int ClayNetwork::stateAgeMs(const QString &nodeId) const {
     if (!stateLastMs_.contains(nodeId))
         return -1;
@@ -180,6 +203,11 @@ void ClayNetwork::createRoom()
     if (connected_) {
         leave();
     }
+
+    // A Local host is its own signaling server, there is nothing to reach
+    const bool ownServer = signalingMode_ == Local && signalingUrl_.isEmpty();
+    if (!ownServer && refuseWhileSignalingDropped())
+        return;
 
     isHost_ = true;
     status_ = Connecting;
@@ -244,6 +272,9 @@ void ClayNetwork::joinRoom(const QString &networkId)
         leave();
     }
 
+    if (refuseWhileSignalingDropped())
+        return;
+
     isHost_ = false;
     networkId_ = networkId;
     status_ = Connecting;
@@ -297,6 +328,9 @@ void ClayNetwork::joinRoom(const QString &networkId)
 
 void ClayNetwork::leave()
 {
+    // Nothing still on the simulated link outlives the network it was for
+    conditioner_.clear();
+
     // Close all peer connections
     for (const QString &peerId : peers_.keys()) {
         cleanupPeer(peerId);
@@ -710,12 +744,12 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
 
     dc->onMessage([this, peerId](auto message) {
         if (std::holds_alternative<std::string>(message)) {
-            handleDataChannelMessage(peerId, std::get<std::string>(message));
+            handleDataChannelMessage(peerId, std::get<std::string>(message), false);
         } else if (std::holds_alternative<rtc::binary>(message)) {
             // Handle binary messages (from PeerJS JSON mode)
             const auto& bytes = std::get<rtc::binary>(message);
             std::string str(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-            handleDataChannelMessage(peerId, str);
+            handleDataChannelMessage(peerId, str, false);
         }
     });
 
@@ -741,11 +775,11 @@ void ClayNetwork::setupStateChannel(const QString &peerId, std::shared_ptr<rtc::
 
     dc->onMessage([this, peerId](auto message) {
         if (std::holds_alternative<std::string>(message)) {
-            handleDataChannelMessage(peerId, std::get<std::string>(message));
+            handleDataChannelMessage(peerId, std::get<std::string>(message), true);
         } else if (std::holds_alternative<rtc::binary>(message)) {
             const auto& bytes = std::get<rtc::binary>(message);
             std::string str(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-            handleDataChannelMessage(peerId, str);
+            handleDataChannelMessage(peerId, str, true);
         }
     });
 
@@ -759,158 +793,172 @@ void ClayNetwork::setupStateChannel(const QString &peerId, std::shared_ptr<rtc::
 
 void ClayNetwork::sendToPeer(const QString &peerId, const QString &message)
 {
-    if (peers_.contains(peerId) && peers_[peerId].dc && peers_[peerId].dc->isOpen()) {
-        // Send as binary (bytes) for PeerJS JSON mode compatibility
-        QByteArray utf8 = message.toUtf8();
-        std::vector<std::byte> bytes(utf8.size());
-        std::memcpy(bytes.data(), utf8.constData(), utf8.size());
-        peers_[peerId].dc->send(bytes);
-
-        peers_[peerId].msgSent++;
-        peers_[peerId].bytesSent += utf8.size();
-    }
+    const QByteArray utf8 = message.toUtf8();
+    conditioner_.offer(clay::network::LinkConditioner::Outgoing, false, utf8.size(),
+                       [this, peerId, utf8]() { writeToPeer(peerId, utf8, false); });
 }
 
 void ClayNetwork::sendStateToPeer(const QString &peerId, const QString &message)
 {
     if (!peers_.contains(peerId))
         return;
-    PeerConn &peer = peers_[peerId];
+    const PeerConn &peer = peers_[peerId];
     // Prefer the lossy state channel; fall back to the reliable one while the
     // state channel is still negotiating (or when a peer doesn't offer one).
-    if (peer.stateReady && peer.dcState && peer.dcState->isOpen()) {
-        QByteArray utf8 = message.toUtf8();
-        std::vector<std::byte> bytes(utf8.size());
-        std::memcpy(bytes.data(), utf8.constData(), utf8.size());
-        peer.dcState->send(bytes);
-        peer.stateSent++;
-        peer.bytesSent += utf8.size();
-    } else {
-        sendToPeer(peerId, message);
-    }
+    const bool lossy = peer.stateReady && peer.dcState && peer.dcState->isOpen();
+    const QByteArray utf8 = message.toUtf8();
+    conditioner_.offer(clay::network::LinkConditioner::Outgoing, lossy, utf8.size(),
+                       [this, peerId, utf8, lossy]() { writeToPeer(peerId, utf8, lossy); });
 }
 
-void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message)
+void ClayNetwork::writeToPeer(const QString &peerId, const QByteArray &utf8, bool stateChannel)
 {
-    QMetaObject::invokeMethod(this, [this, fromId, message]() {
-        if (peers_.contains(fromId)) {
-            peers_[fromId].msgRecv++;
-            peers_[fromId].bytesRecv += message.size();
-        }
+    if (!peers_.contains(peerId))
+        return;
+    PeerConn &peer = peers_[peerId];
+    const auto &dc = stateChannel ? peer.dcState : peer.dc;
+    if (!dc || !dc->isOpen())
+        return;
+    // Send as binary (bytes) for PeerJS JSON mode compatibility
+    std::vector<std::byte> bytes(utf8.size());
+    std::memcpy(bytes.data(), utf8.constData(), utf8.size());
+    dc->send(bytes);
+    if (stateChannel)
+        peer.stateSent++;
+    else
+        peer.msgSent++;
+    peer.bytesSent += utf8.size();
+}
 
-        QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
-        if (!doc.isObject()) {
-            return;
-        }
-
-        QJsonObject obj = doc.object();
-        QString type = obj["t"].toString();
-
-        // Handle ping/pong (not relayed)
-        if (type == "p") {
-            // Respond with pong, echo timestamp
-            QJsonObject pong;
-            pong["t"] = "P";
-            pong["ts"] = obj["ts"];
-            QString json = QString::fromUtf8(QJsonDocument(pong).toJson(QJsonDocument::Compact));
-            sendToPeer(fromId, json);
-            return;
-        }
-        if (type == "P") {
-            // Pong received, calculate RTT
-            qint64 sentTs = obj["ts"].toDouble();
-            qint64 now = QDateTime::currentMSecsSinceEpoch();
-            int rtt = static_cast<int>(now - sentTs);
-            if (peers_.contains(fromId)) {
-                int prev = peers_[fromId].latency;
-                // Exponential moving average (70/30)
-                peers_[fromId].latency = (prev < 0) ? rtt : static_cast<int>(prev * 0.7 + rtt * 0.3);
-
-                // Update best latency across all peers
-                int best = -1;
-                for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
-                    if (it->latency >= 0 && (best < 0 || it->latency < best))
-                        best = it->latency;
-                }
-                if (latency_ != best) {
-                    latency_ = best;
-                    emit latencyChanged();
-                }
-                emit peerStatsChanged();
-                emit syncStatsChanged();
-            }
-            return;
-        }
-
-        // Handle rejection from host
-        if (type == "R") {
-            QString reason = obj["r"].toString();
-            emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
-            return;
-        }
-
-        // Roster updates from the host (Star topology)
-        if (type == "y") {
-            handleSystemMessage(obj);
-            return;
-        }
-
-        QJsonObject dataObj = obj["d"].toObject();
-        QVariant data = dataObj.toVariantMap();
-
-        // The link vouches for the sender, not the message: only the host's
-        // relay may name another node, and that node must be in the roster
-        QString actualFromId = clay::network::attributeSender(
-            fromId, obj["from"].toString(), isHost_, hostId_, nodes_);
-        if (actualFromId.isEmpty()) {
-            emitDiag("datachannel", QString("Dropped message over %1 from unknown node %2")
-                     .arg(fromId.left(8), obj["from"].toString().left(8)));
-            return;
-        }
-
-        // State updates carry a per-sender sequence number; the state channel
-        // is unordered, so anything at or behind the newest accepted seq is
-        // stale and gets dropped instead of rewinding the entity.
-        if (type == "s" && obj.contains("q")) {
-            auto seq = static_cast<quint32>(obj["q"].toDouble());
-            if (stateSeqIn_.contains(actualFromId)
-                && seq <= stateSeqIn_.value(actualFromId)) {
-                stateDropCount_[actualFromId]++;
-                return;
-            }
-            stateSeqIn_[actualFromId] = seq;
-        }
-        if (type == "s") {
-            stateRecvCount_[actualFromId]++;
-            stateLastMs_[actualFromId] = clock_.elapsed();
-            if (peers_.contains(fromId))
-                peers_[fromId].stateRecv++;
-        }
-
-        // Host in Star topology: relay to other peers
-        if (isHost_ && autoRelay_ && topology_ == Star) {
-            // Add "from" field and relay to all OTHER peers; state goes over
-            // the lossy channel, messages stay reliable
-            obj["from"] = fromId;
-            QString relayJson = QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-            for (const QString &peerId : peers_.keys()) {
-                if (peerId != fromId) {
-                    if (type == "s")
-                        sendStateToPeer(peerId, relayJson);
-                    else
-                        sendToPeer(peerId, relayJson);
-                }
-            }
-        }
-
-        // Emit signal to application
-        if (type == "m") {
-            emit messageReceived(actualFromId, data);
-        } else if (type == "s") {
-            double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
-            emit stateReceived(actualFromId, data, sentAt);
-        }
+void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message,
+                                           bool stateChannel)
+{
+    QMetaObject::invokeMethod(this, [this, fromId, message, stateChannel]() {
+        conditioner_.offer(clay::network::LinkConditioner::Incoming, stateChannel,
+                           qsizetype(message.size()),
+                           [this, fromId, message]() { processMessage(fromId, message); });
     }, Qt::QueuedConnection);
+}
+
+void ClayNetwork::processMessage(const QString &fromId, const std::string &message)
+{
+    if (peers_.contains(fromId)) {
+        peers_[fromId].msgRecv++;
+        peers_[fromId].bytesRecv += message.size();
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
+    if (!doc.isObject()) {
+        return;
+    }
+
+    QJsonObject obj = doc.object();
+    QString type = obj["t"].toString();
+
+    // Handle ping/pong (not relayed)
+    if (type == "p") {
+        // Respond with pong, echo timestamp
+        QJsonObject pong;
+        pong["t"] = "P";
+        pong["ts"] = obj["ts"];
+        QString json = QString::fromUtf8(QJsonDocument(pong).toJson(QJsonDocument::Compact));
+        sendToPeer(fromId, json);
+        return;
+    }
+    if (type == "P") {
+        // Pong received, calculate RTT
+        qint64 sentTs = obj["ts"].toDouble();
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        int rtt = static_cast<int>(now - sentTs);
+        if (peers_.contains(fromId)) {
+            int prev = peers_[fromId].latency;
+            // Exponential moving average (70/30)
+            peers_[fromId].latency = (prev < 0) ? rtt : static_cast<int>(prev * 0.7 + rtt * 0.3);
+
+            // Update best latency across all peers
+            int best = -1;
+            for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
+                if (it->latency >= 0 && (best < 0 || it->latency < best))
+                    best = it->latency;
+            }
+            if (latency_ != best) {
+                latency_ = best;
+                emit latencyChanged();
+            }
+            emit peerStatsChanged();
+            emit syncStatsChanged();
+        }
+        return;
+    }
+
+    // Handle rejection from host
+    if (type == "R") {
+        QString reason = obj["r"].toString();
+        emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+        return;
+    }
+
+    // Roster updates from the host (Star topology)
+    if (type == "y") {
+        handleSystemMessage(obj);
+        return;
+    }
+
+    QJsonObject dataObj = obj["d"].toObject();
+    QVariant data = dataObj.toVariantMap();
+
+    // The link vouches for the sender, not the message: only the host's
+    // relay may name another node, and that node must be in the roster
+    QString actualFromId = clay::network::attributeSender(
+        fromId, obj["from"].toString(), isHost_, hostId_, nodes_);
+    if (actualFromId.isEmpty()) {
+        emitDiag("datachannel", QString("Dropped message over %1 from unknown node %2")
+                 .arg(fromId.left(8), obj["from"].toString().left(8)));
+        return;
+    }
+
+    // State updates carry a per-sender sequence number; the state channel
+    // is unordered, so anything at or behind the newest accepted seq is
+    // stale and gets dropped instead of rewinding the entity.
+    if (type == "s" && obj.contains("q")) {
+        auto seq = static_cast<quint32>(obj["q"].toDouble());
+        if (stateSeqIn_.contains(actualFromId)
+            && seq <= stateSeqIn_.value(actualFromId)) {
+            stateDropCount_[actualFromId]++;
+            return;
+        }
+        stateSeqIn_[actualFromId] = seq;
+    }
+    if (type == "s") {
+        stateRecvCount_[actualFromId]++;
+        stateLastMs_[actualFromId] = clock_.elapsed();
+        if (peers_.contains(fromId))
+            peers_[fromId].stateRecv++;
+    }
+
+    // Host in Star topology: relay to other peers
+    if (isHost_ && autoRelay_ && topology_ == Star) {
+        // Add "from" field and relay to all OTHER peers; state goes over
+        // the lossy channel, messages stay reliable
+        obj["from"] = fromId;
+        QString relayJson = QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+        for (const QString &peerId : peers_.keys()) {
+            if (peerId != fromId) {
+                if (type == "s")
+                    sendStateToPeer(peerId, relayJson);
+                else
+                    sendToPeer(peerId, relayJson);
+            }
+        }
+    }
+
+    // Emit signal to application
+    if (type == "m") {
+        emit messageReceived(actualFromId, data);
+    } else if (type == "s") {
+        double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+        emit stateReceived(actualFromId, data, sentAt);
+    }
 }
 
 void ClayNetwork::handleSystemMessage(const QJsonObject &obj)
