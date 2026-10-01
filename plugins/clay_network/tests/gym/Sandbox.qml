@@ -46,7 +46,9 @@ Item {
     property var held: []
 
     // Fastest movement of remoteX seen since resetSpeedStats(), in Wu/s
-    // (the emitter itself moves at 10 Wu/s; its wrap at 100 is skipped)
+    // (the emitter itself moves at 10 Wu/s and only forward; its wrap at
+    // 100 is skipped - interpolated, the wrap glides back through every
+    // value in between, so it is any step backwards, not just a big one)
     property real maxObservedSpeed: 0
     property real _lastX: -1
     property real _lastT: 0
@@ -87,9 +89,9 @@ Item {
             let now = Date.now()
             let x = value.x
             if (gym._lastT > 0 && x !== undefined) {
-                let dx = Math.abs(x - gym._lastX)
+                let dx = x - gym._lastX
                 let dt = now - gym._lastT
-                if (dx < 50 && dt > 0)
+                if (dx >= 0 && dt > 0)
                     gym.maxObservedSpeed = Math.max(gym.maxObservedSpeed, dx / dt * 1000)
             }
             gym._lastX = x; gym._lastT = now
