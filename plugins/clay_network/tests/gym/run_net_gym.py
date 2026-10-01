@@ -356,14 +356,18 @@ def main():
         check("interp: burst arrival does not outrun the sender",
               v_sent is not None and v_sent < 15.0,
               f"maxSpeed={round(v_sent, 1) if v_sent is not None else v_sent} Wu/s (sender 10)")
-        # Same burst stamped on arrival, for comparison (not a check: it is
-        # the behaviour #290 removed, printed so a regression stays visible)
+        # Same burst stamped on arrival - the behaviour #290 removed. It
+        # jumps to catch up, so the probe has to see it: a probe that skips
+        # too much (backward steps are skipped for the wrap) would pass the
+        # check above whatever the interpolator does (#339)
         B.eval([f"trackSender('{host_id_on_b}')", "useSentAt = false"])
         time.sleep(1.0)
         B.eval(["resetSpeedStats()"])
         time.sleep(2.5)
         v_arr = B.eval1("maxObservedSpeed")
-        print(f"info  interp: same burst stamped on arrival -> maxSpeed="
+        check("interp: the speed probe sees a catch-up jump",
+              v_arr is not None and v_arr >= 15.0,
+              f"stamped on arrival: maxSpeed="
               f"{round(v_arr, 1) if v_arr is not None else v_arr} Wu/s")
         B.eval(["useSentAt = true", "stallMs = 0", "syncRef.delayMs = 120"])
 
