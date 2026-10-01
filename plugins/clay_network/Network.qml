@@ -210,6 +210,23 @@ Item {
     property int connectionTimeout: 15000
 
     /*!
+        \qmlproperty int Network::gracePeriod
+        \brief How long, in milliseconds, a node may go unheard before it counts as gone.
+
+        Every node pings its peers every 2 seconds and every peer answers,
+        so a peer that sends nothing at all for this long - not even a
+        pong - has crashed or lost its link: it is reported in nodeLeft().
+        On a joiner that peer is the host, and the network ends as when the
+        host leaves (see leave()). A crashed peer is noticed within the
+        grace period plus up to 2 seconds.
+
+        A link that drops out for less than this and comes back loses no
+        node. Default: 5000. 0 turns the check off; a node then leaves only
+        by saying so or when its connection fails.
+    */
+    property int gracePeriod: 5000
+
+    /*!
         \qmlproperty var Network::linkConditions
         \brief Simulated network conditions for this node, for testing.
 
@@ -289,6 +306,18 @@ Item {
         \brief True if this node is the network host.
     */
     readonly property bool isHost: _backend ? _backend.isHost : false
+
+    /*!
+        \qmlproperty bool Network::acceptingJoins
+        \brief True while new nodes can join this node's network.
+
+        True on a host whose signaling connection is up. While the Cloud
+        signaling connection is lost (signalingLost()) it is false - the
+        network goes on, but nobody new can find the host - and it turns
+        true again once the host is back on the server. Always false on a
+        joiner.
+    */
+    readonly property bool acceptingJoins: _backend ? _backend.acceptingJoins : false
 
     /*!
         \qmlproperty bool Network::connected
@@ -413,6 +442,9 @@ Item {
     /*!
         \qmlsignal Network::errorOccurred(string message)
         \brief Emitted when a connection error occurs.
+
+        Also emitted on a joiner whose network ended because the host left,
+        crashed or lost its connection; \l status is Disconnected then.
     */
     signal errorOccurred(string message)
 
@@ -420,15 +452,17 @@ Item {
         \qmlsignal Network::signalingLost()
         \brief Emitted when the Cloud signaling connection drops after it was up.
 
-        Nodes already connected keep their data channels and \l status stays
-        as it is. A host can take no new joiners until it hosts again; a
-        joiner still connecting gets no further help from the server and
-        runs into \l connectionTimeout.
+        Nodes already connected keep their data channels; \l status, \l connected
+        and \l nodes stay as they are and messages keep flowing. The node
+        reconnects to the server under the same ID, retrying every few
+        seconds - the server may hold on to the old connection for a while.
+        Meanwhile a host takes no new joiners: \l acceptingJoins is false
+        until it is back. A joiner still connecting gets no further help from
+        the server and may run into \l connectionTimeout.
 
-        While connected, a native node keeps the connection alive with the
-        PeerJS heartbeat, so this means the server or the network dropped it.
-        Desktop and mobile only so far; in the browser a signaling drop
-        currently ends in status Disconnected instead.
+        While connected, a node keeps the connection alive with the PeerJS
+        heartbeat, so this means the server or the network dropped it. The
+        same on desktop, mobile and in the browser.
     */
     signal signalingLost()
 
@@ -494,7 +528,10 @@ Item {
         \qmlmethod void Network::leave()
         \brief Leave the current network.
 
-        If you're the host, this closes the network for all nodes.
+        Says goodbye to every peer first, so they report this node in
+        nodeLeft() at once instead of after the grace period. If you're the
+        host, this closes the network for all nodes: each joiner's \l status
+        turns Disconnected and it gets errorOccurred().
     */
     function leave() {
         if (_backend) {
@@ -575,7 +612,8 @@ Item {
     // ========== Ping Timer ==========
 
     // Always on while connected - keeps latency and the per-node stats
-    // fresh at negligible cost (one tiny message per peer every 2s).
+    // fresh at negligible cost (one tiny message per peer every 2s), and the
+    // pongs are how the backend tells a silent peer from a live one.
     Timer {
         id: _pingTimer
         interval: 2000
@@ -590,6 +628,7 @@ Item {
         id: _backend
         verbose: root.verbose
         linkConditions: root.linkConditions
+        gracePeriod: root.gracePeriod
 
         onRoomCreated: (roomId) => root.networkCreated(roomId)
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)

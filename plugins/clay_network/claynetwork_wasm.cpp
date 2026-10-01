@@ -91,6 +91,12 @@ EM_JS(void, js_init_network, (int instanceId), {
         verbose: false,
         iceServers: null,
         pingTimers: new Map(),
+        // The signaling connection of a live network dropped and is being
+        // re-established under the same id (#299)
+        sessionUp: false,
+        signalingDown: false,
+        retryTimer: null,
+        retryDelay: 0,
         // Simulated link (#301): every send() and every 'data' event of the
         // node's connections passes through it
         conditioner: Module.clayLinkConditioner.create()
@@ -205,6 +211,86 @@ EM_JS(void, js_init_helpers, (), {
         };
     };
 
+    // Signaling errors that mean the server connection is gone, not that a
+    // request failed: once the session is up they start a reconnect (#299)
+    Module.claySignalingErrors = ['network', 'socket-error', 'socket-closed',
+                                  'server-error', 'unavailable-id', 'disconnected'];
+
+    // The signaling connection of a live peer dropped: C++ hears of it once
+    // per outage, and PeerJS reconnects under the same id until it is back
+    Module.clayOnSignalingDown = function(instanceId, peer) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state || state.peer !== peer || peer.destroyed) return;
+        if (!state.signalingDown) {
+            state.signalingDown = true;
+            state.retryDelay = 0;
+            Module._clay_net_signaling_lost(instanceId);
+        }
+        Module.clayRetrySignaling(instanceId, peer);
+    };
+
+    Module.clayRetrySignaling = function(instanceId, peer) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state || state.retryTimer) return;
+        state.retryDelay = state.retryDelay ? Math.min(state.retryDelay * 2, 4000) : 1000;
+        state.retryTimer = setTimeout(function() {
+            state.retryTimer = null;
+            if (state.peer !== peer || peer.destroyed || !state.signalingDown) return;
+            // Still dropped by the link conditioner, or a reconnect under way
+            if (state.conditioner.dropSignaling() || !peer.disconnected) {
+                Module.clayRetrySignaling(instanceId, peer);
+                return;
+            }
+            Module.clayDiag(instanceId, 'signaling', 'Reconnecting to signaling as ' + state.nodeId);
+            try {
+                peer.reconnect();
+            } catch (e) {
+                Module.clayRetrySignaling(instanceId, peer);
+            }
+        }, state.retryDelay);
+    };
+
+    // A peer's 'open': true when it is a reconnect, which sets nothing up again
+    Module.clayOnSignalingOpen = function(instanceId, peer) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state || state.peer !== peer || !state.signalingDown) return false;
+        state.signalingDown = false;
+        state.retryDelay = 0;
+        if (state.retryTimer) { clearTimeout(state.retryTimer); state.retryTimer = null; }
+        Module._clay_net_signaling_restored(instanceId);
+        return true;
+    };
+
+    // True when a peer error was a signaling drop and is handled as one
+    Module.clayOnPeerError = function(instanceId, peer, err) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state || state.peer !== peer) return true;
+        if (state.sessionUp && Module.claySignalingErrors.indexOf(err.type) >= 0) {
+            Module.clayDiag(instanceId, 'signaling', 'Signaling: ' + (err.message || err.type));
+            Module.clayOnSignalingDown(instanceId, peer);
+            return true;
+        }
+        return false;
+    };
+
+    // The host drops a joiner that said goodbye or went silent (#299): its
+    // connection closes, C++ and the other joiners hear it left
+    Module.clayDropPeer = function(instanceId, peerId) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state) return;
+        var conn = state.connections.get(peerId);
+        if (!conn) return;
+        state.connections.delete(peerId);
+        var sc = state.stateConns.get(peerId);
+        state.stateConns.delete(peerId);
+        if (sc) { try { sc.close(); } catch (e) {} }
+        try { conn.close(); } catch (e) {}
+        Module._clay_net_node_left(instanceId, stringToNewUTF8(peerId));
+        state.connections.forEach(function(c) {
+            if (c.open) c.send({ t: 'y', sys: 'node_left', nodeId: peerId });
+        });
+    };
+
     // Emit diagnostic from JS
     Module.clayDiag = function(instanceId, phase, detail) {
         var state = Module.clayNetwork ? Module.clayNetwork[instanceId] : null;
@@ -297,9 +383,13 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
     Module.clayPeerJSReady.then(() => {
         const cfg = Module.clayBuildPeerConfig(state);
         // Host uses network code as peer ID for easy discovery
-        state.peer = new Peer(networkId, cfg);
+        const peer = new Peer(networkId, cfg);
+        state.peer = peer;
 
-        state.peer.on('open', (id) => {
+        peer.on('open', (id) => {
+            if (Module.clayOnSignalingOpen(instanceId, peer)) return;
+            if (state.peer !== peer) return;
+            state.sessionUp = true;
             console.log('[ClayNetwork] Network created:', id);
             state.networkId = id;
             state.nodeId = id;
@@ -309,7 +399,8 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
             Module._clay_net_created(instanceId, stringToNewUTF8(id));
         });
 
-        state.peer.on('connection', (conn) => {
+        peer.on('connection', (conn) => {
+            if (state.peer !== peer) return;
             // Companion state connection of an already-known node
             if (conn.label === 'clay_state') {
                 Module.claySetupStateConn(instanceId, conn.peer, conn);
@@ -361,7 +452,11 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                     Module._clay_net_pong(instanceId, stringToNewUTF8(conn.peer), rtt);
                     return;
                 }
-                if (parsed.t === 'y') return;
+                if (parsed.t === 'y') {
+                    // A joiner that leaves says so (#299)
+                    if (parsed.sys === 'bye') Module.clayDropPeer(instanceId, conn.peer);
+                    return;
+                }
 
                 // Host in Star topology: relay to other peers if autoRelay is on
                 let outMsg = msg;
@@ -388,6 +483,8 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
             }));
 
             conn.on('close', () => {
+                // Not ours any more: dropped already, or the network was left
+                if (state.connections.get(conn.peer) !== conn) return;
                 console.log('[ClayNetwork] Node left:', conn.peer);
                 state.connections.delete(conn.peer);
                 const sc = state.stateConns.get(conn.peer);
@@ -406,14 +503,16 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
             });
         });
 
-        state.peer.on('error', (err) => {
+        peer.on('error', (err) => {
+            if (Module.clayOnPeerError(instanceId, peer, err)) return;
             console.error('[ClayNetwork] Peer error:', err);
             Module._clay_net_error(instanceId, stringToNewUTF8(err.message || err.type));
         });
 
-        state.peer.on('disconnected', () => {
+        // Only the server connection: the joiners' data connections stay
+        peer.on('disconnected', () => {
             console.log('[ClayNetwork] Disconnected from signaling');
-            Module._clay_net_disconnected(instanceId);
+            Module.clayOnSignalingDown(instanceId, peer);
         });
     }).catch((err) => {
         Module._clay_net_error(instanceId, stringToNewUTF8('Failed to load PeerJS'));
@@ -434,9 +533,13 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
         // Generate random peer ID client-side (avoids HTTP /id request
         // which fails with custom signaling servers)
         const clientId = 'c' + Math.random().toString(36).substring(2, 16);
-        state.peer = new Peer(clientId, cfg);
+        const peer = new Peer(clientId, cfg);
+        state.peer = peer;
 
-        state.peer.on('open', (id) => {
+        peer.on('open', (id) => {
+            if (Module.clayOnSignalingOpen(instanceId, peer)) return;
+            if (state.peer !== peer) return;
+            state.sessionUp = true;
             console.log('[ClayNetwork] Client node ready:', id);
             state.nodeId = id;
             state.networkId = networkId;
@@ -522,6 +625,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             }));
 
             conn.on('close', () => {
+                if (state.connections.get(networkId) !== conn) return;
                 console.log('[ClayNetwork] Disconnected from network');
                 state.connections.delete(networkId);
                 Module._clay_net_disconnected(instanceId);
@@ -533,7 +637,8 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             });
         });
 
-        state.peer.on('connection', (conn) => {
+        peer.on('connection', (conn) => {
+            if (state.peer !== peer) return;
             if (conn.label === 'clay_state') {
                 Module.claySetupStateConn(instanceId, conn.peer, conn);
                 return;
@@ -544,9 +649,15 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             setupNodeConnection(instanceId, conn.peer, conn);
         });
 
-        state.peer.on('error', (err) => {
+        peer.on('error', (err) => {
+            if (Module.clayOnPeerError(instanceId, peer, err)) return;
             console.error('[ClayNetwork] Peer error:', err);
             Module._clay_net_error(instanceId, stringToNewUTF8(err.message || err.type));
+        });
+
+        peer.on('disconnected', () => {
+            console.log('[ClayNetwork] Disconnected from signaling');
+            Module.clayOnSignalingDown(instanceId, peer);
         });
     }).catch((err) => {
         Module._clay_net_error(instanceId, stringToNewUTF8('Failed to load PeerJS'));
@@ -641,30 +752,55 @@ EM_JS(void, js_send_to, (int instanceId, const char* nodeId, const char* data), 
     }
 });
 
-// JavaScript: Leave network and cleanup
-EM_JS(void, js_leave, (int instanceId), {
+// JavaScript: Leave network and cleanup. The state is reset at once; with
+// goodbye, every open connection is told first and closed a moment later.
+EM_JS(void, js_leave, (int instanceId, int goodbye), {
     const state = Module.clayNetwork[instanceId];
     if (!state) return;
 
     // Nothing still on the simulated link outlives the network it was for
     state.conditioner.clear();
-    state.connections.forEach((conn) => {
-        try { conn.close(); } catch (e) {}
-    });
+    if (state.retryTimer) { clearTimeout(state.retryTimer); state.retryTimer = null; }
+    state.sessionUp = false;
+    state.signalingDown = false;
+    state.retryDelay = 0;
+
+    // Handlers check that their peer and connections are still the
+    // state's, so what closes below reports nothing back
+    const peer = state.peer;
+    const conns = Array.from(state.connections.values());
+    const stateConns = Array.from(state.stateConns.values());
+    state.peer = null;
     state.connections.clear();
-    state.stateConns.forEach((conn) => {
-        try { conn.close(); } catch (e) {}
-    });
     state.stateConns.clear();
-
-    if (state.peer) {
-        try { state.peer.destroy(); } catch (e) {}
-        state.peer = null;
-    }
-
     state.networkId = null;
     state.nodeId = null;
     state.isHost = false;
+
+    // Past the link conditioner, which was just cleared (#299)
+    let said = false;
+    if (goodbye) {
+        conns.forEach((conn) => {
+            if (!conn.open) return;
+            try {
+                (conn.__clayRawSend || conn.send.bind(conn))({ t: 'y', sys: 'bye' });
+                said = true;
+            } catch (e) {}
+        });
+    }
+    const closeAll = () => {
+        stateConns.forEach((conn) => { try { conn.close(); } catch (e) {} });
+        conns.forEach((conn) => { try { conn.close(); } catch (e) {} });
+        if (peer) { try { peer.destroy(); } catch (e) {} }
+    };
+    // Closing tears the peer connection down, the goodbye has to be out first
+    if (said) setTimeout(closeAll, 200);
+    else closeAll();
+});
+
+// JavaScript: Drop one peer (host side, #299)
+EM_JS(void, js_drop_peer, (int instanceId, const char* peerId), {
+    Module.clayDropPeer(instanceId, UTF8ToString(peerId));
 });
 
 // JavaScript: Get node list
@@ -777,6 +913,28 @@ void clay_net_disconnected(int instanceId)
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE
+void clay_net_signaling_lost(int instanceId)
+{
+    auto it = g_networkRegistry.find(instanceId);
+    if (it != g_networkRegistry.end()) {
+        QMetaObject::invokeMethod(it->second, [net = it->second]() {
+            net->onSignalingLost();
+        }, Qt::QueuedConnection);
+    }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE
+void clay_net_signaling_restored(int instanceId)
+{
+    auto it = g_networkRegistry.find(instanceId);
+    if (it != g_networkRegistry.end()) {
+        QMetaObject::invokeMethod(it->second, [net = it->second]() {
+            net->onSignalingRestored();
+        }, Qt::QueuedConnection);
+    }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE
 void clay_net_diag(int instanceId, const char* phase, const char* detail)
 {
     auto it = g_networkRegistry.find(instanceId);
@@ -807,6 +965,9 @@ ClayNetwork::ClayNetwork(QObject *parent)
     : QObject(parent)
 {
     clock_.start();
+    livenessCheck_.setSingleShot(true);
+    livenessCheck_.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&livenessCheck_, &QTimer::timeout, this, &ClayNetwork::checkLiveness);
 #ifdef __EMSCRIPTEN__
     instanceId_ = nextInstanceId_++;
     g_networkRegistry[instanceId_] = this;
@@ -820,7 +981,7 @@ ClayNetwork::ClayNetwork(QObject *parent)
 ClayNetwork::~ClayNetwork()
 {
 #ifdef __EMSCRIPTEN__
-    js_leave(instanceId_);
+    js_leave(instanceId_, 1);
     g_networkRegistry.erase(instanceId_);
 #endif
 }
@@ -1018,6 +1179,27 @@ void ClayNetwork::setLinkConditions(const QVariantMap &conditions)
     emit linkConditionsChanged();
 }
 
+int ClayNetwork::gracePeriod() const { return gracePeriod_; }
+void ClayNetwork::setGracePeriod(int ms) {
+    if (gracePeriod_ != ms) {
+        gracePeriod_ = ms;
+        armLivenessCheck();
+        emit gracePeriodChanged();
+    }
+}
+
+bool ClayNetwork::acceptingJoins() const { return acceptingJoins_; }
+void ClayNetwork::setAcceptingJoins(bool accepting) {
+    if (acceptingJoins_ != accepting) {
+        acceptingJoins_ = accepting;
+        emit acceptingJoinsChanged();
+    }
+}
+
+void ClayNetwork::heard(const QString &linkPeer) {
+    unansweredSinceMs_.remove(linkPeer);
+}
+
 bool ClayNetwork::refuseWhileSignalingDropped()
 {
     if (!conditions_.dropSignaling())
@@ -1107,8 +1289,17 @@ void ClayNetwork::joinRoom(const QString &networkId)
 
 void ClayNetwork::leave()
 {
+    tearDown(true);
+}
+
+void ClayNetwork::tearDown(bool goodbye)
+{
 #ifdef __EMSCRIPTEN__
-    js_leave(instanceId_);
+    js_leave(instanceId_, goodbye ? 1 : 0);
+    unansweredSinceMs_.clear();
+    livenessCheck_.stop();
+    signalingDown_ = false;
+    setAcceptingJoins(false);
 
     networkId_.clear();
     nodeId_.clear();
@@ -1139,7 +1330,31 @@ void ClayNetwork::leave()
     emit phaseTimingChanged();
     emit latencyChanged();
     emit peerStatsChanged();
+#else
+    Q_UNUSED(goodbye)
 #endif
+}
+
+void ClayNetwork::loseHost(const QString &reason)
+{
+    // Every other node was reached through the host: the network is gone
+    qWarning() << "[ClayNetwork]" << reason;
+    const QStringList gone = nodes_;
+    tearDown(false);
+    for (const QString &id : gone)
+        emit playerLeft(id);
+    emit errorOccurred(reason);
+}
+
+void ClayNetwork::removeNode(const QString &nodeId)
+{
+    unansweredSinceMs_.remove(nodeId);
+    forgetSender(nodeId);
+    if (nodes_.removeOne(nodeId)) {
+        emit nodesChanged();
+        emit nodeCountChanged();
+        emit playerLeft(nodeId);
+    }
 }
 
 void ClayNetwork::broadcast(const QVariant &data)
@@ -1223,6 +1438,7 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
     status_ = Connected;
     setConnectionPhase("");
     nodes_.clear();
+    setAcceptingJoins(true);
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -1243,6 +1459,7 @@ void ClayNetwork::onConnectedToNetwork(const char* nodeId)
     setConnectionPhase("");
     nodes_.clear();
     nodes_.append(hostId_); // Add host; other joiners arrive via roster
+    heard(hostId_);
 
     emit nodeIdChanged();
     emit connectedChanged();
@@ -1254,6 +1471,7 @@ void ClayNetwork::onConnectedToNetwork(const char* nodeId)
 void ClayNetwork::onNodeJoined(const char* nodeId)
 {
     QString id = QString::fromUtf8(nodeId);
+    heard(id);
     if (!nodes_.contains(id)) {
         nodes_.append(id);
         emit nodesChanged();
@@ -1264,13 +1482,8 @@ void ClayNetwork::onNodeJoined(const char* nodeId)
 
 void ClayNetwork::onNodeLeft(const char* nodeId)
 {
-    QString id = QString::fromUtf8(nodeId);
-    forgetSender(id);
-    if (nodes_.removeOne(id)) {
-        emit nodesChanged();
-        emit nodeCountChanged();
-    }
-    emit playerLeft(id);
+    // Once per node: a dropped peer's close may report it again
+    removeNode(QString::fromUtf8(nodeId));
 }
 
 void ClayNetwork::onSystem(const char* json)
@@ -1279,8 +1492,12 @@ void ClayNetwork::onSystem(const char* json)
     if (!doc.isObject()) return;
     QJsonObject obj = doc.object();
     QString sys = obj["sys"].toString();
+    // Only the host sends system messages, over the joiner's one link
+    heard(hostId_);
 
-    if (sys == "roster") {
+    if (sys == "bye") {
+        loseHost(QStringLiteral("The host left the network"));
+    } else if (sys == "roster") {
         QStringList added;
         for (const auto &v : obj["nodes"].toArray()) {
             QString id = v.toString();
@@ -1304,13 +1521,7 @@ void ClayNetwork::onSystem(const char* json)
             emit playerJoined(id);
         }
     } else if (sys == "node_left") {
-        QString id = obj["nodeId"].toString();
-        forgetSender(id);
-        if (nodes_.removeOne(id)) {
-            emit nodesChanged();
-            emit nodeCountChanged();
-            emit playerLeft(id);
-        }
+        removeNode(obj["nodeId"].toString());
     }
 }
 
@@ -1318,6 +1529,7 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
 {
     QString linkPeer = QString::fromUtf8(linkPeerId);
     QString jsonStr = QString::fromUtf8(data);
+    heard(linkPeer);
 
     QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
     if (!doc.isObject()) return;
@@ -1376,23 +1588,30 @@ void ClayNetwork::onError(const char* message)
 
 void ClayNetwork::onDisconnected()
 {
-    // A joiner's link to the host closed, and with it every node it knew:
-    // report them as left and keep no stream from them, as the native
-    // backend does for a peer that closes. A host gets here when only its
-    // signaling connection dropped (#299) - its joiners are not told gone.
-    const QStringList gone = isHost_ ? QStringList() : nodes_;
-    connected_ = false;
-    status_ = Disconnected;
-    nodes_.clear();
-    for (const QString &id : gone)
-        forgetSender(id);
+    // A joiner's link to the host closed, and with it every node it knew.
+    // A host's signaling drop does not come here (onSignalingLost, #299).
+    if (status_ == Disconnected)
+        return;
+    loseHost(QStringLiteral("Lost the connection to the host"));
+}
 
-    emit connectedChanged();
-    emit nodesChanged();
-    emit nodeCountChanged();
-    emit statusChanged();
-    for (const QString &id : gone)
-        emit playerLeft(id);
+void ClayNetwork::onSignalingLost()
+{
+    if (signalingDown_ || status_ == Disconnected)
+        return;
+    signalingDown_ = true;
+    setAcceptingJoins(false);
+    emitDiag("signaling", "Signaling connection lost, reconnecting");
+    emit signalingLost();
+}
+
+void ClayNetwork::onSignalingRestored()
+{
+    if (!signalingDown_)
+        return;
+    signalingDown_ = false;
+    setAcceptingJoins(isHost_);
+    emitDiag("signaling", "Signaling restored");
 }
 
 void ClayNetwork::onDiagnostic(const char* phase, const char* detail)
@@ -1405,6 +1624,7 @@ void ClayNetwork::onDiagnostic(const char* phase, const char* detail)
 void ClayNetwork::onPong(const char* peerId, int rtt)
 {
     QString id = QString::fromUtf8(peerId);
+    heard(id);
     int prev = peerLatencies_.value(id, -1).toInt();
     int smoothed = (prev < 0) ? rtt : static_cast<int>(prev * 0.7 + rtt * 0.3);
     peerLatencies_[id] = smoothed;
@@ -1424,11 +1644,64 @@ void ClayNetwork::onPong(const char* peerId, int rtt)
     emit syncStatsChanged();
 }
 
+// A crashed host never says goodbye (#299). Every peer answers a ping
+// within a round trip, so one that leaves a ping unanswered and sends nothing
+// else for gracePeriod is gone - counted from the ping, as on native, so a
+// link out for less than gracePeriod comes back. In a Star the links are the
+// host's to each joiner and a joiner's one to the host.
+void ClayNetwork::checkLiveness()
+{
+#ifdef __EMSCRIPTEN__
+    if (gracePeriod_ <= 0 || !connected_)
+        return;
+    const qint64 now = clock_.elapsed();
+    const QStringList links = isHost_ ? nodes_ : QStringList{hostId_};
+    for (const QString &id : links) {
+        const qint64 since = unansweredSinceMs_.value(id, -1);
+        if (since < 0 || now - since < gracePeriod_)
+            continue;
+        emitDiag("datachannel", QString("No answer from %1 for %2 ms, dropping it")
+                 .arg(id.left(8)).arg(now - since));
+        if (!isHost_) {
+            loseHost(QString("The host did not answer for %1 ms").arg(gracePeriod_));
+            return;
+        }
+        QByteArray idBytes = id.toUtf8();
+        js_drop_peer(instanceId_, idBytes.constData());
+        removeNode(id);
+    }
+    armLivenessCheck();
+#endif
+}
+
+void ClayNetwork::armLivenessCheck()
+{
+    qint64 next = -1;
+    if (gracePeriod_ > 0) {
+        for (auto it = unansweredSinceMs_.constBegin(); it != unansweredSinceMs_.constEnd(); ++it)
+            if (next < 0 || it.value() + gracePeriod_ < next)
+                next = it.value() + gracePeriod_;
+    }
+    if (next < 0) {
+        livenessCheck_.stop();
+        return;
+    }
+    livenessCheck_.start(int(qMax<qint64>(0, next - clock_.elapsed())));
+}
+
 void ClayNetwork::ping()
 {
 #ifdef __EMSCRIPTEN__
-    if (connected_) {
-        js_ping(instanceId_);
-    }
+    if (!connected_)
+        return;
+
+    const qint64 sentAt = clock_.elapsed();
+    const QStringList links = isHost_ ? nodes_ : QStringList{hostId_};
+    for (const QString &id : links)
+        if (!unansweredSinceMs_.contains(id))
+            unansweredSinceMs_.insert(id, sentAt);
+    armLivenessCheck();
+
+    js_ping(instanceId_);
 #endif
 }
