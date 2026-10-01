@@ -248,6 +248,18 @@ jobs:
       working-directory: build
       run: ctest --output-on-failure
 
+    # A red net gym keeps its loader logs and inspector state under
+    # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
+    # on the runner says nothing about why (#301)
+    - name: Upload Net Gym Logs (Desktop)
+      if: failure() && matrix.qt-target == 'desktop'
+      uses: actions/upload-artifact@v7
+      with:
+        name: net-gym-logs-${{ matrix.os }}
+        path: build/net-gym-logs
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Upload Starter Bundle
       if: always() && matrix.qt-target == 'wasm'
       uses: actions/upload-artifact@v7

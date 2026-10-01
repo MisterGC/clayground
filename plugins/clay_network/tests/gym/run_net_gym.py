@@ -160,7 +160,13 @@ def main():
     loader_dir = os.path.dirname(loader)
     gym_src = os.path.dirname(os.path.abspath(__file__))
 
-    tmp = tempfile.mkdtemp(prefix="clay_net_gym_")
+    # CLAY_NET_GYM_LOG_ROOT keeps a failed run's directory - loader logs and
+    # inspector state - where CI can upload it; the system temp dir is gone
+    # with the runner (#301)
+    log_root = os.environ.get("CLAY_NET_GYM_LOG_ROOT") or None
+    if log_root:
+        os.makedirs(log_root, exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix=f"clay_net_gym_{args.signaling}_", dir=log_root)
     sandbox_dir = os.path.join(tmp, "gym")
     shutil.copytree(gym_src, sandbox_dir,
                     ignore=shutil.ignore_patterns(".clay", "__pycache__", "*.py"))
@@ -191,9 +197,21 @@ def main():
         A, B, C = insp["host"], insp["joinB"], insp["joinC"]
 
         # -- 1: all instances up ------------------------------------------
-        up = all(insp[n].wait_phase("ready") for n in names)
-        check("gym: all instances ready", up)
-        if not up:
+        # Every instance is waited for and named, with how long it took or
+        # the phase it was stuck in - "not ready" alone says nothing (#301)
+        start = time.time()
+        late = []
+        took = {}
+        for n in names:
+            if insp[n].wait_phase("ready", max(1.0, 60.0 - (time.time() - start))):
+                took[n] = round(time.time() - start, 1)
+            else:
+                st = insp[n].state()
+                late.append(f"{n}: phase={st.get('phase', 'no state.json')} "
+                            f"process exit={procs[n].poll()}")
+        check("gym: all instances ready", not late,
+              "; ".join(late) if late else f"ready after {took} s")
+        if late:
             return
 
         # -- 2: host + join ------------------------------------------------

@@ -92,7 +92,7 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
     )
     set_tests_properties(network_sync_gym PROPERTIES
         LABELS "network;integration;gym"
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
         TIMEOUT 300
     )
 
@@ -108,7 +108,7 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
         )
         set_tests_properties(network_sync_gym_cloud PROPERTIES
             LABELS "network;integration;gym"
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
             TIMEOUT 300
         )
     else()
