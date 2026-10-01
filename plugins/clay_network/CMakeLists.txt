@@ -51,6 +51,12 @@ else()
         GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
         GIT_TAG v0.21.2
         GIT_SHALLOW TRUE
+        # A WebSocket opened right after another one closed could fail with
+        # "TCP connection failed": its fd got the closed socket's poll
+        # events (#348). Not fixed upstream as of v0.24.6.
+        PATCH_COMMAND ${CMAKE_COMMAND}
+            -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
     )
     # Disable unneeded features
     set(NO_MEDIA ON CACHE BOOL "" FORCE)
