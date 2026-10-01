@@ -212,7 +212,16 @@ timeout. If the connection drops anyway, `signalingLost()` fires.
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
 turns away any joiner whose first message does not carry the secret, so
-knowing the host's address alone is not enough to drop into a session.
+knowing the host's address alone is not enough to drop into a session. The
+secret is 8 characters drawn from the system's random number generator. A code
+that does not have exactly that shape fails with `Invalid LAN code` before
+anything connects.
+
+An id belongs to the first connection that registered it, until that
+connection closes: the LAN signaling server and clay-dev-server's relay both
+refuse a second one with `ID-TAKEN`, the way the PeerJS server does. Someone
+who has the code therefore cannot register as `HOST`, or as a joiner, and
+receive the offers meant for them.
 
 ## Platform Support
 

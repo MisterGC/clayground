@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QHash>
+#include <QStringList>
 #include <memory>
 
 namespace rtc {
@@ -26,6 +27,10 @@ public:
     void setSecret(const QString &secret);
     bool isRunning() const;
     uint16_t port() const;
+    // The ids registered right now, and the sockets held (registered or
+    // not): both drop a client once its socket has closed
+    QStringList clientIds() const;
+    int openSocketCount() const;
 
 signals:
     void clientConnected(const QString &peerId);
@@ -33,11 +38,27 @@ signals:
     void errorOccurred(const QString &error);
 
 private:
+    // One accepted socket. The server holds it until it closes; peerId is
+    // set once its first message registered it, refused once it was turned
+    // away (its later messages are ignored until the close arrives).
+    struct Socket {
+        std::shared_ptr<rtc::WebSocket> ws;
+        QString peerId;
+        bool refused = false;
+    };
+
+    void onSocketMessage(rtc::WebSocket *key, const std::string &message);
+    void onSocketClosed(rtc::WebSocket *key);
+    bool registerSocket(Socket &socket, const std::string &message);
+    void refuse(Socket &socket, const QString &type, const QString &msg);
     void onClientMessage(const QString &peerId, const std::string &message);
     void sendToClient(const QString &peerId, const QString &message);
 
     std::shared_ptr<rtc::WebSocketServer> server_;
-    QHash<QString, std::weak_ptr<rtc::WebSocket>> clients_;
+    // Both touched only on this object's thread; the libdatachannel
+    // callbacks queue their work here instead
+    QHash<rtc::WebSocket *, Socket> sockets_;
+    QHash<QString, rtc::WebSocket *> clients_;
     QString secret_;
     uint16_t port_ = 0;
     bool running_ = false;

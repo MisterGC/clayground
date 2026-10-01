@@ -332,11 +332,13 @@ def test_unknown_peer(host, port):
 
 
 def test_duplicate_peer_id(host, port):
-    """Test 6: What happens when two peers register with the same ID."""
+    """Test 6: An id that is already registered is refused (#321)."""
     section("6. Duplicate peer ID")
 
     peer1 = PeerJSClient(host, port, "TEST_DUP")
     peer2 = PeerJSClient(host, port, "TEST_DUP")
+    sender = PeerJSClient(host, port, "TEST_DUP_SENDER")
+    peer3 = PeerJSClient(host, port, "TEST_DUP")
     try:
         peer1.connect()
         msg1 = peer1.recv_json()
@@ -344,19 +346,31 @@ def test_duplicate_peer_id(host, port):
 
         peer2.connect()
         msg2 = peer2.recv_json()
-        # Server might reject or overwrite - let's document behavior
-        test("Second peer gets response", msg2 is not None, f"type: {msg2.get('type')}")
-        if msg2.get("type") == "OPEN":
-            print("         -> Server allows duplicate ID (overwrites)")
-        elif msg2.get("type") == "ERROR":
-            print("         -> Server rejects duplicate ID")
-        else:
-            print(f"         -> Unexpected: {msg2}")
+        test("Second peer is refused with ID-TAKEN", msg2.get("type") == "ID-TAKEN",
+             f"got: {msg2}")
+
+        # The first peer still owns the id: a message addressed to it arrives
+        sender.connect()
+        sender.recv_json()  # OPEN
+        sender.send_json({"type": "OFFER", "dst": "TEST_DUP",
+                          "payload": {"sdp": {"type": "offer", "sdp": "x"}}})
+        routed = peer1.recv_json()
+        test("First peer still receives its messages",
+             routed.get("type") == "OFFER" and routed.get("src") == "TEST_DUP_SENDER",
+             f"got: {routed}")
+
+        # Once the first peer has gone the id is free again
+        peer1.close()
+        time.sleep(0.3)
+        peer3.connect()
+        msg3 = peer3.recv_json()
+        test("Id is free again after its owner closed", msg3.get("type") == "OPEN",
+             f"got: {msg3}")
     except Exception as e:
         test("Duplicate peer ID", False, str(e))
     finally:
-        peer1.close()
-        peer2.close()
+        for p in (peer1, peer2, sender, peer3):
+            p.close()
 
 
 def test_concurrent_peers(host, port):

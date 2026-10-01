@@ -217,7 +217,7 @@ Item {
 
         Empty string if not connected. For hosts, this is the code to share.
         Works identically for cloud (e.g., "ABC123") and local
-        (e.g., "L1HGF041-6Y4-K7QP2M": encoded IP, port and join secret) modes.
+        (e.g., "L1HGF041-6Y4-K7QP2MXA": encoded IP, port and join secret) modes.
     */
     readonly property string networkId: _backend ? _backend.roomId : ""
 

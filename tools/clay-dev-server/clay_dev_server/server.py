@@ -215,9 +215,24 @@ def handle_peerjs_ws(request_handler):
     else:
         return
 
-    # Register peer
+    # Register peer. An id belongs to the first connection that registered
+    # it, until that one closes: a second one claiming it would receive the
+    # offers meant for the first (#321). Answered like the PeerJS server.
     with peerjs_peers_lock:
-        peerjs_peers[peer_id] = (sock, ws)
+        taken = peer_id in peerjs_peers
+        if not taken:
+            peerjs_peers[peer_id] = (sock, ws)
+    if taken:
+        print(f"[peerjs] Refused taken id: {peer_id}")
+        _ws_send_json(sock, ws, {
+            'type': 'ID-TAKEN',
+            'payload': {'msg': f'ID "{peer_id}" is taken'}
+        })
+        try:
+            sock.sendall(ws.send(CloseConnection(code=1008, reason='ID is taken')))
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        return
 
     # Send OPEN to confirm registration
     _ws_send_json(sock, ws, {'type': 'OPEN'})
