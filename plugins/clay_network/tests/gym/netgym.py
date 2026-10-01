@@ -299,7 +299,10 @@ def scenario_signaling_drop(host, joiner, code, late=None):
 
 def scenario_host_killed(kill, host_id, joiners, how):
     """The host dies without a word (#299): every joiner ends Disconnected
-    with errorOccurred within the grace period plus one ping interval."""
+    with errorOccurred within the grace period plus one ping interval of the
+    host going silent - the last thing the joiner received from it, on the
+    joiner's clock. The driver's own kill time also counts how long the
+    kill took, which a slow runner stretches; it is reported, not checked."""
     for _, j in joiners:
         j.eval(["resetLogs()"])
     limit = GRACE_MS + PING_MS
@@ -307,12 +310,16 @@ def scenario_host_killed(kill, host_id, joiners, how):
     kill()
     for name, j in joiners:
         ended = wait_for(lambda: (j.eval1("disconnectedAt") or 0) > 0, limit / 1000 + 10)
-        took = (j.eval1("disconnectedAt") or 0) - killed_at
+        ended_at = j.eval1("disconnectedAt") or 0
+        silent_at = j.eval1("lastFromHostAt") or 0
+        took = ended_at - silent_at
         err = j.eval1("lastError")
         check(f"host {how}: {name} is Disconnected with errorOccurred within "
-              f"grace + ping ({limit} ms)",
-              ended and 0 <= took <= limit and j.eval1("status") == 0 and bool(err),
-              f"after {fmt(took, 0)} ms, lastError={err!r}")
+              f"grace + ping ({limit} ms) of the host going silent",
+              ended and silent_at > 0 and 0 <= took <= limit
+              and j.eval1("status") == 0 and bool(err),
+              f"after {fmt(took, 0)} ms of silence ({fmt(ended_at - killed_at, 0)} ms "
+              f"after the driver began the kill), lastError={err!r}")
         left = json.loads(j.eval1("JSON.stringify(leftLog)") or "[]")
         check(f"host {how}: {name} reports it in nodeLeft and keeps no stream",
               host_id in left and j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,

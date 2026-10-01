@@ -44,6 +44,9 @@ Item {
     property int signalingLosses: 0
     property real leftAt: 0          // this node called leave()
     property real disconnectedAt: 0  // this node's status turned Disconnected
+    // The last state or message from the host: it broadcasts at 20 Hz, so
+    // this is when it went silent, on the receiver's own clock
+    property real lastFromHostAt: 0
     function resetLogs() {
         leftLog = []; lastError = ""; signalingLosses = 0; leftAt = 0; disconnectedAt = 0
     }
@@ -118,6 +121,7 @@ Item {
         topology: Network.Topology.Star
         signalingUrl: gym.signalingUrl
         onStateReceived: (from, data, sentAt) => {
+            if (from === net.hostId) gym.lastFromHostAt = Date.now()
             if (from !== gym.trackedSender) return
             if (gym.stallMs > 0 || gym.jitterMs > 0) {
                 let release = Date.now() + (gym.jitterMs > 0 ? Math.random() * gym.jitterMs : 0)
@@ -131,6 +135,7 @@ Item {
         onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()
         onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])
         onMessageReceived: (from, data) => {
+            if (from === net.hostId) gym.lastFromHostAt = Date.now()
             gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i}])
         }
     }
