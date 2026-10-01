@@ -163,8 +163,32 @@ Item {
         Use this to point at a local PeerJS-compatible relay (e.g. clay-dev-server).
 
         Example: "wss://myhost:8090/peerjs"
+
+        A \c wss server must present a certificate this machine trusts for
+        its host name, or connecting ends in errorOccurred(); see
+        \l verifySignalingCertificate.
     */
     property string signalingUrl: ""
+
+    /*!
+        \qmlproperty bool Network::verifySignalingCertificate
+        \brief Whether a native node checks the signaling server's certificate.
+
+        Default: true. A \c wss signaling server whose certificate does not
+        verify - self-signed, expired, or issued for another host name - ends
+        the connection attempt in errorOccurred() and status Error.
+
+        Set to false only for a server you control whose certificate cannot
+        verify, such as clay-dev-server's self-signed one. Without the check,
+        anyone on the path to the server can swap the session descriptions,
+        and with them the keys the data channels are encrypted with.
+
+        Applies to desktop and mobile. The browser checks the certificate
+        itself and ignores this property. On Windows the certificate is not
+        checked yet, whatever this says (a libdatachannel limitation).
+        Must be set before calling host() or join().
+    */
+    property bool verifySignalingCertificate: true
 
     /*!
         \qmlproperty bool Network::verbose
@@ -382,6 +406,7 @@ Item {
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
             _backend.signalingUrl = root.signalingUrl
+            _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.createRoom()
@@ -401,6 +426,7 @@ Item {
             _backend.autoRelay = root.autoRelay
             _backend.signalingMode = root.signalingMode
             _backend.signalingUrl = root.signalingUrl
+            _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
             _backend.joinRoom(networkId)

@@ -28,6 +28,11 @@ void PeerJSSignaling::setServerUrl(const QString &url)
         serverUrl_ = url + "?key=peerjs";
 }
 
+void PeerJSSignaling::setVerifyCertificate(bool verify)
+{
+    verifyCertificate_ = verify;
+}
+
 void PeerJSSignaling::connect(const QString &peerId)
 {
     if (ws_) {
@@ -42,7 +47,13 @@ void PeerJSSignaling::connect(const QString &peerId)
     qDebug() << "PeerJSSignaling: Connecting to" << url;
 
     rtc::WebSocket::Configuration config;
-    config.disableTlsVerification = true; // For testing with public servers
+    config.disableTlsVerification = !verifyCertificate_;
+#ifdef Q_OS_WIN
+    // libdatachannel (v0.21.2) skips the root CA check on Windows whatever
+    // this says - say so rather than pretend the server was checked
+    if (verifyCertificate_ && url.startsWith("wss:"))
+        qWarning() << "PeerJSSignaling: the server certificate is not checked on Windows";
+#endif
     ws_ = std::make_shared<rtc::WebSocket>(config);
 
     ws_->onOpen([this]() {

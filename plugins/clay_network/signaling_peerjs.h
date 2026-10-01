@@ -24,6 +24,9 @@ public:
     QString peerId() const;
 
     void setServerUrl(const QString &url);
+    // Off only by explicit choice: without the check anyone on the path to
+    // the server can swap the SDP and with it the DTLS fingerprints (#320)
+    void setVerifyCertificate(bool verify);
 
     void sendOffer(const QString &targetId, const QString &sdp);
     void sendAnswer(const QString &targetId, const QString &sdp, const QString &connectionId);
@@ -49,4 +52,5 @@ private:
     QString peerId_;
     QString serverUrl_;
     bool connected_ = false;
+    bool verifyCertificate_ = true;
 };

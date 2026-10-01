@@ -92,6 +92,15 @@ void ClayNetwork::setSignalingUrl(const QString &url) {
     }
 }
 
+bool ClayNetwork::verifySignalingCertificate() const { return verifySignalingCertificate_; }
+void ClayNetwork::setVerifySignalingCertificate(bool verify) {
+    if (verifySignalingCertificate_ != verify) {
+        verifySignalingCertificate_ = verify;
+        signaling_->setVerifyCertificate(verify);
+        emit verifySignalingCertificateChanged();
+    }
+}
+
 bool ClayNetwork::verbose() const { return verbose_; }
 void ClayNetwork::setVerbose(bool v) {
     if (verbose_ != v) {
