@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "claynetwork_wasm.h"
+#include "sender.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QJsonDocument>
@@ -175,7 +176,9 @@ EM_JS(void, js_init_helpers, (), {
         });
     };
 
-    // Shared handler for data arriving on a state connection
+    // Shared handler for data arriving on a state connection. Like every
+    // message it goes to C++ with the peer at the other end of the link;
+    // C++ decides whether a "from" in it counts (attributeSender, #298).
     Module.clayOnStateData = function(instanceId, peerId, data) {
         var state = Module.clayNetwork[instanceId];
         if (!state) return;
@@ -186,9 +189,8 @@ EM_JS(void, js_init_helpers, (), {
             Module.clayRelayState(state, parsed, peerId);
             msg = JSON.stringify(parsed);
         }
-        var actualFrom = parsed.from || peerId;
         Module._clay_net_message(instanceId,
-            stringToNewUTF8(actualFrom), stringToNewUTF8(msg), 1);
+            stringToNewUTF8(peerId), stringToNewUTF8(msg), 1);
     };
 
     // Attach handlers to an incoming state connection
@@ -458,11 +460,10 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                     return;
                 }
 
-                // Use "from" field if present (relayed message), else use host ID
-                const actualFromId = parsed.from || networkId;
+                // The link peer is the host; C++ takes a relayed "from" from it
                 const isState = parsed.t === 's';
                 Module._clay_net_message(instanceId,
-                    stringToNewUTF8(actualFromId),
+                    stringToNewUTF8(networkId),
                     stringToNewUTF8(msg),
                     isState ? 1 : 0);
             });
@@ -522,11 +523,11 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 return;
             }
 
-            // Use "from" field if present (relayed), else use direct peer ID
-            const actualFromId = parsed.from || nodeId;
+            // A Mesh link speaks for its own peer only: C++ ignores any
+            // "from" in it, the message belongs to nodeId
             const isState = parsed.t === 's';
             Module._clay_net_message(instanceId,
-                stringToNewUTF8(actualFromId),
+                stringToNewUTF8(nodeId),
                 stringToNewUTF8(msg),
                 isState ? 1 : 0);
         });
@@ -777,6 +778,11 @@ QString ClayNetwork::nodeId() const
     return nodeId_;
 }
 
+QString ClayNetwork::hostId() const
+{
+    return hostId_;
+}
+
 bool ClayNetwork::isHost() const
 {
     return isHost_;
@@ -988,11 +994,18 @@ void ClayNetwork::joinRoom(const QString &networkId)
         return;
     }
 
+    // Kept here as well as in JS: the code is the host's PeerJS id
+    // (js_create_network), so a joiner's hostId and roster entry come from it
+    networkId_ = networkId.toUpper();
+    hostId_ = networkId_;
+    emit networkIdChanged();
+    emit hostIdChanged();
+
     status_ = Connecting;
     setConnectionPhase("signaling");
     emit statusChanged();
 
-    QByteArray codeBytes = networkId.toUpper().toUtf8();
+    QByteArray codeBytes = networkId_.toUtf8();
     js_join_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_));
 #else
     Q_UNUSED(networkId)
@@ -1007,6 +1020,7 @@ void ClayNetwork::leave()
 
     networkId_.clear();
     nodeId_.clear();
+    hostId_.clear();
     isHost_ = false;
     connected_ = false;
     nodes_.clear();
@@ -1023,6 +1037,7 @@ void ClayNetwork::leave()
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit nodesChanged();
@@ -1081,6 +1096,18 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
 #endif
 }
 
+void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
+{
+#ifdef __EMSCRIPTEN__
+    QByteArray nodeBytes = nodeId.toUtf8();
+    QByteArray jsonBytes = json.toUtf8();
+    js_send_to(instanceId_, nodeBytes.constData(), jsonBytes.constData());
+#else
+    Q_UNUSED(nodeId)
+    Q_UNUSED(json)
+#endif
+}
+
 QString ClayNetwork::generateNetworkCode() const
 {
     // Generate a 6-character network code (no ambiguous chars)
@@ -1097,6 +1124,8 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
 {
     networkId_ = QString::fromUtf8(networkId);
     nodeId_ = networkId_;
+    // The host's PeerJS id is the network code (js_create_network)
+    hostId_ = networkId_;
     isHost_ = true;
     connected_ = true;
     status_ = Connected;
@@ -1105,6 +1134,7 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit nodesChanged();
@@ -1120,7 +1150,7 @@ void ClayNetwork::onConnectedToNetwork(const char* nodeId)
     status_ = Connected;
     setConnectionPhase("");
     nodes_.clear();
-    nodes_.append(networkId_); // Add host; other joiners arrive via roster
+    nodes_.append(hostId_); // Add host; other joiners arrive via roster
 
     emit nodeIdChanged();
     emit connectedChanged();
@@ -1192,15 +1222,25 @@ void ClayNetwork::onSystem(const char* json)
     }
 }
 
-void ClayNetwork::onMessage(const char* fromId, const char* data, bool isState)
+void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isState)
 {
-    QString from = QString::fromUtf8(fromId);
+    QString linkPeer = QString::fromUtf8(linkPeerId);
     QString jsonStr = QString::fromUtf8(data);
 
     QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
     if (!doc.isObject()) return;
 
     QJsonObject obj = doc.object();
+
+    // The link vouches for the sender, not the message: only the host's
+    // relay may name another node, and that node must be in the roster
+    QString from = clay::network::attributeSender(
+        linkPeer, obj["from"].toString(), isHost_, hostId_, nodes_);
+    if (from.isEmpty()) {
+        emitDiag("datachannel", QString("Dropped message over %1 from unknown node %2")
+                 .arg(linkPeer.left(8), obj["from"].toString().left(8)));
+        return;
+    }
 
     // Handle unified wire format: {"t": "m/s", "d": {...}}
     QString type = obj["t"].toString();

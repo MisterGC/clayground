@@ -3,6 +3,7 @@
 #include "claynetwork_native.h"
 #include "signaling_peerjs.h"
 #include "signaling_local.h"
+#include "sender.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
 #include <QJsonDocument>
@@ -39,6 +40,7 @@ ClayNetwork::~ClayNetwork()
 
 QString ClayNetwork::networkId() const { return networkId_; }
 QString ClayNetwork::nodeId() const { return nodeId_; }
+QString ClayNetwork::hostId() const { return hostId_; }
 bool ClayNetwork::isHost() const { return isHost_; }
 bool ClayNetwork::connected() const { return connected_; }
 int ClayNetwork::nodeCount() const { return nodes_.size() + 1; }
@@ -288,6 +290,7 @@ void ClayNetwork::leave()
 
     networkId_.clear();
     nodeId_.clear();
+    hostId_.clear();
     isHost_ = false;
     connected_ = false;
     status_ = Disconnected;
@@ -302,6 +305,7 @@ void ClayNetwork::leave()
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit statusChanged();
@@ -355,6 +359,11 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
     sendToPeer(nodeId, json);
 }
 
+void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
+{
+    sendToPeer(nodeId, json);
+}
+
 void ClayNetwork::onSignalingConnected(const QString &peerId)
 {
     qDebug() << "ClayNetwork: Signaling connected, peerId:" << peerId << "isHost:" << isHost_;
@@ -368,6 +377,8 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
 
     if (isHost_) {
         // Host is ready, announce network
+        hostId_ = nodeId_;
+        emit hostIdChanged();
         connected_ = true;
         status_ = Connected;
         setConnectionPhase("");
@@ -381,10 +392,13 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
         // Client: initiate connection to host
         setConnectionPhase("ice");
         iceStartMs_ = phaseTimer_.elapsed();
-        // In Local mode, host uses "HOST" as peerId; in Cloud mode, host uses networkId
-        QString hostPeerId = (signalingMode_ == Local) ? "HOST" : networkId_;
-        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostPeerId;
-        setupPeerConnection(hostPeerId, true);
+        // Over the embedded LAN signaling the host registers as "HOST"; over a
+        // PeerJS server (the public one or a custom signalingUrl) it registers
+        // with the network code - the same id the host reports as its nodeId
+        hostId_ = localClient_ ? QStringLiteral("HOST") : networkId_;
+        emit hostIdChanged();
+        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostId_;
+        setupPeerConnection(hostId_, true);
     }
 }
 
@@ -810,8 +824,15 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
         QJsonObject dataObj = obj["d"].toObject();
         QVariant data = dataObj.toVariantMap();
 
-        // Determine actual sender: use "from" field if present (relayed), else connection peer
-        QString actualFromId = obj.contains("from") ? obj["from"].toString() : fromId;
+        // The link vouches for the sender, not the message: only the host's
+        // relay may name another node, and that node must be in the roster
+        QString actualFromId = clay::network::attributeSender(
+            fromId, obj["from"].toString(), isHost_, hostId_, nodes_);
+        if (actualFromId.isEmpty()) {
+            emitDiag("datachannel", QString("Dropped message over %1 from unknown node %2")
+                     .arg(fromId.left(8), obj["from"].toString().left(8)));
+            return;
+        }
 
         // State updates carry a per-sender sequence number; the state channel
         // is unordered, so anything at or behind the newest accepted seq is

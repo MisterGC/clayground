@@ -38,6 +38,7 @@ class ClayNetwork : public QObject
 
     Q_PROPERTY(QString roomId READ networkId NOTIFY networkIdChanged)
     Q_PROPERTY(QString playerId READ nodeId NOTIFY nodeIdChanged)
+    Q_PROPERTY(QString hostId READ hostId NOTIFY hostIdChanged)
     Q_PROPERTY(bool isHost READ isHost NOTIFY isHostChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     Q_PROPERTY(int playerCount READ nodeCount NOTIFY nodeCountChanged)
@@ -82,6 +83,7 @@ public:
 
     QString networkId() const;
     QString nodeId() const;
+    QString hostId() const;
     bool isHost() const;
     bool connected() const;
     int nodeCount() const;
@@ -114,6 +116,9 @@ public slots:
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
     void sendTo(const QString &nodeId, const QVariant &data);
+    // Test hook: puts json on the wire to nodeId as it is, bypassing the
+    // message envelope - the net gym forges a sender id with it (#298)
+    void sendRaw(const QString &nodeId, const QString &json);
     void ping();
     int stateAgeMs(const QString &nodeId) const;
 
@@ -130,6 +135,7 @@ signals:
 
     void networkIdChanged();
     void nodeIdChanged();
+    void hostIdChanged();
     void isHostChanged();
     void connectedChanged();
     void nodeCountChanged();
@@ -203,6 +209,7 @@ private:
 
     QString networkId_;
     QString nodeId_;
+    QString hostId_;  // node id of the host, the same on every node
     QString lanSecret_;  // random part of a LAN code, checked by the host's signaling server
     bool isHost_ = false;
     bool connected_ = false;

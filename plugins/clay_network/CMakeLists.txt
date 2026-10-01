@@ -12,6 +12,7 @@ include(FetchContent)
 set(COMMON_SOURCES
     claywebaccess.cpp
     claywebaccess.h
+    sender.h
 )
 
 set(COMMON_QML

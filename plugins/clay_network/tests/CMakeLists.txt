@@ -11,6 +11,9 @@ add_executable(tst_network_serialization
 
 set_target_properties(tst_network_serialization PROPERTIES AUTOMOC ON)
 
+# sender.h - the sender attribution both backends share
+target_include_directories(tst_network_serialization PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
 target_link_libraries(tst_network_serialization PRIVATE
     Qt6::Core
     Qt6::Test

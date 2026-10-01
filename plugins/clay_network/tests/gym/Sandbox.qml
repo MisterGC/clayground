@@ -26,6 +26,13 @@ Item {
     readonly property var nodeList: net.nodes
     property string lastError: ""
 
+    // Every reliable message received, as {from, probe} - the sender
+    // attribution checks look up their probes here
+    property var msgLog: []
+    function msgsWithProbe(probe) {
+        return JSON.stringify(msgLog.filter(m => m.probe === probe))
+    }
+
     // Interpolated view on trackedSender's stream (-1 until data flows)
     property string trackedSender: ""
     readonly property real remoteX: sync.active && sync.value.x !== undefined
@@ -69,6 +76,9 @@ Item {
             gym.feed(data, sentAt)
         }
         onErrorOccurred: (message) => gym.lastError = message
+        onMessageReceived: (from, data) => {
+            gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe}])
+        }
     }
 
     StateInterpolator {

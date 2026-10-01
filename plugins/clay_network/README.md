@@ -44,6 +44,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 |----------|------|-------------|
 | `networkId` | string | Network code (share with others to join) |
 | `nodeId` | string | This node's unique ID |
+| `hostId` | string | The host's node ID, the same on every node |
 | `isHost` | bool | True if this node is the host |
 | `connected` | bool | True when connected |
 | `status` | enum | `Disconnected`, `Connecting`, `Connected`, `Error` |

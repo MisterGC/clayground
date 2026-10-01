@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QVariant>
 #include <QVariantMap>
+#include "sender.h"
 
 /**
  * @brief Unit tests for ClayNetwork message serialization.
@@ -29,6 +30,10 @@ private slots:
     void testRelayPreservesStatePayload();
     void testStateCarriesSendTime();
     void testRosterSystemMessage();
+    void testHostIgnoresClaimedSender();
+    void testJoinerTakesRelayedSenderFromHost();
+    void testMeshLinkIgnoresClaimedSender();
+    void testSenderOutsideRosterIsDropped();
 };
 
 void TestNetworkSerialization::testVariantMapToJson()
@@ -268,6 +273,47 @@ void TestNetworkSerialization::testRosterSystemMessage()
         QJsonDocument(joined).toJson(QJsonDocument::Compact)).object();
     QCOMPARE(reparsed["sys"].toString(), "node_joined");
     QCOMPARE(reparsed["nodeId"].toString(), "nodeC");
+}
+
+// Sender attribution (#298): the link vouches for the sender, the "from"
+// field only counts when a joiner receives it from the host.
+using clay::network::attributeSender;
+
+void TestNetworkSerialization::testHostIgnoresClaimedSender()
+{
+    const QStringList roster{"nodeB", "nodeC"};
+    // nodeC speaks as nodeB to the host: the host knows the link is nodeC's
+    QCOMPARE(attributeSender("nodeC", "nodeB", true, "HOST", roster), QString("nodeC"));
+    QCOMPARE(attributeSender("nodeC", "", true, "HOST", roster), QString("nodeC"));
+}
+
+void TestNetworkSerialization::testJoinerTakesRelayedSenderFromHost()
+{
+    const QStringList roster{"HOST", "nodeC"};
+    QCOMPARE(attributeSender("HOST", "nodeC", false, "HOST", roster), QString("nodeC"));
+    // No "from": the host's own message
+    QCOMPARE(attributeSender("HOST", "", false, "HOST", roster), QString("HOST"));
+    // Before the host is known, nothing can relay
+    QCOMPARE(attributeSender("HOST", "nodeC", false, "", roster), QString("HOST"));
+}
+
+void TestNetworkSerialization::testMeshLinkIgnoresClaimedSender()
+{
+    // WASM Mesh: nodeC has its own link to this joiner and claims to be nodeB
+    const QStringList roster{"ABC123", "nodeB", "nodeC"};
+    QCOMPARE(attributeSender("nodeC", "nodeB", false, "ABC123", roster), QString("nodeC"));
+    QCOMPARE(attributeSender("nodeC", "ABC123", false, "ABC123", roster), QString("nodeC"));
+}
+
+void TestNetworkSerialization::testSenderOutsideRosterIsDropped()
+{
+    const QStringList roster{"HOST", "nodeB"};
+    // A relayed "from" nobody joined as, or this node's own id
+    QVERIFY(attributeSender("HOST", "ghost", false, "HOST", roster).isEmpty());
+    QVERIFY(attributeSender("HOST", "self", false, "HOST", roster).isEmpty());
+    // A link from a peer that is not (or no longer) in the roster
+    QVERIFY(attributeSender("nodeX", "", true, "HOST", roster).isEmpty());
+    QVERIFY(attributeSender("nodeX", "nodeB", false, "HOST", roster).isEmpty());
 }
 
 QTEST_MAIN(TestNetworkSerialization)
