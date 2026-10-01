@@ -224,6 +224,16 @@ jobs:
           --click \
           --timeout 300
 
+    # Two browser pages host and join through clay-dev-server's signaling and
+    # run the net gym's link scenarios - 10 % loss, latency, a blackout, the
+    # host leaving - on the WASM backend (#301). The public PeerJS server is
+    # too flaky for CI, so the relay comes from this checkout.
+    - name: Net Gym (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        pip install wsproto
+        python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
+
     # A missing wsproto would drop the Cloud gym from ctest without a word
     - name: Check the Cloud Net Gym Is Registered (Desktop)
       if: matrix.qt-target == 'desktop'

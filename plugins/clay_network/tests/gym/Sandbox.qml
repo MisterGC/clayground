@@ -1,7 +1,8 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 // Net Gym - deterministic sandbox for multiplayer state-sync verification.
-// Driven by run_net_gym.py through the inspector protocol: one instance hosts,
+// Driven by run_net_gym.py through the inspector protocol, and in the
+// browser by run_net_gym_web.py through web/Main.qml: one instance hosts,
 // others join, everyone broadcasts a value that moves with the wall clock
 // at 20 Hz and interpolates a chosen sender's stream. The receiving side
 // can hold or jitter the tracked stream to exercise the interpolator, and
@@ -169,4 +170,18 @@ Item {
 
     // Expose network internals to the test driver
     readonly property var netRef: net
+
+    // The browser gym's stand-in for the inspector's eval (web/Main.qml):
+    // an object made here is compiled in this file's context, so the
+    // expression sees its ids and properties like an inspector eval does
+    function evalInScope(expr) {
+        let runner = Qt.createQmlObject(
+            "import QtQml\nQtObject { function run() { return (" + expr + ") } }",
+            gym, "gym-eval")
+        try {
+            return runner.run()
+        } finally {
+            runner.destroy()
+        }
+    }
 }

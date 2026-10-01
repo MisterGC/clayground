@@ -151,13 +151,13 @@ class IsolatedHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-def launch_browser(p, headless=True):
+def launch_browser(p, headless=True, args=None):
     for channel in ("chrome", None):
         try:
             if channel:
-                browser = p.chromium.launch(channel=channel, headless=headless)
+                browser = p.chromium.launch(channel=channel, headless=headless, args=args)
             else:
-                browser = p.chromium.launch(headless=headless)
+                browser = p.chromium.launch(headless=headless, args=args)
         except Exception as e:
             print(f"chromium launch (channel={channel}) failed: {e}")
             continue
