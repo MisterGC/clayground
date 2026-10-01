@@ -195,7 +195,11 @@ private:
     void assignChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc, bool isState);
     void sendToPeer(const QString &peerId, const QString &message);
     void sendStateToPeer(const QString &peerId, const QString &message);
-    void handleDataChannelMessage(const QString &fromId, const std::string &message);
+    void writeToPeer(const QString &peerId, const QByteArray &utf8, bool stateChannel);
+    // Called on libdatachannel's thread; stateChannel marks the lossy one
+    void handleDataChannelMessage(const QString &fromId, const std::string &message,
+                                  bool stateChannel);
+    void processMessage(const QString &fromId, const std::string &message);
     void handleSystemMessage(const QJsonObject &obj);
     void sendRosterTo(const QString &peerId);
     void hostBroadcastSystem(const QJsonObject &msg, const QString &exceptPeer = QString());
