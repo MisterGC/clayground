@@ -248,6 +248,8 @@ private:
     // is routinely reported twice by QFileSystemWatcher, and acting on both
     // runs the action twice - see processRequest().
     QString m_lastRequestId;
+    // Re-reads of a request.json that was empty or cut short (#301)
+    int m_requestRereads = 0;
 
     QString m_pendingFlagTimestamp;
     QString m_pendingFlagScreenshot;

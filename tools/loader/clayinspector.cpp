@@ -25,6 +25,7 @@
 #include <QQmlContext>
 #include <QQuickItemGrabResult>
 #include <QSaveFile>
+#include <QThread>
 #include <QDateTime>
 #include <QDebug>
 #include <QTimer>
@@ -47,6 +48,30 @@ static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
 // Qt/QML diagnostics carry their origin inline ("file:///a/Sandbox.qml:80:12:
 // TypeError: ..."). Pulling it out is best effort by design: a message without
 // a location keeps an empty file and line 0 rather than a guessed one.
+// Replaces path with data through QSaveFile, retrying a commit that fails.
+// On Windows the rename that replaces the file fails while another process
+// has it open, and a driver polls state.json and response.json many times a
+// second: a lost "ready" is never written again, a lost response is a request
+// that times out (#301). Ten attempts 10 ms apart outlast any single read.
+static bool replaceFile(const QString& path, const QByteArray& data)
+{
+    constexpr int kAttempts = 10;
+    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+        QSaveFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.write(data);
+            if (file.commit()) {
+                if (attempt > 1)
+                    qWarning() << "ClayInspector: replacing" << path << "took"
+                               << attempt << "attempts";
+                return true;
+            }
+        }
+        QThread::msleep(10);
+    }
+    return false;
+}
+
 static void parseDiagnosticLocation(const QString& msg, QString& file, int& line)
 {
     static const QRegularExpression re(
@@ -297,14 +322,9 @@ void ClayInspector::writeState()
     state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
-    QSaveFile file(m_inspectDir + "/state.json");
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "ClayInspector: cannot open state.json for write";
-        return;
-    }
-    file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
-    if (!file.commit())
-        qWarning() << "ClayInspector: failed to commit state.json";
+    if (!replaceFile(m_inspectDir + "/state.json",
+                     QJsonDocument(state).toJson(QJsonDocument::Indented)))
+        qWarning() << "ClayInspector: failed to write state.json";
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)
@@ -361,16 +381,28 @@ void ClayInspector::setControls(ClayTimeControl* timeCtrl,
     m_inputCtrl = inputCtrl;
 }
 
+// mkpath until the directory is there. Instances started together create
+// the shared .clay/inspect/i/ at the same moment, and on Windows the loser of
+// that race gets false back - unchecked, an instance never had a directory,
+// never wrote state.json and never answered (#301)
+static void makePath(const QString& path)
+{
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        if (QDir().mkpath(path) || QDir(path).exists())
+            return;
+        QThread::msleep(10);
+    }
+    qWarning() << "ClayInspector: cannot create" << path;
+}
+
 void ClayInspector::ensureInspectDir()
 {
-    QDir dir;
-    dir.mkpath(m_inspectDir);
+    makePath(m_inspectDir);
 }
 
 void ClayInspector::ensureCrewDir()
 {
-    QDir dir;
-    dir.mkpath(m_crewDir);
+    makePath(m_crewDir);
 }
 
 void ClayInspector::startWatching()
@@ -450,22 +482,33 @@ void ClayInspector::onRequestFileChanged(const QString& path)
     if (!m_watcher.files().contains(path))
         m_watcher.addPath(path);
 
+    QByteArray data;
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-        return;
+    if (file.open(QIODevice::ReadOnly)) {
+        data = file.readAll();
+        file.close();
+    }
 
-    auto data = file.readAll();
-    file.close();
-
-    if (data.trimmed().isEmpty())
-        return;
-
-    QJsonParseError parseError;
-    auto doc = QJsonDocument::fromJson(data, &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
+    QJsonParseError parseError{};
+    QJsonDocument doc;
+    if (!data.trimmed().isEmpty())
+        doc = QJsonDocument::fromJson(data, &parseError);
+    if (data.trimmed().isEmpty() || parseError.error != QJsonParseError::NoError) {
+        // Caught mid-write - a client truncates, then writes - or still held
+        // by the writer on Windows. The notification for the rest of the
+        // write can be folded into this one, and waiting for one that never
+        // comes left a request unanswered (#301): look again shortly. A
+        // request read twice is carried out once (processRequest's id check).
+        if (m_requestRereads++ < 10) {
+            QTimer::singleShot(20, this, [this, path]() { onRequestFileChanged(path); });
+            return;
+        }
+        m_requestRereads = 0;
+        if (!data.trimmed().isEmpty())
+            qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
         return;
     }
+    m_requestRereads = 0;
 
     processRequest(doc.object());
 }
@@ -1701,16 +1744,8 @@ void ClayInspector::writeResponse(const QJsonObject& response)
     // a half-written payload. Plain open(Truncate) briefly exposes an empty
     // file, which has been known to confuse QFileSystemWatcher-based waiters.
     QString responsePath = m_inspectDir + "/response.json";
-    QSaveFile file(responsePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "ClayInspector: cannot write response to" << responsePath;
-        return;
-    }
-
-    QJsonDocument doc(enveloped);
-    file.write(doc.toJson(QJsonDocument::Indented));
-    if (!file.commit())
-        qWarning() << "ClayInspector: failed to commit response to" << responsePath;
+    if (!replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented)))
+        qWarning() << "ClayInspector: failed to write response to" << responsePath;
 }
 
 QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
