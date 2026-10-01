@@ -1376,14 +1376,23 @@ void ClayNetwork::onError(const char* message)
 
 void ClayNetwork::onDisconnected()
 {
+    // A joiner's link to the host closed, and with it every node it knew:
+    // report them as left and keep no stream from them, as the native
+    // backend does for a peer that closes. A host gets here when only its
+    // signaling connection dropped (#299) - its joiners are not told gone.
+    const QStringList gone = isHost_ ? QStringList() : nodes_;
     connected_ = false;
     status_ = Disconnected;
     nodes_.clear();
+    for (const QString &id : gone)
+        forgetSender(id);
 
     emit connectedChanged();
     emit nodesChanged();
     emit nodeCountChanged();
     emit statusChanged();
+    for (const QString &id : gone)
+        emit playerLeft(id);
 }
 
 void ClayNetwork::onDiagnostic(const char* phase, const char* detail)
