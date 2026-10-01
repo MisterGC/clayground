@@ -21,6 +21,9 @@ namespace {
 // mistaken for each other (no 0/O, 1/I)
 const QString kCodeChars = QStringLiteral("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
 constexpr int kLanSecretLength = 8;
+// A peer quiet for this long gets a ping of its own (#299)
+constexpr int kQuietProbeMs = 500;
+constexpr int kQuietProbeTickMs = 250;
 // Signaling reconnects back off from the first to the last delay
 constexpr int kSignalingRetryFirstMs = 1000;
 constexpr int kSignalingRetryMaxMs = 4000;
@@ -48,6 +51,9 @@ ClayNetwork::ClayNetwork(QObject *parent)
     livenessCheck_.setSingleShot(true);
     livenessCheck_.setTimerType(Qt::PreciseTimer);
     QObject::connect(&livenessCheck_, &QTimer::timeout, this, &ClayNetwork::checkLiveness);
+    quietProbe_.setInterval(kQuietProbeTickMs);
+    quietProbe_.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&quietProbe_, &QTimer::timeout, this, &ClayNetwork::probeQuietPeers);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -377,6 +383,7 @@ void ClayNetwork::tearDown()
     conditioner_.clear();
     signalingRetry_.stop();
     livenessCheck_.stop();
+    quietProbe_.stop();
     signalingDown_ = false;
     signalingRetryMs_ = 0;
 
@@ -796,6 +803,9 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
             qDebug() << "ClayNetwork: Data channel open with" << peerId;
             if (peers_.contains(peerId)) {
                 peers_[peerId].ready = true;
+                peers_[peerId].lastHeardMs = clock_.elapsed();
+                if (gracePeriod_ > 0 && !quietProbe_.isActive())
+                    quietProbe_.start();
                 nodes_.append(peerId);
                 emit nodeCountChanged();
                 emit nodesChanged();
@@ -938,6 +948,7 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
         peers_[fromId].msgRecv++;
         peers_[fromId].bytesRecv += message.size();
         peers_[fromId].unansweredSinceMs = -1;
+        peers_[fromId].lastHeardMs = clock_.elapsed();
     }
 
     QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
@@ -1177,8 +1188,9 @@ void ClayNetwork::loseHost(const QString &reason)
 // within a round trip, so one that leaves a ping unanswered and sends nothing
 // else for gracePeriod is gone. Counting from the ping, not from the last
 // message, lets a link that was out for less than gracePeriod come back
-// whatever the ping cadence; a crash is noticed within gracePeriod plus one
-// ping interval.
+// whatever the ping cadence. A quiet peer is probed after 0.5 s
+// (probeQuietPeers), so a crash is noticed within gracePeriod plus about
+// 0.75 s.
 void ClayNetwork::checkLiveness()
 {
     if (gracePeriod_ <= 0)
@@ -1215,6 +1227,14 @@ void ClayNetwork::armLivenessCheck()
     livenessCheck_.start(int(qMax<qint64>(0, next - clock_.elapsed())));
 }
 
+QString ClayNetwork::pingJson() const
+{
+    QJsonObject msg;
+    msg["t"] = "p";
+    msg["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+    return QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+}
+
 void ClayNetwork::ping()
 {
     if (!connected_) return;
@@ -1224,16 +1244,38 @@ void ClayNetwork::ping()
         if (peer.ready && peer.unansweredSinceMs < 0)
             peer.unansweredSinceMs = sentAt;
     armLivenessCheck();
+    if (gracePeriod_ > 0 && !quietProbe_.isActive())
+        quietProbe_.start();
 
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-    QJsonObject msg;
-    msg["t"] = "p";
-    msg["ts"] = static_cast<double>(now);
-    QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
-
+    const QString json = pingJson();
     for (const QString &peerId : peers_.keys()) {
         sendToPeer(peerId, json);
     }
+}
+
+// Without it a crash right after a ping waits up to the next one, 2 s, for
+// its deadline to start. A peer that streams state is never quiet, so in a
+// game this sends nothing; in a quiet lobby it pings a peer every ~0.5 s.
+void ClayNetwork::probeQuietPeers()
+{
+    if (!connected_ || gracePeriod_ <= 0) {
+        quietProbe_.stop();
+        return;
+    }
+    const qint64 now = clock_.elapsed();
+    QStringList quiet;
+    for (auto it = peers_.begin(); it != peers_.end(); ++it) {
+        if (it->ready && it->unansweredSinceMs < 0 && now - it->lastHeardMs >= kQuietProbeMs) {
+            it->unansweredSinceMs = now;
+            quiet.append(it.key());
+        }
+    }
+    if (quiet.isEmpty())
+        return;
+    armLivenessCheck();
+    const QString json = pingJson();
+    for (const QString &peerId : quiet)
+        sendToPeer(peerId, json);
 }
 
 void ClayNetwork::cleanupPeer(const QString &peerId)

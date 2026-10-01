@@ -164,6 +164,16 @@ EM_JS(void, js_ping, (int instanceId), {
     });
 });
 
+// JavaScript: Ping one peer (a quiet one, #299)
+EM_JS(void, js_ping_peer, (int instanceId, const char* peerId), {
+    const state = Module.clayNetwork[instanceId];
+    if (!state) return;
+    const conn = state.connections.get(UTF8ToString(peerId));
+    if (conn && conn.open) {
+        conn.send({t: 'p', ts: Date.now()});
+    }
+});
+
 // JavaScript: Initialize helper functions on Module (called once)
 EM_JS(void, js_init_helpers, (), {
     if (Module.clayHelpers) return;
@@ -968,6 +978,10 @@ ClayNetwork::ClayNetwork(QObject *parent)
     livenessCheck_.setSingleShot(true);
     livenessCheck_.setTimerType(Qt::PreciseTimer);
     QObject::connect(&livenessCheck_, &QTimer::timeout, this, &ClayNetwork::checkLiveness);
+    // A link peer quiet for 0.5 s gets a ping of its own, checked every 250 ms
+    quietProbe_.setInterval(250);
+    quietProbe_.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&quietProbe_, &QTimer::timeout, this, &ClayNetwork::probeQuietPeers);
 #ifdef __EMSCRIPTEN__
     instanceId_ = nextInstanceId_++;
     g_networkRegistry[instanceId_] = this;
@@ -1198,6 +1212,10 @@ void ClayNetwork::setAcceptingJoins(bool accepting) {
 
 void ClayNetwork::heard(const QString &linkPeer) {
     unansweredSinceMs_.remove(linkPeer);
+    lastHeardMs_[linkPeer] = clock_.elapsed();
+    // From the first link on, not only from the first 2 s ping
+    if (gracePeriod_ > 0 && !quietProbe_.isActive())
+        quietProbe_.start();
 }
 
 bool ClayNetwork::refuseWhileSignalingDropped()
@@ -1297,7 +1315,9 @@ void ClayNetwork::tearDown(bool goodbye)
 #ifdef __EMSCRIPTEN__
     js_leave(instanceId_, goodbye ? 1 : 0);
     unansweredSinceMs_.clear();
+    lastHeardMs_.clear();
     livenessCheck_.stop();
+    quietProbe_.stop();
     signalingDown_ = false;
     setAcceptingJoins(false);
 
@@ -1349,6 +1369,7 @@ void ClayNetwork::loseHost(const QString &reason)
 void ClayNetwork::removeNode(const QString &nodeId)
 {
     unansweredSinceMs_.remove(nodeId);
+    lastHeardMs_.remove(nodeId);
     forgetSender(nodeId);
     if (nodes_.removeOne(nodeId)) {
         emit nodesChanged();
@@ -1647,8 +1668,9 @@ void ClayNetwork::onPong(const char* peerId, int rtt)
 // A crashed host never says goodbye (#299). Every peer answers a ping
 // within a round trip, so one that leaves a ping unanswered and sends nothing
 // else for gracePeriod is gone - counted from the ping, as on native, so a
-// link out for less than gracePeriod comes back. In a Star the links are the
-// host's to each joiner and a joiner's one to the host.
+// link out for less than gracePeriod comes back; with quiet peers probed
+// after 0.5 s a crash is noticed within gracePeriod plus about 0.75 s. In a
+// Star the links are the host's to each joiner and a joiner's one to the host.
 void ClayNetwork::checkLiveness()
 {
 #ifdef __EMSCRIPTEN__
@@ -1701,7 +1723,32 @@ void ClayNetwork::ping()
         if (!unansweredSinceMs_.contains(id))
             unansweredSinceMs_.insert(id, sentAt);
     armLivenessCheck();
+    if (gracePeriod_ > 0 && !quietProbe_.isActive())
+        quietProbe_.start();
 
     js_ping(instanceId_);
+#endif
+}
+
+void ClayNetwork::probeQuietPeers()
+{
+#ifdef __EMSCRIPTEN__
+    if (!connected_ || gracePeriod_ <= 0) {
+        quietProbe_.stop();
+        return;
+    }
+    const qint64 now = clock_.elapsed();
+    const QStringList links = isHost_ ? nodes_ : QStringList{hostId_};
+    bool probed = false;
+    for (const QString &id : links) {
+        if (unansweredSinceMs_.contains(id) || now - lastHeardMs_.value(id, now) < 500)
+            continue;
+        unansweredSinceMs_.insert(id, now);
+        QByteArray idBytes = id.toUtf8();
+        js_ping_peer(instanceId_, idBytes.constData());
+        probed = true;
+    }
+    if (probed)
+        armLivenessCheck();
 #endif
 }

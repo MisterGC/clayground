@@ -194,6 +194,9 @@ private:
     void heard(const QString &linkPeer);
     void checkLiveness();
     void armLivenessCheck();
+    // Pings a link peer that has gone quiet, so its deadline starts right
+    // after the silence does and not at the next 2 s ping
+    void probeQuietPeers();
     // A joiner's host left, went silent or its link closed: the network
     // is over, every node it knew is reported gone
     void loseHost(const QString &reason);
@@ -247,7 +250,9 @@ private:
     // first ping sent since it was last heard from.
     int gracePeriod_ = 5000;
     QHash<QString, qint64> unansweredSinceMs_;
+    QHash<QString, qint64> lastHeardMs_;
     QTimer livenessCheck_;
+    QTimer quietProbe_;
     bool acceptingJoins_ = false;
     bool signalingDown_ = false;
 

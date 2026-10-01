@@ -206,6 +206,8 @@ private:
         // clock_ time of the first ping sent since this peer was last
         // heard from, -1 while nothing is outstanding (#299)
         qint64 unansweredSinceMs = -1;
+        // clock_ time of the last message from this peer
+        qint64 lastHeardMs = 0;
     };
 
     void setupPeerConnection(const QString &peerId, bool isOfferer);
@@ -232,6 +234,10 @@ private:
     void sendGoodbye();
     void checkLiveness();
     void armLivenessCheck();
+    // Pings a peer that has gone quiet, so its deadline starts right after
+    // the silence does and not at the next 2 s ping
+    void probeQuietPeers();
+    QString pingJson() const;
     // leave() without the goodbye: everything back to Disconnected
     void tearDown();
     void setAcceptingJoins(bool accepting);
@@ -302,6 +308,7 @@ private:
     // A peer unheard for this long counts as gone (#299)
     int gracePeriod_ = 5000;
     QTimer livenessCheck_;
+    QTimer quietProbe_;
     bool acceptingJoins_ = false;
     // The Cloud signaling connection of a live network dropped; retries
     // re-register under the same id until it is back (#299)

@@ -213,12 +213,13 @@ Item {
         \qmlproperty int Network::gracePeriod
         \brief How long, in milliseconds, a node may go unheard before it counts as gone.
 
-        Every node pings its peers every 2 seconds and every peer answers,
-        so a peer that sends nothing at all for this long - not even a
-        pong - has crashed or lost its link: it is reported in nodeLeft().
-        On a joiner that peer is the host, and the network ends as when the
-        host leaves (see leave()). A crashed peer is noticed within the
-        grace period plus up to 2 seconds.
+        Every node pings its peers every 2 seconds, and a peer it has heard
+        nothing from for half a second right away; every peer answers. A
+        peer that leaves a ping unanswered for this long, sending nothing at
+        all - not even a pong - has crashed or lost its link: it is reported
+        in nodeLeft(). On a joiner that peer is the host, and the network
+        ends as when the host leaves (see leave()). A crashed peer is
+        noticed within the grace period plus about a second.
 
         A link that drops out for less than this and comes back loses no
         node. Default: 5000. 0 turns the check off; a node then leaves only
