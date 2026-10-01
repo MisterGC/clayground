@@ -3,6 +3,7 @@
 # Unit tests for clay_network plugin
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
+include(claytest)
 
 # Serialization tests (no network required)
 add_executable(tst_network_serialization
@@ -21,6 +22,29 @@ target_link_libraries(tst_network_serialization PRIVATE
 
 add_test(NAME network_serialization COMMAND tst_network_serialization)
 set_tests_properties(network_serialization PROPERTIES LABELS "network;unit")
+
+# Link conditioner (#301): what loss, latency, jitter, a bandwidth cap and a
+# blackout do to a packet, on a test clock. Qt Core only.
+add_executable(tst_link_conditioner
+    tst_link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+)
+
+set_target_properties(tst_link_conditioner PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_link_conditioner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_link_conditioner PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_link_conditioner COMMAND tst_link_conditioner)
+set_tests_properties(network_link_conditioner PROPERTIES LABELS "network;unit")
+
+# The browser's twin of it, link_conditioner.js, against the same cases
+clay_add_node_test(network_link_conditioner
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.test.js)
 
 # HTTP auth tests - drive ClayHttpClient against a local echo server and assert
 # the headers that actually go out. ClayWebAccess is compiled in and registered
