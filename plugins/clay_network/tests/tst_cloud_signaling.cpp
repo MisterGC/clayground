@@ -3,12 +3,16 @@
 // Native Cloud signaling against an in-process PeerJS server (#320): the
 // server's certificate is checked unless the opt-out is set, a host keeps its
 // signaling connection past the server's idle timeout, and a dropped
-// connection reaches the backend as signalingLost.
+// connection reaches the backend as signalingLost. The network goes on
+// meanwhile, and the node gets back on the server under the same id, also
+// while the server still refuses it as taken (#299).
 //
 // The server speaks the PeerJS subset the native client uses: OPEN on
 // connect, routing by "dst" with "src" stamped by the server, and - like the
 // PeerJS server's alive timeout - it closes a client it has not had a
-// HEARTBEAT from for idleTimeoutMs.
+// HEARTBEAT from for idleTimeoutMs. An id it kicked it can hold on to for a
+// while and refuse with ID-TAKEN, as a server does that has not noticed yet
+// that the old connection is gone.
 
 #include "claynetwork_native.h"
 
@@ -18,6 +22,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -131,9 +136,25 @@ public:
     }
 
     int idleCloses() const { return idleCloses_; }
+    int idTakenReplies() const { return idTaken_; }
 
-    // The server drops one client, as a restart or a network fault would
-    bool kick(const QString &id)
+    // How often the server registered id and said OPEN
+    int opens(const QString &id)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = opens_.find(id.toStdString());
+        return it == opens_.end() ? 0 : it->second;
+    }
+
+    bool registered(const QString &id)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return clients_.count(id.toStdString()) > 0;
+    }
+
+    // The server drops one client, as a restart or a network fault would,
+    // and refuses its id as taken for holdIdMs after
+    bool kick(const QString &id, int holdIdMs = 0)
     {
         std::shared_ptr<rtc::WebSocket> ws;
         {
@@ -143,6 +164,8 @@ public:
                 return false;
             ws = it->second.ws;
             clients_.erase(it);
+            held_[id.toStdString()] = std::chrono::steady_clock::now()
+                                      + std::chrono::milliseconds(holdIdMs);
         }
         ws->close();
         return true;
@@ -170,7 +193,16 @@ private:
             const std::string id = query.queryItemValue("id").toStdString();
             {
                 std::lock_guard<std::mutex> lock(mutex_);
+                auto held = held_.find(id);
+                if (held != held_.end() && std::chrono::steady_clock::now() < held->second) {
+                    ++idTaken_;
+                    ws->send(std::string("{\"type\":\"ID-TAKEN\",\"payload\":"
+                                         "{\"msg\":\"ID is taken\"}}"));
+                    ws->close();
+                    return;
+                }
                 clients_[id] = {ws, std::chrono::steady_clock::now(), 0};
+                ++opens_[id];
             }
             ws->onMessage([this, id](auto message) {
                 if (std::holds_alternative<std::string>(message))
@@ -233,10 +265,13 @@ private:
     std::unique_ptr<rtc::WebSocketServer> server_;
     std::mutex mutex_;
     std::map<std::string, Client> clients_;
+    std::map<std::string, std::chrono::steady_clock::time_point> held_;
+    std::map<std::string, int> opens_;
     std::vector<std::shared_ptr<rtc::WebSocket>> sockets_;
     std::thread reaper_;
     std::atomic<bool> stopping_{false};
     std::atomic<int> idleCloses_{0};
+    std::atomic<int> idTaken_{0};
 };
 
 FakePeerJSServer::Options tlsServer()
@@ -376,6 +411,91 @@ private slots:
         QCOMPARE(host.status(), ClayNetwork::Connected);
     }
 
+    // The host's signaling drops while a joiner is in (#299): the network
+    // goes on, the host takes no joiners meanwhile, and it gets back on the
+    // server under its code - after ID-TAKEN refusals for the id the server
+    // still holds - where the next joiner finds it
+    void signalingDropKeepsTheNetwork()
+    {
+        FakePeerJSServer server(FakePeerJSServer::Options{});
+        ClayNetwork host;
+        host.setSignalingUrl(server.url());
+        QSignalSpy created(&host, &ClayNetwork::roomCreated);
+        host.createRoom();
+        QVERIFY(created.wait(10000));
+        const QString code = host.networkId();
+        QVERIFY(host.acceptingJoins());
+
+        ClayNetwork joiner;
+        joiner.setSignalingUrl(server.url());
+        QSignalSpy got(&joiner, &ClayNetwork::messageReceived);
+        joiner.joinRoom(code);
+        QTRY_VERIFY_WITH_TIMEOUT(joiner.connected() && host.nodes().size() == 1, 20000);
+        QVERIFY(!joiner.acceptingJoins());
+
+        QSignalSpy lost(&host, &ClayNetwork::signalingLost);
+        QSignalSpy errors(&host, &ClayNetwork::errorOccurred);
+        QSignalSpy left(&host, &ClayNetwork::playerLeft);
+        QSignalSpy roomCreatedAgain(&host, &ClayNetwork::roomCreated);
+        QVERIFY(server.kick(code, 2500));
+
+        QVERIFY(lost.wait(5000));
+        QVERIFY(!host.acceptingJoins());
+        QCOMPARE(host.status(), ClayNetwork::Connected);
+        QVERIFY(host.connected());
+        QCOMPARE(host.nodes().size(), 1);
+
+        host.broadcast(QVariantMap{{"probe", "while the server is gone"}});
+        QVERIFY(got.wait(5000));
+
+        QElapsedTimer t;
+        t.start();
+        QTRY_VERIFY_WITH_TIMEOUT(host.acceptingJoins(), 15000);
+        qInfo() << "host back on the server" << t.elapsed() << "ms after the drop was seen,"
+                << server.idTakenReplies() << "ID-TAKEN refusals on the way";
+        QVERIFY(server.idTakenReplies() >= 1);
+        QVERIFY(server.registered(code));
+        QCOMPARE(host.networkId(), code);
+        QCOMPARE(lost.count(), 1);
+        QCOMPARE(errors.count(), 0);
+        QCOMPARE(left.count(), 0);
+        QCOMPARE(roomCreatedAgain.count(), 0);
+        QCOMPARE(host.status(), ClayNetwork::Connected);
+
+        ClayNetwork late;
+        late.setSignalingUrl(server.url());
+        late.joinRoom(code);
+        QTRY_VERIFY_WITH_TIMEOUT(late.connected() && host.nodes().size() == 2, 20000);
+    }
+
+    // A joiner's signaling drops: it stays in the network and gets back on
+    // the server under its own id
+    void joinerSignalingDropKeepsTheNetwork()
+    {
+        FakePeerJSServer server(FakePeerJSServer::Options{});
+        ClayNetwork host;
+        host.setSignalingUrl(server.url());
+        QSignalSpy created(&host, &ClayNetwork::roomCreated);
+        host.createRoom();
+        QVERIFY(created.wait(10000));
+
+        ClayNetwork joiner;
+        joiner.setSignalingUrl(server.url());
+        joiner.joinRoom(host.networkId());
+        QTRY_VERIFY_WITH_TIMEOUT(joiner.connected(), 20000);
+        const QString id = joiner.nodeId();
+
+        QSignalSpy lost(&joiner, &ClayNetwork::signalingLost);
+        QSignalSpy errors(&joiner, &ClayNetwork::errorOccurred);
+        QVERIFY(server.kick(id));
+        QVERIFY(lost.wait(5000));
+        QTRY_VERIFY_WITH_TIMEOUT(server.registered(id), 10000);
+        QCOMPARE(joiner.nodeId(), id);
+        QCOMPARE(joiner.status(), ClayNetwork::Connected);
+        QCOMPARE(errors.count(), 0);
+        QVERIFY(!joiner.acceptingJoins());
+    }
+
     // linkConditions.dropSignaling (#301) cuts a live connection the way a
     // server drop does, and an attempt made while it is set does not get out
     void conditionerDropsSignaling()
@@ -395,6 +515,12 @@ private slots:
         QCOMPARE(lost.count(), 1);
         QCOMPARE(errors.count(), 0);
         QCOMPARE(host.status(), ClayNetwork::Connected);
+        QVERIFY(!host.acceptingJoins());
+
+        // No reconnect gets through while the server is unreachable (#299)
+        QTest::qWait(3000);
+        QVERIFY(!host.acceptingJoins());
+        QCOMPARE(server.opens(host.networkId()), 1);
 
         ClayNetwork joiner;
         joiner.setSignalingUrl(server.url());
@@ -404,6 +530,13 @@ private slots:
         QCOMPARE(joinErrors.count(), 1);
         QVERIFY(joinErrors.first().first().toString().contains("unreachable"));
         QCOMPARE(joiner.status(), ClayNetwork::Error);
+
+        // Once it can be reached again, the host is back on it
+        host.setLinkConditions({});
+        QTRY_VERIFY_WITH_TIMEOUT(host.acceptingJoins(), 10000);
+        QCOMPARE(server.opens(host.networkId()), 2);
+        QCOMPARE(errors.count(), 0);
+        QCOMPARE(lost.count(), 1);
     }
 
     void leaveIsNotALoss()

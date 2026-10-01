@@ -180,3 +180,33 @@ set_tests_properties(network_local_signaling PROPERTIES
     LABELS "network;integration"
     TIMEOUT 120
 )
+
+# Leaving (#299): a goodbye reaches the other side at once, a silent host is
+# dropped from missing pongs within the grace period plus a ping interval, a
+# link out for less than the grace period loses nobody. Two backends in one
+# process over Local signaling.
+add_executable(tst_peer_liveness
+    tst_peer_liveness.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_peer_liveness PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_peer_liveness PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_peer_liveness PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_peer_liveness COMMAND tst_peer_liveness)
+set_tests_properties(network_peer_liveness PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)

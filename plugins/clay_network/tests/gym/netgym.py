@@ -9,6 +9,10 @@ Network.linkConditions and look at one joiner that tracks the host's
 stream. They measure on the joiner alone: the gym's motion source is a
 function of the wall clock, so the joiner knows which sender moment its
 view shows without reading the host at the same time.
+
+The leaving scenarios (#299) take their times from the pages' own clocks
+(Sandbox.qml's leftAt, disconnectedAt): the driver's polling is far coarser
+than the second they are checked against.
 """
 
 import json
@@ -198,11 +202,25 @@ def scenario_blackout(host, joiner, host_id, dark=1.5):
     check_tracking(joiner, "blackout: after it", 2.0)
 
 
+# Network.gracePeriod's default, and the ping interval in Network.qml
+GRACE_MS = 5000
+PING_MS = 2000
+
+
 def scenario_host_leaves(host, joiners, host_id):
-    """The host leaves; every joiner drops it and its stream."""
-    host.eval(["netRef.leave()"])
+    """The host leaves; every joiner hears its goodbye, ends Disconnected with
+    errorOccurred within 1 s, and drops it and its stream."""
+    host.eval(["leaveNow()"])
+    left_at = host.eval1("leftAt") or 0
     start = time.time()
     for name, j in joiners:
+        ended = wait_for(lambda: (j.eval1("disconnectedAt") or 0) > 0, 10)
+        took = (j.eval1("disconnectedAt") or 0) - left_at
+        err = j.eval1("lastError")
+        check(f"host leaves: {name} is Disconnected with errorOccurred within 1 s",
+              ended and left_at > 0 and 0 <= took < 1000 and j.eval1("status") == 0
+              and err == "The host left the network",
+              f"after {fmt(took, 0)} ms, status={j.eval1('status')} lastError={err!r}")
         gone = wait_for(lambda: host_id not in (j.eval1("JSON.stringify(nodeList)") or ""), 30)
         took = time.time() - start
         check(f"host leaves: {name} drops the host from its nodes",
@@ -212,3 +230,97 @@ def scenario_host_leaves(host, joiners, host_id):
         check(f"host leaves: {name} keeps no stream from it",
               j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,
               f"stateAgeMs={j.eval1(f'netRef.stateAgeMs({json.dumps(host_id)})')}")
+
+
+def scenario_short_outage(host, joiners, outage_ms=GRACE_MS - 1500):
+    """The host's link is out for less than the grace period, then back:
+    nobody is reported as left, on either side (#299)."""
+    host.eval(["resetLogs()"])
+    for _, j in joiners:
+        j.eval(["resetLogs()"])
+    before = host.eval1("nodeList.length")
+    host.eval([f"outage({outage_ms})"])
+    # the outage, then long enough for every check that was due to run
+    time.sleep((outage_ms + GRACE_MS + PING_MS + 500) / 1000)
+    host_left = json.loads(host.eval1("JSON.stringify(leftLog)") or "[]")
+    check(f"outage {outage_ms} ms: the host loses no joiner",
+          not host_left and host.eval1("nodeList.length") == before,
+          f"nodeLeft={host_left} nodes {before} -> {host.eval1('nodeList.length')}")
+    for name, j in joiners:
+        left = json.loads(j.eval1("JSON.stringify(leftLog)") or "[]")
+        check(f"outage {outage_ms} ms: {name} stays in the network",
+              not left and j.eval1("connected") is True and not j.eval1("lastError"),
+              f"nodeLeft={left} connected={j.eval1('connected')} "
+              f"lastError={j.eval1('lastError')!r}")
+
+
+def scenario_signaling_drop(host, joiner, code, late=None):
+    """The host's Cloud signaling drops (#299): the network goes on, the host
+    takes no joiners meanwhile, and once the server can be reached again the
+    host is back on it under its code - where late, if given, joins."""
+    host.eval(["resetLogs()"])
+    joiner.eval(["resetLogs()"])
+    check("signaling drop: the host takes joiners before",
+          host.eval1("netRef.acceptingJoins") is True)
+    host.eval(["netRef.linkConditions = ({dropSignaling: true})"])
+    lost = wait_for(lambda: host.eval1("signalingLosses") == 1
+                    and host.eval1("netRef.acceptingJoins") is False, 10)
+    check("signaling drop: signalingLost, and acceptingJoins is false",
+          lost, f"signalingLosses={host.eval1('signalingLosses')} "
+                f"acceptingJoins={host.eval1('netRef.acceptingJoins')}")
+    host.eval(["sendProbes('nosignaling', 5)"])
+    arrived = wait_for(lambda: len(probes(joiner, "nosignaling")) >= 5, 5)
+    check("signaling drop: the network goes on - status, nodes, messages",
+          arrived and host.eval1("status") == 2 and host.eval1("connected") is True
+          and joiner.eval1("connected") is True
+          and not json.loads(joiner.eval1("JSON.stringify(leftLog)") or "[]"),
+          f"messages={len(probes(joiner, 'nosignaling'))}/5 host status={host.eval1('status')} "
+          f"joiner connected={joiner.eval1('connected')}")
+    time.sleep(3.0)
+    check("signaling drop: no reconnect gets through while the server is unreachable",
+          host.eval1("netRef.acceptingJoins") is False)
+
+    host.eval(["netRef.linkConditions = ({})"])
+    start = time.time()
+    back = wait_for(lambda: host.eval1("netRef.acceptingJoins") is True, 15)
+    took = time.time() - start
+    check("signaling drop: the host is back on the server once it can reach it",
+          back and host.eval1("status") == 2 and not host.eval1("lastError")
+          and host.eval1("signalingLosses") == 1 and host.eval1("netId") == code,
+          f"after {took:.1f}s, status={host.eval1('status')} "
+          f"lastError={host.eval1('lastError')!r} netId={host.eval1('netId')}")
+    if late:
+        name, inst = late
+        inst.eval([f"joinNet('{code}')"])
+        check(f"signaling drop: {name} joins the host after it is back",
+              wait_for(lambda: inst.eval1("connected") is True, 25),
+              f"status={inst.eval1('status')} lastError={inst.eval1('lastError')!r}")
+
+
+def scenario_host_killed(kill, host_id, joiners, how):
+    """The host dies without a word (#299): every joiner ends Disconnected
+    with errorOccurred within the grace period plus one ping interval of the
+    host going silent - the last thing the joiner received from it, on the
+    joiner's clock. The driver's own kill time also counts how long the
+    kill took, which a slow runner stretches; it is reported, not checked."""
+    for _, j in joiners:
+        j.eval(["resetLogs()"])
+    limit = GRACE_MS + PING_MS
+    killed_at = time.time() * 1000
+    kill()
+    for name, j in joiners:
+        ended = wait_for(lambda: (j.eval1("disconnectedAt") or 0) > 0, limit / 1000 + 10)
+        ended_at = j.eval1("disconnectedAt") or 0
+        silent_at = j.eval1("lastFromHostAt") or 0
+        took = ended_at - silent_at
+        err = j.eval1("lastError")
+        check(f"host {how}: {name} is Disconnected with errorOccurred within "
+              f"grace + ping ({limit} ms) of the host going silent",
+              ended and silent_at > 0 and 0 <= took <= limit
+              and j.eval1("status") == 0 and bool(err),
+              f"after {fmt(took, 0)} ms of silence ({fmt(ended_at - killed_at, 0)} ms "
+              f"after the driver began the kill), lastError={err!r}")
+        left = json.loads(j.eval1("JSON.stringify(leftLog)") or "[]")
+        check(f"host {how}: {name} reports it in nodeLeft and keeps no stream",
+              host_id in left and j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,
+              f"nodeLeft={left}")

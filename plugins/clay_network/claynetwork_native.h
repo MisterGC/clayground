@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QHash>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <qqmlregistration.h>
 #include <memory>
 #include "link_conditioner.h"
@@ -59,6 +60,8 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
     Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
     Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
+    Q_PROPERTY(int gracePeriod READ gracePeriod WRITE setGracePeriod NOTIFY gracePeriodChanged)
+    Q_PROPERTY(bool acceptingJoins READ acceptingJoins NOTIFY acceptingJoinsChanged)
 
 public:
     enum Topology {
@@ -115,6 +118,9 @@ public:
     QVariantMap syncStats() const;
     QVariantMap linkConditions() const;
     void setLinkConditions(const QVariantMap &conditions);
+    int gracePeriod() const;
+    void setGracePeriod(int ms);
+    bool acceptingJoins() const;
 
 public slots:
     void createRoom();
@@ -126,6 +132,8 @@ public slots:
     // Test hook: puts json on the wire to nodeId as it is, bypassing the
     // message envelope - the net gym forges a sender id with it (#298)
     void sendRaw(const QString &nodeId, const QString &json);
+    // Sends a ping to every peer. A peer that leaves one unanswered, and
+    // sends nothing else either, for gracePeriod ms is dropped (#299)
     void ping();
     int stateAgeMs(const QString &nodeId) const;
 
@@ -139,7 +147,8 @@ signals:
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
     // The Cloud signaling connection dropped after it was up. Peers already
-    // connected stay; a host takes no new joiners until it hosts again (#320)
+    // connected stay; the node reconnects under the same id, and a host
+    // takes no new joiners until it is back (acceptingJoins, #299)
     void signalingLost();
     void diagnosticMessage(const QString &phase, const QString &detail);
 
@@ -165,6 +174,8 @@ signals:
     void peerStatsChanged();
     void syncStatsChanged();
     void linkConditionsChanged();
+    void gracePeriodChanged();
+    void acceptingJoinsChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -192,6 +203,11 @@ private:
         qint64 bytesRecv = 0;
         qint64 stateSent = 0;
         qint64 stateRecv = 0;
+        // clock_ time of the first ping sent since this peer was last
+        // heard from, -1 while nothing is outstanding (#299)
+        qint64 unansweredSinceMs = -1;
+        // clock_ time of the last message from this peer
+        qint64 lastHeardMs = 0;
     };
 
     void setupPeerConnection(const QString &peerId, bool isOfferer);
@@ -210,6 +226,23 @@ private:
     void hostBroadcastSystem(const QJsonObject &msg, const QString &exceptPeer = QString());
     void forgetSender(const QString &nodeId);
     void cleanupPeer(const QString &peerId);
+    // A peer left - said goodbye, went silent or its connection failed. On
+    // a Star joiner the host leaving ends the network (loseHost).
+    void peerGone(const QString &peerId, const QString &reason);
+    void dropPeer(const QString &peerId);
+    void loseHost(const QString &reason);
+    void sendGoodbye();
+    void checkLiveness();
+    void armLivenessCheck();
+    // Pings a peer that has gone quiet, so its deadline starts right after
+    // the silence does and not at the next 2 s ping
+    void probeQuietPeers();
+    QString pingJson() const;
+    // leave() without the goodbye: everything back to Disconnected
+    void tearDown();
+    void setAcceptingJoins(bool accepting);
+    void scheduleSignalingRetry();
+    void retrySignaling();
     QString generateNetworkCode() const;
     static QString generateLanSecret();
     void connectLocalSignaling();
@@ -271,4 +304,15 @@ private:
     // Simulated link for tests (#301): everything sent and received over
     // the data channels passes through it
     clay::network::LinkConditioner conditioner_;
+
+    // A peer unheard for this long counts as gone (#299)
+    int gracePeriod_ = 5000;
+    QTimer livenessCheck_;
+    QTimer quietProbe_;
+    bool acceptingJoins_ = false;
+    // The Cloud signaling connection of a live network dropped; retries
+    // re-register under the same id until it is back (#299)
+    bool signalingDown_ = false;
+    int signalingRetryMs_ = 0;
+    QTimer signalingRetry_;
 };

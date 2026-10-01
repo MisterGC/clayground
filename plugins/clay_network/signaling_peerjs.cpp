@@ -197,6 +197,13 @@ void PeerJSSignaling::onWsMessage(const std::string &message)
         QString errorMsg = obj["payload"].toObject()["msg"].toString();
         emit errorOccurred(errorMsg);
     }
+    else if (type == "ID-TAKEN") {
+        // The server still holds the id - after a drop, until it notices
+        // the old socket is gone. The close that follows is no second error.
+        errorReported_ = true;
+        QString errorMsg = obj["payload"].toObject()["msg"].toString();
+        emit errorOccurred(errorMsg.isEmpty() ? QStringLiteral("ID-TAKEN") : errorMsg);
+    }
     else if (type == "HEARTBEAT") {
         // The client keeps the beat (heartbeat_); answering an echo here
         // would ping-pong with a server that echoes it (clay-dev-server)

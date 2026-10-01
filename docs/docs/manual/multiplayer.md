@@ -121,9 +121,15 @@ relays traffic between joiners (`autoRelay`). Consequences:
   don't assume the host's id looks a certain way - it is `"HOST"` with
   Local signaling and the network code with Cloud.
 - With Cloud signaling, a host is joinable only while its connection to the
-  signaling server is up. A native host keeps it alive on its own; if it
-  drops anyway, `signalingLost()` fires - the nodes already in stay
-  connected, but nobody new gets in until the host hosts again.
+  signaling server is up. A host keeps it alive on its own; if it drops
+  anyway, `signalingLost()` fires - the nodes already in stay connected,
+  `acceptingJoins` is false, and the host reconnects under the same code
+  on its own. Show "not open for joiners" while it is false.
+- When the host leaves - `leave()`, a crash, a lost connection - every
+  joiner's network ends: `nodeLeft` for every node, then `status`
+  `Disconnected` with `errorOccurred`. A clean leave arrives at once, a
+  silent host after `gracePeriod` (5 s) plus under a second. Handle that error
+  as "the session is over", not as a failed join.
 - A sender id cannot be forged. Each message is attributed to the node at
   the other end of the connection it came over; only the host's relay may
   name another sender, and only one that is in the receiver's roster -
@@ -207,3 +213,4 @@ desktop and in the browser, so a test written against it covers both.
 - [ ] Remote avatars spawned per `nodes` entry, keyed by node id
 - [ ] `NetworkMonitor` visible in dev builds
 - [ ] Played once with `linkConditions` set to loss, latency and a blackout
+- [ ] Joiners end the session on the host's `errorOccurred`, and quit with `leave()`

@@ -6,7 +6,9 @@
 // others join, everyone broadcasts a value that moves with the wall clock
 // at 20 Hz and interpolates a chosen sender's stream. The receiving side
 // can hold or jitter the tracked stream to exercise the interpolator, and
-// Network.linkConditions puts any node behind a bad link (#301).
+// Network.linkConditions puts any node behind a bad link (#301). How a node
+// leaves, goes silent or loses signaling is timed here, on the page's own
+// clock, so a driver's polling does not blur it (#299).
 
 import QtQuick
 import Clayground.Network
@@ -38,6 +40,24 @@ Item {
     property var msgLog: []
     // Every nodeLeft, in order
     property var leftLog: []
+    // Leaving and signaling (#299), in Date.now() ms; 0 = not yet
+    property int signalingLosses: 0
+    property real leftAt: 0          // this node called leave()
+    property real disconnectedAt: 0  // this node's status turned Disconnected
+    // The last state or message from the host: it broadcasts at 20 Hz, so
+    // this is when it went silent, on the receiver's own clock
+    property real lastFromHostAt: 0
+    function resetLogs() {
+        leftLog = []; lastError = ""; signalingLosses = 0; leftAt = 0; disconnectedAt = 0
+    }
+    function leaveNow() { leftAt = Date.now(); net.leave() }
+    // The link goes dark for exactly ms, timed here rather than by the driver
+    function outage(ms) {
+        net.linkConditions = ({blackout: true})
+        _outageEnd.interval = ms
+        _outageEnd.restart()
+    }
+    Timer { id: _outageEnd; onTriggered: net.linkConditions = ({}) }
     function msgsWithProbe(probe) {
         return JSON.stringify(msgLog.filter(m => m.probe === probe))
     }
@@ -84,11 +104,12 @@ Item {
     }
 
     function hostUp() {
+        resetLogs()
         net.signalingMode = gym.signalingUrl ? Network.SignalingMode.Cloud
                                              : Network.SignalingMode.Local
         net.host()
     }
-    function joinNet(code) { lastError = ""; net.join(code) }
+    function joinNet(code) { resetLogs(); net.join(code) }
     function trackSender(id) {
         gym.trackedSender = id; sync.reset(); held = []; resetSpeedStats(); resetTrackStats()
     }
@@ -100,6 +121,7 @@ Item {
         topology: Network.Topology.Star
         signalingUrl: gym.signalingUrl
         onStateReceived: (from, data, sentAt) => {
+            if (from === net.hostId) gym.lastFromHostAt = Date.now()
             if (from !== gym.trackedSender) return
             if (gym.stallMs > 0 || gym.jitterMs > 0) {
                 let release = Date.now() + (gym.jitterMs > 0 ? Math.random() * gym.jitterMs : 0)
@@ -109,8 +131,11 @@ Item {
             gym.feed(data, sentAt)
         }
         onErrorOccurred: (message) => gym.lastError = message
+        onSignalingLost: gym.signalingLosses++
+        onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()
         onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])
         onMessageReceived: (from, data) => {
+            if (from === net.hostId) gym.lastFromHostAt = Date.now()
             gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i}])
         }
     }

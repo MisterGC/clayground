@@ -8,7 +8,9 @@ joins, through clay-dev-server's PeerJS relay - the public PeerJS server is
 too flaky for CI. The runner drives the pages over HTTP (web/Main.qml says
 how) with the same expressions and the same link scenarios as the native
 gym (netgym.py): state flow, interpolation on a clean link, 10 % loss,
-latency with jitter, a blackout, and the host leaving.
+latency with jitter, a blackout, an outage shorter than the grace period, a
+signaling drop the host comes back from, the host leaving, and - hosting
+again - the host page crashing (#299).
 
 Usage:
     python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
@@ -31,7 +33,8 @@ import uuid
 
 import netgym
 from netgym import (check, wait_for, check_tracking, scenario_loss, scenario_latency,
-                    scenario_blackout, scenario_host_leaves)
+                    scenario_blackout, scenario_host_leaves, scenario_short_outage,
+                    scenario_signaling_drop, scenario_host_killed)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "webdojo", "tests"))
@@ -245,8 +248,33 @@ def run(H, J, signaling_url, timeout):
     scenario_loss(H, J, host_id)
     scenario_latency(H, J, host_id)
     scenario_blackout(H, J, host_id)
+    scenario_short_outage(H, [("joiner", J)])
+    scenario_signaling_drop(H, J, code)
     scenario_host_leaves(H, [("joiner", J)], host_id)
+
+    # The host hosts again and its page crashes: no goodbye, no closed
+    # connection a script could still send - only silence (#299)
+    H.eval(["hostUp()"])
+    rehosted = wait_for(lambda: H.eval1("netId") not in (None, "")
+                        and H.eval1("connected") is True, 30)
+    code2 = H.eval1("netId")
+    J.eval([f"joinNet('{code2}')"])
+    rejoined = wait_for(lambda: J.eval1("connected") is True, 45)
+    if check("host killed: the host hosts again and the joiner rejoins",
+             rehosted and rejoined, str(code2)):
+        scenario_host_killed(lambda: crash_page(H.page), J.eval1("netRef.hostId"),
+                             [("joiner", J)], "page crashed")
     return True
+
+
+def crash_page(page):
+    """Crash the page's renderer, the browser's kill -9. The DevTools
+    Page.crash never answers once the page is gone, so the crash comes from
+    a navigation Chrome answers by crashing, which fails at once."""
+    try:
+        page.goto("chrome://crash", timeout=5000)
+    except Exception:
+        pass  # "page crashed" is the point
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QHash>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <qqmlregistration.h>
 #include "link_conditioner.h"
 
@@ -51,6 +52,8 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
     Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
     Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
+    Q_PROPERTY(int gracePeriod READ gracePeriod WRITE setGracePeriod NOTIFY gracePeriodChanged)
+    Q_PROPERTY(bool acceptingJoins READ acceptingJoins NOTIFY acceptingJoinsChanged)
 
 public:
     enum Topology {
@@ -107,6 +110,9 @@ public:
     QVariantMap syncStats() const;
     QVariantMap linkConditions() const;
     void setLinkConditions(const QVariantMap &conditions);
+    int gracePeriod() const;
+    void setGracePeriod(int ms);
+    bool acceptingJoins() const;
 
 public slots:
     void createRoom();
@@ -118,6 +124,8 @@ public slots:
     // Test hook: puts json on the wire to nodeId as it is, bypassing the
     // message envelope - the net gym forges a sender id with it (#298)
     void sendRaw(const QString &nodeId, const QString &json);
+    // Sends a ping to every peer. A peer that leaves one unanswered, and
+    // sends nothing else either, for gracePeriod ms is dropped (#299)
     void ping();
     int stateAgeMs(const QString &nodeId) const;
 
@@ -147,8 +155,8 @@ signals:
     void iceServersChanged();
     void signalingUrlChanged();
     void verifySignalingCertificateChanged();
-    // Declared for Network.qml; not emitted on WASM yet, where a signaling
-    // drop currently ends in status Disconnected (#320)
+    // The PeerJS server connection dropped after it was up; the data
+    // connections stay and PeerJS reconnects under the same id (#299)
     void signalingLost();
     void verboseChanged();
     void connectionPhaseChanged();
@@ -157,6 +165,8 @@ signals:
     void peerStatsChanged();
     void syncStatsChanged();
     void linkConditionsChanged();
+    void gracePeriodChanged();
+    void acceptingJoinsChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -168,6 +178,8 @@ public:
     void onSystem(const char* json);
     void onError(const char* errorMsg);
     void onDisconnected();
+    void onSignalingLost();
+    void onSignalingRestored();
     void onDiagnostic(const char* phase, const char* detail);
     void onPong(const char* peerId, int rtt);
 
@@ -179,6 +191,19 @@ private:
     // True (after reporting the error) when linkConditions.dropSignaling
     // makes the signaling server unreachable
     bool refuseWhileSignalingDropped();
+    void heard(const QString &linkPeer);
+    void checkLiveness();
+    void armLivenessCheck();
+    // Pings a link peer that has gone quiet, so its deadline starts right
+    // after the silence does and not at the next 2 s ping
+    void probeQuietPeers();
+    // A joiner's host left, went silent or its link closed: the network
+    // is over, every node it knew is reported gone
+    void loseHost(const QString &reason);
+    void removeNode(const QString &nodeId);
+    // leave() without the goodbye: everything back to Disconnected
+    void tearDown(bool goodbye);
+    void setAcceptingJoins(bool accepting);
 
     QString networkId_;
     QString nodeId_;
@@ -219,6 +244,17 @@ private:
     // conditioned in JS by link_conditioner.js, which sees every packet -
     // relays and pongs never pass through C++ here.
     clay::network::LinkConditioner conditions_;
+
+    // A peer that leaves a ping unanswered this long counts as gone (#299).
+    // Keyed by the peer at the other end of a link: the clock_ time of the
+    // first ping sent since it was last heard from.
+    int gracePeriod_ = 5000;
+    QHash<QString, qint64> unansweredSinceMs_;
+    QHash<QString, qint64> lastHeardMs_;
+    QTimer livenessCheck_;
+    QTimer quietProbe_;
+    bool acceptingJoins_ = false;
+    bool signalingDown_ = false;
 
     int instanceId_ = -1;
     static int nextInstanceId_;
