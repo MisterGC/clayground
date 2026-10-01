@@ -777,6 +777,11 @@ QString ClayNetwork::nodeId() const
     return nodeId_;
 }
 
+QString ClayNetwork::hostId() const
+{
+    return hostId_;
+}
+
 bool ClayNetwork::isHost() const
 {
     return isHost_;
@@ -988,11 +993,18 @@ void ClayNetwork::joinRoom(const QString &networkId)
         return;
     }
 
+    // Kept here as well as in JS: the code is the host's PeerJS id
+    // (js_create_network), so a joiner's hostId and roster entry come from it
+    networkId_ = networkId.toUpper();
+    hostId_ = networkId_;
+    emit networkIdChanged();
+    emit hostIdChanged();
+
     status_ = Connecting;
     setConnectionPhase("signaling");
     emit statusChanged();
 
-    QByteArray codeBytes = networkId.toUpper().toUtf8();
+    QByteArray codeBytes = networkId_.toUtf8();
     js_join_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_));
 #else
     Q_UNUSED(networkId)
@@ -1007,6 +1019,7 @@ void ClayNetwork::leave()
 
     networkId_.clear();
     nodeId_.clear();
+    hostId_.clear();
     isHost_ = false;
     connected_ = false;
     nodes_.clear();
@@ -1023,6 +1036,7 @@ void ClayNetwork::leave()
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit nodesChanged();
@@ -1097,6 +1111,8 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
 {
     networkId_ = QString::fromUtf8(networkId);
     nodeId_ = networkId_;
+    // The host's PeerJS id is the network code (js_create_network)
+    hostId_ = networkId_;
     isHost_ = true;
     connected_ = true;
     status_ = Connected;
@@ -1105,6 +1121,7 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit nodesChanged();
@@ -1120,7 +1137,7 @@ void ClayNetwork::onConnectedToNetwork(const char* nodeId)
     status_ = Connected;
     setConnectionPhase("");
     nodes_.clear();
-    nodes_.append(networkId_); // Add host; other joiners arrive via roster
+    nodes_.append(hostId_); // Add host; other joiners arrive via roster
 
     emit nodeIdChanged();
     emit connectedChanged();

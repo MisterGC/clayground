@@ -206,6 +206,20 @@ Item {
     readonly property string nodeId: _backend ? _backend.playerId : ""
 
     /*!
+        \qmlproperty string Network::hostId
+        \brief The node ID of the network's host, the same on every node.
+
+        On the host it equals \l nodeId; on a joiner it is the host's entry
+        in \l nodes, and messages and states the host sends itself arrive
+        with it as their sender. It names the host in both signaling modes
+        and on every platform, so a game decides "is this the host's word?"
+        by comparing against it instead of guessing the host's ID format.
+        Empty string while not in a network; a joiner knows it from the
+        moment it starts connecting to the host.
+    */
+    readonly property string hostId: _backend ? _backend.hostId : ""
+
+    /*!
         \qmlproperty bool Network::isHost
         \brief True if this node is the network host.
     */

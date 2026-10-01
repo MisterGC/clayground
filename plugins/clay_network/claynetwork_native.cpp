@@ -39,6 +39,7 @@ ClayNetwork::~ClayNetwork()
 
 QString ClayNetwork::networkId() const { return networkId_; }
 QString ClayNetwork::nodeId() const { return nodeId_; }
+QString ClayNetwork::hostId() const { return hostId_; }
 bool ClayNetwork::isHost() const { return isHost_; }
 bool ClayNetwork::connected() const { return connected_; }
 int ClayNetwork::nodeCount() const { return nodes_.size() + 1; }
@@ -288,6 +289,7 @@ void ClayNetwork::leave()
 
     networkId_.clear();
     nodeId_.clear();
+    hostId_.clear();
     isHost_ = false;
     connected_ = false;
     status_ = Disconnected;
@@ -302,6 +304,7 @@ void ClayNetwork::leave()
 
     emit networkIdChanged();
     emit nodeIdChanged();
+    emit hostIdChanged();
     emit isHostChanged();
     emit connectedChanged();
     emit statusChanged();
@@ -368,6 +371,8 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
 
     if (isHost_) {
         // Host is ready, announce network
+        hostId_ = nodeId_;
+        emit hostIdChanged();
         connected_ = true;
         status_ = Connected;
         setConnectionPhase("");
@@ -381,10 +386,13 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
         // Client: initiate connection to host
         setConnectionPhase("ice");
         iceStartMs_ = phaseTimer_.elapsed();
-        // In Local mode, host uses "HOST" as peerId; in Cloud mode, host uses networkId
-        QString hostPeerId = (signalingMode_ == Local) ? "HOST" : networkId_;
-        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostPeerId;
-        setupPeerConnection(hostPeerId, true);
+        // Over the embedded LAN signaling the host registers as "HOST"; over a
+        // PeerJS server (the public one or a custom signalingUrl) it registers
+        // with the network code - the same id the host reports as its nodeId
+        hostId_ = localClient_ ? QStringLiteral("HOST") : networkId_;
+        emit hostIdChanged();
+        qDebug() << "ClayNetwork: Client connected to signaling, now connecting to host:" << hostId_;
+        setupPeerConnection(hostId_, true);
     }
 }
 
