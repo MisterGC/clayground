@@ -99,7 +99,10 @@ if(EMSCRIPTEN)
     target_include_directories(ClayNetwork PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
-# Add tests (only for native builds, not WASM)
-if(NOT EMSCRIPTEN AND BUILD_TESTING)
+# Add tests (only for native builds, not WASM). The top level calls
+# enable_testing() but not include(CTest), so BUILD_TESTING is undefined
+# unless somebody sets it - CI does not, and gated on it alone the net gym
+# never ran there. Default it to on, like tools/common does.
+if(NOT EMSCRIPTEN AND (NOT DEFINED BUILD_TESTING OR BUILD_TESTING))
     add_subdirectory(tests)
 endif()
