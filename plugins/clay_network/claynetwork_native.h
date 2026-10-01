@@ -202,11 +202,13 @@ private:
     void forgetSender(const QString &nodeId);
     void cleanupPeer(const QString &peerId);
     QString generateNetworkCode() const;
+    static QString generateLanSecret();
     void connectLocalSignaling();
     void setupLocalSignalingConnections();
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
     static QString encodeLanCode(const QString &host, uint16_t port, const QString &secret);
+    static bool isLanCode(const QString &code);
     static bool decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret);
     static QString getLocalIpAddress();
 
