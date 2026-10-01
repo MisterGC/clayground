@@ -257,6 +257,8 @@ jobs:
       with:
         name: net-gym-logs-${{ matrix.os }}
         path: build/net-gym-logs
+        # the inspector state lives in .clay/, which is skipped otherwise
+        include-hidden-files: true
         if-no-files-found: ignore
         retention-days: 7
 
