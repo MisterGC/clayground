@@ -147,7 +147,7 @@ public:
     void onConnectedToNetwork(const char* nodeId);
     void onNodeJoined(const char* nodeId);
     void onNodeLeft(const char* nodeId);
-    void onMessage(const char* fromId, const char* data, bool isState);
+    void onMessage(const char* linkPeerId, const char* data, bool isState);
     void onSystem(const char* json);
     void onError(const char* errorMsg);
     void onDisconnected();

@@ -3,6 +3,7 @@
 #include "claynetwork_native.h"
 #include "signaling_peerjs.h"
 #include "signaling_local.h"
+#include "sender.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
 #include <QJsonDocument>
@@ -818,8 +819,15 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
         QJsonObject dataObj = obj["d"].toObject();
         QVariant data = dataObj.toVariantMap();
 
-        // Determine actual sender: use "from" field if present (relayed), else connection peer
-        QString actualFromId = obj.contains("from") ? obj["from"].toString() : fromId;
+        // The link vouches for the sender, not the message: only the host's
+        // relay may name another node, and that node must be in the roster
+        QString actualFromId = clay::network::attributeSender(
+            fromId, obj["from"].toString(), isHost_, hostId_, nodes_);
+        if (actualFromId.isEmpty()) {
+            emitDiag("datachannel", QString("Dropped message over %1 from unknown node %2")
+                     .arg(fromId.left(8), obj["from"].toString().left(8)));
+            return;
+        }
 
         // State updates carry a per-sender sequence number; the state channel
         // is unordered, so anything at or behind the newest accepted seq is
