@@ -111,6 +111,9 @@ private slots:
         QVERIFY(p.connect());
         const int grace = p.joiner.gracePeriod();
         QSignalSpy errors(&p.joiner, &ClayNetwork::errorOccurred);
+        // A crashed host judges nobody: this one would drop the joiner it no
+        // longer hears, and the joiner would see the connection close first
+        p.host.setGracePeriod(0);
 
         QElapsedTimer t;
         t.start();
@@ -161,6 +164,7 @@ private slots:
         const QString joinerId = p.joiner.nodeId();
         QSignalSpy left(&p.host, &ClayNetwork::playerLeft);
         QSignalSpy hostErrors(&p.host, &ClayNetwork::errorOccurred);
+        p.joiner.setGracePeriod(0);  // likewise, the silent one judges nobody
 
         p.joiner.setLinkConditions({{"blackout", true}});
         QVERIFY(left.wait(p.host.gracePeriod() + kPingMs + 3000));
