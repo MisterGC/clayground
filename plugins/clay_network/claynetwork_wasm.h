@@ -143,6 +143,9 @@ signals:
     void iceServersChanged();
     void signalingUrlChanged();
     void verifySignalingCertificateChanged();
+    // Declared for Network.qml; not emitted on WASM yet, where a signaling
+    // drop currently ends in status Disconnected (#320)
+    void signalingLost();
     void verboseChanged();
     void connectionPhaseChanged();
     void phaseTimingChanged();

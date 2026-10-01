@@ -12,6 +12,13 @@ PeerJSSignaling::PeerJSSignaling(QObject *parent)
     : QObject(parent)
     , serverUrl_("wss://0.peerjs.com/peerjs?key=peerjs")
 {
+    // The PeerJS browser client's pingInterval; the server's alive timeout
+    // is a multiple of it
+    heartbeat_.setInterval(5000);
+    QObject::connect(&heartbeat_, &QTimer::timeout, this, [this]() {
+        if (ws_ && ws_->isOpen())
+            ws_->send(std::string("{\"type\":\"HEARTBEAT\"}"));
+    });
 }
 
 PeerJSSignaling::~PeerJSSignaling()
@@ -55,24 +62,34 @@ void PeerJSSignaling::connect(const QString &peerId)
         qWarning() << "PeerJSSignaling: the server certificate is not checked on Windows";
 #endif
     ws_ = std::make_shared<rtc::WebSocket>(config);
+    errorReported_ = false;
+    const quint64 attempt = ++attempt_;
 
-    ws_->onOpen([this]() {
-        QMetaObject::invokeMethod(this, [this]() { onWsOpen(); }, Qt::QueuedConnection);
+    ws_->onOpen([this, attempt]() {
+        QMetaObject::invokeMethod(this, [this, attempt]() {
+            if (attempt == attempt_) onWsOpen();
+        }, Qt::QueuedConnection);
     });
 
-    ws_->onMessage([this](auto message) {
+    ws_->onMessage([this, attempt](auto message) {
         if (std::holds_alternative<std::string>(message)) {
             std::string msg = std::get<std::string>(message);
-            QMetaObject::invokeMethod(this, [this, msg]() { onWsMessage(msg); }, Qt::QueuedConnection);
+            QMetaObject::invokeMethod(this, [this, attempt, msg]() {
+                if (attempt == attempt_) onWsMessage(msg);
+            }, Qt::QueuedConnection);
         }
     });
 
-    ws_->onError([this](std::string error) {
-        QMetaObject::invokeMethod(this, [this, error]() { onWsError(error); }, Qt::QueuedConnection);
+    ws_->onError([this, attempt](std::string error) {
+        QMetaObject::invokeMethod(this, [this, attempt, error]() {
+            if (attempt == attempt_) onWsError(error);
+        }, Qt::QueuedConnection);
     });
 
-    ws_->onClosed([this]() {
-        QMetaObject::invokeMethod(this, [this]() { onWsClosed(); }, Qt::QueuedConnection);
+    ws_->onClosed([this, attempt]() {
+        QMetaObject::invokeMethod(this, [this, attempt]() {
+            if (attempt == attempt_) onWsClosed();
+        }, Qt::QueuedConnection);
     });
 
     ws_->open(url.toStdString());
@@ -80,7 +97,10 @@ void PeerJSSignaling::connect(const QString &peerId)
 
 void PeerJSSignaling::disconnect()
 {
+    ++attempt_;
+    heartbeat_.stop();
     if (ws_) {
+        ws_->resetCallbacks();
         ws_->close();
         ws_.reset();
     }
@@ -122,6 +142,7 @@ void PeerJSSignaling::onWsMessage(const std::string &message)
         // Server acknowledged our connection - NOW we're ready
         qDebug() << "PeerJSSignaling: Server acknowledged connection, signaling ready";
         connected_ = true;
+        heartbeat_.start();
         emit connected(peerId_);
     }
     else if (type == "OFFER") {
@@ -170,26 +191,28 @@ void PeerJSSignaling::onWsMessage(const std::string &message)
         emit errorOccurred(errorMsg);
     }
     else if (type == "HEARTBEAT") {
-        // Respond to heartbeat
-        if (ws_ && ws_->isOpen()) {
-            QJsonObject heartbeat;
-            heartbeat["type"] = "HEARTBEAT";
-            ws_->send(QJsonDocument(heartbeat).toJson(QJsonDocument::Compact).toStdString());
-        }
+        // The client keeps the beat (heartbeat_); answering an echo here
+        // would ping-pong with a server that echoes it (clay-dev-server)
     }
 }
 
 void PeerJSSignaling::onWsError(const std::string &error)
 {
     qWarning() << "PeerJSSignaling: WebSocket error:" << QString::fromStdString(error);
+    errorReported_ = true;
     emit errorOccurred(QString::fromStdString(error));
 }
 
 void PeerJSSignaling::onWsClosed()
 {
     qDebug() << "PeerJSSignaling: WebSocket closed";
+    heartbeat_.stop();
+    const bool wasOpen = connected_;
     connected_ = false;
-    emit disconnected();
+    if (wasOpen)
+        emit disconnected();
+    else if (!errorReported_)
+        emit errorOccurred("Signaling server closed the connection");
 }
 
 void PeerJSSignaling::sendMessage(const QString &type, const QString &targetId, const QVariantMap &payload)

@@ -134,6 +134,9 @@ signals:
     // broadcast, or -1 when the sender did not include one.
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
+    // The Cloud signaling connection dropped after it was up. Peers already
+    // connected stay; a host takes no new joiners until it hosts again (#320)
+    void signalingLost();
     void diagnosticMessage(const QString &phase, const QString &detail);
 
     void networkIdChanged();
@@ -164,6 +167,7 @@ private slots:
     void onSignalingAnswer(const QString &fromId, const QString &sdp);
     void onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid);
     void onSignalingError(const QString &error);
+    void onSignalingDisconnected();
 
 private:
     struct PeerConn {

@@ -31,6 +31,8 @@ ClayNetwork::ClayNetwork(QObject *parent)
                      this, &ClayNetwork::onSignalingCandidate);
     QObject::connect(signaling_.get(), &PeerJSSignaling::errorOccurred,
                      this, &ClayNetwork::onSignalingError);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::disconnected,
+                     this, &ClayNetwork::onSignalingDisconnected);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -464,6 +466,13 @@ void ClayNetwork::onSignalingError(const QString &error)
     status_ = Error;
     emit statusChanged();
     emit errorOccurred(error);
+}
+
+void ClayNetwork::onSignalingDisconnected()
+{
+    qWarning() << "ClayNetwork: Signaling connection lost";
+    emitDiag("signaling", "Signaling connection lost");
+    emit signalingLost();
 }
 
 void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)

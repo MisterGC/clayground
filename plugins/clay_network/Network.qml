@@ -376,6 +376,22 @@ Item {
     signal errorOccurred(string message)
 
     /*!
+        \qmlsignal Network::signalingLost()
+        \brief Emitted when the Cloud signaling connection drops after it was up.
+
+        Nodes already connected keep their data channels and \l status stays
+        as it is. A host can take no new joiners until it hosts again; a
+        joiner still connecting gets no further help from the server and
+        runs into \l connectionTimeout.
+
+        While connected, a native node keeps the connection alive with the
+        PeerJS heartbeat, so this means the server or the network dropped it.
+        Desktop and mobile only so far; in the browser a signaling drop
+        currently ends in status Disconnected instead.
+    */
+    signal signalingLost()
+
+    /*!
         \qmlsignal Network::diagnosticMessage(string phase, string detail)
         \brief Emitted with diagnostic info when verbose is true.
 
@@ -539,6 +555,7 @@ Item {
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
         onStateReceived: (fromId, data, sentAt) => root.stateReceived(fromId, data, sentAt)
         onErrorOccurred: (message) => root.errorOccurred(message)
+        onSignalingLost: () => root.signalingLost()
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
     }
 }
