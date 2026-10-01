@@ -156,6 +156,29 @@ QVariantMap ClayNetwork::syncStats() const {
     return stats;
 }
 
+QVariantMap ClayNetwork::linkConditions() const { return conditioner_.conditions(); }
+
+void ClayNetwork::setLinkConditions(const QVariantMap &conditions)
+{
+    const bool wasDropped = conditioner_.dropSignaling();
+    conditioner_.setConditions(conditions);
+    // Cut a live Cloud signaling connection the way a server or network
+    // drop would, so it ends in signalingLost like the real thing (#320)
+    if (!wasDropped && conditioner_.dropSignaling() && signaling_->isConnected())
+        signaling_->drop();
+    emit linkConditionsChanged();
+}
+
+bool ClayNetwork::refuseWhileSignalingDropped()
+{
+    if (!conditioner_.dropSignaling())
+        return false;
+    status_ = Error;
+    emit statusChanged();
+    emit errorOccurred("Signaling server unreachable (link conditioner)");
+    return true;
+}
+
 int ClayNetwork::stateAgeMs(const QString &nodeId) const {
     if (!stateLastMs_.contains(nodeId))
         return -1;
@@ -180,6 +203,11 @@ void ClayNetwork::createRoom()
     if (connected_) {
         leave();
     }
+
+    // A Local host is its own signaling server, there is nothing to reach
+    const bool ownServer = signalingMode_ == Local && signalingUrl_.isEmpty();
+    if (!ownServer && refuseWhileSignalingDropped())
+        return;
 
     isHost_ = true;
     status_ = Connecting;
@@ -244,6 +272,9 @@ void ClayNetwork::joinRoom(const QString &networkId)
         leave();
     }
 
+    if (refuseWhileSignalingDropped())
+        return;
+
     isHost_ = false;
     networkId_ = networkId;
     status_ = Connecting;
@@ -297,6 +328,9 @@ void ClayNetwork::joinRoom(const QString &networkId)
 
 void ClayNetwork::leave()
 {
+    // Nothing still on the simulated link outlives the network it was for
+    conditioner_.clear();
+
     // Close all peer connections
     for (const QString &peerId : peers_.keys()) {
         cleanupPeer(peerId);
@@ -759,7 +793,9 @@ void ClayNetwork::setupStateChannel(const QString &peerId, std::shared_ptr<rtc::
 
 void ClayNetwork::sendToPeer(const QString &peerId, const QString &message)
 {
-    writeToPeer(peerId, message.toUtf8(), false);
+    const QByteArray utf8 = message.toUtf8();
+    conditioner_.offer(clay::network::LinkConditioner::Outgoing, false, utf8.size(),
+                       [this, peerId, utf8]() { writeToPeer(peerId, utf8, false); });
 }
 
 void ClayNetwork::sendStateToPeer(const QString &peerId, const QString &message)
@@ -770,7 +806,9 @@ void ClayNetwork::sendStateToPeer(const QString &peerId, const QString &message)
     // Prefer the lossy state channel; fall back to the reliable one while the
     // state channel is still negotiating (or when a peer doesn't offer one).
     const bool lossy = peer.stateReady && peer.dcState && peer.dcState->isOpen();
-    writeToPeer(peerId, message.toUtf8(), lossy);
+    const QByteArray utf8 = message.toUtf8();
+    conditioner_.offer(clay::network::LinkConditioner::Outgoing, lossy, utf8.size(),
+                       [this, peerId, utf8, lossy]() { writeToPeer(peerId, utf8, lossy); });
 }
 
 void ClayNetwork::writeToPeer(const QString &peerId, const QByteArray &utf8, bool stateChannel)
@@ -795,9 +833,10 @@ void ClayNetwork::writeToPeer(const QString &peerId, const QByteArray &utf8, boo
 void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message,
                                            bool stateChannel)
 {
-    Q_UNUSED(stateChannel)
-    QMetaObject::invokeMethod(this, [this, fromId, message]() {
-        processMessage(fromId, message);
+    QMetaObject::invokeMethod(this, [this, fromId, message, stateChannel]() {
+        conditioner_.offer(clay::network::LinkConditioner::Incoming, stateChannel,
+                           qsizetype(message.size()),
+                           [this, fromId, message]() { processMessage(fromId, message); });
     }, Qt::QueuedConnection);
 }
 

@@ -13,6 +13,7 @@
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <map>
+#include "link_conditioner_js.h"  // generated from link_conditioner.js
 
 // Global registry for callback routing
 static std::map<int, ClayNetwork*> g_networkRegistry;
@@ -61,6 +62,14 @@ EM_JS(void, js_load_peerjs, (), {
     });
 });
 
+// JavaScript: Evaluate the link conditioner (link_conditioner.js) once per page
+EM_JS(void, js_install_conditioner, (const char* source), {
+    if (Module.clayLinkConditioner) return;
+    const module = { exports: {} };
+    (new Function('module', UTF8ToString(source)))(module);
+    Module.clayLinkConditioner = module.exports;
+});
+
 // JavaScript: Initialize network instance
 EM_JS(void, js_init_network, (int instanceId), {
     if (!Module.clayNetwork) {
@@ -81,8 +90,25 @@ EM_JS(void, js_init_network, (int instanceId), {
         autoRelay: true,
         verbose: false,
         iceServers: null,
-        pingTimers: new Map()
+        pingTimers: new Map(),
+        // Simulated link (#301): every send() and every 'data' event of the
+        // node's connections passes through it
+        conditioner: Module.clayLinkConditioner.create()
     };
+});
+
+// JavaScript: Set the simulated link's conditions (normalized by C++)
+EM_JS(void, js_set_link_conditions, (int instanceId, const char* json), {
+    const state = Module.clayNetwork[instanceId];
+    if (!state) return;
+    const wasDropped = state.conditioner.dropSignaling();
+    state.conditioner.setConditions(JSON.parse(UTF8ToString(json)));
+    // Cut the signaling connection the way a server or network drop would;
+    // the data connections stay, like they do on a real drop
+    if (!wasDropped && state.conditioner.dropSignaling() && state.peer
+        && !state.peer.disconnected && !state.peer.destroyed) {
+        state.peer.disconnect();
+    }
 });
 
 // JavaScript: Set autoRelay property
@@ -157,6 +183,28 @@ EM_JS(void, js_init_helpers, (), {
         return cfg;
     };
 
+    // Route a connection's send() through the node's link conditioner. The
+    // size is only worked out when a bandwidth cap asks for it.
+    Module.clayConditionSend = function(state, conn, stateChannel) {
+        if (conn.__clayRawSend) return;
+        const raw = conn.send.bind(conn);
+        conn.__clayRawSend = raw;
+        conn.send = function(obj) {
+            state.conditioner.offer('out', stateChannel,
+                function() { return JSON.stringify(obj).length; },
+                function() { if (conn.open) raw(obj); });
+        };
+    };
+
+    // Wrap a 'data' handler so what arrives passes the link conditioner first
+    Module.clayConditionData = function(state, stateChannel, handler) {
+        return function(data) {
+            state.conditioner.offer('in', stateChannel,
+                function() { return (typeof data === 'string' ? data : JSON.stringify(data)).length; },
+                function() { handler(data); });
+        };
+    };
+
     // Emit diagnostic from JS
     Module.clayDiag = function(instanceId, phase, detail) {
         var state = Module.clayNetwork ? Module.clayNetwork[instanceId] : null;
@@ -198,7 +246,10 @@ EM_JS(void, js_init_helpers, (), {
         var state = Module.clayNetwork[instanceId];
         if (!state) return;
         state.stateConns.set(peerId, conn);
-        conn.on('data', function(d) { Module.clayOnStateData(instanceId, peerId, d); });
+        Module.clayConditionSend(state, conn, true);
+        conn.on('data', Module.clayConditionData(state, true, function(d) {
+            Module.clayOnStateData(instanceId, peerId, d);
+        }));
         conn.on('close', function() {
             if (state.stateConns.get(peerId) === conn)
                 state.stateConns.delete(peerId);
@@ -278,6 +329,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 
             console.log('[ClayNetwork] Node connecting:', conn.peer);
             state.connections.set(conn.peer, conn);
+            Module.clayConditionSend(state, conn, false);
             Module.clayTrackIce(instanceId, conn, conn.peer);
 
             conn.on('open', () => {
@@ -295,7 +347,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                 });
             });
 
-            conn.on('data', (data) => {
+            conn.on('data', Module.clayConditionData(state, false, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
                 const parsed = JSON.parse(msg);
 
@@ -333,7 +385,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                     stringToNewUTF8(conn.peer),
                     stringToNewUTF8(outMsg),
                     isState ? 1 : 0);
-            });
+            }));
 
             conn.on('close', () => {
                 console.log('[ClayNetwork] Node left:', conn.peer);
@@ -398,6 +450,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             // Connect to host - use 'json' serialization for string transfer
             const conn = state.peer.connect(networkId, { reliable: true, serialization: 'json' });
             state.connections.set(networkId, conn);
+            Module.clayConditionSend(state, conn, false);
             Module.clayTrackIce(instanceId, conn, networkId);
 
             conn.on('open', () => {
@@ -414,7 +467,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 Module._clay_net_connected(instanceId, stringToNewUTF8(id));
             });
 
-            conn.on('data', (data) => {
+            conn.on('data', Module.clayConditionData(state, false, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
                 const parsed = JSON.parse(msg);
 
@@ -466,7 +519,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                     stringToNewUTF8(networkId),
                     stringToNewUTF8(msg),
                     isState ? 1 : 0);
-            });
+            }));
 
             conn.on('close', () => {
                 console.log('[ClayNetwork] Disconnected from network');
@@ -501,13 +554,14 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
 
     // Helper to setup node connection handlers
     function setupNodeConnection(instanceId, nodeId, conn) {
+        Module.clayConditionSend(state, conn, false);
         Module.clayTrackIce(instanceId, conn, nodeId);
 
         conn.on('open', () => {
             console.log('[ClayNetwork] Mesh connected to:', nodeId);
         });
 
-        conn.on('data', (data) => {
+        conn.on('data', Module.clayConditionData(state, false, (data) => {
             const msg = typeof data === 'string' ? data : JSON.stringify(data);
             const parsed = JSON.parse(msg);
             if (parsed.t === 'y') return;
@@ -530,7 +584,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 stringToNewUTF8(nodeId),
                 stringToNewUTF8(msg),
                 isState ? 1 : 0);
-        });
+        }));
 
         conn.on('close', () => {
             state.connections.delete(nodeId);
@@ -592,6 +646,8 @@ EM_JS(void, js_leave, (int instanceId), {
     const state = Module.clayNetwork[instanceId];
     if (!state) return;
 
+    // Nothing still on the simulated link outlives the network it was for
+    state.conditioner.clear();
     state.connections.forEach((conn) => {
         try { conn.close(); } catch (e) {}
     });
@@ -756,6 +812,7 @@ ClayNetwork::ClayNetwork(QObject *parent)
     g_networkRegistry[instanceId_] = this;
     js_load_peerjs();
     js_init_helpers();
+    js_install_conditioner(kLinkConditionerJs);
     js_init_network(instanceId_);
 #endif
 }
@@ -948,6 +1005,29 @@ QVariantMap ClayNetwork::syncStats() const {
     return stats;
 }
 
+QVariantMap ClayNetwork::linkConditions() const { return conditions_.conditions(); }
+
+void ClayNetwork::setLinkConditions(const QVariantMap &conditions)
+{
+    conditions_.setConditions(conditions);
+#ifdef __EMSCRIPTEN__
+    const QByteArray json = QJsonDocument(QJsonObject::fromVariantMap(conditions_.conditions()))
+                                .toJson(QJsonDocument::Compact);
+    js_set_link_conditions(instanceId_, json.constData());
+#endif
+    emit linkConditionsChanged();
+}
+
+bool ClayNetwork::refuseWhileSignalingDropped()
+{
+    if (!conditions_.dropSignaling())
+        return false;
+    status_ = Error;
+    emit statusChanged();
+    emit errorOccurred("Signaling server unreachable (link conditioner)");
+    return true;
+}
+
 int ClayNetwork::stateAgeMs(const QString &nodeId) const {
     if (!stateLastMs_.contains(nodeId))
         return -1;
@@ -981,6 +1061,8 @@ void ClayNetwork::createRoom()
         qWarning() << "[ClayNetwork] Already connected, leave first";
         return;
     }
+    if (refuseWhileSignalingDropped())
+        return;
 
     status_ = Connecting;
     setConnectionPhase("signaling");
@@ -1001,6 +1083,8 @@ void ClayNetwork::joinRoom(const QString &networkId)
         qWarning() << "[ClayNetwork] Already connected, leave first";
         return;
     }
+    if (refuseWhileSignalingDropped())
+        return;
 
     // Kept here as well as in JS: the code is the host's PeerJS id
     // (js_create_network), so a joiner's hostId and roster entry come from it

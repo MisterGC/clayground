@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QElapsedTimer>
 #include <qqmlregistration.h>
+#include "link_conditioner.h"
 
 /*!
     \qmltype ClayNetworkBackend
@@ -49,6 +50,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
     Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
+    Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
 
 public:
     enum Topology {
@@ -103,6 +105,8 @@ public:
     int latency() const;
     QVariantMap peerStats() const;
     QVariantMap syncStats() const;
+    QVariantMap linkConditions() const;
+    void setLinkConditions(const QVariantMap &conditions);
 
 public slots:
     void createRoom();
@@ -152,6 +156,7 @@ signals:
     void latencyChanged();
     void peerStatsChanged();
     void syncStatsChanged();
+    void linkConditionsChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -171,6 +176,9 @@ private:
     QString generateNetworkCode() const;
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
+    // True (after reporting the error) when linkConditions.dropSignaling
+    // makes the signaling server unreachable
+    bool refuseWhileSignalingDropped();
 
     QString networkId_;
     QString nodeId_;
@@ -206,6 +214,11 @@ private:
     QHash<QString, qint64> stateRecvCount_;
     QHash<QString, qint64> stateDropCount_;
     QElapsedTimer clock_;
+
+    // Holds the simulated link's conditions (#301). The traffic itself is
+    // conditioned in JS by link_conditioner.js, which sees every packet -
+    // relays and pongs never pass through C++ here.
+    clay::network::LinkConditioner conditions_;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

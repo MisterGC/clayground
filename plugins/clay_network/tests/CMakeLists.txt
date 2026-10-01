@@ -84,6 +84,7 @@ find_package(OpenSSL REQUIRED)
 add_executable(tst_cloud_signaling
     tst_cloud_signaling.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
 )
@@ -113,6 +114,7 @@ set_tests_properties(network_cloud_signaling PROPERTIES
 add_executable(tst_local_signaling
     tst_local_signaling.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
 )

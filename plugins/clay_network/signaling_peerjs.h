@@ -21,6 +21,9 @@ public:
 
     void connect(const QString &peerId = QString());
     void disconnect();
+    // Closes the socket as if the server or the network had dropped it:
+    // an open session ends in disconnected(), not in silence (#301)
+    void drop();
     bool isConnected() const;
     QString peerId() const;
 

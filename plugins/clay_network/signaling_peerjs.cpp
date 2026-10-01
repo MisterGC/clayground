@@ -108,6 +108,13 @@ void PeerJSSignaling::disconnect()
     peerId_.clear();
 }
 
+void PeerJSSignaling::drop()
+{
+    // Callbacks stay attached, so the close arrives in onWsClosed()
+    if (ws_)
+        ws_->close();
+}
+
 bool PeerJSSignaling::isConnected() const
 {
     return connected_;

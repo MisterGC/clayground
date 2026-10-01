@@ -209,6 +209,47 @@ Item {
     */
     property int connectionTimeout: 15000
 
+    /*!
+        \qmlproperty var Network::linkConditions
+        \brief Simulated network conditions for this node, for testing.
+
+        Default: empty, which changes nothing. Set it to make this node sit
+        behind a bad link, on one machine, without touching the operating
+        system: everything the node sends and everything it receives over
+        its data channels is conditioned, each direction on its own.
+
+        \list
+        \li \c loss (0..1) - share of state updates (broadcastState()) that
+            are lost. Reliable messages are never lost; a lost one would be
+            retransmitted, so they arrive late instead.
+        \li \c latencyMs - added to every packet, each way.
+        \li \c jitterMs - a random 0..jitterMs added on top. State updates
+            may overtake each other this way, reliable messages stay in
+            order.
+        \li \c bandwidthKbps - packets leave one after another at this
+            rate (kbit/s, 0 = no cap); a full link delays everything behind.
+        \li \c blackout - while true, state updates are lost and reliable
+            messages are held; when it ends, they arrive in order.
+        \li \c dropSignaling - while true, the signaling server cannot be
+            reached: host() and join() end in errorOccurred(), and a live
+            Cloud signaling connection is cut as if the server had dropped
+            it (what follows is that of a real drop, see signalingLost()).
+            A Local host is its own signaling server and hosts regardless.
+        \endlist
+
+        Takes effect immediately, also while connected; assign a whole new
+        object to change it. Packets already under way keep their schedule.
+
+        \qml
+        network.linkConditions = { loss: 0.1, latencyMs: 80, jitterMs: 20 }
+        network.linkConditions = { blackout: true }   // the link goes dark
+        network.linkConditions = {}                    // a clean link again
+        \endqml
+
+        Works the same on desktop, mobile and in the browser.
+    */
+    property var linkConditions: ({})
+
     // ========== Read-only State ==========
 
     /*!
@@ -548,6 +589,7 @@ Item {
     ClayNetworkBackend {
         id: _backend
         verbose: root.verbose
+        linkConditions: root.linkConditions
 
         onRoomCreated: (roomId) => root.networkCreated(roomId)
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)

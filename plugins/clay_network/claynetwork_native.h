@@ -9,6 +9,7 @@
 #include <QElapsedTimer>
 #include <qqmlregistration.h>
 #include <memory>
+#include "link_conditioner.h"
 
 namespace rtc {
     class PeerConnection;
@@ -57,6 +58,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
     Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
+    Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
 
 public:
     enum Topology {
@@ -111,6 +113,8 @@ public:
     int latency() const;
     QVariantMap peerStats() const;
     QVariantMap syncStats() const;
+    QVariantMap linkConditions() const;
+    void setLinkConditions(const QVariantMap &conditions);
 
 public slots:
     void createRoom();
@@ -160,6 +164,7 @@ signals:
     void latencyChanged();
     void peerStatsChanged();
     void syncStatsChanged();
+    void linkConditionsChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -211,6 +216,9 @@ private:
     void setupLocalSignalingConnections();
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
+    // True (after reporting the error) when linkConditions.dropSignaling
+    // makes the signaling server unreachable
+    bool refuseWhileSignalingDropped();
     static QString encodeLanCode(const QString &host, uint16_t port, const QString &secret);
     static bool isLanCode(const QString &code);
     static bool decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret);
@@ -259,4 +267,8 @@ private:
     QHash<QString, qint64> stateRecvCount_;
     QHash<QString, qint64> stateDropCount_;
     QElapsedTimer clock_;
+
+    // Simulated link for tests (#301): everything sent and received over
+    // the data channels passes through it
+    clay::network::LinkConditioner conditioner_;
 };
