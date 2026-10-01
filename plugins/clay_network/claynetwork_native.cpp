@@ -21,6 +21,9 @@ namespace {
 // mistaken for each other (no 0/O, 1/I)
 const QString kCodeChars = QStringLiteral("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
 constexpr int kLanSecretLength = 8;
+// Signaling reconnects back off from the first to the last delay
+constexpr int kSignalingRetryFirstMs = 1000;
+constexpr int kSignalingRetryMaxMs = 4000;
 }
 
 ClayNetwork::ClayNetwork(QObject *parent)
@@ -40,6 +43,11 @@ ClayNetwork::ClayNetwork(QObject *parent)
                      this, &ClayNetwork::onSignalingError);
     QObject::connect(signaling_.get(), &PeerJSSignaling::disconnected,
                      this, &ClayNetwork::onSignalingDisconnected);
+    signalingRetry_.setSingleShot(true);
+    QObject::connect(&signalingRetry_, &QTimer::timeout, this, &ClayNetwork::retrySignaling);
+    livenessCheck_.setSingleShot(true);
+    livenessCheck_.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&livenessCheck_, &QTimer::timeout, this, &ClayNetwork::checkLiveness);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -167,6 +175,23 @@ void ClayNetwork::setLinkConditions(const QVariantMap &conditions)
     if (!wasDropped && conditioner_.dropSignaling() && signaling_->isConnected())
         signaling_->drop();
     emit linkConditionsChanged();
+}
+
+int ClayNetwork::gracePeriod() const { return gracePeriod_; }
+void ClayNetwork::setGracePeriod(int ms) {
+    if (gracePeriod_ != ms) {
+        gracePeriod_ = ms;
+        armLivenessCheck();
+        emit gracePeriodChanged();
+    }
+}
+
+bool ClayNetwork::acceptingJoins() const { return acceptingJoins_; }
+void ClayNetwork::setAcceptingJoins(bool accepting) {
+    if (acceptingJoins_ != accepting) {
+        acceptingJoins_ = accepting;
+        emit acceptingJoinsChanged();
+    }
 }
 
 bool ClayNetwork::refuseWhileSignalingDropped()
@@ -328,8 +353,32 @@ void ClayNetwork::joinRoom(const QString &networkId)
 
 void ClayNetwork::leave()
 {
+    sendGoodbye();
+    tearDown();
+}
+
+void ClayNetwork::sendGoodbye()
+{
+    // Without it a peer learns of a clean leave only when its connection
+    // times out (#299). Written past the link conditioner, which leave()
+    // clears: a goodbye still waiting there would never be sent.
+    QJsonObject bye;
+    bye["t"] = "y";
+    bye["sys"] = "bye";
+    const QByteArray utf8 = QJsonDocument(bye).toJson(QJsonDocument::Compact);
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it->ready)
+            writeToPeer(it.key(), utf8, false);
+}
+
+void ClayNetwork::tearDown()
+{
     // Nothing still on the simulated link outlives the network it was for
     conditioner_.clear();
+    signalingRetry_.stop();
+    livenessCheck_.stop();
+    signalingDown_ = false;
+    signalingRetryMs_ = 0;
 
     // Close all peer connections
     for (const QString &peerId : peers_.keys()) {
@@ -363,6 +412,7 @@ void ClayNetwork::leave()
     stateLastMs_.clear();
     stateRecvCount_.clear();
     stateDropCount_.clear();
+    setAcceptingJoins(false);
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -428,6 +478,17 @@ void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
 void ClayNetwork::onSignalingConnected(const QString &peerId)
 {
     qDebug() << "ClayNetwork: Signaling connected, peerId:" << peerId << "isHost:" << isHost_;
+
+    if (signalingDown_) {
+        // Back under the id the network knows us by: nothing to set up again
+        signalingDown_ = false;
+        signalingRetryMs_ = 0;
+        signalingRetry_.stop();
+        emitDiag("signaling", "Signaling restored");
+        setAcceptingJoins(isHost_);
+        return;
+    }
+
     nodeId_ = peerId;
     emit nodeIdChanged();
 
@@ -442,6 +503,7 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
         emit hostIdChanged();
         connected_ = true;
         status_ = Connected;
+        setAcceptingJoins(true);
         setConnectionPhase("");
         phaseTiming_["total"] = signalingMs;
         emit phaseTimingChanged();
@@ -512,6 +574,13 @@ void ClayNetwork::onSignalingCandidate(const QString &fromId, const QString &can
 
 void ClayNetwork::onSignalingError(const QString &error)
 {
+    if (signalingDown_) {
+        // A reconnect that did not get through - the server may still hold
+        // our old id for a while (ID-TAKEN) or be unreachable: try again
+        emitDiag("signaling", QString("Reconnect failed: %1").arg(error));
+        scheduleSignalingRetry();
+        return;
+    }
     qWarning() << "ClayNetwork: Signaling error:" << error;
     status_ = Error;
     emit statusChanged();
@@ -522,7 +591,42 @@ void ClayNetwork::onSignalingDisconnected()
 {
     qWarning() << "ClayNetwork: Signaling connection lost";
     emitDiag("signaling", "Signaling connection lost");
+    if (signalingDown_) {
+        // A reconnect got as far as OPEN and dropped again
+        scheduleSignalingRetry();
+        return;
+    }
+    // The network goes on over the data channels; only a joiner that is
+    // still to come needs the server, so get back to it under the same id
+    const bool inNetwork = connected_ || status_ == Connecting;
+    if (inNetwork && !nodeId_.isEmpty()) {
+        signalingDown_ = true;
+        setAcceptingJoins(false);
+        scheduleSignalingRetry();
+    }
     emit signalingLost();
+}
+
+void ClayNetwork::scheduleSignalingRetry()
+{
+    if (!signalingDown_ || signalingRetry_.isActive())
+        return;
+    signalingRetryMs_ = signalingRetryMs_ == 0
+        ? kSignalingRetryFirstMs : qMin(signalingRetryMs_ * 2, kSignalingRetryMaxMs);
+    signalingRetry_.start(signalingRetryMs_);
+}
+
+void ClayNetwork::retrySignaling()
+{
+    if (!signalingDown_)
+        return;
+    if (conditioner_.dropSignaling()) {
+        emitDiag("signaling", "Signaling server unreachable (link conditioner)");
+        scheduleSignalingRetry();
+        return;
+    }
+    emitDiag("signaling", QString("Reconnecting to signaling as %1").arg(nodeId_));
+    signaling_->connect(nodeId_);
 }
 
 void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
@@ -578,24 +682,12 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
         QMetaObject::invokeMethod(this, [this, peerId, state, name]() {
             emitDiag("ice", QString("Peer %1: %2").arg(peerId.left(8), name));
 
+            // Disconnected can recover, so it is not a leave: a peer that
+            // stays unreachable leaves its pings unanswered and is dropped
+            // after the grace period (#299)
             if (state == rtc::PeerConnection::State::Failed ||
-                state == rtc::PeerConnection::State::Disconnected ||
                 state == rtc::PeerConnection::State::Closed) {
-                if (peers_.contains(peerId) && peers_[peerId].ready) {
-                    cleanupPeer(peerId);
-                    nodes_.removeAll(peerId);
-                    forgetSender(peerId);
-                    emit nodeCountChanged();
-                    emit nodesChanged();
-                    emit playerLeft(peerId);
-                    if (isHost_ && topology_ == Star) {
-                        QJsonObject left;
-                        left["t"] = "y";
-                        left["sys"] = "node_left";
-                        left["nodeId"] = peerId;
-                        hostBroadcastSystem(left);
-                    }
-                }
+                peerGone(peerId, QStringLiteral("The connection to the host failed"));
             }
         }, Qt::QueuedConnection);
     });
@@ -845,6 +937,7 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
     if (peers_.contains(fromId)) {
         peers_[fromId].msgRecv++;
         peers_[fromId].bytesRecv += message.size();
+        peers_[fromId].unansweredSinceMs = -1;
     }
 
     QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
@@ -895,6 +988,12 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
     if (type == "R") {
         QString reason = obj["r"].toString();
         emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+        return;
+    }
+
+    // A peer that leaves says so (#299)
+    if (type == "y" && obj["sys"].toString() == "bye") {
+        peerGone(fromId, QStringLiteral("The host left the network"));
         return;
     }
 
@@ -1035,9 +1134,96 @@ void ClayNetwork::forgetSender(const QString &nodeId)
     stateDropCount_.remove(nodeId);
 }
 
+void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
+{
+    if (!peers_.contains(peerId) || !peers_[peerId].ready)
+        return;
+    if (!isHost_ && topology_ == Star && peerId == hostId_)
+        loseHost(reason);
+    else
+        dropPeer(peerId);
+}
+
+void ClayNetwork::dropPeer(const QString &peerId)
+{
+    cleanupPeer(peerId);
+    nodes_.removeAll(peerId);
+    forgetSender(peerId);
+    emit nodeCountChanged();
+    emit nodesChanged();
+    emit peerStatsChanged();
+    emit playerLeft(peerId);
+    if (isHost_ && topology_ == Star) {
+        QJsonObject left;
+        left["t"] = "y";
+        left["sys"] = "node_left";
+        left["nodeId"] = peerId;
+        hostBroadcastSystem(left);
+    }
+}
+
+void ClayNetwork::loseHost(const QString &reason)
+{
+    // Every other node was reached through the host: the network is gone
+    qWarning() << "ClayNetwork:" << reason;
+    const QStringList gone = nodes_;
+    tearDown();
+    for (const QString &id : gone)
+        emit playerLeft(id);
+    emit errorOccurred(reason);
+}
+
+// A crashed host never says goodbye (#299). Every peer answers a ping
+// within a round trip, so one that leaves a ping unanswered and sends nothing
+// else for gracePeriod is gone. Counting from the ping, not from the last
+// message, lets a link that was out for less than gracePeriod come back
+// whatever the ping cadence; a crash is noticed within gracePeriod plus one
+// ping interval.
+void ClayNetwork::checkLiveness()
+{
+    if (gracePeriod_ <= 0)
+        return;
+    const qint64 now = clock_.elapsed();
+    QStringList silent;
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it->ready && it->unansweredSinceMs >= 0
+            && now - it->unansweredSinceMs >= gracePeriod_)
+            silent.append(it.key());
+    for (const QString &peerId : silent) {
+        if (!peers_.contains(peerId))
+            continue;  // gone with the host
+        emitDiag("datachannel", QString("No answer from %1 for %2 ms, dropping it")
+                 .arg(peerId.left(8)).arg(now - peers_.value(peerId).unansweredSinceMs));
+        peerGone(peerId, QString("The host did not answer for %1 ms").arg(gracePeriod_));
+    }
+    armLivenessCheck();
+}
+
+void ClayNetwork::armLivenessCheck()
+{
+    qint64 next = -1;
+    if (gracePeriod_ > 0) {
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+            if (it->ready && it->unansweredSinceMs >= 0
+                && (next < 0 || it->unansweredSinceMs + gracePeriod_ < next))
+                next = it->unansweredSinceMs + gracePeriod_;
+    }
+    if (next < 0) {
+        livenessCheck_.stop();
+        return;
+    }
+    livenessCheck_.start(int(qMax<qint64>(0, next - clock_.elapsed())));
+}
+
 void ClayNetwork::ping()
 {
     if (!connected_) return;
+
+    const qint64 sentAt = clock_.elapsed();
+    for (PeerConn &peer : peers_)
+        if (peer.ready && peer.unansweredSinceMs < 0)
+            peer.unansweredSinceMs = sentAt;
+    armLivenessCheck();
 
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     QJsonObject msg;
