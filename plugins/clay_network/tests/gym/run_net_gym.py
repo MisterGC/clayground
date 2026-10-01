@@ -7,14 +7,18 @@ Local signaling (host + 2 joiners, Star topology) and verifies through the
 inspector protocol: roster propagation, a host id every node agrees on,
 senders that cannot be forged, the unreliable state channel,
 sequence-guarded state flow (incl. relayed senders), interpolation
-tracking, and node departure.
+tracking, and node departure. A raw websocket that knows the LAN code
+tries to register under ids that are taken (#321).
 """
 
 import argparse
+import base64
 import json
 import os
 import shutil
 import signal
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -76,6 +80,73 @@ class Inspect:
         return self.eval([expr]).get(expr)
 
 
+def decode_lan_code(code):
+    """(host, port, secret) of an "L<ip>-<port>-<secret>" code."""
+    ip_part, port_part, secret = code[1:].split("-")
+    ip = int(ip_part, 36)
+    host = ".".join(str((ip >> s) & 0xFF) for s in (24, 16, 8, 0))
+    return host, int(port_part, 36), secret
+
+
+def signaling_first_reply(host, port, hello, timeout=5.0):
+    """Open a websocket to a LAN signaling server the way an intruder with
+    the code would - no ClayNetwork, any id it likes - send `hello` and
+    return the first message the server answers with (None if it closes
+    without one)."""
+    s = socket.create_connection((host, port), timeout)
+    try:
+        key = base64.b64encode(os.urandom(16)).decode()
+        s.sendall((f"GET /peerjs HTTP/1.1\r\nHost: {host}:{port}\r\n"
+                   "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                   f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n")
+                  .encode())
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = s.recv(4096)
+            if not chunk:
+                return None
+            buf += chunk
+        head, buf = buf.split(b"\r\n\r\n", 1)
+        if b" 101 " not in head.split(b"\r\n")[0]:
+            return None
+
+        data = json.dumps(hello).encode()
+        mask = os.urandom(4)
+        if len(data) < 126:
+            frame = bytes([0x81, 0x80 | len(data)])
+        else:
+            frame = bytes([0x81, 0x80 | 126]) + struct.pack(">H", len(data))
+        s.sendall(frame + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+        def need(n):
+            nonlocal buf
+            while len(buf) < n:
+                chunk = s.recv(4096)
+                if not chunk:
+                    raise ConnectionError("closed")
+                buf += chunk
+            out, buf = buf[:n], buf[n:]
+            return out
+
+        while True:
+            b0, b1 = need(2)
+            n = b1 & 0x7F
+            if n == 126:
+                n = struct.unpack(">H", need(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", need(8))[0]
+            payload = need(n)
+            opcode = b0 & 0x0F
+            if opcode == 0x1:
+                return json.loads(payload.decode())
+            if opcode == 0x8:
+                return None
+    except (OSError, ConnectionError, ValueError):
+        return None
+    finally:
+        s.close()
+
+
 def wait_for(cond, timeout=15.0, interval=0.15):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -131,10 +202,27 @@ def main():
         code = A.eval1("netId")
         check("host: network code assigned", ok and bool(code), str(code))
 
-        check("host: LAN code carries a secret", code.count("-") == 2, str(code))
+        check("host: LAN code carries an 8-char secret",
+              code.count("-") == 2 and len(code.split("-")[2]) == 8, str(code))
 
         B.eval([f"joinNet('{code}')"])
         check("joinB: connected", wait_for(lambda: B.eval1("connected") is True, 25))
+
+        # -- 2a: whoever has the code cannot take a registered id (#321) ----
+        lan_host, lan_port, lan_secret = decode_lan_code(code)
+        id_b_early = B.eval1("netRef.nodeId")
+        for claimed, label in (("HOST", "the host's id"), (id_b_early, "joinB's id")):
+            reply = signaling_first_reply(lan_host, lan_port,
+                                          {"id": claimed, "secret": lan_secret})
+            check(f"intruder: registering under {label} is refused",
+                  bool(reply) and reply.get("type") == "ID-TAKEN", str(reply))
+
+        # -- 2b': a malformed LAN code fails before it connects -------------
+        C.eval([f"joinNet('{code}-X')"])
+        check("joinC: malformed LAN code rejected",
+              wait_for(lambda: C.eval1("lastError") == "Invalid LAN code", 5)
+              and C.eval1("connected") is not True,
+              str(C.eval1("lastError")))
 
         # -- 2b: a code with the wrong secret is turned away ---------------
         bad = code[:-1] + ("A" if code[-1] != "A" else "B")
@@ -144,7 +232,8 @@ def main():
               str(C.eval1("lastError")))
         wait_for(lambda: C.eval1("status") in (0, 3), 5)
         C.eval([f"joinNet('{code}')"])
-        check("joinC: connected", wait_for(lambda: C.eval1("connected") is True, 25))
+        check("joinC: connected, the real host still takes joiners",
+              wait_for(lambda: C.eval1("connected") is True, 25))
 
         host_id_on_b = B.eval1("nodeList[0]")
 

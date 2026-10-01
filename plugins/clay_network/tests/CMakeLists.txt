@@ -106,3 +106,31 @@ set_tests_properties(network_cloud_signaling PROPERTIES
     LABELS "network;integration"
     TIMEOUT 300
 )
+
+# LAN signaling (#321): a taken id is refused, closed sockets are dropped
+# after connect/close cycles, a malformed LAN code fails before it connects.
+# Same compiled-in backend as tst_cloud_signaling.
+add_executable(tst_local_signaling
+    tst_local_signaling.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_local_signaling PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_local_signaling PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_local_signaling PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_local_signaling COMMAND tst_local_signaling)
+set_tests_properties(network_local_signaling PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)
