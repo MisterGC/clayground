@@ -182,7 +182,20 @@ The same numbers are available programmatically via `network.syncStats`,
 `network.peerStats` and `network.stateAgeMs(nodeId)` - including from the
 [Inspector]({{ site.baseurl }}/docs/manual/inspector/), which makes
 multi-instance multiplayer sessions scriptable end to end (that is exactly
-how `plugins/clay_network/tests/gym` verifies all of the above in CI).
+how `plugins/clay_network/tests/gym` verifies all of the above in CI,
+natively and in the browser).
+
+Two instances on one machine see a perfect network. To see what your game
+does on a bad one, put a node behind a simulated link:
+
+```qml
+network.linkConditions = { loss: 0.1, latencyMs: 80, jitterMs: 20 }
+network.linkConditions = { blackout: true }   // and back with {}
+```
+
+State updates are lost and delayed, reliable messages only delayed - see
+the `Network.linkConditions` reference for every key. It works the same on
+desktop and in the browser, so a test written against it covers both.
 
 ## Checklist
 
@@ -193,3 +206,4 @@ how `plugins/clay_network/tests/gym` verifies all of the above in CI).
 - [ ] Host authoritative for global events; shared seed for procedural content
 - [ ] Remote avatars spawned per `nodes` entry, keyed by node id
 - [ ] `NetworkMonitor` visible in dev builds
+- [ ] Played once with `linkConditions` set to loss, latency and a blackout

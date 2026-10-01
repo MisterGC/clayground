@@ -39,6 +39,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `verifySignalingCertificate` | bool | true | Native: a `wss` server whose certificate does not verify is an error; `false` opts out |
 | `verbose` | bool | false | Enable `diagnosticMessage` output (phases, ICE candidates) |
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
+| `linkConditions` | var | {} | Simulated loss, latency, jitter, bandwidth cap, blackout and dropped signaling, for tests - see [Testing on a Bad Link](#testing-on-a-bad-link) |
 
 ### Read-only State
 
@@ -120,6 +121,45 @@ This adds:
 Always available, verbose or not: `connectionPhase`, `phaseTiming`, `latency`
 (updated every 2 s via ping/pong), `peerStats` (latency, message and byte
 counts, state channel) and `syncStats` (per-origin sequence, drops, age).
+
+## Testing on a Bad Link
+
+`linkConditions` puts one node behind a simulated bad link, on one machine,
+on desktop, mobile and in the browser alike. Everything the node sends and
+receives over its data channels is conditioned, each direction on its own:
+
+```qml
+network.linkConditions = { loss: 0.1, latencyMs: 80, jitterMs: 20 }
+network.linkConditions = { bandwidthKbps: 256 }
+network.linkConditions = { blackout: true }   // the link goes dark ...
+network.linkConditions = {}                    // ... and comes back
+```
+
+| Key | Effect |
+|-----|--------|
+| `loss` | Share (0..1) of state updates that are lost. Reliable messages are never lost - they stand for a transport that retransmits, so they arrive late instead |
+| `latencyMs` | Added to every packet, each way |
+| `jitterMs` | A random 0..jitterMs on top; state updates may overtake each other, reliable messages keep their order |
+| `bandwidthKbps` | Packets leave one after another at this rate (kbit/s), both channels in one queue |
+| `blackout` | While true, state updates are lost and reliable messages are held; when it ends they arrive in order |
+| `dropSignaling` | While true, `host()` and `join()` cannot reach the signaling server and fail with `errorOccurred`; a live Cloud signaling connection is cut as if the server dropped it. A Local host is its own signaling server and hosts regardless |
+
+Changes take effect at once; packets already under way keep their schedule.
+The native backend conditions in `link_conditioner.cpp`, the browser in
+`link_conditioner.js` - the same rules, checked against the same cases by
+`tests/tst_link_conditioner.cpp` and `tests/link_conditioner.test.js`.
+
+The net gym (`tests/gym`) runs three nodes and checks state flow, sender
+attribution and interpolation, then puts the host behind 10 % loss, 80±20 ms
+latency and a blackout, and finally lets it leave. It runs natively over
+Local signaling (ctest `network_sync_gym`) and over Cloud signaling through
+clay-dev-server's relay (`network_sync_gym_cloud`, registered when Python has
+`wsproto`), and in the browser with two pages of the WASM runtime against the
+same relay:
+
+```bash
+python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
+```
 
 ## How It Works
 
