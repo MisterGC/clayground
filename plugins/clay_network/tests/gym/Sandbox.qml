@@ -1,10 +1,11 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 // Net Gym - deterministic sandbox for multiplayer state-sync verification.
-// Driven by run_net_gym.py through the inspector protocol: one instance
-// hosts, others join, everyone broadcasts a deterministic moving value at
-// 20 Hz and interpolates a chosen sender's stream. The receiving side can
-// hold or jitter the tracked stream to exercise the interpolator.
+// Driven by run_net_gym.py through the inspector protocol: one instance hosts,
+// others join, everyone broadcasts a value that moves with the wall clock
+// at 20 Hz and interpolates a chosen sender's stream. The receiving side
+// can hold or jitter the tracked stream to exercise the interpolator, and
+// Network.linkConditions puts any node behind a bad link (#301).
 
 import QtQuick
 import Clayground.Network
@@ -13,12 +14,12 @@ Item {
     id: gym
     anchors.fill: parent
 
-    // Deterministic motion source (10 Wu/s, wraps every 10s)
-    property real emitterX: 0
-    NumberAnimation on emitterX {
-        from: 0; to: 100; duration: 10000
-        loops: Animation.Infinite; running: true
-    }
+    // Motion source: 10 Wu/s on the wall clock, the same function on every
+    // instance - all of them run on one machine. A received x therefore
+    // says which moment of the sender it shows: x * 100 is the sender's
+    // Date.now() then, so the receiver measures its own lag in one place
+    // instead of comparing two instances read at two different times.
+    function senderX(t) { return t / 100 }
 
     readonly property string netId: net.networkId
     readonly property bool connected: net.connected
@@ -26,11 +27,23 @@ Item {
     readonly property var nodeList: net.nodes
     property string lastError: ""
 
-    // Every reliable message received, as {from, probe} - the sender
-    // attribution checks look up their probes here
+    // Cloud signaling through this server (clay-dev-server) when set,
+    // otherwise the host runs Local signaling
+    property string signalingUrl: ""
+
+    // Every reliable message received, as {from, probe, i} - the sender
+    // attribution checks look up their probes here, the link checks their
+    // order
     property var msgLog: []
+    // Every nodeLeft, in order
+    property var leftLog: []
     function msgsWithProbe(probe) {
         return JSON.stringify(msgLog.filter(m => m.probe === probe))
+    }
+    // n reliable messages to every node, numbered, so a receiver can tell
+    // a lost or reordered one
+    function sendProbes(probe, n) {
+        for (let i = 0; i < n; ++i) net.broadcast({probe: probe, i: i})
     }
 
     // Interpolated view on trackedSender's stream (-1 until data flows)
@@ -46,21 +59,37 @@ Item {
     property var held: []
 
     // Fastest movement of remoteX seen since resetSpeedStats(), in Wu/s
-    // (the emitter itself moves at 10 Wu/s and only forward; its wrap at
-    // 100 is skipped - interpolated, the wrap glides back through every
-    // value in between, so it is any step backwards, not just a big one)
+    // (the emitter itself moves at 10 Wu/s and only forward; any step
+    // backwards - a re-stamped buffer - is skipped, it is not a speed)
     property real maxObservedSpeed: 0
     property real _lastX: -1
     property real _lastT: 0
     function resetSpeedStats() { maxObservedSpeed = 0; _lastX = -1; _lastT = 0 }
 
+    // How far the interpolated view is behind the sender, every frame since
+    // resetTrackStats(): lag is now minus the sender moment remoteX shows,
+    // err is that minus what the interpolator means to show - its delay plus
+    // its estimate of the transit (clockOffsetMs). A conditioned link moves
+    // the lag, not err; err grows only when the view stalls or jumps.
+    property var _trk: ({n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0})
+    function resetTrackStats() { _trk = {n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0} }
+    function trackStats() {
+        let t = _trk
+        return JSON.stringify({
+            n: t.n, maxAbsErr: t.maxAbsErr, maxLag: t.maxLag,
+            meanErr: t.n ? t.sumErr / t.n : 0, meanLag: t.n ? t.sumLag / t.n : 0,
+            delayMs: sync.effectiveDelayMs, clockOffsetMs: sync.clockOffsetMs
+        })
+    }
+
     function hostUp() {
-        net.signalingMode = Network.SignalingMode.Local
+        net.signalingMode = gym.signalingUrl ? Network.SignalingMode.Cloud
+                                             : Network.SignalingMode.Local
         net.host()
     }
     function joinNet(code) { lastError = ""; net.join(code) }
     function trackSender(id) {
-        gym.trackedSender = id; sync.reset(); held = []; resetSpeedStats()
+        gym.trackedSender = id; sync.reset(); held = []; resetSpeedStats(); resetTrackStats()
     }
     function feed(data, sentAt) { sync.push(data, gym.useSentAt ? sentAt : undefined) }
 
@@ -68,6 +97,7 @@ Item {
         id: net
         maxNodes: 4
         topology: Network.Topology.Star
+        signalingUrl: gym.signalingUrl
         onStateReceived: (from, data, sentAt) => {
             if (from !== gym.trackedSender) return
             if (gym.stallMs > 0 || gym.jitterMs > 0) {
@@ -78,8 +108,9 @@ Item {
             gym.feed(data, sentAt)
         }
         onErrorOccurred: (message) => gym.lastError = message
+        onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])
         onMessageReceived: (from, data) => {
-            gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe}])
+            gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i}])
         }
     }
 
@@ -95,6 +126,17 @@ Item {
                     gym.maxObservedSpeed = Math.max(gym.maxObservedSpeed, dx / dt * 1000)
             }
             gym._lastX = x; gym._lastT = now
+
+            if (x === undefined) return
+            let lag = now - x * 100
+            let err = lag - (sync.effectiveDelayMs + sync.clockOffsetMs)
+            if (!isFinite(err)) return
+            let t = gym._trk
+            t.n++
+            t.maxAbsErr = Math.max(t.maxAbsErr, Math.abs(err))
+            t.sumErr += err
+            t.sumLag += lag
+            t.maxLag = Math.max(t.maxLag, lag)
         }
     }
 
@@ -122,7 +164,7 @@ Item {
     Timer {
         interval: 50; repeat: true
         running: net.connected
-        onTriggered: net.broadcastState({x: gym.emitterX})
+        onTriggered: net.broadcastState({x: gym.senderX(Date.now())})
     }
 
     // Expose network internals to the test driver

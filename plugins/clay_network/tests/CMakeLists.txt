@@ -93,8 +93,28 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
     set_tests_properties(network_sync_gym PROPERTIES
         LABELS "network;integration;gym"
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        TIMEOUT 180
+        TIMEOUT 300
     )
+
+    # The same gym over Cloud signaling, through clay-dev-server's PeerJS
+    # relay from this checkout (#301). The relay needs wsproto; without it
+    # the test is not registered, and configure says so.
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import wsproto"
+                    RESULT_VARIABLE _clay_has_wsproto OUTPUT_QUIET ERROR_QUIET)
+    if(_clay_has_wsproto EQUAL 0)
+        add_test(NAME network_sync_gym_cloud
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/gym/run_net_gym.py
+                    --loader $<TARGET_FILE:clayliveloader> --signaling cloud
+        )
+        set_tests_properties(network_sync_gym_cloud PROPERTIES
+            LABELS "network;integration;gym"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            TIMEOUT 300
+        )
+    else()
+        message(STATUS "wsproto not found for ${Python3_EXECUTABLE} - "
+                       "network_sync_gym_cloud is not registered (pip install wsproto)")
+    endif()
 endif()
 
 # Native Cloud signaling against an in-process PeerJS server: certificate
