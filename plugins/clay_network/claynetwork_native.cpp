@@ -48,6 +48,8 @@ ClayNetwork::ClayNetwork(QObject *parent)
                      this, &ClayNetwork::onSignalingCandidate);
     QObject::connect(signaling_.get(), &PeerJSSignaling::errorOccurred,
                      this, &ClayNetwork::onSignalingError);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::rejected,
+                     this, &ClayNetwork::onSignalingRejected);
     QObject::connect(signaling_.get(), &PeerJSSignaling::disconnected,
                      this, &ClayNetwork::onSignalingDisconnected);
     signalingRetry_.setSingleShot(true);
@@ -633,6 +635,15 @@ void ClayNetwork::onSignalingError(const QString &error)
     status_ = Error;
     emit statusChanged();
     emit errorOccurred(error);
+}
+
+void ClayNetwork::onSignalingRejected(const QString &reason)
+{
+    // A full native host refuses at signaling, a full browser host on the
+    // data channel: either way the joiner hears joinRefused("refused")
+    if (isHost_ || status_ != Connecting)
+        return;
+    refusedByHost(hs::refused(), reason);
 }
 
 void ClayNetwork::onSignalingDisconnected()
@@ -1520,6 +1531,8 @@ void ClayNetwork::setupLocalSignalingConnections()
                      this, &ClayNetwork::onSignalingCandidate);
     QObject::connect(localClient_.get(), &LocalSignalingClient::errorOccurred,
                      this, &ClayNetwork::onSignalingError);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::rejected,
+                     this, &ClayNetwork::onSignalingRejected);
 }
 
 QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port, const QString &secret)

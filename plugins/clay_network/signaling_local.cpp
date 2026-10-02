@@ -383,7 +383,7 @@ void LocalSignalingClient::onWsMessage(const std::string &message)
     }
     else if (type == "REJECT") {
         QString reason = obj["payload"].toObject()["reason"].toString();
-        emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+        emit rejected(reason.isEmpty() ? "Connection rejected" : reason);
     }
     else if (type == "ERROR" || type == "ID-TAKEN") {
         QString errorMsg = obj["payload"].toObject()["msg"].toString();

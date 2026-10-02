@@ -206,6 +206,7 @@ private slots:
     void onSignalingAnswer(const QString &fromId, const QString &sdp);
     void onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid);
     void onSignalingError(const QString &error);
+    void onSignalingRejected(const QString &reason);
     void onSignalingDisconnected();
 
 private:

@@ -3,8 +3,9 @@
 // The LAN signaling server embedded in a host (#321): an id belongs to the
 // first socket that registered it until that socket closes, so whoever has
 // the code cannot take over HOST or a joiner; closed sockets are dropped, so
-// connect/close cycles do not pile up; and a malformed LAN code fails in the
-// joiner before anything connects.
+// connect/close cycles do not pile up; a malformed LAN code fails in the
+// joiner before anything connects; and a full host's refusal reaches the
+// joiner as joinRefused (#323).
 
 #include "claynetwork_native.h"
 #include "signaling_local.h"
@@ -176,6 +177,35 @@ private slots:
         net.joinRoom(lanCode(probe.serverPort()).toLower());
         QTRY_VERIFY_WITH_TIMEOUT(probe.hasPendingConnections(), 5000);
         QCOMPARE(net.signalingMode(), ClayNetwork::Local);
+    }
+
+    // A full native host turns a joiner away at signaling; the joiner hears
+    // it as joinRefused("refused"), as from a full browser host (#323)
+    void fullHostRefusesJoiner()
+    {
+        ClayNetwork host;
+        host.setSignalingMode(ClayNetwork::Local);
+        host.setMaxNodes(2);
+        QSignalSpy created(&host, &ClayNetwork::roomCreated);
+        host.createRoom();
+        QVERIFY(created.wait(10000));
+
+        ClayNetwork first;
+        first.joinRoom(host.networkId());
+        QTRY_VERIFY_WITH_TIMEOUT(first.connected() && host.nodes().size() == 1, 20000);
+
+        ClayNetwork second;
+        QSignalSpy refused(&second, &ClayNetwork::joinRefused);
+        QSignalSpy errors(&second, &ClayNetwork::errorOccurred);
+        second.joinRoom(host.networkId());
+        QVERIFY(refused.wait(10000));
+        QCOMPARE(refused.first().at(0).toString(), QString("refused"));
+        QCOMPARE(refused.first().at(1).toString(), QString("Network full"));
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(errors.first().first().toString(), QString("Network full"));
+        QCOMPARE(second.status(), ClayNetwork::Error);
+        QVERIFY(!second.connected());
+        QCOMPARE(host.nodes().size(), 1);
     }
 };
 

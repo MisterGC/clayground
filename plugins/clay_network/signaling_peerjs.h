@@ -47,6 +47,9 @@ signals:
     void answerReceived(const QString &fromId, const QString &sdp);
     void candidateReceived(const QString &fromId, const QString &candidate, const QString &mid);
     void errorOccurred(const QString &error);
+    // The host turned this joiner away (a full network) before any data
+    // channel existed - a refusal like the handshake's, not a failure (#323)
+    void rejected(const QString &reason);
 
 private:
     void onWsOpen();
