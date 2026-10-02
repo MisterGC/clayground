@@ -315,6 +315,9 @@ private:
     QVariantMap phaseTiming_;
     int latency_ = -1;
     QVariantMap peerLatencies_;
+    // States that came over each peer's link, as the native peerStats
+    // counts them (#307)
+    QHash<QString, qint64> peerStateRecv_;
 
     // State sync bookkeeping - keyed by ORIGIN node id
     void forgetSender(const QString &nodeId);

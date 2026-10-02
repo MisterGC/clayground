@@ -19,7 +19,8 @@
 // once and count what they do per frame (#305). Replicated objects (#306):
 // the host runs thirty enemies at 20 Hz - a position and a mood string - a
 // joiner runs its avatar, the host sets session properties, and every node
-// reports what it shows of them.
+// reports what it shows of them. The tracked stream's gaps are kept, so a
+// driver can tell a lost state from one the link held up (#307).
 
 import QtQuick
 import Clayground.Network
@@ -265,6 +266,25 @@ Item {
     // its estimate of the transit (transitMs()). A conditioned link moves
     // the lag, not err; err grows only when the view stalls or jumps.
     property var _trk: ({n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0})
+
+    // Gaps in the tracked stream (#307): for every state that arrives, the
+    // ms since the state before it arrived, and the ms between the two on
+    // the sender's clock. The two differ by what the link did: a lossy
+    // state channel loses a state and goes on with the next one, a channel
+    // that retransmits holds the next one up behind it.
+    readonly property int sendPeriodMs: 50
+    property var _gaps: []
+    property real _gapPrevAt: 0
+    property real _gapPrevSent: 0
+    function resetGapStats() { _gaps = []; _gapPrevAt = 0; _gapPrevSent = 0 }
+    function _noteArrival(sentMoment) {
+        const at = Date.now()
+        if (_gapPrevAt > 0)
+            _gaps.push([at - _gapPrevAt, sentMoment - _gapPrevSent])
+        _gapPrevAt = at
+        _gapPrevSent = sentMoment
+    }
+    function gapStats() { return JSON.stringify(_gaps) }
     // The interpolator's transit estimate. On the wall clock its offset
     // also holds how far this node's wall clock is from the session clock
     // the send times are on (#304)
@@ -319,6 +339,7 @@ Item {
                 return
             }
             if (from !== gym.trackedSender) return
+            if (data.x !== undefined) gym._noteArrival(data.x * 100)
             if (gym.stallMs > 0 || gym.jitterMs > 0) {
                 let release = Date.now() + (gym.jitterMs > 0 ? Math.random() * gym.jitterMs : 0)
                 gym.held.push({d: data, sa: sentAt, at: release})
@@ -389,7 +410,7 @@ Item {
     }
 
     Timer {
-        interval: 50; repeat: true
+        interval: gym.sendPeriodMs; repeat: true
         running: net.connected
         onTriggered: net.broadcastState({x: gym.senderX(Date.now())})
     }
