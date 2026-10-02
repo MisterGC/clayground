@@ -273,3 +273,71 @@ jobs:
           starter-smoke.png
         if-no-files-found: ignore
         retention-days: 7
+
+  # A native node and a browser node in one network (#307): the native
+  # loader hosts and a page joins, then the page hosts and the loader joins,
+  # through clay-dev-server's relay. The loader is built here on the Linux
+  # desktop job's compiler cache, the page runs the WASM job's starter bundle.
+  net-gym-mixed:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: 'recursive'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: linux
+        target: desktop
+        arch: linux_gcc_64
+        modules: ${{ env.QT_MODULES }}
+        aqtversion: ${{ env.AQT_VERSION }}
+        cache: true
+
+    - name: Install Linux Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
+
+    - name: Setup compiler cache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ubuntu-latest-desktop
+        max-size: 1G
+
+    - name: Build the Loader
+      run: |
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .
+        cmake --build build --target clayliveloader
+
+    - name: Download Starter Bundle
+      uses: actions/download-artifact@v4
+      with:
+        name: clayground-starter
+        path: starter-artifact
+
+    - name: Net Gym (native and WASM)
+      run: |
+        # The artifact's layout follows what the WASM job found to upload
+        mkdir starter
+        unzip -q "$(find starter-artifact -name clayground-starter.zip)" -d starter
+        pip install playwright wsproto
+        python3 plugins/clay_network/tests/gym/run_net_gym_mixed.py --loader build/bin/clayliveloader starter
+      env:
+        QT_QPA_PLATFORM: offscreen
+        CLAY_NET_GYM_LOG_ROOT: ${{ github.workspace }}/net-gym-logs
+
+    - name: Upload Net Gym Logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: net-gym-logs-mixed
+        path: net-gym-logs
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7

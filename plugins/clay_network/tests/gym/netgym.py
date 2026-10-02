@@ -53,6 +53,12 @@ CHECKS = []
 # what remains is frame timing - a stall or a jump is hundreds of ms.
 TRACK_TOLERANCE_MS = 25.0
 
+# The gym's state stream: one state every SEND_PERIOD_MS (Sandbox.qml's
+# sendPeriodMs), and how much later than that two timers on their own
+# event loops may let one arrive (#307)
+SEND_PERIOD_MS = 50
+GAP_SLACK_MS = 25
+
 
 def check(name, ok, detail=""):
     CHECKS.append((name, ok, detail))
@@ -159,11 +165,12 @@ def scenario_loss(host, joiner, host_id, loss=0.1, window=6.0):
     host.eval([f"netRef.linkConditions = ({{loss: {loss}}})"])
     time.sleep(1.0)
     s0 = sync_of(joiner, host_id)
-    joiner.eval(["resetTrackStats()"])
+    joiner.eval(["resetTrackStats()", "resetGapStats()"])
     host.eval(["sendProbes('lossy', 20)"])
     time.sleep(window)
     s1 = sync_of(joiner, host_id)
     t = track_stats(joiner)
+    gaps = json.loads(joiner.eval1("gapStats()") or "[]")
     host.eval(["netRef.linkConditions = ({})"])
 
     sent = s1.get("seq", 0) - s0.get("seq", 0)
@@ -180,6 +187,27 @@ def scenario_loss(host, joiner, host_id, loss=0.1, window=6.0):
           t.get("n", 0) >= window * 10 and t.get("maxAbsErr", 1e9) < TRACK_TOLERANCE_MS,
           f"frames={t.get('n')} maxErr={fmt(t.get('maxAbsErr'))}ms "
           f"meanLag={fmt(t.get('meanLag'))}ms delay={fmt(t.get('delayMs'))}")
+    check_state_gaps(gaps, f"loss {int(loss * 100)} %")
+
+
+def check_state_gaps(gaps, label, period=SEND_PERIOD_MS):
+    """No gap in the tracked stream is longer than twice the send period
+    (#307), unless the sender's own states were that far apart - two or
+    more in a row lost to the link conditioner, which no channel makes up
+    for (at 10 % loss about one update in a hundred), or a late timer on
+    the sender. gaps holds [ms between arrivals, ms between the two on the
+    sender's clock] per state that arrived (Sandbox.qml's gapStats()).
+    GAP_SLACK_MS is the receiving side's timer and event loop."""
+    limit = 2 * period + GAP_SLACK_MS
+    long_gaps = [g for g in gaps if g[0] > limit]
+    held_up = [g for g in long_gaps if g[0] > max(2 * period, g[1]) + GAP_SLACK_MS]
+    return check(f"{label}: no gap in the state stream over twice the send period "
+                 f"but where the sender's states were that far apart",
+                 len(gaps) >= 50 and not held_up,
+                 f"{len(gaps)} gaps, longest {max((g[0] for g in gaps), default=None)} ms; "
+                 f"{sum(1 for g in gaps if g[0] > 2 * period)} over {2 * period} ms, "
+                 f"{len(long_gaps)} over {limit} ms, of which held up by the link: "
+                 f"{held_up} ([arrival gap, sender gap] ms)")
 
 
 def scenario_latency(host, joiner, host_id, latency=80, jitter=20):

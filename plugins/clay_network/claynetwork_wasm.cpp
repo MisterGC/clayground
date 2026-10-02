@@ -346,6 +346,11 @@ EM_JS(void, js_init_helpers, (), {
                 Module.clayOnStateData(instanceId, peerId, text);
             });
         };
+        // What the browser made of the channel, either side's
+        dc.onopen = function() {
+            console.log('[ClayNetwork] State channel open with ' + peerId + ' - ordered: '
+                        + dc.ordered + ', maxRetransmits: ' + dc.maxRetransmits);
+        };
         dc.onclose = function() {
             if (state.stateConns.get(peerId) === dc) state.stateConns.delete(peerId);
         };
