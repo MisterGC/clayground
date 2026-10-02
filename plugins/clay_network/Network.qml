@@ -442,7 +442,8 @@ Item {
         stateSent, stateRecv, stateChannel, stateBacklog } }.
         \c stateChannel is \c "unreliable" once the lossy state channel is
         negotiated and \c "fallback" while state still travels over the
-        reliable channel.
+        reliable channel. Both backends count the same fields; the property
+        changes with the pongs, every 2 s.
     */
     readonly property var peerStats: _backend ? _backend.peerStats : ({})
 

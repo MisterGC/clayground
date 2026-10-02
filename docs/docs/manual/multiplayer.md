@@ -11,7 +11,8 @@ to diagnose sync problems.
 
 ## Two channels, two jobs
 
-Every peer pair is connected by two WebRTC data channels:
+Every peer pair is connected by two WebRTC data channels - natively, in the
+browser, and between a native and a browser node:
 
 - **Message channel** (`broadcast`, `sendTo`) - reliable and ordered, like
   TCP. Everything sent arrives, in order, eventually.

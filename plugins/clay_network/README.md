@@ -283,6 +283,17 @@ same relay:
 python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
 ```
 
+Under 10 % loss the gym also checks that no gap in the state stream is longer
+than twice the send period, except where the sender's states were that far
+apart - two or more lost in a row. A native node and a browser node play
+together in `run_net_gym_mixed.py`: the loader hosts and a page joins, then
+the other way round, and both keep one connection with both channels open:
+
+```bash
+python3 plugins/clay_network/tests/gym/run_net_gym_mixed.py \
+    --loader build/bin/clayliveloader build-wasm/clayground-starter
+```
+
 ## How It Works
 
 ### Connection Flow
@@ -329,7 +340,11 @@ This also explains asymmetric connectivity: it can work in one direction but not
 
 State updates travel over a dedicated lossy data channel: lost packets are
 never retransmitted and each update carries a per-sender sequence number, so
-receivers drop stale data instead of applying it late. In Star topology the
+receivers drop stale data instead of applying it late. On both backends it is
+a second data channel (label `state`, unordered, `maxRetransmits` 0) on the
+same peer connection as the reliable one, so native and browser nodes play
+together either way round. That is wire version 5; an older build is refused
+with `incompatible-version`. In Star topology the
 host relays state between joiners and propagates the roster, so `nodes` and
 `nodeJoined`/`nodeLeft` cover all participants on every node.
 
