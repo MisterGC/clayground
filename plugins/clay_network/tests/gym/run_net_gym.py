@@ -14,7 +14,9 @@ out for less than the grace period without anybody leaving. The host
 leaves, hosts again and is killed (#301, #299). The host demands a room
 password, and joinC is refused for a wrong one and for another wire version
 before it gets in (#323). joinD joins for a while so that four nodes stream
-100 keyed objects each at 30 Hz, and leaves again (#302).
+100 keyed objects each at 30 Hz, and leaves again (#302). joinB and joinC
+join again behind 100+-20 ms each way, and every node's session time is
+compared with the others' (#304).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
 instead (needs wsproto); the LAN code checks are Local-only and skipped,
@@ -39,7 +41,7 @@ from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_loss, scenario_latency, scenario_blackout,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
                     scenario_host_killed, scenario_handshake, check_client_token,
-                    scenario_keyed)
+                    scenario_keyed, scenario_session_clock)
 
 # Every node hosts and joins with it (#323)
 PASSWORD = "stone"
@@ -362,6 +364,10 @@ def run_after_join(A, B, C, D, insp, host_id_on_b, cloud, code, procs):
     check("state: no stale drops on loopback",
           all(v.get("dropped", 0) == 0 for v in sync_b.values()),
           str({k: v.get("dropped") for k, v in sync_b.items()}))
+
+    # -- 5a: one session clock on every node (#304) ----------------------
+    # joinB and joinC join again, so their ids change
+    scenario_session_clock(A, [("joinB", B), ("joinC", C)], code)
 
     # -- 5b: four nodes stream 100 keyed objects each (#302) -------------
     keyed_four_nodes(A, B, C, D, code)

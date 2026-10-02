@@ -17,6 +17,7 @@ set(COMMON_SOURCES
     sender.h
     handshake.h
     statebatch.h
+    sessionclock.h
 )
 
 set(COMMON_QML
@@ -106,6 +107,11 @@ clay_plugin(Network
 if(EMSCRIPTEN)
     target_include_directories(ClayNetwork PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
+
+# StateInterpolator against a stub network (#304). It imports the QML
+# sources by directory and needs no C++ type, so it runs on Windows too.
+include(claytest)
+clay_add_qml_test(network_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
 
 # Add tests (only for native builds, not WASM). The top level calls
 # enable_testing() but not include(CTest), so BUILD_TESTING is undefined

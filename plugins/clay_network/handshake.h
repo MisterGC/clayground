@@ -19,7 +19,9 @@ namespace clay::network::handshake {
 
 // Bump whenever a message on the data channels changes in a way an older
 // build would misread
-constexpr int kWireVersion = 2;  // 2: keyed state batches, "t":"b" (#302)
+constexpr int kWireVersion = 3;  // 2: keyed state batches, "t":"b" (#302)
+                                 // 3: "ts" in session time, "st" on pongs
+                                 //    and the welcome (#304)
 // A joiner that opened its channel and sent no hello for this long is
 // refused: it is a build from before the handshake
 constexpr int kTimeoutMs = 5000;
@@ -52,12 +54,16 @@ inline QJsonObject hello(int version, const QString &appId, const QString &passw
     return msg;
 }
 
-inline QJsonObject welcome(const QString &hostId, int version)
+// sessionTime: the host's session time (#304), the joiner's first guess
+// at it until its pings have synced it
+inline QJsonObject welcome(const QString &hostId, int version, double sessionTime = -1)
 {
     QJsonObject msg;
     msg["t"] = "H";
     msg["v"] = version;
     msg["host"] = hostId;
+    if (sessionTime >= 0)
+        msg["st"] = sessionTime;
     return msg;
 }
 

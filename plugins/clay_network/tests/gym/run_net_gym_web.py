@@ -13,7 +13,9 @@ signaling drop the host comes back from, the host leaving, and - hosting
 again - the host page crashing (#299). The host demands a room password,
 and the joiner is refused for a wrong one and for another wire version
 before it gets in (#323). Two more pages join for a while so that four
-nodes stream 100 keyed objects each at 30 Hz, and leave again (#302).
+nodes stream 100 keyed objects each at 30 Hz, and leave again (#302). The
+joiner and joinB join again behind 100+-20 ms each way, and every page's
+session time is compared with the others' (#304).
 
 Usage:
     python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
@@ -38,7 +40,7 @@ import netgym
 from netgym import (check, wait_for, check_tracking, scenario_loss, scenario_latency,
                     scenario_blackout, scenario_host_leaves, scenario_short_outage,
                     scenario_signaling_drop, scenario_host_killed, scenario_handshake,
-                    scenario_keyed)
+                    scenario_keyed, scenario_session_clock)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "webdojo", "tests"))
@@ -250,6 +252,14 @@ def run(H, J, B, C, signaling_url, timeout):
     check_tracking(J, "interp: clean link")
 
     keyed_four_nodes(H, J, B, C, code)
+
+    # One session clock on every page (#304); joinB leaves again after it
+    scenario_session_clock(H, [("joiner", J), ("joinB", B)], code)
+    B.eval(["netRef.leave()"])
+    check("session clock: joinB leaves, two nodes again",
+          wait_for(lambda: H.eval1("nodeList.length") == 1
+                   and J.eval1("connected") is True, 15),
+          f"host nodes={H.eval1('nodeList.length')} joiner connected={J.eval1('connected')}")
 
     scenario_loss(H, J, host_id)
     scenario_latency(H, J, host_id)

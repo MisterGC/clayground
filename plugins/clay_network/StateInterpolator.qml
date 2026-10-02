@@ -19,6 +19,14 @@
     compressed into the few milliseconds of its arrival. Without it,
     arrival time is used.
 
+    Give it the \l network and the \l nodeId whose state it shows, and it
+    runs on the network's \l {Network::sessionTime}{session clock} and
+    places snapshots with the network's \l {Network::transitMs}{transit
+    estimate} for that node - estimated once per sender, however many
+    interpolators show that sender's objects. Without them every
+    interpolator estimates the offset from the states pushed into it, on
+    the local wall clock.
+
     Do NOT smooth remote entities with \c Behavior animations on physics
     world-unit properties - retargeting fights the property sync and the
     entity stalls short of its target.
@@ -34,6 +42,8 @@
     // In the remote avatar component:
     StateInterpolator {
         id: sync
+        network: theNetwork      // optional: the shared clock and offset
+        nodeId: avatarOwner
         angleKeys: ["a"]
         onUpdated: { parent.xWu = value.x; parent.yWu = value.y; }
     }
@@ -57,6 +67,23 @@ Item {
         \l autoDelay is on.
     */
     property int delayMs: 120
+
+    /*!
+        \qmlproperty Network StateInterpolator::network
+        \brief The network the pushed states come from (default null).
+
+        Together with \l nodeId it makes the interpolator run on the
+        network's session clock and take the clock offset from
+        \l Network::transitMs instead of estimating it itself.
+    */
+    property var network: null
+
+    /*!
+        \qmlproperty string StateInterpolator::nodeId
+        \brief The node whose state is pushed, the \c fromId of
+               \l Network::stateReceived. Used with \l network.
+    */
+    property string nodeId: ""
 
     /*!
         \qmlproperty bool StateInterpolator::autoDelay
@@ -95,7 +122,9 @@ Item {
         \qmlproperty real StateInterpolator::clockOffsetMs
         \brief Estimated offset between the sender's clock and ours
                (arrival minus send time of the fastest update seen), or
-               NaN while no sender timestamps have been pushed.
+               NaN while no sender timestamps have been pushed. With
+               \l network and \l nodeId set, the network's
+               \l Network::transitMs for that node.
     */
     readonly property real clockOffsetMs: internal.offset
 
@@ -150,11 +179,25 @@ Item {
         its arrival time.
     */
     function push(state, sentAt) {
-        let now = Date.now();
-        let hasSent = typeof sentAt === "number" && sentAt > 0;
+        let now = internal.now();
+        let hasSent = typeof sentAt === "number" && sentAt >= 0;
         let t = now;
         let lateness = 0;
-        if (hasSent) {
+        let shared = hasSent && internal.shared() ? root.network.transitMs(root.nodeId) : NaN;
+        if (!isNaN(shared)) {
+            // The network estimates the offset once per sender (#304);
+            // both clocks are its session clock
+            if (shared !== internal.offset) {
+                internal.offset = shared;
+                let buf = internal.buffer;
+                for (let i = 0; i < buf.length; ++i)
+                    if (buf[i].sa !== undefined) buf[i].t = buf[i].sa + shared;
+            }
+            t = sentAt + shared;
+            lateness = (now - sentAt) - shared;
+            if (internal.lastSent > 0) internal.notePeriod(sentAt - internal.lastSent);
+            internal.lastSent = sentAt;
+        } else if (hasSent) {
             // Clock offset = the smallest (arrival - sent) seen in the
             // last few seconds: the update that travelled fastest defines
             // the sender's timeline on our clock, every other one arrived
@@ -224,6 +267,15 @@ Item {
         property var buffer: []
         property int count: 0
         property var current: ({})
+
+        // On the network's session clock with its per-sender offset (#304)
+        function shared() {
+            return root.network !== null && root.network !== undefined
+                && root.nodeId !== "" && root.network.sessionTime >= 0;
+        }
+        function now() {
+            return root.network ? root.network.sessionTime : Date.now();
+        }
 
         // Sender-clock placement
         property var offsets: []
@@ -311,7 +363,10 @@ Item {
                 let d = internal.target - internal.delay;
                 internal.delay += Math.max(-1, Math.min(1, d));
             }
-            let s = internal.sample(Date.now() - root.effectiveDelayMs);
+            let now = internal.now();
+            // Out of the network, there is no session clock to render on
+            if (now < 0) return;
+            let s = internal.sample(now - root.effectiveDelayMs);
             if (s) {
                 internal.current = s;
                 root.updated();

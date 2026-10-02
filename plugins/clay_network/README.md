@@ -65,6 +65,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `latency` | int | Best RTT across peers in ms (-1 if unknown) |
 | `peerStats` | var | Per-peer transport stats (always on) |
 | `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs; with keyed states also `keys` (the same per key), `batches`, `maxBatchBytes` (always on) |
+| `sessionTime` | real | ms since the host created the network, the same on every node; -1 outside a network - see [The Session Clock](#the-session-clock) |
+| `sessionTimeSynced` | bool | True on the host, and on a joiner once its clock is synced to the host's |
 
 ### Signals
 
@@ -73,8 +75,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `networkCreated(networkId)` | Host created network successfully |
 | `nodeJoined(nodeId)` | A node joined the network |
 | `nodeLeft(nodeId)` | A node left the network |
-| `messageReceived(fromId, data)` | Reliable message received |
-| `stateReceived(fromId, data, sentAt, key)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent), `key` the key it was sent with ("" if none) |
+| `messageReceived(fromId, data, sentAt)` | Reliable message received; `sentAt` is the `sessionTime` it was sent at (-1 if absent) |
+| `stateReceived(fromId, data, sentAt, key)` | State update received; `sentAt` is the `sessionTime` it was sent at (-1 if absent), `key` the key it was sent with ("" if none) |
 | `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
 | `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
@@ -94,6 +96,42 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `flushState()` | Send the keyed state updates queued so far now |
 | `stateAgeMs(nodeId[, key])` | ms since the newest accepted state from a node (for a key), -1 if none |
 | `sendTo(nodeId, data)` | Send to a specific node |
+| `transitMs(nodeId)` | How long the fastest state from a node in the last 3 s took, in session ms (NaN before one arrived) |
+
+## The Session Clock
+
+`sessionTime` is one clock for the whole network: the host's monotonic clock,
+in milliseconds since it created the network. No NTP adjustment of a wall
+clock moves it. A joiner syncs to it with the pings it sends the host anyway -
+a burst of them, 50 ms apart, right after the welcome, then one every 2 s.
+Each ping's round trip says where the host's clock was; the faster half of
+the last 64 round trips decides, so a slow or held-back leg does not skew it.
+Through a link with 100 ms of latency and up to ±20 ms of jitter each way,
+nodes agree on the session time within a few milliseconds (the net gym checks
+10 ms, natively and in the browser).
+
+Until `sessionTimeSynced` is true - about 2 s after joining - the clock may
+step; after that it only runs, adjustments are slewed and it never goes back.
+
+Every message and state carries its send time on this clock, as `sentAt` in
+`messageReceived` and `stateReceived`. So a node can tell how long ago
+something happened elsewhere (`sessionTime - sentAt`), or schedule an event
+for the same moment everywhere:
+
+```qml
+// host: the door opens in 500 ms, on every node at once
+network.broadcast({door: "north", at: network.sessionTime + 500})
+
+onMessageReceived: (from, data, sentAt) => {
+    if (data.door) doorTimer.openAt(data.at)   // compare with network.sessionTime
+}
+```
+
+`sessionTime` is read live; a binding to it is only re-evaluated when the
+clock is set, synced or reset, not every millisecond.
+
+The session clock is wire version 3; a node of an older build is refused in
+the handshake with `incompatible-version`.
 
 ## Joining
 
@@ -312,7 +350,11 @@ older build is refused in the handshake with `incompatible-version`.
   extrapolation). Feed it `push(data, sentAt)` with the timestamp from
   `stateReceived` so snapshots sit on the sender's timeline, and set
   `autoDelay: true` to let it size the delay from the observed jitter
-  instead of guessing one. Use this instead of `Behavior` animations.
+  instead of guessing one. Give it `network` and the sender's `nodeId` and
+  it runs on the session clock and takes the sender's offset from
+  `network.transitMs(nodeId)` - estimated once per sender, however many
+  objects of that sender are interpolated. Use this instead of `Behavior`
+  animations.
 - **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
   state rate, state age and stale-drop counts (`network.syncStats` /
   `network.peerStats` / `network.stateAgeMs(id)` for programmatic access).

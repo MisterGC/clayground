@@ -20,6 +20,12 @@ password and as a build of another wire version before it gets in.
 The keyed scenario (#302) has four nodes stream 100 objects each, every
 object under its own key, at 30 Hz, while jitter on the host's link makes
 the datagrams of one frame overtake each other.
+
+The session clock scenario (#304) has the joiners join again behind
+100+-20 ms each way and compares every node's session time against the
+wall clock they share: instances on one machine have one wall clock, so
+sessionTime - Date.now() is the same on every node whose session clock
+agrees with the host's.
 """
 
 import json
@@ -443,3 +449,110 @@ def scenario_keyed(nodes, host, keys=100, hz=30, window=5.0, jitter_ms=6):
                   f"largest {st.get('maxBatchBytes')} B")
     for _, inst in nodes:
         inst.eval(["resetKeyed()"])
+
+
+# How far apart two nodes' session times may be (#304)
+SESSION_TOLERANCE_MS = 10.0
+
+
+def clock_offsets(insts):
+    """sessionTime - Date.now() per node, each read in one go on its node."""
+    out = {}
+    for name, inst in insts:
+        r = json.loads(inst.eval1("clockReading()") or "{}")
+        out[name] = (r.get("s", -1) - r.get("w", 0)) if r.get("s", -1) >= 0 else None
+    return out
+
+
+def scenario_session_clock(host, joiners, code, latency=80, jitter=40, readings=25):
+    """The joiners leave, put their link behind latency + 0..jitter ms each
+    way - 100+-20 ms - and join again (#304). Their session clocks sync to
+    the host's through that link: every node's session time is within
+    SESSION_TOLERANCE_MS of every other's. A message's sentAt is the
+    sender's session time and its transit is the link's; the interpolator
+    takes the offset of the host's stream from the network."""
+    label = f"session clock, {latency + jitter // 2}+-{jitter // 2} ms each way"
+    for _, j in joiners:
+        j.eval(["netRef.leave()"])
+    wait_for(lambda: host.eval1("nodeList.length") == 0, 10)
+    for _, j in joiners:
+        j.eval([f"netRef.linkConditions = ({{latencyMs: {latency}, jitterMs: {jitter}}})",
+                f"joinNet('{code}')"])
+    joined = wait_for(lambda: all(j.eval1("connected") is True for _, j in joiners)
+                      and host.eval1("nodeList.length") == len(joiners), 30)
+    synced = joined and wait_for(
+        lambda: all(j.eval1("netRef.sessionTimeSynced") is True for _, j in joiners), 10)
+    check(f"{label}: the joiners join again and their clocks sync", synced,
+          f"connected={[j.eval1('connected') for _, j in joiners]} "
+          f"synced={[j.eval1('netRef.sessionTimeSynced') for _, j in joiners]}")
+    if not synced:
+        for _, j in joiners:
+            j.eval(["netRef.linkConditions = ({})"])
+        return
+    # The rest of the burst refines what synced
+    time.sleep(2.5)
+
+    nodes = [("host", host)] + list(joiners)
+    worst = 0.0
+    worst_at = {}
+    spreads = []
+    for _ in range(readings):
+        offs = clock_offsets(nodes)
+        vals = [v for v in offs.values() if v is not None]
+        spread = max(vals) - min(vals) if len(vals) == len(nodes) else float("inf")
+        spreads.append(spread)
+        if spread >= worst:
+            worst, worst_at = spread, offs
+        time.sleep(0.2)
+    host_off = worst_at.get("host") or 0
+    check(f"{label}: Network.sessionTime differs by <= {SESSION_TOLERANCE_MS:g} ms "
+          f"between instances", worst <= SESSION_TOLERANCE_MS,
+          f"worst spread {fmt(worst, 2)} ms over {readings} readings "
+          f"(mean {fmt(sum(spreads) / len(spreads), 2)} ms), joiners vs host then: "
+          f"{ {n: fmt(v - host_off, 2) for n, v in worst_at.items() if n != 'host' and v is not None} }")
+
+    # Reliable messages carry their send time on the session clock
+    (bname, B), (cname, C) = joiners[0], joiners[1]
+    host.eval(["sendProbes('clock', 5)"])
+    C.eval(["sendProbes('clockRelayed', 5)"])
+    wait_for(lambda: len(probes(B, "clock")) >= 5 and len(probes(B, "clockRelayed")) >= 5, 5)
+    for probe, sender, hops in (("clock", "host", 1), ("clockRelayed", cname, 2)):
+        msgs = probes(B, probe)
+        same = [abs(m.get("sentAt", -1) - m.get("st", -2)) <= 1.0 for m in msgs]
+        transit = [m.get("at", 0) - m.get("sentAt", 0) for m in msgs]
+        check(f"{label}: messageReceived on {bname} gets the {sender}'s session time as sentAt",
+              len(msgs) == 5 and all(same),
+              f"sentAt - sender's sessionTime: "
+              f"{[fmt(m.get('sentAt', -1) - m.get('st', 0), 2) for m in msgs]}")
+        lo, hi = hops * latency - SESSION_TOLERANCE_MS, hops * (latency + jitter) + 25
+        check(f"{label}: a message from the {sender} took {hops} conditioned "
+              f"link{'s' if hops > 1 else ''} by the session clock",
+              len(transit) == 5 and all(lo <= t <= hi for t in transit),
+              f"sessionTime on arrival - sentAt: {[fmt(t) for t in transit]} ms, "
+              f"expected {lo:g}..{hi:g}")
+
+    # The offset of a sender's timeline is the network's, once per sender
+    host_id = host.eval1("netRef.nodeId")
+    B.eval([f"trackSender('{host_id}')"])
+    time.sleep(3.5)
+    # Read together. The interpolator took the network's estimate at its
+    # last push, up to 50 ms ago; a slewing clock moves it by at most
+    # 0.05 ms per ms meanwhile, 2.5 ms
+    net_off, interp_off = json.loads(B.eval1(
+        f"JSON.stringify([netRef.transitMs('{host_id}'), syncRef.clockOffsetMs])") or "[null, null]")
+    check(f"{label}: {bname}'s transit estimate for the host is the conditioned delay",
+          isinstance(net_off, (int, float)) and latency - SESSION_TOLERANCE_MS <= net_off
+          <= latency + jitter, f"transitMs={fmt(net_off)}")
+    check(f"{label}: the interpolator places the host's stream with the network's estimate",
+          isinstance(interp_off, (int, float)) and isinstance(net_off, (int, float))
+          and abs(interp_off - net_off) <= 2.5,
+          f"clockOffsetMs={fmt(interp_off, 2)} transitMs={fmt(net_off, 2)}")
+    check_tracking(B, f"{label}: on the session clock")
+    # A handler without the network still gets a timeline it can place
+    B.eval(["sharedClock = false", f"trackSender('{host_id}')"])
+    time.sleep(3.5)
+    check_tracking(B, f"{label}: on the wall clock, offset estimated by the interpolator")
+    B.eval(["sharedClock = true"])
+
+    for _, j in joiners:
+        j.eval(["netRef.linkConditions = ({})"])

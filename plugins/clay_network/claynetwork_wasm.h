@@ -11,6 +11,7 @@
 #include <qqmlregistration.h>
 #include "link_conditioner.h"
 #include "statebatch.h"
+#include "sessionclock.h"
 
 /*!
     \qmltype ClayNetworkBackend
@@ -59,6 +60,10 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QString appId READ appId WRITE setAppId NOTIFY appIdChanged)
     Q_PROPERTY(QString clientToken READ clientToken WRITE setClientToken NOTIFY clientTokenChanged)
     Q_PROPERTY(QVariantMap clientTokens READ clientTokens NOTIFY clientTokensChanged)
+    // The host's clock, shared by every node (#304). Read live: it changes
+    // every ms but notifies only when it is set, synced or reset
+    Q_PROPERTY(double sessionTime READ sessionTime NOTIFY sessionClockChanged)
+    Q_PROPERTY(bool sessionTimeSynced READ sessionTimeSynced NOTIFY sessionClockChanged)
     // Test hook: a joiner that speaks another wire version (#323)
     Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
@@ -129,6 +134,8 @@ public:
     QVariantMap clientTokens() const;
     int wireVersion() const;
     void setWireVersion(int version);
+    double sessionTime() const;
+    bool sessionTimeSynced() const;
 
 public slots:
     void createRoom();
@@ -149,15 +156,20 @@ public slots:
     void ping();
     int stateAgeMs(const QString &nodeId) const;
     int keyedStateAgeMs(const QString &nodeId, const QString &key) const;
+    // How long the fastest state from nodeId in the last 3 s took, in
+    // session ms; NaN before one arrived (#304)
+    double transitMs(const QString &nodeId) const;
 
 signals:
     void roomCreated(const QString &networkId);
     void playerJoined(const QString &nodeId);
     void playerLeft(const QString &nodeId);
-    void messageReceived(const QString &fromId, const QVariant &data);
-    // sentAt: the sender's clock (ms since epoch) when the update was
-    // broadcast, or -1 when the sender did not include one. key is the
-    // key it was broadcast with, empty for an unkeyed state (#302).
+    // sentAt: the session time (#304) when the sender sent it, or -1 when
+    // the sender did not include one
+    void messageReceived(const QString &fromId, const QVariant &data, double sentAt);
+    // sentAt: the session time (#304) when the update was broadcast, or -1
+    // when the sender did not include one. key is the key it was broadcast
+    // with, empty for an unkeyed state (#302).
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt,
                        const QString &key);
     void errorOccurred(const QString &message);
@@ -198,6 +210,7 @@ signals:
     void clientTokenChanged();
     void clientTokensChanged();
     void wireVersionChanged();
+    void sessionClockChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -212,7 +225,10 @@ public:
     void onSignalingLost();
     void onSignalingRestored();
     void onDiagnostic(const char* phase, const char* detail);
-    void onPong(const char* peerId, int rtt);
+    // A pong arrived: sentLocal is the ping's send time and receivedLocal
+    // the pong's arrival, both on performance.now(); hostTime the session
+    // time the peer answered with, -1 if it gave none (#304)
+    void onPong(const char* peerId, double sentLocal, double hostTime, double receivedLocal);
     // The join handshake (#323): a pending joiner's first message on the
     // host, the host's first answer on a joiner
     void onHello(const char* peerId, const char* json);
@@ -241,6 +257,10 @@ private:
     // leave() without the goodbye: everything back to Disconnected
     void tearDown(bool goodbye);
     void setAcceptingJoins(bool accepting);
+    // The pings that sync a joiner's session clock right after the welcome
+    void syncBurst();
+    // performance.now(), what the session clock and the pings read
+    double localMs() const;
 
     QString networkId_;
     QString nodeId_;
@@ -281,6 +301,13 @@ private:
     clay::network::statebatch::Queue keyedOut_;
     clay::network::statebatch::Tracker keyedIn_;
     QTimer keyedFlush_;
+
+    // The session clock (#304): the host's runs from createRoom, a joiner's
+    // is synced from its pings to the host
+    clay::network::sessionclock::Clock session_;
+    clay::network::sessionclock::TransitTracker transit_;
+    QTimer syncBurst_;
+    int syncBurstLeft_ = 0;
 
     // Holds the simulated link's conditions (#301). The traffic itself is
     // conditioned in JS by link_conditioner.js, which sees every packet -
