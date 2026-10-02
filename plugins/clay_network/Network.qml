@@ -439,10 +439,14 @@ Item {
         \brief Per-peer transport statistics, always on.
 
         Format: { nodeId: { latency, msgSent, msgRecv, bytesSent, bytesRecv,
-        stateSent, stateRecv, stateChannel, stateBacklog } }.
+        stateSent, stateRecv, stateChannel, stateBacklog, stateOrdered,
+        stateMaxRetransmits } }.
         \c stateChannel is \c "unreliable" once the lossy state channel is
         negotiated and \c "fallback" while state still travels over the
-        reliable channel. Both backends count the same fields; the property
+        reliable channel. \c stateOrdered and \c stateMaxRetransmits are what
+        the channel state travels on reports of itself: \c false and \c 0 for
+        the state channel, \c true and \c -1 (no limit) for the reliable one.
+        Both backends count the same fields; the property
         changes with the pongs, every 2 s.
     */
     readonly property var peerStats: _backend ? _backend.peerStats : ({})
