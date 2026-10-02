@@ -463,6 +463,37 @@ Item {
     */
     readonly property var syncStats: _backend ? _backend.syncStats : ({})
 
+    /*!
+        \qmlproperty real Network::sessionTime
+        \brief The session clock: milliseconds since the host created the
+               network, the same on every node. -1 while not in a network.
+
+        It is the host's monotonic clock, so no NTP adjustment of a wall
+        clock moves it. The host reads it directly; a joiner syncs to it
+        with the pings it sends the host anyway, a burst of them right after
+        joining and one every 2 seconds after that, and lands within a few
+        milliseconds of it - also over a link with 100 ms of latency and
+        jitter. Until \l sessionTimeSynced is true it may step; after that
+        it only runs, never back.
+
+        Every message and state carries the session time it was sent at
+        (\c sentAt in \l messageReceived and \l stateReceived), so a node
+        can tell how long ago something happened on another node, or agree
+        with all of them on a moment to come ("this lands at t").
+
+        Read it when you need it: it changes every millisecond, but a
+        binding to it is only re-evaluated when the clock is set, synced or
+        reset.
+    */
+    readonly property alias sessionTime: _backend.sessionTime
+
+    /*!
+        \qmlproperty bool Network::sessionTimeSynced
+        \brief True on the host, and on a joiner once its pings have synced
+               \l sessionTime to the host's (about 2 seconds after joining).
+    */
+    readonly property bool sessionTimeSynced: _backend ? _backend.sessionTimeSynced : false
+
     // ========== Signals ==========
 
     /*!
@@ -486,22 +517,25 @@ Item {
     signal nodeLeft(string nodeId)
 
     /*!
-        \qmlsignal Network::messageReceived(string fromId, var data)
+        \qmlsignal Network::messageReceived(string fromId, var data, real sentAt)
         \brief Emitted when a reliable message is received.
 
-        Messages sent via broadcast() arrive here.
+        Messages sent via broadcast() and sendTo() arrive here. \a sentAt is
+        the \l sessionTime the sender sent it at, or -1 when the sender did
+        not include one; \c{sessionTime - sentAt} is how long it took.
+        Handlers that only take \c (fromId, data) keep working.
     */
-    signal messageReceived(string fromId, var data)
+    signal messageReceived(string fromId, var data, real sentAt)
 
     /*!
         \qmlsignal Network::stateReceived(string fromId, var data, real sentAt, string key)
         \brief Emitted when a state update is received.
 
         Updates sent via broadcastState() arrive here. \a sentAt is the
-        sender's clock (milliseconds since the epoch) when it called
-        broadcastState(), or -1 when the sender did not include one; hand it
-        to \l StateInterpolator::push so the snapshot lands on the sender's
-        timeline instead of its arrival time. \a key is the key the update
+        \l sessionTime when the sender called broadcastState(), or -1 when
+        the sender did not include one; hand it to \l StateInterpolator::push
+        so the snapshot lands on the sender's timeline instead of its
+        arrival time. \a key is the key the update
         was sent with, or an empty string for one sent without. Handlers
         that only take \c (fromId, data) or \c (fromId, data, sentAt) keep
         working.
@@ -718,6 +752,22 @@ Item {
         return _backend.keyedStateAgeMs(nodeId, String(key))
     }
 
+    /*!
+        \qmlmethod real Network::transitMs(string nodeId)
+        \brief How long the fastest state from \a nodeId of the last 3
+               seconds took to arrive, in milliseconds of \l sessionTime,
+               or NaN before one arrived.
+
+        It is the offset between \a nodeId's timeline and arrival here,
+        estimated once per sender: a \l StateInterpolator given this
+        network and \a nodeId places its snapshots with it instead of
+        estimating the offset on its own. A state relayed by the host
+        counts both hops.
+    */
+    function transitMs(nodeId) {
+        return _backend ? _backend.transitMs(nodeId) : NaN
+    }
+
     // Test hook, not API: sends json to nodeId exactly as given, so a test
     // can put a forged "from" on the wire (net gym, #298)
     function _sendRaw(nodeId, json) {
@@ -769,7 +819,7 @@ Item {
         onRoomCreated: (roomId) => root.networkCreated(roomId)
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)
         onPlayerLeft: (playerId) => root.nodeLeft(playerId)
-        onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
+        onMessageReceived: (fromId, data, sentAt) => root.messageReceived(fromId, data, sentAt)
         onStateReceived: (fromId, data, sentAt, key) => root.stateReceived(fromId, data, sentAt, key)
         onErrorOccurred: (message) => root.errorOccurred(message)
         onJoinRefused: (reason, message) => root.joinRefused(reason, message)

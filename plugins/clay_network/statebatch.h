@@ -20,7 +20,9 @@
 // newer update for the same key makes one stale. The keyed states a node
 // sends between two flushes go out as batches, each one datagram:
 //
-//   {"t":"b","q":<seq>,"ts":<sender ms>,"e":[{"k":<key>,"d":{...}}, ...]}
+//   {"t":"b","q":<seq>,"ts":<session ms>,"e":[{"k":<key>,"d":{...}}, ...]}
+//
+// "ts" is the session time (#304) the batch was sent at, in whole ms.
 //
 // Every entry of a batch takes the batch's q; a key is in a batch at most
 // once (a later update for it in the same frame replaces the earlier), and

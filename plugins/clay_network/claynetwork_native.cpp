@@ -14,7 +14,6 @@
 #include <QDebug>
 #include <QRandomGenerator>
 #include <QNetworkInterface>
-#include <QDateTime>
 #include <cstring>
 
 namespace {
@@ -65,6 +64,9 @@ ClayNetwork::ClayNetwork(QObject *parent)
     keyedFlush_.setSingleShot(true);
     keyedFlush_.setInterval(0);
     QObject::connect(&keyedFlush_, &QTimer::timeout, this, &ClayNetwork::flushState);
+    syncBurst_.setInterval(clay::network::sessionclock::kBurstIntervalMs);
+    syncBurst_.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&syncBurst_, &QTimer::timeout, this, &ClayNetwork::syncBurst);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -246,6 +248,16 @@ void ClayNetwork::setWireVersion(int version) {
     }
 }
 
+double ClayNetwork::localMs() const { return clock_.nsecsElapsed() / 1e6; }
+double ClayNetwork::sessionTime() const { return session_.time(localMs()); }
+bool ClayNetwork::sessionTimeSynced() const { return session_.synced(); }
+
+double ClayNetwork::transitMs(const QString &nodeId) const
+{
+    const double now = localMs();
+    return transit_.transit(nodeId, session_.offset(now));
+}
+
 bool ClayNetwork::refuseWhileSignalingDropped()
 {
     if (!conditioner_.dropSignaling())
@@ -294,6 +306,9 @@ void ClayNetwork::createRoom()
     status_ = Connecting;
     emit statusChanged();
     emit isHostChanged();
+    // The session starts with the network: its time is the host's (#304)
+    session_.start(localMs());
+    emit sessionClockChanged();
 
     // Start phase timing
     phaseTimer_.start();
@@ -474,6 +489,10 @@ void ClayNetwork::tearDown()
     keyedFlush_.stop();
     clientTokens_.clear();
     setAcceptingJoins(false);
+    session_.reset();
+    transit_.clear();
+    syncBurst_.stop();
+    syncBurstLeft_ = 0;
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -488,12 +507,16 @@ void ClayNetwork::tearDown()
     emit latencyChanged();
     emit peerStatsChanged();
     emit clientTokensChanged();
+    emit sessionClockChanged();
 }
 
 void ClayNetwork::broadcast(const QVariant &data)
 {
     QJsonObject msg;
     msg["t"] = "m";  // message
+    // Send time on the session clock (#304), delivered as sentAt
+    if (session_.valid())
+        msg["ts"] = sessionTime();
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 
@@ -507,9 +530,10 @@ void ClayNetwork::broadcastState(const QVariant &data)
     QJsonObject msg;
     msg["t"] = "s";  // state
     msg["q"] = static_cast<qint64>(++stateSeqOut_);
-    // Sender clock, so receivers can place the snapshot on the sender's
-    // timeline instead of its arrival time (StateInterpolator, #290)
-    msg["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+    // Send time, so receivers can place the snapshot on the sender's
+    // timeline instead of its arrival time (StateInterpolator, #290) - on
+    // the session clock, which no NTP adjustment moves (#304)
+    msg["ts"] = sessionTime();
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 
@@ -533,7 +557,7 @@ void ClayNetwork::flushState()
     // Keyed batches count on the same sequence as unkeyed states: a
     // receiver compares them per key, so the gaps do no harm
     const auto batches = clay::network::statebatch::pack(
-        keyedOut_.take(), stateSeqOut_, double(QDateTime::currentMSecsSinceEpoch()));
+        keyedOut_.take(), stateSeqOut_, sessionTime());
     for (const QByteArray &batch : batches) {
         const QString json = QString::fromUtf8(batch);
         for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
@@ -551,6 +575,8 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
 
     QJsonObject msg;
     msg["t"] = "m";
+    if (session_.valid())
+        msg["ts"] = sessionTime();
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
     sendToPeer(nodeId, json);
@@ -1051,19 +1077,30 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
 
     // Handle ping/pong (not relayed)
     if (type == "p") {
-        // Respond with pong, echo timestamp
+        // Respond with pong, echo timestamp and add our session time - the
+        // host's is what a joiner syncs its clock to (#304)
         QJsonObject pong;
         pong["t"] = "P";
         pong["ts"] = obj["ts"];
+        if (session_.valid())
+            pong["st"] = sessionTime();
         QString json = QString::fromUtf8(QJsonDocument(pong).toJson(QJsonDocument::Compact));
         sendToPeer(fromId, json);
         return;
     }
     if (type == "P") {
         // Pong received, calculate RTT
-        qint64 sentTs = obj["ts"].toDouble();
-        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        const double sentTs = obj["ts"].toDouble();
+        const double now = localMs();
         int rtt = static_cast<int>(now - sentTs);
+        if (!isHost_ && fromId == hostId_ && obj.contains("st")) {
+            const bool wasSynced = session_.synced();
+            session_.sample(sentTs, obj["st"].toDouble(), now);
+            if (!wasSynced && session_.synced())
+                emitDiag("datachannel", QString("Session clock synced (fastest round trip %1 ms)")
+                         .arg(session_.bestRtt(), 0, 'f', 1));
+            emit sessionClockChanged();
+        }
         if (peers_.contains(fromId)) {
             int prev = peers_[fromId].latency;
             // Exponential moving average (70/30)
@@ -1174,13 +1211,14 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
     }
 
     // Emit signal to application
+    const double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+    if (type == "s" || type == "b")
+        transit_.note(actualFromId, sentAt, localMs());
     if (type == "m") {
-        emit messageReceived(actualFromId, data);
+        emit messageReceived(actualFromId, data, sentAt);
     } else if (type == "s") {
-        double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
         emit stateReceived(actualFromId, data, sentAt, QString());
     } else if (type == "b") {
-        double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
         for (const Keyed &k : keyed)
             emit stateReceived(actualFromId, k.data, sentAt, k.key);
     }
@@ -1207,9 +1245,11 @@ void ClayNetwork::handshakeMessage(const QString &fromId, const QJsonObject &obj
     if (fromId != hostId_)
         return;
     const auto v = hs::judgeReply(obj, hostId_, wireVersion_);
-    if (v.ok())
+    if (v.ok()) {
+        if (obj.contains("st"))
+            session_.seed(obj["st"].toDouble(), localMs());
         joinedHost();
-    else
+    } else
         refusedByHost(v.reason, v.message);
 }
 
@@ -1222,7 +1262,7 @@ void ClayNetwork::admitJoiner(const QString &peerId, const QString &clientToken)
     emit clientTokensChanged();
     emitDiag("datachannel", QString("Admitted %1").arg(peerId.left(8)));
     // The welcome goes first: the joiner takes nothing else before it
-    sendJson(peerId, hs::welcome(nodeId_, wireVersion_));
+    sendJson(peerId, hs::welcome(nodeId_, wireVersion_, sessionTime()));
     if (gracePeriod_ > 0 && !quietProbe_.isActive())
         quietProbe_.start();
 
@@ -1285,6 +1325,12 @@ void ClayNetwork::joinedHost()
     status_ = Connected;
     emit connectedChanged();
     emit statusChanged();
+    emit sessionClockChanged();
+
+    // Fill the session clock's window now, not over a minute of 2 s pings
+    syncBurstLeft_ = clay::network::sessionclock::kBurstPings;
+    syncBurst();
+    syncBurst_.start();
 }
 
 void ClayNetwork::refusedByHost(const QString &reason, const QString &message)
@@ -1370,6 +1416,7 @@ void ClayNetwork::forgetSender(const QString &nodeId)
     stateRecvCount_.remove(nodeId);
     stateDropCount_.remove(nodeId);
     keyedIn_.forget(nodeId);
+    transit_.forget(nodeId);
 }
 
 void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
@@ -1469,8 +1516,25 @@ QString ClayNetwork::pingJson() const
 {
     QJsonObject msg;
     msg["t"] = "p";
-    msg["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
+    // Only this node reads it back, from the pong: its own monotonic clock
+    msg["ts"] = localMs();
     return QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
+}
+
+void ClayNetwork::syncBurst()
+{
+    if (--syncBurstLeft_ < 0 || !connected_ || !peers_.contains(hostId_)
+        || !peers_[hostId_].admitted) {
+        syncBurst_.stop();
+        return;
+    }
+    // Like any ping it starts the host's liveness deadline if none runs
+    PeerConn &host = peers_[hostId_];
+    if (host.unansweredSinceMs < 0) {
+        host.unansweredSinceMs = clock_.elapsed();
+        armLivenessCheck();
+    }
+    sendToPeer(hostId_, pingJson());
 }
 
 void ClayNetwork::ping()

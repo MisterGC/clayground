@@ -139,16 +139,22 @@ Item {
     // How far the interpolated view is behind the sender, every frame since
     // resetTrackStats(): lag is now minus the sender moment remoteX shows,
     // err is that minus what the interpolator means to show - its delay plus
-    // its estimate of the transit (clockOffsetMs). A conditioned link moves
+    // its estimate of the transit (transitMs()). A conditioned link moves
     // the lag, not err; err grows only when the view stalls or jumps.
     property var _trk: ({n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0})
+    // The interpolator's transit estimate. Its offset also holds how far
+    // this node's wall clock is from the session clock the send times are
+    // on (#304)
+    function transitMs() {
+        return sync.clockOffsetMs - (Date.now() - net.sessionTime)
+    }
     function resetTrackStats() { _trk = {n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0} }
     function trackStats() {
         let t = _trk
         return JSON.stringify({
             n: t.n, maxAbsErr: t.maxAbsErr, maxLag: t.maxLag,
             meanErr: t.n ? t.sumErr / t.n : 0, meanLag: t.n ? t.sumLag / t.n : 0,
-            delayMs: sync.effectiveDelayMs, clockOffsetMs: sync.clockOffsetMs
+            delayMs: sync.effectiveDelayMs, clockOffsetMs: gym.transitMs()
         })
     }
 
@@ -215,7 +221,7 @@ Item {
 
             if (x === undefined) return
             let lag = now - x * 100
-            let err = lag - (sync.effectiveDelayMs + sync.clockOffsetMs)
+            let err = lag - (sync.effectiveDelayMs + gym.transitMs())
             if (!isFinite(err)) return
             let t = gym._trk
             t.n++
