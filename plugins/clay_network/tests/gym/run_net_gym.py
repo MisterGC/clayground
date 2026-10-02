@@ -47,7 +47,7 @@ from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
                     scenario_host_killed, scenario_handshake, check_client_token,
                     scenario_keyed, scenario_session_clock, scenario_thirty_interpolators,
-                    scenario_objects, cpu_seconds)
+                    scenario_objects, cpu_seconds, peer_stats)
 
 # Every node hosts and joins with it (#323)
 PASSWORD = "stone"
@@ -355,6 +355,11 @@ def run_after_join(A, B, C, D, insp, host_id_on_b, cloud, code, procs):
           wait_for(lambda: "unreliable" in
                    (B.eval1("JSON.stringify(netRef.peerStats)") or ""), 10),
           str(B.eval1("JSON.stringify(netRef.peerStats)")))
+    to_host = peer_stats(B).get(host_id_on_b, {})
+    check("transport: the state channel is unordered and never retransmits",
+          to_host.get("stateOrdered") is False and to_host.get("stateMaxRetransmits") == 0,
+          f"stateOrdered={to_host.get('stateOrdered')} "
+          f"stateMaxRetransmits={to_host.get('stateMaxRetransmits')}")
 
     # -- 5: state flow, direct and relayed -----------------------------
     time.sleep(2.0)
