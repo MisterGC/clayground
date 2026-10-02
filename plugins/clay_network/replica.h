@@ -468,7 +468,8 @@ private:
                 o.state = op["st"].toObject().toVariantMap();
                 o.stateSeq = quint32(op["sq"].toDouble());
                 o.stateAt = op["sa"].toDouble(-1);
-                if (o.owner != me_)
+                // 0: the state came from an owner before this one
+                if (o.owner != me_ && o.stateSeq > 0)
                     tracker_.accept(o.owner, id, o.stateSeq, 0);
             }
             objects_.insert(id, o);
@@ -515,8 +516,11 @@ private:
     void changeOwner(const QString &id, const QString &owner)
     {
         Object &o = objects_[id];
-        // The new owner counts on its own sequence
+        // The new owner counts on its own sequence: the last state stays,
+        // its seq does not - a late joiner would take it as the new
+        // owner's and drop its states until they pass the old owner's
         tracker_.forgetKey(o.owner, id);
+        o.stateSeq = 0;
         o.owner = owner;
         if (io_.ownerChanged)
             io_.ownerChanged(id, owner);

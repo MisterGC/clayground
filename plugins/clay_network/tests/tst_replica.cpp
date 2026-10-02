@@ -362,6 +362,37 @@ private slots:
         QCOMPARE(net.log("B").count("owner " + id + " A"), 1);
     }
 
+    // Each node counts its own sequence: a node that joins after a handover
+    // must not hold the new owner to the old owner's numbers
+    void aLateJoinerTakesTheNewOwnersStatesAfterAHandover()
+    {
+        Net net({"A", "B"});
+        const QString handed = net.t("A").spawn("ball", {}, {}, rp::OwnerLeft::Despawn);
+        const QString left = net.t("A").spawn("item", {}, {}, rp::OwnerLeft::Host);
+        net.deliver();
+        QVERIFY(net.t("H").receiveState("A", "A", handed, 500, at(1), 0, 0));
+        QVERIFY(net.t("H").receiveState("A", "A", left, 500, at(1), 0, 0));
+        QVERIFY(net.t("A").setOwner(handed, "B"));
+        net.deliver();
+        // A leaves: its item passes to the host, whose sequence is its own too
+        net.leave("A");
+        net.deliver();
+        QCOMPARE(net.t("H").find(left)->owner, QString("H"));
+
+        net.joinerIds.append("C");
+        net.add("C", false);
+        net.t("H").admitted("C");
+        net.deliver();
+        rp::Table &c = net.t("C");
+        // The last state is still there to start from
+        QCOMPARE(c.find(handed)->state.value("x").toDouble(), 1.0);
+        QCOMPARE(c.find(left)->state.value("x").toDouble(), 1.0);
+        QVERIFY(c.receiveState("H", "B", handed, 3, at(2), 0, 0));
+        QVERIFY(c.receiveState("H", "H", left, 2, at(3), 0, 0));
+        QCOMPARE(c.find(handed)->state.value("x").toDouble(), 2.0);
+        QCOMPARE(c.find(left)->state.value("x").toDouble(), 3.0);
+    }
+
     void aSettledStateArrivesReliablyAndOutranksOlderLossyOnes()
     {
         Net net({"A", "B"});
