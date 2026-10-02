@@ -64,7 +64,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `phaseTiming` | var | `{ signaling, ice, datachannel, handshake, total }` in ms |
 | `latency` | int | Best RTT across peers in ms (-1 if unknown) |
 | `peerStats` | var | Per-peer transport stats (always on) |
-| `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs (always on) |
+| `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs; with keyed states also `keys` (the same per key), `batches`, `maxBatchBytes` (always on) |
 
 ### Signals
 
@@ -74,7 +74,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `nodeJoined(nodeId)` | A node joined the network |
 | `nodeLeft(nodeId)` | A node left the network |
 | `messageReceived(fromId, data)` | Reliable message received |
-| `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
+| `stateReceived(fromId, data, sentAt, key)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent), `key` the key it was sent with ("" if none) |
 | `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
 | `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
@@ -90,6 +90,9 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `leave()` | Say goodbye and disconnect from the network |
 | `broadcast(data)` | Send reliable message to all nodes |
 | `broadcastState(data)` | Send state update (high-frequency) |
+| `broadcastState(data, key)` | Send state update for one object; sequenced per key, sent batched |
+| `flushState()` | Send the keyed state updates queued so far now |
+| `stateAgeMs(nodeId[, key])` | ms since the newest accepted state from a node (for a key), -1 if none |
 | `sendTo(nodeId, data)` | Send to a specific node |
 
 ## Joining
@@ -279,6 +282,28 @@ never retransmitted and each update carries a per-sender sequence number, so
 receivers drop stale data instead of applying it late. In Star topology the
 host relays state between joiners and propagates the roster, so `nodes` and
 `nodeJoined`/`nodeLeft` cover all participants on every node.
+
+### Many objects: keyed state
+
+One sequence per sender means one snapshot per sender: sending one update per
+object would let a late update for one object be dropped behind another's.
+Give each object a key instead, and the sequence is kept per sender and key:
+
+```qml
+onTick: for (const e of enemies) network.broadcastState({x: e.x, y: e.y}, e.uid)
+
+onStateReceived: (from, data, sentAt, key) => {
+    if (key) enemyById[key].sync.push(data, sentAt)
+}
+```
+
+Keyed updates leave together when control returns to the event loop - once
+per frame for the updates one frame's handlers send - or at `flushState()`.
+They are packed into datagrams of about 1200 bytes at most, the host relays
+those batches as they are, and a second update for a key before the flush
+replaces the first. `broadcastState(data)` without a key is unchanged: sent at
+once, sequenced per sender. Keyed batches are wire version 2; a node of an
+older build is refused in the handshake with `incompatible-version`.
 
 ## Multiplayer Helpers
 

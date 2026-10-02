@@ -92,6 +92,7 @@ ClayMultiplayer {
 |--------|--------|----------|----------|
 | `broadcast(data)` | `messageReceived` | Reliable, ordered | Chat, game events, important state |
 | `broadcastState(data)` | `stateReceived` | Optimized for frequency | Entity positions, real-time stats |
+| `broadcastState(data, key)` | `stateReceived` (with `key`) | As above, sequenced per key, sent batched | One update per object |
 | `sendTo(playerId, data)` | `messageReceived` | Reliable, ordered | Direct player messages |
 
 ### Multiplayer Game Example

@@ -52,6 +52,35 @@ Timer {
 Because updates can be lost, every snapshot must be self-contained - never
 send "moved 0.2 to the left".
 
+### Many objects: one key each
+
+A snapshot without a key is sequenced per sender: a newer one from that node
+makes every older one stale. That suits one snapshot per node. A node that
+owns many objects - the host streaming every enemy - gives each object its
+own key instead, so a late update for one enemy is never dropped because
+another enemy's was newer:
+
+```qml
+Timer {
+    interval: 33; repeat: true
+    running: network.connected && network.isHost
+    onTriggered: for (const e of enemies)
+        network.broadcastState({x: e.xWu, y: e.yWu, h: e.hp}, e.uid)
+}
+
+Network {
+    onStateReceived: (from, data, sentAt, key) => {
+        if (key) enemyById[key].pushState(data, sentAt)
+    }
+}
+```
+
+Keyed updates are sent together when control returns to the event loop -
+once per frame for the updates of one frame's handlers - or right away with
+`network.flushState()`, packed into datagrams of about 1200 bytes, so a
+frame of 100 objects costs a few datagrams, not 100. `syncStats` shows them
+per key, and `stateAgeMs(nodeId, key)` says how fresh one object is.
+
 ## Rendering remote entities: StateInterpolator
 
 Raw 20 Hz updates rendered directly look jittery, and smoothing them with
