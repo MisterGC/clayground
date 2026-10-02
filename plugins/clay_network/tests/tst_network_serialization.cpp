@@ -6,8 +6,10 @@
 #include <QJsonArray>
 #include <QVariant>
 #include <QVariantMap>
+#include <QUuid>
 #include "sender.h"
 #include "handshake.h"
+#include "statebatch.h"
 
 /**
  * @brief Unit tests for ClayNetwork message serialization.
@@ -43,7 +45,15 @@ private slots:
     void testJoinerTakesWelcomeOverItsLink();
     void testJoinerReadsRefusal();
     void testJoinerRefusesHostWithoutHandshake();
+    void testKeyedBatchesStayWithinADatagram();
+    void testRelayedKeyedBatchStaysWithinADatagram();
+    void testOversizedKeyedEntryGoesAlone();
+    void testKeyedQueueKeepsNewestPerKey();
+    void testKeyedStateIsStaleOnlyBehindItsOwnKey();
+    void testKeyedStatsPerSenderAndKey();
 };
+
+namespace sb = clay::network::statebatch;
 
 void TestNetworkSerialization::testVariantMapToJson()
 {
@@ -427,6 +437,140 @@ void TestNetworkSerialization::testJoinerRefusesHostWithoutHandshake()
     const auto v = hs::judgeReply(roster, "HOST", hs::kWireVersion);
     QCOMPARE(v.reason, hs::incompatibleVersion());
     QVERIFY(v.message.startsWith("Incompatible version"));
+}
+
+// 100 objects' positions, as one frame of a game would queue them
+static QList<sb::Entry> hundredObjects()
+{
+    QList<sb::Entry> entries;
+    for (int i = 0; i < 100; ++i) {
+        QVariantMap d;
+        d["x"] = 1234.5 + i;
+        d["y"] = -87.25 - i;
+        d["hp"] = i;
+        entries.append({QString("enemy-%1").arg(i), d});
+    }
+    return entries;
+}
+
+void TestNetworkSerialization::testKeyedBatchesStayWithinADatagram()
+{
+    quint32 seq = 41;
+    const auto batches = sb::pack(hundredObjects(), seq, 1.7e12);
+    QVERIFY(batches.size() > 1);
+    QCOMPARE(seq, quint32(41 + batches.size()));
+    QStringList keys;
+    quint32 q = 41;
+    for (const QByteArray &b : batches) {
+        QVERIFY2(b.size() <= sb::kDatagramBytes - sb::kRelayHeadroom,
+                 qPrintable(QString::number(b.size())));
+        const QJsonObject obj = QJsonDocument::fromJson(b).object();
+        QCOMPARE(obj["t"].toString(), QString("b"));
+        QCOMPARE(quint32(obj["q"].toDouble()), ++q);
+        QCOMPARE(obj["ts"].toDouble(), 1.7e12);
+        for (const auto &e : obj["e"].toArray())
+            keys.append(e.toObject()["k"].toString());
+    }
+    // Every object once, in the order queued, and its data intact
+    QCOMPARE(keys.size(), 100);
+    QCOMPARE(keys.first(), QString("enemy-0"));
+    QCOMPARE(keys.last(), QString("enemy-99"));
+    const QJsonObject first = QJsonDocument::fromJson(batches.first()).object();
+    const QVariantMap d = first["e"].toArray()[0].toObject()["d"].toObject().toVariantMap();
+    QCOMPARE(d["x"].toDouble(), 1234.5);
+    QCOMPARE(d["hp"].toInt(), 0);
+    // Packed, not one datagram per object: 100 entries of ~45 bytes
+    QVERIFY2(batches.size() <= 5, qPrintable(QString::number(batches.size())));
+}
+
+void TestNetworkSerialization::testRelayedKeyedBatchStaysWithinADatagram()
+{
+    quint32 seq = 0;
+    for (const QByteArray &b : sb::pack(hundredObjects(), seq, 1.7e12)) {
+        // What the host's relay sends on: the batch with a PeerJS-length id
+        QJsonObject obj = QJsonDocument::fromJson(b).object();
+        obj["from"] = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        const QByteArray relayed = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+        QVERIFY2(relayed.size() <= sb::kDatagramBytes,
+                 qPrintable(QString::number(relayed.size())));
+    }
+}
+
+void TestNetworkSerialization::testOversizedKeyedEntryGoesAlone()
+{
+    QVariantMap big;
+    big["blob"] = QString(3000, 'x');
+    QVariantMap small;
+    small["x"] = 1;
+    quint32 seq = 0;
+    const auto batches = sb::pack({{"a", small}, {"big", big}, {"b", small}}, seq, 0);
+    QCOMPARE(batches.size(), 3);
+    QCOMPARE(QJsonDocument::fromJson(batches[1]).object()["e"].toArray().size(), 1);
+    QVERIFY(batches[1].size() > sb::kDatagramBytes);
+}
+
+void TestNetworkSerialization::testKeyedQueueKeepsNewestPerKey()
+{
+    sb::Queue queue;
+    QVERIFY(queue.isEmpty());
+    queue.put("a", {{"x", 1}});
+    queue.put("b", {{"x", 2}});
+    queue.put("a", {{"x", 3}});
+    const auto entries = queue.take();
+    QCOMPARE(entries.size(), 2);
+    QCOMPARE(entries[0].first, QString("a"));
+    QCOMPARE(entries[0].second["x"].toInt(), 3);
+    QCOMPARE(entries[1].first, QString("b"));
+    QVERIFY(queue.isEmpty());
+}
+
+void TestNetworkSerialization::testKeyedStateIsStaleOnlyBehindItsOwnKey()
+{
+    // Two batches of one frame overtake each other on the unordered
+    // channel: q=8 carries B, q=7 carries A and arrives last
+    sb::Tracker in;
+    QVERIFY(in.accept("node", "B", 8, 100));
+    QVERIFY(in.accept("node", "A", 7, 101));
+    // One sequence per sender would have dropped A here (7 <= 8)
+    // An older update for B itself is stale, and so is a repeat
+    QVERIFY(!in.accept("node", "B", 6, 102));
+    QVERIFY(!in.accept("node", "B", 8, 103));
+    QVERIFY(in.accept("node", "B", 9, 104));
+    // Keys are per sender: another node's A is its own
+    QVERIFY(in.accept("other", "A", 1, 105));
+    QCOMPARE(in.ageMs("node", "A", 111), 10);
+    QCOMPARE(in.ageMs("node", "C", 111), -1);
+    QCOMPARE(in.ageMs("nobody", "A", 111), -1);
+}
+
+void TestNetworkSerialization::testKeyedStatsPerSenderAndKey()
+{
+    sb::Tracker in;
+    in.batch("node", 900);
+    in.accept("node", "A", 1, 100);
+    in.accept("node", "B", 1, 100);
+    in.batch("node", 1100);
+    in.accept("node", "A", 2, 150);
+    in.accept("node", "B", 1, 150);
+
+    QVariantMap stats;
+    stats["recv"] = 5;  // unkeyed states already counted
+    stats["dropped"] = 1;
+    in.addStats("node", stats, 200);
+    QCOMPARE(stats["recv"].toLongLong(), 5 + 3);
+    QCOMPARE(stats["dropped"].toLongLong(), 1 + 1);
+    QCOMPARE(stats["batches"].toLongLong(), 2);
+    QCOMPARE(stats["maxBatchBytes"].toLongLong(), 1100);
+    const QVariantMap keys = stats["keys"].toMap();
+    QCOMPARE(keys.size(), 2);
+    QCOMPARE(keys["A"].toMap()["seq"].toUInt(), 2u);
+    QCOMPARE(keys["A"].toMap()["ageMs"].toLongLong(), 50);
+    QCOMPARE(keys["B"].toMap()["recv"].toLongLong(), 1);
+    QCOMPARE(keys["B"].toMap()["dropped"].toLongLong(), 1);
+
+    in.forget("node");
+    QVERIFY(!in.contains("node"));
+    QCOMPARE(in.ageMs("node", "A", 200), -1);
 }
 
 QTEST_MAIN(TestNetworkSerialization)

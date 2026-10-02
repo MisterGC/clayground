@@ -2,7 +2,7 @@
 # (c) Clayground Contributors - MIT License, see "LICENSE" file
 """Net Gym in the browser (#301) - the WASM backend against Cloud signaling.
 
-Two headless Chrome pages run the Clayground Web Runtime from a starter
+Headless Chrome pages run the Clayground Web Runtime from a starter
 bundle with the gym loaded (web/Main.qml around Sandbox.qml): one hosts, one
 joins, through clay-dev-server's PeerJS relay - the public PeerJS server is
 too flaky for CI. The runner drives the pages over HTTP (web/Main.qml says
@@ -12,7 +12,8 @@ latency with jitter, a blackout, an outage shorter than the grace period, a
 signaling drop the host comes back from, the host leaving, and - hosting
 again - the host page crashing (#299). The host demands a room password,
 and the joiner is refused for a wrong one and for another wire version
-before it gets in (#323).
+before it gets in (#323). Two more pages join for a while so that four
+nodes stream 100 keyed objects each at 30 Hz, and leave again (#302).
 
 Usage:
     python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
@@ -36,13 +37,14 @@ import uuid
 import netgym
 from netgym import (check, wait_for, check_tracking, scenario_loss, scenario_latency,
                     scenario_blackout, scenario_host_leaves, scenario_short_outage,
-                    scenario_signaling_drop, scenario_host_killed, scenario_handshake)
+                    scenario_signaling_drop, scenario_host_killed, scenario_handshake,
+                    scenario_keyed)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "webdojo", "tests"))
 from wasm_smoke_test import IsolatedHandler, launch_browser  # noqa: E402
 
-ROLES = ("host", "joiner")
+ROLES = ("host", "joiner", "joinB", "joinC")
 
 # WebRTC between two pages of one browser: host candidates must be real
 # addresses (an mDNS name needs multicast, which a CI container may lack),
@@ -182,7 +184,8 @@ def main():
                 page.on("pageerror", functools.partial(on_page_error, role, logs[role]))
                 page.goto(f"{base}/{role}/index.html")
                 inst[role] = WebInstance(bridge, role, page)
-            ok = run(inst["host"], inst["joiner"], signaling_url, args.timeout)
+            ok = run(inst["host"], inst["joiner"], inst["joinB"], inst["joinC"],
+                     signaling_url, args.timeout)
             browser.close()
     except Exception as e:  # a harness failure is a failed run, said as such
         check("harness: ran to the end", False, repr(e))
@@ -211,12 +214,13 @@ def on_page_error(role, log, err):
     print(f"[{role}] pageerror: {err}", flush=True)
 
 
-def run(H, J, signaling_url, timeout):
-    up = wait_for(lambda: H.ready() and J.ready(), timeout, 0.5)
-    if not check("gym: both pages loaded the gym", up):
+def run(H, J, B, C, signaling_url, timeout):
+    up = wait_for(lambda: all(i.ready() for i in (H, J, B, C)), timeout, 0.5)
+    if not check("gym: all four pages loaded the gym", up,
+                 f"ready: {[i.role for i in (H, J, B, C) if i.ready()]}"):
         return False
 
-    for i in (H, J):
+    for i in (H, J, B, C):
         i.eval([f"signalingUrl = '{signaling_url}'"])
     H.eval(["roomPassword = 'stone'", "hostUp()"])
     got_code = wait_for(lambda: H.eval1("netId") not in (None, ""), 30)
@@ -245,6 +249,8 @@ def run(H, J, signaling_url, timeout):
     time.sleep(1.0)
     check_tracking(J, "interp: clean link")
 
+    keyed_four_nodes(H, J, B, C, code)
+
     scenario_loss(H, J, host_id)
     scenario_latency(H, J, host_id)
     scenario_blackout(H, J, host_id)
@@ -265,6 +271,23 @@ def run(H, J, signaling_url, timeout):
         scenario_host_killed(lambda: crash_page(H.page), J.eval1("netRef.hostId"),
                              [("joiner", J)], "page crashed")
     return True
+
+
+def keyed_four_nodes(H, J, B, C, code):
+    """joinB and joinC make four (maxNodes), every node streams keyed state,
+    and the two leave again - the scenarios after this one count two."""
+    for i in (B, C):
+        i.eval(["roomPassword = 'stone'", f"joinNet('{code}')"])
+    joined = wait_for(lambda: all(i.eval1("connected") is True for i in (B, C))
+                      and all(i.eval1("nodeList.length") == 3 for i in (H, J, B, C)), 45)
+    if check("keyed: joinB and joinC join, four nodes see each other", joined,
+             f"nodes per node: {[i.eval1('nodeList.length') for i in (H, J, B, C)]}"):
+        scenario_keyed([("host", H), ("joiner", J), ("joinB", B), ("joinC", C)], H)
+    for i in (B, C):
+        i.eval(["netRef.leave()"])
+    check("keyed: joinB and joinC leave, two nodes again",
+          wait_for(lambda: all(i.eval1("nodeList.length") == 1 for i in (H, J)), 15),
+          f"nodes per node: {[i.eval1('nodeList.length') for i in (H, J)]}")
 
 
 def crash_page(page):

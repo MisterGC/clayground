@@ -16,6 +16,10 @@ than the second they are checked against.
 
 The handshake scenario (#323) has a joiner knock with the wrong room
 password and as a build of another wire version before it gets in.
+
+The keyed scenario (#302) has four nodes stream 100 objects each, every
+object under its own key, at 30 Hz, while jitter on the host's link makes
+the datagrams of one frame overtake each other.
 """
 
 import json
@@ -386,3 +390,56 @@ def check_client_token(host, joiner, name):
     tokens = json.loads(host.eval1("JSON.stringify(netRef.clientTokens)") or "{}")
     return check(f"handshake: the host sees {name}'s client token", seen and bool(token),
                  f"{name} is {node} with token {token!r}, host has {tokens}")
+
+
+def scenario_keyed(nodes, host, keys=100, hz=30, window=5.0, jitter_ms=6):
+    """Every node streams `keys` objects under their own keys at `hz` (#302).
+    A frame's updates leave as a few batched datagrams; jitter on the
+    host's link - which every relayed batch crosses twice - makes them
+    overtake each other. Every receiver gets every key of every other
+    node, none dropped behind another key, in batches of at most about
+    1200 bytes. The jitter stays below a frame, so an update never
+    overtakes the one for the same key before it either."""
+    ids = {name: inst.eval1("netRef.nodeId") for name, inst in nodes}
+    for _, inst in nodes:
+        inst.eval(["resetKeyed()"])
+    host.eval([f"netRef.linkConditions = ({{jitterMs: {jitter_ms}}})"])
+    for _, inst in nodes:
+        inst.eval([f"startKeyed({keys}, {hz})"])
+    time.sleep(window)
+    for _, inst in nodes:
+        inst.eval(["stopKeyed()"])
+    # syncStats is refreshed with each pong: wait for one after the last state
+    time.sleep((PING_MS + 500) / 1000)
+    host.eval(["netRef.linkConditions = ({})"])
+    ticks = {name: inst.eval1("keyedTick") or 0 for name, inst in nodes}
+    label = f"keyed {keys} keys at {hz} Hz on {len(nodes)} nodes, {jitter_ms} ms jitter"
+    check(f"{label}: every node sent about {int(window * hz)} frames",
+          all(t >= window * hz * 0.6 for t in ticks.values()), str(ticks))
+
+    for rname, rinst in nodes:
+        seen = json.loads(rinst.eval1("keyedReport()") or "{}")
+        stats = json.loads(rinst.eval1("JSON.stringify(netRef.syncStats)") or "{}")
+        for sname, _ in nodes:
+            if sname == rname:
+                continue
+            sent = ticks[sname]
+            got = seen.get(ids[sname], {})
+            st = stats.get(ids[sname], {})
+            kstats = st.get("keys", {})
+            recv = sum(k.get("recv", 0) for k in kstats.values())
+            dropped = sum(k.get("dropped", 0) for k in kstats.values())
+            batches = st.get("batches", 0)
+            per_batch = recv / batches if batches else 0
+            check(f"{label}: {rname} gets every key of {sname}, none dropped",
+                  got.get("keys") == keys and got.get("minN", 0) >= sent * 0.95
+                  and got.get("back", 1) == 0 and dropped == 0,
+                  f"keys={got.get('keys')} per key {got.get('minN')}..{got.get('maxN')} "
+                  f"of {sent} sent, newest frame >= {got.get('minLast')}, "
+                  f"older-after-newer={got.get('back')} dropped={dropped}")
+            check(f"{label}: {rname} gets {sname}'s in batches of <= 1200 B",
+                  batches > 0 and per_batch >= 20 and st.get("maxBatchBytes", 1e9) <= 1200,
+                  f"{recv} states in {batches} datagrams ({fmt(per_batch)} per datagram), "
+                  f"largest {st.get('maxBatchBytes')} B")
+    for _, inst in nodes:
+        inst.eval(["resetKeyed()"])

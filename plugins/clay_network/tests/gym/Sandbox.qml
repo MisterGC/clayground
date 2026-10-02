@@ -10,7 +10,9 @@
 // leaves, goes silent or loses signaling is timed here, on the page's own
 // clock, so a driver's polling does not blur it (#299). Joining goes through
 // the handshake: the room password, a joiner from another build, and the
-// client token the host keeps (#323).
+// client token the host keeps (#323). Every node can stream keyed state
+// for many objects at once, to show that one object's update never
+// discards another's (#302).
 
 import QtQuick
 import Clayground.Network
@@ -75,6 +77,45 @@ Item {
         for (let i = 0; i < n; ++i) net.broadcast({probe: probe, i: i})
     }
 
+    // Keyed state (#302): keyedCount objects, each under its own key, sent
+    // every keyedTimer.interval ms - all of one frame in the same handler,
+    // so they leave as batches. keyedTick counts the frames sent; every
+    // update carries its frame. A receiver keeps per sender and key how
+    // many arrived (n), the newest frame (last) and how often an update
+    // was older than one before it (back) - the seq guard makes that 0.
+    property int keyedCount: 0
+    property int keyedTick: 0
+    property var keyedSeen: ({})
+    function resetKeyed() { keyedTimer.stop(); keyedTick = 0; keyedSeen = {} }
+    function startKeyed(n, hz) {
+        keyedCount = n
+        keyedTimer.interval = Math.round(1000 / hz)
+        keyedTimer.start()
+    }
+    function stopKeyed() { keyedTimer.stop() }
+    function keyedReport() {
+        let out = {}
+        for (let from in keyedSeen) {
+            let ks = Object.values(keyedSeen[from])
+            out[from] = {
+                keys: ks.length,
+                minN: Math.min(...ks.map(k => k.n)), maxN: Math.max(...ks.map(k => k.n)),
+                minLast: Math.min(...ks.map(k => k.last)),
+                back: ks.reduce((a, k) => a + k.back, 0)
+            }
+        }
+        return JSON.stringify(out)
+    }
+    Timer {
+        id: keyedTimer
+        repeat: true
+        onTriggered: {
+            for (let k = 0; k < gym.keyedCount; ++k)
+                net.broadcastState({i: gym.keyedTick, o: k}, "obj" + k)
+            gym.keyedTick++
+        }
+    }
+
     // Interpolated view on trackedSender's stream (-1 until data flows)
     property string trackedSender: ""
     readonly property real remoteX: sync.active && sync.value.x !== undefined
@@ -129,8 +170,16 @@ Item {
         topology: Network.Topology.Star
         signalingUrl: gym.signalingUrl
         password: gym.roomPassword
-        onStateReceived: (from, data, sentAt) => {
+        onStateReceived: (from, data, sentAt, key) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
+            if (key !== "") {
+                let seen = gym.keyedSeen[from] || (gym.keyedSeen[from] = {})
+                let k = seen[key] || (seen[key] = {n: 0, last: -1, back: 0})
+                if (data.i <= k.last) k.back++
+                k.n++
+                k.last = Math.max(k.last, data.i)
+                return
+            }
             if (from !== gym.trackedSender) return
             if (gym.stallMs > 0 || gym.jitterMs > 0) {
                 let release = Date.now() + (gym.jitterMs > 0 ? Math.random() * gym.jitterMs : 0)
