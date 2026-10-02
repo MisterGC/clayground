@@ -74,8 +74,17 @@ function(clay_plugin PLUGIN_NAME)
 
     # See init_static_plugin_cfg(): this is what lets an app wait for bin/qml
     # to be complete before copying it (#188).
+    # ${PLUGIN_NAME} is only the backing library; the dylib the QML engine
+    # loads from bin/qml is built by the separate plugin target, which links
+    # against it and so finishes after it. Waiting on the backing library alone
+    # left the race open - sbx_plugin copied MyPlugin's directory before
+    # libMyPluginplugin.dylib was there (#350).
     if(TARGET clay_qml_modules)
         add_dependencies(clay_qml_modules ${PLUGIN_NAME})
+        get_target_property(_clay_plugin_target ${PLUGIN_NAME} QT_QML_MODULE_PLUGIN_TARGET)
+        if(_clay_plugin_target AND NOT _clay_plugin_target STREQUAL PLUGIN_NAME)
+            add_dependencies(clay_qml_modules ${_clay_plugin_target})
+        endif()
     endif()
 
 endfunction()
