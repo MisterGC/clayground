@@ -241,25 +241,45 @@ EM_JS(void, js_init_helpers, (), {
         return cfg;
     };
 
-    // Route a connection's send() through the node's link conditioner. The
-    // size is only worked out when a bandwidth cap asks for it.
+    // A connection's counters - the native backend's per-peer stats (#307).
+    // They live on the PeerJS connection, so a peer that connects again
+    // starts from zero, as it does natively. Sizes are counted in UTF-16
+    // units, which for the ASCII JSON on the wire are its bytes.
+    Module.clayStats = function(conn) {
+        if (!conn.__clayStats)
+            conn.__clayStats = { msgSent: 0, msgRecv: 0, bytesSent: 0, bytesRecv: 0, stateSent: 0 };
+        return conn.__clayStats;
+    };
+
+    // Route a connection's send() through the node's link conditioner, and
+    // count what leaves
     Module.clayConditionSend = function(state, conn) {
         if (conn.__clayRawSend) return;
         const raw = conn.send.bind(conn);
         conn.__clayRawSend = raw;
         conn.send = function(obj) {
-            state.conditioner.offer('out', false,
-                function() { return JSON.stringify(obj).length; },
-                function() { if (conn.open) raw(obj); });
+            const text = JSON.stringify(obj);
+            state.conditioner.offer('out', false, text.length, function() {
+                if (!conn.open) return;
+                raw(obj);
+                const s = Module.clayStats(conn);
+                s.msgSent++;
+                s.bytesSent += text.length;
+            });
         };
     };
 
-    // Wrap a 'data' handler so what arrives passes the link conditioner first
-    Module.clayConditionData = function(state, stateChannel, handler) {
+    // Wrap a 'data' handler of conn so what arrives passes the link
+    // conditioner first, and is counted
+    Module.clayConditionData = function(state, stateChannel, conn, handler) {
         return function(data) {
-            state.conditioner.offer('in', stateChannel,
-                function() { return (typeof data === 'string' ? data : JSON.stringify(data)).length; },
-                function() { handler(data); });
+            const text = typeof data === 'string' ? data : JSON.stringify(data);
+            state.conditioner.offer('in', stateChannel, text.length, function() {
+                const s = Module.clayStats(conn);
+                s.msgRecv++;
+                s.bytesRecv += text.length;
+                handler(text);
+            });
         };
     };
 
@@ -320,6 +340,9 @@ EM_JS(void, js_init_helpers, (), {
             state.conditioner.offer('in', true, text.length, function() {
                 // A state that overtook the connection's handover counts for nothing
                 if (state.connections.get(peerId) !== conn) return;
+                const s = Module.clayStats(conn);
+                s.msgRecv++;
+                s.bytesRecv += text.length;
                 Module.clayOnStateData(instanceId, peerId, text);
             });
         };
@@ -343,7 +366,10 @@ EM_JS(void, js_init_helpers, (), {
         if (dc) {
             state.conditioner.offer('out', true, text.length, function() {
                 if (dc.readyState !== 'open') return;
-                try { dc.send(text); } catch (e) {}
+                try { dc.send(text); } catch (e) { return; }
+                const s = Module.clayStats(conn);
+                s.stateSent++;
+                s.bytesSent += text.length;
             });
         } else if (conn.open) {
             conn.send(obj());
@@ -619,7 +645,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                 }, handshakeTimeoutMs);
             });
 
-            conn.on('data', Module.clayConditionData(state, false, (data) => {
+            conn.on('data', Module.clayConditionData(state, false, conn, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
                 if (conn.__clayPending) {
                     judge(msg);
@@ -761,7 +787,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 Module.clayOpenStateChannel(instanceId, networkId, conn);
             });
 
-            conn.on('data', Module.clayConditionData(state, false, (data) => {
+            conn.on('data', Module.clayConditionData(state, false, conn, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
                 const parsed = JSON.parse(msg);
 
@@ -888,7 +914,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             if (offering) Module.clayOpenStateChannel(instanceId, nodeId, conn);
         });
 
-        conn.on('data', Module.clayConditionData(state, false, (data) => {
+        conn.on('data', Module.clayConditionData(state, false, conn, (data) => {
             const msg = typeof data === 'string' ? data : JSON.stringify(data);
             const parsed = JSON.parse(msg);
             if (parsed.t === 'y') return;
@@ -1035,6 +1061,23 @@ EM_JS(char*, js_get_nodes, (int instanceId), {
         nodes.unshift(state.nodeId); // Add self for host
     }
     return stringToNewUTF8(JSON.stringify(nodes));
+});
+
+// JavaScript: Per peer connection, what the native backend's peerStats
+// counts on its channels (#307); latency and stateRecv are counted in C++
+EM_JS(char*, js_peer_stats, (int instanceId), {
+    const state = Module.clayNetwork[instanceId];
+    const out = {};
+    if (state) {
+        state.connections.forEach((conn, peerId) => {
+            const s = Object.assign({}, Module.clayStats(conn));
+            const dc = Module.clayStateChannel(state, peerId);
+            s.stateChannel = dc ? 'unreliable' : 'fallback';
+            s.stateBacklog = dc ? dc.bufferedAmount : 0;
+            out[peerId] = s;
+        });
+    }
+    return stringToNewUTF8(JSON.stringify(out));
 });
 
 // C callbacks from JavaScript
@@ -1463,12 +1506,19 @@ QVariantMap ClayNetwork::phaseTiming() const { return phaseTiming_; }
 int ClayNetwork::latency() const { return latency_; }
 
 QVariantMap ClayNetwork::peerStats() const {
+    // The native backend's fields, per peer connection (#307)
     QVariantMap stats;
-    for (auto it = peerLatencies_.constBegin(); it != peerLatencies_.constEnd(); ++it) {
-        QVariantMap ps;
-        ps["latency"] = it.value();
+#ifdef __EMSCRIPTEN__
+    char *raw = js_peer_stats(instanceId_);
+    const QJsonObject peers = QJsonDocument::fromJson(QByteArray(raw)).object();
+    free(raw);
+    for (auto it = peers.constBegin(); it != peers.constEnd(); ++it) {
+        QVariantMap ps = it.value().toObject().toVariantMap();
+        ps["latency"] = peerLatencies_.value(it.key(), -1);
+        ps["stateRecv"] = peerStateRecv_.value(it.key(), 0);
         stats[it.key()] = ps;
     }
+#endif
     return stats;
 }
 
@@ -1716,6 +1766,7 @@ void ClayNetwork::tearDown(bool goodbye)
     phaseTiming_.clear();
     latency_ = -1;
     peerLatencies_.clear();
+    peerStateRecv_.clear();
     stateSeqOut_ = 0;
     stateSeqIn_.clear();
     stateLastMs_.clear();
@@ -1771,6 +1822,7 @@ void ClayNetwork::removeNode(const QString &nodeId)
 {
     unansweredSinceMs_.remove(nodeId);
     lastHeardMs_.remove(nodeId);
+    peerStateRecv_.remove(nodeId);
     forgetSender(nodeId);
     if (clientTokens_.remove(nodeId) > 0)
         emit clientTokensChanged();
@@ -2165,6 +2217,7 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
             if (keyedIn_.accept(from, key, seq, now))
                 keyed.append({key, e["d"].toObject().toVariantMap()});
         }
+        peerStateRecv_[linkPeer]++;
         if (keyed.isEmpty() && objectsTaken == 0)
             return;
         stateLastMs_[from] = now;
@@ -2181,6 +2234,7 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
             stateSeqIn_[from] = seq;
         }
         stateRecvCount_[from]++;
+        peerStateRecv_[linkPeer]++;
         stateLastMs_[from] = clock_.elapsed();
         double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
         transit_.note(from, sentAt, localMs());
