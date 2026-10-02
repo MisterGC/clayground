@@ -8,7 +8,9 @@
 // can hold or jitter the tracked stream to exercise the interpolator, and
 // Network.linkConditions puts any node behind a bad link (#301). How a node
 // leaves, goes silent or loses signaling is timed here, on the page's own
-// clock, so a driver's polling does not blur it (#299).
+// clock, so a driver's polling does not blur it (#299). Joining goes through
+// the handshake: the room password, a joiner from another build, and the
+// client token the host keeps (#323).
 
 import QtQuick
 import Clayground.Network
@@ -33,13 +35,18 @@ Item {
     // Cloud signaling through this server (clay-dev-server) when set,
     // otherwise the host runs Local signaling
     property string signalingUrl: ""
+    // The room password this node hosts with or joins with (#323)
+    property string roomPassword: ""
+    // Why the host refused this node's last join, "" if it did not
+    property string refusedReason: ""
 
     // Every reliable message received, as {from, probe, i} - the sender
     // attribution checks look up their probes here, the link checks their
     // order
     property var msgLog: []
-    // Every nodeLeft, in order
+    // Every nodeLeft and nodeJoined, in order
     property var leftLog: []
+    property var joinedLog: []
     // Leaving and signaling (#299), in Date.now() ms; 0 = not yet
     property int signalingLosses: 0
     property real leftAt: 0          // this node called leave()
@@ -48,7 +55,8 @@ Item {
     // this is when it went silent, on the receiver's own clock
     property real lastFromHostAt: 0
     function resetLogs() {
-        leftLog = []; lastError = ""; signalingLosses = 0; leftAt = 0; disconnectedAt = 0
+        leftLog = []; joinedLog = []; lastError = ""; refusedReason = ""
+        signalingLosses = 0; leftAt = 0; disconnectedAt = 0
     }
     function leaveNow() { leftAt = Date.now(); net.leave() }
     // The link goes dark for exactly ms, timed here rather than by the driver
@@ -120,6 +128,7 @@ Item {
         maxNodes: 4
         topology: Network.Topology.Star
         signalingUrl: gym.signalingUrl
+        password: gym.roomPassword
         onStateReceived: (from, data, sentAt) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
             if (from !== gym.trackedSender) return
@@ -131,6 +140,8 @@ Item {
             gym.feed(data, sentAt)
         }
         onErrorOccurred: (message) => gym.lastError = message
+        onJoinRefused: (reason, message) => gym.refusedReason = reason
+        onNodeJoined: (nodeId) => gym.joinedLog = gym.joinedLog.concat([nodeId])
         onSignalingLost: gym.signalingLosses++
         onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()
         onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])

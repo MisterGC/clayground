@@ -11,7 +11,9 @@ tracking, and node departure. A raw websocket that knows the LAN code
 tries to register under ids that are taken (#321). Then the host's link is
 conditioned - 10 % loss, latency with jitter, a blackout - and its link is
 out for less than the grace period without anybody leaving. The host
-leaves, hosts again and is killed (#301, #299).
+leaves, hosts again and is killed (#301, #299). The host demands a room
+password, and joinC is refused for a wrong one and for another wire version
+before it gets in (#323).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
 instead (needs wsproto); the LAN code checks are Local-only and skipped,
@@ -35,7 +37,10 @@ import uuid
 from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_loss, scenario_latency, scenario_blackout,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
-                    scenario_host_killed)
+                    scenario_host_killed, scenario_handshake, check_client_token)
+
+# Every node hosts and joins with it (#323)
+PASSWORD = "stone"
 
 
 class Inspect:
@@ -218,8 +223,9 @@ def main():
             return
 
         # -- 2: host + join ------------------------------------------------
-        if cloud:
-            for n in names:
+        for n in names:
+            insp[n].eval([f"roomPassword = '{PASSWORD}'"])
+            if cloud:
                 insp[n].eval([f"signalingUrl = '{signaling_url}'"])
         A.eval(["hostUp()"])
         ok = wait_for(lambda: A.eval1("netId") not in (None, ""), 20)
@@ -232,12 +238,11 @@ def main():
 
         B.eval([f"joinNet('{code}')"])
         check("joinB: connected", wait_for(lambda: B.eval1("connected") is True, 25))
+        check_client_token(A, B, "joinB")
 
         if not cloud:
             lan_checks(B, C, code)
-        else:
-            C.eval([f"joinNet('{code}')"])
-            check("joinC: connected", wait_for(lambda: C.eval1("connected") is True, 25))
+        scenario_handshake(A, C, "joinC", code, PASSWORD)
 
         host_id_on_b = B.eval1("nodeList[0]")
         run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs)
@@ -253,7 +258,8 @@ def main():
 
 def lan_checks(B, C, code):
     """LAN codes (#293, #321): ids that are taken, malformed codes, wrong
-    secrets - and a joiner still gets in with the real code."""
+    secrets. The handshake scenario then has joinC get in with the real
+    code."""
     # -- 2a: whoever has the code cannot take a registered id (#321) ----
     lan_host, lan_port, lan_secret = decode_lan_code(code)
     id_b_early = B.eval1("netRef.nodeId")
@@ -277,9 +283,6 @@ def lan_checks(B, C, code):
     check("joinC: wrong secret rejected", rejected and C.eval1("connected") is not True,
           str(C.eval1("lastError")))
     wait_for(lambda: C.eval1("status") in (0, 3), 5)
-    C.eval([f"joinNet('{code}')"])
-    check("joinC: connected, the real host still takes joiners",
-          wait_for(lambda: C.eval1("connected") is True, 25))
 
 
 def run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs):
