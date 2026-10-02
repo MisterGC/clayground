@@ -241,11 +241,13 @@ bearerToken: "file:///path/to/token.txt"
 
 2. **State Updates**: Use `broadcastState()` for high-frequency updates (positions) and `broadcast()` for important events.
 
-3. **Error Handling**: Always implement `onErrorOccurred` to handle connection issues.
+3. **Timing**: `sessionTime` is a clock all nodes share; every message and state carries the session time it was sent at (`sentAt`), so "this happens at t" means the same moment on every node.
 
-4. **Topology Choice**: Use Star for games needing authoritative host logic, Mesh for cooperative games with direct player interaction.
+4. **Error Handling**: Always implement `onErrorOccurred` to handle connection issues.
 
-5. **Room Codes**: Room codes are 6 alphanumeric characters, case-insensitive.
+5. **Topology Choice**: Use Star for games needing authoritative host logic, Mesh for cooperative games with direct player interaction.
+
+6. **Room Codes**: Room codes are 6 alphanumeric characters, case-insensitive.
 
 ## Technical Details
 

@@ -81,6 +81,32 @@ once per frame for the updates of one frame's handlers - or right away with
 frame of 100 objects costs a few datagrams, not 100. `syncStats` shows them
 per key, and `stateAgeMs(nodeId, key)` says how fresh one object is.
 
+## One clock for everyone: sessionTime
+
+Each node's wall clock is its own, and NTP moves it now and then. The network
+has one clock all nodes share instead: `network.sessionTime`, milliseconds
+since the host created the network. A joiner syncs to it from the pings it
+already sends the host, and is within a few milliseconds of it about 2 s
+after joining (`network.sessionTimeSynced`) - also over an internet link
+with 100 ms of latency and jitter.
+
+Every message and every state carries the session time it was sent at, as
+`sentAt`:
+
+```qml
+Network {
+    // how long the hit took to arrive
+    onMessageReceived: (from, data, sentAt) => {
+        if (data.hit) applyHit(data, network.sessionTime - sentAt)
+    }
+}
+```
+
+and an event can be scheduled for the same moment on every node by sending a
+session time ahead: `network.broadcast({wave: 3, at: network.sessionTime +
+500})`, with each node starting the wave once its own `sessionTime` reaches
+`at`.
+
 ## Rendering remote entities: StateInterpolator
 
 Raw 20 Hz updates rendered directly look jittery, and smoothing them with
@@ -121,6 +147,13 @@ Network {
 
 Call `sync.reset()` when the entity teleports (level change, respawn) so it
 snaps instead of gliding across the map.
+
+Give the interpolator the network and the node whose state it shows -
+`network: theNetwork` and `nodeId: from` - and it runs on the session clock
+and places snapshots with `network.transitMs(nodeId)`, the offset of that
+node's stream, which the network estimates once per sender. A host streaming
+100 enemies then has its offset estimated once on each receiver, not once per
+enemy.
 
 The delay is the visible lag: every 10 ms puts a 7.5 Wu/s entity 0.075 Wu
 behind where it really is, so keep it as small as the stream allows.
