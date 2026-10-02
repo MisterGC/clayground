@@ -648,4 +648,10 @@ def scenario_thirty_interpolators(host, joiner, cpu=None, n=30, hz=20, window=5.
           and per_sec(live, "pushes") >= n * hz * 0.6,
           f"n={live.get('n')} pushes/s={fmt(per_sec(live, 'pushes'))} "
           f"fewest updates={live.get('minUpdates')}")
+    check(f"{label}: no value object made per frame while they stream",
+          live.get("updates", 0) > 0 and live.get("fresh", -1) == 0,
+          f"{live.get('fresh')} new value objects in {live.get('updates')} updated()")
+    check(f"{label}: nothing left to blend, no work per frame",
+          idle.get("n") == n and idle.get("updates", -1) == 0,
+          f"{idle.get('updates')} updated() in {fmt(idle.get('secs'))} s after the stream stopped")
     return base, live, idle
