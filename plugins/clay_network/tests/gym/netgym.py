@@ -13,6 +13,9 @@ view shows without reading the host at the same time.
 The leaving scenarios (#299) take their times from the pages' own clocks
 (Sandbox.qml's leftAt, disconnectedAt): the driver's polling is far coarser
 than the second they are checked against.
+
+The handshake scenario (#323) has a joiner knock with the wrong room
+password and as a build of another wire version before it gets in.
 """
 
 import json
@@ -324,3 +327,62 @@ def scenario_host_killed(kill, host_id, joiners, how):
         check(f"host {how}: {name} reports it in nodeLeft and keeps no stream",
               host_id in left and j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,
               f"nodeLeft={left}")
+
+
+def scenario_handshake(host, joiner, name, code, password):
+    """Joining starts with a handshake (#323). The host hosts with password;
+    joiner tries a wrong one, then speaks another wire version - both are
+    refused with a named reason and never become a node on the host - and
+    then gets in, with the host knowing its client token."""
+    def refused_as(reason, error_start):
+        ok = wait_for(lambda: joiner.eval1("refusedReason") == reason, 15)
+        err = joiner.eval1("lastError") or ""
+        return (ok and err.startswith(error_start) and joiner.eval1("status") == 3
+                and joiner.eval1("connected") is not True), err
+
+    host.eval(["resetLogs()"])
+    nodes_before = host.eval1("nodeList.length")
+
+    joiner.eval(["roomPassword = 'not-" + password + "'", f"joinNet('{code}')"])
+    ok, err = refused_as("wrong-password", "Wrong password")
+    check(f"handshake: {name} with a wrong password is refused", ok,
+          f"refusedReason={joiner.eval1('refusedReason')!r} lastError={err!r} "
+          f"status={joiner.eval1('status')}")
+
+    version = joiner.eval1("netRef.wireVersion")
+    joiner.eval([f"roomPassword = '{password}'", f"netRef._setWireVersion({version + 1})",
+                 f"joinNet('{code}')"])
+    ok, err = refused_as("incompatible-version", "Incompatible version")
+    check(f"handshake: {name} with another wire version gets \"incompatible version\"",
+          ok, f"refusedReason={joiner.eval1('refusedReason')!r} lastError={err!r}")
+    joiner.eval([f"netRef._setWireVersion({version})"])
+
+    # Long enough for a refused joiner to have shown up if it were taken
+    time.sleep(1.0)
+    joined = json.loads(host.eval1("JSON.stringify(joinedLog)") or "[]")
+    check(f"handshake: the host never took the refused {name}",
+          not joined and host.eval1("nodeList.length") == nodes_before,
+          f"nodeJoined={joined} nodes {nodes_before} -> {host.eval1('nodeList.length')}")
+
+    joiner.eval([f"joinNet('{code}')"])
+    ok = wait_for(lambda: joiner.eval1("connected") is True, 25)
+    check(f"handshake: {name} joins with the right password and wire version", ok,
+          f"status={joiner.eval1('status')} lastError={joiner.eval1('lastError')!r}")
+    if ok:
+        check_client_token(host, joiner, name)
+        timing = json.loads(joiner.eval1("JSON.stringify(netRef.phaseTiming)") or "{}")
+        check(f"handshake: {name} reports how long the handshake took",
+              isinstance(timing.get("handshake"), (int, float)) and timing["handshake"] >= 0
+              and timing.get("total", -1) >= timing["handshake"], str(timing))
+    return ok
+
+
+def check_client_token(host, joiner, name):
+    """The host knows the joiner's client token by its node id (#323)."""
+    node = joiner.eval1("netRef.nodeId")
+    token = joiner.eval1("netRef.clientToken")
+    seen = wait_for(lambda: json.loads(host.eval1("JSON.stringify(netRef.clientTokens)")
+                                       or "{}").get(node) == token, 5)
+    tokens = json.loads(host.eval1("JSON.stringify(netRef.clientTokens)") or "{}")
+    return check(f"handshake: the host sees {name}'s client token", seen and bool(token),
+                 f"{name} is {node} with token {token!r}, host has {tokens}")

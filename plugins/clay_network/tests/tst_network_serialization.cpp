@@ -7,6 +7,7 @@
 #include <QVariant>
 #include <QVariantMap>
 #include "sender.h"
+#include "handshake.h"
 
 /**
  * @brief Unit tests for ClayNetwork message serialization.
@@ -34,6 +35,14 @@ private slots:
     void testJoinerTakesRelayedSenderFromHost();
     void testMeshLinkIgnoresClaimedSender();
     void testSenderOutsideRosterIsDropped();
+    void testHostAdmitsMatchingHello();
+    void testHostRefusesOtherWireVersion();
+    void testHostRefusesWrongPassword();
+    void testHostRefusesOtherApp();
+    void testHostRefusesJoinerWithoutHandshake();
+    void testJoinerTakesWelcomeOverItsLink();
+    void testJoinerReadsRefusal();
+    void testJoinerRefusesHostWithoutHandshake();
 };
 
 void TestNetworkSerialization::testVariantMapToJson()
@@ -314,6 +323,110 @@ void TestNetworkSerialization::testSenderOutsideRosterIsDropped()
     // A link from a peer that is not (or no longer) in the roster
     QVERIFY(attributeSender("nodeX", "", true, "HOST", roster).isEmpty());
     QVERIFY(attributeSender("nodeX", "nodeB", false, "HOST", roster).isEmpty());
+}
+
+namespace hs = clay::network::handshake;
+
+void TestNetworkSerialization::testHostAdmitsMatchingHello()
+{
+    const QJsonObject hello = hs::hello(hs::kWireVersion, "stone", "secret", "tok-1");
+    QCOMPARE(hello["t"].toString(), QString("h"));
+    QCOMPARE(hello["tok"].toString(), QString("tok-1"));
+    QVERIFY(hs::judgeHello(hello, hs::kWireVersion, "stone", "secret").ok());
+    // A host without a password takes any
+    QVERIFY(hs::judgeHello(hello, hs::kWireVersion, "stone", "").ok());
+    // The hello survives the trip as JSON text, the way it crosses the wire
+    const QJsonObject wire = QJsonDocument::fromJson(
+        QJsonDocument(hello).toJson(QJsonDocument::Compact)).object();
+    QVERIFY(hs::judgeHello(wire, hs::kWireVersion, "stone", "secret").ok());
+}
+
+void TestNetworkSerialization::testHostRefusesOtherWireVersion()
+{
+    const auto v = hs::judgeHello(hs::hello(hs::kWireVersion + 1, "", "", "t"),
+                                  hs::kWireVersion, "", "");
+    QCOMPARE(v.reason, hs::incompatibleVersion());
+    QVERIFY(v.message.startsWith("Incompatible version"));
+    // The version is judged first: a wrong password from another build
+    // still says why the builds cannot talk
+    const auto first = hs::judgeHello(hs::hello(hs::kWireVersion + 1, "", "guess", "t"),
+                                      hs::kWireVersion, "", "secret");
+    QCOMPARE(first.reason, hs::incompatibleVersion());
+}
+
+void TestNetworkSerialization::testHostRefusesWrongPassword()
+{
+    for (const QString &guess : {QString(), QString("secre"), QString("secret!"),
+                                 QString("Secret")}) {
+        const auto v = hs::judgeHello(hs::hello(hs::kWireVersion, "", guess, "t"),
+                                      hs::kWireVersion, "", "secret");
+        QCOMPARE(v.reason, hs::wrongPassword());
+        QCOMPARE(v.message, QString("Wrong password"));
+        // The refusal does not repeat what was guessed or what is right
+        const QJsonObject r = hs::refusal(v);
+        QCOMPARE(r["t"].toString(), QString("R"));
+        QCOMPARE(r["code"].toString(), hs::wrongPassword());
+        QVERIFY(!QJsonDocument(r).toJson().contains("secret"));
+    }
+    QVERIFY(hs::samePassword("äöü", "äöü"));
+    QVERIFY(!hs::samePassword("äöü", "aou"));
+}
+
+void TestNetworkSerialization::testHostRefusesOtherApp()
+{
+    const auto v = hs::judgeHello(hs::hello(hs::kWireVersion, "chiptrack", "", "t"),
+                                  hs::kWireVersion, "stone", "");
+    QCOMPARE(v.reason, hs::incompatibleApp());
+}
+
+void TestNetworkSerialization::testHostRefusesJoinerWithoutHandshake()
+{
+    // A build from before the handshake speaks first with a ping, a state
+    // or a message - or says nothing, which the host's timeout turns into {}
+    QJsonObject ping;
+    ping["t"] = "p";
+    QJsonObject msg;
+    msg["t"] = "m";
+    for (const QJsonObject &first : {ping, msg, QJsonObject()})
+        QCOMPARE(hs::judgeHello(first, hs::kWireVersion, "", "").reason,
+                 hs::incompatibleVersion());
+}
+
+void TestNetworkSerialization::testJoinerTakesWelcomeOverItsLink()
+{
+    QVERIFY(hs::judgeReply(hs::welcome("HOST", hs::kWireVersion), "HOST",
+                           hs::kWireVersion).ok());
+    // A welcome naming somebody else than the host at the other end
+    QCOMPARE(hs::judgeReply(hs::welcome("ABC123", hs::kWireVersion), "HOST",
+                            hs::kWireVersion).reason, hs::handshakeFailed());
+    QCOMPARE(hs::judgeReply(hs::welcome("HOST", hs::kWireVersion + 1), "HOST",
+                            hs::kWireVersion).reason, hs::incompatibleVersion());
+}
+
+void TestNetworkSerialization::testJoinerReadsRefusal()
+{
+    const auto v = hs::judgeReply(hs::refusal({hs::wrongPassword(), "Wrong password"}),
+                                  "HOST", hs::kWireVersion);
+    QCOMPARE(v.reason, hs::wrongPassword());
+    QCOMPARE(v.message, QString("Wrong password"));
+    // The older rejection without a code, a full network
+    QJsonObject full;
+    full["t"] = "R";
+    full["r"] = "Network full";
+    const auto f = hs::judgeReply(full, "HOST", hs::kWireVersion);
+    QCOMPARE(f.reason, hs::refused());
+    QCOMPARE(f.message, QString("Network full"));
+}
+
+void TestNetworkSerialization::testJoinerRefusesHostWithoutHandshake()
+{
+    // A host from before the handshake greets with its roster
+    QJsonObject roster;
+    roster["t"] = "y";
+    roster["sys"] = "roster";
+    const auto v = hs::judgeReply(roster, "HOST", hs::kWireVersion);
+    QCOMPARE(v.reason, hs::incompatibleVersion());
+    QVERIFY(v.message.startsWith("Incompatible version"));
 }
 
 QTEST_MAIN(TestNetworkSerialization)

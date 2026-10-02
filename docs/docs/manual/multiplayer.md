@@ -119,7 +119,16 @@ relays traffic between joiners (`autoRelay`). Consequences:
 - `hostId` names the host on every node (on the host it equals `nodeId`).
   Compare a sender against it to tell the host's word from a joiner's;
   don't assume the host's id looks a certain way - it is `"HOST"` with
-  Local signaling and the network code with Cloud.
+  Local signaling and the network code with Cloud. The host names itself
+  in the welcome it answers a joiner's handshake with.
+- Joining is a handshake: a joiner from another build (`wireVersion`),
+  another app (`appId`) or with the wrong room `password` is refused with
+  `joinRefused(reason, message)` and never shows up in `nodes`. Set a
+  `password` when a code could leak - a stream, a public chat - and show
+  the joiner a password prompt on `"wrong-password"` and an "update the
+  game" note on `"incompatible-version"`. The host keeps each joiner's
+  `clientToken` in `clientTokens`; store the token on the joiner and set it
+  again to be recognised when it comes back.
 - With Cloud signaling, a host is joinable only while its connection to the
   signaling server is up. A host keeps it alive on its own; if it drops
   anyway, `signalingLost()` fires - the nodes already in stay connected,
@@ -214,3 +223,4 @@ desktop and in the browser, so a test written against it covers both.
 - [ ] `NetworkMonitor` visible in dev builds
 - [ ] Played once with `linkConditions` set to loss, latency and a blackout
 - [ ] Joiners end the session on the host's `errorOccurred`, and quit with `leave()`
+- [ ] `appId` set; a `password` where a code could leak; `joinRefused` handled

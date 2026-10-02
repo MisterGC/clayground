@@ -10,7 +10,9 @@ how) with the same expressions and the same link scenarios as the native
 gym (netgym.py): state flow, interpolation on a clean link, 10 % loss,
 latency with jitter, a blackout, an outage shorter than the grace period, a
 signaling drop the host comes back from, the host leaving, and - hosting
-again - the host page crashing (#299).
+again - the host page crashing (#299). The host demands a room password,
+and the joiner is refused for a wrong one and for another wire version
+before it gets in (#323).
 
 Usage:
     python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
@@ -34,7 +36,7 @@ import uuid
 import netgym
 from netgym import (check, wait_for, check_tracking, scenario_loss, scenario_latency,
                     scenario_blackout, scenario_host_leaves, scenario_short_outage,
-                    scenario_signaling_drop, scenario_host_killed)
+                    scenario_signaling_drop, scenario_host_killed, scenario_handshake)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "webdojo", "tests"))
@@ -216,14 +218,12 @@ def run(H, J, signaling_url, timeout):
 
     for i in (H, J):
         i.eval([f"signalingUrl = '{signaling_url}'"])
-    H.eval(["hostUp()"])
+    H.eval(["roomPassword = 'stone'", "hostUp()"])
     got_code = wait_for(lambda: H.eval1("netId") not in (None, ""), 30)
     code = H.eval1("netId")
     if not check("host: network code assigned", got_code and bool(code), str(code)):
         return False
-    J.eval([f"joinNet('{code}')"])
-    if not check("joiner: connected", wait_for(lambda: J.eval1("connected") is True, 45),
-                 f"status={J.eval1('status')} lastError={J.eval1('lastError')}"):
+    if not scenario_handshake(H, J, "joiner", code, "stone"):
         return False
 
     host_id = H.eval1("netRef.nodeId")

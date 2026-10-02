@@ -54,6 +54,12 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
     Q_PROPERTY(int gracePeriod READ gracePeriod WRITE setGracePeriod NOTIFY gracePeriodChanged)
     Q_PROPERTY(bool acceptingJoins READ acceptingJoins NOTIFY acceptingJoinsChanged)
+    Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
+    Q_PROPERTY(QString appId READ appId WRITE setAppId NOTIFY appIdChanged)
+    Q_PROPERTY(QString clientToken READ clientToken WRITE setClientToken NOTIFY clientTokenChanged)
+    Q_PROPERTY(QVariantMap clientTokens READ clientTokens NOTIFY clientTokensChanged)
+    // Test hook: a joiner that speaks another wire version (#323)
+    Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
 public:
     enum Topology {
@@ -113,6 +119,15 @@ public:
     int gracePeriod() const;
     void setGracePeriod(int ms);
     bool acceptingJoins() const;
+    QString password() const;
+    void setPassword(const QString &password);
+    QString appId() const;
+    void setAppId(const QString &appId);
+    QString clientToken() const;
+    void setClientToken(const QString &token);
+    QVariantMap clientTokens() const;
+    int wireVersion() const;
+    void setWireVersion(int version);
 
 public slots:
     void createRoom();
@@ -138,6 +153,9 @@ signals:
     // broadcast, or -1 when the sender did not include one.
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
+    // The host refused this joiner in the handshake (#323); reason is one
+    // of handshake.h's codes, errorOccurred(message) follows
+    void joinRefused(const QString &reason, const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
 
     void networkIdChanged();
@@ -167,6 +185,11 @@ signals:
     void linkConditionsChanged();
     void gracePeriodChanged();
     void acceptingJoinsChanged();
+    void passwordChanged();
+    void appIdChanged();
+    void clientTokenChanged();
+    void clientTokensChanged();
+    void wireVersionChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -182,6 +205,12 @@ public:
     void onSignalingRestored();
     void onDiagnostic(const char* phase, const char* detail);
     void onPong(const char* peerId, int rtt);
+    // The join handshake (#323): a pending joiner's first message on the
+    // host, the host's first answer on a joiner
+    void onHello(const char* peerId, const char* json);
+    void onHandshakeReply(const char* nodeId, const char* json);
+    // A joiner reached a connection phase; ms is how long the one before took
+    void onPhase(const char* phase, int ms);
 
 private:
     void initPeerJS();
@@ -255,6 +284,17 @@ private:
     QTimer quietProbe_;
     bool acceptingJoins_ = false;
     bool signalingDown_ = false;
+
+    // The join handshake (#323)
+    QString password_;
+    QString appId_;
+    QString clientToken_;
+    int wireVersion_;
+    QVariantMap clientTokens_;  // host: each joiner's token, by node id
+
+    // clock_ times of host()/join() and of the hello, for phaseTiming
+    qint64 connectStartMs_ = 0;
+    qint64 handshakeStartMs_ = -1;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

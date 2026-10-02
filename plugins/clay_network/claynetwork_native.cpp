@@ -4,6 +4,7 @@
 #include "signaling_peerjs.h"
 #include "signaling_local.h"
 #include "sender.h"
+#include "handshake.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
 #include <QJsonDocument>
@@ -27,11 +28,14 @@ constexpr int kQuietProbeTickMs = 250;
 // Signaling reconnects back off from the first to the last delay
 constexpr int kSignalingRetryFirstMs = 1000;
 constexpr int kSignalingRetryMaxMs = 4000;
+namespace hs = clay::network::handshake;
 }
 
 ClayNetwork::ClayNetwork(QObject *parent)
     : QObject(parent)
     , signaling_(std::make_unique<PeerJSSignaling>(this))
+    , clientToken_(QUuid::createUuid().toString(QUuid::WithoutBraces))
+    , wireVersion_(hs::kWireVersion)
 {
     clock_.start();
     QObject::connect(signaling_.get(), &PeerJSSignaling::connected,
@@ -44,6 +48,8 @@ ClayNetwork::ClayNetwork(QObject *parent)
                      this, &ClayNetwork::onSignalingCandidate);
     QObject::connect(signaling_.get(), &PeerJSSignaling::errorOccurred,
                      this, &ClayNetwork::onSignalingError);
+    QObject::connect(signaling_.get(), &PeerJSSignaling::rejected,
+                     this, &ClayNetwork::onSignalingRejected);
     QObject::connect(signaling_.get(), &PeerJSSignaling::disconnected,
                      this, &ClayNetwork::onSignalingDisconnected);
     signalingRetry_.setSingleShot(true);
@@ -197,6 +203,40 @@ void ClayNetwork::setAcceptingJoins(bool accepting) {
     if (acceptingJoins_ != accepting) {
         acceptingJoins_ = accepting;
         emit acceptingJoinsChanged();
+    }
+}
+
+QString ClayNetwork::password() const { return password_; }
+void ClayNetwork::setPassword(const QString &password) {
+    if (password_ != password) {
+        password_ = password;
+        emit passwordChanged();
+    }
+}
+
+QString ClayNetwork::appId() const { return appId_; }
+void ClayNetwork::setAppId(const QString &appId) {
+    if (appId_ != appId) {
+        appId_ = appId;
+        emit appIdChanged();
+    }
+}
+
+QString ClayNetwork::clientToken() const { return clientToken_; }
+void ClayNetwork::setClientToken(const QString &token) {
+    if (clientToken_ != token) {
+        clientToken_ = token;
+        emit clientTokenChanged();
+    }
+}
+
+QVariantMap ClayNetwork::clientTokens() const { return clientTokens_; }
+
+int ClayNetwork::wireVersion() const { return wireVersion_; }
+void ClayNetwork::setWireVersion(int version) {
+    if (wireVersion_ != version) {
+        wireVersion_ = version;
+        emit wireVersionChanged();
     }
 }
 
@@ -373,7 +413,7 @@ void ClayNetwork::sendGoodbye()
     bye["sys"] = "bye";
     const QByteArray utf8 = QJsonDocument(bye).toJson(QJsonDocument::Compact);
     for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
-        if (it->ready)
+        if (it->admitted)
             writeToPeer(it.key(), utf8, false);
 }
 
@@ -419,6 +459,7 @@ void ClayNetwork::tearDown()
     stateLastMs_.clear();
     stateRecvCount_.clear();
     stateDropCount_.clear();
+    clientTokens_.clear();
     setAcceptingJoins(false);
 
     emit networkIdChanged();
@@ -433,6 +474,7 @@ void ClayNetwork::tearDown()
     emit phaseTimingChanged();
     emit latencyChanged();
     emit peerStatsChanged();
+    emit clientTokensChanged();
 }
 
 void ClayNetwork::broadcast(const QVariant &data)
@@ -442,9 +484,9 @@ void ClayNetwork::broadcast(const QVariant &data)
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 
-    for (const QString &peerId : peers_.keys()) {
-        sendToPeer(peerId, json);
-    }
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it->admitted)
+            sendToPeer(it.key(), json);
 }
 
 void ClayNetwork::broadcastState(const QVariant &data)
@@ -458,14 +500,14 @@ void ClayNetwork::broadcastState(const QVariant &data)
     msg["d"] = QJsonObject::fromVariantMap(data.toMap());
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 
-    for (const QString &peerId : peers_.keys()) {
-        sendStateToPeer(peerId, json);
-    }
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it->admitted)
+            sendStateToPeer(it.key(), json);
 }
 
 void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
 {
-    if (!peers_.contains(nodeId)) {
+    if (!peers_.contains(nodeId) || !peers_[nodeId].admitted) {
         qWarning() << "ClayNetwork: Unknown peer" << nodeId;
         return;
     }
@@ -541,7 +583,8 @@ void ClayNetwork::onSignalingOffer(const QString &fromId, const QString &sdp, co
         return;
     }
 
-    if (nodeCount() >= maxNodes_) {
+    // Joiners still in the handshake hold a place too
+    if (peers_.size() + 1 >= maxNodes_ && !peers_.contains(fromId)) {
         qWarning() << "ClayNetwork: Max nodes reached, rejecting" << fromId;
         emitDiag("signaling", QString("Rejected %1 (network full)").arg(fromId.left(8)));
         // Send rejection
@@ -592,6 +635,15 @@ void ClayNetwork::onSignalingError(const QString &error)
     status_ = Error;
     emit statusChanged();
     emit errorOccurred(error);
+}
+
+void ClayNetwork::onSignalingRejected(const QString &reason)
+{
+    // A full native host refuses at signaling, a full browser host on the
+    // data channel: either way the joiner hears joinRefused("refused")
+    if (isHost_ || status_ != Connecting)
+        return;
+    refusedByHost(hs::refused(), reason);
 }
 
 void ClayNetwork::onSignalingDisconnected()
@@ -676,6 +728,8 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
     PeerConn &peer = peers_[peerId];
     peer.pc = pc;
     peer.ready = false;
+    peer.admitted = false;
+    peer.refused = false;
 
     pc->onStateChange([this, peerId](rtc::PeerConnection::State state) {
         qDebug() << "ClayNetwork: Peer" << peerId << "state:" << static_cast<int>(state);
@@ -801,45 +855,32 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
     dc->onOpen([this, peerId]() {
         QMetaObject::invokeMethod(this, [this, peerId]() {
             qDebug() << "ClayNetwork: Data channel open with" << peerId;
-            if (peers_.contains(peerId)) {
-                peers_[peerId].ready = true;
-                peers_[peerId].lastHeardMs = clock_.elapsed();
-                if (gracePeriod_ > 0 && !quietProbe_.isActive())
-                    quietProbe_.start();
-                nodes_.append(peerId);
-                emit nodeCountChanged();
-                emit nodesChanged();
-                emit playerJoined(peerId);
+            if (!peers_.contains(peerId))
+                return;
+            PeerConn &peer = peers_[peerId];
+            peer.ready = true;
+            peer.lastHeardMs = clock_.elapsed();
 
-                // Star topology: the host owns the roster - tell the new
-                // node about everyone and everyone about the new node, so
-                // joiners can see each other despite only connecting to us.
-                if (isHost_ && topology_ == Star) {
-                    sendRosterTo(peerId);
-                    QJsonObject joined;
-                    joined["t"] = "y";
-                    joined["sys"] = "node_joined";
-                    joined["nodeId"] = peerId;
-                    hostBroadcastSystem(joined, peerId);
-                }
-
-                if (!isHost_ && !connected_) {
-                    qint64 iceMs = phaseTimer_.elapsed() - iceStartMs_;
-                    qint64 totalMs = phaseTimer_.elapsed();
-                    phaseTiming_["ice"] = iceMs;
-                    phaseTiming_["datachannel"] = 0;
-                    phaseTiming_["total"] = totalMs;
-                    emit phaseTimingChanged();
-                    setConnectionPhase("");
-
-                    emitDiag("datachannel",
-                             QString("Data channel open (total: %1ms)").arg(totalMs));
-
-                    connected_ = true;
-                    status_ = Connected;
-                    emit connectedChanged();
-                    emit statusChanged();
-                }
+            // The peer is no node yet: the joiner says hello, the host
+            // waits for it (#323) - and refuses a joiner that never does
+            if (isHost_) {
+                auto pc = peer.pc;
+                QTimer::singleShot(hs::kTimeoutMs, this, [this, peerId, pc]() {
+                    if (!peers_.contains(peerId) || peers_[peerId].pc != pc
+                        || peers_[peerId].admitted || peers_[peerId].refused)
+                        return;
+                    const auto v = hs::judgeHello(QJsonObject(), wireVersion_, appId_, password_);
+                    refuseJoiner(peerId, v.reason, v.message);
+                });
+            } else if (!connected_) {
+                phaseTiming_["ice"] = phaseTimer_.elapsed() - iceStartMs_;
+                phaseTiming_["datachannel"] = 0;
+                emit phaseTimingChanged();
+                emitDiag("datachannel", QString("Data channel open (%1ms), saying hello")
+                         .arg(phaseTimer_.elapsed()));
+                setConnectionPhase("handshake");
+                handshakeStartMs_ = phaseTimer_.elapsed();
+                sendJson(peerId, hs::hello(wireVersion_, appId_, password_, clientToken_));
             }
         }, Qt::QueuedConnection);
     });
@@ -938,11 +979,14 @@ void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::str
     QMetaObject::invokeMethod(this, [this, fromId, message, stateChannel]() {
         conditioner_.offer(clay::network::LinkConditioner::Incoming, stateChannel,
                            qsizetype(message.size()),
-                           [this, fromId, message]() { processMessage(fromId, message); });
+                           [this, fromId, message, stateChannel]() {
+                               processMessage(fromId, message, stateChannel);
+                           });
     }, Qt::QueuedConnection);
 }
 
-void ClayNetwork::processMessage(const QString &fromId, const std::string &message)
+void ClayNetwork::processMessage(const QString &fromId, const std::string &message,
+                                 bool stateChannel)
 {
     if (peers_.contains(fromId)) {
         peers_[fromId].msgRecv++;
@@ -958,6 +1002,15 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
 
     QJsonObject obj = doc.object();
     QString type = obj["t"].toString();
+
+    // Nothing but the handshake passes before it is done (#323). A state
+    // that overtook the host's welcome on the unordered channel is no
+    // answer to the hello: it is dropped, not judged.
+    if (peers_.contains(fromId) && !peers_[fromId].admitted) {
+        if (!stateChannel)
+            handshakeMessage(fromId, obj);
+        return;
+    }
 
     // Handle ping/pong (not relayed)
     if (type == "p") {
@@ -1052,13 +1105,13 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
         // the lossy channel, messages stay reliable
         obj["from"] = fromId;
         QString relayJson = QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-        for (const QString &peerId : peers_.keys()) {
-            if (peerId != fromId) {
-                if (type == "s")
-                    sendStateToPeer(peerId, relayJson);
-                else
-                    sendToPeer(peerId, relayJson);
-            }
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
+            if (it.key() == fromId || !it->admitted)
+                continue;
+            if (type == "s")
+                sendStateToPeer(it.key(), relayJson);
+            else
+                sendToPeer(it.key(), relayJson);
         }
     }
 
@@ -1071,6 +1124,117 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
     }
 }
 
+void ClayNetwork::sendJson(const QString &peerId, const QJsonObject &msg)
+{
+    sendToPeer(peerId, QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact)));
+}
+
+void ClayNetwork::handshakeMessage(const QString &fromId, const QJsonObject &obj)
+{
+    if (isHost_) {
+        if (peers_[fromId].refused)
+            return;
+        const auto v = hs::judgeHello(obj, wireVersion_, appId_, password_);
+        if (v.ok())
+            admitJoiner(fromId, obj["tok"].toString());
+        else
+            refuseJoiner(fromId, v.reason, v.message);
+        return;
+    }
+    // A joiner has one link, the one to the host
+    if (fromId != hostId_)
+        return;
+    const auto v = hs::judgeReply(obj, hostId_, wireVersion_);
+    if (v.ok())
+        joinedHost();
+    else
+        refusedByHost(v.reason, v.message);
+}
+
+void ClayNetwork::admitJoiner(const QString &peerId, const QString &clientToken)
+{
+    PeerConn &peer = peers_[peerId];
+    peer.admitted = true;
+    peer.lastHeardMs = clock_.elapsed();
+    clientTokens_[peerId] = clientToken;
+    emit clientTokensChanged();
+    emitDiag("datachannel", QString("Admitted %1").arg(peerId.left(8)));
+    // The welcome goes first: the joiner takes nothing else before it
+    sendJson(peerId, hs::welcome(nodeId_, wireVersion_));
+    if (gracePeriod_ > 0 && !quietProbe_.isActive())
+        quietProbe_.start();
+
+    nodes_.append(peerId);
+    emit nodeCountChanged();
+    emit nodesChanged();
+    emit playerJoined(peerId);
+
+    // Star topology: the host owns the roster - tell the new node about
+    // everyone and everyone about the new node, so joiners can see each
+    // other despite only connecting to us.
+    if (topology_ == Star) {
+        sendRosterTo(peerId);
+        QJsonObject joined;
+        joined["t"] = "y";
+        joined["sys"] = "node_joined";
+        joined["nodeId"] = peerId;
+        hostBroadcastSystem(joined, peerId);
+    }
+}
+
+void ClayNetwork::refuseJoiner(const QString &peerId, const QString &reason,
+                               const QString &message)
+{
+    PeerConn &peer = peers_[peerId];
+    peer.refused = true;
+    qWarning() << "ClayNetwork: Refused" << peerId << "-" << message;
+    emitDiag("datachannel", QString("Refused %1: %2").arg(peerId.left(8), message));
+    QJsonObject refusal = hs::refusal({reason, message});
+    sendJson(peerId, refusal);
+    // Closed once the refusal is out; a new connection under the same id
+    // is not this one
+    auto pc = peer.pc;
+    QTimer::singleShot(hs::kCloseDelayMs, this, [this, peerId, pc]() {
+        if (peers_.contains(peerId) && peers_[peerId].pc == pc)
+            cleanupPeer(peerId);
+    });
+}
+
+void ClayNetwork::joinedHost()
+{
+    PeerConn &peer = peers_[hostId_];
+    peer.admitted = true;
+    peer.lastHeardMs = clock_.elapsed();
+    if (gracePeriod_ > 0 && !quietProbe_.isActive())
+        quietProbe_.start();
+    nodes_.append(hostId_);
+    emit nodeCountChanged();
+    emit nodesChanged();
+    emit playerJoined(hostId_);
+
+    const qint64 totalMs = phaseTimer_.elapsed();
+    phaseTiming_["handshake"] = totalMs - handshakeStartMs_;
+    phaseTiming_["total"] = totalMs;
+    emit phaseTimingChanged();
+    setConnectionPhase("");
+    emitDiag("datachannel", QString("Welcomed by the host (total: %1ms)").arg(totalMs));
+
+    connected_ = true;
+    status_ = Connected;
+    emit connectedChanged();
+    emit statusChanged();
+}
+
+void ClayNetwork::refusedByHost(const QString &reason, const QString &message)
+{
+    qWarning() << "ClayNetwork: The host refused this node -" << message;
+    tearDown();
+    status_ = Error;
+    emit statusChanged();
+    emit joinRefused(reason, message);
+    emit errorOccurred(message);
+}
+
 void ClayNetwork::handleSystemMessage(const QJsonObject &obj)
 {
     if (isHost_)
@@ -1078,8 +1242,8 @@ void ClayNetwork::handleSystemMessage(const QJsonObject &obj)
 
     QString sys = obj["sys"].toString();
     if (sys == "roster") {
-        // Authoritative list of all OTHER joiners (host connection is
-        // already in nodes_ via the data channel open)
+        // Authoritative list of all OTHER joiners (the host is already
+        // in nodes_ since its welcome)
         QStringList updated = nodes_;
         for (const auto &v : obj["nodes"].toArray()) {
             QString id = v.toString();
@@ -1132,9 +1296,9 @@ void ClayNetwork::sendRosterTo(const QString &peerId)
 void ClayNetwork::hostBroadcastSystem(const QJsonObject &msg, const QString &exceptPeer)
 {
     QString json = QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact));
-    for (const QString &peerId : peers_.keys())
-        if (peerId != exceptPeer)
-            sendToPeer(peerId, json);
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it.key() != exceptPeer && it->admitted)
+            sendToPeer(it.key(), json);
 }
 
 void ClayNetwork::forgetSender(const QString &nodeId)
@@ -1149,6 +1313,15 @@ void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
 {
     if (!peers_.contains(peerId) || !peers_[peerId].ready)
         return;
+    if (!peers_[peerId].admitted) {
+        // Gone in the handshake: no node to report. A joiner has nothing
+        // without its host.
+        if (!isHost_ && peerId == hostId_)
+            loseHost(reason);
+        else
+            cleanupPeer(peerId);
+        return;
+    }
     if (!isHost_ && topology_ == Star && peerId == hostId_)
         loseHost(reason);
     else
@@ -1160,6 +1333,8 @@ void ClayNetwork::dropPeer(const QString &peerId)
     cleanupPeer(peerId);
     nodes_.removeAll(peerId);
     forgetSender(peerId);
+    if (clientTokens_.remove(peerId) > 0)
+        emit clientTokensChanged();
     emit nodeCountChanged();
     emit nodesChanged();
     emit peerStatsChanged();
@@ -1198,7 +1373,7 @@ void ClayNetwork::checkLiveness()
     const qint64 now = clock_.elapsed();
     QStringList silent;
     for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
-        if (it->ready && it->unansweredSinceMs >= 0
+        if (it->admitted && it->unansweredSinceMs >= 0
             && now - it->unansweredSinceMs >= gracePeriod_)
             silent.append(it.key());
     for (const QString &peerId : silent) {
@@ -1216,7 +1391,7 @@ void ClayNetwork::armLivenessCheck()
     qint64 next = -1;
     if (gracePeriod_ > 0) {
         for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
-            if (it->ready && it->unansweredSinceMs >= 0
+            if (it->admitted && it->unansweredSinceMs >= 0
                 && (next < 0 || it->unansweredSinceMs + gracePeriod_ < next))
                 next = it->unansweredSinceMs + gracePeriod_;
     }
@@ -1241,16 +1416,16 @@ void ClayNetwork::ping()
 
     const qint64 sentAt = clock_.elapsed();
     for (PeerConn &peer : peers_)
-        if (peer.ready && peer.unansweredSinceMs < 0)
+        if (peer.admitted && peer.unansweredSinceMs < 0)
             peer.unansweredSinceMs = sentAt;
     armLivenessCheck();
     if (gracePeriod_ > 0 && !quietProbe_.isActive())
         quietProbe_.start();
 
     const QString json = pingJson();
-    for (const QString &peerId : peers_.keys()) {
-        sendToPeer(peerId, json);
-    }
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+        if (it->admitted)
+            sendToPeer(it.key(), json);
 }
 
 // Without it a crash right after a ping waits up to the next one, 2 s, for
@@ -1265,7 +1440,7 @@ void ClayNetwork::probeQuietPeers()
     const qint64 now = clock_.elapsed();
     QStringList quiet;
     for (auto it = peers_.begin(); it != peers_.end(); ++it) {
-        if (it->ready && it->unansweredSinceMs < 0 && now - it->lastHeardMs >= kQuietProbeMs) {
+        if (it->admitted && it->unansweredSinceMs < 0 && now - it->lastHeardMs >= kQuietProbeMs) {
             it->unansweredSinceMs = now;
             quiet.append(it.key());
         }
@@ -1356,6 +1531,8 @@ void ClayNetwork::setupLocalSignalingConnections()
                      this, &ClayNetwork::onSignalingCandidate);
     QObject::connect(localClient_.get(), &LocalSignalingClient::errorOccurred,
                      this, &ClayNetwork::onSignalingError);
+    QObject::connect(localClient_.get(), &LocalSignalingClient::rejected,
+                     this, &ClayNetwork::onSignalingRejected);
 }
 
 QString ClayNetwork::encodeLanCode(const QString &host, uint16_t port, const QString &secret)

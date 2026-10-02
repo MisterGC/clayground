@@ -62,6 +62,12 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
     Q_PROPERTY(int gracePeriod READ gracePeriod WRITE setGracePeriod NOTIFY gracePeriodChanged)
     Q_PROPERTY(bool acceptingJoins READ acceptingJoins NOTIFY acceptingJoinsChanged)
+    Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
+    Q_PROPERTY(QString appId READ appId WRITE setAppId NOTIFY appIdChanged)
+    Q_PROPERTY(QString clientToken READ clientToken WRITE setClientToken NOTIFY clientTokenChanged)
+    Q_PROPERTY(QVariantMap clientTokens READ clientTokens NOTIFY clientTokensChanged)
+    // Test hook: a joiner that speaks another wire version (#323)
+    Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
 public:
     enum Topology {
@@ -121,6 +127,15 @@ public:
     int gracePeriod() const;
     void setGracePeriod(int ms);
     bool acceptingJoins() const;
+    QString password() const;
+    void setPassword(const QString &password);
+    QString appId() const;
+    void setAppId(const QString &appId);
+    QString clientToken() const;
+    void setClientToken(const QString &token);
+    QVariantMap clientTokens() const;
+    int wireVersion() const;
+    void setWireVersion(int version);
 
 public slots:
     void createRoom();
@@ -146,6 +161,9 @@ signals:
     // broadcast, or -1 when the sender did not include one.
     void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
     void errorOccurred(const QString &message);
+    // The host refused this joiner in the handshake (#323); reason is one
+    // of handshake.h's codes, errorOccurred(message) follows
+    void joinRefused(const QString &reason, const QString &message);
     // The Cloud signaling connection dropped after it was up. Peers already
     // connected stay; the node reconnects under the same id, and a host
     // takes no new joiners until it is back (acceptingJoins, #299)
@@ -176,6 +194,11 @@ signals:
     void linkConditionsChanged();
     void gracePeriodChanged();
     void acceptingJoinsChanged();
+    void passwordChanged();
+    void appIdChanged();
+    void clientTokenChanged();
+    void clientTokensChanged();
+    void wireVersionChanged();
 
 private slots:
     void onSignalingConnected(const QString &peerId);
@@ -183,6 +206,7 @@ private slots:
     void onSignalingAnswer(const QString &fromId, const QString &sdp);
     void onSignalingCandidate(const QString &fromId, const QString &candidate, const QString &mid);
     void onSignalingError(const QString &error);
+    void onSignalingRejected(const QString &reason);
     void onSignalingDisconnected();
 
 private:
@@ -194,6 +218,11 @@ private:
         std::shared_ptr<rtc::DataChannel> dcState;
         QString connectionId;  // PeerJS connection ID (for ANSWER matching)
         bool ready = false;
+        // Passed the handshake (#323): only now is the peer a node, and
+        // only now does anything but the handshake go to or come from it
+        bool admitted = false;
+        // The host refused it and closes the connection in a moment
+        bool refused = false;
         bool stateReady = false;
         // Per-peer stats (always on - the counters are cheap)
         int latency = -1;
@@ -220,7 +249,14 @@ private:
     // Called on libdatachannel's thread; stateChannel marks the lossy one
     void handleDataChannelMessage(const QString &fromId, const std::string &message,
                                   bool stateChannel);
-    void processMessage(const QString &fromId, const std::string &message);
+    void processMessage(const QString &fromId, const std::string &message, bool stateChannel);
+    // A message from a peer that has not passed the handshake yet (#323)
+    void handshakeMessage(const QString &fromId, const QJsonObject &obj);
+    void admitJoiner(const QString &peerId, const QString &clientToken);
+    void refuseJoiner(const QString &peerId, const QString &reason, const QString &message);
+    void joinedHost();
+    void refusedByHost(const QString &reason, const QString &message);
+    void sendJson(const QString &peerId, const QJsonObject &msg);
     void handleSystemMessage(const QJsonObject &obj);
     void sendRosterTo(const QString &peerId);
     void hostBroadcastSystem(const QJsonObject &msg, const QString &exceptPeer = QString());
@@ -290,6 +326,7 @@ private:
     QElapsedTimer phaseTimer_;
     qint64 signalingStartMs_ = 0;
     qint64 iceStartMs_ = 0;
+    qint64 handshakeStartMs_ = 0;
     qint64 totalStartMs_ = 0;
 
     // State sync bookkeeping - keyed by ORIGIN node id (relayed states come
@@ -315,4 +352,11 @@ private:
     bool signalingDown_ = false;
     int signalingRetryMs_ = 0;
     QTimer signalingRetry_;
+
+    // The join handshake (#323)
+    QString password_;
+    QString appId_;
+    QString clientToken_;
+    int wireVersion_;
+    QVariantMap clientTokens_;  // host: each joiner's token, by node id
 };

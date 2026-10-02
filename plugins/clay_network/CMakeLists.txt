@@ -15,6 +15,7 @@ set(COMMON_SOURCES
     link_conditioner.cpp
     link_conditioner.h
     sender.h
+    handshake.h
 )
 
 set(COMMON_QML
