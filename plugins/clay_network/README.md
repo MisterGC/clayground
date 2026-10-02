@@ -76,7 +76,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `messageReceived(fromId, data)` | Reliable message received |
 | `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
 | `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
-| `joinRefused(reason, message)` | The host refused this joiner in the handshake: `incompatible-version`, `incompatible-app`, `wrong-password` |
+| `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
@@ -114,7 +114,11 @@ the handshake passes either way.
 
 A refused joiner gets `joinRefused(reason, message)`, then
 `errorOccurred(message)`, and its `status` is `Error`; it can join again.
-The host closes the connection after its refusal.
+The host closes the connection after its refusal. A full host refuses with
+`refused` and "Network full" - natively at signaling, before any data
+channel, in the browser on the data channel; the joiner hears the same on
+both. A host's answer that makes no sense - a welcome naming somebody else
+than the host at the other end of the link - is `handshake-failed`.
 
 The host keeps each joiner's `clientToken` in `clientTokens`, next to its
 node ID. A node ID changes with every join; a token the app stores and sets
