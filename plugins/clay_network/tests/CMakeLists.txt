@@ -229,3 +229,34 @@ set_tests_properties(network_peer_liveness PROPERTIES
     LABELS "network;integration"
     TIMEOUT 120
 )
+
+# A close that libdatachannel reports after its object is gone (#357, #359):
+# the test hook holds the close callback while the test destroys the object.
+# The hook is compiled into this target only.
+add_executable(tst_late_close
+    tst_late_close.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_late_close PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_late_close PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_compile_definitions(tst_late_close PRIVATE CLAY_NETWORK_TEST_HOOKS)
+
+target_link_libraries(tst_late_close PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_late_close COMMAND tst_late_close)
+set_tests_properties(network_late_close PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)
