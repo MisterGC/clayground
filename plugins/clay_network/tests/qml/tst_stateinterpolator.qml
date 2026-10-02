@@ -183,6 +183,34 @@ TestCase {
         tryVerify(() => i.value.hp === 3 && i.value.x === 15, 1000, JSON.stringify(i.value))
     }
 
+    function test_auto_delay_forgets_the_clock_it_had_before() {
+        // A few states on the wall clock, then the network's clock (#363):
+        // the wall clock's stamps lie far ahead of session time, and a
+        // window that kept them would never prune again - after 30 s of a
+        // clean stream and 3 s of a late one it would still answer mostly
+        // for the clean one
+        let i = make({autoDelay: true})
+        for (let k = 0; k < 3; ++k)
+            i.push({x: k}, Date.now() - 30)
+        i.network = stubNet
+        i.nodeId = "A"
+        let sent = 0
+        let feed = (count, late) => {
+            for (let k = 0; k < count; ++k) {
+                sent += 50
+                stubNet.sessionTime = sent + 80 + late(k)
+                i.push({x: sent / 100}, sent)
+            }
+        }
+        feed(600, () => 0)
+        feed(60, k => (k * 37) % 120)
+        // Turned on again, the delay starts at its target instead of
+        // gliding there: 2 x 50 + the last 3 s' 95th percentile (112) + 4
+        i.autoDelay = false
+        i.autoDelay = true
+        compare(i.effectiveDelayMs, 216)
+    }
+
     function test_session_time_zero_is_a_send_time() {
         // The host's first state goes out at session time 0
         stubNet.sessionTime = 80
