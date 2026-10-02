@@ -452,6 +452,52 @@ Rectangle {
                     }
                 }
 
+                // Replicated objects: a ball any node drops bounces on
+                // every screen, moved by its owner, and passes to the host
+                // when its owner leaves - also for nodes that join later
+                Replicas {
+                    id: balls
+                    network: network
+                    type: "ball"
+                    delegate: Rectangle {
+                        id: ball
+                        required property string objectId
+                        required property string tint
+                        required property real startX
+                        required property real startY
+                        property real nx: startX
+                        property real ny: startY
+                        property real vx: 0.25
+                        property real vy: 0.18
+                        x: nx * (gameArea.width - width); y: ny * (gameArea.height - height)
+                        width: 16; height: 16; radius: 8; color: tint
+                        ReplicatedObject {
+                            id: rep
+                            // Not "network: network" - in here that names
+                            // the property itself, not the Network's id
+                            network: balls.network; objectId: ball.objectId
+                            properties: ["nx", "ny"]; interpolate: true; sendInterval: 50
+                        }
+                        FrameAnimation {
+                            running: rep.isOwner
+                            onTriggered: {
+                                ball.nx += ball.vx * frameTime; ball.ny += ball.vy * frameTime
+                                if (ball.nx < 0 || ball.nx > 1) { ball.vx = -ball.vx; ball.nx = Math.max(0, Math.min(1, ball.nx)) }
+                                if (ball.ny < 0 || ball.ny > 1) { ball.vy = -ball.vy; ball.ny = Math.max(0, Math.min(1, ball.ny)) }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    anchors { right: parent.right; bottom: parent.bottom; margins: 8 }
+                    visible: network.connected
+                    text: "Drop ball"
+                    onClicked: network.spawn("ball", {tint: Qt.hsla(Math.random(), 0.7, 0.6, 1).toString(),
+                                                      startX: Math.random(), startY: Math.random()},
+                                             {onOwnerLeft: "host"})
+                }
+
                 Component {
                     id: remoteNodeComp
                     Rectangle {
