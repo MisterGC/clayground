@@ -278,3 +278,34 @@ set_tests_properties(network_late_close PROPERTIES
     LABELS "network;integration"
     TIMEOUT 120
 )
+
+# Replicated objects (#306) between a host and two joiners in one process
+# over Local signaling. With the object-operation test hook, so a test can
+# make the host drop a spawn.
+add_executable(tst_replicated_objects
+    tst_replicated_objects.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_replicated_objects PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_replicated_objects PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_compile_definitions(tst_replicated_objects PRIVATE CLAY_NETWORK_TEST_HOOKS)
+
+target_link_libraries(tst_replicated_objects PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_replicated_objects COMMAND tst_replicated_objects)
+set_tests_properties(network_replicated_objects PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 180
+)
