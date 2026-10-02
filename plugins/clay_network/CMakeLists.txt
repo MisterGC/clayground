@@ -18,6 +18,7 @@ set(COMMON_SOURCES
     handshake.h
     statebatch.h
     sessionclock.h
+    testhooks.h
 )
 
 set(COMMON_QML

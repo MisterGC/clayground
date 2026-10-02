@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "signaling_local.h"
+#include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -299,6 +300,7 @@ void LocalSignalingClient::connect(const QString &host, uint16_t port, const QSt
     });
 
     ws_->onClosed([this]() {
+        CLAY_NETWORK_CLOSE_HOOK(this);
         QMetaObject::invokeMethod(this, [this]() { onWsClosed(); }, Qt::QueuedConnection);
     });
 

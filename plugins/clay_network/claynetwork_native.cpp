@@ -5,6 +5,7 @@
 #include "signaling_local.h"
 #include "sender.h"
 #include "handshake.h"
+#include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
 #include <QJsonDocument>
@@ -810,6 +811,8 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
         int idx = static_cast<int>(state);
         const char* name = (idx >= 0 && idx <= 5) ? stateNames[idx] : "Unknown";
 
+        if (state == rtc::PeerConnection::State::Closed)
+            CLAY_NETWORK_CLOSE_HOOK(this);
         post(guard, [this, peerId, state, name]() {
             emitDiag("ice", QString("Peer %1: %2").arg(peerId.left(8), name));
 
