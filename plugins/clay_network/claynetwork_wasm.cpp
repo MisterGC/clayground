@@ -2,12 +2,16 @@
 
 #include "claynetwork_wasm.h"
 #include "sender.h"
+#include "handshake.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QRandomGenerator>
+#include <QUuid>
+
+namespace hs = clay::network::handshake;
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -158,7 +162,7 @@ EM_JS(void, js_ping, (int instanceId), {
     const now = Date.now();
     const msg = JSON.stringify({t: 'p', ts: now});
     state.connections.forEach((conn, peerId) => {
-        if (conn.open) {
+        if (Module.clayIsNode(conn)) {
             conn.send(JSON.parse(msg));
         }
     });
@@ -169,7 +173,7 @@ EM_JS(void, js_ping_peer, (int instanceId, const char* peerId), {
     const state = Module.clayNetwork[instanceId];
     if (!state) return;
     const conn = state.connections.get(UTF8ToString(peerId));
-    if (conn && conn.open) {
+    if (conn && Module.clayIsNode(conn)) {
         conn.send({t: 'p', ts: Date.now()});
     }
 });
@@ -178,6 +182,12 @@ EM_JS(void, js_ping_peer, (int instanceId, const char* peerId), {
 EM_JS(void, js_init_helpers, (), {
     if (Module.clayHelpers) return;
     Module.clayHelpers = true;
+
+    // A connection that carries traffic: open, and past the handshake
+    // (#323) - a joiner the host has not taken gets nothing but its answer
+    Module.clayIsNode = function(conn) {
+        return conn.open && !conn.__clayPending;
+    };
 
     // Build PeerJS config with ICE servers and optional custom signaling
     Module.clayBuildPeerConfig = function(state) {
@@ -297,8 +307,42 @@ EM_JS(void, js_init_helpers, (), {
         try { conn.close(); } catch (e) {}
         Module._clay_net_node_left(instanceId, stringToNewUTF8(peerId));
         state.connections.forEach(function(c) {
-            if (c.open) c.send({ t: 'y', sys: 'node_left', nodeId: peerId });
+            if (Module.clayIsNode(c)) c.send({ t: 'y', sys: 'node_left', nodeId: peerId });
         });
+    };
+
+    // The host takes a joiner that passed the handshake: the welcome first,
+    // then its roster, then everyone else hears of it
+    Module.clayAdmit = function(instanceId, peerId, welcome) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state) return;
+        var conn = state.connections.get(peerId);
+        if (!conn || !conn.__clayPending) return;
+        conn.__clayPending = false;
+        conn.send(welcome);
+        var others = [];
+        state.connections.forEach(function(c, id) {
+            if (id !== peerId && Module.clayIsNode(c)) others.push(id);
+        });
+        conn.send({ t: 'y', sys: 'roster', nodes: others });
+        state.connections.forEach(function(c, id) {
+            if (id !== peerId && Module.clayIsNode(c))
+                c.send({ t: 'y', sys: 'node_joined', nodeId: peerId });
+        });
+    };
+
+    // The host refuses a joiner: it reads why, then its connection closes
+    Module.clayRefuse = function(instanceId, peerId, refusal) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state) return;
+        var conn = state.connections.get(peerId);
+        if (!conn || !conn.__clayPending) return;
+        state.connections.delete(peerId);
+        var sc = state.stateConns.get(peerId);
+        state.stateConns.delete(peerId);
+        if (sc) { try { sc.close(); } catch (e) {} }
+        conn.send(refusal);
+        setTimeout(function() { try { conn.close(); } catch (e) {} }, 200);
     };
 
     // Emit diagnostic from JS
@@ -313,7 +357,7 @@ EM_JS(void, js_init_helpers, (), {
     // connection and falling back to the reliable one.
     Module.clayRelayState = function(state, parsed, exceptPeer) {
         state.connections.forEach(function(c, pid) {
-            if (pid === exceptPeer) return;
+            if (pid === exceptPeer || c.__clayPending) return;
             var sc = state.stateConns.get(pid);
             if (sc && sc.open) sc.send(parsed);
             else if (c.open) c.send(parsed);
@@ -381,7 +425,8 @@ EM_JS(void, js_init_helpers, (), {
 });
 
 // JavaScript: Create a network (become host)
-EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int topology, int maxNodes), {
+EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int topology, int maxNodes,
+                                int handshakeTimeoutMs), {
     const networkId = UTF8ToString(networkCode);
     const state = Module.clayNetwork[instanceId];
     state.topology = topology;
@@ -433,23 +478,28 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
             Module.clayConditionSend(state, conn, false);
             Module.clayTrackIce(instanceId, conn, conn.peer);
 
+            // No node until it passed the handshake (#323): its first
+            // message goes to C++, which admits or refuses it - and so
+            // does silence (Module.clayAdmit, Module.clayRefuse)
+            conn.__clayPending = true;
+            const judge = (msg) => {
+                if (conn.__clayJudging) return;
+                conn.__clayJudging = true;
+                Module._clay_net_hello(instanceId, stringToNewUTF8(conn.peer), stringToNewUTF8(msg));
+            };
             conn.on('open', () => {
-                console.log('[ClayNetwork] Node joined:', conn.peer);
-                Module._clay_net_node_joined(instanceId, stringToNewUTF8(conn.peer));
-
-                // The host owns the roster: full list to the new node,
-                // increment to everyone else
-                const others = Array.from(state.connections.keys()).filter(p => p !== conn.peer);
-                conn.send({ t: 'y', sys: 'roster', nodes: others });
-                state.connections.forEach((c, nodeId) => {
-                    if (nodeId !== conn.peer && c.open) {
-                        c.send({ t: 'y', sys: 'node_joined', nodeId: conn.peer });
-                    }
-                });
+                console.log('[ClayNetwork] Node connected, awaiting its hello:', conn.peer);
+                setTimeout(() => {
+                    if (conn.__clayPending && state.connections.get(conn.peer) === conn) judge('{}');
+                }, handshakeTimeoutMs);
             });
 
             conn.on('data', Module.clayConditionData(state, false, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
+                if (conn.__clayPending) {
+                    judge(msg);
+                    return;
+                }
                 const parsed = JSON.parse(msg);
 
                 // Handle ping/pong (not relayed)
@@ -478,7 +528,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                         Module.clayRelayState(state, parsed, conn.peer);
                     } else {
                         state.connections.forEach((c, peerId) => {
-                            if (peerId !== conn.peer && c.open) {
+                            if (peerId !== conn.peer && Module.clayIsNode(c)) {
                                 c.send(parsed);
                             }
                         });
@@ -500,11 +550,13 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                 const sc = state.stateConns.get(conn.peer);
                 if (sc) { try { sc.close(); } catch (e) {} }
                 state.stateConns.delete(conn.peer);
+                // Gone in the handshake: it never was a node
+                if (conn.__clayPending) return;
                 Module._clay_net_node_left(instanceId, stringToNewUTF8(conn.peer));
 
                 // Notify other nodes
                 state.connections.forEach((c) => {
-                    if (c.open) c.send({ t: 'y', sys: 'node_left', nodeId: conn.peer });
+                    if (Module.clayIsNode(c)) c.send({ t: 'y', sys: 'node_left', nodeId: conn.peer });
                 });
             });
 
@@ -530,8 +582,10 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 });
 
 // JavaScript: Join an existing network
-EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topology), {
+EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topology,
+                              const char* helloJson), {
     const networkId = UTF8ToString(networkCode);
+    const hello = JSON.parse(UTF8ToString(helloJson));
     const state = Module.clayNetwork[instanceId];
     state.topology = topology;
     state._startTime = Date.now();
@@ -566,23 +620,31 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             Module.clayConditionSend(state, conn, false);
             Module.clayTrackIce(instanceId, conn, networkId);
 
+            // The joiner speaks first, and the host's first answer - its
+            // welcome or a refusal - goes to C++ to judge (#323)
+            let welcomed = false;
             conn.on('open', () => {
-                console.log('[ClayNetwork] Connected to network:', networkId);
                 const totalMs = Date.now() - state._startTime;
-                const iceMs = Date.now() - state._iceStart;
-                Module.clayDiag(instanceId, 'datachannel', 'Data channel open (total: ' + totalMs + 'ms)');
-
-                // Companion lossy connection for state updates
-                const sconn = state.peer.connect(networkId,
-                    { label: 'clay_state', reliable: false, serialization: 'json' });
-                Module.claySetupStateConn(instanceId, networkId, sconn);
-
-                Module._clay_net_connected(instanceId, stringToNewUTF8(id));
+                Module.clayDiag(instanceId, 'datachannel', 'Data channel open (' + totalMs + 'ms), saying hello');
+                conn.send(hello);
             });
 
             conn.on('data', Module.clayConditionData(state, false, (data) => {
                 const msg = typeof data === 'string' ? data : JSON.stringify(data);
                 const parsed = JSON.parse(msg);
+
+                if (!welcomed) {
+                    if (parsed.t === 'H') {
+                        welcomed = true;
+                        console.log('[ClayNetwork] Connected to network:', networkId);
+                        // Companion lossy connection for state updates
+                        const sconn = state.peer.connect(networkId,
+                            { label: 'clay_state', reliable: false, serialization: 'json' });
+                        Module.claySetupStateConn(instanceId, networkId, sconn);
+                    }
+                    Module._clay_net_handshake_reply(instanceId, stringToNewUTF8(id), stringToNewUTF8(msg));
+                    return;
+                }
 
                 // Handle rejection
                 if (parsed.t === 'R') {
@@ -723,7 +785,7 @@ EM_JS(void, js_broadcast, (int instanceId, const char* data), {
     // Parse JSON so PeerJS doesn't double-encode when using JSON serialization
     const obj = JSON.parse(msg);
     state.connections.forEach((conn) => {
-        if (conn.open) {
+        if (Module.clayIsNode(conn)) {
             conn.send(obj);
         }
     });
@@ -737,6 +799,7 @@ EM_JS(void, js_broadcast_state, (int instanceId, const char* data), {
     const msg = UTF8ToString(data);
     const obj = JSON.parse(msg);
     state.connections.forEach((conn, peerId) => {
+        if (conn.__clayPending) return;
         const sc = state.stateConns.get(peerId);
         if (sc && sc.open) {
             sc.send(obj);
@@ -757,7 +820,7 @@ EM_JS(void, js_send_to, (int instanceId, const char* nodeId, const char* data), 
     const obj = JSON.parse(msg);
 
     const conn = state.connections.get(targetId);
-    if (conn && conn.open) {
+    if (conn && Module.clayIsNode(conn)) {
         conn.send(obj);
     }
 });
@@ -811,6 +874,15 @@ EM_JS(void, js_leave, (int instanceId, int goodbye), {
 // JavaScript: Drop one peer (host side, #299)
 EM_JS(void, js_drop_peer, (int instanceId, const char* peerId), {
     Module.clayDropPeer(instanceId, UTF8ToString(peerId));
+});
+
+// JavaScript: Take or refuse a joiner after its handshake (host side, #323)
+EM_JS(void, js_admit, (int instanceId, const char* peerId, const char* welcomeJson), {
+    Module.clayAdmit(instanceId, UTF8ToString(peerId), JSON.parse(UTF8ToString(welcomeJson)));
+});
+
+EM_JS(void, js_refuse, (int instanceId, const char* peerId, const char* refusalJson), {
+    Module.clayRefuse(instanceId, UTF8ToString(peerId), JSON.parse(UTF8ToString(refusalJson)));
 });
 
 // JavaScript: Get node list
@@ -958,6 +1030,32 @@ void clay_net_diag(int instanceId, const char* phase, const char* detail)
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE
+void clay_net_hello(int instanceId, const char* peerId, const char* json)
+{
+    auto it = g_networkRegistry.find(instanceId);
+    if (it != g_networkRegistry.end()) {
+        QMetaObject::invokeMethod(it->second, [net = it->second, peerId, json]() {
+            net->onHello(peerId, json);
+            free((void*)peerId);
+            free((void*)json);
+        }, Qt::QueuedConnection);
+    }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE
+void clay_net_handshake_reply(int instanceId, const char* nodeId, const char* json)
+{
+    auto it = g_networkRegistry.find(instanceId);
+    if (it != g_networkRegistry.end()) {
+        QMetaObject::invokeMethod(it->second, [net = it->second, nodeId, json]() {
+            net->onHandshakeReply(nodeId, json);
+            free((void*)nodeId);
+            free((void*)json);
+        }, Qt::QueuedConnection);
+    }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE
 void clay_net_pong(int instanceId, const char* peerId, int rtt)
 {
     auto it = g_networkRegistry.find(instanceId);
@@ -973,6 +1071,8 @@ void clay_net_pong(int instanceId, const char* peerId, int rtt)
 
 ClayNetwork::ClayNetwork(QObject *parent)
     : QObject(parent)
+    , clientToken_(QUuid::createUuid().toString(QUuid::WithoutBraces))
+    , wireVersion_(hs::kWireVersion)
 {
     clock_.start();
     livenessCheck_.setSingleShot(true);
@@ -1210,6 +1310,40 @@ void ClayNetwork::setAcceptingJoins(bool accepting) {
     }
 }
 
+QString ClayNetwork::password() const { return password_; }
+void ClayNetwork::setPassword(const QString &password) {
+    if (password_ != password) {
+        password_ = password;
+        emit passwordChanged();
+    }
+}
+
+QString ClayNetwork::appId() const { return appId_; }
+void ClayNetwork::setAppId(const QString &appId) {
+    if (appId_ != appId) {
+        appId_ = appId;
+        emit appIdChanged();
+    }
+}
+
+QString ClayNetwork::clientToken() const { return clientToken_; }
+void ClayNetwork::setClientToken(const QString &token) {
+    if (clientToken_ != token) {
+        clientToken_ = token;
+        emit clientTokenChanged();
+    }
+}
+
+QVariantMap ClayNetwork::clientTokens() const { return clientTokens_; }
+
+int ClayNetwork::wireVersion() const { return wireVersion_; }
+void ClayNetwork::setWireVersion(int version) {
+    if (wireVersion_ != version) {
+        wireVersion_ = version;
+        emit wireVersionChanged();
+    }
+}
+
 void ClayNetwork::heard(const QString &linkPeer) {
     unansweredSinceMs_.remove(linkPeer);
     lastHeardMs_[linkPeer] = clock_.elapsed();
@@ -1270,7 +1404,8 @@ void ClayNetwork::createRoom()
 
     QString networkCode = generateNetworkCode();
     QByteArray codeBytes = networkCode.toUtf8();
-    js_create_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_), maxNodes_);
+    js_create_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_), maxNodes_,
+                      hs::kTimeoutMs);
 #else
     qWarning() << "[ClayNetwork] WASM backend not available on this platform";
 #endif
@@ -1298,7 +1433,10 @@ void ClayNetwork::joinRoom(const QString &networkId)
     emit statusChanged();
 
     QByteArray codeBytes = networkId_.toUtf8();
-    js_join_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_));
+    const QByteArray hello = QJsonDocument(
+        hs::hello(wireVersion_, appId_, password_, clientToken_)).toJson(QJsonDocument::Compact);
+    js_join_network(instanceId_, codeBytes.constData(), static_cast<int>(topology_),
+                    hello.constData());
 #else
     Q_UNUSED(networkId)
     qWarning() << "[ClayNetwork] WASM backend not available on this platform";
@@ -1337,6 +1475,7 @@ void ClayNetwork::tearDown(bool goodbye)
     stateLastMs_.clear();
     stateRecvCount_.clear();
     stateDropCount_.clear();
+    clientTokens_.clear();
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -1350,6 +1489,7 @@ void ClayNetwork::tearDown(bool goodbye)
     emit phaseTimingChanged();
     emit latencyChanged();
     emit peerStatsChanged();
+    emit clientTokensChanged();
 #else
     Q_UNUSED(goodbye)
 #endif
@@ -1371,6 +1511,8 @@ void ClayNetwork::removeNode(const QString &nodeId)
     unansweredSinceMs_.remove(nodeId);
     lastHeardMs_.remove(nodeId);
     forgetSender(nodeId);
+    if (clientTokens_.remove(nodeId) > 0)
+        emit clientTokensChanged();
     if (nodes_.removeOne(nodeId)) {
         emit nodesChanged();
         emit nodeCountChanged();
@@ -1598,6 +1740,51 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
     } else {
         emit messageReceived(from, msgData);
     }
+}
+
+void ClayNetwork::onHello(const char* peerId, const char* json)
+{
+#ifdef __EMSCRIPTEN__
+    const QString peer = QString::fromUtf8(peerId);
+    const QByteArray peerBytes = peer.toUtf8();
+    const QJsonObject obj = QJsonDocument::fromJson(QByteArray(json)).object();
+    const auto v = hs::judgeHello(obj, wireVersion_, appId_, password_);
+    if (!v.ok()) {
+        qWarning() << "[ClayNetwork] Refused" << peer << "-" << v.message;
+        emitDiag("datachannel", QString("Refused %1: %2").arg(peer.left(8), v.message));
+        const QByteArray refusal = QJsonDocument(hs::refusal(v)).toJson(QJsonDocument::Compact);
+        js_refuse(instanceId_, peerBytes.constData(), refusal.constData());
+        return;
+    }
+    clientTokens_[peer] = obj["tok"].toString();
+    emit clientTokensChanged();
+    emitDiag("datachannel", QString("Admitted %1").arg(peer.left(8)));
+    const QByteArray welcome = QJsonDocument(hs::welcome(nodeId_, wireVersion_))
+                                   .toJson(QJsonDocument::Compact);
+    js_admit(instanceId_, peerBytes.constData(), welcome.constData());
+    onNodeJoined(peerBytes.constData());
+#else
+    Q_UNUSED(peerId)
+    Q_UNUSED(json)
+#endif
+}
+
+void ClayNetwork::onHandshakeReply(const char* nodeId, const char* json)
+{
+    if (status_ != Connecting)
+        return;
+    const QJsonObject obj = QJsonDocument::fromJson(QByteArray(json)).object();
+    const auto v = hs::judgeReply(obj, hostId_, wireVersion_);
+    if (v.ok()) {
+        onConnectedToNetwork(nodeId);
+        return;
+    }
+    qWarning() << "[ClayNetwork] The host refused this node -" << v.message;
+    tearDown(false);
+    status_ = Error;
+    emit statusChanged();
+    emit joinRefused(v.reason, v.message);
+    emit errorOccurred(v.message);
 }
 
 void ClayNetwork::onError(const char* message)
