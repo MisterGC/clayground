@@ -537,7 +537,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                     // Add "from" field for receivers to know original sender
                     parsed.from = conn.peer;
                     outMsg = JSON.stringify(parsed);
-                    if (parsed.t === 's') {
+                    if (parsed.t === 's' || parsed.t === 'b') {
                         Module.clayRelayState(state, parsed, conn.peer);
                     } else {
                         state.connections.forEach((c, peerId) => {
@@ -548,7 +548,7 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
                     }
                 }
 
-                const isState = parsed.t === 's';
+                const isState = (parsed.t === 's' || parsed.t === 'b');
                 Module._clay_net_message(instanceId,
                     stringToNewUTF8(conn.peer),
                     stringToNewUTF8(outMsg),
@@ -705,7 +705,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 }
 
                 // The link peer is the host; C++ takes a relayed "from" from it
-                const isState = parsed.t === 's';
+                const isState = (parsed.t === 's' || parsed.t === 'b');
                 Module._clay_net_message(instanceId,
                     stringToNewUTF8(networkId),
                     stringToNewUTF8(msg),
@@ -778,7 +778,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
 
             // A Mesh link speaks for its own peer only: C++ ignores any
             // "from" in it, the message belongs to nodeId
-            const isState = parsed.t === 's';
+            const isState = (parsed.t === 's' || parsed.t === 'b');
             Module._clay_net_message(instanceId,
                 stringToNewUTF8(nodeId),
                 stringToNewUTF8(msg),
@@ -1111,6 +1111,11 @@ ClayNetwork::ClayNetwork(QObject *parent)
     quietProbe_.setInterval(250);
     quietProbe_.setTimerType(Qt::PreciseTimer);
     QObject::connect(&quietProbe_, &QTimer::timeout, this, &ClayNetwork::probeQuietPeers);
+    // Keyed states queued in one pass of the event loop - one frame's
+    // updates - leave together, as batches (#302)
+    keyedFlush_.setSingleShot(true);
+    keyedFlush_.setInterval(0);
+    QObject::connect(&keyedFlush_, &QTimer::timeout, this, &ClayNetwork::flushState);
 #ifdef __EMSCRIPTEN__
     instanceId_ = nextInstanceId_++;
     g_networkRegistry[instanceId_] = this;
@@ -1304,6 +1309,7 @@ QVariantMap ClayNetwork::syncStats() const {
         ss["recv"] = stateRecvCount_.value(it.key(), 0);
         ss["dropped"] = stateDropCount_.value(it.key(), 0);
         ss["ageMs"] = static_cast<qint64>(now - it.value());
+        keyedIn_.addStats(it.key(), ss, now);
         stats[it.key()] = ss;
     }
     return stats;
@@ -1397,11 +1403,16 @@ int ClayNetwork::stateAgeMs(const QString &nodeId) const {
     return static_cast<int>(clock_.elapsed() - stateLastMs_.value(nodeId));
 }
 
+int ClayNetwork::keyedStateAgeMs(const QString &nodeId, const QString &key) const {
+    return keyedIn_.ageMs(nodeId, key, clock_.elapsed());
+}
+
 void ClayNetwork::forgetSender(const QString &nodeId) {
     stateSeqIn_.remove(nodeId);
     stateLastMs_.remove(nodeId);
     stateRecvCount_.remove(nodeId);
     stateDropCount_.remove(nodeId);
+    keyedIn_.forget(nodeId);
 }
 
 void ClayNetwork::setConnectionPhase(const QString &phase) {
@@ -1510,6 +1521,9 @@ void ClayNetwork::tearDown(bool goodbye)
     stateLastMs_.clear();
     stateRecvCount_.clear();
     stateDropCount_.clear();
+    keyedOut_.clear();
+    keyedIn_.clear();
+    keyedFlush_.stop();
     clientTokens_.clear();
 
     emit networkIdChanged();
@@ -1582,6 +1596,29 @@ void ClayNetwork::broadcastState(const QVariant &data)
     js_broadcast_state(instanceId_, json.constData());
 #else
     Q_UNUSED(data)
+#endif
+}
+
+void ClayNetwork::broadcastKeyedState(const QVariant &data, const QString &key)
+{
+    keyedOut_.put(key, data.toMap());
+    if (!keyedFlush_.isActive())
+        keyedFlush_.start();
+}
+
+void ClayNetwork::flushState()
+{
+    keyedFlush_.stop();
+    if (keyedOut_.isEmpty())
+        return;
+    // Same batches as Desktop, on the sequence unkeyed states count on
+    const auto batches = clay::network::statebatch::pack(
+        keyedOut_.take(), stateSeqOut_, double(QDateTime::currentMSecsSinceEpoch()));
+#ifdef __EMSCRIPTEN__
+    for (const QByteArray &batch : batches)
+        js_broadcast_state(instanceId_, batch.constData());
+#else
+    Q_UNUSED(batches)
 #endif
 }
 
@@ -1761,14 +1798,33 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
     if (!type.isEmpty()) {
         // New unified format from Desktop or updated WASM
         msgData = obj["d"].toObject().toVariantMap();
-        isState = (type == "s");
+        isState = (type == "s" || type == "b");
     } else {
         // Legacy format (old WASM): raw data with optional _clay_state marker
         obj.remove("_clay_state");
         msgData = obj.toVariantMap();
     }
 
-    if (isState) {
+    if (type == "b") {
+        // A batch of keyed states (#302): each entry is sequenced on its
+        // own key, so one that overtook another of a different key stays
+        const qint64 now = clock_.elapsed();
+        const auto seq = static_cast<quint32>(obj["q"].toDouble());
+        const double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+        keyedIn_.batch(from, qint64(qstrlen(data)));
+        QList<QPair<QString, QVariant>> keyed;
+        for (const auto &v : obj["e"].toArray()) {
+            const QJsonObject e = v.toObject();
+            const QString key = e["k"].toString();
+            if (keyedIn_.accept(from, key, seq, now))
+                keyed.append({key, e["d"].toObject().toVariantMap()});
+        }
+        if (keyed.isEmpty())
+            return;
+        stateLastMs_[from] = now;
+        for (const auto &k : keyed)
+            emit stateReceived(from, k.second, sentAt, k.first);
+    } else if (isState) {
         // Unordered channel: drop anything at or behind the newest seq
         if (obj.contains("q")) {
             auto seq = static_cast<quint32>(obj["q"].toDouble());
@@ -1781,7 +1837,7 @@ void ClayNetwork::onMessage(const char* linkPeerId, const char* data, bool isSta
         stateRecvCount_[from]++;
         stateLastMs_[from] = clock_.elapsed();
         double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
-        emit stateReceived(from, msgData, sentAt);
+        emit stateReceived(from, msgData, sentAt, QString());
     } else {
         emit messageReceived(from, msgData);
     }

@@ -60,6 +60,11 @@ ClayNetwork::ClayNetwork(QObject *parent)
     quietProbe_.setInterval(kQuietProbeTickMs);
     quietProbe_.setTimerType(Qt::PreciseTimer);
     QObject::connect(&quietProbe_, &QTimer::timeout, this, &ClayNetwork::probeQuietPeers);
+    // Keyed states queued in one pass of the event loop - one frame's
+    // updates - leave together, as batches (#302)
+    keyedFlush_.setSingleShot(true);
+    keyedFlush_.setInterval(0);
+    QObject::connect(&keyedFlush_, &QTimer::timeout, this, &ClayNetwork::flushState);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -171,6 +176,7 @@ QVariantMap ClayNetwork::syncStats() const {
         ss["recv"] = stateRecvCount_.value(it.key(), 0);
         ss["dropped"] = stateDropCount_.value(it.key(), 0);
         ss["ageMs"] = static_cast<qint64>(now - it.value());
+        keyedIn_.addStats(it.key(), ss, now);
         stats[it.key()] = ss;
     }
     return stats;
@@ -254,6 +260,10 @@ int ClayNetwork::stateAgeMs(const QString &nodeId) const {
     if (!stateLastMs_.contains(nodeId))
         return -1;
     return static_cast<int>(clock_.elapsed() - stateLastMs_.value(nodeId));
+}
+
+int ClayNetwork::keyedStateAgeMs(const QString &nodeId, const QString &key) const {
+    return keyedIn_.ageMs(nodeId, key, clock_.elapsed());
 }
 
 void ClayNetwork::setConnectionPhase(const QString &phase) {
@@ -459,6 +469,9 @@ void ClayNetwork::tearDown()
     stateLastMs_.clear();
     stateRecvCount_.clear();
     stateDropCount_.clear();
+    keyedOut_.clear();
+    keyedIn_.clear();
+    keyedFlush_.stop();
     clientTokens_.clear();
     setAcceptingJoins(false);
 
@@ -503,6 +516,30 @@ void ClayNetwork::broadcastState(const QVariant &data)
     for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
         if (it->admitted)
             sendStateToPeer(it.key(), json);
+}
+
+void ClayNetwork::broadcastKeyedState(const QVariant &data, const QString &key)
+{
+    keyedOut_.put(key, data.toMap());
+    if (!keyedFlush_.isActive())
+        keyedFlush_.start();
+}
+
+void ClayNetwork::flushState()
+{
+    keyedFlush_.stop();
+    if (keyedOut_.isEmpty())
+        return;
+    // Keyed batches count on the same sequence as unkeyed states: a
+    // receiver compares them per key, so the gaps do no harm
+    const auto batches = clay::network::statebatch::pack(
+        keyedOut_.take(), stateSeqOut_, double(QDateTime::currentMSecsSinceEpoch()));
+    for (const QByteArray &batch : batches) {
+        const QString json = QString::fromUtf8(batch);
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+            if (it->admitted)
+                sendStateToPeer(it.key(), json);
+    }
 }
 
 void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
@@ -1099,6 +1136,27 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
             peers_[fromId].stateRecv++;
     }
 
+    // A batch of keyed states (#302): each entry is sequenced on its own
+    // key, so one that overtook another of a different key stays
+    struct Keyed { QString key; QVariant data; };
+    QList<Keyed> keyed;
+    if (type == "b") {
+        const qint64 now = clock_.elapsed();
+        const auto seq = static_cast<quint32>(obj["q"].toDouble());
+        keyedIn_.batch(actualFromId, qint64(message.size()));
+        for (const auto &v : obj["e"].toArray()) {
+            const QJsonObject e = v.toObject();
+            const QString key = e["k"].toString();
+            if (keyedIn_.accept(actualFromId, key, seq, now))
+                keyed.append({key, e["d"].toObject().toVariantMap()});
+        }
+        if (peers_.contains(fromId))
+            peers_[fromId].stateRecv++;
+        if (keyed.isEmpty())
+            return;
+        stateLastMs_[actualFromId] = now;
+    }
+
     // Host in Star topology: relay to other peers
     if (isHost_ && autoRelay_ && topology_ == Star) {
         // Add "from" field and relay to all OTHER peers; state goes over
@@ -1108,7 +1166,7 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
         for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
             if (it.key() == fromId || !it->admitted)
                 continue;
-            if (type == "s")
+            if (type == "s" || type == "b")
                 sendStateToPeer(it.key(), relayJson);
             else
                 sendToPeer(it.key(), relayJson);
@@ -1120,7 +1178,11 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
         emit messageReceived(actualFromId, data);
     } else if (type == "s") {
         double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
-        emit stateReceived(actualFromId, data, sentAt);
+        emit stateReceived(actualFromId, data, sentAt, QString());
+    } else if (type == "b") {
+        double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
+        for (const Keyed &k : keyed)
+            emit stateReceived(actualFromId, k.data, sentAt, k.key);
     }
 }
 
@@ -1307,6 +1369,7 @@ void ClayNetwork::forgetSender(const QString &nodeId)
     stateLastMs_.remove(nodeId);
     stateRecvCount_.remove(nodeId);
     stateDropCount_.remove(nodeId);
+    keyedIn_.forget(nodeId);
 }
 
 void ClayNetwork::peerGone(const QString &peerId, const QString &reason)

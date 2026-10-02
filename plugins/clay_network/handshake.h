@@ -19,7 +19,7 @@ namespace clay::network::handshake {
 
 // Bump whenever a message on the data channels changes in a way an older
 // build would misread
-constexpr int kWireVersion = 1;
+constexpr int kWireVersion = 2;  // 2: keyed state batches, "t":"b" (#302)
 // A joiner that opened its channel and sent no hello for this long is
 // refused: it is a build from before the handshake
 constexpr int kTimeoutMs = 5000;

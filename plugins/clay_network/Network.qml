@@ -455,6 +455,11 @@ Item {
         { nodeId: { seq, recv, dropped, ageMs } } - \c dropped counts stale
         updates discarded by sequence checks, \c ageMs is the time since the
         newest accepted state.
+
+        A node that sent keyed states (broadcastState() with a key) also has
+        \c keys, { key: { seq, recv, dropped, ageMs } } per key, \c batches,
+        the datagrams they came in, and \c maxBatchBytes, the largest of
+        them; its \c recv and \c dropped include the keyed states.
     */
     readonly property var syncStats: _backend ? _backend.syncStats : ({})
 
@@ -489,17 +494,19 @@ Item {
     signal messageReceived(string fromId, var data)
 
     /*!
-        \qmlsignal Network::stateReceived(string fromId, var data, real sentAt)
+        \qmlsignal Network::stateReceived(string fromId, var data, real sentAt, string key)
         \brief Emitted when a state update is received.
 
         Updates sent via broadcastState() arrive here. \a sentAt is the
         sender's clock (milliseconds since the epoch) when it called
         broadcastState(), or -1 when the sender did not include one; hand it
         to \l StateInterpolator::push so the snapshot lands on the sender's
-        timeline instead of its arrival time. Handlers that only take
-        \c (fromId, data) keep working.
+        timeline instead of its arrival time. \a key is the key the update
+        was sent with, or an empty string for one sent without. Handlers
+        that only take \c (fromId, data) or \c (fromId, data, sentAt) keep
+        working.
     */
-    signal stateReceived(string fromId, var data, real sentAt)
+    signal stateReceived(string fromId, var data, real sentAt, string key)
 
     /*!
         \qmlsignal Network::errorOccurred(string message)
@@ -640,7 +647,7 @@ Item {
     }
 
     /*!
-        \qmlmethod void Network::broadcastState(var data)
+        \qmlmethod void Network::broadcastState(var data, string key)
         \brief Send a state update to all connected nodes.
 
         Optimized for high-frequency updates like positions: travels over an
@@ -648,11 +655,40 @@ Item {
         skipped) and carries a sequence number so receivers drop stale
         updates instead of applying them late. Use \l broadcast for anything
         that must arrive (events like attacks, level changes, chat).
+
+        Without \a key the update goes out at once, and the sequence is the
+        sender's: an update is stale behind any newer one from that node.
+        Send one snapshot of everything this way.
+
+        With \a key - one per object, say - an update is stale only behind a
+        newer one from that node for the same key, so a late update for one
+        object is never dropped for another's. Keyed updates leave together
+        when control returns to the event loop (once per frame for updates
+        sent from one frame's handlers) or at \l flushState(), packed into
+        datagrams of about 1200 bytes at most; a second update for a key
+        before then replaces the first. They arrive in \l stateReceived
+        with their \c key. Keys are strings; numbers are converted.
     */
-    function broadcastState(data) {
-        if (_backend && connected) {
+    function broadcastState(data, key) {
+        if (!_backend || !connected)
+            return
+        if (key === undefined || key === null || key === "")
             _backend.broadcastState(data)
-        }
+        else
+            _backend.broadcastKeyedState(data, String(key))
+    }
+
+    /*!
+        \qmlmethod void Network::flushState()
+        \brief Send the keyed state updates queued so far now.
+
+        broadcastState() with a key queues the update until control returns
+        to the event loop; call this to send the queue earlier, e.g. right
+        after the updates of one tick.
+    */
+    function flushState() {
+        if (_backend)
+            _backend.flushState()
     }
 
     /*!
@@ -668,12 +704,18 @@ Item {
     }
 
     /*!
-        \qmlmethod int Network::stateAgeMs(string nodeId)
+        \qmlmethod int Network::stateAgeMs(string nodeId, string key)
         \brief Milliseconds since the newest accepted state from \a nodeId,
                or -1 if none was received yet.
+
+        With \a key, the newest accepted state \a nodeId sent with that key.
     */
-    function stateAgeMs(nodeId) {
-        return _backend ? _backend.stateAgeMs(nodeId) : -1
+    function stateAgeMs(nodeId, key) {
+        if (!_backend)
+            return -1
+        if (key === undefined || key === null || key === "")
+            return _backend.stateAgeMs(nodeId)
+        return _backend.keyedStateAgeMs(nodeId, String(key))
     }
 
     // Test hook, not API: sends json to nodeId exactly as given, so a test
@@ -728,7 +770,7 @@ Item {
         onPlayerJoined: (playerId) => root.nodeJoined(playerId)
         onPlayerLeft: (playerId) => root.nodeLeft(playerId)
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
-        onStateReceived: (fromId, data, sentAt) => root.stateReceived(fromId, data, sentAt)
+        onStateReceived: (fromId, data, sentAt, key) => root.stateReceived(fromId, data, sentAt, key)
         onErrorOccurred: (message) => root.errorOccurred(message)
         onJoinRefused: (reason, message) => root.joinRefused(reason, message)
         onSignalingLost: () => root.signalingLost()

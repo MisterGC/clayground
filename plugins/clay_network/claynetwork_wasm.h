@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <qqmlregistration.h>
 #include "link_conditioner.h"
+#include "statebatch.h"
 
 /*!
     \qmltype ClayNetworkBackend
@@ -135,6 +136,10 @@ public slots:
     void leave();
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
+    // Queues a keyed state (#302); the queue goes out as batches when
+    // control is back in the event loop, or at flushState()
+    void broadcastKeyedState(const QVariant &data, const QString &key);
+    void flushState();
     void sendTo(const QString &nodeId, const QVariant &data);
     // Test hook: puts json on the wire to nodeId as it is, bypassing the
     // message envelope - the net gym forges a sender id with it (#298)
@@ -143,6 +148,7 @@ public slots:
     // sends nothing else either, for gracePeriod ms is dropped (#299)
     void ping();
     int stateAgeMs(const QString &nodeId) const;
+    int keyedStateAgeMs(const QString &nodeId, const QString &key) const;
 
 signals:
     void roomCreated(const QString &networkId);
@@ -150,8 +156,10 @@ signals:
     void playerLeft(const QString &nodeId);
     void messageReceived(const QString &fromId, const QVariant &data);
     // sentAt: the sender's clock (ms since epoch) when the update was
-    // broadcast, or -1 when the sender did not include one.
-    void stateReceived(const QString &fromId, const QVariant &data, double sentAt);
+    // broadcast, or -1 when the sender did not include one. key is the
+    // key it was broadcast with, empty for an unkeyed state (#302).
+    void stateReceived(const QString &fromId, const QVariant &data, double sentAt,
+                       const QString &key);
     void errorOccurred(const QString &message);
     // The host refused this joiner in the handshake (#323); reason is one
     // of handshake.h's codes, errorOccurred(message) follows
@@ -268,6 +276,11 @@ private:
     QHash<QString, qint64> stateRecvCount_;
     QHash<QString, qint64> stateDropCount_;
     QElapsedTimer clock_;
+    // Keyed states (#302): sent ones wait in the queue for the flush,
+    // received ones are sequenced per sender and key
+    clay::network::statebatch::Queue keyedOut_;
+    clay::network::statebatch::Tracker keyedIn_;
+    QTimer keyedFlush_;
 
     // Holds the simulated link's conditions (#301). The traffic itself is
     // conditioned in JS by link_conditioner.js, which sees every packet -
