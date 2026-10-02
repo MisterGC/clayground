@@ -67,6 +67,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs; with keyed states also `keys` (the same per key), `batches`, `maxBatchBytes` (always on) |
 | `sessionTime` | real | ms since the host created the network, the same on every node; -1 outside a network - see [The Session Clock](#the-session-clock) |
 | `sessionTimeSynced` | bool | True on the host, and on a joiner once its clock is synced to the host's |
+| `sessionProperties` | var | Session properties the host set, the same on every node - see [Replicated Objects](#replicated-objects) |
 
 ### Signals
 
@@ -80,6 +81,11 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
 | `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
+| `objectSpawned(id, type, owner, props)` | A replicated object came to life on this node - also, on a late joiner, each one already there |
+| `objectDespawned(id, type)` | A replicated object is gone: despawned, its owner left, or the network ended |
+| `objectOwnerChanged(id, owner)` | A replicated object has a new owner |
+| `objectStateReceived(id, data, sentAt)` | The owner of an object sent its state; nobody else's arrives |
+| `sessionPropertyChanged(name, value)` | The host set a session property |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
 
@@ -97,6 +103,12 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `stateAgeMs(nodeId[, key])` | ms since the newest accepted state from a node (for a key), -1 if none |
 | `sendTo(nodeId, data)` | Send to a specific node |
 | `transitMs(nodeId)` | How long the fastest state from a node in the last 3 s took, in session ms (NaN before one arrived) |
+| `spawn(type, props, options)` | Create a replicated object, return its id; options `owner`, `onOwnerLeft` (`"despawn"` or `"host"`) |
+| `despawn(id)` | Remove an object everywhere (its owner or the host) |
+| `setOwner(id, nodeId)` | Hand an object over (its owner or the host) |
+| `objectOwner(id)`, `objectInfo(id)`, `objects([type])` | Read the object table |
+| `sendObjectState(id, data)`, `settleObjectState(id, data)` | The owner's state of an object, lossy or reliably; `ReplicatedObject` does it for you |
+| `setSessionProperty(name, value)` | Host: a property every node, and every late joiner, gets |
 
 ## The Session Clock
 
@@ -343,6 +355,81 @@ replaces the first. `broadcastState(data)` without a key is unchanged: sent at
 once, sequenced per sender. Keyed batches are wire version 2; a node of an
 older build is refused in the handshake with `incompatible-version`.
 
+## Replicated Objects
+
+Objects that come and go - enemies, items, avatars - live in one table on
+every node, ordered by the host:
+
+```qml
+Network { id: net }
+
+Replicas {                       // every node: an item per "ball"
+    network: net
+    type: "ball"
+    delegate: Rectangle {
+        id: ball
+        required property string objectId
+        width: 20; height: 20; radius: 10
+        ReplicatedObject {
+            network: net; objectId: ball.objectId
+            properties: ["x", "y"]; interpolate: true
+        }
+    }
+}
+
+onClicked: net.spawn("ball", {}, {onOwnerLeft: "host"})   // any node
+```
+
+Give the `Network` an id other than `network`: inside a `ReplicatedObject`
+or a `Replicas`, `network: network` names the property itself and binds it
+to nothing.
+
+- **An owner.** The spawner owns an object, or the node the host spawns it
+  for. Only the owner's state for it counts; anybody else's is dropped.
+  `setOwner(id, nodeId)` hands it over (the owner or the host may).
+- **Spawn and despawn.** Spawns, despawns and owner changes go through the
+  host, which checks them and passes them on. The spawner has its object at
+  once; a spawn the host refuses comes back to it as `objectDespawned`. A
+  despawn is final: a state still under way finds no object and is
+  dropped, and the object's sequence entry is freed on every node, so a
+  session that spawns and despawns all the time keeps no growing table.
+- **Ids.** `spawn()` makes an id, `"<node id>:<n>"`, never used again. A
+  game finds its own objects through `props`:
+
+  ```qml
+  net.spawn("avatar", {token: net.clientToken}, {onOwnerLeft: "host"})
+  // later, on any node: whose avatar is this?
+  const mine = net.objects("avatar").find(o => o.props.token === savedToken)
+  ```
+- **Late joiners.** Right after its welcome a joiner gets every live object
+  with its owner, `onOwnerLeft` and last state, then the session properties
+  the host set with `setSessionProperty(name, value)` - a seed, the level.
+- **When an owner leaves**, each of its objects despawns
+  (`onOwnerLeft: "despawn"`, the default) or passes to the host
+  (`"host"`), as it was spawned. When the host leaves, the network ends and
+  every object despawns.
+
+`ReplicatedObject` sends its `properties` when they change - at most once
+per frame, or once per `sendInterval` ms - and, after they rest for
+`settleMs` (200), once more over the reliable channel, so a lost last
+update cannot leave a stale value behind. Properties are numbers, strings,
+booleans or plain objects; with `interpolate` the numbers are blended
+through a `StateInterpolator` and the rest switch with their snapshot.
+`Replicas` makes a `delegate` per object of its `type`, with `objectId` and
+the spawn props as properties of the same name, and destroys it on despawn;
+handle `objectSpawned`/`objectDespawned` yourself to make items another
+way.
+
+On the wire, operations are reliable `"t":"o"` messages and object states
+travel in the keyed batches as `{"o": id, ...}` entries; 30 objects at 20 Hz
+take two datagrams of at most 1200 bytes per frame. A joiner takes objects
+only over its link to the host, the one that passed the handshake. In the
+browser a joiner in Star closes every incoming connection that is not the
+host's - such a link would have no handshake behind it - so plain messages
+over a joiner-to-joiner link do not arrive either. Replicated objects need
+the Star topology and are wire version 4; an older build is refused with
+`incompatible-version`.
+
 ## Multiplayer Helpers
 
 - **`StateInterpolator`** - snapshot-buffer interpolation for remote
@@ -358,6 +445,8 @@ older build is refused in the handshake with `incompatible-version`.
   the next push - and blends into two reused value objects, so one per
   replicated object stays cheap. Use this instead of `Behavior`
   animations.
+- **`ReplicatedObject`** and **`Replicas`** - see
+  [Replicated Objects](#replicated-objects).
 - **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
   state rate, state age and stale-drop counts (`network.syncStats` /
   `network.peerStats` / `network.stateAgeMs(id)` for programmatic access).
