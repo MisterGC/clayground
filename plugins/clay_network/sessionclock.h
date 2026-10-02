@@ -167,6 +167,12 @@ private:
 // this node's. Arrivals are kept in local time minus sentAt and the
 // current clock offset is added when asked, so a clock that is still being
 // synced does not leave a stale minimum behind.
+//
+// Every StateInterpolator on a sender asks for its transit with each state
+// it is pushed, so a window is kept as a sliding minimum (#305): an arrival
+// is dropped as soon as a newer one is at least as fast - it can never be
+// the minimum again - which leaves the window ascending, its fastest
+// arrival first. Noting is amortised O(1), asking is O(1).
 constexpr int kTransitWindowMs = 3000;
 
 class TransitTracker
@@ -177,7 +183,10 @@ public:
         if (sentAt < 0)
             return;
         auto &w = windows_[nodeId];
-        w.push_back({localNow, localNow - sentAt});
+        const double raw = localNow - sentAt;
+        while (!w.empty() && w.back().raw >= raw)
+            w.pop_back();
+        w.push_back({localNow, raw});
         while (w.size() > 1 && w.front().at < localNow - kTransitWindowMs)
             w.pop_front();
     }
@@ -188,10 +197,7 @@ public:
         const auto it = windows_.constFind(nodeId);
         if (it == windows_.constEnd() || it->empty())
             return std::numeric_limits<double>::quiet_NaN();
-        double best = it->front().raw;
-        for (const Arrival &a : *it)
-            best = std::min(best, a.raw);
-        return best + clockOffset;
+        return it->front().raw + clockOffset;
     }
 
     void forget(const QString &nodeId) { windows_.remove(nodeId); }
