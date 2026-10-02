@@ -46,6 +46,25 @@ set_tests_properties(network_link_conditioner PROPERTIES LABELS "network;unit")
 clay_add_node_test(network_link_conditioner
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.test.js)
 
+# Session clock (#304): a joiner's offset to the host from ping round
+# trips, how close two joiners get under jitter, the per-sender transit.
+# Header only, Qt Core.
+add_executable(tst_session_clock
+    tst_session_clock.cpp
+)
+
+set_target_properties(tst_session_clock PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_session_clock PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_session_clock PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_session_clock COMMAND tst_session_clock)
+set_tests_properties(network_session_clock PROPERTIES LABELS "network;unit")
+
 # HTTP auth tests - drive ClayHttpClient against a local echo server and assert
 # the headers that actually go out. ClayWebAccess is compiled in and registered
 # by hand and the QML file is loaded from the source tree, so this needs
