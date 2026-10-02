@@ -99,6 +99,16 @@
         Desktop and Mobile only (not available in browser).
     \endlist
 
+    \section1 Joining
+
+    Joining starts with a handshake over the encrypted data channel, in
+    both signaling modes and on every platform: the joiner sends its wire
+    version, \c appId, room \c password and \c clientToken, and the host
+    takes it or refuses it. A refused joiner gets \c joinRefused() with
+    \c "incompatible-version", \c "incompatible-app" or
+    \c "wrong-password" and never becomes a node. The host keeps each
+    joiner's token in \c clientTokens.
+
     \section1 Troubleshooting
 
     \table

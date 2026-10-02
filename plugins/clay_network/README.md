@@ -41,6 +41,9 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
 | `gracePeriod` | int | 5000 | A peer that leaves a ping unanswered this long (ms) counts as gone (0 to disable) - see [Leaving](#leaving) |
 | `linkConditions` | var | {} | Simulated loss, latency, jitter, bandwidth cap, blackout and dropped signaling, for tests - see [Testing on a Bad Link](#testing-on-a-bad-link) |
+| `password` | string | "" | Room password a host demands and a joiner gives; empty: none - see [Joining](#joining) |
+| `appId` | string | "" | Names the app; a joiner of another app is refused |
+| `clientToken` | string | random | What a joiner identifies itself with; the host keeps it in `clientTokens` |
 
 ### Read-only State
 
@@ -51,12 +54,14 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `hostId` | string | The host's node ID, the same on every node |
 | `isHost` | bool | True if this node is the host |
 | `acceptingJoins` | bool | True on a host new nodes can reach; false while its Cloud signaling is lost |
+| `clientTokens` | var | Host: each joiner's `clientToken`, by node ID |
+| `wireVersion` | int | Version of the message format this build speaks |
 | `connected` | bool | True when connected |
 | `status` | enum | `Disconnected`, `Connecting`, `Connected`, `Error` |
 | `nodeCount` | int | Number of nodes in the network |
 | `nodes` | list | List of node IDs |
-| `connectionPhase` | string | Current phase: "signaling", "ice", "datachannel" |
-| `phaseTiming` | var | `{ signaling, ice, datachannel, total }` in ms |
+| `connectionPhase` | string | Current phase: "signaling", "ice", "handshake" |
+| `phaseTiming` | var | `{ signaling, ice, datachannel, handshake, total }` in ms |
 | `latency` | int | Best RTT across peers in ms (-1 if unknown) |
 | `peerStats` | var | Per-peer transport stats (always on) |
 | `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs (always on) |
@@ -71,6 +76,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `messageReceived(fromId, data)` | Reliable message received |
 | `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
 | `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
+| `joinRefused(reason, message)` | The host refused this joiner in the handshake: `incompatible-version`, `incompatible-app`, `wrong-password` |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
@@ -85,6 +91,34 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `broadcast(data)` | Send reliable message to all nodes |
 | `broadcastState(data)` | Send state update (high-frequency) |
 | `sendTo(nodeId, data)` | Send to a specific node |
+
+## Joining
+
+Joining starts with a handshake over the data channel, the same natively and
+in the browser, with Cloud and Local signaling. The joiner's first message
+carries its wire version, `appId`, `password` and `clientToken`; the host
+answers with a welcome or a refusal. Until it is welcomed a joiner is no
+node: it is not in anybody's `nodes`, gets no `nodeJoined`, and nothing but
+the handshake passes either way.
+
+- **Another build.** Two builds whose `wireVersion` differs are refused with
+  `incompatible-version`, and so is a build from before the handshake, on
+  either side: a joiner that sends something else first or nothing for 5 s,
+  a host that answers with anything but a welcome.
+- **Another app.** A joiner whose `appId` is not the host's is refused with
+  `incompatible-app`.
+- **A room password.** A host with a `password` refuses every joiner that
+  does not give the same one, with `wrong-password`. The data channel is
+  encrypted, so the password never passes the signaling server: a code
+  that leaks through a chat or a stream is not enough to get in.
+
+A refused joiner gets `joinRefused(reason, message)`, then
+`errorOccurred(message)`, and its `status` is `Error`; it can join again.
+The host closes the connection after its refusal.
+
+The host keeps each joiner's `clientToken` in `clientTokens`, next to its
+node ID. A node ID changes with every join; a token the app stores and sets
+again does not, so a host can tell a joiner that comes back.
 
 ## Leaving
 
@@ -205,6 +239,8 @@ python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-start
 
 3. **Data Channel** - Once ICE completes, a WebRTC data channel opens for reliable, encrypted communication.
 
+4. **Handshake** - The joiner says hello with its wire version, app, password and client token; the host takes it or refuses it (see [Joining](#joining)). Only now is the joiner a node.
+
 ### Why Connections Sometimes Fail
 
 When both peers are behind restrictive NATs (symmetric NAT, carrier-grade NAT), STUN alone can't establish a direct connection. STUN only discovers public IP/port, but symmetric NATs assign different ports per destination. A TURN relay server solves this by acting as a middle point.
@@ -285,6 +321,8 @@ LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it
 A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
 turns away any joiner whose first message does not carry the secret, so
 knowing the host's address alone is not enough to drop into a session. The
+secret travels in the code; a room `password` does not, see
+[Joining](#joining). The
 secret is 8 characters drawn from the system's random number generator. A code
 that does not have exactly that shape fails with `Invalid LAN code` before
 anything connects.
