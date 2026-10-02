@@ -312,12 +312,13 @@ EM_JS(void, js_init_helpers, (), {
     };
 
     // The host takes a joiner that passed the handshake: the welcome first,
-    // then its roster, then everyone else hears of it
+    // then its roster, then everyone else hears of it. False when the
+    // joiner left while C++ was judging its hello - there is nobody to take.
     Module.clayAdmit = function(instanceId, peerId, welcome) {
         var state = Module.clayNetwork[instanceId];
-        if (!state) return;
+        if (!state) return false;
         var conn = state.connections.get(peerId);
-        if (!conn || !conn.__clayPending) return;
+        if (!conn || !conn.__clayPending || !conn.open) return false;
         conn.__clayPending = false;
         conn.send(welcome);
         var others = [];
@@ -329,6 +330,7 @@ EM_JS(void, js_init_helpers, (), {
             if (id !== peerId && Module.clayIsNode(c))
                 c.send({ t: 'y', sys: 'node_joined', nodeId: peerId });
         });
+        return true;
     };
 
     // The host refuses a joiner: it reads why, then its connection closes
@@ -877,8 +879,9 @@ EM_JS(void, js_drop_peer, (int instanceId, const char* peerId), {
 });
 
 // JavaScript: Take or refuse a joiner after its handshake (host side, #323)
-EM_JS(void, js_admit, (int instanceId, const char* peerId, const char* welcomeJson), {
-    Module.clayAdmit(instanceId, UTF8ToString(peerId), JSON.parse(UTF8ToString(welcomeJson)));
+EM_JS(int, js_admit, (int instanceId, const char* peerId, const char* welcomeJson), {
+    return Module.clayAdmit(instanceId, UTF8ToString(peerId),
+                            JSON.parse(UTF8ToString(welcomeJson))) ? 1 : 0;
 });
 
 EM_JS(void, js_refuse, (int instanceId, const char* peerId, const char* refusalJson), {
@@ -1756,12 +1759,17 @@ void ClayNetwork::onHello(const char* peerId, const char* json)
         js_refuse(instanceId_, peerBytes.constData(), refusal.constData());
         return;
     }
+    const QByteArray welcome = QJsonDocument(hs::welcome(nodeId_, wireVersion_))
+                                   .toJson(QJsonDocument::Compact);
+    // The hello was judged a queued call after it arrived: a joiner that
+    // closed in between is gone, and no close will ever report it as left
+    if (!js_admit(instanceId_, peerBytes.constData(), welcome.constData())) {
+        emitDiag("datachannel", QString("%1 left during the handshake").arg(peer.left(8)));
+        return;
+    }
     clientTokens_[peer] = obj["tok"].toString();
     emit clientTokensChanged();
     emitDiag("datachannel", QString("Admitted %1").arg(peer.left(8)));
-    const QByteArray welcome = QJsonDocument(hs::welcome(nodeId_, wireVersion_))
-                                   .toJson(QJsonDocument::Compact);
-    js_admit(instanceId_, peerBytes.constData(), welcome.constData());
     onNodeJoined(peerBytes.constData());
 #else
     Q_UNUSED(peerId)
