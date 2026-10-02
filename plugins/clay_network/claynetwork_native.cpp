@@ -1045,7 +1045,16 @@ void ClayNetwork::writeToPeer(const QString &peerId, const QByteArray &utf8, boo
     // Send as binary (bytes) for PeerJS JSON mode compatibility
     std::vector<std::byte> bytes(utf8.size());
     std::memcpy(bytes.data(), utf8.constData(), utf8.size());
-    dc->send(bytes);
+    // isOpen() can still say yes when the peer's side is already gone, and
+    // libdatachannel then throws (EPIPE, ECONNRESET) - out of ~ClayNetwork's
+    // goodbye that is std::terminate (#357). The message is lost like any
+    // other to a peer that left; the liveness check notices the peer.
+    try {
+        dc->send(bytes);
+    } catch (const std::exception &e) {
+        qWarning() << "ClayNetwork: Sending to" << peerId << "failed:" << e.what();
+        return;
+    }
     if (stateChannel)
         peer.stateSent++;
     else
