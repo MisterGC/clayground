@@ -771,6 +771,19 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
 
         peer.on('connection', (conn) => {
             if (state.peer !== peer) return;
+            // In Star a joiner's only link is to its host, the one that
+            // passed the handshake. Anyone else - a stranger that took a
+            // node's PeerJS id while that node was reconnecting to
+            // signaling - is turned away, so nothing a node trusts (an
+            // object's owner, #306) comes over a link without a handshake.
+            if (state.topology === 0 && conn.peer !== networkId) {
+                console.log('[ClayNetwork] Closed an incoming connection from', conn.peer,
+                            '- in Star only the host connects to a joiner');
+                Module.clayDiag(instanceId, 'datachannel',
+                    'Closed an incoming connection from ' + conn.peer.substring(0, 8) + ', not the host');
+                try { conn.close(); } catch (e) {}
+                return;
+            }
             if (conn.label === 'clay_state') {
                 Module.claySetupStateConn(instanceId, conn.peer, conn);
                 return;
