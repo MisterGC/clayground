@@ -311,6 +311,11 @@ void LocalSignalingClient::disconnect()
 {
     closedByUs_ = true;
     if (ws_) {
+        // Their callbacks hold a raw this, and the socket reports Closed on
+        // libdatachannel's thread after close() returned. Dropping the last
+        // rtc::WebSocket resets them too, but only if ws_ is the last one;
+        // this does not rely on it. It waits for a callback running now (#359)
+        ws_->resetCallbacks();
         ws_->close();
         ws_.reset();
     }
