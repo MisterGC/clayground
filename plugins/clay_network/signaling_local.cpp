@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "signaling_local.h"
+#include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -299,6 +300,7 @@ void LocalSignalingClient::connect(const QString &host, uint16_t port, const QSt
     });
 
     ws_->onClosed([this]() {
+        CLAY_NETWORK_CLOSE_HOOK(this);
         QMetaObject::invokeMethod(this, [this]() { onWsClosed(); }, Qt::QueuedConnection);
     });
 
@@ -309,6 +311,11 @@ void LocalSignalingClient::disconnect()
 {
     closedByUs_ = true;
     if (ws_) {
+        // Their callbacks hold a raw this, and the socket reports Closed on
+        // libdatachannel's thread after close() returned. Dropping the last
+        // rtc::WebSocket resets them too, but only if ws_ is the last one;
+        // this does not rely on it. It waits for a callback running now (#359)
+        ws_->resetCallbacks();
         ws_->close();
         ws_.reset();
     }
