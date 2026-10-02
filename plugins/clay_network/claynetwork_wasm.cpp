@@ -372,6 +372,9 @@ EM_JS(void, js_init_helpers, (), {
     Module.clayOnStateData = function(instanceId, peerId, data) {
         var state = Module.clayNetwork[instanceId];
         if (!state) return;
+        // Only a node's state counts, and only a node's is relayed (#323)
+        var link = state.connections.get(peerId);
+        if (!link || link.__clayPending) return;
         var msg = typeof data === 'string' ? data : JSON.stringify(data);
         var parsed = JSON.parse(msg);
         if (state.isHost && state.autoRelay && state.topology === 0) {
@@ -458,8 +461,16 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 
         peer.on('connection', (conn) => {
             if (state.peer !== peer) return;
-            // Companion state connection of an already-known node
+            // Companion state connection of an already-known node - not of
+            // a peer still in the handshake, refused or never seen (#323)
             if (conn.label === 'clay_state') {
+                const link = state.connections.get(conn.peer);
+                if (!link || link.__clayPending) {
+                    Module.clayDiag(instanceId, 'datachannel',
+                        'Closed a state connection from ' + conn.peer.substring(0, 8) + ', no node');
+                    try { conn.close(); } catch (e) {}
+                    return;
+                }
                 Module.claySetupStateConn(instanceId, conn.peer, conn);
                 return;
             }
