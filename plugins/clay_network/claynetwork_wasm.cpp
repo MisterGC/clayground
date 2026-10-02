@@ -82,8 +82,10 @@ EM_JS(void, js_init_network, (int instanceId), {
     Module.clayNetwork[instanceId] = {
         peer: null,
         connections: new Map(),
-        // Unordered/lossy companion connections (label 'clay_state') used
-        // for high-frequency state updates
+        // Per peer, the lossy state channel: a second RTCDataChannel
+        // (label 'state', unordered, no retransmits) on that peer's
+        // connection, like the native backend's - not a PeerJS connection
+        // of its own (#307)
         stateConns: new Map(),
         networkId: null,
         nodeId: null,
@@ -241,12 +243,12 @@ EM_JS(void, js_init_helpers, (), {
 
     // Route a connection's send() through the node's link conditioner. The
     // size is only worked out when a bandwidth cap asks for it.
-    Module.clayConditionSend = function(state, conn, stateChannel) {
+    Module.clayConditionSend = function(state, conn) {
         if (conn.__clayRawSend) return;
         const raw = conn.send.bind(conn);
         conn.__clayRawSend = raw;
         conn.send = function(obj) {
-            state.conditioner.offer('out', stateChannel,
+            state.conditioner.offer('out', false,
                 function() { return JSON.stringify(obj).length; },
                 function() { if (conn.open) raw(obj); });
         };
@@ -259,6 +261,93 @@ EM_JS(void, js_init_helpers, (), {
                 function() { return (typeof data === 'string' ? data : JSON.stringify(data)).length; },
                 function() { handler(data); });
         };
+    };
+
+    // The state channel's messages are text from a browser and bytes from
+    // a native node, which sends them the way PeerJS's JSON mode does
+    Module.clayTextDecoder = new TextDecoder();
+
+    // The offering side of a connection opens its state channel on it, once
+    // the connection is open (#307). The channel is unordered and never
+    // retransmits: a lost state is gone, the next one replaces it. PeerJS's
+    // connect() cannot ask for that - it turns reliable: false into
+    // {ordered: false} and retransmits - and a second PeerJS connection is
+    // a second peer connection, which a native node takes as a replacement
+    // of the first. One more channel on the same peer connection needs no
+    // new negotiation: it is announced in-band, like the native backend's.
+    Module.clayOpenStateChannel = function(instanceId, peerId, conn) {
+        const pc = conn.peerConnection;
+        if (!pc) return;
+        let dc;
+        try {
+            dc = pc.createDataChannel('state', { ordered: false, maxRetransmits: 0 });
+        } catch (e) {
+            Module.clayDiag(instanceId, 'datachannel', 'No state channel: ' + e);
+            return;
+        }
+        Module.claySetupStateChannel(instanceId, peerId, conn, dc);
+    };
+
+    // The answering side takes the state channel the other side opened. PeerJS
+    // would take any channel that arrives as the connection's own, so the
+    // state channel is caught before it gets there.
+    Module.clayCatchStateChannel = function(instanceId, peerId, conn) {
+        const pc = conn.peerConnection;
+        if (!pc || pc.__clayCatching) return;
+        pc.__clayCatching = true;
+        const peerJs = pc.ondatachannel;
+        pc.ondatachannel = function(ev) {
+            if (ev.channel.label === 'state') {
+                Module.claySetupStateChannel(instanceId, peerId, conn, ev.channel);
+                return;
+            }
+            if (peerJs) peerJs.call(pc, ev);
+        };
+    };
+
+    // A state channel with peerId, on its connection conn
+    Module.claySetupStateChannel = function(instanceId, peerId, conn, dc) {
+        var state = Module.clayNetwork[instanceId];
+        if (!state) return;
+        dc.binaryType = 'arraybuffer';
+        const prev = state.stateConns.get(peerId);
+        if (prev && prev !== dc) { try { prev.close(); } catch (e) {} }
+        state.stateConns.set(peerId, dc);
+        dc.__clayConn = conn;
+        dc.onmessage = function(ev) {
+            const text = typeof ev.data === 'string' ? ev.data
+                                                     : Module.clayTextDecoder.decode(ev.data);
+            state.conditioner.offer('in', true, text.length, function() {
+                // A state that overtook the connection's handover counts for nothing
+                if (state.connections.get(peerId) !== conn) return;
+                Module.clayOnStateData(instanceId, peerId, text);
+            });
+        };
+        dc.onclose = function() {
+            if (state.stateConns.get(peerId) === dc) state.stateConns.delete(peerId);
+        };
+        dc.onerror = function() {};
+    };
+
+    // An open state channel with peerId, or null
+    Module.clayStateChannel = function(state, peerId) {
+        const dc = state.stateConns.get(peerId);
+        return dc && dc.readyState === 'open' ? dc : null;
+    };
+
+    // A state to one node: over the state channel, through the link
+    // conditioner as a lossy datagram - or, until that channel is open,
+    // over the reliable connection. text is the message, obj() parses it.
+    Module.claySendState = function(state, peerId, conn, text, obj) {
+        const dc = Module.clayStateChannel(state, peerId);
+        if (dc) {
+            state.conditioner.offer('out', true, text.length, function() {
+                if (dc.readyState !== 'open') return;
+                try { dc.send(text); } catch (e) {}
+            });
+        } else if (conn.open) {
+            conn.send(obj());
+        }
     };
 
     // Signaling errors that mean the server connection is gone, not that a
@@ -388,11 +477,11 @@ EM_JS(void, js_init_helpers, (), {
     // Relay a state update to all other peers, preferring the lossy state
     // connection and falling back to the reliable one.
     Module.clayRelayState = function(state, parsed, exceptPeer) {
+        var text = null;
         state.connections.forEach(function(c, pid) {
             if (pid === exceptPeer || c.__clayPending) return;
-            var sc = state.stateConns.get(pid);
-            if (sc && sc.open) sc.send(parsed);
-            else if (c.open) c.send(parsed);
+            if (text === null) text = JSON.stringify(parsed);
+            Module.claySendState(state, pid, c, text, function() { return parsed; });
         });
     };
 
@@ -427,22 +516,6 @@ EM_JS(void, js_init_helpers, (), {
         }
         Module._clay_net_message(instanceId,
             stringToNewUTF8(peerId), stringToNewUTF8(msg), 1);
-    };
-
-    // Attach handlers to an incoming state connection
-    Module.claySetupStateConn = function(instanceId, peerId, conn) {
-        var state = Module.clayNetwork[instanceId];
-        if (!state) return;
-        state.stateConns.set(peerId, conn);
-        Module.clayConditionSend(state, conn, true);
-        conn.on('data', Module.clayConditionData(state, true, function(d) {
-            Module.clayOnStateData(instanceId, peerId, d);
-        }));
-        conn.on('close', function() {
-            if (state.stateConns.get(peerId) === conn)
-                state.stateConns.delete(peerId);
-        });
-        conn.on('error', function() {});
     };
 
     // Setup ICE state tracking on a connection
@@ -504,17 +577,12 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 
         peer.on('connection', (conn) => {
             if (state.peer !== peer) return;
-            // Companion state connection of an already-known node - not of
-            // a peer still in the handshake, refused or never seen (#323)
+            // A build before #307 opened its state channel as a second
+            // connection; taken as one, it would replace the node's own
             if (conn.label === 'clay_state') {
-                const link = state.connections.get(conn.peer);
-                if (!link || link.__clayPending) {
-                    Module.clayDiag(instanceId, 'datachannel',
-                        'Closed a state connection from ' + conn.peer.substring(0, 8) + ', no node');
-                    try { conn.close(); } catch (e) {}
-                    return;
-                }
-                Module.claySetupStateConn(instanceId, conn.peer, conn);
+                Module.clayDiag(instanceId, 'datachannel',
+                    'Closed a state connection from ' + conn.peer.substring(0, 8) + ', an older build');
+                try { conn.close(); } catch (e) {}
                 return;
             }
 
@@ -531,7 +599,8 @@ EM_JS(void, js_create_network, (int instanceId, const char* networkCode, int top
 
             console.log('[ClayNetwork] Node connecting:', conn.peer);
             state.connections.set(conn.peer, conn);
-            Module.clayConditionSend(state, conn, false);
+            Module.clayConditionSend(state, conn);
+            Module.clayCatchStateChannel(instanceId, conn.peer, conn);
             Module.clayTrackIce(instanceId, conn, conn.peer);
 
             // No node until it passed the handshake (#323): its first
@@ -676,11 +745,12 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             // Connect to host - use 'json' serialization for string transfer
             const conn = state.peer.connect(networkId, { reliable: true, serialization: 'json' });
             state.connections.set(networkId, conn);
-            Module.clayConditionSend(state, conn, false);
+            Module.clayConditionSend(state, conn);
             Module.clayTrackIce(instanceId, conn, networkId);
 
             // The joiner speaks first, and the host's first answer - its
-            // welcome or a refusal - goes to C++ to judge (#323)
+            // welcome or a refusal - goes to C++ to judge (#323). The host
+            // takes no state before its welcome.
             let welcomed = false;
             conn.on('open', () => {
                 const totalMs = Date.now() - state._startTime;
@@ -688,6 +758,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 Module._clay_net_phase(instanceId, stringToNewUTF8('handshake'),
                                        Date.now() - state._iceStart);
                 conn.send(hello);
+                Module.clayOpenStateChannel(instanceId, networkId, conn);
             });
 
             conn.on('data', Module.clayConditionData(state, false, (data) => {
@@ -698,10 +769,6 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                     if (parsed.t === 'H') {
                         welcomed = true;
                         console.log('[ClayNetwork] Connected to network:', networkId);
-                        // Companion lossy connection for state updates
-                        const sconn = state.peer.connect(networkId,
-                            { label: 'clay_state', reliable: false, serialization: 'json' });
-                        Module.claySetupStateConn(instanceId, networkId, sconn);
                     }
                     Module._clay_net_handshake_reply(instanceId, stringToNewUTF8(id), stringToNewUTF8(msg));
                     return;
@@ -720,7 +787,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                             if (!state.connections.has(nodeId)) {
                                 const nodeConn = state.peer.connect(nodeId, { reliable: true, serialization: 'json' });
                                 state.connections.set(nodeId, nodeConn);
-                                setupNodeConnection(instanceId, nodeId, nodeConn);
+                                setupNodeConnection(instanceId, nodeId, nodeConn, true);
                             }
                         });
                         return;
@@ -729,7 +796,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                         && !state.connections.has(parsed.nodeId)) {
                         const nodeConn = state.peer.connect(parsed.nodeId, { reliable: true, serialization: 'json' });
                         state.connections.set(parsed.nodeId, nodeConn);
-                        setupNodeConnection(instanceId, parsed.nodeId, nodeConn);
+                        setupNodeConnection(instanceId, parsed.nodeId, nodeConn, true);
                     }
                     if (parsed.sys === 'node_left') {
                         state.connections.delete(parsed.nodeId);
@@ -784,14 +851,15 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
                 try { conn.close(); } catch (e) {}
                 return;
             }
+            // A state connection of a build before #307 (see the host's)
             if (conn.label === 'clay_state') {
-                Module.claySetupStateConn(instanceId, conn.peer, conn);
+                try { conn.close(); } catch (e) {}
                 return;
             }
             // Accept incoming connections (mesh topology)
             console.log('[ClayNetwork] Incoming mesh connection:', conn.peer);
             state.connections.set(conn.peer, conn);
-            setupNodeConnection(instanceId, conn.peer, conn);
+            setupNodeConnection(instanceId, conn.peer, conn, false);
         });
 
         peer.on('error', (err) => {
@@ -809,12 +877,15 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
     });
 
     // Helper to setup node connection handlers
-    function setupNodeConnection(instanceId, nodeId, conn) {
-        Module.clayConditionSend(state, conn, false);
+    // offering: this node connected, so it opens the state channel
+    function setupNodeConnection(instanceId, nodeId, conn, offering) {
+        Module.clayConditionSend(state, conn);
+        if (!offering) Module.clayCatchStateChannel(instanceId, nodeId, conn);
         Module.clayTrackIce(instanceId, conn, nodeId);
 
         conn.on('open', () => {
             console.log('[ClayNetwork] Mesh connected to:', nodeId);
+            if (offering) Module.clayOpenStateChannel(instanceId, nodeId, conn);
         });
 
         conn.on('data', Module.clayConditionData(state, false, (data) => {
@@ -869,15 +940,11 @@ EM_JS(void, js_broadcast_state, (int instanceId, const char* data), {
     if (!state) return;
 
     const msg = UTF8ToString(data);
-    const obj = JSON.parse(msg);
+    let obj = null;
+    const parse = () => obj || (obj = JSON.parse(msg));
     state.connections.forEach((conn, peerId) => {
         if (conn.__clayPending) return;
-        const sc = state.stateConns.get(peerId);
-        if (sc && sc.open) {
-            sc.send(obj);
-        } else if (conn.open) {
-            conn.send(obj);
-        }
+        Module.claySendState(state, peerId, conn, msg, parse);
     });
 });
 
