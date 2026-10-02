@@ -224,10 +224,11 @@ jobs:
           --click \
           --timeout 300
 
-    # Two browser pages host and join through clay-dev-server's signaling and
+    # Browser pages host and join through clay-dev-server's signaling and
     # run the net gym's link scenarios - 10 % loss, latency, a blackout, the
-    # host leaving - on the WASM backend (#301). The public PeerJS server is
-    # too flaky for CI, so the relay comes from this checkout.
+    # host leaving - on the WASM backend (#301), and four of them stream keyed
+    # state (#302). The public PeerJS server is too flaky for CI, so the
+    # relay comes from this checkout.
     - name: Net Gym (WASM)
       if: matrix.qt-target == 'wasm'
       run: |

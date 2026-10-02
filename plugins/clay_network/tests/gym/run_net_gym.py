@@ -13,7 +13,8 @@ conditioned - 10 % loss, latency with jitter, a blackout - and its link is
 out for less than the grace period without anybody leaving. The host
 leaves, hosts again and is killed (#301, #299). The host demands a room
 password, and joinC is refused for a wrong one and for another wire version
-before it gets in (#323).
+before it gets in (#323). joinD joins for a while so that four nodes stream
+100 keyed objects each at 30 Hz, and leaves again (#302).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
 instead (needs wsproto); the LAN code checks are Local-only and skipped,
@@ -37,7 +38,8 @@ import uuid
 from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_loss, scenario_latency, scenario_blackout,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
-                    scenario_host_killed, scenario_handshake, check_client_token)
+                    scenario_host_killed, scenario_handshake, check_client_token,
+                    scenario_keyed)
 
 # Every node hosts and joins with it (#323)
 PASSWORD = "stone"
@@ -183,7 +185,7 @@ def main():
     env = dict(os.environ)
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-    names = ["host", "joinB", "joinC"]
+    names = ["host", "joinB", "joinC", "joinD"]
     procs = {}
     insp = {}
     try:
@@ -245,7 +247,7 @@ def main():
         scenario_handshake(A, C, "joinC", code, PASSWORD)
 
         host_id_on_b = B.eval1("nodeList[0]")
-        run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs)
+        run_after_join(A, B, C, insp["joinD"], insp, host_id_on_b, cloud, code, procs)
     except Exception as e:
         # An instance that stops answering raises here (Inspect.request).
         # finish() exits from the finally below, which would drop this
@@ -285,9 +287,11 @@ def lan_checks(B, C, code):
     wait_for(lambda: C.eval1("status") in (0, 3), 5)
 
 
-def run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs):
+def run_after_join(A, B, C, D, insp, host_id_on_b, cloud, code, procs):
     """Everything after the three nodes are in: roster, sender ids, state
-    flow, interpolation, the conditioned link and departures."""
+    flow, keyed state on four nodes, interpolation, the conditioned link and
+    departures."""
+    names = ["host", "joinB", "joinC"]
     # -- 3: roster propagation (star topology) ------------------------
     check("roster: host sees 2 nodes",
           wait_for(lambda: A.eval1("nodeList.length") == 2, 10),
@@ -358,6 +362,9 @@ def run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs):
     check("state: no stale drops on loopback",
           all(v.get("dropped", 0) == 0 for v in sync_b.values()),
           str({k: v.get("dropped") for k, v in sync_b.items()}))
+
+    # -- 5b: four nodes stream 100 keyed objects each (#302) -------------
+    keyed_four_nodes(A, B, C, D, code)
 
     # -- 6: interpolation tracks the sender ----------------------------
     # Measured on joinB alone, every frame: what it shows against the
@@ -451,6 +458,21 @@ def run_after_join(A, B, C, names, insp, host_id_on_b, cloud, code, procs):
              str(code2)):
         scenario_host_killed(lambda: procs["host"].kill(), B.eval1("netRef.hostId"),
                              [("joinB", B)], "process killed")
+
+
+def keyed_four_nodes(A, B, C, D, code):
+    """joinD makes four (maxNodes), every node streams keyed state, and
+    joinD leaves again - the scenarios after this one count three nodes."""
+    D.eval([f"joinNet('{code}')"])
+    joined = wait_for(lambda: D.eval1("connected") is True
+                      and all(i.eval1("nodeList.length") == 3 for i in (A, B, C, D)), 25)
+    if check("keyed: joinD joins, four nodes see each other", joined,
+             f"nodes per node: {[i.eval1('nodeList.length') for i in (A, B, C, D)]}"):
+        scenario_keyed([("host", A), ("joinB", B), ("joinC", C), ("joinD", D)], A)
+    D.eval(["netRef.leave()"])
+    check("keyed: joinD leaves, three nodes again",
+          wait_for(lambda: all(i.eval1("nodeList.length") == 2 for i in (A, B, C)), 15),
+          f"nodes per node: {[i.eval1('nodeList.length') for i in (A, B, C)]}")
 
 
 def finish(procs, tmp):
