@@ -109,6 +109,17 @@
     \c "wrong-password" and never becomes a node. The host keeps each
     joiner's token in \c clientTokens.
 
+    \section1 Replicated Objects
+
+    Objects that come and go - enemies, items, avatars - live in one table
+    on every node: \c spawn() creates one with a type, props and an owner,
+    only the owner's state for it counts, the host orders spawns, despawns
+    and owner changes, and a node that joins late gets every live object
+    with its last state and the session properties. An object whose owner
+    leaves despawns or passes to the host, as it was spawned.
+    \l ReplicatedObject binds an item's properties to an object, and
+    \l Replicas makes an item per object of a type.
+
     \section1 Troubleshooting
 
     \table
@@ -152,6 +163,9 @@
 
     \list
     \li \l Network - Main P2P networking component
+    \li \l StateInterpolator - Smooth remote state between snapshots
+    \li \l ReplicatedObject - Keep an item's properties the same on every node
+    \li \l Replicas - An item per replicated object of a type
     \li \l ClayHttpClient - HTTP client for REST APIs
     \endlist
 */

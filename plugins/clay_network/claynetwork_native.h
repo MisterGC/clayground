@@ -13,6 +13,7 @@
 #include <mutex>
 #include "link_conditioner.h"
 #include "statebatch.h"
+#include "replica.h"
 #include "sessionclock.h"
 
 namespace rtc {
@@ -73,6 +74,8 @@ class ClayNetwork : public QObject
     // every ms but notifies only when it is set, synced or reset
     Q_PROPERTY(double sessionTime READ sessionTime NOTIFY sessionClockChanged)
     Q_PROPERTY(bool sessionTimeSynced READ sessionTimeSynced NOTIFY sessionClockChanged)
+    // Host-owned session properties, the same on every node (#306)
+    Q_PROPERTY(QVariantMap sessionProperties READ sessionProperties NOTIFY sessionPropertiesChanged)
     // Test hook: a joiner that speaks another wire version (#323)
     Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
@@ -145,6 +148,7 @@ public:
     void setWireVersion(int version);
     double sessionTime() const;
     bool sessionTimeSynced() const;
+    QVariantMap sessionProperties() const;
 
 public slots:
     void createRoom();
@@ -169,6 +173,25 @@ public slots:
     // session ms; NaN before one arrived (#304)
     double transitMs(const QString &nodeId) const;
 
+    // Replicated objects (#306), see replica.h. A spawn returns the new
+    // object's id, empty when refused; owner empty means this node, and
+    // onOwnerLeft is "despawn" or "host".
+    QString spawnObject(const QString &type, const QVariantMap &props, const QString &owner,
+                        const QString &onOwnerLeft);
+    bool despawnObject(const QString &id);
+    bool setObjectOwner(const QString &id, const QString &owner);
+    // The owner's state of an object: queued with the keyed states, lossy
+    void sendObjectState(const QString &id, const QVariant &data);
+    // ... or now and reliably, for a state that must arrive - the last one
+    // of an object that came to rest
+    void settleObjectState(const QString &id, const QVariant &data);
+    bool setSessionProperty(const QString &name, const QVariant &value);
+    QVariantList objects() const;
+    // {id, type, owner, props, onOwnerLeft[, state]}, empty for no object
+    QVariantMap objectInfo(const QString &id) const;
+    // Test hook: the sequence entries kept for object states (#306)
+    int objectSequenceEntries() const;
+
 signals:
     void roomCreated(const QString &networkId);
     void playerJoined(const QString &nodeId);
@@ -190,6 +213,14 @@ signals:
     // takes no new joiners until it is back (acceptingJoins, #299)
     void signalingLost();
     void diagnosticMessage(const QString &phase, const QString &detail);
+    // Replicated objects (#306)
+    void objectSpawned(const QString &id, const QString &type, const QString &owner,
+                       const QVariantMap &props);
+    void objectDespawned(const QString &id, const QString &type);
+    void objectOwnerChanged(const QString &id, const QString &owner);
+    void objectStateReceived(const QString &id, const QVariantMap &data, double sentAt);
+    void sessionPropertyChanged(const QString &name, const QVariant &value);
+    void sessionPropertiesChanged();
 
     void networkIdChanged();
     void nodeIdChanged();
@@ -320,6 +351,7 @@ private:
     // leave() without the goodbye: everything back to Disconnected
     void tearDown();
     void setAcceptingJoins(bool accepting);
+    void setupReplicas();
     void scheduleSignalingRetry();
     void retrySignaling();
     QString generateNetworkCode() const;
@@ -386,6 +418,10 @@ private:
     clay::network::statebatch::Queue keyedOut_;
     clay::network::statebatch::Tracker keyedIn_;
     QTimer keyedFlush_;
+    // Replicated objects (#306): the table every node keeps, and the
+    // owner's object states waiting for the flush with the keyed ones
+    clay::network::replica::Table replicas_;
+    clay::network::statebatch::Queue objectsOut_;
 
     // The session clock (#304): the host's runs from createRoom, a joiner's
     // is synced from its pings to the host

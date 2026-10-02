@@ -239,6 +239,74 @@ Shared procedural content needs a shared seed: the host picks it and sends
 it with the start message; every client generates the identical world from
 it.
 
+## Replicated objects: spawn, owner, despawn
+
+Most of a game's networked things are objects that come and go - enemies,
+items, projectiles, avatars - and each needs the same bookkeeping: who may
+move it, a spawn that every node and every later joiner sees, a despawn
+that no late update undoes, and what happens when its owner leaves.
+`Network` keeps that table for you; the game only says what an object is.
+
+```qml
+// every node: an item per enemy, made and destroyed with the object
+Replicas {
+    network: gameNetwork
+    type: "enemy"
+    delegate: Enemy {
+        id: enemy
+        required property string objectId
+        required property int spawnIndex
+        ReplicatedObject {
+            network: gameNetwork; objectId: enemy.objectId
+            properties: ["x", "y", "mood"]; interpolate: true
+        }
+    }
+}
+
+// the host, when the level starts
+for (let i = 0; i < spawns.length; ++i)
+    gameNetwork.spawn("enemy", {spawnIndex: i})
+gameNetwork.setSessionProperty("seed", seed)
+```
+
+Give the `Network` an id other than `network`: inside a `ReplicatedObject`,
+`network: network` names the property itself and binds it to nothing.
+
+- **Owner.** An object belongs to the node that spawned it, or to the node
+  the host spawns it for (`spawn(type, props, {owner})`). Only the owner's
+  `ReplicatedObject` sends; every other node applies what arrives - and only
+  what the owner sent: a state from any other node is dropped. Hand an
+  object over with `setOwner(id, nodeId)` (the owner or the host may).
+- **Ids are the network's.** `spawn()` returns an id that is never used
+  again. Keep your own key in `props` - an enemy's spawn index, a player's
+  `clientToken` - and find the object through it (`objects("avatar")`,
+  then match `props.token`).
+- **The host orders everything.** Spawns, despawns and owner changes go
+  through the host, which checks who may and passes them on. A spawn
+  appears on its spawner at once and on the others a hop later; a spawn
+  the host refuses comes back to its spawner as `objectDespawned`.
+- **Despawn is final.** State that was under way when an object despawned
+  finds no object and is dropped; it cannot bring the object back.
+- **Late joiners see the world.** The host sends a node that joins every
+  live object with its owner and last state, then the session properties
+  (`setSessionProperty`, `sessionProperties`) - a seed or the level travel
+  this way instead of a start message a late joiner would miss.
+- **When the owner leaves**, each of its objects despawns or passes to the
+  host, as it was spawned: `{onOwnerLeft: "despawn"}` (default) for an
+  avatar, `"host"` for an item that should stay in the world.
+- **Resting objects stay right.** A `ReplicatedObject` sends while its
+  properties change and, once they rest for `settleMs`, sends the last
+  state once more over the reliable channel - a lost final update does not
+  leave anyone with a stale position.
+
+Properties may be numbers, strings, booleans or plain objects; with
+`interpolate` the numbers are blended and a string switches with the
+snapshot it came with, so an enemy's AI state changes in step with its
+position. Objects travel only between a joiner and its host - in the
+browser a joiner closes any other connection - and need the Star topology.
+Object states go out with the keyed states of the same frame, batched; 30
+objects at 20 Hz take two datagrams per frame.
+
 ## Diagnosing sync problems
 
 Drop a `NetworkMonitor` into your UI during development:
@@ -289,6 +357,7 @@ desktop and in the browser, so a test written against it covers both.
 - [ ] `reset()` on teleports and level changes
 - [ ] Host authoritative for global events; shared seed for procedural content
 - [ ] Remote avatars spawned per `nodes` entry, keyed by node id
+- [ ] Things that come and go spawned as replicated objects, with an `onOwnerLeft` that fits
 - [ ] `NetworkMonitor` visible in dev builds
 - [ ] Played once with `linkConditions` set to loss, latency and a blackout
 - [ ] Joiners end the session on the host's `errorOccurred`, and quit with `leave()`

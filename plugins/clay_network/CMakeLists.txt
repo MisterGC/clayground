@@ -17,6 +17,7 @@ set(COMMON_SOURCES
     sender.h
     handshake.h
     statebatch.h
+    replica.h
     sessionclock.h
     testhooks.h
 )
@@ -26,6 +27,8 @@ set(COMMON_QML
     ClayHttpClient.qml
     StateInterpolator.qml
     NetworkMonitor.qml
+    ReplicatedObject.qml
+    Replicas.qml
 )
 
 if(EMSCRIPTEN)

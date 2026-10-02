@@ -11,6 +11,7 @@
 #include <qqmlregistration.h>
 #include "link_conditioner.h"
 #include "statebatch.h"
+#include "replica.h"
 #include "sessionclock.h"
 
 /*!
@@ -65,6 +66,8 @@ class ClayNetwork : public QObject
     Q_PROPERTY(double sessionTime READ sessionTime NOTIFY sessionClockChanged)
     Q_PROPERTY(bool sessionTimeSynced READ sessionTimeSynced NOTIFY sessionClockChanged)
     // Test hook: a joiner that speaks another wire version (#323)
+    // Host-owned session properties, the same on every node (#306)
+    Q_PROPERTY(QVariantMap sessionProperties READ sessionProperties NOTIFY sessionPropertiesChanged)
     Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
 public:
@@ -136,6 +139,7 @@ public:
     void setWireVersion(int version);
     double sessionTime() const;
     bool sessionTimeSynced() const;
+    QVariantMap sessionProperties() const;
 
 public slots:
     void createRoom();
@@ -160,6 +164,19 @@ public slots:
     // session ms; NaN before one arrived (#304)
     double transitMs(const QString &nodeId) const;
 
+    // Replicated objects (#306), see replica.h and the native backend
+    QString spawnObject(const QString &type, const QVariantMap &props, const QString &owner,
+                        const QString &onOwnerLeft);
+    bool despawnObject(const QString &id);
+    bool setObjectOwner(const QString &id, const QString &owner);
+    void sendObjectState(const QString &id, const QVariant &data);
+    void settleObjectState(const QString &id, const QVariant &data);
+    bool setSessionProperty(const QString &name, const QVariant &value);
+    QVariantList objects() const;
+    QVariantMap objectInfo(const QString &id) const;
+    // Test hook: the sequence entries kept for object states (#306)
+    int objectSequenceEntries() const;
+
 signals:
     void roomCreated(const QString &networkId);
     void playerJoined(const QString &nodeId);
@@ -177,6 +194,14 @@ signals:
     // of handshake.h's codes, errorOccurred(message) follows
     void joinRefused(const QString &reason, const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
+    // Replicated objects (#306)
+    void objectSpawned(const QString &id, const QString &type, const QString &owner,
+                       const QVariantMap &props);
+    void objectDespawned(const QString &id, const QString &type);
+    void objectOwnerChanged(const QString &id, const QString &owner);
+    void objectStateReceived(const QString &id, const QVariantMap &data, double sentAt);
+    void sessionPropertyChanged(const QString &name, const QVariant &value);
+    void sessionPropertiesChanged();
 
     void networkIdChanged();
     void nodeIdChanged();
@@ -257,6 +282,9 @@ private:
     // leave() without the goodbye: everything back to Disconnected
     void tearDown(bool goodbye);
     void setAcceptingJoins(bool accepting);
+    void setupReplicas();
+    // Reliable, to one node
+    void sendJson(const QString &nodeId, const QJsonObject &msg);
     // The pings that sync a joiner's session clock right after the welcome
     void syncBurst();
     // performance.now(), what the session clock and the pings read
@@ -301,6 +329,10 @@ private:
     clay::network::statebatch::Queue keyedOut_;
     clay::network::statebatch::Tracker keyedIn_;
     QTimer keyedFlush_;
+    // Replicated objects (#306): the table every node keeps, and the
+    // owner's object states waiting for the flush with the keyed ones
+    clay::network::replica::Table replicas_;
+    clay::network::statebatch::Queue objectsOut_;
 
     // The session clock (#304): the host's runs from createRoom, a joiner's
     // is synced from its pings to the host

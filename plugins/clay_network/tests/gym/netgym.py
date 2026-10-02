@@ -27,6 +27,11 @@ and after they stopped, and measures what that costs the joiner: the
 updated() signals per second, the value objects made per frame, and the
 process's CPU time against the same joiner with none.
 
+The replicated objects scenario (#306) has the host run 30 enemies at
+20 Hz - a position and a mood string each - and a joiner its avatar; a node
+that joins late sees all of them as the others do, with the session
+properties, and its own avatar passes to the host when it leaves.
+
 The session clock scenario (#304) has the joiners join again behind
 100+-20 ms each way and compares every node's session time against the
 wall clock they share: instances on one machine have one wall clock, so
@@ -655,3 +660,94 @@ def scenario_thirty_interpolators(host, joiner, cpu=None, n=30, hz=20, window=5.
           idle.get("n") == n and idle.get("updates", -1) == 0,
           f"{idle.get('updates')} updated() in {fmt(idle.get('secs'))} s after the stream stopped")
     return base, live, idle
+
+
+def objects_of(inst):
+    return json.loads(inst.eval1("objectsReport()") or "{}")
+
+
+def agree(a, b, keys=("type", "owner", "x", "mood", "spawnIndex", "token")):
+    """The objects two reports show differently, by id."""
+    oa, ob = a.get("objects", {}), b.get("objects", {})
+    out = {}
+    for oid in set(oa) | set(ob):
+        da, db = oa.get(oid), ob.get(oid)
+        if da is None or db is None:
+            out[oid] = (da, db)
+            continue
+        diff = {k: (da.get(k), db.get(k)) for k in keys
+                if (abs(da.get(k) - db.get(k)) > 1e-6
+                    if isinstance(da.get(k), (int, float)) and isinstance(db.get(k), (int, float))
+                    else da.get(k) != db.get(k))}
+        if diff:
+            out[oid] = diff
+    return out
+
+
+def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
+    """Replicated objects (#306). The host spawns n enemies and moves them
+    at hz, each with a mood string, the joiner spawns its avatar; a node
+    that joins late sees every one of them where the others show it, with
+    owner and spawn props, and the session properties. The late node's own
+    avatar passes to the host when it leaves; at the end every object is
+    despawned and no node keeps a sequence entry for any of them."""
+    (jname, J), (lname, L) = joiner, late
+    label = f"objects, {n} host enemies at {hz} Hz"
+    host_id = host.eval1("netRef.nodeId")
+    host.eval([f"spawnEnemies({n})",
+               "netRef.setSessionProperty('seed', 1234)",
+               "netRef.setSessionProperty('level', 'crypt')",
+               "objectsMoving = true"])
+    J.eval(["spawnAvatar()", "objectsMoving = true"])
+    shown = wait_for(lambda: len(objects_of(J).get("objects", {})) == n + 1
+                     and len(objects_of(host).get("objects", {})) == n + 1, 10)
+    check(f"{label}: host and {jname} show the enemies and the avatar", shown,
+          f"host {len(objects_of(host).get('objects', {}))}, "
+          f"{jname} {len(objects_of(J).get('objects', {}))} of {n + 1}")
+    time.sleep(window)
+    st = json.loads(J.eval1("JSON.stringify(netRef.syncStats)") or "{}").get(host_id, {})
+    check(f"{label}: {jname} gets them in batches of <= 1200 B",
+          st.get("batches", 0) > 0 and st.get("maxBatchBytes", 1e9) <= 1200,
+          f"{st.get('batches')} datagrams, largest {st.get('maxBatchBytes')} B")
+    host.eval(["objectsMoving = false"])
+    J.eval(["objectsMoving = false"])
+    # The settled states: interpolation delay, extrapolation, settleMs
+    time.sleep(1.5)
+    diff = agree(objects_of(host), objects_of(J))
+    check(f"{label}: at rest, {jname} shows every position and mood the host does",
+          shown and not diff, f"{len(diff)} differ: {dict(list(diff.items())[:3])}")
+
+    L.eval([f"joinNet('{code}')"])
+    joined = wait_for(lambda: L.eval1("connected") is True, 45)
+    seen = joined and wait_for(lambda: len(objects_of(L).get("objects", {})) == n + 1, 15)
+    time.sleep(0.5)
+    rep_l = objects_of(L)
+    diff = agree(objects_of(host), rep_l)
+    check(f"{label}: {lname}, joining late, sees every object as the host does",
+          seen and not diff,
+          f"{len(rep_l.get('objects', {}))} of {n + 1}; {len(diff)} differ: "
+          f"{dict(list(diff.items())[:3])}")
+    session = rep_l.get("session", {})
+    check(f"{label}: {lname} gets the session properties",
+          session.get("seed") == 1234 and session.get("level") == "crypt", str(session))
+
+    avatar = L.eval1("spawnAvatar()")
+    on_host = wait_for(lambda: avatar in objects_of(host).get("objects", {}), 10)
+    L.eval(["netRef.leave()"])
+    passed = on_host and wait_for(
+        lambda: all(objects_of(i).get("objects", {}).get(avatar, {}).get("owner") == host_id
+                    for i in (host, J)), 10)
+    check(f"{label}: {lname}'s avatar passes to the host when it leaves", passed,
+          f"owner on host={objects_of(host).get('objects', {}).get(avatar, {}).get('owner')} "
+          f"on {jname}={objects_of(J).get('objects', {}).get(avatar, {}).get('owner')}")
+    check(f"{label}: {lname} shows nothing once out of the network",
+          wait_for(lambda: not objects_of(L).get("objects"), 5),
+          f"{len(objects_of(L).get('objects', {}))} left")
+
+    J.eval(["despawnAll('gymAvatar')"])
+    host.eval(["despawnAll('')"])
+    cleared = wait_for(lambda: not objects_of(host).get("objects")
+                       and not objects_of(J).get("objects"), 10)
+    entries = {name: objects_of(i).get("seqEntries") for name, i in (("host", host), (jname, J))}
+    check(f"{label}: all despawned, no node keeps a sequence entry for them",
+          cleared and all(e == 0 for e in entries.values()), str(entries))

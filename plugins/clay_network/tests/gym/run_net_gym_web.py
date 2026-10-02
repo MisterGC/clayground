@@ -15,7 +15,11 @@ and the joiner is refused for a wrong one and for another wire version
 before it gets in (#323). Two more pages join for a while so that four
 nodes stream 100 keyed objects each at 30 Hz, and leave again (#302). The
 joiner and joinB join again behind 100+-20 ms each way, and every page's
-session time is compared with the others' (#304).
+session time is compared with the others' (#304). The host runs 30
+replicated enemies at 20 Hz and the joiner its avatar; joinB joins late and
+sees them as the host does. joinC, out of the network, opens a PeerJS
+connection of its own to the joiner, which closes it: in Star only the host
+connects to a joiner (#306).
 
 Usage:
     python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
@@ -40,7 +44,7 @@ import netgym
 from netgym import (check, wait_for, check_tracking, scenario_loss, scenario_latency,
                     scenario_blackout, scenario_host_leaves, scenario_short_outage,
                     scenario_signaling_drop, scenario_host_killed, scenario_handshake,
-                    scenario_keyed, scenario_session_clock)
+                    scenario_keyed, scenario_session_clock, scenario_objects)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "webdojo", "tests"))
@@ -204,7 +208,12 @@ def main():
     return 0 if ok else 1
 
 
+# Every page's console, by role, for checks on what a page logged
+CONSOLE = collections.defaultdict(list)
+
+
 def on_console(role, log, msg):
+    CONSOLE[role].append(msg.text)
     log.write(msg.text + "\n")
     log.flush()
     if "GYM:" in msg.text or "QML Error" in msg.text or "rror" in msg.type:
@@ -261,6 +270,10 @@ def run(H, J, B, C, signaling_url, timeout):
                    and J.eval1("connected") is True, 15),
           f"host nodes={H.eval1('nodeList.length')} joiner connected={J.eval1('connected')}")
 
+    # Replicated objects, joinB joins late and leaves again (#306)
+    scenario_objects(H, ("joiner", J), ("joinB", B), code)
+    scenario_stray_connection(J, C, signaling_url)
+
     scenario_loss(H, J, host_id)
     scenario_latency(H, J, host_id)
     scenario_blackout(H, J, host_id)
@@ -298,6 +311,48 @@ def keyed_four_nodes(H, J, B, C, code):
     check("keyed: joinB and joinC leave, two nodes again",
           wait_for(lambda: all(i.eval1("nodeList.length") == 1 for i in (H, J)), 15),
           f"nodes per node: {[i.eval1('nodeList.length') for i in (H, J)]}")
+
+
+def scenario_stray_connection(J, C, signaling_url):
+    """joinC, out of the network, opens a PeerJS connection of its own to
+    the joiner - what a stranger could do with a node's id (#306). The
+    joiner closes it: in Star only the host connects to a joiner, so
+    nothing it trusts comes over a link without a handshake. Its message
+    never arrives, and the joiner stays in the network."""
+    joiner_id = J.eval1("netRef.nodeId")
+    stray_id = "stray" + uuid.uuid4().hex[:10]
+    C.page.evaluate("""([url, strayId, target]) => {
+        const u = new URL(url);
+        window.__stray = {opened: false, closed: false};
+        const peer = new Peer(strayId, {host: u.hostname, path: u.pathname, key: 'peerjs',
+            port: parseInt(u.port) || 443, secure: u.protocol === 'wss:',
+            config: {iceServers: []}});
+        window.__strayPeer = peer;
+        peer.on('open', () => {
+            const conn = peer.connect(target, {reliable: true, serialization: 'json'});
+            conn.on('open', () => {
+                window.__stray.opened = true;
+                conn.send({t: 'm', d: {probe: 'stray'}});
+            });
+            conn.on('close', () => { window.__stray.closed = true; });
+        });
+    }""", [signaling_url, stray_id, joiner_id])
+    # The sync Playwright API hands over console events only while it is
+    # called, so the wait goes through the page instead of sleeping
+    def logged():
+        J.page.wait_for_timeout(200)
+        return any("Closed an incoming connection from " + stray_id in line
+                   for line in CONSOLE["joiner"])
+    closed = wait_for(logged, 20, 0.05)
+    time.sleep(2.0)
+    stray = C.page.evaluate("() => window.__stray")
+    msgs = J.eval1("msgsWithProbe('stray')")
+    check("stray connection: the joiner closes an incoming connection that is not the host's",
+          closed, f"joiner logged it: {closed}, stray side {stray}")
+    check("stray connection: nothing it sends arrives, the joiner stays in the network",
+          msgs == "[]" and J.eval1("connected") is True,
+          f"stray messages on the joiner: {msgs}, connected={J.eval1('connected')}")
+    C.page.evaluate("() => { if (window.__strayPeer) window.__strayPeer.destroy(); }")
 
 
 def crash_page(page):

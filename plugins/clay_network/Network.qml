@@ -494,6 +494,16 @@ Item {
     */
     readonly property bool sessionTimeSynced: _backend ? _backend.sessionTimeSynced : false
 
+    /*!
+        \qmlproperty var Network::sessionProperties
+        \brief The session's properties, set by the host with
+               setSessionProperty(), the same on every node.
+
+        A map of name to value - a seed, the level being played. A node
+        that joins late gets them with its welcome. Empty outside a network.
+    */
+    readonly property var sessionProperties: _backend ? _backend.sessionProperties : ({})
+
     // ========== Signals ==========
 
     /*!
@@ -604,6 +614,48 @@ Item {
         \brief Emitted when a connection attempt exceeds connectionTimeout.
     */
     signal connectionTimedOut()
+
+    /*!
+        \qmlsignal Network::objectSpawned(string id, string type, string owner, var props)
+        \brief A replicated object came to life on this node.
+
+        Emitted on every node for every spawn() - on the spawner at once,
+        elsewhere when the host passes it on - and on a node that joins late
+        for each object already there. \a props are the ones given to
+        spawn(); the object's state comes with \l objectStateReceived.
+        \sa Replicas
+    */
+    signal objectSpawned(string id, string type, string owner, var props)
+
+    /*!
+        \qmlsignal Network::objectDespawned(string id, string type)
+        \brief A replicated object is gone: despawned, its owner left, or
+               the network ended.
+    */
+    signal objectDespawned(string id, string type)
+
+    /*!
+        \qmlsignal Network::objectOwnerChanged(string id, string owner)
+        \brief The object \a id belongs to \a owner now.
+    */
+    signal objectOwnerChanged(string id, string owner)
+
+    /*!
+        \qmlsignal Network::objectStateReceived(string id, var data, real sentAt)
+        \brief The owner of object \a id sent its state.
+
+        Only its owner's state arrives here; a state from any other node,
+        or one that arrives after the object's despawn, is dropped.
+        \a sentAt is the \l sessionTime the owner sent it at.
+        A \l ReplicatedObject applies it on its own.
+    */
+    signal objectStateReceived(string id, var data, real sentAt)
+
+    /*!
+        \qmlsignal Network::sessionPropertyChanged(string name, var value)
+        \brief The host set the session property \a name to \a value.
+    */
+    signal sessionPropertyChanged(string name, var value)
 
     // ========== Methods ==========
 
@@ -768,11 +820,151 @@ Item {
         return _backend ? _backend.transitMs(nodeId) : NaN
     }
 
+    // ========== Replicated objects (#306) ==========
+
+    /*!
+        \qmlmethod string Network::spawn(string type, var props, var options)
+        \brief Create a replicated object; returns its id, or an empty
+               string when it could not be spawned.
+
+        The object exists on every node, and on every node that joins
+        later, until it is despawned. \a type and \a props say what it is,
+        for the game to make something of in \l objectSpawned (or a
+        \l Replicas); the network gives it an id of its own,
+        \c{"<node id>:<n>"}, never used again. A game that keeps its own
+        key - a player's \l clientToken, an enemy's spawn index - puts it
+        in \a props.
+
+        \a options:
+        \list
+        \li \c owner - the node that owns it, this one by default. Only
+            the host spawns for another node.
+        \li \c onOwnerLeft - \c "despawn" (default): the object goes when
+            its owner leaves; \c "host": it passes to the host.
+        \endlist
+
+        Only the owner's state for an object counts. The spawner has the
+        object at once; on the other nodes it arrives through the host. A
+        spawn the host does not take comes back to the spawner as
+        objectDespawned(). Needs the Star topology.
+    */
+    function spawn(type, props, options) {
+        if (!_backend || !connected)
+            return ""
+        const o = options || {}
+        return _backend.spawnObject(String(type), props || {}, o.owner ? String(o.owner) : "",
+                                    o.onOwnerLeft ? String(o.onOwnerLeft) : "despawn")
+    }
+
+    /*!
+        \qmlmethod bool Network::despawn(string id)
+        \brief Remove object \a id on every node. False when this node may
+               not: only its owner and the host despawn an object.
+
+        On the host it takes effect at once; on a joiner when the host
+        passes it on.
+    */
+    function despawn(id) {
+        return _backend ? _backend.despawnObject(String(id)) : false
+    }
+
+    /*!
+        \qmlmethod bool Network::setOwner(string id, string nodeId)
+        \brief Hand object \a id to \a nodeId. False when this node may not:
+               only its owner and the host hand an object over.
+
+        On the host it takes effect at once; on a joiner when the host
+        passes it on - objectOwnerChanged() tells.
+    */
+    function setOwner(id, nodeId) {
+        return _backend ? _backend.setObjectOwner(String(id), String(nodeId)) : false
+    }
+
+    /*!
+        \qmlmethod string Network::objectOwner(string id)
+        \brief The owner of object \a id, or an empty string for no object.
+    */
+    function objectOwner(id) {
+        const o = objectInfo(id)
+        return o.owner !== undefined ? o.owner : ""
+    }
+
+    /*!
+        \qmlmethod var Network::objectInfo(string id)
+        \brief Object \a id as \c{{id, type, owner, props, onOwnerLeft, state}},
+               or an empty object for none. \c state is its newest state,
+               missing while there is none.
+    */
+    function objectInfo(id) {
+        return _backend ? _backend.objectInfo(String(id)) : ({})
+    }
+
+    /*!
+        \qmlmethod list Network::objects(string type)
+        \brief Every live object, as objectInfo() gives it; with \a type,
+               only those of that type.
+    */
+    function objects(type) {
+        if (!_backend)
+            return []
+        const all = _backend.objects()
+        return type ? all.filter(o => o.type === type) : all
+    }
+
+    /*!
+        \qmlmethod void Network::sendObjectState(string id, var data)
+        \brief Send the state of object \a id, which this node owns.
+
+        Lossy and batched, like broadcastState() with a key. A
+        \l ReplicatedObject does this for you; settleObjectState() sends
+        a state that must arrive.
+    */
+    function sendObjectState(id, data) {
+        if (_backend && connected)
+            _backend.sendObjectState(String(id), data)
+    }
+
+    /*!
+        \qmlmethod void Network::settleObjectState(string id, var data)
+        \brief Send the state of object \a id reliably, newer than every
+               state sent before - for the last one of an object that came
+               to rest, which a lost update must not leave stale.
+    */
+    function settleObjectState(id, data) {
+        if (_backend && connected)
+            _backend.settleObjectState(String(id), data)
+    }
+
+    /*!
+        \qmlmethod bool Network::setSessionProperty(string name, var value)
+        \brief Host only: set a session property for every node, and for
+               every node that joins later. False on a joiner.
+        \sa sessionProperties
+    */
+    function setSessionProperty(name, value) {
+        return _backend && connected ? _backend.setSessionProperty(String(name), value) : false
+    }
+
+    // Not API: the ReplicatedObject of each object id on this node, so a
+    // state reaches its object without every object hearing every state
+    property var _replicas: ({})
+    function _attach(id, replica) { _replicas[id] = replica }
+    function _detach(id, replica) {
+        if (_replicas[id] === replica)
+            delete _replicas[id]
+    }
+
     // Test hook, not API: sends json to nodeId exactly as given, so a test
     // can put a forged "from" on the wire (net gym, #298)
     function _sendRaw(nodeId, json) {
         if (_backend && connected && nodeId)
             _backend.sendRaw(nodeId, json)
+    }
+
+    // Test hook, not API: the sequence entries this node keeps for object
+    // states, which despawns free again (net gym, #306)
+    function _objectSequenceEntries() {
+        return _backend ? _backend.objectSequenceEntries() : 0
     }
 
     // Test hook, not API: makes this node speak another wire version, so a
@@ -825,5 +1017,25 @@ Item {
         onJoinRefused: (reason, message) => root.joinRefused(reason, message)
         onSignalingLost: () => root.signalingLost()
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
+        onObjectSpawned: (id, type, owner, props) => root.objectSpawned(id, type, owner, props)
+        onObjectDespawned: (id, type) => {
+            const r = root._replicas[id]
+            if (r)
+                r._despawned()
+            root.objectDespawned(id, type)
+        }
+        onObjectOwnerChanged: (id, owner) => {
+            const r = root._replicas[id]
+            if (r)
+                r._setOwner(owner)
+            root.objectOwnerChanged(id, owner)
+        }
+        onObjectStateReceived: (id, data, sentAt) => {
+            const r = root._replicas[id]
+            if (r)
+                r._receive(data, sentAt)
+            root.objectStateReceived(id, data, sentAt)
+        }
+        onSessionPropertyChanged: (name, value) => root.sessionPropertyChanged(name, value)
     }
 }

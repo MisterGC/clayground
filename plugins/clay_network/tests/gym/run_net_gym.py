@@ -18,7 +18,10 @@ before it gets in (#323). joinD joins for a while so that four nodes stream
 join again behind 100+-20 ms each way, and every node's session time is
 compared with the others' (#304). joinB shows 30 of the host's keyed
 objects through one interpolator each, and the gym measures what that
-costs while they stream and once they stopped (#305).
+costs while they stream and once they stopped (#305). The host runs 30
+replicated enemies at 20 Hz and joinB its avatar; joinD joins late and sees
+them as the host does, and its own avatar passes to the host when it
+leaves (#306).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
 instead (needs wsproto); the LAN code checks are Local-only and skipped,
@@ -44,7 +47,7 @@ from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
                     scenario_host_killed, scenario_handshake, check_client_token,
                     scenario_keyed, scenario_session_clock, scenario_thirty_interpolators,
-                    cpu_seconds)
+                    scenario_objects, cpu_seconds)
 
 # Every node hosts and joins with it (#323)
 PASSWORD = "stone"
@@ -377,6 +380,9 @@ def run_after_join(A, B, C, D, insp, host_id_on_b, cloud, code, procs):
 
     # -- 5c: thirty interpolators on joinB, streaming and stopped (#305) --
     scenario_thirty_interpolators(A, B, cpu=lambda: cpu_seconds(procs["joinB"].pid))
+
+    # -- 5d: replicated objects, joinD joins late and leaves (#306) -------
+    scenario_objects(A, ("joinB", B), ("joinD", D), code)
 
     # -- 6: interpolation tracks the sender ----------------------------
     # Measured on joinB alone, every frame: what it shows against the

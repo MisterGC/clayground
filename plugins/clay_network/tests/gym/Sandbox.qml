@@ -16,7 +16,10 @@
 // the wall clock all instances share, so a driver can tell how far apart
 // their session times are, and every message carries its send time (#304).
 // A node can show another's keyed objects through thirty interpolators at
-// once and count what they do per frame (#305).
+// once and count what they do per frame (#305). Replicated objects (#306):
+// the host runs thirty enemies at 20 Hz - a position and a mood string - a
+// joiner runs its avatar, the host sets session properties, and every node
+// reports what it shows of them.
 
 import QtQuick
 import Clayground.Network
@@ -167,6 +170,74 @@ Item {
             }
         }
     }
+
+    // Replicated objects (#306): enemies the host spawns and moves, at
+    // 20 Hz with a mood that changes every second; an avatar a joiner
+    // spawns and moves, which passes to the host when the joiner leaves.
+    // Both are moved on the wall clock, so their owners agree on where they
+    // are without asking each other.
+    property bool objectsMoving: false
+    function enemyX(i, t) { return gym.senderX(t) + i }
+    function enemyMood(i, t) { return (Math.floor(t / 1000) + i) % 3 === 0 ? "hunting" : "idle" }
+    function spawnEnemies(n) {
+        for (let i = 0; i < n; ++i)
+            net.spawn("gymEnemy", {spawnIndex: i}, {onOwnerLeft: "despawn"})
+    }
+    function spawnAvatar() {
+        return net.spawn("gymAvatar", {token: net.clientToken}, {onOwnerLeft: "host"})
+    }
+    function despawnAll(type) {
+        for (const o of net.objects(type))
+            net.despawn(o.id)
+    }
+    // What this node shows of every object, by id
+    function objectsReport() {
+        let out = {}
+        for (const r of [enemies, avatars])
+            for (const id of r.ids()) {
+                const it = r.itemFor(id)
+                out[id] = {type: r.type, owner: it.rep.owner, x: it.x, mood: it.mood,
+                           spawnIndex: it.spawnIndex, token: it.token}
+            }
+        return JSON.stringify({objects: out, session: net.sessionProperties,
+                               seqEntries: net._objectSequenceEntries()})
+    }
+    Timer {
+        interval: 50; repeat: true
+        running: gym.objectsMoving
+        onTriggered: {
+            const t = Date.now()
+            for (const id of enemies.ids()) {
+                const e = enemies.itemFor(id)
+                if (e.rep.isOwner) { e.x = gym.enemyX(e.spawnIndex, t); e.mood = gym.enemyMood(e.spawnIndex, t) }
+            }
+            for (const id of avatars.ids()) {
+                const a = avatars.itemFor(id)
+                if (a.rep.isOwner) { a.x = gym.senderX(t); a.mood = "walking" }
+            }
+        }
+    }
+    Component {
+        id: replicaDelegate
+        Item {
+            id: obj
+            required property string objectId
+            property int spawnIndex: -1
+            property string token: ""
+            property string mood: ""
+            property alias rep: rep
+            ReplicatedObject {
+                id: rep
+                network: net
+                objectId: obj.objectId
+                properties: ["x", "mood"]
+                interpolate: true
+                settleMs: 150
+            }
+        }
+    }
+    Replicas { id: enemies; network: net; type: "gymEnemy"; delegate: replicaDelegate }
+    Replicas { id: avatars; network: net; type: "gymAvatar"; delegate: replicaDelegate }
 
     // Interpolated view on trackedSender's stream (-1 until data flows)
     property string trackedSender: ""

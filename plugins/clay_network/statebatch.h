@@ -22,7 +22,10 @@
 //
 //   {"t":"b","q":<seq>,"ts":<session ms>,"e":[{"k":<key>,"d":{...}}, ...]}
 //
-// "ts" is the session time (#304) the batch was sent at, in whole ms.
+// "ts" is the session time (#304) the batch was sent at, in whole ms. An
+// entry of a replicated object (#306) names it with "o" instead of "k":
+// {"o":<object id>,"d":{...}} - a receiver takes it only from the object's
+// owner (replica.h), and keys and object ids never meet.
 //
 // Every entry of a batch takes the batch's q; a key is in a batch at most
 // once (a later update for it in the same frame replaces the earlier), and
@@ -41,11 +44,14 @@ constexpr int kHeaderBytes = int(sizeof("{\"t\":\"b\",\"q\":4294967295,\"ts\":99
 
 using Entry = QPair<QString, QVariantMap>;
 
-// The entries packed into batches of at most `budget` bytes, in order. A
-// single entry too large for a batch of its own still goes, alone. Each
-// batch takes the next ++seq.
-inline QList<QByteArray> pack(const QList<Entry> &entries, quint32 &seq, double sentAtMs,
-                              int budget = kDatagramBytes - kRelayHeadroom)
+// The keyed entries, then the object entries (#306), packed into batches
+// of at most `budget` bytes, in order. A single entry too large for a batch
+// of its own still goes, alone. Each batch takes the next ++seq; when
+// objectSeqs is given, it gets the seq each object entry went out with.
+inline QList<QByteArray> pack(const QList<Entry> &entries, const QList<Entry> &objects,
+                              quint32 &seq, double sentAtMs,
+                              int budget = kDatagramBytes - kRelayHeadroom,
+                              QList<quint32> *objectSeqs = nullptr)
 {
     QList<QByteArray> batches;
     QList<QByteArray> body;
@@ -60,18 +66,31 @@ inline QList<QByteArray> pack(const QList<Entry> &entries, quint32 &seq, double 
         body.clear();
         size = kHeaderBytes;
     };
-    for (const auto &e : entries) {
+    auto add = [&](const Entry &e, const char *field) {
         QJsonObject o;
-        o["k"] = e.first;
+        o[QLatin1String(field)] = e.first;
         o["d"] = QJsonObject::fromVariantMap(e.second);
         const QByteArray json = QJsonDocument(o).toJson(QJsonDocument::Compact);
         if (!body.isEmpty() && size + 1 + json.size() > budget)
             close();
         size += json.size() + (body.isEmpty() ? 0 : 1);
         body.append(json);
+    };
+    for (const auto &e : entries)
+        add(e, "k");
+    for (const auto &e : objects) {
+        add(e, "o");
+        if (objectSeqs)
+            objectSeqs->append(seq + 1);  // the batch it is in closes with ++seq
     }
     close();
     return batches;
+}
+
+inline QList<QByteArray> pack(const QList<Entry> &entries, quint32 &seq, double sentAtMs,
+                              int budget = kDatagramBytes - kRelayHeadroom)
+{
+    return pack(entries, {}, seq, sentAtMs, budget);
 }
 
 // Keyed states queued in a frame: one entry per key, the newest data, in
@@ -156,6 +175,31 @@ public:
 
     bool contains(const QString &sender) const { return senders_.contains(sender); }
     void forget(const QString &sender) { senders_.remove(sender); }
+    // Drops one key of sender - a despawned object's (#306), so a session
+    // that spawns and despawns all the time does not grow the table
+    void forgetKey(const QString &sender, const QString &key)
+    {
+        auto s = senders_.find(sender);
+        if (s != senders_.end())
+            s->keys.remove(key);
+    }
+    // The newest accepted seq of sender's key, 0 if none
+    quint32 seq(const QString &sender, const QString &key) const
+    {
+        auto s = senders_.constFind(sender);
+        if (s == senders_.constEnd())
+            return 0;
+        auto k = s->keys.constFind(key);
+        return k == s->keys.constEnd() ? 0 : k->seq;
+    }
+    // Every sender's keys, counted together
+    int keyCount() const
+    {
+        int n = 0;
+        for (const auto &s : senders_)
+            n += s.keys.size();
+        return n;
+    }
     void clear() { senders_.clear(); }
 
     // Adds sender's keyed figures to its syncStats entry: recv and dropped

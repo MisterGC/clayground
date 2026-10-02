@@ -70,6 +70,43 @@ ClayNetwork::ClayNetwork(QObject *parent)
     syncBurst_.setInterval(clay::network::sessionclock::kBurstIntervalMs);
     syncBurst_.setTimerType(Qt::PreciseTimer);
     QObject::connect(&syncBurst_, &QTimer::timeout, this, &ClayNetwork::syncBurst);
+    setupReplicas();
+}
+
+void ClayNetwork::setupReplicas()
+{
+    namespace rp = clay::network::replica;
+    rp::Io io;
+    io.sendTo = [this](const QString &nodeId, const QJsonObject &op) {
+        if (!peers_.contains(nodeId) || !peers_[nodeId].admitted)
+            return;
+        QJsonObject out = op;
+        CLAY_NETWORK_OBJECT_OP_HOOK(out);
+        sendJson(nodeId, out);
+    };
+    io.broadcast = [this](const QJsonObject &op, const QString &except) {
+        const QString json = QString::fromUtf8(QJsonDocument(op).toJson(QJsonDocument::Compact));
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+            if (it.key() != except && it->admitted)
+                sendToPeer(it.key(), json);
+    };
+    io.isNode = [this](const QString &nodeId) { return nodes_.contains(nodeId); };
+    io.diag = [this](const QString &detail) { emitDiag("objects", detail); };
+    io.spawned = [this](const rp::Object &o) {
+        emit objectSpawned(o.id, o.type, o.owner, o.props);
+    };
+    io.despawned = [this](const rp::Object &o) { emit objectDespawned(o.id, o.type); };
+    io.ownerChanged = [this](const QString &id, const QString &owner) {
+        emit objectOwnerChanged(id, owner);
+    };
+    io.state = [this](const QString &id, const QVariantMap &data, double sentAt) {
+        emit objectStateReceived(id, data, sentAt);
+    };
+    io.sessionProperty = [this](const QString &name, const QVariant &value) {
+        emit sessionPropertyChanged(name, value);
+        emit sessionPropertiesChanged();
+    };
+    replicas_.setIo(io);
 }
 
 ClayNetwork::~ClayNetwork()
@@ -257,6 +294,7 @@ void ClayNetwork::setWireVersion(int version) {
 }
 
 double ClayNetwork::localMs() const { return clock_.nsecsElapsed() / 1e6; }
+QVariantMap ClayNetwork::sessionProperties() const { return replicas_.sessionProperties(); }
 double ClayNetwork::sessionTime() const { return session_.time(localMs()); }
 bool ClayNetwork::sessionTimeSynced() const { return session_.synced(); }
 
@@ -501,6 +539,8 @@ void ClayNetwork::tearDown()
     transit_.clear();
     syncBurst_.stop();
     syncBurstLeft_ = 0;
+    objectsOut_.clear();
+    const bool hadSession = !replicas_.sessionProperties().isEmpty();
 
     emit networkIdChanged();
     emit nodeIdChanged();
@@ -516,6 +556,10 @@ void ClayNetwork::tearDown()
     emit peerStatsChanged();
     emit clientTokensChanged();
     emit sessionClockChanged();
+    // Without a network no object lives: each despawns, last of all (#306)
+    replicas_.reset();
+    if (hadSession)
+        emit sessionPropertiesChanged();
 }
 
 void ClayNetwork::broadcast(const QVariant &data)
@@ -560,12 +604,25 @@ void ClayNetwork::broadcastKeyedState(const QVariant &data, const QString &key)
 void ClayNetwork::flushState()
 {
     keyedFlush_.stop();
-    if (keyedOut_.isEmpty())
+    if (keyedOut_.isEmpty() && objectsOut_.isEmpty())
         return;
     // Keyed batches count on the same sequence as unkeyed states: a
     // receiver compares them per key, so the gaps do no harm
+    const double now = sessionTime();
+    QList<clay::network::statebatch::Entry> objects;
+    for (const auto &e : objectsOut_.take()) {
+        const auto *o = replicas_.find(e.first);
+        if (o && o->owner == nodeId_)
+            objects.append(e);
+    }
+    QList<quint32> objectSeqs;
     const auto batches = clay::network::statebatch::pack(
-        keyedOut_.take(), stateSeqOut_, sessionTime());
+        keyedOut_.take(), objects, stateSeqOut_, now,
+        clay::network::statebatch::kDatagramBytes - clay::network::statebatch::kRelayHeadroom,
+        &objectSeqs);
+    // What the owner sent last is what the host serves late joiners
+    for (qsizetype i = 0; i < objects.size(); ++i)
+        replicas_.sending(objects[i].first, objects[i].second, objectSeqs[i], now);
     for (const QByteArray &batch : batches) {
         const QString json = QString::fromUtf8(batch);
         for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
@@ -593,6 +650,85 @@ void ClayNetwork::sendTo(const QString &nodeId, const QVariant &data)
 void ClayNetwork::sendRaw(const QString &nodeId, const QString &json)
 {
     sendToPeer(nodeId, json);
+}
+
+QString ClayNetwork::spawnObject(const QString &type, const QVariantMap &props,
+                                 const QString &owner, const QString &onOwnerLeft)
+{
+    if (!connected_)
+        return {};
+    if (topology_ != Star) {
+        emit errorOccurred("Replicated objects need the Star topology");
+        return {};
+    }
+    return replicas_.spawn(type, props, owner,
+                           clay::network::replica::ownerLeftFrom(onOwnerLeft));
+}
+
+bool ClayNetwork::despawnObject(const QString &id)
+{
+    return replicas_.despawn(id);
+}
+
+bool ClayNetwork::setObjectOwner(const QString &id, const QString &owner)
+{
+    return replicas_.setOwner(id, owner);
+}
+
+void ClayNetwork::sendObjectState(const QString &id, const QVariant &data)
+{
+    const auto *o = replicas_.find(id);
+    if (!o || o->owner != nodeId_)
+        return;
+    objectsOut_.put(id, data.toMap());
+    if (!keyedFlush_.isActive())
+        keyedFlush_.start();
+}
+
+void ClayNetwork::settleObjectState(const QString &id, const QVariant &data)
+{
+    // Queued lossy states of it go first, so the settled one is the newest
+    flushState();
+    const QVariantMap map = data.toMap();
+    const quint32 seq = ++stateSeqOut_;
+    const double now = sessionTime();
+    if (!replicas_.sending(id, map, seq, now))
+        return;
+    const QJsonObject op = clay::network::replica::stateOp(id, map, seq, now);
+    if (isHost_) {
+        QJsonObject relayed = op;
+        relayed["by"] = nodeId_;
+        const QString json = QString::fromUtf8(QJsonDocument(relayed).toJson(QJsonDocument::Compact));
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+            if (it->admitted)
+                sendToPeer(it.key(), json);
+    } else if (peers_.contains(hostId_) && peers_[hostId_].admitted) {
+        sendJson(hostId_, op);
+    }
+}
+
+bool ClayNetwork::setSessionProperty(const QString &name, const QVariant &value)
+{
+    return replicas_.setSessionProperty(name, value);
+}
+
+QVariantList ClayNetwork::objects() const
+{
+    QVariantList list;
+    for (const auto &o : replicas_.objects())
+        list.append(o.toMap());
+    return list;
+}
+
+QVariantMap ClayNetwork::objectInfo(const QString &id) const
+{
+    const auto *o = replicas_.find(id);
+    return o ? o->toMap() : QVariantMap();
+}
+
+int ClayNetwork::objectSequenceEntries() const
+{
+    return replicas_.trackedKeys();
 }
 
 void ClayNetwork::onSignalingConnected(const QString &peerId)
@@ -629,6 +765,7 @@ void ClayNetwork::onSignalingConnected(const QString &peerId)
         emit phaseTimingChanged();
         emit connectedChanged();
         emit statusChanged();
+        replicas_.start(nodeId_, hostId_, true);
         emit roomCreated(networkId_);
         qDebug() << "ClayNetwork: Hosting network" << networkId_;
     } else {
@@ -1168,6 +1305,13 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
         return;
     }
 
+    // An object operation (#306): the table judges where it came from and
+    // who sent it, and the host sends it on itself - never relayed as is
+    if (type == "o") {
+        replicas_.receiveOp(fromId, obj);
+        return;
+    }
+
     QJsonObject dataObj = obj["d"].toObject();
     QVariant data = dataObj.toVariantMap();
 
@@ -1204,21 +1348,45 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
     // key, so one that overtook another of a different key stays
     struct Keyed { QString key; QVariant data; };
     QList<Keyed> keyed;
+    // Object entries (#306) the table took, and all there were
+    int objectsTaken = 0;
+    QJsonArray objectEntries;
     if (type == "b") {
         const qint64 now = clock_.elapsed();
         const auto seq = static_cast<quint32>(obj["q"].toDouble());
+        const double sentAt = obj.contains("ts") ? obj["ts"].toDouble() : -1.0;
         keyedIn_.batch(actualFromId, qint64(message.size()));
         for (const auto &v : obj["e"].toArray()) {
             const QJsonObject e = v.toObject();
+            if (e.contains("o")) {
+                // Only its owner's, over a link that passed the handshake
+                objectEntries.append(e);
+                if (replicas_.receiveState(fromId, actualFromId, e["o"].toString(), seq,
+                                           e["d"].toObject().toVariantMap(), sentAt, now))
+                    objectsTaken++;
+                continue;
+            }
             const QString key = e["k"].toString();
             if (keyedIn_.accept(actualFromId, key, seq, now))
                 keyed.append({key, e["d"].toObject().toVariantMap()});
         }
         if (peers_.contains(fromId))
             peers_[fromId].stateRecv++;
-        if (keyed.isEmpty())
+        if (keyed.isEmpty() && objectsTaken == 0)
             return;
         stateLastMs_[actualFromId] = now;
+    }
+
+    // A host that relays nothing still relays objects: every node sees an
+    // object, whoever owns it (#306)
+    if (isHost_ && !autoRelay_ && topology_ == Star && objectsTaken > 0) {
+        QJsonObject objectsOnly = obj;
+        objectsOnly["e"] = objectEntries;
+        objectsOnly["from"] = fromId;
+        const QString relayJson = QString::fromUtf8(QJsonDocument(objectsOnly).toJson(QJsonDocument::Compact));
+        for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it)
+            if (it.key() != fromId && it->admitted)
+                sendStateToPeer(it.key(), relayJson);
     }
 
     // Host in Star topology: relay to other peers
@@ -1308,6 +1476,9 @@ void ClayNetwork::admitJoiner(const QString &peerId, const QString &clientToken)
         joined["sys"] = "node_joined";
         joined["nodeId"] = peerId;
         hostBroadcastSystem(joined, peerId);
+        // Every live object and the session properties, before anything
+        // that happens to them later (#306)
+        replicas_.admitted(peerId);
     }
 }
 
@@ -1350,6 +1521,7 @@ void ClayNetwork::joinedHost()
 
     connected_ = true;
     status_ = Connected;
+    replicas_.start(nodeId_, hostId_, false);
     emit connectedChanged();
     emit statusChanged();
     emit sessionClockChanged();
@@ -1444,6 +1616,8 @@ void ClayNetwork::forgetSender(const QString &nodeId)
     stateDropCount_.remove(nodeId);
     keyedIn_.forget(nodeId);
     transit_.forget(nodeId);
+    // On the host its objects despawn or pass to the host here (#306)
+    replicas_.nodeLeft(nodeId);
 }
 
 void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
