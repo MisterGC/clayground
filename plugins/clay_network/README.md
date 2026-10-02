@@ -133,6 +133,7 @@ clock is set, synced or reset, not every millisecond.
 The session clock is wire version 3; a node of an older build is refused in
 the handshake with `incompatible-version`.
 
+## Joining
 
 Joining starts with a handshake over the data channel, the same natively and
 in the browser, with Cloud and Local signaling. The joiner's first message
