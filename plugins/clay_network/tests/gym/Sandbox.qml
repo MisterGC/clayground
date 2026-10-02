@@ -12,7 +12,9 @@
 // the handshake: the room password, a joiner from another build, and the
 // client token the host keeps (#323). Every node can stream keyed state
 // for many objects at once, to show that one object's update never
-// discards another's (#302).
+// discards another's (#302). Every node reads the session clock against
+// the wall clock all instances share, so a driver can tell how far apart
+// their session times are, and every message carries its send time (#304).
 
 import QtQuick
 import Clayground.Network
@@ -42,9 +44,11 @@ Item {
     // Why the host refused this node's last join, "" if it did not
     property string refusedReason: ""
 
-    // Every reliable message received, as {from, probe, i} - the sender
-    // attribution checks look up their probes here, the link checks their
-    // order
+    // Every reliable message received, as {from, probe, i, st, sentAt, at} -
+    // the sender attribution checks look up their probes here, the link
+    // checks their order. st is the sender's session time when it sent the
+    // probe, sentAt what messageReceived said, at the session time here on
+    // arrival (#304).
     property var msgLog: []
     // Every nodeLeft and nodeJoined, in order
     property var leftLog: []
@@ -74,7 +78,13 @@ Item {
     // n reliable messages to every node, numbered, so a receiver can tell
     // a lost or reordered one
     function sendProbes(probe, n) {
-        for (let i = 0; i < n; ++i) net.broadcast({probe: probe, i: i})
+        for (let i = 0; i < n; ++i) net.broadcast({probe: probe, i: i, st: net.sessionTime})
+    }
+    // This node's session time and the shared wall clock, read together:
+    // on one machine, s - w is the same on every node whose session clock
+    // agrees with the host's (#304)
+    function clockReading() {
+        return JSON.stringify({s: net.sessionTime, w: Date.now(), synced: net.sessionTimeSynced})
     }
 
     // Keyed state (#302): keyedCount objects, each under its own key, sent
@@ -142,11 +152,12 @@ Item {
     // its estimate of the transit (transitMs()). A conditioned link moves
     // the lag, not err; err grows only when the view stalls or jumps.
     property var _trk: ({n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0})
-    // The interpolator's transit estimate. Its offset also holds how far
-    // this node's wall clock is from the session clock the send times are
-    // on (#304)
+    // The interpolator's transit estimate. On the wall clock its offset
+    // also holds how far this node's wall clock is from the session clock
+    // the send times are on (#304)
     function transitMs() {
-        return sync.clockOffsetMs - (Date.now() - net.sessionTime)
+        return sync.network ? sync.clockOffsetMs
+                            : sync.clockOffsetMs - (Date.now() - net.sessionTime)
     }
     function resetTrackStats() { _trk = {n: 0, maxAbsErr: 0, sumErr: 0, sumLag: 0, maxLag: 0} }
     function trackStats() {
@@ -168,6 +179,9 @@ Item {
     function trackSender(id) {
         gym.trackedSender = id; sync.reset(); held = []; resetSpeedStats(); resetTrackStats()
     }
+    // The interpolator runs on the network's session clock and takes the
+    // sender's offset from it (#304), unless a check turns that off
+    property bool sharedClock: true
     function feed(data, sentAt) { sync.push(data, gym.useSentAt ? sentAt : undefined) }
 
     Network {
@@ -200,14 +214,17 @@ Item {
         onSignalingLost: gym.signalingLosses++
         onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()
         onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])
-        onMessageReceived: (from, data) => {
+        onMessageReceived: (from, data, sentAt) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
-            gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i}])
+            gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i,
+                                             st: data.st, sentAt: sentAt, at: net.sessionTime}])
         }
     }
 
     StateInterpolator {
         id: sync
+        network: gym.sharedClock ? net : null
+        nodeId: gym.trackedSender
         onUpdated: {
             let now = Date.now()
             let x = value.x
