@@ -65,6 +65,24 @@ target_link_libraries(tst_session_clock PRIVATE
 add_test(NAME network_session_clock COMMAND tst_session_clock)
 set_tests_properties(network_session_clock PROPERTIES LABELS "network;unit")
 
+# Replicated objects (#306): the object table every node keeps, three of
+# them wired like a Star network in memory. Header only, Qt Core.
+add_executable(tst_replica
+    tst_replica.cpp
+)
+
+set_target_properties(tst_replica PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_replica PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_replica PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_replica COMMAND tst_replica)
+set_tests_properties(network_replica PROPERTIES LABELS "network;unit")
+
 # HTTP auth tests - drive ClayHttpClient against a local echo server and assert
 # the headers that actually go out. ClayWebAccess is compiled in and registered
 # by hand and the QML file is loaded from the source tree, so this needs

@@ -17,6 +17,7 @@ set(COMMON_SOURCES
     sender.h
     handshake.h
     statebatch.h
+    replica.h
     sessionclock.h
     testhooks.h
 )
