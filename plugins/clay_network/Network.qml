@@ -268,6 +268,46 @@ Item {
     */
     property var linkConditions: ({})
 
+    /*!
+        \qmlproperty string Network::password
+        \brief The room password a host demands, or the one a joiner gives.
+
+        Default: empty. A host with a password refuses every joiner that
+        does not give the same one: the joiner gets joinRefused() with
+        \c "wrong-password" and errorOccurred("Wrong password"), and never
+        appears in \l nodes. A host without a password takes any joiner.
+
+        The joiner sends it in its handshake over the data channel, which is
+        encrypted, so it never passes the signaling server: knowing the
+        network code is no longer enough to get in. Works the same for Cloud
+        and Local signaling, on desktop, mobile and in the browser.
+        Must be set before calling host() or join().
+    */
+    property string password: ""
+
+    /*!
+        \qmlproperty string Network::appId
+        \brief Names the app or game, so only builds of the same one connect.
+
+        Default: empty. A joiner whose appId differs from the host's is
+        refused with \c "incompatible-app". Set it to the same string in
+        every build of a game when other Clayground apps could be handed
+        its code. Must be set before calling host() or join().
+    */
+    property string appId: ""
+
+    /*!
+        \qmlproperty string Network::clientToken
+        \brief What this node identifies itself with when it joins.
+
+        A random token unless set. A joiner sends it in its handshake, and
+        the host keeps it in \l clientTokens next to the joiner's node ID -
+        a node ID changes with every join, the token need not. Store it and
+        set it again on the next start so a host can recognise a joiner
+        that comes back. Must be set before calling join().
+    */
+    property alias clientToken: _backend.clientToken
+
     // ========== Read-only State ==========
 
     /*!
@@ -321,6 +361,26 @@ Item {
     readonly property bool acceptingJoins: _backend ? _backend.acceptingJoins : false
 
     /*!
+        \qmlproperty var Network::clientTokens
+        \brief On the host, each joiner's \l clientToken, keyed by its node ID.
+
+        A joiner is in it from the moment it is in \l nodes until it leaves.
+        Empty on a joiner: a token is between a joiner and its host.
+    */
+    readonly property var clientTokens: _backend ? _backend.clientTokens : ({})
+
+    /*!
+        \qmlproperty int Network::wireVersion
+        \brief The version of the message format this build speaks.
+
+        Two builds with different wire versions cannot play together: a
+        joiner is refused with \c "incompatible-version", and so is one that
+        meets a host from before the handshake. Clayground raises it when
+        what goes over the data channels changes.
+    */
+    readonly property int wireVersion: _backend ? _backend.wireVersion : 0
+
+    /*!
         \qmlproperty bool Network::connected
         \brief True if connected to a network.
     */
@@ -353,7 +413,8 @@ Item {
         \qmlproperty string Network::connectionPhase
         \brief Current connection phase when status is Connecting.
 
-        Possible values: "signaling", "ice", "datachannel", or "" when not connecting.
+        Possible values: "signaling", "ice", "handshake" (a joiner waiting
+        for the host to take it), or "" when not connecting.
     */
     readonly property string connectionPhase: _backend ? _backend.connectionPhase : ""
 
@@ -361,7 +422,7 @@ Item {
         \qmlproperty var Network::phaseTiming
         \brief Timing breakdown of the connection phases in milliseconds.
 
-        After connection: { signaling: 230, ice: 1200, datachannel: 0, total: 1430 }
+        After connection: { signaling: 230, ice: 1200, datachannel: 0, handshake: 15, total: 1445 }
     */
     readonly property var phaseTiming: _backend ? _backend.phaseTiming : ({})
 
@@ -450,6 +511,27 @@ Item {
     signal errorOccurred(string message)
 
     /*!
+        \qmlsignal Network::joinRefused(string reason, string message)
+        \brief Emitted on a joiner the host did not take.
+
+        Joining starts with a handshake: the joiner's wire version, \l appId,
+        \l password and \l clientToken go to the host, which takes the
+        joiner or refuses it. \a reason says why, for the game to act on:
+
+        \value "incompatible-version" The two builds speak different wire
+               versions (\l wireVersion), or one of them predates the handshake.
+        \value "incompatible-app" The host's \l appId is another one.
+        \value "wrong-password" The \l password is not the host's.
+        \value "handshake-failed" The host's answer made no sense.
+        \value "refused" The host refused without a reason, e.g. a full network.
+
+        \a message says it in words; errorOccurred(message) follows, and
+        \l status is Error. The node is not in a network any more, so it can
+        join again - with the right password, for one.
+    */
+    signal joinRefused(string reason, string message)
+
+    /*!
         \qmlsignal Network::signalingLost()
         \brief Emitted when the Cloud signaling connection drops after it was up.
 
@@ -501,6 +583,8 @@ Item {
             _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
+            _backend.password = root.password
+            _backend.appId = root.appId
             _backend.createRoom()
         }
     }
@@ -521,6 +605,8 @@ Item {
             _backend.verifySignalingCertificate = root.verifySignalingCertificate
             _backend.iceServers = root.iceServers
             _backend.verbose = root.verbose
+            _backend.password = root.password
+            _backend.appId = root.appId
             _backend.joinRoom(networkId)
         }
     }
@@ -597,6 +683,13 @@ Item {
             _backend.sendRaw(nodeId, json)
     }
 
+    // Test hook, not API: makes this node speak another wire version, so a
+    // test can be the joiner from another build (net gym, #323)
+    function _setWireVersion(version) {
+        if (_backend)
+            _backend.wireVersion = version
+    }
+
     // ========== Connection Timeout ==========
 
     Timer {
@@ -637,6 +730,7 @@ Item {
         onMessageReceived: (fromId, data) => root.messageReceived(fromId, data)
         onStateReceived: (fromId, data, sentAt) => root.stateReceived(fromId, data, sentAt)
         onErrorOccurred: (message) => root.errorOccurred(message)
+        onJoinRefused: (reason, message) => root.joinRefused(reason, message)
         onSignalingLost: () => root.signalingLost()
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
     }
