@@ -370,6 +370,10 @@ def scenario_handshake(host, joiner, name, code, password):
           f"status={joiner.eval1('status')} lastError={joiner.eval1('lastError')!r}")
     if ok:
         check_client_token(host, joiner, name)
+        timing = json.loads(joiner.eval1("JSON.stringify(netRef.phaseTiming)") or "{}")
+        check(f"handshake: {name} reports how long the handshake took",
+              isinstance(timing.get("handshake"), (int, float)) and timing["handshake"] >= 0
+              and timing.get("total", -1) >= timing["handshake"], str(timing))
     return ok
 
 
