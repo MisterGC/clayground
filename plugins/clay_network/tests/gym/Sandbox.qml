@@ -15,6 +15,8 @@
 // discards another's (#302). Every node reads the session clock against
 // the wall clock all instances share, so a driver can tell how far apart
 // their session times are, and every message carries its send time (#304).
+// A node can show another's keyed objects through thirty interpolators at
+// once and count what they do per frame (#305).
 
 import QtQuick
 import Clayground.Network
@@ -126,6 +128,46 @@ Item {
         }
     }
 
+    // Thirty interpolators (#305): interpCount of them, the k-th fed with
+    // interpSender's keyed state "obj<k>". Each counts the updated() it
+    // emitted and how many of them handed out a value object that was
+    // neither of the two before it - an object made per frame shows there.
+    property int interpCount: 0
+    property string interpSender: ""
+    function resetInterpCounts() {
+        for (let k = 0; k < interpRep.count; ++k) {
+            let it = interpRep.itemAt(k)
+            it.updates = 0; it.fresh = 0; it.pushes = 0
+        }
+    }
+    function interpReport() {
+        let r = {n: interpRep.count, updates: 0, fresh: 0, pushes: 0, minUpdates: -1}
+        for (let k = 0; k < interpRep.count; ++k) {
+            let it = interpRep.itemAt(k)
+            r.updates += it.updates; r.fresh += it.fresh; r.pushes += it.pushes
+            r.minUpdates = r.minUpdates < 0 ? it.updates : Math.min(r.minUpdates, it.updates)
+        }
+        return JSON.stringify(r)
+    }
+    Repeater {
+        id: interpRep
+        model: gym.interpCount
+        delegate: StateInterpolator {
+            network: net
+            nodeId: gym.interpSender
+            property int updates: 0
+            property int fresh: 0
+            property int pushes: 0
+            property var _seen1: null
+            property var _seen2: null
+            onUpdated: {
+                updates++
+                if (value !== _seen1 && value !== _seen2) fresh++
+                _seen2 = _seen1; _seen1 = value
+            }
+        }
+    }
+
     // Interpolated view on trackedSender's stream (-1 until data flows)
     property string trackedSender: ""
     readonly property real remoteX: sync.active && sync.value.x !== undefined
@@ -193,6 +235,11 @@ Item {
         onStateReceived: (from, data, sentAt, key) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
             if (key !== "") {
+                if (from === gym.interpSender && data.o < interpRep.count) {
+                    let it = interpRep.itemAt(data.o)
+                    it.pushes++
+                    it.push(data, sentAt)
+                }
                 let seen = gym.keyedSeen[from] || (gym.keyedSeen[from] = {})
                 let k = seen[key] || (seen[key] = {n: 0, last: -1, back: 0})
                 if (data.i <= k.last) k.back++

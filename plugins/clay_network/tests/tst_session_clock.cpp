@@ -26,6 +26,7 @@ private slots:
     void testTransitIsTheFastestOfTheWindow();
     void testTransitFollowsTheClockOffset();
     void testTransitOfUnknownSenderIsNaN();
+    void testTransitMatchesAScanOfTheWindow();
 };
 
 namespace {
@@ -219,6 +220,32 @@ void TestSessionClock::testTransitOfUnknownSenderIsNaN()
     tr.note("x", 0.0, 50.0);
     tr.forget("x");
     QVERIFY(std::isnan(tr.transit("x", 0.0)));
+}
+
+void TestSessionClock::testTransitMatchesAScanOfTheWindow()
+{
+    // The sliding minimum (#305) against the fastest arrival of the last
+    // 3 s found by scanning them all, after every arrival of a stream at
+    // 20 Hz with 0..150 ms jitter, a stall now and then, and two senders
+    sc::TransitTracker tr;
+    QRandomGenerator rng(305);
+    struct A { double at; double raw; };
+    std::deque<A> all[2];
+    const QString ids[2] = {"a", "b"};
+    double now = 1000.0;
+    for (int n = 0; n < 5000; ++n) {
+        now += rng.bounded(100) < 2 ? 3500.0 : 25.0;
+        const int s = rng.bounded(2);
+        const double sentAt = now - 40.0 - rng.bounded(150.0);
+        tr.note(ids[s], sentAt, now);
+        all[s].push_back({now, now - sentAt});
+        while (all[s].size() > 1 && all[s].front().at < now - sc::kTransitWindowMs)
+            all[s].pop_front();
+        double best = all[s].front().raw;
+        for (const A &a : all[s])
+            best = std::min(best, a.raw);
+        QCOMPARE(tr.transit(ids[s], 7.0), best + 7.0);
+    }
 }
 
 QTEST_GUILESS_MAIN(TestSessionClock)

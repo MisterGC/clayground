@@ -16,7 +16,9 @@ password, and joinC is refused for a wrong one and for another wire version
 before it gets in (#323). joinD joins for a while so that four nodes stream
 100 keyed objects each at 30 Hz, and leaves again (#302). joinB and joinC
 join again behind 100+-20 ms each way, and every node's session time is
-compared with the others' (#304).
+compared with the others' (#304). joinB shows 30 of the host's keyed
+objects through one interpolator each, and the gym measures what that
+costs while they stream and once they stopped (#305).
 
 --signaling cloud runs the same through clay-dev-server's PeerJS relay
 instead (needs wsproto); the LAN code checks are Local-only and skipped,
@@ -41,7 +43,8 @@ from netgym import (check, wait_for, summary, start_dev_server, check_tracking,
                     scenario_loss, scenario_latency, scenario_blackout,
                     scenario_host_leaves, scenario_short_outage, scenario_signaling_drop,
                     scenario_host_killed, scenario_handshake, check_client_token,
-                    scenario_keyed, scenario_session_clock)
+                    scenario_keyed, scenario_session_clock, scenario_thirty_interpolators,
+                    cpu_seconds)
 
 # Every node hosts and joins with it (#323)
 PASSWORD = "stone"
@@ -371,6 +374,9 @@ def run_after_join(A, B, C, D, insp, host_id_on_b, cloud, code, procs):
 
     # -- 5b: four nodes stream 100 keyed objects each (#302) -------------
     keyed_four_nodes(A, B, C, D, code)
+
+    # -- 5c: thirty interpolators on joinB, streaming and stopped (#305) --
+    scenario_thirty_interpolators(A, B, cpu=lambda: cpu_seconds(procs["joinB"].pid))
 
     # -- 6: interpolation tracks the sender ----------------------------
     # Measured on joinB alone, every frame: what it shows against the

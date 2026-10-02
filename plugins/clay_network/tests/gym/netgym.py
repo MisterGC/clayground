@@ -21,6 +21,12 @@ The keyed scenario (#302) has four nodes stream 100 objects each, every
 object under its own key, at 30 Hz, while jitter on the host's link makes
 the datagrams of one frame overtake each other.
 
+The thirty interpolators scenario (#305) has a joiner show 30 of the
+host's keyed objects through one StateInterpolator each, while they stream
+and after they stopped, and measures what that costs the joiner: the
+updated() signals per second, the value objects made per frame, and the
+process's CPU time against the same joiner with none.
+
 The session clock scenario (#304) has the joiners join again behind
 100+-20 ms each way and compares every node's session time against the
 wall clock they share: instances on one machine have one wall clock, so
@@ -556,3 +562,96 @@ def scenario_session_clock(host, joiners, code, latency=80, jitter=40, readings=
 
     for _, j in joiners:
         j.eval(["netRef.linkConditions = ({})"])
+
+
+def cpu_seconds(pid):
+    """User plus system CPU time a process has used so far, in seconds, or
+    None where neither /proc nor ps can tell."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            fields = f.read().rsplit(")", 1)[1].split()
+        return (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
+    except (OSError, IndexError, ValueError):
+        pass
+    try:
+        out = subprocess.run(["ps", "-o", "time=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        # [[dd-]hh:]mm:ss[.cc]
+        days = 0
+        if "-" in out:
+            d, out = out.split("-", 1)
+            days = int(d)
+        secs = 0.0
+        for part in out.split(":"):
+            secs = secs * 60 + float(part)
+        return days * 86400 + secs
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def measure(joiner, cpu, window):
+    """The joiner's interpolator counts and CPU share over window seconds."""
+    joiner.eval(["resetInterpCounts()"])
+    c0 = cpu() if cpu else None
+    t0 = time.time()
+    time.sleep(window)
+    r = json.loads(joiner.eval1("interpReport()") or "{}")
+    c1 = cpu() if cpu else None
+    took = time.time() - t0
+    r["secs"] = took
+    r["cpu"] = (c1 - c0) / took * 100 if c0 is not None and c1 is not None else None
+    return r
+
+
+def scenario_thirty_interpolators(host, joiner, cpu=None, n=30, hz=20, window=5.0):
+    """The joiner shows n of the host's keyed objects, each through its own
+    StateInterpolator on the network's clock (#305). Measured on the joiner
+    over window seconds each: with no interpolator, while the objects
+    stream at hz, and once they stopped - past the delay and the
+    extrapolation, when there is nothing left to blend. cpu() returns the
+    joiner process's CPU seconds; its share is in % of one core."""
+    label = f"{n} interpolators"
+    host_id = host.eval1("netRef.nodeId")
+    joiner.eval(["interpCount = 0", "resetKeyed()"])
+    host.eval(["resetKeyed()"])
+    time.sleep(1.0)
+    base = measure(joiner, cpu, window)
+
+    joiner.eval([f"interpSender = '{host_id}'", f"interpCount = {n}"])
+    host.eval([f"startKeyed({n}, {hz})"])
+    time.sleep(1.5)
+    live = measure(joiner, cpu, window)
+    host.eval(["stopKeyed()"])
+    # The default delay (120 ms) plus the extrapolation (200 ms) are over
+    time.sleep(1.0)
+    idle = measure(joiner, cpu, window)
+    joiner.eval(["interpCount = 0", "interpSender = ''", "resetKeyed()"])
+    host.eval(["resetKeyed()"])
+
+    def per_sec(r, k):
+        return r.get(k, 0) / r["secs"] if r.get("secs") else 0
+
+    def frames(r):
+        return per_sec(r, "updates") / n if n else 0
+
+    print(f"MEASURE  {label}, {window:g} s each on the joiner: "
+          f"cpu none={fmt(base['cpu'])}% streaming={fmt(live['cpu'])}% "
+          f"stopped={fmt(idle['cpu'])}% of one core", flush=True)
+    print(f"MEASURE  {label} streaming at {hz} Hz: {fmt(per_sec(live, 'pushes'))} pushes/s, "
+          f"{fmt(per_sec(live, 'updates'))} updated()/s ({fmt(frames(live))} per interpolator), "
+          f"{fmt(per_sec(live, 'fresh'))} new value objects/s", flush=True)
+    print(f"MEASURE  {label} stopped: {fmt(per_sec(idle, 'updates'))} updated()/s, "
+          f"{fmt(per_sec(idle, 'fresh'))} new value objects/s", flush=True)
+
+    check(f"{label}: every one gets its object's states and blends them",
+          live.get("n") == n and live.get("minUpdates", 0) >= window * 10
+          and per_sec(live, "pushes") >= n * hz * 0.6,
+          f"n={live.get('n')} pushes/s={fmt(per_sec(live, 'pushes'))} "
+          f"fewest updates={live.get('minUpdates')}")
+    check(f"{label}: no value object made per frame while they stream",
+          live.get("updates", 0) > 0 and live.get("fresh", -1) == 0,
+          f"{live.get('fresh')} new value objects in {live.get('updates')} updated()")
+    check(f"{label}: nothing left to blend, no work per frame",
+          idle.get("n") == n and idle.get("updates", -1) == 0,
+          f"{idle.get('updates')} updated() in {fmt(idle.get('secs'))} s after the stream stopped")
+    return base, live, idle

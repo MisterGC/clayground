@@ -155,6 +155,13 @@ node's stream, which the network estimates once per sender. A host streaming
 100 enemies then has its offset estimated once on each receiver, not once per
 enemy.
 
+One interpolator per replicated object is affordable: an interpolator works
+per frame only while it has something to blend. Once its value rests - a
+single snapshot, or the newest one held after `maxExtrapolationMs` -
+`updated` fires once more and its frame loop stops until the next `push`.
+While it blends it writes into two value objects in turn instead of making a
+new one every frame, so copy what you keep from `value` beyond the frame.
+
 The delay is the visible lag: every 10 ms puts a 7.5 Wu/s entity 0.075 Wu
 behind where it really is, so keep it as small as the stream allows.
 `autoDelay` derives it from the sender's period and the observed lateness

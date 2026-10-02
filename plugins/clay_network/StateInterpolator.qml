@@ -27,6 +27,12 @@
     interpolator estimates the offset from the states pushed into it, on
     the local wall clock.
 
+    An interpolator costs per frame only while it has something to blend:
+    with a single snapshot, or once the newest one is held after
+    \l maxExtrapolationMs, its frame loop stops until the next push(), and
+    blending writes into two value objects in turn instead of making a new
+    one every frame - so a replicated world can run one per object.
+
     Do NOT smooth remote entities with \c Behavior animations on physics
     world-unit properties - retargeting fights the property sync and the
     entity stalls short of its target.
@@ -147,6 +153,10 @@ Item {
     /*!
         \qmlproperty var StateInterpolator::value
         \brief The current interpolated state (same keys as pushed states).
+
+        A blended value is one of two objects the interpolator writes into
+        in turn, so it is overwritten two frames later: copy what you keep
+        beyond the frame.
     */
     readonly property alias value: internal.current
 
@@ -158,9 +168,16 @@ Item {
 
     /*!
         \qmlsignal StateInterpolator::updated()
-        \brief Emitted every frame with a fresh \l value while active.
+        \brief Emitted every frame with a fresh \l value while there is
+               something to blend.
+
+        Once the value comes to rest - a single snapshot, or the newest one
+        held after \l maxExtrapolationMs - it is emitted once more and then
+        not again until the next push().
     */
     signal updated()
+
+    onAngleKeysChanged: internal.refreshAngles()
 
     onAutoDelayChanged: {
         if (autoDelay) {
@@ -201,13 +218,16 @@ Item {
             // Clock offset = the smallest (arrival - sent) seen in the
             // last few seconds: the update that travelled fastest defines
             // the sender's timeline on our clock, every other one arrived
-            // that much later than it was sent.
+            // that much later than it was sent. The window keeps only the
+            // arrivals that can still become its minimum, ascending, so
+            // the minimum is its first entry - no rescan per push (#305).
             let offs = internal.offsets;
-            offs.push({t: now, o: now - sentAt});
+            let o = now - sentAt;
+            while (offs.length > 0 && offs[offs.length - 1].o >= o) offs.pop();
+            offs.push({t: now, o: o});
             let cutoff = now - 3000;
             while (offs.length > 1 && offs[0].t < cutoff) offs.shift();
             let minOff = offs[0].o;
-            for (let i = 1; i < offs.length; ++i) if (offs[i].o < minOff) minOff = offs[i].o;
             if (minOff !== internal.offset) {
                 internal.offset = minOff;
                 // Earlier snapshots were stamped with the old estimate
@@ -232,7 +252,8 @@ Item {
         // Insert keeping the buffer ordered by t (re-stamping or a very
         // late straggler can put a snapshot before the newest one)
         let buf = internal.buffer;
-        let entry = {t: t, s: state, sa: hasSent ? sentAt : undefined};
+        let entry = {t: t, s: state, sa: hasSent ? sentAt : undefined,
+                     sh: internal.shapeOf(state)};
         let pos = buf.length;
         while (pos > 0 && buf[pos - 1].t > t) --pos;
         buf.splice(pos, 0, entry);
@@ -267,6 +288,42 @@ Item {
         property var buffer: []
         property int count: 0
         property var current: ({})
+
+        // The keys of the states pushed and which of them are angles,
+        // shared by every snapshot of that shape, so blending walks a
+        // list instead of enumerating keys and searching angleKeys per
+        // frame (#305)
+        property var shape: null
+        function shapeOf(state) {
+            let k = Object.keys(state);
+            let sh = shape;
+            if (sh !== null && sh.k.length === k.length) {
+                let same = true;
+                for (let i = 0; i < k.length && same; ++i) same = sh.k[i] === k[i];
+                if (same) return sh;
+            }
+            sh = {k: k, ang: k.map(key => root.angleKeys.indexOf(key) >= 0)};
+            shape = sh;
+            return sh;
+        }
+        function refreshAngles() {
+            shape = null;
+            for (let i = 0; i < buffer.length; ++i) {
+                let sh = buffer[i].sh;
+                for (let j = 0; j < sh.k.length; ++j)
+                    sh.ang[j] = root.angleKeys.indexOf(sh.k[j]) >= 0;
+            }
+        }
+
+        // The two value objects blending writes into in turn: value
+        // changes identity every frame, so bindings on it re-evaluate,
+        // without an object made per frame (#305). A buffer is made anew
+        // only when the shape it was filled with changes.
+        property var out0: null
+        property var out1: null
+        property var outShape0: null
+        property var outShape1: null
+        property bool outTurn: false
 
         // On the network's session clock with its per-sender offset (#304)
         function shared() {
@@ -326,7 +383,7 @@ Item {
                 if (buf[i].t >= renderT) {
                     let a = buf[i-1], b = buf[i];
                     let f = (renderT - a.t) / Math.max(1, b.t - a.t);
-                    return blend(a.s, b.s, f);
+                    return blend(a, b, f);
                 }
             }
 
@@ -337,15 +394,36 @@ Item {
             let prev = buf[buf.length - 2];
             let over = Math.min(renderT - last.t, root.maxExtrapolationMs);
             let f = 1 + over / Math.max(1, last.t - prev.t);
-            return blend(prev.s, last.s, f);
+            return blend(prev, last, f);
         }
 
-        function blend(sa, sb, f) {
-            let out = {};
-            for (let k in sb) {
+        // The value no longer moves: one snapshot, or the newest one held
+        // after the extrapolation
+        function settled(renderT) {
+            let buf = buffer;
+            if (buf.length < 2) return true;
+            return renderT - buf[buf.length - 1].t >= root.maxExtrapolationMs;
+        }
+
+        // Blend the states of snapshots a and b into the next value
+        // object, over b's keys
+        function blend(a, b, f) {
+            let sa = a.s, sb = b.s, sh = b.sh;
+            outTurn = !outTurn;
+            let out;
+            if (outTurn) {
+                if (outShape1 !== sh) { out1 = {}; outShape1 = sh; }
+                out = out1;
+            } else {
+                if (outShape0 !== sh) { out0 = {}; outShape0 = sh; }
+                out = out0;
+            }
+            let keys = sh.k, ang = sh.ang;
+            for (let i = 0; i < keys.length; ++i) {
+                let k = keys[i];
                 let va = sa[k], vb = sb[k];
                 if (typeof va === "number" && typeof vb === "number")
-                    out[k] = lerp(va, vb, f, root.angleKeys.indexOf(k) >= 0);
+                    out[k] = lerp(va, vb, f, ang[i]);
                 else
                     out[k] = vb;
             }
@@ -364,13 +442,21 @@ Item {
                 internal.delay += Math.max(-1, Math.min(1, d));
             }
             let now = internal.now();
-            // Out of the network, there is no session clock to render on
-            if (now < 0) return;
-            let s = internal.sample(now - root.effectiveDelayMs);
-            if (s) {
+            // Out of the network, there is no session clock to render on;
+            // the next push starts the loop again
+            if (now < 0) {
+                running = false;
+                return;
+            }
+            let renderT = now - root.effectiveDelayMs;
+            let s = internal.sample(renderT);
+            if (s && s !== internal.current) {
                 internal.current = s;
                 root.updated();
             }
+            // Nothing left to blend - the value rests on the newest
+            // snapshot - so no work per frame until the next push (#305)
+            if (internal.settled(renderT)) running = false;
         }
     }
 }

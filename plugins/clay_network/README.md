@@ -353,7 +353,10 @@ older build is refused in the handshake with `incompatible-version`.
   instead of guessing one. Give it `network` and the sender's `nodeId` and
   it runs on the session clock and takes the sender's offset from
   `network.transitMs(nodeId)` - estimated once per sender, however many
-  objects of that sender are interpolated. Use this instead of `Behavior`
+  objects of that sender are interpolated. It works per frame only while
+  it has something to blend - a resting value stops its frame loop until
+  the next push - and blends into two reused value objects, so one per
+  replicated object stays cheap. Use this instead of `Behavior`
   animations.
 - **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
   state rate, state age and stale-drop counts (`network.syncStats` /
