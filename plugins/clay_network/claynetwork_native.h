@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <qqmlregistration.h>
 #include <memory>
+#include <mutex>
 #include "link_conditioner.h"
 #include "statebatch.h"
 #include "sessionclock.h"
@@ -260,6 +261,23 @@ private:
         qint64 lastHeardMs = 0;
     };
 
+    // libdatachannel calls back on its own threads, and a closed peer
+    // connection still reports Closed from there after close() returned -
+    // also after this object is gone (#357). Its callbacks reach the object
+    // only through this guard, which the destructor disarms first.
+    struct CallbackGuard {
+        std::recursive_mutex mutex;
+        ClayNetwork *owner = nullptr;
+    };
+    // Queues fn on the object's thread - or drops it, the object being gone
+    template <typename F>
+    static void post(const std::shared_ptr<CallbackGuard> &guard, F &&fn)
+    {
+        std::lock_guard<std::recursive_mutex> lock(guard->mutex);
+        if (guard->owner)
+            QMetaObject::invokeMethod(guard->owner, std::forward<F>(fn), Qt::QueuedConnection);
+    }
+
     void setupPeerConnection(const QString &peerId, bool isOfferer);
     void setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
     void setupStateChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc);
@@ -267,7 +285,7 @@ private:
     void sendToPeer(const QString &peerId, const QString &message);
     void sendStateToPeer(const QString &peerId, const QString &message);
     void writeToPeer(const QString &peerId, const QByteArray &utf8, bool stateChannel);
-    // Called on libdatachannel's thread; stateChannel marks the lossy one
+    // stateChannel marks the lossy one
     void handleDataChannelMessage(const QString &fromId, const std::string &message,
                                   bool stateChannel);
     void processMessage(const QString &fromId, const std::string &message, bool stateChannel);
@@ -318,6 +336,7 @@ private:
     static bool decodeLanCode(const QString &code, QString &host, uint16_t &port, QString &secret);
     static QString getLocalIpAddress();
 
+    std::shared_ptr<CallbackGuard> guard_;
     std::unique_ptr<PeerJSSignaling> signaling_;
     std::unique_ptr<LocalSignalingServer> localServer_;
     std::unique_ptr<LocalSignalingClient> localClient_;

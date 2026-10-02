@@ -32,10 +32,12 @@ namespace hs = clay::network::handshake;
 
 ClayNetwork::ClayNetwork(QObject *parent)
     : QObject(parent)
+    , guard_(std::make_shared<CallbackGuard>())
     , signaling_(std::make_unique<PeerJSSignaling>(this))
     , clientToken_(QUuid::createUuid().toString(QUuid::WithoutBraces))
     , wireVersion_(hs::kWireVersion)
 {
+    guard_->owner = this;
     clock_.start();
     QObject::connect(signaling_.get(), &PeerJSSignaling::connected,
                      this, &ClayNetwork::onSignalingConnected);
@@ -71,6 +73,11 @@ ClayNetwork::ClayNetwork(QObject *parent)
 
 ClayNetwork::~ClayNetwork()
 {
+    {
+        // Waits for a callback that is using the object right now
+        std::lock_guard<std::recursive_mutex> lock(guard_->mutex);
+        guard_->owner = nullptr;
+    }
     leave();
 }
 
@@ -794,7 +801,7 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
     peer.admitted = false;
     peer.refused = false;
 
-    pc->onStateChange([this, peerId](rtc::PeerConnection::State state) {
+    pc->onStateChange([this, guard = guard_, peerId](rtc::PeerConnection::State state) {
         qDebug() << "ClayNetwork: Peer" << peerId << "state:" << static_cast<int>(state);
 
         static const char* stateNames[] = {
@@ -803,7 +810,7 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
         int idx = static_cast<int>(state);
         const char* name = (idx >= 0 && idx <= 5) ? stateNames[idx] : "Unknown";
 
-        QMetaObject::invokeMethod(this, [this, peerId, state, name]() {
+        post(guard, [this, peerId, state, name]() {
             emitDiag("ice", QString("Peer %1: %2").arg(peerId.left(8), name));
 
             // Disconnected can recover, so it is not a leave: a peer that
@@ -813,39 +820,43 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
                 state == rtc::PeerConnection::State::Closed) {
                 peerGone(peerId, QStringLiteral("The connection to the host failed"));
             }
-        }, Qt::QueuedConnection);
+        });
     });
 
-    pc->onGatheringStateChange([this, peerId](rtc::PeerConnection::GatheringState state) {
+    pc->onGatheringStateChange([this, guard = guard_, peerId](rtc::PeerConnection::GatheringState state) {
         if (state == rtc::PeerConnection::GatheringState::Complete) {
-            QMetaObject::invokeMethod(this, [this, peerId]() {
+            post(guard, [this, peerId]() {
                 emitDiag("ice", QString("ICE gathering complete for %1").arg(peerId.left(8)));
-            }, Qt::QueuedConnection);
+            });
         }
     });
 
-    pc->onLocalDescription([this, peerId, isOfferer](rtc::Description desc) {
+    // Signaling and peers_ belong to the Qt thread: the description and the
+    // candidates hop over to it, in the order they came
+    pc->onLocalDescription([this, guard = guard_, peerId, isOfferer](rtc::Description desc) {
         QString sdp = QString::fromStdString(std::string(desc));
         qDebug() << "ClayNetwork: Local description generated, type:" << (isOfferer ? "offer" : "answer") << "for peer:" << peerId;
-        if (isOfferer) {
-            qDebug() << "ClayNetwork: Sending offer to" << peerId;
-            if (signalingMode_ == Local && localClient_) {
-                localClient_->sendOffer(peerId, sdp);
+        post(guard, [this, peerId, isOfferer, sdp]() {
+            if (isOfferer) {
+                qDebug() << "ClayNetwork: Sending offer to" << peerId;
+                if (signalingMode_ == Local && localClient_) {
+                    localClient_->sendOffer(peerId, sdp);
+                } else {
+                    signaling_->sendOffer(peerId, sdp);
+                }
             } else {
-                signaling_->sendOffer(peerId, sdp);
+                QString connectionId = peers_.contains(peerId) ? peers_[peerId].connectionId : QString();
+                qDebug() << "ClayNetwork: Sending answer to" << peerId << "with connectionId:" << connectionId;
+                if (signalingMode_ == Local && localClient_) {
+                    localClient_->sendAnswer(peerId, sdp, connectionId);
+                } else {
+                    signaling_->sendAnswer(peerId, sdp, connectionId);
+                }
             }
-        } else {
-            QString connectionId = peers_.contains(peerId) ? peers_[peerId].connectionId : QString();
-            qDebug() << "ClayNetwork: Sending answer to" << peerId << "with connectionId:" << connectionId;
-            if (signalingMode_ == Local && localClient_) {
-                localClient_->sendAnswer(peerId, sdp, connectionId);
-            } else {
-                signaling_->sendAnswer(peerId, sdp, connectionId);
-            }
-        }
+        });
     });
 
-    pc->onLocalCandidate([this, peerId](rtc::Candidate candidate) {
+    pc->onLocalCandidate([this, guard = guard_, peerId](rtc::Candidate candidate) {
         QString candidateStr = QString::fromStdString(candidate.candidate());
         // Parse candidate type for diagnostics
         QString candidateType = "unknown";
@@ -854,22 +865,24 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
         else if (candidateStr.contains("typ relay")) candidateType = "relay";
         else if (candidateStr.contains("typ prflx")) candidateType = "prflx";
 
-        QMetaObject::invokeMethod(this, [this, peerId, candidateType]() {
+        const QString mid = QString::fromStdString(candidate.mid());
+        post(guard, [this, peerId, candidateType, candidateStr, mid]() {
             emitDiag("ice", QString("Candidate: %1 (%2)").arg(candidateType, peerId.left(8)));
-        }, Qt::QueuedConnection);
-
-        if (signalingMode_ == Local && localClient_) {
-            localClient_->sendCandidate(peerId, candidateStr,
-                                        QString::fromStdString(candidate.mid()));
-        } else {
-            signaling_->sendCandidate(peerId, candidateStr,
-                                      QString::fromStdString(candidate.mid()));
-        }
+            if (signalingMode_ == Local && localClient_)
+                localClient_->sendCandidate(peerId, candidateStr, mid);
+            else
+                signaling_->sendCandidate(peerId, candidateStr, mid);
+        });
     });
 
-    pc->onDataChannel([this, peerId](std::shared_ptr<rtc::DataChannel> dc) {
+    pc->onDataChannel([this, guard = guard_, peerId](std::shared_ptr<rtc::DataChannel> dc) {
         qDebug() << "ClayNetwork: Data channel received from" << peerId
                  << QString::fromStdString(dc->label());
+        // The channel's callbacks are set up right here, on this thread -
+        // with the object held alive while that happens
+        std::lock_guard<std::recursive_mutex> lock(guard->mutex);
+        if (!guard->owner)
+            return;
         if (dc->label() == "state")
             setupStateChannel(peerId, dc);
         else
@@ -908,15 +921,15 @@ void ClayNetwork::assignChannel(const QString &peerId, std::shared_ptr<rtc::Data
     if (QThread::currentThread() == thread())
         assign();
     else
-        QMetaObject::invokeMethod(this, assign, Qt::QueuedConnection);
+        post(guard_, assign);
 }
 
 void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::DataChannel> dc)
 {
     assignChannel(peerId, dc, false);
 
-    dc->onOpen([this, peerId]() {
-        QMetaObject::invokeMethod(this, [this, peerId]() {
+    dc->onOpen([this, guard = guard_, peerId]() {
+        post(guard, [this, peerId]() {
             qDebug() << "ClayNetwork: Data channel open with" << peerId;
             if (!peers_.contains(peerId))
                 return;
@@ -945,24 +958,26 @@ void ClayNetwork::setupDataChannel(const QString &peerId, std::shared_ptr<rtc::D
                 handshakeStartMs_ = phaseTimer_.elapsed();
                 sendJson(peerId, hs::hello(wireVersion_, appId_, password_, clientToken_));
             }
-        }, Qt::QueuedConnection);
+        });
     });
 
-    dc->onMessage([this, peerId](auto message) {
+    dc->onMessage([this, guard = guard_, peerId](auto message) {
         if (std::holds_alternative<std::string>(message)) {
-            handleDataChannelMessage(peerId, std::get<std::string>(message), false);
+            post(guard, [this, peerId, text = std::get<std::string>(message)]() {
+                handleDataChannelMessage(peerId, text, false);
+            });
         } else if (std::holds_alternative<rtc::binary>(message)) {
             // Handle binary messages (from PeerJS JSON mode)
             const auto& bytes = std::get<rtc::binary>(message);
             std::string str(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-            handleDataChannelMessage(peerId, str, false);
+            post(guard, [this, peerId, str]() { handleDataChannelMessage(peerId, str, false); });
         }
     });
 
-    dc->onClosed([this, peerId]() {
-        QMetaObject::invokeMethod(this, [this, peerId]() {
+    dc->onClosed([this, guard = guard_, peerId]() {
+        post(guard, [this, peerId]() {
             qDebug() << "ClayNetwork: Data channel closed with" << peerId;
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -970,30 +985,32 @@ void ClayNetwork::setupStateChannel(const QString &peerId, std::shared_ptr<rtc::
 {
     assignChannel(peerId, dc, true);
 
-    dc->onOpen([this, peerId]() {
-        QMetaObject::invokeMethod(this, [this, peerId]() {
+    dc->onOpen([this, guard = guard_, peerId]() {
+        post(guard, [this, peerId]() {
             if (peers_.contains(peerId)) {
                 peers_[peerId].stateReady = true;
                 emitDiag("datachannel", QString("State channel open (%1)").arg(peerId.left(8)));
             }
-        }, Qt::QueuedConnection);
+        });
     });
 
-    dc->onMessage([this, peerId](auto message) {
+    dc->onMessage([this, guard = guard_, peerId](auto message) {
         if (std::holds_alternative<std::string>(message)) {
-            handleDataChannelMessage(peerId, std::get<std::string>(message), true);
+            post(guard, [this, peerId, text = std::get<std::string>(message)]() {
+                handleDataChannelMessage(peerId, text, true);
+            });
         } else if (std::holds_alternative<rtc::binary>(message)) {
             const auto& bytes = std::get<rtc::binary>(message);
             std::string str(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-            handleDataChannelMessage(peerId, str, true);
+            post(guard, [this, peerId, str]() { handleDataChannelMessage(peerId, str, true); });
         }
     });
 
-    dc->onClosed([this, peerId]() {
-        QMetaObject::invokeMethod(this, [this, peerId]() {
+    dc->onClosed([this, guard = guard_, peerId]() {
+        post(guard, [this, peerId]() {
             if (peers_.contains(peerId))
                 peers_[peerId].stateReady = false;
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -1039,13 +1056,11 @@ void ClayNetwork::writeToPeer(const QString &peerId, const QByteArray &utf8, boo
 void ClayNetwork::handleDataChannelMessage(const QString &fromId, const std::string &message,
                                            bool stateChannel)
 {
-    QMetaObject::invokeMethod(this, [this, fromId, message, stateChannel]() {
-        conditioner_.offer(clay::network::LinkConditioner::Incoming, stateChannel,
-                           qsizetype(message.size()),
-                           [this, fromId, message, stateChannel]() {
-                               processMessage(fromId, message, stateChannel);
-                           });
-    }, Qt::QueuedConnection);
+    conditioner_.offer(clay::network::LinkConditioner::Incoming, stateChannel,
+                       qsizetype(message.size()),
+                       [this, fromId, message, stateChannel]() {
+                           processMessage(fromId, message, stateChannel);
+                       });
 }
 
 void ClayNetwork::processMessage(const QString &fromId, const std::string &message,
