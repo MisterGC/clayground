@@ -209,6 +209,8 @@ public:
     // host, the host's first answer on a joiner
     void onHello(const char* peerId, const char* json);
     void onHandshakeReply(const char* nodeId, const char* json);
+    // A joiner reached a connection phase; ms is how long the one before took
+    void onPhase(const char* phase, int ms);
 
 private:
     void initPeerJS();
@@ -289,6 +291,10 @@ private:
     QString clientToken_;
     int wireVersion_;
     QVariantMap clientTokens_;  // host: each joiner's token, by node id
+
+    // clock_ times of host()/join() and of the hello, for phaseTiming
+    qint64 connectStartMs_ = 0;
+    qint64 handshakeStartMs_ = -1;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

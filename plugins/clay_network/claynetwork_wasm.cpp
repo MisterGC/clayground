@@ -614,6 +614,7 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             const sigMs = Date.now() - state._startTime;
             state._iceStart = Date.now();
             Module.clayDiag(instanceId, 'signaling', 'Signaling ready (' + sigMs + 'ms)');
+            Module._clay_net_phase(instanceId, stringToNewUTF8('ice'), sigMs);
             Module.clayDiag(instanceId, 'ice', 'Connecting to host...');
 
             // Connect to host - use 'json' serialization for string transfer
@@ -628,6 +629,8 @@ EM_JS(void, js_join_network, (int instanceId, const char* networkCode, int topol
             conn.on('open', () => {
                 const totalMs = Date.now() - state._startTime;
                 Module.clayDiag(instanceId, 'datachannel', 'Data channel open (' + totalMs + 'ms), saying hello');
+                Module._clay_net_phase(instanceId, stringToNewUTF8('handshake'),
+                                       Date.now() - state._iceStart);
                 conn.send(hello);
             });
 
@@ -1059,6 +1062,18 @@ void clay_net_handshake_reply(int instanceId, const char* nodeId, const char* js
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE
+void clay_net_phase(int instanceId, const char* phase, int ms)
+{
+    auto it = g_networkRegistry.find(instanceId);
+    if (it != g_networkRegistry.end()) {
+        QMetaObject::invokeMethod(it->second, [net = it->second, phase, ms]() {
+            net->onPhase(phase, ms);
+            free((void*)phase);
+        }, Qt::QueuedConnection);
+    }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE
 void clay_net_pong(int instanceId, const char* peerId, int rtt)
 {
     auto it = g_networkRegistry.find(instanceId);
@@ -1402,6 +1417,9 @@ void ClayNetwork::createRoom()
         return;
 
     status_ = Connecting;
+    connectStartMs_ = clock_.elapsed();
+    handshakeStartMs_ = -1;
+    phaseTiming_.clear();
     setConnectionPhase("signaling");
     emit statusChanged();
 
@@ -1432,6 +1450,9 @@ void ClayNetwork::joinRoom(const QString &networkId)
     emit hostIdChanged();
 
     status_ = Connecting;
+    connectStartMs_ = clock_.elapsed();
+    handshakeStartMs_ = -1;
+    phaseTiming_.clear();
     setConnectionPhase("signaling");
     emit statusChanged();
 
@@ -1602,6 +1623,11 @@ void ClayNetwork::onNetworkCreated(const char* networkId)
     isHost_ = true;
     connected_ = true;
     status_ = Connected;
+    // As on native: a host's connecting is its signaling
+    const qint64 totalMs = clock_.elapsed() - connectStartMs_;
+    phaseTiming_["signaling"] = totalMs;
+    phaseTiming_["total"] = totalMs;
+    emit phaseTimingChanged();
     setConnectionPhase("");
     nodes_.clear();
     setAcceptingJoins(true);
@@ -1622,6 +1648,11 @@ void ClayNetwork::onConnectedToNetwork(const char* nodeId)
     nodeId_ = QString::fromUtf8(nodeId);
     connected_ = true;
     status_ = Connected;
+    const qint64 now = clock_.elapsed();
+    if (handshakeStartMs_ >= 0)
+        phaseTiming_["handshake"] = now - handshakeStartMs_;
+    phaseTiming_["total"] = now - connectStartMs_;
+    emit phaseTimingChanged();
     setConnectionPhase("");
     nodes_.clear();
     nodes_.append(hostId_); // Add host; other joiners arrive via roster
@@ -1775,6 +1806,24 @@ void ClayNetwork::onHello(const char* peerId, const char* json)
     Q_UNUSED(peerId)
     Q_UNUSED(json)
 #endif
+}
+
+void ClayNetwork::onPhase(const char* phase, int ms)
+{
+    if (status_ != Connecting)
+        return;
+    const QString p = QString::fromUtf8(phase);
+    if (p == QLatin1String("ice")) {
+        phaseTiming_["signaling"] = ms;
+    } else if (p == QLatin1String("handshake")) {
+        phaseTiming_["ice"] = ms;
+        phaseTiming_["datachannel"] = 0;
+        handshakeStartMs_ = clock_.elapsed();
+    } else {
+        return;
+    }
+    emit phaseTimingChanged();
+    setConnectionPhase(p);
 }
 
 void ClayNetwork::onHandshakeReply(const char* nodeId, const char* json)
