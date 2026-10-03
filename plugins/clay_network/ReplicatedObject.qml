@@ -13,9 +13,12 @@
     arrives here, nor any after the object's despawn.
 
     A node that joins late starts from the object's last state. When the
-    item comes to rest - no change for \l settleMs - its last state is
-    sent once more, reliably, so a lost update cannot leave the other
-    nodes, or the next one to join, with a stale value.
+    item stops - no change for one and a half of its own update periods -
+    its last state is sent once more, so the other nodes stop it where it
+    stopped instead of carrying its motion on. When it comes to rest - no
+    change for \l settleMs - its last state is sent once more, reliably,
+    so a lost update cannot leave the other nodes, or the next one to
+    join, with a stale value.
 
     \qml
     Replicas {
@@ -149,6 +152,7 @@ Item {
     function _setOwner(owner) { _p.owner = owner }
     function _despawned() {
         _p.owner = ""
+        _rest.stop()
         _settle.stop()
     }
 
@@ -161,6 +165,10 @@ Item {
         property var watched: []
         property bool applying: false
         property bool pending: false
+        // When the last state went, and the owner's update period: the
+        // time between its states while the item moves
+        property real lastSendAt: 0
+        property real period: 0
 
         function attach() {
             // Once both are set, not once per property set on creation
@@ -240,7 +248,26 @@ Item {
             if (!root.isOwner || !root.target || !attachedTo)
                 return
             attachedTo.sendObjectState(attachedId, snapshot())
+            notePeriod()
             _settle.restart()
+        }
+
+        function notePeriod() {
+            const now = Date.now()
+            const dt = now - lastSendAt
+            if (lastSendAt > 0 && dt > 0 && dt < root.settleMs)
+                period = period > 0 ? period * 0.8 + dt * 0.2 : dt
+            lastSendAt = now
+            // A receiver extrapolates the last motion until a state says
+            // the item stopped, and it renders a delay of about two
+            // periods behind: the stop has to go within that (#367)
+            const restMs = 1.5 * (period > 0 ? period : Math.max(root.sendInterval, 16))
+            if (restMs < root.settleMs) {
+                _rest.interval = Math.max(1, Math.round(restMs))
+                _rest.restart()
+            } else {
+                _rest.stop()
+            }
         }
 
         function apply(data) {
@@ -264,6 +291,20 @@ Item {
                 _p.send()
                 start()
             }
+        }
+    }
+
+    // No change for one and a half periods: the item stopped, its state
+    // goes once more, so receivers hold it where it is instead of
+    // extrapolating its motion until the settle (#367)
+    Timer {
+        id: _rest
+        onTriggered: {
+            if (_p.pending || !root.isOwner || !root.target || !_p.attachedTo)
+                return
+            _p.attachedTo.sendObjectState(_p.attachedId, _p.snapshot())
+            // The pause is no update period; the next motion starts anew
+            _p.lastSendAt = 0
         }
     }
 
