@@ -221,11 +221,11 @@ Item {
             // that much later than it was sent. The window keeps only the
             // arrivals that can still become its minimum, ascending, so
             // the minimum is its first entry - no rescan per push (#305).
-            let offs = internal.offsets;
+            let offs = internal.offsets = internal.onClock(internal.offsets, now);
             let o = now - sentAt;
             while (offs.length > 0 && offs[offs.length - 1].o >= o) offs.pop();
             offs.push({t: now, o: o});
-            let cutoff = now - 3000;
+            let cutoff = now - internal.windowMs;
             while (offs.length > 1 && offs[0].t < cutoff) offs.shift();
             let minOff = offs[0].o;
             if (minOff !== internal.offset) {
@@ -350,9 +350,22 @@ Item {
             if (dt <= 0 || dt > 2000) return;
             period = period > 0 ? period * 0.9 + dt * 0.1 : dt;
         }
+        // The offset and lateness windows hold the last 3 s on the clock
+        // they were stamped with. When that clock changes under them - the
+        // interpolator gets or loses its network, the session starts
+        // again - their entries lie ahead of now and never fall behind the
+        // cutoff: the window stops pruning, grows without end, and its
+        // percentile keeps answering for the old stream (#363). A step back
+        // shorter than the window ages out on its own; a longer one starts
+        // the window again.
+        readonly property real windowMs: 3000
+        function onClock(win, now) {
+            return win.length > 0 && win[win.length - 1].t > now + windowMs ? [] : win;
+        }
         function noteLateness(now, l) {
+            lateness = onClock(lateness, now);
             lateness.push({t: now, l: l});
-            let cutoff = now - 3000;
+            let cutoff = now - windowMs;
             while (lateness.length > 1 && lateness[0].t < cutoff) lateness.shift();
         }
         function delayTarget() {

@@ -33,17 +33,13 @@ import threading
 import time
 
 import netgym
-from netgym import check, wait_for, probes, in_order, sync_of
+from netgym import check, wait_for, probes, in_order, sync_of, peer_stats
 from run_net_gym import Inspect
 from run_net_gym_web import (Bridge, GymHandler, WebInstance, CHROME_ARGS, CONSOLE,
                              launch_browser, on_console, on_page_error)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PASSWORD = "stone"
-
-
-def peer_stats(inst):
-    return json.loads(inst.eval1("JSON.stringify(netRef.peerStats)") or "{}")
 
 
 def pairing(H, J, label, page):

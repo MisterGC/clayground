@@ -1079,6 +1079,10 @@ EM_JS(char*, js_peer_stats, (int instanceId), {
             const dc = Module.clayStateChannel(state, peerId);
             s.stateChannel = dc ? 'unreliable' : 'fallback';
             s.stateBacklog = dc ? dc.bufferedAmount : 0;
+            // What the browser made of the channel state travels on - the
+            // connection's reliable one while there is no state channel (#363)
+            s.stateOrdered = dc ? dc.ordered : true;
+            s.stateMaxRetransmits = dc && dc.maxRetransmits !== null ? dc.maxRetransmits : -1;
             out[peerId] = s;
         });
     }

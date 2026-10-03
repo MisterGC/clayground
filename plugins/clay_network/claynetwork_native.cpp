@@ -208,6 +208,12 @@ QVariantMap ClayNetwork::peerStats() const {
         ps["stateChannel"] = it->stateReady ? "unreliable" : "fallback";
         ps["stateBacklog"] = it->dcState && it->dcState->isOpen()
             ? static_cast<qint64>(it->dcState->bufferedAmount()) : 0;
+        // What the channel state travels on says it is - the reliable one
+        // while there is no state channel (#363)
+        const bool lossy = it->stateReady && it->dcState;
+        const rtc::Reliability rel = lossy ? it->dcState->reliability() : rtc::Reliability{};
+        ps["stateOrdered"] = !rel.unordered;
+        ps["stateMaxRetransmits"] = rel.maxRetransmits ? static_cast<int>(*rel.maxRetransmits) : -1;
         stats[it.key()] = ps;
     }
     return stats;

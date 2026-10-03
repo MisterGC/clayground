@@ -128,6 +128,10 @@ def probes(inst, probe):
     return json.loads(inst.eval1(f"msgsWithProbe('{probe}')") or "[]")
 
 
+def peer_stats(inst):
+    return json.loads(inst.eval1("JSON.stringify(netRef.peerStats)") or "{}")
+
+
 def sync_of(inst, sender):
     stats = json.loads(inst.eval1("JSON.stringify(netRef.syncStats)") or "{}")
     return stats.get(sender, {})

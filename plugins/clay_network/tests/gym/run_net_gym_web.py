@@ -256,6 +256,18 @@ def run(H, J, B, C, signaling_url, timeout):
           flow.get("recv", 0) >= 25 and flow.get("ageMs", 9999) < 500,
           f"recv={flow.get('recv')} age={flow.get('ageMs')}ms")
 
+    # State flowing proves nothing about the channel: a fallback to one
+    # that retransmits carries it too, only late (#363)
+    def channels():
+        return {"host": netgym.peer_stats(H).get(joiner_id, {}),
+                "joiner": netgym.peer_stats(J).get(host_id, {})}
+    lossy = wait_for(lambda: all(s.get("stateOrdered") is False
+                                 and s.get("stateMaxRetransmits") == 0
+                                 for s in channels().values()), 10)
+    check("transport: the state channel is unordered and never retransmits", lossy,
+          str({r: {k: s.get(k) for k in ("stateChannel", "stateOrdered", "stateMaxRetransmits")}
+               for r, s in channels().items()}))
+
     J.eval([f"trackSender('{host_id}')"])
     time.sleep(1.0)
     check_tracking(J, "interp: clean link")

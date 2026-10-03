@@ -240,7 +240,8 @@ This adds:
 
 Always available, verbose or not: `connectionPhase`, `phaseTiming`, `latency`
 (updated every 2 s via ping/pong), `peerStats` (latency, message and byte
-counts, state channel) and `syncStats` (per-origin sequence, drops, age).
+counts, the state channel and what it reports of itself) and `syncStats`
+(per-origin sequence, drops, age).
 
 ## Testing on a Bad Link
 
