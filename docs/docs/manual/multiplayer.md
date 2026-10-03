@@ -168,7 +168,9 @@ behind where it really is, so keep it as small as the stream allows.
 `autoDelay` derives it from the sender's period and the observed lateness
 of updates (about twice the period plus the 95th-percentile jitter) and
 glides towards that value, so a LAN session ends up around 50 ms at 60 Hz
-sends while an internet session gets what its jitter needs. Sending on
+sends while an internet session gets what its jitter needs. The period is
+the median of the last nine intervals between updates, so an object that
+rests and sends nothing keeps its delay when it moves again. Sending on
 every physics step instead of a 20 Hz timer is what makes the small delay
 possible; the lossy channel makes the rate cheap.
 

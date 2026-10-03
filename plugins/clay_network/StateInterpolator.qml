@@ -99,7 +99,10 @@ Item {
         The delay becomes twice the sender's update period plus the 95th
         percentile of how late updates arrived in the last three seconds
         (relative to the fastest one seen), clamped to \l minDelayMs ..
-        \l maxDelayMs. It moves towards that target by at most 1 ms per
+        \l maxDelayMs. The period is the median of the last nine intervals
+        between updates, so the pause of an object at rest - which sends
+        nothing - is taken for neither a period nor lateness, and the delay
+        stays at its streaming value when the object moves again. It moves towards that target by at most 1 ms per
         frame, never in a jump. A LAN stream ends up with a small delay, an
         internet stream with whatever its jitter needs.
     */
