@@ -299,6 +299,10 @@ Give the `Network` an id other than `network`: inside a `ReplicatedObject`,
   properties change and, once they rest for `settleMs`, sends the last
   state once more over the reliable channel - a lost final update does not
   leave anyone with a stale position.
+- **Stopped objects stop in place.** An object that stops dead sends its
+  state once more about one and a half of its update periods later, so an
+  interpolating node holds it where the owner stopped it instead of
+  extrapolating its motion until the settle.
 
 Properties may be numbers, strings, booleans or plain objects; with
 `interpolate` the numbers are blended and a string switches with the
