@@ -9,7 +9,8 @@ import Clayground.Physics
 // ReplicatedObject with a body is - has to begin a contact with a body that
 // sleeps (#369). Box2D's SetTransform wakes nothing, and a contact between two
 // sleeping bodies is never updated, so without a wake the knight standing
-// still never hits the enemy that walked into reach.
+// still never hits the enemy that walked into reach. qml-box2d's Body wakes
+// itself when its target moves (#338), so a raw Body is covered as well.
 //
 // The World is stepped by hand (running: false + step()) so the outcome does
 // not depend on frame timing.
@@ -62,6 +63,23 @@ TestCase {
             bodyType: Body.Kinematic
         }
 
+        // The same knight as a raw Body on a plain Item, no PhysicsItem
+        // around it: the wake has to come from Box2D's Body itself.
+        Item {
+            id: rawKnight
+            x: 2 * testCase.ppu; y: room.height - 17 * testCase.ppu
+            width: testCase.ppu; height: testCase.ppu
+            Body {
+                id: rawKnightBody
+                target: rawKnight
+                world: physicsWorld
+                bodyType: Body.Kinematic
+                fixtures: Box {
+                    width: rawKnight.width; height: rawKnight.height
+                }
+            }
+        }
+
         // A solid sleeping body, to see that a touch wakes what it overlaps.
         RectBoxBody {
             id: crate
@@ -112,6 +130,7 @@ TestCase {
 
     function init() {
         knight.xWu = 2; knight.yWu = 10;
+        rawKnight.x = 2 * ppu; rawKnight.y = room.height - 17 * ppu;
         enemy.contacts = 0;
         stepWorld(settleSteps);
     }
@@ -126,6 +145,18 @@ TestCase {
         verify(enemy.contacts > 0,
                "the sensor should see beginContact, saw " + enemy.contacts);
         verify(knight.awake, "moving the knight by position should wake it");
+    }
+
+    function test_aRawBodyMovedByPositionBeginsContactWithASleepingSensor() {
+        verify(!enemy.awake, "the enemy should be asleep before the move");
+        verify(!rawKnightBody.awake, "the raw knight should be asleep before the move");
+
+        rawKnight.x = enemy.x + 0.5 * ppu; rawKnight.y = enemy.y + 0.5 * ppu;
+        stepWorld(2);
+
+        verify(enemy.contacts > 0,
+               "the sensor should see beginContact, saw " + enemy.contacts);
+        verify(rawKnightBody.awake, "moving the raw body's item should wake it");
     }
 
     function test_aBodyMovedByPositionWakesTheSolidBodyItTouches() {
