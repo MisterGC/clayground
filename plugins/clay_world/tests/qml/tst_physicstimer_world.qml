@@ -48,9 +48,19 @@ Item {
             return {"wallMs": Date.now() - t0, "simMs": simMs, "steps": steps};
         }
     }
+    // The simulated milliseconds of the first step after a resume.
+    QtObject {
+        id: resume
+        property bool armed: false
+        property real firstStepMs: -1
+    }
     Connections {
         target: world.physics
         function onStepped() {
+            if (resume.armed) {
+                resume.armed = false;
+                resume.firstStepMs = world.physics.timeStep * 1000;
+            }
             if (!meter.recording) return;
             meter.simMs += world.physics.timeStep * 1000;
             meter.steps += 1;
@@ -97,6 +107,33 @@ Item {
             compare(timer.fired, 0, "five steps are 83 ms");
             Clayground.physicsStep(1);
             compare(timer.fired, 1, "the sixth step reaches 100 ms");
+        }
+
+        // Resuming must not simulate the pause in one step (#338): the first
+        // step after it is a frame's step, and a timer whose interval is
+        // shorter than the pause does not fire on it.
+        function test_resumeAfterPauseTakesANormalStep_data() {
+            return [{tag: "700 ms", pauseMs: 700}, {tag: "1500 ms", pauseMs: 1500}];
+        }
+        function test_resumeAfterPauseTakesANormalStep(data) {
+            timer.interval = 300;
+            var running = meter.measure(200);
+            verify(running.steps > 3, "the world steps before the pause: "
+                   + JSON.stringify(running));
+            timer.start();
+            Clayground.paused = true;
+            verify(!world.physics.running);
+            wait(data.pauseMs);
+            resume.firstStepMs = -1;
+            resume.armed = true;
+            Clayground.paused = false;
+            tryVerify(function() { return resume.firstStepMs >= 0; }, 1000,
+                      "the world steps again after the pause");
+            verify(resume.firstStepMs < 100,
+                   "the first step after a " + data.pauseMs + " ms pause simulated "
+                   + resume.firstStepMs + " ms");
+            compare(timer.fired, 0, "the timer does not fire on the first step");
+            verify(timer.elapsed < timer.interval, "elapsed " + timer.elapsed);
         }
 
         function test_fullHitStopHoldsIt() {
