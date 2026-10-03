@@ -15,6 +15,10 @@
 // one of two value objects in turn rather than a new one per frame. The
 // stub's session time only moves when a test moves it, so a test decides
 // where on the buffer the interpolator renders.
+//
+// The auto delay takes an object's rest for neither a period nor lateness
+// (#366): after the gaps a stop leaves in the stream, it aims for its
+// streaming value again within a few states.
 
 import QtQuick
 import QtTest
@@ -209,6 +213,73 @@ TestCase {
         i.autoDelay = false
         i.autoDelay = true
         compare(i.effectiveDelayMs, 216)
+    }
+
+    // The auto delay's target, as turning it off and on again snaps to it
+    function autoTarget(i) {
+        i.autoDelay = false
+        i.autoDelay = true
+        return i.effectiveDelayMs
+    }
+
+    // A ReplicatedObject's stream at 60 Hz (#366): states every 16 ms while
+    // it moves, the stop 1.5 periods after the last one, the settle 200 ms
+    // after it, then nothing for 5 s until it moves again. Each arrives 80 ms
+    // after it went. withSentAt false pushes on arrival time only.
+    function restAndMoveAgain(withSentAt) {
+        let i = make({network: stubNet, nodeId: "A", autoDelay: true})
+        let sent = 0
+        let send = (dt) => {
+            sent += dt
+            stubNet.sessionTime = sent + 80
+            if (withSentAt) i.push({x: sent / 100}, sent)
+            else i.push({x: sent / 100})
+        }
+        for (let k = 0; k < 200; ++k) send(16)
+        let streaming = autoTarget(i)
+        send(24)
+        send(176)
+        // The target with each of the first states after the rest
+        let after = []
+        send(5000)
+        after.push(autoTarget(i))
+        for (let k = 0; k < 3; ++k) {
+            send(16)
+            after.push(autoTarget(i))
+        }
+        return {streaming: streaming, after: after}
+    }
+
+    function test_auto_delay_takes_no_rest_for_a_period() {
+        let r = restAndMoveAgain(true)
+        // 2 x 16 + no lateness + 4
+        compare(r.streaming, 36)
+        compare(JSON.stringify(r.after), JSON.stringify([36, 36, 36, 36]))
+    }
+
+    function test_auto_delay_takes_no_rest_for_lateness() {
+        // On arrival time, the first state after the rest arrived 5 s after
+        // the one before - alone in the 3 s window, it would be the 95th
+        // percentile of lateness
+        let r = restAndMoveAgain(false)
+        compare(r.streaming, 36)
+        compare(JSON.stringify(r.after), JSON.stringify([36, 36, 36, 36]))
+    }
+
+    function test_auto_delay_follows_a_slower_sender_within_five_states() {
+        let i = make({network: stubNet, nodeId: "A", autoDelay: true})
+        let sent = 0
+        for (let k = 0; k < 50; ++k) {
+            sent += 16
+            stubNet.sessionTime = sent + 80
+            i.push({x: k}, sent)
+        }
+        for (let k = 0; k < 5; ++k) {
+            sent += 50
+            stubNet.sessionTime = sent + 80
+            i.push({x: k}, sent)
+        }
+        compare(autoTarget(i), 2 * 50 + 4)
     }
 
     function test_session_time_zero_is_a_send_time() {

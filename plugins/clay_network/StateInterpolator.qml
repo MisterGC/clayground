@@ -99,7 +99,10 @@ Item {
         The delay becomes twice the sender's update period plus the 95th
         percentile of how late updates arrived in the last three seconds
         (relative to the fastest one seen), clamped to \l minDelayMs ..
-        \l maxDelayMs. It moves towards that target by at most 1 ms per
+        \l maxDelayMs. The period is the median of the last nine intervals
+        between updates, so the pause of an object at rest - which sends
+        nothing - is taken for neither a period nor lateness, and the delay
+        stays at its streaming value when the object moves again. It moves towards that target by at most 1 ms per
         frame, never in a jump. A LAN stream ends up with a small delay, an
         internet stream with whatever its jitter needs.
     */
@@ -243,7 +246,10 @@ Item {
             if (internal.lastArrival > 0) {
                 let dt = now - internal.lastArrival;
                 internal.notePeriod(dt);
-                lateness = Math.max(0, dt - internal.period);
+                // A pause is no late update: the first state after an
+                // object's rest would hold the delay at its maximum (#366)
+                if (dt <= internal.pauseMs)
+                    lateness = Math.max(0, dt - internal.period);
             }
         }
         internal.lastArrival = now;
@@ -342,13 +348,28 @@ Item {
 
         // Auto delay: sender period and lateness distribution
         property real period: 0
+        property var intervals: []
         property var lateness: []
         property real delay: 0
         property real target: 0
 
+        // The period is the median of the last nine intervals between
+        // states, not their average: an object at rest sends nothing, and
+        // the gaps around its rest - the stop, the settle, the first state
+        // after it - would count as periods several times as long and
+        // render it twice as late long after it moves again (#366). A
+        // median leaves up to four of them out and still follows a sender
+        // that changes its rate within five states.
+        readonly property real pauseMs: 2000
+        readonly property int periodSamples: 9
         function notePeriod(dt) {
-            if (dt <= 0 || dt > 2000) return;
-            period = period > 0 ? period * 0.9 + dt * 0.1 : dt;
+            if (dt <= 0 || dt > pauseMs) return;
+            let iv = intervals;
+            iv.push(dt);
+            if (iv.length > periodSamples) iv.shift();
+            let sorted = iv.slice().sort((a, b) => a - b);
+            let mid = sorted.length >> 1;
+            period = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
         }
         // The offset and lateness windows hold the last 3 s on the clock
         // they were stamped with. When that clock changes under them - the
