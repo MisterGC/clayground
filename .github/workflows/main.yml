@@ -26,10 +26,11 @@ on:
 # configure, used to leave the newest - nearly empty - cache, and the next
 # run started from that. PR runs restore their base branch's.
 #
-# The desktop tests run in three shards per platform, each on a runner of its
+# The desktop tests run in four shards per platform, each on a runner of its
 # own: the two net gyms take over two minutes each, too long next to
-# everything else on four cores. The shards' test selections partition the
-# suite - every test runs in exactly one of them.
+# everything else on four cores, and the rest takes two minutes on Windows.
+# The shards' test selections partition the suite - every test runs in
+# exactly one of them.
 
 # Prevent multiple runs of the same workflow on the same ref
 concurrency:
@@ -62,13 +63,21 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ linux, windows ]
+        # A net gym shard builds only what the gym runs, the loader and the
+        # plugins; the rest of the suite runs in two halves, by test number
         shard:
           - name: net gym
+            build: --target clayliveloader clay_qml_modules
             ctest: "-R '^network_sync_gym$'"
           - name: cloud net gym
+            build: --target clayliveloader clay_qml_modules
             ctest: "-R '^network_sync_gym_cloud$'"
-          - name: suite
-            ctest: "-E '^network_sync_gym(_cloud)?$' --parallel 4"
+          - name: suite 1
+            build: ''
+            ctest: "-E '^network_sync_gym(_cloud)?$' -I 1,,2 --parallel 4"
+          - name: suite 2
+            build: ''
+            ctest: "-E '^network_sync_gym(_cloud)?$' -I 2,,2 --parallel 4"
         include:
           - platform: linux
             os: ubuntu-latest
@@ -151,12 +160,12 @@ jobs:
         cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DBUILD_TESTING=ON -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ matrix.cache-tool }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ matrix.cache-tool }} -DFETCHCONTENT_UPDATES_DISCONNECTED=ON .
 
     - name: Build
-      run: cmake --build build
+      run: cmake --build build ${{ matrix.shard.build }}
       env:
         CL: /MP
 
     - name: Save Compiler Cache
-      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite'
+      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite 1'
       uses: actions/cache/save@v4
       with:
         # Spelled exactly as ccache-action restores it: a cache is versioned
@@ -165,7 +174,7 @@ jobs:
         key: ${{ matrix.cache-tool }}-${{ matrix.os }}-desktop-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Save FetchContent Checkouts
-      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite' && steps.fetchcontent.outputs.cache-hit != 'true'
+      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite 1' && steps.fetchcontent.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
