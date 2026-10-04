@@ -178,6 +178,23 @@ Two writers share the store (the overlay creates entries, the inspector marks th
 
 Evaluates JavaScript/QML expressions in the sandbox root context. This is the bridge to `canvas.find()` and any other QML function.
 
+An object result comes back as its properties, without a `JSON.stringify(...)` around it: a JS object as its members, a QObject — a QML singleton, an item, a C++ object — as its properties, nested objects and arrays of objects included. Numbers, strings, booleans and arrays of them come back as plain JSON values.
+
+- `"eval": ["Balance"]` on a `pragma Singleton` QtObject returns the whole table.
+- An item reports its value properties and its own object properties, but not `parent`, its child lists (`children`, `data` — that is what `tree` is for) or Qt's built-in object properties such as `anchors` and `layer`.
+- Points, sizes, rects, vectors and quaternions read as `{x, y}`, `{width, height}`, `{x, y, width, height}`, `{x, y, z}` and `{scalar, x, y, z}`.
+
+The result is bounded, so a cyclic or huge value cannot hang the inspector. What is cut off is replaced by a marker:
+
+| Marker | Where | Meaning |
+|---|---|---|
+| `"<cut: cycle>"` | a value | the object already appears further up this path |
+| `"<cut: depth>"` | a value | nested deeper than 8 levels |
+| `"<cut: size>"` | the last array element, or the value of a `"<cut>"` key | more than 5000 values in this result |
+| `"<function>"` | a value | a JS function |
+
+A failing expression answers `{"error": "..."}` for that expression alone.
+
 ### tree — Structural dump
 
 ```json
