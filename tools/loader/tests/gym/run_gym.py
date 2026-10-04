@@ -555,8 +555,15 @@ def run(insp, sandbox_dir, attended):
         print("SKIP  rearm-on-edit (attended mode leaves your files alone)")
     else:
         sbx = os.path.join(sandbox_dir, "Sandbox.qml")
-        with open(sbx, "a") as f:
-            f.write("\n// gym-touch\n")
+        with open(sbx) as f:
+            src = f.read()
+        # A real edit, not a comment: the reload has to show what was saved.
+        # Under Qt 6.10 it showed the file as first loaded until the loader
+        # gave each reload's files URLs of their own (#385).
+        with open(sbx, "w") as f:
+            f.write(src.replace("    property int score: 0",
+                                "    property int score: 0\n"
+                                "    property string gymEdit: \"saved\"", 1))
         ok = wait_for(lambda: insp.state().get("phase") == "reloading", 10) \
             or insp.state().get("phase") == "ready"
         insp.request({"action": "waitForRoot", "timeoutMs": 8000}, timeout=12)
@@ -566,6 +573,9 @@ def run(insp, sandbox_dir, attended):
         check("rearm: scenario reapplied after edit",
               px is not None and abs(px - 10) < 0.6 and score == 0,
               f"player.xWu={px} score={score}")
+        edit = insp.eval1("gym.gymEdit")
+        check("edit: the reloaded scene is the saved file", edit == "saved",
+              f"gym.gymEdit={edit}")
 
     # -- 6b: a broken save must not take the scene down (#170) -----------
     # The exact situation from the issue: a file is saved mid-edit while an
