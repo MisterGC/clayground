@@ -21,6 +21,12 @@ ctest --preset default            # the full suite, 8 tests at a time
 for libdatachannel. Machine-specific settings belong in a gitignored
 `CMakeUserPresets.json` inheriting from `default` — never in `CMakePresets.json`.
 
+The presets generate Ninja. In a fresh worktree `./verify.sh` alone is enough:
+it initialises the submodules, and the first build takes llama.cpp and
+libdatachannel from a fetch cache shared by every checkout and the objects from
+ccache keyed relative to the checkout (`cmake/claybuildcache.cmake`, README "A
+fresh checkout or worktree"). Measured: 36 s instead of 7.3 min (#385).
+
 Binaries land in `build/bin/`, QML modules in `build/bin/qml` (the QML import path).
 
 ### Tests
