@@ -39,6 +39,9 @@ env:
 jobs:
   build:
     strategy:
+      # Each platform reports on its own: a red WASM browser check used to
+      # cancel Linux and Windows, so most PRs had no desktop result (#386)
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
