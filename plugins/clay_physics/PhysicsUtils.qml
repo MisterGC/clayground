@@ -57,4 +57,48 @@ Item {
                                          method(f.getBody().target);
                                    });
     }
+
+    // Remembers which fixtures of other bodies the fixtures of `body` touch,
+    // and end() sends each of them its endContact while the body's item can
+    // still be named (#371). Box2D ends the contacts of a body only when it
+    // destroys the body - by then the item is gone - and qml-box2d drops
+    // those events anyway (World::SayGoodbye), so a sensor never heard that
+    // a destroyed item left it. end() is called from the item's
+    // Component.onDestruction. Only fixtures the body has when this is called
+    // are tracked.
+    function _trackContacts(body) {
+        // own fixture -> Map(other fixture -> number of open contacts)
+        let pairs = new Map();
+        let fixtures = [];
+        for (let i = 0; i < body.fixtures.length; ++i) {
+            let own = body.fixtures[i];
+            fixtures.push(own);
+            pairs.set(own, new Map());
+            own.beginContact.connect((other) => {
+                let touching = pairs.get(own);
+                touching.set(other, (touching.get(other) || 0) + 1);
+            });
+            own.endContact.connect((other) => {
+                let touching = pairs.get(own);
+                let n = (touching.get(other) || 0) - 1;
+                if (n > 0) touching.set(other, n);
+                else touching.delete(other);
+            });
+        }
+        return {
+            end: () => {
+                for (let own of fixtures) {
+                    let touching = pairs.get(own);
+                    for (let [other, n] of Array.from(touching)) {
+                        touching.delete(other);
+                        // A raw Body (no PhysicsItem around it) ends nothing
+                        // when it goes, so its fixture can be gone already.
+                        if (!other || typeof other.getBody !== "function")
+                            continue;
+                        for (let k = 0; k < n; ++k) other.endContact(own);
+                    }
+                }
+            }
+        };
+    }
 }
