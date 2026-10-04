@@ -11,6 +11,9 @@
 // the settle, the receiver must not carry the motion on past the stop:
 // the largest overshoot it shows stays under 0.1 Wu. No built module is
 // needed, so this runs on Windows too (#192).
+//
+// An object that moves, stops and is hit while it stands, again and again,
+// keeps the auto delay it streams with on the receiver (#374).
 
 import QtQuick
 import QtTest
@@ -158,6 +161,43 @@ TestCase {
 
         fuzzyCompare(remote.x, stoppedAt, 1e-6)
         return most - stoppedAt
+    }
+
+    // The owner's item moves for a few frames, stops, is hit while it
+    // stands (y jumps), stands again - five times over, like an enemy that
+    // lunges and is hit (#374). Returns the receiver's auto delay target.
+    function autoDelayOfAMoveStopAndHit() {
+        const owner = createTemporaryObject(bodyComp, tc, {net: ownerNet})
+        const remote = createTemporaryObject(bodyComp, tc, {net: remoteNet})
+        const interp = remote.replica.interpolator
+        interp.autoDelay = true
+        mover = owner
+        speed = 6
+        let from = 0
+        for (let round = 0; round < 5; ++round) {
+            moveMs = 100
+            startedAt = clock() - from * 1000 / speed
+            motion.running = true
+            tryVerify(() => !motion.running, 1000)
+            from = owner.x
+            // Past the stop and the settle
+            wait(owner.replica.settleMs + 100)
+            owner.y += 1
+            wait(owner.replica.settleMs + 100)
+        }
+        tryVerify(() => link.queue.length === 0, 1000)
+        // Turned off and on, the delay snaps to its target
+        interp.autoDelay = false
+        interp.autoDelay = true
+        return interp.effectiveDelayMs
+    }
+
+    function test_an_object_that_stops_and_is_hit_keeps_its_streaming_delay() {
+        const d = autoDelayOfAMoveStopAndHit()
+        console.log("auto delay after five moves, stops and hits: " + d + " ms")
+        // Two frame periods and the transit's jitter; the gaps around its
+        // rests, taken for periods, made it two settles long
+        verify(d < 100, "auto delay " + d + " ms")
     }
 
     function test_a_stop_overshoots_less_than_a_tenth_with_a_fixed_delay() {
