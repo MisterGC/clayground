@@ -515,24 +515,37 @@ void ClayInspector::onRequestFileChanged(const QString& path)
         file.close();
     }
 
+    // The stamp is the file that was read only if nothing wrote in between:
+    // a client truncates, then writes, and a request read whole under the
+    // truncated file's stamp was carried out again at the next look at the
+    // written file - a reload without an id reloaded twice on a loaded
+    // Linux runner (#386). Changed under the read: look again.
+    const QFileInfo after(path);
+    const bool settled = after.lastModified() == seen.lastModified()
+                         && after.size() == seen.size() && seen.size() == data.size();
+
     QJsonParseError parseError{};
     QJsonDocument doc;
     if (!data.trimmed().isEmpty())
         doc = QJsonDocument::fromJson(data, &parseError);
-    if (data.trimmed().isEmpty() || parseError.error != QJsonParseError::NoError) {
+    const bool parsed = !data.trimmed().isEmpty() && parseError.error == QJsonParseError::NoError;
+    if (!settled || !parsed) {
         // Caught mid-write - a client truncates, then writes - or still held
         // by the writer on Windows. The notification for the rest of the
         // write can be folded into this one, and waiting for one that never
         // comes left a request unanswered (#301): look again shortly. A
-        // request read twice is carried out once (processRequest's id check).
+        // request read twice is carried out once (the handled stamp below,
+        // and processRequest's id check).
         if (m_requestRereads++ < 10) {
             QTimer::singleShot(20, this, [this, path]() { onRequestFileChanged(path); });
             return;
         }
-        m_requestRereads = 0;
-        if (!data.trimmed().isEmpty())
-            qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
-        return;
+        if (!parsed) {
+            m_requestRereads = 0;
+            if (!data.trimmed().isEmpty())
+                qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
+            return;
+        }
     }
     m_requestRereads = 0;
 
