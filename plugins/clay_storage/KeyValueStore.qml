@@ -17,6 +17,8 @@ Item
             let rs = tx.executeSql('INSERT OR REPLACE INTO keyvalue VALUES (?,?);', [key,value]);
             res = rs.rowsAffected === 1 ? true : false;
         });
+        // On the web a change is kept across a reload only once persisted (#341)
+        StorageSync.persist();
         return res;
     }
 
@@ -42,6 +44,7 @@ Item
         _db.transaction((tx) => {
             let rs = tx.executeSql('DELETE FROM keyvalue WHERE key=?;', [key]);
         });
+        StorageSync.persist();
         return true;
     }
 }
