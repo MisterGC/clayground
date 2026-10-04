@@ -49,6 +49,10 @@ Item {
     property string roomPassword: ""
     // Why the host refused this node's last join, "" if it did not
     property string refusedReason: ""
+    // Losing the host (#376): hostLostReason as a handler on connected saw
+    // it when connected turned false, and the reason hostLost() gave
+    property string reasonAtDisconnect: ""
+    property string lostReason: ""
 
     // Every reliable message received, as {from, probe, i, st, sentAt, at} -
     // the sender attribution checks look up their probes here, the link
@@ -68,6 +72,7 @@ Item {
     property real lastFromHostAt: 0
     function resetLogs() {
         leftLog = []; joinedLog = []; lastError = ""; refusedReason = ""
+        reasonAtDisconnect = ""; lostReason = ""
         signalingLosses = 0; leftAt = 0; disconnectedAt = 0
     }
     function leaveNow() { leftAt = Date.now(); net.leave() }
@@ -349,6 +354,8 @@ Item {
         }
         onErrorOccurred: (message) => gym.lastError = message
         onJoinRefused: (reason, message) => gym.refusedReason = reason
+        onHostLost: (reason, message) => gym.lostReason = reason
+        onConnectedChanged: if (!connected) gym.reasonAtDisconnect = hostLostReason
         onNodeJoined: (nodeId) => gym.joinedLog = gym.joinedLog.concat([nodeId])
         onSignalingLost: gym.signalingLosses++
         onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()

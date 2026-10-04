@@ -266,7 +266,8 @@ PING_MS = 2000
 
 def scenario_host_leaves(host, joiners, host_id):
     """The host leaves; every joiner hears its goodbye, ends Disconnected with
-    errorOccurred within 1 s, and drops it and its stream."""
+    errorOccurred within 1 s, reads "host-left" as the reason (#376), and
+    drops it and its stream."""
     host.eval(["leaveNow()"])
     left_at = host.eval1("leftAt") or 0
     start = time.time()
@@ -284,6 +285,11 @@ def scenario_host_leaves(host, joiners, host_id):
               gone, f"after {took:.1f}s, nodes={j.eval1('JSON.stringify(nodeList)')}")
         left = json.loads(j.eval1("JSON.stringify(leftLog)") or "[]")
         check(f"host leaves: {name} reports it in nodeLeft", host_id in left, str(left))
+        at, lost = j.eval1("reasonAtDisconnect"), j.eval1("lostReason")
+        check(f"host leaves: {name} reads 'host-left' in hostLostReason as connected "
+              f"turns false, and in hostLost()",
+              at == "host-left" and lost == "host-left",
+              f"at disconnect={at!r} hostLost={lost!r}")
         check(f"host leaves: {name} keeps no stream from it",
               j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,
               f"stateAgeMs={j.eval1(f'netRef.stateAgeMs({json.dumps(host_id)})')}")
@@ -358,7 +364,8 @@ def scenario_host_killed(kill, host_id, joiners, how):
     """The host dies without a word (#299): every joiner ends Disconnected
     with errorOccurred within the grace period plus one ping interval of the
     host going silent - the last thing the joiner received from it, on the
-    joiner's clock. The driver's own kill time also counts how long the
+    joiner's clock, with a timeout or a lost connection as the reason
+    (#376). The driver's own kill time also counts how long the
     kill took, which a slow runner stretches; it is reported, not checked."""
     for _, j in joiners:
         j.eval(["resetLogs()"])
@@ -377,6 +384,11 @@ def scenario_host_killed(kill, host_id, joiners, how):
               and j.eval1("status") == 0 and bool(err),
               f"after {fmt(took, 0)} ms of silence ({fmt(ended_at - killed_at, 0)} ms "
               f"after the driver began the kill), lastError={err!r}")
+        at, lost = j.eval1("reasonAtDisconnect"), j.eval1("lostReason")
+        check(f"host {how}: {name} reads a timeout or a lost connection in "
+              f"hostLostReason as connected turns false, and the same in hostLost()",
+              at in ("host-timeout", "connection-lost") and lost == at,
+              f"at disconnect={at!r} hostLost={lost!r}")
         left = json.loads(j.eval1("JSON.stringify(leftLog)") or "[]")
         check(f"host {how}: {name} reports it in nodeLeft and keeps no stream",
               host_id in left and j.eval1(f"netRef.stateAgeMs('{host_id}')") == -1,
