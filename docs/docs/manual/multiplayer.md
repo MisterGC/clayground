@@ -169,8 +169,14 @@ behind where it really is, so keep it as small as the stream allows.
 of updates (about twice the period plus the 95th-percentile jitter) and
 glides towards that value, so a LAN session ends up around 50 ms at 60 Hz
 sends while an internet session gets what its jitter needs. The period is
-the median of the last nine intervals between updates, so an object that
-rests and sends nothing keeps its delay when it moves again. Sending on
+the median of the last nine intervals between updates that move the object
+on, or that repeat an unchanged state at the rate of the ones before - a
+sender that broadcasts every physics step is measured by that step while
+its object stands too. An object at
+rest sends nothing, or - a `ReplicatedObject` that stops and settles - its
+last state once or twice more; those gaps count as neither period nor
+lateness, so an object that stops often, or is hit while it stands, keeps
+its streaming delay when it moves again. Sending on
 every physics step instead of a 20 Hz timer is what makes the small delay
 possible; the lossy channel makes the rate cheap.
 
