@@ -458,7 +458,9 @@ jobs:
     - name: Build the Loader
       run: |
         cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_UPDATES_DISCONNECTED=ON .
-        cmake --build build --target clayliveloader
+        # The loader loads the plugins at runtime and does not depend on them:
+        # built alone, it found no Clayground.Network and the gym never loaded
+        cmake --build build --target clayliveloader clay_qml_modules
 
     - name: Download Starter Bundle
       uses: actions/download-artifact@v4
