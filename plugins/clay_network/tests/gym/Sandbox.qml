@@ -18,8 +18,9 @@
 // A node can show another's keyed objects through thirty interpolators at
 // once and count what they do per frame (#305). Replicated objects (#306):
 // the host runs thirty enemies at 20 Hz - a position and a mood string - a
-// joiner runs its avatar, the host sets session properties, and every node
-// reports what it shows of them. The tracked stream's gaps are kept, so a
+// joiner runs its avatar, the host sets session properties - numbers,
+// strings, an object, an array - and every node reports what it shows of
+// them, and what sessionProperties held as sessionPropertyChanged fired. The tracked stream's gaps are kept, so a
 // driver can tell a lost state from one the link held up (#307).
 
 import QtQuick
@@ -72,7 +73,7 @@ Item {
     property real lastFromHostAt: 0
     function resetLogs() {
         leftLog = []; joinedLog = []; lastError = ""; refusedReason = ""
-        reasonAtDisconnect = ""; lostReason = ""
+        reasonAtDisconnect = ""; lostReason = ""; sessionSeen = []
         signalingLosses = 0; leftAt = 0; disconnectedAt = 0
     }
     function leaveNow() { leftAt = Date.now(); net.leave() }
@@ -196,6 +197,8 @@ Item {
         for (const o of net.objects(type))
             net.despawn(o.id)
     }
+    // Every sessionPropertyChanged, as {name, value, inMap} (#375)
+    property var sessionSeen: []
     // What this node shows of every object, by id
     function objectsReport() {
         let out = {}
@@ -206,6 +209,7 @@ Item {
                            spawnIndex: it.spawnIndex, token: it.token}
             }
         return JSON.stringify({objects: out, session: net.sessionProperties,
+                               sessionSeen: gym.sessionSeen,
                                seqEntries: net._objectSequenceEntries()})
     }
     Timer {
@@ -360,6 +364,11 @@ Item {
         onSignalingLost: gym.signalingLosses++
         onStatusChanged: if (status === Network.Status.Disconnected) gym.disconnectedAt = Date.now()
         onNodeLeft: (nodeId) => gym.leftLog = gym.leftLog.concat([nodeId])
+        // What sessionProperties held for the name as the signal fired (#375)
+        onSessionPropertyChanged: (name, value) => {
+            gym.sessionSeen = gym.sessionSeen.concat([{name: name, value: value,
+                                                       inMap: net.sessionProperties[name]}])
+        }
         onMessageReceived: (from, data, sentAt) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
             gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i,

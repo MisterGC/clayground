@@ -756,11 +756,39 @@ def agree(a, b, keys=("type", "owner", "x", "mood", "spawnIndex", "token")):
     return out
 
 
+# Session properties beyond a number and a string (#375): nested, as JSON
+SESSION_LOOT = {"gold": 3, "items": ["sword", {"name": "key", "uses": 2}]}
+SESSION_PATH = [[0, 1], [2, 3.5], "exit"]
+
+
+def check_session(label, name, inst, live):
+    """inst holds the seed, the level, the loot and the path, and
+    sessionProperties held each one already as sessionPropertyChanged
+    fired for it (#375)."""
+    rep = objects_of(inst)
+    session = rep.get("session", {})
+    how = "as the host sets them" if live else "joining late"
+    check(f"{label}: {name}, {how}, gets the session properties - numbers, "
+          "strings, an object and an array",
+          session.get("seed") == 1234 and session.get("level") == "crypt"
+          and session.get("loot") == SESSION_LOOT and session.get("path") == SESSION_PATH,
+          str(session))
+    seen = rep.get("sessionSeen", [])
+    names = sorted({s.get("name") for s in seen})
+    stale = [s for s in seen if s.get("value") != s.get("inMap")]
+    check(f"{label}: on {name}, sessionProperties holds the new value inside "
+          "sessionPropertyChanged",
+          names == ["level", "loot", "path", "seed"] and not stale,
+          f"signals for {names}; differing: {stale[:2]}")
+
+
 def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
     """Replicated objects (#306). The host spawns n enemies and moves them
     at hz, each with a mood string, the joiner spawns its avatar; a node
     that joins late sees every one of them where the others show it, with
-    owner and spawn props, and the session properties. The late node's own
+    owner and spawn props, and the session properties - an object and an
+    array among them, read from sessionProperties inside
+    sessionPropertyChanged on every node (#375). The late node's own
     avatar passes to the host when it leaves; at the end every object is
     despawned and no node keeps a sequence entry for any of them."""
     (jname, J), (lname, L) = joiner, late
@@ -769,6 +797,8 @@ def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
     host.eval([f"spawnEnemies({n})",
                "netRef.setSessionProperty('seed', 1234)",
                "netRef.setSessionProperty('level', 'crypt')",
+               f"netRef.setSessionProperty('loot', {json.dumps(SESSION_LOOT)})",
+               f"netRef.setSessionProperty('path', {json.dumps(SESSION_PATH)})",
                "objectsMoving = true"])
     J.eval(["spawnAvatar()", "objectsMoving = true"])
     shown = wait_for(lambda: len(objects_of(J).get("objects", {})) == n + 1
@@ -799,9 +829,9 @@ def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
           seen and not diff,
           f"{len(rep_l.get('objects', {}))} of {n + 1}; {len(diff)} differ: "
           f"{dict(list(diff.items())[:3])}")
-    session = rep_l.get("session", {})
-    check(f"{label}: {lname} gets the session properties",
-          session.get("seed") == 1234 and session.get("level") == "crypt", str(session))
+    check_session(label, "the host", host, live=True)
+    check_session(label, jname, J, live=True)
+    check_session(label, lname, L, live=False)
 
     avatar = L.eval1("spawnAvatar()")
     on_host = wait_for(lambda: avatar in objects_of(host).get("objects", {}), 10)
