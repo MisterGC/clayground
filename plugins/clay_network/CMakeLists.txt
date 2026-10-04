@@ -6,7 +6,7 @@
 #   Desktop/Mobile: WebRTC via libdatachannel + PeerJS signaling (cloud) or local signaling (LAN)
 #
 include(clayplugin)
-include(FetchContent)
+include(claybuildcache)
 
 # Common sources (all platforms)
 set(COMMON_SOURCES
@@ -53,8 +53,13 @@ if(EMSCRIPTEN)
                  ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.js)
 else()
     # Native: WebRTC via libdatachannel
-    FetchContent_Declare(
-        libdatachannel
+    # Disable unneeded features
+    set(NO_MEDIA ON CACHE BOOL "" FORCE)
+    set(NO_WEBSOCKET OFF CACHE BOOL "" FORCE)  # We need WebSocket for signaling
+    set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
+    set(NO_TESTS ON CACHE BOOL "" FORCE)
+
+    clay_fetch(libdatachannel
         GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
         GIT_TAG v0.21.2
         GIT_SHALLOW TRUE
@@ -64,14 +69,9 @@ else()
         PATCH_COMMAND ${CMAKE_COMMAND}
             -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
             -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
+        CACHE_KEY_FILES ${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
+                        ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
     )
-    # Disable unneeded features
-    set(NO_MEDIA ON CACHE BOOL "" FORCE)
-    set(NO_WEBSOCKET OFF CACHE BOOL "" FORCE)  # We need WebSocket for signaling
-    set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
-    set(NO_TESTS ON CACHE BOOL "" FORCE)
-
-    FetchContent_MakeAvailable(libdatachannel)
 
     set(PLATFORM_SOURCES
         claynetwork_native.cpp

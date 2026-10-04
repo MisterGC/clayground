@@ -38,6 +38,8 @@ endif()
 
 include(claycommon)
 include(clayplugin)
+# Before the first target: it sets the compiler launcher (#385)
+include(claybuildcache)
 
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}" CACHE INTERNAL "")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}" CACHE INTERNAL "")
