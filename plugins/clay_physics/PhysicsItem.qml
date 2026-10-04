@@ -22,6 +22,14 @@
     }
     \endqml
 
+    When the item is destroyed while its body touches fixtures of other
+    bodies, each of those fixtures gets \c endContact before the body goes,
+    with the item still readable as \c {other.getBody().target} - a sensor
+    learns whom it lost. Box2D itself ends those contacts only after the item
+    is gone, and they never reached QML. Only the fixtures the body has when
+    the item completes are covered; a raw \c Body outside a PhysicsItem ends
+    nothing when it is destroyed. VisualizedPolyBody does the same.
+
     \note When declaring fixtures inline, use an explicit ID to reference
     the item's dimensions — \b not \c parent. Box2D fixture types (Box, Circle,
     Polygon, etc.) are QObjects. In QML, \c parent inside a QObject resolves

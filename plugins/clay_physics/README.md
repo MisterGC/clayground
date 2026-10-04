@@ -239,6 +239,8 @@ PhysicsTimer {
 
 5. **Continuous Collision**: Enable `bullet` property for fast-moving objects to prevent tunneling.
 
+6. **Destroyed Bodies**: An item destroyed while it touches a sensor ends that contact first, so the sensor's `endContact` still names it (`other.getBody().target`). This holds for every body type of this plugin, not for a raw `Body`.
+
 ## Technical Implementation
 
 The Clay Physics plugin:
