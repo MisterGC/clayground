@@ -449,8 +449,24 @@ def scenario_keyed(nodes, host, keys=100, hz=30, window=5.0, jitter_ms=6):
     overtake each other. Every receiver gets every key of every other
     node, none dropped behind another key, in batches of at most about
     1200 bytes. The jitter stays below a frame, so an update never
-    overtakes the one for the same key before it either."""
+    overtakes the one for the same key before it either.
+
+    The streams start once every link's state channel is open. Until then
+    a node sends its states over the reliable connection, and the frame in
+    flight when it changes over can arrive after a newer one on the state
+    channel - rightly dropped as stale, and not the drop this looks for."""
     ids = {name: inst.eval1("netRef.nodeId") for name, inst in nodes}
+
+    def channels():
+        return {name: {peer: s.get("stateChannel") for peer, s in peer_stats(inst).items()}
+                for name, inst in nodes}
+
+    def all_open():
+        links = channels()
+        return all(links[name] and all(c == "unreliable" for c in links[name].values())
+                   for name, _ in nodes)
+    check("keyed: every link's state channel is open before the streams start",
+          wait_for(all_open, 15), str(channels()))
     for _, inst in nodes:
         inst.eval(["resetKeyed()"])
     host.eval([f"netRef.linkConditions = ({{jitterMs: {jitter_ms}}})"])
