@@ -30,3 +30,9 @@ if(EMSCRIPTEN)
     set_source_files_properties(storagesync.cpp PROPERTIES
         OBJECT_DEPENDS ${_clay_storage_prejs})
 endif()
+
+include(claytest)
+# IMPORTS_BUILT_MODULE: StorageSync is C++, so the suite loads the built
+# module from bin/qml (#192).
+clay_add_qml_test(storage_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)

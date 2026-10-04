@@ -170,6 +170,18 @@ jobs:
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --screenshot starter-smoke.png
 
+    # KeyValueStore used to write into the in-memory file system only, so
+    # everything a game stored was gone after a page reload (#341). The page
+    # stores a token, the harness reloads it, and the token must come back.
+    - name: Storage Reload Regression (WASM)
+      if: matrix.qt-target == 'wasm'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/storage-reload \
+          --expect "clay-storage: wrote" \
+          --reload-expect "clay-storage: read back" \
+          --timeout 120
+
     # Clayground.Sound's first audio-device query used to deadlock the page's
     # main thread (#216) - a failure no desktop test can see.
     - name: Sound Regression (WASM)
