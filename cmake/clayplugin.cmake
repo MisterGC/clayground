@@ -72,21 +72,29 @@ function(clay_plugin PLUGIN_NAME)
     # Custom depdendencies
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${CLAY_PLUGIN_LINK_LIBS})
 
+    clay_join_qml_modules(${PLUGIN_NAME})
+
+endfunction()
+
+
+# Lets every app wait for a QML module before copying bin/qml (#188).
+# clay_plugin() calls it; a module declared with a plain qt_add_qml_module
+# must call it itself, or a clean build can copy bin/qml without it (#381).
+function(clay_join_qml_modules MODULE_TARGET)
     # See init_static_plugin_cfg(): this is what lets an app wait for bin/qml
     # to be complete before copying it (#188).
-    # ${PLUGIN_NAME} is only the backing library; the dylib the QML engine
+    # ${MODULE_TARGET} is only the backing library; the dylib the QML engine
     # loads from bin/qml is built by the separate plugin target, which links
     # against it and so finishes after it. Waiting on the backing library alone
     # left the race open - sbx_plugin copied MyPlugin's directory before
     # libMyPluginplugin.dylib was there (#350).
     if(TARGET clay_qml_modules)
-        add_dependencies(clay_qml_modules ${PLUGIN_NAME})
-        get_target_property(_clay_plugin_target ${PLUGIN_NAME} QT_QML_MODULE_PLUGIN_TARGET)
-        if(_clay_plugin_target AND NOT _clay_plugin_target STREQUAL PLUGIN_NAME)
+        add_dependencies(clay_qml_modules ${MODULE_TARGET})
+        get_target_property(_clay_plugin_target ${MODULE_TARGET} QT_QML_MODULE_PLUGIN_TARGET)
+        if(_clay_plugin_target AND NOT _clay_plugin_target STREQUAL MODULE_TARGET)
             add_dependencies(clay_qml_modules ${_clay_plugin_target})
         endif()
     endif()
-
 endfunction()
 
 
