@@ -1,4 +1,5 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
+// probe for #386: a PR that touches only a test (not for merge)
 //
 // KeyValueStore on a native build: what it stores is read back - also by
 // another store of the same name, i.e. from the database file and not from
