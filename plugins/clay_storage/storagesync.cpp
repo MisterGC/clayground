@@ -44,7 +44,8 @@ StorageSync::StorageSync(QObject* parent)
 
     Writes the data directory back to IndexedDB, in the background. Calls
     that arrive while a write is still running are folded into one more
-    write after it.
+    write after it. A change is safe from a page reload once the page's
+    JavaScript reads \c {window.clayStorage.busy} as false.
 */
 void StorageSync::persist()
 {

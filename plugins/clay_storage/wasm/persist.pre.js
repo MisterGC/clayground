@@ -13,6 +13,10 @@
 // Storage is never a reason not to start: without IndexedDB (some private
 // windows, blocked site data) the directory stays in memory as before and
 // the app boots, with one warning in the console.
+//
+// The write back runs in the background, so a page reloaded right after a
+// change can lose it. window.clayStorage.busy says whether a write is still
+// under way - a page, or a test that reloads it (#386), waits for it.
 
 if (typeof ENVIRONMENT_IS_PTHREAD === 'undefined' || !ENVIRONMENT_IS_PTHREAD) {
     Module['preRun'] = [].concat(Module['preRun'] || []);
@@ -23,6 +27,7 @@ if (typeof ENVIRONMENT_IS_PTHREAD === 'undefined' || !ENVIRONMENT_IS_PTHREAD) {
         let usable = true;
         let running = false;
         let again = false;
+        globalThis['clayStorage'] = { get busy() { return running || again; } };
 
         const warn = (what, err) => {
             usable = false;

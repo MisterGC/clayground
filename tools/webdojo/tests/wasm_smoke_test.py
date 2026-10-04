@@ -390,6 +390,11 @@ def run(args, serve_dir):
         else:
             wait_until(lambda: qml_loaded and marker_seen)
             if args.reload_expect and qml_loaded and marker_seen and not errors:
+                # Clayground.Storage writes to IndexedDB in the background: a
+                # reload before that write is done loses what the page stored
+                # (#386) - on a loaded CI runner it was not done 300 ms later
+                wait_until(lambda: not page.evaluate(
+                    "!!(window.clayStorage && window.clayStorage.busy)"))
                 # The second life of the page must start from scratch: what it
                 # finds can only have come through the reload.
                 booted = qml_loaded = False
