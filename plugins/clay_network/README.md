@@ -57,6 +57,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `clientTokens` | var | Host: each joiner's `clientToken`, by node ID |
 | `wireVersion` | int | Version of the message format this build speaks |
 | `connected` | bool | True when connected |
+| `hostLostReason` | string | Why this joiner lost its host - `host-left`, `host-timeout`, `connection-lost` - set before `connected` turns false; "" otherwise |
 | `status` | enum | `Disconnected`, `Connecting`, `Connected`, `Error` |
 | `nodeCount` | int | Number of nodes in the network |
 | `nodes` | list | List of node IDs |
@@ -78,7 +79,8 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `nodeLeft(nodeId)` | A node left the network |
 | `messageReceived(fromId, data, sentAt)` | Reliable message received; `sentAt` is the `sessionTime` it was sent at (-1 if absent) |
 | `stateReceived(fromId, data, sentAt, key)` | State update received; `sentAt` is the `sessionTime` it was sent at (-1 if absent), `key` the key it was sent with ("" if none) |
-| `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent |
+| `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent - the text is for people, act on `hostLost` |
+| `hostLost(reason, message)` | A joiner's network ended with its host: `host-left`, `host-timeout` or `connection-lost` - see [Leaving](#leaving) |
 | `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
 | `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
 | `objectSpawned(id, type, owner, props)` | A replicated object came to life on this node - also, on a late joiner, each one already there |
@@ -184,18 +186,33 @@ natively and in the browser:
 
 - **It says goodbye.** `leave()` tells every peer before it closes, so they
   report it in `nodeLeft` at once. When the host leaves, every joiner's
-  network ends: `status` turns `Disconnected` and `errorOccurred("The host
-  left the network")` follows the `nodeLeft` of every node it knew.
+  network ends: `status` turns `Disconnected`, and `hostLost("host-left",
+  "The host left the network")` and `errorOccurred` with the same message
+  follow the `nodeLeft` of every node it knew.
 - **It goes silent.** Every node pings its peers every 2 s, and a peer it
   has not heard from for 0.5 s right away. A peer that leaves a ping
   unanswered, and sends nothing else either, for `gracePeriod` (5 s by
   default) is dropped - a crashed host, a closed laptop. A joiner notices
   such a host within `gracePeriod` plus about 0.75 s and ends as above,
-  with "The host did not answer for 5000 ms". A peer that streams state
+  with `host-timeout` and "The host did not answer for 5000 ms". A peer that streams state
   is never quiet, so in a game the extra pings do not happen.
 - **Its connection fails.** WebRTC reporting the connection failed or
   closed. A connection that is only `Disconnected` can recover and is not a
-  leave: a link that comes back within `gracePeriod` loses nobody.
+  leave: a link that comes back within `gracePeriod` loses nobody. A
+  joiner's host lost this way ends with `connection-lost`.
+
+A game tells these apart by `hostLostReason`, never by the message text. It
+is set before `connected` turns false, so a handler on `connected` or
+`status` already reads it; `host()` and `join()` clear it, and a node's own
+`leave()` leaves it empty:
+
+```qml
+Network {
+    onConnectedChanged: if (!connected && hostLostReason !== "")
+        session.end(hostLostReason === "host-left" ? "The host ended the game"
+                                                   : "Lost the host")
+}
+```
 
 When a Cloud node's signaling connection drops, the network goes on over
 the data channels: `signalingLost()` fires, and the node reconnects under

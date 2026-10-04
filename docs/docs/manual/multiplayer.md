@@ -214,9 +214,12 @@ relays traffic between joiners (`autoRelay`). Consequences:
   on its own. Show "not open for joiners" while it is false.
 - When the host leaves - `leave()`, a crash, a lost connection - every
   joiner's network ends: `nodeLeft` for every node, then `status`
-  `Disconnected` with `errorOccurred`. A clean leave arrives at once, a
-  silent host after `gracePeriod` (5 s) plus under a second. Handle that error
-  as "the session is over", not as a failed join.
+  `Disconnected`, `hostLost(reason, message)` and `errorOccurred`. A clean
+  leave arrives at once, a silent host after `gracePeriod` (5 s) plus under
+  a second. Handle it as "the session is over", not as a failed join.
+  `hostLostReason` says why - `host-left`, `host-timeout` or
+  `connection-lost` - and is already set when `connected` turns false;
+  never match the text of the message.
 - A sender id cannot be forged. Each message is attributed to the node at
   the other end of the connection it came over; only the host's relay may
   name another sender, and only one that is in the receiver's roster -
@@ -378,5 +381,5 @@ desktop and in the browser, so a test written against it covers both.
 - [ ] Things that come and go spawned as replicated objects, with an `onOwnerLeft` that fits
 - [ ] `NetworkMonitor` visible in dev builds
 - [ ] Played once with `linkConditions` set to loss, latency and a blackout
-- [ ] Joiners end the session on the host's `errorOccurred`, and quit with `leave()`
+- [ ] Joiners end the session on `hostLost` (or `connected` turning false with a `hostLostReason`), and quit with `leave()`
 - [ ] `appId` set; a `password` where a code could leak; `joinRefused` handled
