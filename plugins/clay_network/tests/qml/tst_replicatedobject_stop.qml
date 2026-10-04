@@ -14,6 +14,14 @@
 //
 // An object that moves, stops and is hit while it stands, again and again,
 // keeps the auto delay it streams with on the receiver (#374).
+//
+// A health value in steppedProperties takes on the receiver only values
+// the owner sent, and each at the render delay of the position it was sent
+// with (#368): the owner drops it by 3 for every Wu it moves, and the
+// receiver shows each value no earlier than the x of the first state that
+// carried it - a value switched with the state before it, blended or not,
+// would show with an x short of that. A hit while it stands arrives the
+// same way.
 
 import QtQuick
 import QtTest
@@ -33,7 +41,14 @@ TestCase {
     QtObject {
         id: link
         property var queue: []
+        property var sentHp: []
+        // The x of the first state that carried each HP
+        property var hpSentAtX: ({})
         function carry(to, id, data, settled) {
+            if (data.hp !== undefined && sentHp.indexOf(data.hp) < 0) {
+                sentHp.push(data.hp)
+                hpSentAtX[data.hp] = data.x
+            }
             queue.push({due: tc.clock() + tc.transitMs, to: to, id: id,
                         data: JSON.parse(JSON.stringify(data)),
                         sentAt: tc.clock(), settled: settled})
@@ -101,6 +116,23 @@ TestCase {
         }
     }
 
+    Component {
+        id: fighterComp
+        Item {
+            id: fighter
+            property real hp: 52
+            property alias net: rep.network
+            property alias replica: rep
+            ReplicatedObject {
+                id: rep
+                objectId: "A:1"
+                properties: ["x", "y", "hp"]
+                steppedProperties: ["hp"]
+                interpolate: true
+            }
+        }
+    }
+
     // The owner's item moves at speed Wu/s, once per frame, for moveMs
     property var mover: null
     property real speed: 0
@@ -113,6 +145,9 @@ TestCase {
             // Not clamped to moveMs: the last step is a full one, at speed
             const t = tc.clock() - tc.startedAt
             tc.mover.x = tc.speed * t / 1000
+            // A fighter loses 3 HP per Wu, in the frame it gets there
+            if (tc.mover.hp !== undefined)
+                tc.mover.hp = 52 - 3 * Math.floor(tc.mover.x)
             if (t >= tc.moveMs)
                 running = false
         }
@@ -120,6 +155,8 @@ TestCase {
 
     function init() {
         link.queue = []
+        link.sentHp = []
+        link.hpSentAtX = {}
         for (const n of [ownerNet, remoteNet]) {
             n.table = {"A:1": {id: "A:1", type: "body", owner: "A", props: {}}}
             n._replicas = {}
@@ -190,6 +227,58 @@ TestCase {
         interp.autoDelay = false
         interp.autoDelay = true
         return interp.effectiveDelayMs
+    }
+
+    // Moves a fighter 3.6 Wu - HP 52, 49, 46, 43 on the way - stops it,
+    // hits it once while it stands, and checks every HP the receiver showed
+    function steppedHp(remoteSetup) {
+        const owner = createTemporaryObject(fighterComp, tc, {net: ownerNet})
+        const remote = createTemporaryObject(fighterComp, tc, {net: remoteNet})
+        verify(!remote.replica.isOwner)
+        const interp = remote.replica.interpolator
+        remoteSetup(interp)
+        compare(JSON.stringify(interp.stepKeys), JSON.stringify(["hp"]))
+
+        // Each HP the receiver shows, with the x it shows with it: x is
+        // applied before hp, both from one value of the interpolator
+        const shown = []
+        const note = () => shown.push({hp: remote.hp, x: remote.x})
+        remote.hpChanged.connect(note)
+
+        mover = owner
+        speed = 6
+        moveMs = 600
+        startedAt = clock()
+        motion.running = true
+        tryVerify(() => !motion.running, 2000)
+        compare(owner.hp, 52 - 3 * Math.floor(owner.x))
+        wait(owner.replica.settleMs + 100)
+        owner.hp = 40
+        wait(owner.replica.settleMs + 100)
+        tryVerify(() => link.queue.length === 0, 1000)
+        wait(interp.effectiveDelayMs + interp.maxExtrapolationMs + 50)
+        remote.hpChanged.disconnect(note)
+
+        console.log("sent " + JSON.stringify(link.sentHp) + ", shown "
+                    + JSON.stringify(shown.map(e => e.hp)))
+        compare(remote.hp, 40)
+        verify(shown.length >= 4, "the receiver showed " + JSON.stringify(shown))
+        for (const e of shown) {
+            verify(link.sentHp.indexOf(e.hp) >= 0,
+                   "HP " + e.hp + " was never sent: " + JSON.stringify(link.sentHp))
+            // Not before the position it was sent with
+            verify(e.x >= link.hpSentAtX[e.hp] - 1e-9,
+                   "HP " + e.hp + " shown at x " + e.x + ", sent at x "
+                   + link.hpSentAtX[e.hp])
+        }
+    }
+
+    function test_a_stepped_property_shows_only_sent_values_with_a_fixed_delay() {
+        steppedHp(interp => {})
+    }
+
+    function test_a_stepped_property_shows_only_sent_values_with_auto_delay() {
+        steppedHp(interp => { interp.autoDelay = true })
     }
 
     function test_an_object_that_stops_and_is_hit_keeps_its_streaming_delay() {

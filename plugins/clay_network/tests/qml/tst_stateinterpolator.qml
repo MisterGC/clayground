@@ -24,6 +24,11 @@
 // (#374): an enemy that stops and is hit while it stands keeps the delay
 // it streams with, and a sender that repeats its states unmarked is
 // still measured by them.
+//
+// A number under one of the stepKeys is never blended (#368): it is the
+// value of the newest snapshot at or before the render time, so a health
+// value going 52 -> 49 shows 52 and then 49, never 50.5, at the delay the
+// blended keys are shown with.
 
 import QtQuick
 import QtTest
@@ -182,6 +187,64 @@ TestCase {
         i.angleKeys = ["a"]
         stubNet.sessionTime += 0.0001
         tryVerify(() => Math.abs(i.value.a - 360) < 0.01, 1000, JSON.stringify(i.value))
+    }
+
+    // A health value going 52 -> 49 while x moves 0 -> 10 (#368)
+    function hit(props) {
+        let i = make(Object.assign({network: stubNet, nodeId: "A"}, props || {}))
+        stubNet.sessionTime = 10000
+        // transit 80: t = 9880 and 9930
+        i.push({x: 0, hp: 52}, 9800)
+        i.push({x: 10, hp: 49}, 9850)
+        return i
+    }
+
+    function test_numbers_blend_without_step_keys() {
+        let i = hit()
+        stubNet.sessionTime = 9905 + 120
+        tryVerify(() => i.value.x === 5, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 50.5)
+    }
+
+    function test_a_step_key_shows_only_pushed_numbers_at_the_render_delay() {
+        let i = hit({stepKeys: ["hp"]})
+        // Halfway between: x blends, hp is the earlier snapshot's
+        stubNet.sessionTime = 9905 + 120
+        tryVerify(() => i.value.x === 5, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 52)
+        // A millisecond before the second snapshot, still the first's
+        stubNet.sessionTime = 9929 + 120
+        tryVerify(() => Math.abs(i.value.x - 9.8) < 1e-9, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 52)
+        // On it, the second's
+        stubNet.sessionTime = 9930 + 120
+        tryVerify(() => i.value.x === 10, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 49)
+        // Extrapolated past it, x moves on and hp holds
+        stubNet.sessionTime = 9955 + 120
+        tryVerify(() => i.value.x === 15, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 49)
+    }
+
+    function test_step_keys_apply_to_snapshots_already_pushed() {
+        let i = hit()
+        stubNet.sessionTime = 9905 + 120
+        tryVerify(() => i.value.hp === 50.5, 1000, JSON.stringify(i.value))
+        i.stepKeys = ["hp"]
+        stubNet.sessionTime += 0.0001
+        tryVerify(() => i.value.hp === 52, 1000, JSON.stringify(i.value))
+        fuzzyCompare(i.value.x, 5, 1e-3)
+    }
+
+    function test_a_step_key_new_in_a_snapshot_shows_from_it() {
+        // The earlier snapshot has no hp: the newer one's, not undefined
+        let i = make({network: stubNet, nodeId: "A", stepKeys: ["hp"]})
+        stubNet.sessionTime = 10000
+        i.push({x: 0}, 9800)
+        i.push({x: 10, hp: 49}, 9850)
+        stubNet.sessionTime = 9905 + 120
+        tryVerify(() => i.value.x === 5, 1000, JSON.stringify(i.value))
+        compare(i.value.hp, 49)
     }
 
     function test_a_new_key_reaches_the_value() {
