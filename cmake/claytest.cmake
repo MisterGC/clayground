@@ -187,3 +187,67 @@ function(clay_add_node_test NAME)
     add_test(NAME node_${NAME} COMMAND ${NODE_EXECUTABLE} ${T_SCRIPT})
     set_tests_properties(node_${NAME} PROPERTIES LABELS "node")
 endfunction()
+
+# The part of the tree a path belongs to, as verify.sh names it too:
+# plugins/<p>, tools/<t>, examples/<e> and thirdparty/<x> by their directory,
+# anything else by its top-level directory (labs, docs). Empty for a file at
+# the top level.
+function(clay_test_component REL_PATH OUT_VAR)
+    string(REPLACE "\\" "/" _rel "${REL_PATH}")
+    string(REGEX MATCH "^(plugins|tools|examples|thirdparty)/[^/]+" _comp "${_rel}")
+    if(NOT _comp)
+        string(REGEX MATCH "^[^/]+/" _top "${_rel}")
+        string(REGEX REPLACE "/$" "" _comp "${_top}")
+    endif()
+    set(${OUT_VAR} "${_comp}" PARENT_SCOPE)
+endfunction()
+
+# Every directory under DIR that registered a test, DIR included.
+function(clay_test_directories DIR OUT_VAR)
+    set(_found)
+    set(_dirs "${DIR}")
+    while(_dirs)
+        list(POP_FRONT _dirs _dir)
+        get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+        list(APPEND _dirs ${_subdirs})
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        if(_tests)
+            list(APPEND _found "${_dir}")
+        endif()
+    endwhile()
+    set(${OUT_VAR} "${_found}" PARENT_SCOPE)
+endfunction()
+
+# The function below runs once, at the end of the top-level CMakeLists.txt,
+# when every test exists. Setting a property on a test of another directory
+# needs CMake 3.28; below that it does nothing, and verify.sh runs everything
+# when it finds a test without a component label.
+
+# Gives every test registered under DIR a label naming the plugin or tool it
+# tests - plugins/clay_network, tools/loader, examples/platformer, labs - taken
+# from the directory that registered it, so a new test is labeled without a
+# line to remember. verify.sh selects tests by these labels (#384), and
+# `ctest -L '^plugins/clay_network$'` runs one plugin's tests by hand.
+function(clay_label_tests_by_component DIR)
+    if(CMAKE_VERSION VERSION_LESS 3.28)
+        message(STATUS "CMake < 3.28: tests get no component label - "
+                       "verify.sh will run the full suite")
+        return()
+    endif()
+    clay_test_directories("${DIR}" _dirs)
+    foreach(_dir IN LISTS _dirs)
+        file(RELATIVE_PATH _rel "${DIR}" "${_dir}")
+        clay_test_component("${_rel}/" _comp)
+        if(NOT _comp)
+            continue()
+        endif()
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        foreach(_test IN LISTS _tests)
+            get_test_property(${_test} LABELS DIRECTORY "${_dir}" _labels)
+            if(NOT _comp IN_LIST _labels)
+                set_property(TEST ${_test} DIRECTORY "${_dir}"
+                             APPEND PROPERTY LABELS "${_comp}")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()

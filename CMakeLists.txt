@@ -184,3 +184,12 @@ endif()
 if(CLAY_BUILD_WEBSITE)
     clay_website_create_target()
 endif()
+
+# ==================
+# TEST LABELS
+# ==================
+
+# Last, when every test is registered: each gets a label naming the plugin or
+# tool it tests, which is what verify.sh selects by (#384).
+include(claytest)
+clay_label_tests_by_component("${CMAKE_CURRENT_SOURCE_DIR}")
