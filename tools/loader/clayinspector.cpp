@@ -139,6 +139,13 @@ ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged,
             this, &ClayInspector::onRequestFileChanged);
+    m_requestPoll.setInterval(10);
+    connect(&m_requestPoll, &QTimer::timeout, this, [this]() {
+        const QString path = m_inspectDir + "/request.json";
+        const QFileInfo fi(path);
+        if (fi.lastModified() != m_requestSeenAt || fi.size() != m_requestSeenSize)
+            onRequestFileChanged(path);
+    });
     g_currentInspector = this;
 }
 
@@ -420,10 +427,25 @@ void ClayInspector::startWatching()
     }
 
     m_watcher.addPath(requestPath);
+
+    // The watcher alone answers late on macOS: Qt watches through FSEvents
+    // there, and it reported a write to request.json 466-537 ms after it
+    // happened in 20 of 20 round trips. Every inspector round trip paid that
+    // half second, and a driver like the net gym makes hundreds - it was
+    // most of the full test suite's time (#384). Looking at the file's size
+    // and mtime every 10 ms answers in milliseconds on every platform; the
+    // watcher stays for the writes the look misses (two writes of one size
+    // within a millisecond), and a request seen by both is carried out once
+    // (processRequest's id check).
+    const QFileInfo fi(requestPath);
+    m_requestSeenAt = fi.lastModified();
+    m_requestSeenSize = fi.size();
+    m_requestPoll.start();
 }
 
 void ClayInspector::stopWatching()
 {
+    m_requestPoll.stop();
     auto paths = m_watcher.files();
     if (!paths.isEmpty())
         m_watcher.removePaths(paths);
@@ -481,6 +503,10 @@ void ClayInspector::onRequestFileChanged(const QString& path)
     // QFileSystemWatcher may drop the watch after a change, re-add it
     if (!m_watcher.files().contains(path))
         m_watcher.addPath(path);
+
+    const QFileInfo seen(path);
+    m_requestSeenAt = seen.lastModified();
+    m_requestSeenSize = seen.size();
 
     QByteArray data;
     QFile file(path);

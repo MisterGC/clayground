@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QDateTime>
 #include <QFileSystemWatcher>
+#include <QTimer>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
@@ -204,6 +205,11 @@ private:
     ClayTimeControl* m_timeCtrl = nullptr;
     ClayInputControl* m_inputCtrl = nullptr;
     QFileSystemWatcher m_watcher;
+    // Looks at request.json's size and mtime every few ms - see
+    // startWatching() for why the watcher alone is not enough.
+    QTimer m_requestPoll;
+    QDateTime m_requestSeenAt;
+    qint64 m_requestSeenSize = -1;
     QString m_sandboxDir;
     QString m_inspectDir;
     QString m_crewDir;
