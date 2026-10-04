@@ -341,6 +341,19 @@ TestCase {
         compare(moveStopAndHit("arrival", 16), 36)
     }
 
+    function test_auto_delay_takes_no_rest_of_an_object_that_stops_and_is_hit_on_its_own_clock() {
+        compare(moveStopAndHit("own", 16), 36)
+    }
+
+    function test_auto_delay_takes_no_rest_of_a_sender_at_66_ms() {
+        // A 15 Hz throttle: the stop comes 99 ms after the last motion, the
+        // settle 101 ms after the stop - within a quarter of each other, so
+        // a rule guessing copies from their rate took the settle for a
+        // period. 2 x 66 + 4
+        compare(moveStopAndHit("shared", 66), 136)
+        compare(moveStopAndHit("arrival", 66), 136)
+    }
+
     function test_auto_delay_takes_no_lone_change_for_a_period_at_the_settles_spacing() {
         // An enemy that stands and changes now and then - its AI state, a
         // drift of a thousandth: each change, its stop copy 24 ms and its
@@ -362,6 +375,23 @@ TestCase {
                 send(170 + (k % 3) * 10)
                 send(24, true)
                 send(176, true)
+            }
+            compare(autoTarget(i), 36, withSentAt ? "on send time" : "on arrival")
+        }
+    }
+
+    function test_auto_delay_measures_a_sender_that_sends_each_state_twice() {
+        // A frame loop that sends every 16 ms an object physics moves every
+        // other frame: A, A, B, B, ... Each interval is a period
+        for (let withSentAt of [true, false]) {
+            let i = make({network: stubNet, nodeId: "A", autoDelay: true})
+            let sent = 0
+            for (let k = 0; k < 60; ++k) {
+                sent += 16
+                stubNet.sessionTime = sent + 80
+                let state = {x: Math.floor(k / 2)}
+                if (withSentAt) i.push(state, sent)
+                else i.push(state)
             }
             compare(autoTarget(i), 36, withSentAt ? "on send time" : "on arrival")
         }
