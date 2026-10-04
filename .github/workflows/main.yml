@@ -179,10 +179,16 @@ jobs:
         ctest -N -R '^network_sync_gym_cloud$' > registered.txt
         grep -q 'Total Tests: 1' registered.txt
 
+    # The Linux runners have no display: a test that opens a window of its
+    # own (clayrender, the inspector's, the labs' records) aborted on xcb
+    # and renders offscreen there. A test that sets its own platform (the
+    # QML suites: minimal) keeps it. Windows runners have a desktop.
     - name: Test
       working-directory: build
       shell: bash
       run: ctest --output-on-failure ${{ matrix.shard.ctest }}
+      env:
+        QT_QPA_PLATFORM: ${{ runner.os == 'Linux' && 'offscreen' || '' }}
 
     # A red net gym keeps its loader logs and inspector state under
     # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
