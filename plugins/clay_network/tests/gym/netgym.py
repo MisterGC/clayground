@@ -47,6 +47,7 @@ import sys
 import time
 
 CHECKS = []
+STARTED = time.time()
 
 # How far the interpolated view may be off the moment it means to show, in
 # ms (10 Wu/s, so 25 ms is 0.25 Wu). Linear motion interpolates exactly, so
@@ -62,8 +63,8 @@ GAP_SLACK_MS = 25
 
 def check(name, ok, detail=""):
     CHECKS.append((name, ok, detail))
-    print(("PASS  " if ok else "FAIL  ") + name + (f"  ({detail})" if detail else ""),
-          flush=True)
+    print(f"{time.time() - STARTED:6.1f}s " + ("PASS  " if ok else "FAIL  ") + name
+          + (f"  ({detail})" if detail else ""), flush=True)
     return ok
 
 
