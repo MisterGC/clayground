@@ -6,6 +6,7 @@
 #include <QJsonValue>
 #include <QRect>
 #include <QString>
+#include <QVariant>
 #include <functional>
 
 class QObject;
@@ -83,8 +84,15 @@ QJsonArray findItems(QQuickItem* root, const QString& type,
 
 // --- Talking to the sandbox root -------------------------------------------
 
-// Evaluates each expression against the root's QML context. Errors are
-// reported per expression rather than aborting the batch.
+// Any evaluated value as JSON: scalars, lists and maps as QJsonValue has them,
+// and QObjects, JS objects, gadgets and geometry types by their properties. A
+// cycle, a nesting deeper than 8 or more than 5000 values in all is cut off
+// with a "<cut: cycle|depth|size>" marker (an object gets a "<cut>" key); a JS
+// function reads "<function>".
+QJsonValue toJson(const QVariant& value);
+
+// Evaluates each expression against the root's QML context, results through
+// toJson(). Errors are reported per expression rather than aborting the batch.
 QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions);
 
 // True when the root exposes a JS function of that name - the optional
