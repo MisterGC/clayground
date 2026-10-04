@@ -210,6 +210,11 @@ private:
     QTimer m_requestPoll;
     QDateTime m_requestSeenAt;
     qint64 m_requestSeenSize = -1;
+    // Size and mtime of the request last carried out: the look and the watcher
+    // both deliver every write, and a request without an id has nothing
+    // else to tell the second delivery by.
+    QDateTime m_requestHandledAt;
+    qint64 m_requestHandledSize = -1;
     QString m_sandboxDir;
     QString m_inspectDir;
     QString m_crewDir;

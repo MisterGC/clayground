@@ -536,6 +536,15 @@ void ClayInspector::onRequestFileChanged(const QString& path)
     }
     m_requestRereads = 0;
 
+    // Already carried out: the watcher reports a write the look found long
+    // ago (on macOS 0.5 s later). The id check in processRequest catches
+    // that too, but only for a request that has an id - one without (e.g.
+    // tst_inspector_dojo's) was carried out twice, a reload reloaded again.
+    if (seen.lastModified() == m_requestHandledAt && seen.size() == m_requestHandledSize)
+        return;
+    m_requestHandledAt = seen.lastModified();
+    m_requestHandledSize = seen.size();
+
     processRequest(doc.object());
 }
 
