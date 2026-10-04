@@ -33,10 +33,13 @@ if(EMSCRIPTEN)
     )
 else()
     # Native: Use llama.cpp directly
+    # A release tag, not master: master moved every day, so every build
+    # fetched and compiled a different llama.cpp - no compiler cache could
+    # hit, and a break upstream broke this build without a change here (#386)
     FetchContent_Declare(
         llama_cpp
         GIT_REPOSITORY https://github.com/ggerganov/llama.cpp
-        GIT_TAG master
+        GIT_TAG b11374
         GIT_SHALLOW TRUE
     )
 
