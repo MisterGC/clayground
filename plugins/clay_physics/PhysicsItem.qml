@@ -71,32 +71,14 @@ Item {
     property bool _wuSyncActive: false
     onXWuChanged: { _wuSyncActive = true; x = xWu * pixelPerUnit; _wuSyncActive = false; }
     onYWuChanged: { _wuSyncActive = true; y = parent ? parent.height - yWu * pixelPerUnit : 0; _wuSyncActive = false; }
-    onXChanged: {
-        if (!_wuSyncActive && pixelPerUnit > 0) xWu = (1/pixelPerUnit) * x;
-        _wakeIfMoved();
-    }
-    onYChanged: {
-        if (!_wuSyncActive && pixelPerUnit > 0) yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0;
-        _wakeIfMoved();
-    }
+    onXChanged: if (!_wuSyncActive && pixelPerUnit > 0) xWu = (1/pixelPerUnit) * x
+    onYChanged: if (!_wuSyncActive && pixelPerUnit > 0) yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
     onPixelPerUnitChanged: _syncFromWu()
     onParentChanged: _syncFromWu()
     Component.onCompleted: _syncFromWu()
     Connections {
         target: item.parent
         function onHeightChanged() { item._syncFromWu(); }
-    }
-    // Box2D's SetTransform wakes no body, and a contact between two sleeping
-    // bodies is never updated - so a body moved only by setting its position
-    // (every remote ReplicatedObject with a body) never began touching a
-    // sleeping sensor (#369). Box2D wakes a non-sensor pair itself when it
-    // first overlaps; a sensor pair needs one of the two awake. A sleeping
-    // body does not move, so a move seen here while it sleeps comes from QML;
-    // were it ever the world's own write-back, the body would only wake with
-    // zero velocity and fall asleep again.
-    function _wakeIfMoved() {
-        if (!itemBody.awake && itemBody.bodyType !== Body.Static)
-            itemBody.awake = true;
     }
     function _syncFromWu() {
         _wuSyncActive = true;
