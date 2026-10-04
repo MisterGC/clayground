@@ -524,8 +524,11 @@ Item {
         \brief The session's properties, set by the host with
                setSessionProperty(), the same on every node.
 
-        A map of name to value - a seed, the level being played. A node
-        that joins late gets them with its welcome. Empty outside a network.
+        A map of name to value - a seed, the level being played, or an
+        object or array of them: any value JSON can carry arrives whole on
+        every node. A node that joins late gets them with its welcome. It
+        already holds the new value when sessionPropertyChanged() fires.
+        Empty outside a network.
     */
     readonly property var sessionProperties: _backend ? _backend.sessionProperties : ({})
 
@@ -692,6 +695,10 @@ Item {
     /*!
         \qmlsignal Network::sessionPropertyChanged(string name, var value)
         \brief The host set the session property \a name to \a value.
+
+        It fires on every node, the host included, and on a late joiner
+        once per property with its welcome. sessionProperties already
+        holds \a value when it fires.
     */
     signal sessionPropertyChanged(string name, var value)
 
@@ -978,6 +985,10 @@ Item {
         \qmlmethod bool Network::setSessionProperty(string name, var value)
         \brief Host only: set a session property for every node, and for
                every node that joins later. False on a joiner.
+
+        \a value is anything JSON can carry: a number, a string, a bool, or
+        an object or array of them, nested. Every node, the host included,
+        holds it as JSON carries it.
         \sa sessionProperties
     */
     function setSessionProperty(name, value) {
