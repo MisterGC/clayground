@@ -759,6 +759,8 @@ def agree(a, b, keys=("type", "owner", "x", "mood", "spawnIndex", "token")):
 # Session properties beyond a number and a string (#375): nested, as JSON
 SESSION_LOOT = {"gold": 3, "items": ["sword", {"name": "key", "uses": 2}]}
 SESSION_PATH = [[0, 1], [2, 3.5], "exit"]
+# A message's data and an object's spawn props, nested the same way (#375)
+NESTED = {"a": {"b": [1, {"c": 2}]}, "l": [[1, 2], "x"]}
 
 
 def check_session(label, name, inst, live):
@@ -799,6 +801,7 @@ def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
                "netRef.setSessionProperty('level', 'crypt')",
                f"netRef.setSessionProperty('loot', {json.dumps(SESSION_LOOT)})",
                f"netRef.setSessionProperty('path', {json.dumps(SESSION_PATH)})",
+               f"netRef.spawn('gymProp', {{loadout: {json.dumps(NESTED)}}})",
                "objectsMoving = true"])
     J.eval(["spawnAvatar()", "objectsMoving = true"])
     shown = wait_for(lambda: len(objects_of(J).get("objects", {})) == n + 1
@@ -832,6 +835,15 @@ def scenario_objects(host, joiner, late, code, n=30, hz=20, window=3.0):
     check_session(label, "the host", host, live=True)
     check_session(label, jname, J, live=True)
     check_session(label, lname, L, live=False)
+    for name, inst, how in ((jname, J, "as it is spawned"), (lname, L, "joining late")):
+        props = list(objects_of(inst).get("propsOf", {}).values())
+        check(f"{label}: {name}, {how}, gets spawn props with a nested object and array",
+              props == [{"loadout": NESTED}], str(props))
+    host.eval([f"netRef.broadcast({{nested: {json.dumps(NESTED)}}})"])
+    for name, inst in ((jname, J), (lname, L)):
+        got = wait_for(lambda: objects_of(inst).get("nestedSeen") == NESTED, 5)
+        check(f"{label}: {name} gets a broadcast with a nested object and array",
+              got, str(objects_of(inst).get("nestedSeen")))
 
     avatar = L.eval1("spawnAvatar()")
     on_host = wait_for(lambda: avatar in objects_of(host).get("objects", {}), 10)
