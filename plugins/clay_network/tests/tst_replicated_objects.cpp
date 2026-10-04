@@ -4,7 +4,8 @@
 // three backends in one process over Local signaling, a timer pinging every
 // 2 s as Network.qml does. What tst_replica checks on the table alone is
 // checked here over data channels: a node that joins late sees every live
-// object with its last state and the session properties, state from any
+// object with its last state and the session properties - an object or an
+// array among them, already in the map when its signal fires - state from any
 // node but the owner is dropped, a despawn is not undone by state that
 // arrives after it and frees its sequence entries, an owner that leaves
 // takes its objects along or leaves them to the host, ownership can be
@@ -13,6 +14,7 @@
 #include "claynetwork_native.h"
 #include "testhooks.h"
 
+#include <QJSEngine>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -157,6 +159,65 @@ private slots:
         QVERIFY(waitFor([&]() {
             return b->objectInfo(avatar).value("state").toMap().value("x").toDouble() == 11.0;
         }));
+    }
+
+    void aSessionPropertyHoldingAnObjectOrArrayArrivesWhole()
+    {
+        // As QML hands them over: a JS object and a JS array, as QJSValue
+        // in a QVariant, which JSON used to turn into null (#375)
+        QJSEngine js;
+        const QVariant loot = QVariant::fromValue(
+            js.evaluate("({gold: 3, items: ['sword', {name: 'key', uses: 2}]})"));
+        const QVariant path = QVariant::fromValue(js.evaluate("[[0, 1], [2, 3.5], 'exit']"));
+        const QByteArray lootJson = R"({"gold":3,"items":["sword",{"name":"key","uses":2}]})";
+        const QByteArray pathJson = R"([[0,1],[2,3.5],"exit"])";
+        auto json = [](const QVariant &v) {
+            return QJsonDocument::fromVariant(QVariantList{v}).toJson(QJsonDocument::Compact)
+                .mid(1).chopped(1);
+        };
+        // Inside sessionPropertyChanged, sessionProperties already holds
+        // the value the signal carries
+        auto watch = [&](ClayNetwork *n, QStringList *stale, QStringList *seen) {
+            QObject::connect(n, &ClayNetwork::sessionPropertyChanged, n,
+                             [n, stale, seen, json](const QString &name, const QVariant &value) {
+                seen->append(name);
+                if (json(n->sessionProperties().value(name)) != json(value))
+                    stale->append(name);
+            });
+        };
+
+        Net net;
+        QVERIFY(net.hostUp());
+        ClayNetwork *a = net.join();
+        QVERIFY(a);
+        QStringList staleHost, seenHost, staleA, seenA;
+        watch(&net.host, &staleHost, &seenHost);
+        watch(a, &staleA, &seenA);
+        QVERIFY(net.host.setSessionProperty("seed", 42));
+        QVERIFY(net.host.setSessionProperty("loot", loot));
+        QVERIFY(net.host.setSessionProperty("path", path));
+        QVERIFY(waitFor([&]() { return seenA.size() == 3; }));
+
+        ClayNetwork *b = nullptr;
+        QStringList staleB, seenB;
+        {
+            auto late = std::make_unique<ClayNetwork>();
+            b = late.get();
+            watch(b, &staleB, &seenB);
+            late->joinRoom(net.host.networkId());
+            net.joiners.push_back(std::move(late));
+            QVERIFY(waitFor([&]() { return seenB.size() == 3; }, kJoinMs));
+        }
+        for (ClayNetwork *n : {&net.host, a, b}) {
+            const QVariantMap p = n->sessionProperties();
+            QCOMPARE(p.value("seed").toInt(), 42);
+            QCOMPARE(json(p.value("loot")), lootJson);
+            QCOMPARE(json(p.value("path")), pathJson);
+        }
+        QCOMPARE(seenHost, QStringList({"seed", "loot", "path"}));
+        QCOMPARE(staleHost, QStringList());
+        QCOMPARE(staleA, QStringList());
+        QCOMPARE(staleB, QStringList());
     }
 
     void stateFromAnyNodeButTheOwnerIsDropped()
