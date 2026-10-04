@@ -427,10 +427,16 @@ jobs:
   # A native node and a browser node in one network (#307): the native
   # loader hosts and a page joins, then the page hosts and the loader joins,
   # through clay-dev-server's relay. The loader is built here on the desktop
-  # jobs' compiler cache, the page runs the WASM job's starter bundle.
+  # jobs' compiler cache, the page runs the WASM job's starter bundle. The
+  # job starts with the others and builds the loader while the WASM job
+  # builds the bundle: waiting for the whole WASM job first made it the
+  # longest path through the workflow (#386).
   net-gym-mixed:
-    needs: wasm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # to see this run's artifacts and jobs while it runs
+      actions: read
 
     steps:
     - name: Checkout
@@ -476,10 +482,30 @@ jobs:
         # built alone, it found no Clayground.Network and the gym never loaded
         cmake --build build --target clayliveloader clay_qml_modules
 
+    - name: Wait for the Starter Bundle
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        for _ in $(seq 1 120); do
+          n=$(gh api "$api/artifacts" --jq '[.artifacts[] | select(.name == "clayground-starter")] | length')
+          [ "$n" = "1" ] && exit 0
+          wasm=$(gh api "$api/attempts/$GITHUB_RUN_ATTEMPT/jobs" --jq '.jobs[] | select(.name == "wasm") | .conclusion')
+          if [ -n "$wasm" ] && [ "$wasm" != "null" ] && [ "$wasm" != "success" ]; then
+            echo "The WASM job ended ($wasm) without a starter bundle"
+            exit 1
+          fi
+          sleep 5
+        done
+        echo "No starter bundle after 10 minutes"
+        exit 1
+
     - name: Download Starter Bundle
       uses: actions/download-artifact@v4
       with:
         name: clayground-starter
+        run-id: ${{ github.run_id }}
+        github-token: ${{ github.token }}
 
     - name: Net Gym (native and WASM)
       run: |
