@@ -159,7 +159,9 @@ jobs:
       if: github.event_name != 'pull_request' && matrix.shard.name == 'suite'
       uses: actions/cache/save@v4
       with:
-        path: ${{ github.workspace }}/.${{ matrix.cache-tool }}
+        # Spelled exactly as ccache-action restores it: a cache is versioned
+        # by its path string, and D:\...\clayground/.sccache never matched
+        path: ${{ runner.os == 'Windows' && format('{0}\.sccache', github.workspace) || format('{0}/.ccache', github.workspace) }}
         key: ${{ matrix.cache-tool }}-${{ matrix.os }}-desktop-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Save FetchContent Checkouts
@@ -235,7 +237,7 @@ jobs:
     - name: Install Linux Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y ninja-build brotli
+        sudo apt-get install -y ninja-build
 
     - name: Setup compiler cache
       uses: hendrikmuhs/ccache-action@v1.2
@@ -265,26 +267,6 @@ jobs:
         path: ${{ github.workspace }}/.ccache
         key: ccache-ubuntu-latest-wasm-${{ github.run_id }}-${{ github.run_attempt }}
 
-    - name: Runtime Size Report
-      run: |
-        WASM=build/bin/clayground.wasm
-        RAW=$(stat -c%s "$WASM")
-        GZ=$(gzip -9 -c "$WASM" | wc -c)
-        # -q9 instead of -q11: nearly identical ratio for a size estimate, but
-        # seconds instead of ~90s on a ~30 MB wasm. The gate below is on raw size.
-        BR=$(brotli -q 9 -c "$WASM" | wc -c)
-        mb() { echo "$1" | awk '{printf "%.1f", $1/1048576}'; }
-        {
-          echo "### Clayground Web Runtime size"
-          echo "| raw | gzip -9 | brotli -q9 |"
-          echo "|---|---|---|"
-          echo "| $(mb "$RAW") MB | $(mb "$GZ") MB | $(mb "$BR") MB |"
-        } >> "$GITHUB_STEP_SUMMARY"
-        # Soft budget gate (D9): warn when the raw wasm outgrows 40 MB
-        if [ "$RAW" -gt 41943040 ]; then
-          echo "::warning::clayground.wasm exceeds the 40 MB raw size budget ($(mb "$RAW") MB)"
-        fi
-
     - name: Upload Starter Bundle
       uses: actions/upload-artifact@v7
       with:
@@ -292,8 +274,9 @@ jobs:
         path: build/clayground-starter.zip
         retention-days: 7
 
-  # The browser checks of the starter bundle, on two runners: the pages and
-  # the net gym take about as long as each other
+  # The browser checks of the starter bundle, on four runners of about a
+  # minute each: they follow the WASM build, so they are the second half of
+  # the longest path through this workflow
   wasm-browser:
     name: wasm (${{ matrix.group }})
     needs: wasm
@@ -301,7 +284,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ pages, net gym ]
+        group: [ pages, site route, net gym 1, net gym 2 ]
 
     steps:
     - name: Checkout
@@ -319,6 +302,35 @@ jobs:
 
     - name: Install Python Test Dependencies
       run: pip install playwright wsproto
+
+    # Off the WASM build job: the bundle carries the wasm, and the site
+    # route is the shortest group
+    - name: Install brotli
+      if: matrix.group == 'site route'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y brotli
+
+    - name: Runtime Size Report
+      if: matrix.group == 'site route'
+      run: |
+        WASM=build/clayground-starter/clayground.wasm
+        RAW=$(stat -c%s "$WASM")
+        GZ=$(gzip -9 -c "$WASM" | wc -c)
+        # -q9 instead of -q11: nearly identical ratio for a size estimate, but
+        # seconds instead of ~90s on a ~30 MB wasm. The gate below is on raw size.
+        BR=$(brotli -q 9 -c "$WASM" | wc -c)
+        mb() { echo "$1" | awk '{printf "%.1f", $1/1048576}'; }
+        {
+          echo "### Clayground Web Runtime size"
+          echo "| raw | gzip -9 | brotli -q9 |"
+          echo "|---|---|---|"
+          echo "| $(mb "$RAW") MB | $(mb "$GZ") MB | $(mb "$BR") MB |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        # Soft budget gate (D9): warn when the raw wasm outgrows 40 MB
+        if [ "$RAW" -gt 41943040 ]; then
+          echo "::warning::clayground.wasm exceeds the 40 MB raw size budget ($(mb "$RAW") MB)"
+        fi
 
     - name: Runtime Smoke Test
       if: matrix.group == 'pages'
@@ -382,7 +394,7 @@ jobs:
     # the site's own dojo shell, and then a gate page next to it that plays
     # that example's music.mp3 and triggers notes into the shared sink.
     - name: Sound Example Regression (site route)
-      if: matrix.group == 'pages'
+      if: matrix.group == 'site route'
       run: |
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --site-example plugins/clay_sound/demo:sound \
@@ -396,10 +408,12 @@ jobs:
     # run the net gym's link scenarios - 10 % loss, latency, a blackout, the
     # host leaving - on the WASM backend (#301), and four of them stream keyed
     # state (#302). The public PeerJS server is too flaky for CI, so the
-    # relay comes from this checkout.
+    # relay comes from this checkout. Its two parts run on two runners.
     - name: Net Gym
-      if: matrix.group == 'net gym'
-      run: python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
+      if: startsWith(matrix.group, 'net gym')
+      run: |
+        python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter \
+          --part ${{ matrix.group == 'net gym 1' && '1' || '2' }}
 
     - name: Upload Smoke Screenshot
       if: always() && matrix.group == 'pages'
