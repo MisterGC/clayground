@@ -100,11 +100,18 @@ Item {
         percentile of how late updates arrived in the last three seconds
         (relative to the fastest one seen), clamped to \l minDelayMs ..
         \l maxDelayMs. The period is the median of the last nine intervals
-        between updates, so the pause of an object at rest - which sends
-        nothing - is taken for neither a period nor lateness, and the delay
-        stays at its streaming value when the object moves again. It moves towards that target by at most 1 ms per
-        frame, never in a jump. A LAN stream ends up with a small delay, an
-        internet stream with whatever its jitter needs.
+        between updates that move the object on - each differs from the one
+        before, which differed too - or that repeat a repeated state as long
+        after the update before as that one came after its own, give or
+        take a quarter. The pause of an object at rest - which sends
+        nothing, or its last state once or twice more, as a ReplicatedObject
+        does when it stops and settles - is taken for neither a period nor
+        lateness, however often the object stops or changes while it
+        stands, and the delay stays at its streaming value when it moves
+        again. A sender that repeats an unchanged state at its rate is still
+        measured by that rate. The delay moves towards that target by at
+        most 1 ms per frame, never in a jump. A LAN stream ends up with a
+        small delay, an internet stream with whatever its jitter needs.
     */
     property bool autoDelay: false
 
@@ -204,6 +211,9 @@ Item {
         let t = now;
         let lateness = 0;
         let shared = hasSent && internal.shared() ? root.network.transitMs(root.nodeId) : NaN;
+        let streamed = internal.streamed(state, hasSent
+            ? (internal.lastSent > 0 ? sentAt - internal.lastSent : 0)
+            : (internal.lastArrival > 0 ? now - internal.lastArrival : 0));
         if (!isNaN(shared)) {
             // The network estimates the offset once per sender (#304);
             // both clocks are its session clock
@@ -215,7 +225,7 @@ Item {
             }
             t = sentAt + shared;
             lateness = (now - sentAt) - shared;
-            if (internal.lastSent > 0) internal.notePeriod(sentAt - internal.lastSent);
+            if (internal.lastSent > 0 && streamed) internal.notePeriod(sentAt - internal.lastSent);
             internal.lastSent = sentAt;
         } else if (hasSent) {
             // Clock offset = the smallest (arrival - sent) seen in the
@@ -240,14 +250,14 @@ Item {
             }
             t = sentAt + minOff;
             lateness = (now - sentAt) - minOff;
-            if (internal.lastSent > 0) internal.notePeriod(sentAt - internal.lastSent);
+            if (internal.lastSent > 0 && streamed) internal.notePeriod(sentAt - internal.lastSent);
             internal.lastSent = sentAt;
         } else {
-            if (internal.lastArrival > 0) {
+            // A pause is no late update: the first state after an
+            // object's rest would hold the delay at its maximum (#366)
+            if (internal.lastArrival > 0 && streamed) {
                 let dt = now - internal.lastArrival;
                 internal.notePeriod(dt);
-                // A pause is no late update: the first state after an
-                // object's rest would hold the delay at its maximum (#366)
                 if (dt <= internal.pauseMs)
                     lateness = Math.max(0, dt - internal.period);
             }
@@ -353,13 +363,56 @@ Item {
         property real delay: 0
         property real target: 0
 
-        // The period is the median of the last nine intervals between
-        // states, not their average: an object at rest sends nothing, and
-        // the gaps around its rest - the stop, the settle, the first state
-        // after it - would count as periods several times as long and
-        // render it twice as late long after it moves again (#366). A
-        // median leaves up to four of them out and still follows a sender
-        // that changes its rate within five states.
+        // Whether the interval dt up to this state is one of the sender's
+        // update periods: the state differs from the one before, and that
+        // one from the state before it - the object moves - or the state
+        // is the same as the one before, that one the same as its own, and
+        // dt within a quarter of the interval before - a sender that sends
+        // at its rate whether the object moves or not. An object that rests
+        // sends nothing but its last state once or twice more
+        // (ReplicatedObject's stop, 1.5 periods after the last motion, and
+        // its settle, 200 ms after that); the gaps up to those copies, and
+        // the one from them to the next state that differs - the next
+        // motion, a hit while it stands - are no periods. An enemy that
+        // stops and is hit often has more of them than moving intervals
+        // between, and their median, 176 ms between the stop and the
+        // settle, rendered it 2 x 176 + 4 ms late (#374). Only one of them
+        // repeats a repeated state, the settle, and never at the rate of
+        // the interval before.
+        property var lastState: null
+        property bool lastSame: true
+        property real lastDt: 0
+        function streamed(state, dt) {
+            let prev = lastState;
+            let same = prev !== null && sameState(prev, state);
+            let moving = prev !== null && !same && !lastSame;
+            let repeating = same && lastSame && dt > 0 && lastDt > 0
+                && Math.abs(dt - lastDt) <= lastDt / 4;
+            lastState = state;
+            lastSame = same || prev === null;
+            lastDt = dt;
+            return moving || repeating;
+        }
+        function sameState(a, b) {
+            let k = Object.keys(b);
+            if (Object.keys(a).length !== k.length) return false;
+            for (let i = 0; i < k.length; ++i) {
+                let va = a[k[i]], vb = b[k[i]];
+                if (va === vb) continue;
+                if (typeof va !== "object" || typeof vb !== "object"
+                        || JSON.stringify(va) !== JSON.stringify(vb))
+                    return false;
+            }
+            return true;
+        }
+
+        // The period is the median of the last nine of those intervals,
+        // not their average: a gap around a rest that passes for one - an
+        // object at rest whose stop state got lost, say - would count as a
+        // period several times as long and render it twice as late long
+        // after it moves again (#366). A median leaves up to four of them
+        // out and still follows a sender that changes its rate within five
+        // states.
         readonly property real pauseMs: 2000
         readonly property int periodSamples: 9
         function notePeriod(dt) {
