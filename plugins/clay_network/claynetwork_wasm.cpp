@@ -1335,8 +1335,9 @@ void ClayNetwork::setupReplicas()
         emit objectStateReceived(id, data, sentAt);
     };
     io.sessionProperty = [this](const QString &name, const QVariant &value) {
-        emit sessionPropertyChanged(name, value);
+        // The map first: a handler of the one property reads the map (#375)
         emit sessionPropertiesChanged();
+        emit sessionPropertyChanged(name, value);
     };
     replicas_.setIo(io);
 }
