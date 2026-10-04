@@ -75,7 +75,14 @@ Item {
     onYChanged: if (!_wuSyncActive && pixelPerUnit > 0) yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
     onPixelPerUnitChanged: _syncFromWu()
     onParentChanged: _syncFromWu()
-    Component.onCompleted: _syncFromWu()
+    Component.onCompleted: {
+        _syncFromWu();
+        _contacts = PhysicsUtils._trackContacts(itemBody);
+    }
+    // A body destroyed mid-contact ends its contacts while its item is still
+    // there, so a sensor it touched hears whom it lost (#371).
+    property var _contacts: null
+    Component.onDestruction: if (_contacts) _contacts.end()
     Connections {
         target: item.parent
         function onHeightChanged() { item._syncFromWu(); }
