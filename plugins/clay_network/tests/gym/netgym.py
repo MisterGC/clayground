@@ -448,8 +448,18 @@ def scenario_keyed(nodes, host, keys=100, hz=30, window=5.0, jitter_ms=6):
     host's link - which every relayed batch crosses twice - makes them
     overtake each other. Every receiver gets every key of every other
     node, none dropped behind another key, in batches of at most about
-    1200 bytes. The jitter stays below a frame, so an update never
-    overtakes the one for the same key before it either.
+    1200 bytes.
+
+    A keyed state is dropped only behind a newer one for the same key - an
+    update of the next frame that overtook it. The jitter stays below a
+    frame, but a page starved on a loaded runner fires two frames back to
+    back, or the host relays two queued ones together, and then one can
+    overtake the other, and the older is dropped. So drops are no failure
+    in themselves: what bounds them is that every key arrives in at least
+    95 % of the frames sent - a stale drop costs its key a frame. A
+    sequence per sender instead of per key - what #302 replaced - drops
+    behind the other batches of the same frame, in most frames: by
+    estimate a third or more of every key's updates.
 
     The streams start once every link's state channel is open. Until then
     a node sends its states over the reliable connection, and the frame in
@@ -497,9 +507,10 @@ def scenario_keyed(nodes, host, keys=100, hz=30, window=5.0, jitter_ms=6):
             dropped = sum(k.get("dropped", 0) for k in kstats.values())
             batches = st.get("batches", 0)
             per_batch = recv / batches if batches else 0
-            check(f"{label}: {rname} gets every key of {sname}, none dropped",
+            check(f"{label}: {rname} gets every key of {sname}, none dropped behind "
+                  f"another key",
                   got.get("keys") == keys and got.get("minN", 0) >= sent * 0.95
-                  and got.get("back", 1) == 0 and dropped == 0,
+                  and got.get("back", 1) == 0,
                   f"keys={got.get('keys')} per key {got.get('minN')}..{got.get('maxN')} "
                   f"of {sent} sent, newest frame >= {got.get('minLast')}, "
                   f"older-after-newer={got.get('back')} dropped={dropped}")
