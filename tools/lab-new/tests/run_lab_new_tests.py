@@ -102,8 +102,11 @@ def t_keys(qml):
 
 
 def run_cli(*args):
-    """The launcher, exactly as a person types it."""
-    p = subprocess.run([LAUNCHER] + list(args), capture_output=True, text=True)
+    """The launcher, exactly as a person types it - on Windows, where the
+    shell launcher is not a program (WinError 193), the script it runs."""
+    cmd = [LAUNCHER] if os.name != "nt" else \
+        [sys.executable, os.path.join(TOOLDIR, "lab_new.py")]
+    p = subprocess.run(cmd + list(args), capture_output=True, text=True)
     return p.returncode, p.stdout, p.stderr
 
 
@@ -127,7 +130,8 @@ class TempLab:
         for dirpath, _d, names in os.walk(self.dir):
             for n in names:
                 p = os.path.join(dirpath, n)
-                out.add(os.path.relpath(p, self.dir))
+                # '/'-separated like REQUIRED, on Windows too
+                out.add(os.path.relpath(p, self.dir).replace(os.sep, "/"))
         return out
 
     def read(self, rel):
