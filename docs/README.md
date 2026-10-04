@@ -197,3 +197,4 @@ Item { ... }
 ```
 
 See `CLAUDE.md` for complete documentation recipe and `plugins/clay_canvas3d/Box3D.qml` as reference.
+Probe line for #386 (not for merge).
