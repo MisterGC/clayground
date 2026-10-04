@@ -171,7 +171,16 @@ Rectangle {
         _destWp.height = behavior.height;
     }
 
-    Timer{id: _veloAdaptor; interval: 100; repeat: true; onTriggered: _adaptVelocity() }
+    // Re-aims on the world's simulated time, not on wall clock: a pause,
+    // a single step or a hit stop holds it with the bodies it moves, and a
+    // stepped run takes the same path every time (#340).
+    PhysicsTimer {
+        id: _veloAdaptor
+        world: behavior.world ? behavior.world.physics : null
+        interval: 100
+        repeat: true
+        onTriggered: behavior._adaptVelocity()
+    }
 
     function _adaptVelocity(){
         if (!behavior.running) {
