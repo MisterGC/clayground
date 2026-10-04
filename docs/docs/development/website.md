@@ -149,6 +149,12 @@ The site deploys automatically via GitHub Actions when changes are pushed to mai
 2. Runs Pagefind to create search index
 3. Deploys to GitHub Pages
 
+A push to a `release/*` branch builds the site too, without deploying it. A
+pull request into `main` or a release branch builds it only when it touches
+what the site is built from - the `paths` of `.github/workflows/docs-check.yml`:
+pages, plugin sources, examples, labs, tools and the build. A PR that changes
+only tests or CI waits for no site build.
+
 The site is served from the custom domain `clayground.mistergc.dev`.
 
 ## Styling
