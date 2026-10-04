@@ -587,14 +587,15 @@ def check_records(rep, lab_dir, workdir, render):
     jobs = []
     make = os.path.join(lab_dir, "records", "make.sh")
     if os.path.isfile(make):
-        jobs.append(("make.sh", [make, "--out-dir"], os.path.join(lab_dir, "records")))
+        jobs.append(("make.sh", script_command(make) + ["--out-dir"],
+                     os.path.join(lab_dir, "records")))
     studies = os.path.join(lab_dir, "studies")
     if os.path.isdir(studies):
         for name in sorted(os.listdir(studies)):
             study = os.path.join(studies, name)
             if os.path.isdir(os.path.join(study, "records")):
-                sweep = os.path.join(repo_root(lab_dir), "tools", "lab-sweep", "lab-sweep")
-                jobs.append((f"studies/{name}", [sweep, study, "--records-dir"],
+                sweep = os.path.join(repo_root(lab_dir), "tools", "lab-sweep", "lab_sweep.py")
+                jobs.append((f"studies/{name}", [sys.executable, sweep, study, "--records-dir"],
                              os.path.join(study, "records")))
     if not jobs:
         return rep.check("records: nothing committed to regenerate", True,
@@ -610,7 +611,10 @@ def check_records(rep, lab_dir, workdir, render):
         os.makedirs(out, exist_ok=True)
         env = dict(os.environ)
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
-        proc = subprocess.run(cmd + [out], cwd=repo_root(lab_dir), env=env,
+        # Forward slashes: make.sh puts the path into a JS string, where a
+        # Windows backslash starts an escape
+        proc = subprocess.run(cmd + [out.replace(os.sep, "/")],
+                              cwd=repo_root(lab_dir), env=env,
                               capture_output=True, text=True)
         if proc.returncode != 0:
             # Both streams: make.sh reports on stderr, lab-sweep echoes
@@ -660,7 +664,7 @@ def check_tables(rep, lab_dir):
         name = f"tables: {rel}" + (f" {ref}" if ref else "")
         if not ok and detail == "stale":
             detail = "differs from the records - run tools/lab-sweep/lab-table " \
-                     + os.path.relpath(lab_dir)
+                     + display_path(lab_dir)
         all_ok = rep.check(name, ok, detail) and all_ok
     return all_ok
 
@@ -756,6 +760,31 @@ def prose_files(lab_dir):
 
 
 # --------------------------------------------------------------------------
+
+
+def display_path(path):
+    """path relative to the working directory, or absolute where it cannot be:
+    on Windows a lab in the temp dir on C: has no relative path from a
+    checkout on D: - relpath raises."""
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        return os.path.abspath(path)
+
+
+def script_command(script):
+    """The command that runs a shell script. On Windows a .sh is not a
+    program (WinError 193): it runs through the bash that comes with Git, not
+    the first bash on the PATH, which can be WSL's."""
+    if os.name != "nt":
+        return [script]
+    git = shutil.which("git")
+    bash = None
+    if git:
+        root = os.path.dirname(os.path.dirname(os.path.realpath(git)))
+        cand = os.path.join(root, "bin", "bash.exe")
+        bash = cand if os.path.isfile(cand) else None
+    return [bash or shutil.which("bash") or "bash", script]
 
 
 def repo_root(start):
