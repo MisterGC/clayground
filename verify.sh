@@ -41,6 +41,12 @@ done
 
 cd "$root"
 
+# A fresh worktree has its submodules uninitialised ('-' in the status), and
+# configure fails on the first add_subdirectory(thirdparty/...) (#385)
+if git submodule status --recursive | grep '^-' >/dev/null; then
+    git submodule update --init --recursive
+fi
+
 # The File API query makes every configure write the target graph the
 # selection reads; a build dir configured before it existed gets it now.
 query="$build/.cmake/api/v1/query/codemodel-v2"
