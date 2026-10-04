@@ -190,6 +190,8 @@ endif()
 # ==================
 
 # Last, when every test is registered: each gets a label naming the plugin or
-# tool it tests, which is what verify.sh selects by (#384).
+# tool it tests, which is what verify.sh selects by, and a settings store of
+# its own, so tests running in parallel do not share one (#384).
 include(claytest)
 clay_label_tests_by_component("${CMAKE_CURRENT_SOURCE_DIR}")
+clay_isolate_test_storage("${CMAKE_CURRENT_SOURCE_DIR}")

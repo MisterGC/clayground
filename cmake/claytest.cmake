@@ -218,10 +218,10 @@ function(clay_test_directories DIR OUT_VAR)
     set(${OUT_VAR} "${_found}" PARENT_SCOPE)
 endfunction()
 
-# The function below runs once, at the end of the top-level CMakeLists.txt,
-# when every test exists. Setting a property on a test of another directory
-# needs CMake 3.28; below that it does nothing, and verify.sh runs everything
-# when it finds a test without a component label.
+# The two functions below run once, at the end of the top-level
+# CMakeLists.txt, when every test exists. Setting a property on a test of
+# another directory needs CMake 3.28; below that they do nothing, and
+# verify.sh runs everything when it finds a test without a component label.
 
 # Gives every test registered under DIR a label naming the plugin or tool it
 # tests - plugins/clay_network, tools/loader, examples/platformer, labs - taken
@@ -248,6 +248,27 @@ function(clay_label_tests_by_component DIR)
                 set_property(TEST ${_test} DIRECTORY "${_dir}"
                              APPEND PROPERTY LABELS "${_comp}")
             endif()
+        endforeach()
+    endforeach()
+endfunction()
+
+# Gives every test registered under DIR a settings store of its own,
+# build/test-storage/<test>, through CLAY_STORAGE_DIR (tools/scene/
+# claystorage.h). Without it every loader a test starts - the lab checks, the
+# gyms, the lab-new boots - opened the person's ~/.clayground, where LabPrefs
+# keeps language, theme and scale: tests running side by side (#384) would
+# change each other's settings, and every run changed the person's.
+function(clay_isolate_test_storage DIR)
+    if(CMAKE_VERSION VERSION_LESS 3.28)
+        return()
+    endif()
+    clay_test_directories("${DIR}" _dirs)
+    foreach(_dir IN LISTS _dirs)
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        foreach(_test IN LISTS _tests)
+            set_property(TEST ${_test} DIRECTORY "${_dir}" APPEND PROPERTY
+                ENVIRONMENT_MODIFICATION
+                "CLAY_STORAGE_DIR=set:${CMAKE_BINARY_DIR}/test-storage/${_test}")
         endforeach()
     endforeach()
 endfunction()
