@@ -36,6 +36,8 @@
     \li Uses Qt's LocalStorage module backed by SQLite
     \li Each unique name creates a separate database file
     \li All values are stored as strings
+    \li In a WebAssembly build the databases are kept in the browser's
+        IndexedDB, so they survive a page reload (see StorageSync)
     \endlist
 
     \sa KeyValueStore
@@ -47,7 +49,9 @@
     \brief A persistent key-value storage component using SQLite database.
 
     KeyValueStore provides a simple interface for storing and retrieving
-    key-value pairs that persist across application sessions.
+    key-value pairs that persist across application sessions - in a
+    WebAssembly build across page reloads, too: set() and remove() hand
+    the change to StorageSync, which keeps it in the browser's IndexedDB.
 
     \section1 Properties
 
