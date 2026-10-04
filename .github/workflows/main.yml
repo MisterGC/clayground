@@ -115,10 +115,14 @@ jobs:
       if: matrix.qt-target == 'desktop'
       run: pip install wsproto
 
+    # BUILD_TESTING=ON as in the presets: without it the 17 tests registered
+    # under if(BUILD_TESTING) - the loader's inspector tests, the lab checks,
+    # lab-new, clayrender - never ran here, and CI is what runs the whole
+    # suite before a merge while verify.sh runs a part of it (#384)
     - name: Configure CMake (Desktop)
       if: matrix.qt-target == 'desktop'
       run: |
-        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} .
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DBUILD_TESTING=ON -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} .
 
     - name: Configure CMake (WASM)
       if: matrix.qt-target == 'wasm'
