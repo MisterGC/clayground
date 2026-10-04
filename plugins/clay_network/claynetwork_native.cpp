@@ -6,6 +6,7 @@
 #include "sender.h"
 #include "handshake.h"
 #include "hostloss.h"
+#include "plainvalue.h"
 #include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
@@ -719,7 +720,8 @@ void ClayNetwork::settleObjectState(const QString &id, const QVariant &data)
 
 bool ClayNetwork::setSessionProperty(const QString &name, const QVariant &value)
 {
-    return replicas_.setSessionProperty(name, value);
+    // A JS object or array arrives as a QJSValue, which JSON makes null (#375)
+    return replicas_.setSessionProperty(name, clay::network::plainVariant(value));
 }
 
 QVariantList ClayNetwork::objects() const

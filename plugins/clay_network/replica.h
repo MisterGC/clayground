@@ -5,6 +5,7 @@
 #include <utility>
 #include <QHash>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QList>
 #include <QString>
 #include <QVariant>
@@ -272,11 +273,13 @@ public:
     {
         if (!active() || !isHost_ || name.isEmpty())
             return false;
-        session_[name] = value;
+        // As JSON carries it, so the host holds what every joiner gets
+        const QVariant sent = QJsonValue::fromVariant(value).toVariant();
+        session_[name] = sent;
         if (io_.sessionProperty)
-            io_.sessionProperty(name, value);
+            io_.sessionProperty(name, sent);
         QVariantMap p;
-        p[name] = value;
+        p[name] = sent;
         broadcast(sessionOp(p));
         return true;
     }
