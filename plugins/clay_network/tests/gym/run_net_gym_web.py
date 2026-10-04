@@ -22,7 +22,7 @@ connection of its own to the joiner, which closes it: in Star only the host
 connects to a joiner (#306).
 
 Usage:
-    python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed]
+    python3 run_net_gym_web.py <starter-dir> [--timeout 600] [--headed] [--part all|1|2]
 
 Requires: pip install playwright wsproto
 """
@@ -152,6 +152,11 @@ def main():
     ap.add_argument("--timeout", type=int, default=180,
                     help="seconds for both pages to boot and connect")
     ap.add_argument("--headed", action="store_true")
+    # CI runs the two parts on runners of their own, about a minute each
+    # instead of two in a row (#386); both start with the handshake
+    ap.add_argument("--part", choices=["all", "1", "2"], default="all",
+                    help="1: keyed state, session clock, objects; "
+                         "2: the link scenarios - loss to a killed host")
     args = ap.parse_args()
 
     tmp = tempfile.mkdtemp(prefix="clay_net_gym_web_")
@@ -191,7 +196,7 @@ def main():
                 page.goto(f"{base}/{role}/index.html")
                 inst[role] = WebInstance(bridge, role, page)
             ok = run(inst["host"], inst["joiner"], inst["joinB"], inst["joinC"],
-                     signaling_url, args.timeout)
+                     signaling_url, args.timeout, args.part)
             browser.close()
     except Exception as e:  # a harness failure is a failed run, said as such
         check("harness: ran to the end", False, repr(e))
@@ -225,7 +230,7 @@ def on_page_error(role, log, err):
     print(f"[{role}] pageerror: {err}", flush=True)
 
 
-def run(H, J, B, C, signaling_url, timeout):
+def run(H, J, B, C, signaling_url, timeout, part="all"):
     up = wait_for(lambda: all(i.ready() for i in (H, J, B, C)), timeout, 0.5)
     if not check("gym: all four pages loaded the gym", up,
                  f"ready: {[i.role for i in (H, J, B, C) if i.ready()]}"):
@@ -272,6 +277,14 @@ def run(H, J, B, C, signaling_url, timeout):
     time.sleep(1.0)
     check_tracking(J, "interp: clean link")
 
+    if part in ("all", "1"):
+        run_part_one(H, J, B, C, code, signaling_url)
+    if part in ("all", "2"):
+        run_part_two(H, J, host_id, code)
+    return True
+
+
+def run_part_one(H, J, B, C, code, signaling_url):
     keyed_four_nodes(H, J, B, C, code)
 
     # One session clock on every page (#304); joinB leaves again after it
@@ -286,6 +299,8 @@ def run(H, J, B, C, signaling_url, timeout):
     scenario_objects(H, ("joiner", J), ("joinB", B), code)
     scenario_stray_connection(J, C, signaling_url)
 
+
+def run_part_two(H, J, host_id, code):
     scenario_loss(H, J, host_id)
     scenario_latency(H, J, host_id)
     scenario_blackout(H, J, host_id)
@@ -305,7 +320,6 @@ def run(H, J, B, C, signaling_url, timeout):
              rehosted and rejoined, str(code2)):
         scenario_host_killed(lambda: crash_page(H.page), J.eval1("netRef.hostId"),
                              [("joiner", J)], "page crashed")
-    return True
 
 
 def keyed_four_nodes(H, J, B, C, code):
