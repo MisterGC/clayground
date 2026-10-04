@@ -428,7 +428,9 @@ to nothing.
 `ReplicatedObject` sends its `properties` when they change - at most once
 per frame, or once per `sendInterval` ms - and, after they rest for
 `settleMs` (200), once more over the reliable channel, so a lost last
-update cannot leave a stale value behind. Properties are numbers, strings,
+update cannot leave a stale value behind. That copy, and the one it sends
+when the item stops, carry the key `$rest`, so a receiver's `autoDelay`
+takes neither for an update period. Properties are numbers, strings,
 booleans or plain objects; with `interpolate` the numbers are blended
 through a `StateInterpolator` and the rest switch with their snapshot.
 `Replicas` makes a `delegate` per object of its `type`, with `objectId` and
