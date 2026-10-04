@@ -44,8 +44,10 @@
     Properties may be numbers, strings, booleans, or plain JS objects and
     arrays; interpolation blends the numbers and switches the others with
     the snapshot they came with, so an AI state string changes in step
-    with the position it belongs to. A property is applied only when the
-    owner's state has it.
+    with the position it belongs to. A number that must not be blended -
+    a health value, a counter - goes into \l steppedProperties: it switches
+    with its snapshot too, and shows only values the owner had. A property
+    is applied only when the owner's state has it.
 
     \sa Network, Replicas, StateInterpolator
 */
@@ -86,6 +88,20 @@ Item {
                applying each as it arrives (default false).
     */
     property bool interpolate: false
+
+    /*!
+        \qmlproperty list<string> ReplicatedObject::steppedProperties
+        \brief Those of the \l properties whose numbers are never blended
+               with \l interpolate (default none).
+
+        Each switches with the snapshot it came with, at the interpolator's
+        delay like the blended ones, so it shows only values the owner sent:
+        a health value going 52 -> 49 never shows 50.5. The interpolator's
+        \c stepKeys. Without \l interpolate every property is applied as it
+        arrives anyway. What goes out, \l Network::objectInfo and
+        \l Network::objectStateReceived are the same either way.
+    */
+    property var steppedProperties: []
 
     /*!
         \qmlproperty int ReplicatedObject::sendInterval
@@ -332,6 +348,7 @@ Item {
         id: _interp
         network: root.network
         nodeId: root.owner
+        stepKeys: root.steppedProperties
         onUpdated: _p.apply(value)
     }
 }
