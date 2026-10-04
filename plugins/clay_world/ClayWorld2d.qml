@@ -369,6 +369,11 @@ ClayWorldBase {
     }
 
     function _updatePropertyBindingsOnDemand(obj){
+        // A child an entity owns but parents into the room (a trail, a
+        // shadow) is marked deleted together with the entity, before the
+        // entity leaves the room; that leave runs this over room.children,
+        // where the part then reads as null and `in` throws (#335).
+        if (!obj) return;
         if ("pixelPerUnit" in obj)
             obj.pixelPerUnit = Qt.binding( _ => {return _theCanvas.pixelPerUnit;} );
         if ("world" in obj)
