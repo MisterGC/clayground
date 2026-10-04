@@ -18,7 +18,9 @@
     stopped instead of carrying its motion on. When it comes to rest - no
     change for \l settleMs - its last state is sent once more, reliably,
     so a lost update cannot leave the other nodes, or the next one to
-    join, with a stale value.
+    join, with a stale value. Both copies carry the key \c{$rest}, which
+    tells a receiving StateInterpolator they are no update period; it
+    shows up in \l Network::objectStateReceived too.
 
     \qml
     Replicas {
@@ -244,6 +246,15 @@ Item {
             return data
         }
 
+        // The stop and the settle repeat the last state because the item
+        // rests: marked, so a receiver's auto delay takes neither them nor
+        // the gap after them for an update period (#374)
+        function restCopy() {
+            const data = snapshot()
+            data["$rest"] = true
+            return data
+        }
+
         function send() {
             if (!root.isOwner || !root.target || !attachedTo)
                 return
@@ -302,7 +313,7 @@ Item {
         onTriggered: {
             if (_p.pending || !root.isOwner || !root.target || !_p.attachedTo)
                 return
-            _p.attachedTo.sendObjectState(_p.attachedId, _p.snapshot())
+            _p.attachedTo.sendObjectState(_p.attachedId, _p.restCopy())
             // The pause is no update period; the next motion starts anew
             _p.lastSendAt = 0
         }
@@ -313,7 +324,7 @@ Item {
         interval: root.settleMs
         onTriggered: {
             if (root.isOwner && root.target && _p.attachedTo)
-                _p.attachedTo.settleObjectState(_p.attachedId, _p.snapshot())
+                _p.attachedTo.settleObjectState(_p.attachedId, _p.restCopy())
         }
     }
 

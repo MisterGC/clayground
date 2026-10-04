@@ -19,9 +19,11 @@
 // The auto delay takes an object's rest for neither a period nor lateness
 // (#366): after the gaps a stop leaves in the stream, it aims for its
 // streaming value again within a few states. Nor does it take the copies
-// of its last state a ReplicatedObject sends at a stop and a settle, or
-// the gap from them to the next state, for periods (#374): an enemy that
-// stops and is hit while it stands keeps the delay it streams with.
+// of its last state a ReplicatedObject sends at a stop and a settle,
+// marked $rest, or the gap from them to the next state, for periods
+// (#374): an enemy that stops and is hit while it stands keeps the delay
+// it streams with, and a sender that repeats its states unmarked is
+// still measured by them.
 
 import QtQuick
 import QtTest
@@ -286,27 +288,31 @@ TestCase {
     }
 
     // A ReplicatedObject's stream of an enemy that moves, stops and is hit
-    // (#374): states every 16 ms while it moves; at each stop the last
-    // state once more 24 ms later and once more, settled, 176 ms after
-    // that; a hit while it stands sends the changed HP, and that state
-    // twice more the same way. Stops and hits outnumber the moving states
-    // of the short bursts in between, so most intervals in the stream are
-    // the gaps around a rest. Returns the highest target after any state
-    // past the first few hundred.
-    function moveStopAndHit(withSentAt) {
-        let i = make({network: stubNet, nodeId: "A", autoDelay: true})
+    // (#374): states every period ms while it moves; at each stop the last
+    // state once more 1.5 periods later and once more, settled, 200 ms
+    // after the last motion - both copies marked $rest, as ReplicatedObject
+    // sends them; a hit while it stands sends the changed HP, and that
+    // state twice more the same way. Stops and hits outnumber the moving
+    // states of the short bursts in between, so most intervals in the
+    // stream are the gaps around a rest. clock is "shared" (the network's
+    // offset for the sender), "own" (an unknown sender: the interpolator's
+    // own offset on the session clock) or "arrival" (no sentAt). Returns
+    // the highest target after any state past the first few hundred.
+    function moveStopAndHit(clock, period) {
+        let i = make({network: stubNet, nodeId: clock === "own" ? "B" : "A", autoDelay: true})
         let sent = 0
         let x = 0
         let hp = 50
-        let send = (dt) => {
+        let send = (dt, copy) => {
             sent += dt
             stubNet.sessionTime = sent + 80
             let state = {x: x, hp: hp, ai: "chase"}
-            if (withSentAt) i.push(state, sent)
-            else i.push(state)
+            if (copy) state["$rest"] = true
+            if (clock === "arrival") i.push(state)
+            else i.push(state, sent)
         }
-        let rest = () => { send(24); send(176) }
-        for (let k = 0; k < 200; ++k) { x += 0.1; send(16) }
+        let rest = () => { send(1.5 * period, true); send(200 - 1.5 * period, true) }
+        for (let k = 0; k < 200; ++k) { x += 0.1; send(period) }
         let most = 0
         for (let round = 0; round < 10; ++round) {
             rest()
@@ -317,45 +323,45 @@ TestCase {
             most = Math.max(most, autoTarget(i))
             for (let k = 0; k < 3; ++k) {
                 x += 0.1
-                send(k === 0 ? 400 : 16)
+                send(k === 0 ? 400 : period)
                 most = Math.max(most, autoTarget(i))
             }
         }
+        verify(i.value["$rest"] === undefined, "the mark reached the value")
         return most
     }
 
     function test_auto_delay_takes_no_rest_of_an_object_that_stops_and_is_hit() {
         // 2 x 16 + no lateness + 4, as while it streams; the gaps around
         // its rests, taken for periods, made it 2 x 176 + 4 = 356
-        compare(moveStopAndHit(true), 36)
+        compare(moveStopAndHit("shared", 16), 36)
     }
 
     function test_auto_delay_takes_no_rest_of_an_object_that_stops_and_is_hit_for_lateness() {
-        compare(moveStopAndHit(false), 36)
+        compare(moveStopAndHit("arrival", 16), 36)
     }
 
     function test_auto_delay_takes_no_lone_change_for_a_period_at_the_settles_spacing() {
         // An enemy that stands and changes now and then - its AI state, a
         // drift of a thousandth: each change, its stop copy 24 ms and its
-        // settle 176 ms later, the next change about a settle after that.
-        // A change that comes as long after the settle as the settle after
-        // the stop copy is still no period
+        // settle 176 ms later, the next change about a settle after that
         for (let withSentAt of [true, false]) {
             let i = make({network: stubNet, nodeId: "A", autoDelay: true})
             let sent = 0
             let x = 0
-            let send = (dt) => {
+            let send = (dt, copy) => {
                 sent += dt
                 stubNet.sessionTime = sent + 80
-                if (withSentAt) i.push({x: x}, sent)
-                else i.push({x: x})
+                let state = copy ? {x: x, "$rest": true} : {x: x}
+                if (withSentAt) i.push(state, sent)
+                else i.push(state)
             }
             for (let k = 0; k < 200; ++k) { x += 0.1; send(16) }
             for (let k = 0; k < 20; ++k) {
                 x += 0.001
                 send(170 + (k % 3) * 10)
-                send(24)
-                send(176)
+                send(24, true)
+                send(176, true)
             }
             compare(autoTarget(i), 36, withSentAt ? "on send time" : "on arrival")
         }
