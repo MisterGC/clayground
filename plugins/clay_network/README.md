@@ -432,7 +432,9 @@ update cannot leave a stale value behind. That copy, and the one it sends
 when the item stops, carry the key `$rest`, so a receiver's `autoDelay`
 takes neither for an update period. Properties are numbers, strings,
 booleans or plain objects; with `interpolate` the numbers are blended
-through a `StateInterpolator` and the rest switch with their snapshot.
+through a `StateInterpolator` and the rest switch with their snapshot - as
+do the numbers named in `steppedProperties`, so a health value shows only
+values its owner had.
 `Replicas` makes a `delegate` per object of its `type`, with `objectId` and
 the spawn props as properties of the same name, and destroys it on despawn;
 handle `objectSpawned`/`objectDespawned` yourself to make items another
@@ -458,7 +460,9 @@ the Star topology and are wire version 4; an older build is refused with
   instead of guessing one. Give it `network` and the sender's `nodeId` and
   it runs on the session clock and takes the sender's offset from
   `network.transitMs(nodeId)` - estimated once per sender, however many
-  objects of that sender are interpolated. It works per frame only while
+  objects of that sender are interpolated. `stepKeys` names numbers it
+  never blends - health, a counter - which switch with their snapshot
+  instead. It works per frame only while
   it has something to blend - a resting value stops its frame loop until
   the next push - and blends into two reused value objects, so one per
   replicated object stays cheap. Use this instead of `Behavior`

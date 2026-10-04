@@ -132,6 +132,7 @@ PhysicsItem {
         autoDelay: true         // sized from the observed jitter; or set
                                 // delayMs >= 2x the sender's update interval
         angleKeys: ["a"]        // degrees, interpolated via shortest arc
+        stepKeys: ["hp"]        // never blended: 52 -> 49 shows no 50.5
         onUpdated: {
             avatar.xWu = value.x
             avatar.yWu = value.y
@@ -314,7 +315,12 @@ Give the `Network` an id other than `network`: inside a `ReplicatedObject`,
 Properties may be numbers, strings, booleans or plain objects; with
 `interpolate` the numbers are blended and a string switches with the
 snapshot it came with, so an enemy's AI state changes in step with its
-position. Objects travel only between a joiner and its host - in the
+position. A number that must not be blended - health, a counter, an index -
+goes into `steppedProperties` (`steppedProperties: ["hp"]`): it switches
+with its snapshot like a string, at the same delay as the blended position,
+so a health value going 52 -> 49 shows 52 and then 49, never 50.5. It
+changes only how a receiver shows the value; what is sent, `objectInfo` and
+`objectStateReceived` stay the same. Objects travel only between a joiner and its host - in the
 browser a joiner closes any other connection - and need the Star topology.
 Object states go out with the keyed states of the same frame, batched; 30
 objects at 20 Hz take two datagrams per frame.
