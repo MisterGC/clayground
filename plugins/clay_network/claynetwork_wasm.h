@@ -36,6 +36,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QString hostId READ hostId NOTIFY hostIdChanged)
     Q_PROPERTY(bool isHost READ isHost NOTIFY isHostChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString hostLostReason READ hostLostReason NOTIFY hostLostReasonChanged)
     Q_PROPERTY(int playerCount READ nodeCount NOTIFY nodeCountChanged)
     Q_PROPERTY(QStringList players READ nodes NOTIFY nodesChanged)
     Q_PROPERTY(int maxPlayers READ maxNodes WRITE setMaxNodes NOTIFY maxNodesChanged)
@@ -99,6 +100,7 @@ public:
     QString hostId() const;
     bool isHost() const;
     bool connected() const;
+    QString hostLostReason() const { return hostLostReason_; }
     int nodeCount() const;
     QStringList nodes() const;
     int maxNodes() const;
@@ -193,6 +195,10 @@ signals:
     // The host refused this joiner in the handshake (#323); reason is one
     // of handshake.h's codes, errorOccurred(message) follows
     void joinRefused(const QString &reason, const QString &message);
+    // A joiner lost its host (#376); reason is one of hostloss.h's codes,
+    // already in hostLostReason when connected turned false.
+    // errorOccurred(message) follows
+    void hostLost(const QString &reason, const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
     // Replicated objects (#306)
     void objectSpawned(const QString &id, const QString &type, const QString &owner,
@@ -208,6 +214,7 @@ signals:
     void hostIdChanged();
     void isHostChanged();
     void connectedChanged();
+    void hostLostReasonChanged();
     void nodeCountChanged();
     void nodesChanged();
     void maxNodesChanged();
@@ -277,7 +284,9 @@ private:
     void probeQuietPeers();
     // A joiner's host left, went silent or its link closed: the network
     // is over, every node it knew is reported gone
-    void loseHost(const QString &reason);
+    void loseHost(const QString &reason, const QString &message);
+    // Empty while the host is not lost, cleared by createRoom()/joinRoom()
+    void setHostLostReason(const QString &reason);
     void removeNode(const QString &nodeId);
     // leave() without the goodbye: everything back to Disconnected
     void tearDown(bool goodbye);
@@ -295,6 +304,7 @@ private:
     QString hostId_;  // node id of the host, the same on every node
     bool isHost_ = false;
     bool connected_ = false;
+    QString hostLostReason_;
     int maxNodes_ = 8;
     Topology topology_ = Star;
     Status status_ = Disconnected;

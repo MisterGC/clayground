@@ -3,6 +3,7 @@
 #include "claynetwork_wasm.h"
 #include "sender.h"
 #include "handshake.h"
+#include "hostloss.h"
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -11,6 +12,7 @@
 #include <QUuid>
 
 namespace hs = clay::network::handshake;
+namespace hostloss = clay::network::hostloss;
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -1691,6 +1693,7 @@ void ClayNetwork::createRoom()
     if (refuseWhileSignalingDropped())
         return;
 
+    setHostLostReason(QString());
     status_ = Connecting;
     connectStartMs_ = clock_.elapsed();
     handshakeStartMs_ = -1;
@@ -1730,6 +1733,7 @@ void ClayNetwork::joinRoom(const QString &networkId)
     emit networkIdChanged();
     emit hostIdChanged();
 
+    setHostLostReason(QString());
     status_ = Connecting;
     connectStartMs_ = clock_.elapsed();
     handshakeStartMs_ = -1;
@@ -1816,15 +1820,26 @@ void ClayNetwork::tearDown(bool goodbye)
 #endif
 }
 
-void ClayNetwork::loseHost(const QString &reason)
+void ClayNetwork::loseHost(const QString &reason, const QString &message)
 {
-    // Every other node was reached through the host: the network is gone
-    qWarning() << "[ClayNetwork]" << reason;
+    // Every other node was reached through the host: the network is gone.
+    // The reason is set first, so a handler on connected can read it (#376).
+    qWarning() << "[ClayNetwork]" << message;
+    setHostLostReason(reason);
     const QStringList gone = nodes_;
     tearDown(false);
     for (const QString &id : gone)
         emit playerLeft(id);
-    emit errorOccurred(reason);
+    emit hostLost(reason, message);
+    emit errorOccurred(message);
+}
+
+void ClayNetwork::setHostLostReason(const QString &reason)
+{
+    if (hostLostReason_ == reason)
+        return;
+    hostLostReason_ = reason;
+    emit hostLostReasonChanged();
 }
 
 void ClayNetwork::removeNode(const QString &nodeId)
@@ -2132,7 +2147,7 @@ void ClayNetwork::onSystem(const char* json)
     heard(hostId_);
 
     if (sys == "bye") {
-        loseHost(QStringLiteral("The host left the network"));
+        loseHost(hostloss::hostLeft(), QStringLiteral("The host left the network"));
     } else if (sys == "roster") {
         QStringList added;
         for (const auto &v : obj["nodes"].toArray()) {
@@ -2339,7 +2354,7 @@ void ClayNetwork::onDisconnected()
     // A host's signaling drop does not come here (onSignalingLost, #299).
     if (status_ == Disconnected)
         return;
-    loseHost(QStringLiteral("Lost the connection to the host"));
+    loseHost(hostloss::connectionLost(), QStringLiteral("Lost the connection to the host"));
 }
 
 void ClayNetwork::onSignalingLost()
@@ -2421,7 +2436,8 @@ void ClayNetwork::checkLiveness()
         emitDiag("datachannel", QString("No answer from %1 for %2 ms, dropping it")
                  .arg(id.left(8)).arg(now - since));
         if (!isHost_) {
-            loseHost(QString("The host did not answer for %1 ms").arg(gracePeriod_));
+            loseHost(hostloss::hostTimeout(),
+                     QString("The host did not answer for %1 ms").arg(gracePeriod_));
             return;
         }
         QByteArray idBytes = id.toUtf8();

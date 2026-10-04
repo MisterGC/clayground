@@ -387,6 +387,26 @@ Item {
     readonly property bool connected: _backend ? _backend.connected : false
 
     /*!
+        \qmlproperty string Network::hostLostReason
+        \brief Why this joiner lost its host, or an empty string.
+
+        Set before \l connected turns false, so a handler on \c connected
+        or \l status can read it; host() and join() clear it again.
+
+        \value "host-left" The host called leave().
+        \value "host-timeout" The host left its pings unanswered for
+               \l gracePeriod: it crashed, froze or its link went dark.
+        \value "connection-lost" The connection to the host closed or
+               failed without a goodbye.
+
+        Empty when this node left by itself or never lost a host. More
+        codes may follow; treat an unknown one like \c "connection-lost".
+
+        \sa hostLost()
+    */
+    readonly property string hostLostReason: _backend ? _backend.hostLostReason : ""
+
+    /*!
         \qmlproperty int Network::nodeCount
         \brief Number of nodes currently in the network.
     */
@@ -562,7 +582,9 @@ Item {
         \brief Emitted when a connection error occurs.
 
         Also emitted on a joiner whose network ended because the host left,
-        crashed or lost its connection; \l status is Disconnected then.
+        crashed or lost its connection; \l status is Disconnected then, and
+        hostLost() came first with the reason for a game to act on. Never
+        match the text of \a message - it is for people.
     */
     signal errorOccurred(string message)
 
@@ -586,6 +608,17 @@ Item {
         join again - with the right password, for one.
     */
     signal joinRefused(string reason, string message)
+
+    /*!
+        \qmlsignal Network::hostLost(string reason, string message)
+        \brief Emitted on a joiner whose network ended with its host.
+
+        \a reason is one of \l hostLostReason's codes, already in that
+        property when \l connected turned false; \a message says it in
+        words. It comes after \l connected is false and every node was
+        reported in nodeLeft(), and errorOccurred(message) follows.
+    */
+    signal hostLost(string reason, string message)
 
     /*!
         \qmlsignal Network::signalingLost()
@@ -716,7 +749,8 @@ Item {
         Says goodbye to every peer first, so they report this node in
         nodeLeft() at once instead of after the grace period. If you're the
         host, this closes the network for all nodes: each joiner's \l status
-        turns Disconnected and it gets errorOccurred().
+        turns Disconnected, its \l hostLostReason is \c "host-left", and it
+        gets hostLost() and errorOccurred().
     */
     function leave() {
         if (_backend) {
@@ -1020,6 +1054,7 @@ Item {
         onStateReceived: (fromId, data, sentAt, key) => root.stateReceived(fromId, data, sentAt, key)
         onErrorOccurred: (message) => root.errorOccurred(message)
         onJoinRefused: (reason, message) => root.joinRefused(reason, message)
+        onHostLost: (reason, message) => root.hostLost(reason, message)
         onSignalingLost: () => root.signalingLost()
         onDiagnosticMessage: (phase, detail) => root.diagnosticMessage(phase, detail)
         onObjectSpawned: (id, type, owner, props) => root.objectSpawned(id, type, owner, props)
