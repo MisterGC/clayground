@@ -113,6 +113,9 @@
             "configurePreset": "default",
             "output": {
                 "outputOnFailure": true
+            },
+            "execution": {
+                "jobs": 8
             }
         },
         {
@@ -120,6 +123,9 @@
             "configurePreset": "debug",
             "output": {
                 "outputOnFailure": true
+            },
+            "execution": {
+                "jobs": 8
             }
         }
     ]

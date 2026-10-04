@@ -131,6 +131,8 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
         LABELS "network;integration;gym"
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
         TIMEOUT 300
+        # four loader instances: four of ctest's parallel slots (#384)
+        PROCESSORS 4
     )
 
     # The same gym over Cloud signaling, through clay-dev-server's PeerJS
@@ -147,6 +149,8 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
             LABELS "network;integration;gym"
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
             TIMEOUT 300
+            # four loader instances: four of ctest's parallel slots (#384)
+            PROCESSORS 4
         )
     else()
         message(STATUS "wsproto not found for ${Python3_EXECUTABLE} - "
